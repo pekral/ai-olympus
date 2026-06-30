@@ -1,0 +1,22 @@
+{assignment_verdict}
+
+**Authors:** [@github-handle-1, @github-handle-2 — or `Name <email>` when no GitHub handle is known, comma-separated in commit order; never the agent / CR identity]
+**Available behind:** [optional — present only when the change is reachable only behind a test parameter; name the toggle (e.g. `config('feature.new_pricing')`, ENV `BETA_PRICING=1`, query `?preview=1`, admin switch *New pricing preview*) and the value required to reach it; omit this line entirely when the change is reachable unconditionally]
+
+## Summary of changes
+
+**[Short headline naming the change — one line]**
+
+[One paragraph (3–5 sentences) in plain language explaining the business reason, the affected area, and just enough technical context (integration, payload, table, endpoint, …) that a developer can locate the change without reading the diff. Phrase impersonally — "The change …", "This update …" — never first person.]
+
+## How to test
+
+1. [If *Available behind* is set, this step **must** enable the toggle / supply the parameter / switch the admin flag — naming the exact value]
+2. [Next action a tester performs]
+3. [Outcome the tester verifies]
+
+{embedded_blocks}
+
+> Render the `{embedded_blocks}` slot only when the calling CR wrapper passes one or more markdown blocks (typically the `## Assignment Compliance` block returned by `@skills/assignment-compliance-check/SKILL.md`). Each block is appended verbatim, in the order received, separated by a single blank line. When no blocks are passed, omit this slot entirely — including the surrounding blank lines — so the comment ends right after `How to test`.
+
+> Render the `{assignment_verdict}` slot at the very top **only when the calling CR wrapper passes an `## Assignment Compliance` block** (i.e. the changes do not satisfy the assignment). It is a single bold line in the assignment language stating non-compliance and the gap count `N` (taken from the block's `Critical gaps found: N` verdict / count of gap entries), pointing the reader to the detail below — e.g. `⚠️ **Changes do not satisfy the assignment — N gap(s). See Assignment Compliance below.**` (Czech assignment → `⚠️ **Změny nesplňují zadání — N nedostatk(ů). Viz Assignment Compliance níže.**`). When the changes satisfy the assignment (no Assignment Compliance block passed) or no tracker is linked, omit this slot entirely — including the surrounding blank line — so the comment begins at `Authors`. Never render a positive "satisfies the assignment" line; only non-compliance is surfaced, consistent with the report-only-what-needs-action convention.

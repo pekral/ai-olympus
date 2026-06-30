@@ -1,0 +1,168 @@
+{
+  "name": "agentic-vibes/laravel-agent-skills",
+  "description": "Composer plugin for PHP and Laravel projects that installs Cursor/Claude/Codex rules and agent skills — coding standards, testing, and conventions",
+  "license": "MIT",
+  "type": "composer-plugin",
+  "keywords": [
+    "composer-plugin",
+    "cursor",
+    "agent-skills",
+    "cursor-editor",
+    "php-agent-skills",
+    "laravel-agent-skills",
+    "php",
+    "laravel",
+    "coding-standards",
+    "rules",
+    "phpstan",
+    "pest",
+    "clean-code"
+  ],
+  "authors": [
+    {
+      "name": "Petr Král",
+      "homepage": "https://pekral.cz",
+      "role": "lead"
+    }
+  ],
+  "homepage": "https://pekral.cz",
+  "support": {
+    "issues": "https://github.com/agentic-vibes/laravel-agent-skills/issues",
+    "source": "https://github.com/agentic-vibes/laravel-agent-skills",
+    "docs": "https://github.com/agentic-vibes/laravel-agent-skills#readme"
+  },
+  "require": {
+    "composer-plugin-api": "^2.0"
+  },
+  "require-dev": {
+    "composer/composer": "^2.10.1",
+    "ergebnis/composer-normalize": "^2.52.0",
+    "laravel/pint": "^1.29.3",
+    "pekral/phpcs-rules": "dev-master",
+    "pekral/phpstan-rules": "dev-master",
+    "pekral/rector-rules": "dev-master",
+    "pestphp/pest": "^4.7.4",
+    "pestphp/pest-plugin": "^4.0",
+    "pestphp/pest-plugin-type-coverage": "^4.0.4",
+    "phpstan/extension-installer": "^1.4.3",
+    "phpstan/phpstan": "^2.2.2",
+    "phpstan/phpstan-deprecation-rules": "^2.0.4",
+    "phpstan/phpstan-mockery": "^2.0",
+    "phpstan/phpstan-phpunit": "^2.0.16",
+    "roave/security-advisories": "dev-latest",
+    "squizlabs/php_codesniffer": "^4.0.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "AgenticVibes\\AgentSkills\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "bin": [
+    "bin/agent-skills"
+  ],
+  "archive": {
+    "exclude": [
+      "/tests"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "agentic-vibes/laravel-agent-skills": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "ergebnis/composer-normalize": true,
+      "pestphp/pest-plugin": true,
+      "phpstan/extension-installer": true
+    }
+  },
+  "extra": {
+    "class": "AgenticVibes\\AgentSkills\\ComposerPlugin"
+  },
+  "scripts": {
+    "analyse": [
+      "echo \"🔍 Running PHPStan static analysis...\"",
+      "vendor/bin/phpstan analyse --memory-limit=2G"
+    ],
+    "build": [
+      "bin/agent-skills install --force",
+      "@fix",
+      "@check"
+    ],
+    "check": [
+      "echo \"🚀 Running full quality check...\"",
+      "@skill-check",
+      "@composer-normalize-check",
+      "@phpcs-check",
+      "@pint-check",
+      "@rector-check",
+      "@analyse",
+      "@security-audit",
+      "@test:coverage"
+    ],
+    "composer-normalize-check": [
+      "echo \"📝 Checking Composer normalize...\"",
+      "composer normalize --dry-run"
+    ],
+    "composer-normalize-fix": [
+      "echo \"📝 Running Composer normalize fix...\"",
+      "composer normalize || true"
+    ],
+    "coverage": [
+      "echo \"📊 Running code coverage analysis...\"",
+      "@test:coverage"
+    ],
+    "fix": [
+      "echo \"🔧 Running all fixes...\"",
+      "@skill-check-fix",
+      "@composer-normalize-fix",
+      "@rector-fix",
+      "@pint-fix",
+      "@phpcs-fix",
+      "echo \"✅ All fixes completed!\""
+    ],
+    "phpcs-check": [
+      "echo \"✅ Running PHP CodeSniffer check...\"",
+      "vendor/bin/phpcs --standard=ruleset.xml src/ tests/ bin/"
+    ],
+    "phpcs-fix": [
+      "echo \"🔧 Running PHP CodeSniffer fix...\"",
+      "vendor/bin/phpcbf --standard=ruleset.xml src/ tests/ bin/ || true"
+    ],
+    "pint-check": [
+      "echo \"🎨 Running Laravel Pint check...\"",
+      "vendor/bin/pint src/ tests/ bin/ --test"
+    ],
+    "pint-fix": [
+      "echo \"🎨 Running Laravel Pint fixes...\"",
+      "vendor/bin/pint src/ tests/ bin/"
+    ],
+    "rector-check": [
+      "echo \"🔄 Running Rector check (dry-run)...\"",
+      "vendor/bin/rector process --dry-run"
+    ],
+    "rector-fix": [
+      "echo \"🔄 Running Rector fixes...\"",
+      "vendor/bin/rector process"
+    ],
+    "security-audit": [
+      "echo \"🔒 Running Composer security audit...\"",
+      "composer audit --format=summary"
+    ],
+    "skill-check": [
+      "echo \"📋 Running skill-check (SKILL.md linter)...\"",
+      "npx skill-check check skills --no-security-scan"
+    ],
+    "skill-check-fix": [
+      "echo \"📋 Running skill-check auto-fix...\"",
+      "npx skill-check check skills --fix --no-security-scan"
+    ],
+    "test:coverage": [
+      "echo \"📊 Running coverage tests with PCOV...\"",
+      "php -d pcov.enabled=1 -d pcov.directory=src -d pcov.exclude=~tests~ -d xdebug.mode=off vendor/bin/pest --coverage tests --min=100"
+    ]
+  }
+}

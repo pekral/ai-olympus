@@ -1,0 +1,136 @@
+---
+description: Project context, AI behavior, and unified coding standards for PHP/Laravel projects
+alwaysApply: true
+globs: ["*"]
+---
+
+## Project Context
+- The project tech stack is defined in `composer.json`.
+- Use the PHP version and major package versions defined in `composer.json` as the source of truth.
+- Prefer existing project conventions over introducing new patterns.
+
+## AI Behavior
+- Do not apologize.
+- Do not invent changes, files, implementations, or results.
+- Preserve existing code and do not remove unrelated logic.
+- Verify visible context before proposing changes.
+- Do not speculate when the answer can be derived from the repository context.
+- Do not ask the user to verify something that is already visible in the provided code or files.
+- Do not suggest file changes when no actual modification is needed.
+- Fix obvious grammatical issues in user-facing text you modify.
+- Default to autonomous execution: proceed without asking when the answer can be inferred from the issue, the codebase, the project configuration, or prior conversation context.
+- Only ask the user when the next step is genuinely ambiguous **and** the ambiguity cannot be resolved from the available context. State the specific ambiguity that blocks the work.
+- Never ask the user to confirm a fact the agent can verify itself (tests passing, fixers clean, branch up-to-date, file exists, etc.) — verify it directly instead.
+- Never gate on user approval for work the assignment already authorizes (creating commits, opening PRs, applying review fixes mandated by the calling skill).
+- When user input is genuinely required, batch all questions into a single round; do not serialize one question at a time.
+
+## Naming
+- Use clear, descriptive names that reveal purpose.
+- Prefer descriptive method and variable names over comments.
+- Classes: PascalCase.
+- Methods and variables: camelCase.
+- Routes: kebab-case URLs and dot notation route names.
+- Config keys: snake_case.
+- Controllers: plural noun + `Controller`.
+- Jobs: action-oriented names.
+- Events: past-tense or domain-event names.
+- Enums: descriptive case names.
+
+## Structure
+- Keep one clear responsibility per class and per method.
+- Avoid god classes and mixed responsibilities.
+- Prefer composition over inheritance unless inheritance is clearly justified.
+- Expose clear interfaces and keep implementation details internal.
+- Extract deeply nested conditionals into well-named methods where it improves readability.
+- Prefer small, simple classes or functions unless state is genuinely needed.
+- Prefer typed DTOs over raw arrays across important boundaries.
+- When a method, function, closure, constructor, `__invoke()`, or other callable requires more than 4 parameters, introduce a dedicated typed DTO (preferably `final readonly` with promoted constructor properties) and pass it as a single argument instead of a long parameter list. Promoted constructor properties count as parameters; a variadic (`...$args`) counts as one. The only exempt cases are entry-point signatures fixed by an external framework / vendor contract that the project cannot change — controller actions whose argument list is resolved by the service container, magic methods bound by the framework, event listeners whose signature is dictated by the dispatched event, and methods overriding a parent / interface owned by `vendor/`. The exemption must be cited explicitly wherever the rule is enforced (CR finding, refactoring proposal) with the parent class / interface and a one-line reason.
+- When a **public** method returns a structured set of values — an associative array representing a record, a multi-key payload, or an array shape with named string keys — return a typed DTO (preferably `final readonly` with promoted constructor properties) instead of the raw array. A DTO names and types each field, turning an opaque `array` return type into a self-documenting contract the caller can rely on. This does **not** apply to: a single scalar / `bool` / `string` / `int` / `enum` / `void` return; a homogeneous list or collection of one type (`list<int>` of IDs, `array<int, OrderData>`, `Collection<int, UserModel>`); or a return whose array shape is fixed by an external framework / vendor contract the project cannot change — `toArray()`, `jsonSerialize()`, `Arrayable::toArray()`, Eloquent `casts()` / `$attributes`, FormRequest `rules()`, a config callback the framework invokes, or a method overriding a parent / interface owned by `vendor/`. The exemption must be cited explicitly wherever the rule is enforced (CR finding, refactoring proposal) with the contract and a one-line reason.
+- Use `readonly` for immutable data where practical.
+- Use PHP attributes when they provide a cleaner and more idiomatic solution than manual wiring.
+
+## Code Style
+- Follow active PHP-FIG standards used by the project.
+- Never reformat unrelated existing code.
+- Keep formatting readable and consistent with surrounding code.
+- Add blank lines between distinct logical blocks, but avoid unnecessary vertical noise.
+- Avoid cramped formatting and avoid excessive empty lines.
+
+## PHP Practices
+- Always declare explicit return types.
+- Use the PHP version supported by `composer.json`.
+- Prefer modern PHP syntax when supported by the project.
+- Use `match` where it improves clarity.
+- Use named arguments when they improve readability and reduce ambiguity.
+- Document iterable value types with generics where applicable.
+- Use array shapes for fixed structured arrays when DTOs are not appropriate (e.g. an internal / private helper, or a framework / vendor contract); for a **public** method returning a structured record the *Structure* section's public-return rule applies — return a DTO.
+- Avoid magic numbers; extract meaningful constants when the value has domain meaning.
+- Prefer specific exceptions over generic ones.
+- Catch specific exceptions only when recovery or translation is meaningful.
+- Never suppress errors with `@`.
+- **Do not introduce new static-analysis / linter suppressions.** A new suppression on a line the change adds or modifies — a PHPCS ignore (`// phpcs:ignore`, `// phpcs:disable`, `@phpcsSuppress`, `@codingStandardsIgnoreStart` / `…Line` / `…End`), a PHPStan ignore (`@phpstan-ignore`, `@phpstan-ignore-line`, `@phpstan-ignore-next-line`, a new `ignoreErrors` entry or baseline addition in `phpstan.neon` / `phpstan-baseline.neon`), a Psalm / Phan suppression (`@psalm-suppress`, `@phan-suppress`, baseline addition), a PHPMD `@SuppressWarnings(...)`, or the PHP `@` operator — silences the tool instead of fixing what it flagged. **Fix the underlying issue rather than suppressing it.** The narrow, allowed exception is a genuinely unavoidable, third-party / framework false positive that the project cannot fix at the source: the suppression must then be **narrowly scoped** (a specific rule / error identifier on a single line, never a blanket `phpcs:disable` with no rule name or a whole-file / whole-method ignore) **and** carry an inline comment stating why the underlying issue cannot be fixed. A blanket or undocumented suppression is never acceptable. The PHP `@` operator is **never** exempt — it stays banned outright per the rule above; this narrow exception covers only the linter / static-analysis ignore annotations. *(This does not conflict with the `UnusedVariable` rule below: `assert($variable !== null)` is a real assertion that resolves the warning, not a suppression annotation.)* CR severity for an unjustified new suppression: **Moderate**.
+- When fixing an unused variable (e.g. PHPCS `UnusedVariable`): delete the variable if it is not required. If the variable is required (e.g. assigned from a function call with side effects), suppress the warning with `assert($variable !== null)` or similar `assert()` instead of removing the assignment.
+
+## Named Arguments
+- Many parameters is a code smell. It often means the method does too much or should accept a DTO/value object.
+- Named arguments help most with booleans, null, array values, and unclear strings. For example, `true`, `null`, `[]` without context say nothing.
+- They improve call-site readability without unnecessary variables. Instead of `$status = 'active'` just for a hint, use `status: 'active'`.
+- They should not replace good design. When a method has 8 parameters, named arguments do not fix the problem. They just make it bearable.
+- In public APIs, parameter names become part of the contract. Renaming a parameter in a public method can break consumers using named arguments.
+- Keep arguments in the original method signature order even when using named arguments.
+- See `rules/php/examples/named-arguments.md` for usage examples.
+
+## Design Principles
+- Follow SOLID pragmatically, not dogmatically.
+- Keep I/O at the edges where practical.
+- Prefer deterministic behavior based on explicit inputs.
+- Extract repeated logic into reusable abstractions only when repetition is real and meaningful.
+- Keep related code together and maintain a logical folder structure.
+- Leave touched code cleaner than you found it.
+- Do not add speculative (YAGNI) parameters. Add a parameter to a method, function, action, or constructor only when at least one current caller actually needs it. Optional knobs, "in case" defaults, and parameters introduced solely for hypothetical future callers must be removed; add them later when a real use case appears.
+- Do not introduce PHP `interface` types speculatively. Define a project-owned interface only when it has **at least two non-test consumers, and/or at least two non-test implementations** — test doubles, mocks, and fakes do not count toward either threshold. Implementing a framework or third-party interface (e.g. `ShouldQueue`, `HasLabel`, `Arrayable`, contract interfaces from `vendor/`) is always allowed; the rule applies only to interfaces declared inside this project. When refactoring, collapse single-implementation, single-consumer interfaces back into their concrete class unless they exist for a documented architectural reason — a published package API surface, or a plugin extension point with a written contract documented in code or in the package README.
+
+## Documentation
+- Prefer self-documenting code over explanatory comments.
+- Document APIs, complex business rules, non-obvious side effects, and important constraints.
+- PHPDoc should describe intent and domain meaning, not restate the method name or implementation steps.
+- Keep PHPDoc high-level and useful for maintainers.
+
+## Testing
+- Add or update tests for every meaningful behavior change.
+- Write all new tests using Pest syntax (`it()` / `test()` functional blocks); do not introduce PHPUnit-style class-based tests for new test files.
+- Require 100% test coverage for every changed or added code path.
+- **In code review / pre-push contexts (CR skills, `process-code-review`, `create-missing-tests-in-pr`, `create-test`) verify coverage for the changed files only** — every line, branch, and condition added or modified by the current changes must be covered, but do not gate on a project-wide coverage percentage. Use the coverage tooling the project already provides (a Phing coverage target, a Composer `test:coverage` / `coverage` script, or a direct `vendor/bin/pest --coverage-clover=<file>` / PHPUnit `--coverage-clover` invocation); do not add a new bespoke coverage script to the project. Full-suite coverage commands remain the release / CI gate.
+- Scope the run to the changed source files whenever the runner allows it (`--coverage-clover` plus a path filter, PCOV `pcov.directory` scoped to the changed directories); otherwise generate the report and read off only the changed files.
+- **Delete any auto-generated coverage report file (the `--coverage-clover` output or other coverage artifact) as soon as it has been read**, so it is never accidentally committed to git, and keep such artifacts in `.gitignore` as a second line of defence.
+- **Report the coverage result short by default (issue #528 follow-up).** Run the coverage check on every change, but report it on the published CR / tracker comment **only** when there is something the reader must act on — uncovered changed lines (listed as Critical findings) or unavailable coverage tooling (also a Critical finding). When every changed line is at 100% coverage and the tool ran successfully, omit the `## Coverage` section, the `Coverage:` header line, and the `coverage …` slot from the summary line. The Counts line carries the clean signal; the omission is the report. The check itself still runs unconditionally on every CR / pre-push gate.
+- Prefer deterministic tests.
+- Use the arrange-act-assert structure when it improves readability.
+- Use clear, human-readable test names.
+- Do not use `describe()` in Pest tests.
+- Prefer top-level `it()` or `test()` blocks only.
+- Prefer data providers through test arguments rather than PHPDoc annotations.
+- Avoid reflection in tests unless there is no reasonable alternative.
+- Split complex conditional test setups into separate test cases instead of branching inside a test.
+- Never generate `covers()` methods unless the repository explicitly requires them.
+- Mock only external services or exception paths that are otherwise hard to reach.
+- Prefer partial mocks over full mocks when mocking is necessary.
+- Follow existing project testing conventions unless introducing a new pattern is clearly justified.
+
+## Bug Fix Workflow
+- Write or update a failing test before fixing a bug when practical.
+- Refactor only after behavior is covered.
+- Run the most relevant tests for changed code first.
+
+## Fluent API Design
+- Prefer readable, intention-revealing APIs over vague helper utilities.
+- Use factory methods like `of()` or `from()` when they match existing project style.
+- Prefer explicit domain language over generic utility method naming.
+- Avoid god utility classes with many unrelated static helpers.
+
+## Globals
+- Do not use global variables.
+- Do not introduce `global` state in application or test code unless the platform truly requires it.
+
+## Async Review Note
+- When reviewing asynchronous jobs, first verify whether retry, timeout, and backoff behavior is defined in the job itself or centrally in configuration.

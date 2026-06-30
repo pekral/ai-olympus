@@ -1,0 +1,54 @@
+name: Pull Request Quality Checks
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  quality-checks:
+    name: "🔍 Quality Checks (PHP 8.5)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@2.37.1
+        with:
+          php-version: '8.5'
+          extensions: pcov, dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+          coverage: pcov
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-8.5-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.5-
+            ${{ runner.os }}-php-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: "🔒 Security Audit"
+        run: composer security-audit
+
+      - name: "🔍 PHP CodeSniffer"
+        run: composer phpcs-check
+
+      - name: "🎨 Laravel Pint"
+        run: composer pint-check
+
+      - name: "🔄 Rector"
+        run: composer rector-check
+
+      - name: "🔎 PHPStan Analysis"
+        run: composer analyse
+
+      - name: "📊 Coverage Tests"
+        run: composer test:coverage

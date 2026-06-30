@@ -1,0 +1,194 @@
+---
+description: SQL query optimization, index design, schema standards, and advanced SQL patterns for MySQL/MariaDB.
+alwaysApply: true
+globs: ["*"]
+---
+
+## General
+- No N+1: use `with()`, `load()`, or JOINs
+- SARGable WHERE clauses (no functions on indexed columns)
+- Seek pagination over OFFSET
+- Never `SELECT *`; fetch only needed columns
+- Use EXPLAIN for new or changed queries: avoid type ALL, high rows, Using filesort, Using temporary
+- Prepared statements with bound parameters; never concatenate user input into SQL
+- Push filtering, sorting, aggregation into SQL; avoid doing it in application code
+- Refactor or split very complex joins when EXPLAIN shows poor plans; when profiling use slow query log and prioritize frequent or longest queries
+- **Indexes:** index columns used in WHERE, JOIN, ORDER BY, GROUP BY; composite index order must match query filter/sort; avoid low-cardinality-only indexes; use covering indexes when a query can be satisfied from the index; drop unused or redundant indexes when changing schema; aim for 3–5 well-chosen indexes per table; prefer parallel index creation on large tables
+- **Transactions:** keep transactions short; avoid holding locks during app logic; batch writes in single transactions where appropriate; reduce lock contention via batching and suitable isolation levels; use `SHOW ENGINE INNODB STATUS` to diagnose lock waits when investigating issues
+- Index JOIN columns on both tables; composite index order matters (left-to-right)
+
+## Query Analysis
+- Run `EXPLAIN` on every new or modified query.
+- Flag: type `ALL`, high `rows`, `Using filesort`, `Using temporary`.
+- Use `EXPLAIN ANALYZE` for actual vs estimated row counts.
+- Check slow query log — prioritize frequent or longest-running queries.
+- Apply one optimization at a time; measure before and after.
+
+## Performance Non-Regression on Query Changes
+Whenever a query is **refactored or changed** (Eloquent / query-builder rewrite, raw-SQL edit, added / removed `JOIN` / `WHERE` / `ORDER BY` / `GROUP BY` / subquery / eager load, pagination change, index-driven rewrite, or a refactor that moves the query into another layer), the changed query **must be at least as fast as the original — ideally faster**. Never ship a query change that is slower without a documented justification.
+
+- **Capture the baseline first.** Before changing the query, record the original query's plan and cost: `EXPLAIN` (and `EXPLAIN ANALYZE` when DB access is available) — note `type`, `key`, `rows`, `filtered`, `Extra`, and the actual execution time / rows examined. This is the number the new query is held against.
+- **Compare after the change.** Run the same `EXPLAIN` / `EXPLAIN ANALYZE` on the new query and compare against the captured baseline. The new query passes only when it is **equal or better** on the decisive signals: rows examined, access `type`, index usage, `filesort` / `temporary` avoidance, and measured latency. Equal-or-fewer rows examined and equal-or-lower latency is the gate.
+- **When the change is slower, it does not ship silently.** If the changed query is measurably slower than the original, you must document, in the PR description / commit body / analysis report:
+  1. **Why it is slower** — the concrete cause (e.g. an added `JOIN` widens the row set, a correctness fix removes an index-only path, a denormalization was undone).
+  2. **What further optimization options remain** — concrete, actionable next steps (index addition / reorder, covering projection, SARGable rewrite, batching, caching, denormalization, splitting the query), **or** an explicit statement that no further optimization is possible and why (e.g. the slowdown is the unavoidable cost of a required correctness fix).
+  3. **Why the slower query is still acceptable** — the trade-off that justifies shipping it (correctness, removed N+1 elsewhere, net round-trip reduction across the request).
+- **A slowdown with no documented reason and no listed optimization options is a defect**, not an acceptable change — treat it as a blocking finding in review and as a stop condition in refactoring.
+- **When the change legitimately alters the result set** (a new feature adds a filter / join / aggregation so the query intentionally returns different rows), the equal-or-faster comparison is **informational, not a pass/fail gate** — there is no behavior-preserving baseline to match. The gate is strict for optimization- or refactoring-intent changes (same result, different shape); for result-changing changes, still capture the cost and apply the document-why-slower + optimization-options requirement so the added cost is understood, but do not block solely because the richer query is slower than the narrower original.
+- **When DB access is unavailable**, compare statically from the `EXPLAIN` plan shape and index reasoning, hold the same equal-or-better bar against the reconstructed baseline, and state the limitation explicitly — never claim a measured improvement you did not measure.
+
+## Query Optimization
+- SARGable WHERE clauses only — no functions on indexed columns (`DATE(col)`, `LOWER(col)`, `col + 1`).
+- Prefer ranges: `col BETWEEN ? AND ?` instead of `DATE(col) = ?`.
+- Seek pagination (`WHERE id > ? LIMIT ?`) instead of OFFSET for large datasets.
+- Push filtering, sorting, and aggregation into SQL — never in application code.
+- Never `SELECT *` — fetch only needed columns.
+- Prepared statements with bound parameters; never concatenate user input into SQL.
+- Avoid negative conditions (`<>`, `!=`, `NOT IN`, `NOT LIKE`) — they prevent index usage.
+- Prefer `EXISTS` over `COUNT(*)` for existence checks — stops at first match.
+- Use set-based operations over row-by-row processing.
+
+```sql
+-- Bad — function on indexed column
+SELECT * FROM users WHERE DATE(created_at) = '2025-01-01';
+
+-- Good — SARGable range
+SELECT * FROM users WHERE created_at BETWEEN '2025-01-01 00:00:00' AND '2025-01-01 23:59:59';
+
+-- Bad — OFFSET pagination on large table
+SELECT * FROM users ORDER BY id LIMIT 25 OFFSET 25000;
+
+-- Good — seek pagination
+SELECT * FROM users WHERE id > 25000 ORDER BY id LIMIT 25;
+
+-- Bad — COUNT for existence
+SELECT * FROM users WHERE (SELECT COUNT(*) FROM orders WHERE orders.user_id = users.id) > 0;
+
+-- Good — EXISTS
+SELECT * FROM users WHERE EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id);
+```
+
+## Reuse existing indexes first
+- Before adding a new index, verify that the query cannot be rewritten to hit an existing one. Re-order `WHERE` / `JOIN` / `ORDER BY` columns to match an existing composite index (left-to-right rule), strip functions wrapping indexed columns (SARGable rewrite), and project only the columns the index already covers (covering query).
+- During code review of new or modified SQL / Eloquent / query-builder code, locate the current schema (migrations, model `$table` metadata, live `SHOW INDEX` when DB access is available) and flag every query that bypasses an existing index that could satisfy it. The fix is a query rewrite, not a new index.
+- Add a new index only when the existing schema genuinely lacks one that can cover the query, EXPLAIN confirms the gap, and the rewrite alternative has been ruled out. Then follow the **Index Design** constraints below (composite order, 3–5 indexes per table, drop redundant).
+
+## Index Design
+- Index columns used in `WHERE`, `JOIN`, `ORDER BY`, `GROUP BY`.
+- Composite index order must match query filter/sort (left-to-right rule).
+- Use covering indexes when a query can be satisfied from the index alone.
+- Index JOIN columns on both sides.
+- Aim for 3–5 well-chosen indexes per table.
+- Drop unused or redundant indexes when changing schema.
+- Prefer parallel index creation on large tables.
+- Do not create indexes on low-cardinality columns alone.
+- Do not keep single-column indexes when a composite index already covers them.
+- Nullable columns should appear last in composite indexes.
+
+```sql
+-- Query filters by (user_id, status) and sorts by created_at
+-- Composite index must match this order:
+ALTER TABLE orders ADD INDEX idx_user_status_created (user_id, status, created_at);
+```
+
+## Batch over per-row operations
+- Solve database tasks and queries as a batch whenever possible. Per-row queries issued from inside a loop are a smell — flag during refactoring and code review.
+- **Bulk update:** prefer a ModelManager batch method (e.g. `batchUpdate($model, $rows, 'id')` backed by `Iksaku\Laravel\MassUpdate`) over looping per-row `Model::update()` / `$model->save()` calls.
+- **Bulk insert:** prefer a ModelManager batch method (e.g. `batchInsert($model, $rows)`) over looping per-row `Model::create()` calls.
+- **Bulk delete:** prefer a single `whereIn(...)->delete()` over per-row `Model::delete()` calls.
+- **Bulk read:** fetch the whole working set in one query (e.g. `findBy{Attribute}In(...)`) and key it in memory; never look rows up one by one inside a loop.
+- **Goal:** minimize DB round-trips and lock contention.
+- **Acceptable exception:** per-row work that genuinely cannot be batched because each iteration depends on a side effect of the previous one (e.g. each row triggers a downstream API call that mutates DB state the next row reads). The exception must be justified in a short code comment or in the PR description.
+
+```php
+// Bad — per-row update inside a loop
+foreach ($users as $user) {
+    $user->update(['status' => 'active']);
+}
+
+// Good — single batch update via ModelManager
+$this->userModelManager->batchUpdate(User::class, $rows, 'id');
+
+// Bad — per-row delete
+foreach ($staleIds as $id) {
+    Token::query()->whereKey($id)->delete();
+}
+
+// Good — single bulk delete
+Token::query()->whereIn('id', $staleIds)->delete();
+
+// Bad — per-row lookup inside a loop
+foreach ($externalIds as $externalId) {
+    $contact = $this->contactRepository->findByExternalId($externalId);
+    // ...
+}
+
+// Good — one bulk read keyed in memory
+$contacts = $this->contactRepository->findByExternalIdIn($externalIds)->keyBy('external_id');
+foreach ($externalIds as $externalId) {
+    $contact = $contacts->get($externalId);
+    // ...
+}
+```
+
+## Transactions and Locking
+- Keep transactions short — no external calls or heavy logic inside.
+- Batch related writes in a single transaction.
+- Use appropriate isolation levels for the use case.
+- Deadlock-prone operations must include retry logic.
+- Reduce lock contention via batching and suitable isolation levels.
+- Use `SHOW ENGINE INNODB STATUS` to diagnose lock waits.
+
+## Schema Design
+- Primary keys on every table.
+- Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `TIMESTAMP`.
+- InnoDB engine.
+- `lower_case_snake_case` naming.
+- Normalized unless denormalization is justified by read performance.
+- Partition large tables by range where beneficial.
+- Non-blocking index creation on large tables where supported.
+
+## Advanced SQL Patterns
+- Use CTEs for complex multi-step queries — prefer over nested subqueries.
+- Use window functions (`ROW_NUMBER`, `RANK`, `LAG`, `LEAD`) for analytics and ranking without self-joins.
+- Use recursive CTEs for hierarchical data (categories, org trees).
+
+```sql
+-- CTE for multi-step logic
+WITH active_users AS (
+    SELECT id, name, email
+    FROM users
+    WHERE status = 'active'
+)
+SELECT au.name, COUNT(o.id) AS order_count
+FROM active_users au
+JOIN orders o ON o.user_id = au.id
+GROUP BY au.id, au.name;
+
+-- Window function for ranking
+SELECT
+    user_id,
+    amount,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY amount DESC) AS rank_num
+FROM orders;
+
+-- Recursive CTE for hierarchical data
+WITH RECURSIVE category_tree AS (
+    SELECT id, name, parent_id, 0 AS depth
+    FROM categories
+    WHERE parent_id IS NULL
+    UNION ALL
+    SELECT c.id, c.name, c.parent_id, ct.depth + 1
+    FROM categories c
+    JOIN category_tree ct ON c.parent_id = ct.id
+)
+SELECT * FROM category_tree;
+```
+
+## New storage reuse analysis
+When a diff introduces a new storage surface — a new DB table (`Schema::create(...)` in a migration), a new cache store or Redis namespace, a new filesystem disk, or a new NoSQL / DynamoDB table — an explicit analysis must appear in the PR description or a PR comment before the change merges. The analysis must answer: *"Can this data be stored in an existing storage without a drastic impact on performance?"* It must name the candidate existing storage(s) evaluated and state the reason they were ruled out — or confirm that an existing storage is reused instead. A diff that adds a new storage surface without this documented analysis is a **Moderate** finding in code review (see `@skills/code-review/SKILL.md` *New storage reuse analysis*). Do not flag migrations that only add a column or index to an existing table — only net-new storage surfaces trigger this check.
+
+## Caching at DB Level
+- Use query result caching for repeated expensive queries with same parameters.
+- Invalidate cache on relevant data changes.
+- Mitigate cache stampede (locking, stale-while-revalidate).
