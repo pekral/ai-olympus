@@ -371,7 +371,7 @@ test('agents directory ships the hermes release-announcer subagent with required
     $content = (string) file_get_contents($agentPath);
     expect($content)->toContain('name: hermes');
     expect($content)->toContain('tools: Read, Glob, Grep, Bash');
-    expect($content)->toContain('model: sonnet');
+    expect($content)->toContain('model: haiku');
     expect($content)->toContain('@skills/article-writing/SKILL.md');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
     // Read-only stance: never edits, commits, pushes, or merges.
