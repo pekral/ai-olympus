@@ -110,5 +110,4 @@ Run the **Reviewer Comment Fulfillment Gate** defined canonically in `@skills/co
 
 ## After Completion
 
-- Do **not** auto-invoke `@skills/test-like-human/SKILL.md`. It runs **on demand only**; CR-track skills must never chain into it.
 - Do **not** change the Bugsnag error status (fixed / ignored / snoozed) automatically — marking an error fixed is left to a human after the fix is verified in production.

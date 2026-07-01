@@ -143,7 +143,6 @@ test('agents directory ships the daidalos orchestrator subagent with required fr
     expect($content)->toContain('name: daidalos');
     expect($content)->toContain('tools: Task, Read, Glob, Grep, Bash');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
-    expect($content)->toContain('@skills/autoresolve-oldest-github-issue/SKILL.md');
     // Shared task brief: daidalos gathers context into a git-ignored ephemeral brief before dispatching.
     expect($content)->toContain('Shared task brief');
     expect($content)->toContain('.claude/run/');
@@ -357,7 +356,6 @@ test('agents directory ships the apollon test-engineer subagent with required fr
     expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
     expect($content)->toContain('model: sonnet');
     expect($content)->toContain('@skills/create-test/SKILL.md');
-    expect($content)->toContain('@skills/test-like-human/SKILL.md');
     expect($content)->toContain('@skills/e2e-testing/SKILL.md');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
@@ -372,7 +370,7 @@ test('agents directory ships the hermes release-announcer subagent with required
     expect($content)->toContain('name: hermes');
     expect($content)->toContain('tools: Read, Glob, Grep, Bash');
     expect($content)->toContain('model: haiku');
-    expect($content)->toContain('@skills/article-writing/SKILL.md');
+    expect($content)->toContain('no-hollow-AI-phrasing contract');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
     // Read-only stance: never edits, commits, pushes, or merges.
     expect($content)->toContain('read-only');

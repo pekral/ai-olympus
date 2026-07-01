@@ -115,7 +115,7 @@ Any run that begins implementing a tracker issue **must claim it atomically befo
 - **Claim is NOT released on success.** Once the PR opens, the existing `ready for review` label / Code Review transition becomes the active work-state signal; the in-progress claim stays and is harmless (the issue is no longer an open unclaimed candidate in the selection query).
 - **Bugsnag has no auto-claim.** Bugsnag keeps its existing stance (no auto status change at the start of work). Parallel-collision protection for Bugsnag is a known limitation — rely on the human/linked-issue workflow there.
 
-The per-tracker mechanics (claim label name, helper script call, selection query negation) live in `@skills/resolve-issue/SKILL.md` and `@skills/autoresolve-oldest-github-issue/SKILL.md`. This section owns the principle; those skills own the execution.
+The per-tracker mechanics (claim label name, helper script call) live in `@skills/resolve-issue/SKILL.md`. This section owns the principle; that skill owns the execution.
 
 ## What Not To Do
 

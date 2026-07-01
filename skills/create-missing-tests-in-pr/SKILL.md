@@ -118,7 +118,6 @@ Rules:
 -   If something is still missing, clearly describe the blocker or
     uncovered scenario.
 - Create a new commit with the missing tests, separate from any pre-existing fix commits produced by *Pre-existing issue handling* above
-- If according to @skills/test-like-human/SKILL.md the changes can be tested, do it!
 
 ## Principles
 

@@ -10,7 +10,7 @@ Apply this rule **every time a skill needs to propose a new Composer dependency*
 
 The rule does **not** trigger for:
 
-- bumping a version of a package that is **already** in `composer.json` — that is owned by `@skills/composer-update/SKILL.md` (the activity gate below still applies if the bump uncovers an abandoned upstream)
+- bumping a version of a package that is **already** in `composer.json` (the activity gate below still applies if the bump uncovers an abandoned upstream)
 - removing a package — no activity check needed
 - internal `pekral/*` or other first-party packages owned by the same organisation — the *Activity gate* below is informational only, the *Compatibility gate* still applies
 

@@ -167,8 +167,5 @@ A good result from this skill should:
 - provide prioritized, testable optimization actions
 - document limitations when runtime access is incomplete
 
-**After completing the tasks**
-- If according to @skills/test-like-human/SKILL.md the changes can be tested, do it!
-
 ## Output Humanization
 - Use [blader/humanizer](https://github.com/blader/humanizer) for all skill outputs to keep the text natural and human-friendly.

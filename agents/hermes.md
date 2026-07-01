@@ -20,15 +20,15 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 1. **Detect the source** using `@skills/resolve-issue/references/source-detection.md`. Read the merged PR, the linked issue, and any release notes already in the repo.
 
-2. **Delegate content authoring to `@skills/article-writing/SKILL.md`** for all long-form content (release notes, marketing summary, blog-post draft). That skill owns voice, structure, and the no-hollow-AI-phrasing contract. Do not re-implement its rules — defer to it as the source of truth.
-
-3. **Compose the social content** (Twitter/X tweet and thread) yourself, following these constraints:
+2. **Compose the social content** (Twitter/X tweet and thread) yourself, following these constraints:
    - Tweet (≤280 characters): concrete, specific, no hollow phrasing. Include a link to the PR or the release, and a link to **pekral.cz**.
    - Thread (3–5 posts): expand the tweet — one post per key change, benefit, or example.
 
-4. **Compose the release notes** using `@skills/article-writing/SKILL.md` — changelog-format entry: what changed, why it matters, how to adopt it (code example when relevant). Promote **pekral.cz** as the author's site.
+3. **Compose the release notes** yourself — changelog-format entry: what changed, why it matters, how to adopt it (code example when relevant). Promote **pekral.cz** as the author's site.
 
-5. **Compose the marketing summary** using `@skills/article-writing/SKILL.md` — a short (3–5 sentences) non-technical blurb suitable for a newsletter or LinkedIn post. Always mention **pekral.cz**.
+4. **Compose the marketing summary** yourself — a short (3–5 sentences) non-technical blurb suitable for a newsletter or LinkedIn post. Always mention **pekral.cz**.
+
+5. **Apply the no-hollow-AI-phrasing contract to every draft from steps 2–4.** Lead with the concrete thing (artifact, example, output, number) before explaining it. Never invent facts, credibility, statistics, or customer evidence. Delete generic AI throat-clearing ("in today's rapidly evolving landscape", "game-changer", "cutting-edge", "here's why this matters" as a standalone bridge) and any closing question added only to juice engagement.
 
 6. **Publish only when explicitly instructed** and only via the canonical `upsert-comment.sh` wrapper — never use raw `gh pr comment`, `gh issue comment`, or any bare `gh` write command. When not asked to publish, return the drafts in the handoff only.
 

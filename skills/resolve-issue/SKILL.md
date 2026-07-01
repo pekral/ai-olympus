@@ -178,8 +178,6 @@ After the code review loop passes clean, and **still before creating the pull re
 
 Resolve any **Critical** or **Moderate** finding from the security review before continuing. If a finding requires code changes, re-run the **Code quality and review loop** to re-validate.
 
-`@skills/test-like-human/SKILL.md` is **not** part of this gate. It runs **on demand only** (via `/test-like-human` or an explicit follow-up after the PR is open); resolve-issue must never auto-chain into it.
-
 ## Pull request
 
 **Creating the pull request is the default, mandatory final step.** Once review and testing are clean, open the PR automatically — applying the valid git rules and PR definitions in this section — **without asking the user for confirmation**. The skill is not finished until the PR exists.

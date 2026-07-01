@@ -29,7 +29,6 @@ test('every tracker-publishing skill references @rules/reports/general.mdc', fun
         $packageDir . '/skills/security-threat-analysis/SKILL.md',
         $packageDir . '/skills/assignment-compliance-check/SKILL.md',
         $packageDir . '/skills/resolve-issue/SKILL.md',
-        $packageDir . '/skills/test-like-human/SKILL.md',
         $packageDir . '/skills/tester-cookbook/SKILL.md',
         $packageDir . '/skills/prepare-issue-context/SKILL.md',
     ];

@@ -182,9 +182,3 @@ Use the template defined in `templates/review-output.md`.
 - Avoid duplication of findings
 - Prioritize regression detection
 - Be precise and actionable
-
----
-
-## After Completion
-
-- Do **not** auto-invoke `@skills/test-like-human/SKILL.md`. The user-perspective testing skill runs **on demand only** (via `/test-like-human` or an explicit follow-up); CR-track skills must never chain into it.

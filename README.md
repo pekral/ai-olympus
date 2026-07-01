@@ -20,7 +20,7 @@
 - unified PHP coding guidelines for PHP 8.4 projects
 - Pest-based testing with mandatory code analysis and 100% coverage
 - strong focus on clean code: typed properties, SRP, no redundant comments
-- **62 comprehensive Agent skills** for automated workflows (v0.9.1)
+- **49 comprehensive Agent skills** for automated workflows (v0.9.1)
 - fast onboarding inside development repositories
 
 ## Installation
@@ -122,7 +122,7 @@ vendor/bin/agent-skills install --editor=claude --allow-bundled-scripts   # whit
 
 # 🎯 Skills Overview — **v0.9.1**
 
-> Current release includes 62 skills for issue resolution, planning, code review, refactoring, testing, performance benchmarking, security, SQL performance, frontend and UI, platform and data, content writing, and delivery workflows.
+> Current release includes 49 skills for issue resolution, planning, code review, refactoring, testing, security, SQL performance, frontend and UI, platform and data, content writing, and delivery workflows.
 
 Agent skills are installed into the chosen editor’s skill directory (see `--editor`). Use `--editor=all` to install for Cursor, Claude, and Codex at once. They can be invoked when relevant. Each skill follows project conventions, ensures code quality, and maintains 100% test coverage where applicable.
 
@@ -134,18 +134,14 @@ Agent skills are installed into the chosen editor’s skill directory (see `--ed
 |---|---|
 | `analyze-problem` | Structured problem analysis for debugging, root cause identification, and breaking down complex issues. |
 | `resolve-issue` | Unified issue resolution for GitHub, JIRA, and Bugsnag. Detects the tracker from the provided link, runs `analyze-problem` before implementation, validates with tests, and creates a PR. |
-| `autoresolve-oldest-github-issue` | Picks the oldest open GitHub issue (optionally filtered by label, default `Resolve_by_AI`) and chains `resolve-issue` → `code-review-github` → `process-code-review` → `merge-github-pr` against the resulting PR. Stops on any documented blocker (merge conflict, failing CI, residual Critical/Moderate findings). |
 | `merge-github-pr` | Safely merge GitHub pull requests that are ready for deployment. |
 | `create-issue` | Create a tracker issue from provided task text while preserving original meaning and structure. |
 | `create-issues-from-text` | Batch-create issues from provided text with automatic structure detection. |
 | `pr-summary` | Summarize current PR changes for development and product teams as a short two-section comment (Summary of changes + How to test), rendered as GitHub Markdown for PR comments or JIRA Wiki Markup for JIRA issue comments. |
 | `skill-creator` | Scaffold a new Agent skill that follows project conventions and passes `skill-check` validation. |
-| `refresh-claude-md` | Regenerate or create the project `CLAUDE.md` from the current codebase — re-detect tech stack, verified build/test commands, directory structure, and conventions while preserving every human-authored section. Adapted from the ECC `codebase-onboarding` skill; runs only when `CLAUDE.md` is stale or missing. |
 | `cleanup-local-branches` | Prune dead local Git branches — those whose upstream was deleted on origin (gone) and those with no origin counterpart inactive for more than six months — while protecting the current and default branches and previewing every deletion. |
 | `git-workflow` | Choose a Git branching strategy and handle merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging — complements the commit/PR conventions in `@rules/git/general.mdc`, `cleanup-local-branches`, and `merge-github-pr`. |
-| `product-capability` | Turn a clear-but-underspecified PRD into an engineering-ready capability plan that exposes invariants, interfaces, and unresolved decisions before any code is written, then hands off to `blueprint` or `create-issues-from-text`. |
-| `blueprint` | Turn a large objective into a sequenced construction plan of 3–12 one-PR steps with dependency edges, cold-start context briefs, and exit criteria — reviewed adversarially and registered as Markdown so a fresh agent can pick up any step. |
-| `autonomous-loops` | Reference catalog of loop patterns for running Claude Code autonomously — from a single sequential pipeline to multi-agent DAG orchestration — anchored to this repo's real skills with `composer build` / `composer skill-check` as the gate between iterations. |
+| `product-capability` | Turn a clear-but-underspecified PRD into an engineering-ready capability plan that exposes invariants, interfaces, and unresolved decisions before any code is written, then hands off to `create-issues-from-text`. |
 | `record-project-memory` | Write side of compound engineering's per-project memory. At task convergence, distils only the lessons that clear a strict promotion bar and appends them — after a dedup/supersede/prune curation pass — to the project's `docs/memory/PROJECT_MEMORY.md`, so a recurring review finding or a non-obvious decision stops being re-derived on the next task. |
 
 ## Code Review, Security & Architecture
@@ -165,13 +161,10 @@ Agent skills are installed into the chosen editor’s skill directory (see `--ed
 | `laravel-security` | Condensed Laravel 11 / PHP 8.3 secure-defaults reference — authentication, authorization, Eloquent safety, CSRF/XSS, API security, file uploads, secrets, and production hardening. |
 | `laravel-authorization-review` | Laravel-native authorization / IDOR (BOLA) reviewer. Walks the authorization chain of every HTTP route (middleware → authorize/policy/gate → query scoping → API Resource output), anchors every finding to real `php artisan route:list --json` output plus a cited `file:line`, classifies by confidence, and produces a per-route coverage map — read-only / advise-only. |
 | `security-bounty-hunter` | Hunt for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure — biases toward user-controlled attack paths and discards low-signal noise. |
-| `penetration-tester` | Authorized, methodology-driven penetration test — runs only on an explicit pentest request against an in-scope target, validates exploitability with safe proofs of concept, and delivers a risk-rated remediation report (read-only, non-destructive). |
 | `class-refactoring` | Refactor PHP classes using SOLID and Laravel best practices with testability focus. |
 | `refactor-entry-point-to-action` | Refactor controller/job/command/listener entry-point logic into Action classes. |
 | `smartest-project-addition` | Propose one high-impact, low-risk project improvement. |
 | `understand-propose-implement-verify` | Enforce a strict 4-step loop: understand, propose, implement, verify. |
-| `production-audit` | Read-only production-readiness audit from cheap local git/code/CI/config evidence — risk lenses across auth, data integrity, payments, jobs, and deployment — returning a scored ship/block verdict with specific fixes and hard caps for critical gaps. |
-| `automation-audit-ops` | Evidence-first, read-only inventory of every automation in the repo (GitHub Actions, Claude Code hooks/settings, MCP servers, composer scripts, the installer, the skills catalog, scheduler) classified live/broken/redundant with keep/merge/cut/fix recommendations. |
 
 ## Testing & Quality Automation
 
@@ -180,18 +173,14 @@ Agent skills are installed into the chosen editor’s skill directory (see `--ed
 | `create-test` | Add tests following project rules with deterministic behavior and high coverage. |
 | `create-missing-tests-in-pr` | Validate review recommendations and add missing tests for current PR changes. |
 | `rewrite-tests-pest` | Rewrite tests to PEST style while preserving behavior and conventions. |
-| `test-like-human` | Validate PR behavior from user perspective using scenario-driven testing. |
 | `test-driven-development` | Enforce strict red-green-refactor flow for bugfixes and features. |
 | `tester-cookbook` | Turn a JIRA task and its linked PRs into a concise QA report for a non-technical tester — focused on what to report back to the dev team, optionally with brief steps to reach the result — delivered as a JIRA Wiki Markup comment. |
 | `e2e-testing` | Write or stabilize Playwright end-to-end browser tests against a Laravel app — gated on Playwright already being present, otherwise defers to manual testing or Pest/Dusk. |
-| `benchmark` | Measure performance baselines and detect regressions in a Laravel app — page Core Web Vitals, API latency percentiles, build/test velocity, and DB query timing — stored as git-tracked baselines for team comparison. |
-| `benchmark-optimization-loop` | Turn a vague speed goal ("make it faster", "reduce p95") into a bounded, measured optimization loop that promotes only verified, correctness-preserving wins via a baseline, a variant ledger, and a promotion gate. |
 
 ## Platform & Data
 
 | Skill | Description |
 |---|---|
-| `composer-update` | Analyze composer updates, conflicts, and changelog impact. |
 | `mysql-problem-solver` | Diagnose and optimize MySQL queries, indexes, and execution plans. |
 | `laravel-telescope` | Analyze Laravel Telescope request data from URL, match entries in DB, and propose concrete optimizations. |
 | `mysql-patterns` | Advanced MySQL patterns in Laravel — upserts, JSON columns, full-text search, partitioning, replication/read-write splitting, and deadlock handling — beyond the query tuning in `@rules/sql/optimalize.mdc`. |
@@ -216,7 +205,6 @@ Agent skills are installed into the chosen editor’s skill directory (see `--ed
 
 | Skill | Description |
 |---|---|
-| `article-writing` | Write long-form content (blog posts, guides, tutorials, essays, newsletters) in a distinctive voice derived from supplied examples or a default operator voice. Leads with concrete proof, bans hollow AI phrasing, and tailors structure to the medium. |
 | `readme-generator` | Generate or rewrite a maintainer-ready `README.md` (and sibling root docs like `CONTRIBUTING` / `SECURITY`) from the project's actual code, manifests, scripts, and tests — a zero-hallucination scan that extracts real commands, setup steps, and configuration, committing or pushing only when explicitly asked. Adapted from the VoltAgent `readme-generator` subagent. |
 
 ---
@@ -237,9 +225,9 @@ Agents = specialised orchestration roles over multiple skills
 | `talos` | Tireless code-writing implementer. Implements an issue from context or a tracker link, runs local checks (`composer build`) and fixes their errors, opens a PR, and hands back an Impl-done handoff. Stops at the PR — never reviews (CR belongs to `argos` / `athena`) or merges. | `resolve-issue` |
 | `metis` | Problem-analysis advisor. Analyses a problem or a vague assignment, proposes the smallest safe solution, and publishes a reusable plan as a GitHub issue, then hands back an Analysis-done handoff. Read-only — never implements. | `analyze-problem` |
 | `daidalos` | Engineering-workflow orchestrator. The entry point for a free-form request: resolves a concrete source, then **dispatches** `metis` (analysis, if needed; or decomposition of a broad subject into multiple structured issues — after which it reports the issues and stops, no PR), `talos` (implementation), `apollon` (fast scoped validation after each landing step), `argos` (code quality / architecture / optimisation CR) and `athena` (on-demand pre-implementation security analysis when the task carries a cyber-security question, plus a security CR parallel to `argos` after `talos`) through the Task tool. Plans dependency-aware resolve order when issues are interlinked. Read-only orchestrator. | `metis`, `talos`, `apollon`, `argos`, `athena` (dispatched) |
-| `apollon` | Test engineer and post-convergence reporter. Three modes — On-demand: designs test scenarios, writes PHPUnit/Pest tests, generates browser scenarios, verifies acceptance criteria, hunts broken flows. Fast scoped validation gate (auto): `daidalos` dispatches it after talos PR-open and after argos convergence — it runs only the tests covering the diff, verifies the relevant acceptance criteria against the diff, and uses full `composer build` only for broad changes. Hands back a `Tests done` or `Tests done (scoped)` handoff. Post-convergence reporting: `daidalos` dispatches it once more after convergence to publish a human-readable non-technical summary (what changed + how to test) to the source tracker via `pr-summary`. Write-capable for test code only — never touches application code or merges. | `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `test-like-human`, `pr-summary` |
+| `apollon` | Test engineer and post-convergence reporter. Three modes — On-demand: designs test scenarios, writes PHPUnit/Pest tests, generates browser scenarios, verifies acceptance criteria. Fast scoped validation gate (auto): `daidalos` dispatches it after talos PR-open and after argos convergence — it runs only the tests covering the diff, verifies the relevant acceptance criteria against the diff, and uses full `composer build` only for broad changes. Hands back a `Tests done` or `Tests done (scoped)` handoff. Post-convergence reporting: `daidalos` dispatches it once more after convergence to publish a human-readable non-technical summary (what changed + how to test) to the source tracker via `pr-summary`. Write-capable for test code only — never touches application code or merges. | `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `pr-summary` |
 | `athena` | Strategic security analyst & CR sentinel. Two modes dispatched by `daidalos`: on demand a pre-implementation **security analysis** when the task carries a cyber-security question (security skills + `analyze-problem` → a remediation plan that `talos` implements, `Security analysis done`), and after `talos` a **security CR** **in parallel with `argos`** on the same PR (runs all security skills, applies all security rules, labels each finding Critical / Moderate / Minor, posts the consolidated review, `Security CR done`). Active only after installer registration — fallback: security runs inline in `code-review-github → security-review`. Read-only. | `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem` |
-| `hermes` | Release announcer / publicista. Give it a merged change or release — from context or a tracker link — and it composes announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. Runs post-delivery, outside the CR loop. Publishes only when explicitly asked and only through the canonical wrapper. Read-only. | `article-writing`, `resolve-issue/references/source-detection` |
+| `hermes` | Release announcer / publicista. Give it a merged change or release — from context or a tracker link — and it composes announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. Runs post-delivery, outside the CR loop. Publishes only when explicitly asked and only through the canonical wrapper. Read-only. | `resolve-issue/references/source-detection` |
 
 ### How to use `argos` in practice
 

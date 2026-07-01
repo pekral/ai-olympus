@@ -25,9 +25,7 @@ ls playwright.config.* 2>/dev/null
 grep -q '@playwright/test' package.json 2>/dev/null && echo "playwright present"
 ```
 
-- If neither a `playwright.config.*` file nor `@playwright/test` in `package.json` exists, STOP. Do not install Playwright. Defer to:
-  - `@skills/test-like-human/SKILL.md` for manual, scenario-based testing, or
-  - Pest feature tests / Laravel Dusk for browser coverage inside the PHP stack.
+- If neither a `playwright.config.*` file nor `@playwright/test` in `package.json` exists, STOP. Do not install Playwright. Defer to manual, scenario-based testing, or Pest feature tests / Laravel Dusk for browser coverage inside the PHP stack.
 - Only when Playwright IS present, continue with the patterns below.
 
 ## File organization

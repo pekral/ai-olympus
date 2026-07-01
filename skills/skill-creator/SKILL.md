@@ -89,7 +89,7 @@ The repo accepts two body layouts. Pick one and stay consistent within the file.
 4. `## Output` or `## Output Format` — structure of what the skill returns
 5. `## Done when` — verifiable completion criteria
 
-Examples in the repo: `refactor-entry-point-to-action`, `smartest-project-addition`, `test-driven-development`, `test-like-human`, `security-review`.
+Examples in the repo: `refactor-entry-point-to-action`, `smartest-project-addition`, `test-driven-development`, `tester-cookbook`, `security-review`.
 
 **Layout B — Title + Purpose (legacy, still acceptable):**
 

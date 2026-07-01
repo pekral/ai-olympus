@@ -47,7 +47,7 @@ Walk these four steps in order. Each feeds the next.
    Keep the contract aligned with the existing architecture; flag any place where it would force a new layer.
 
 4. **Translate into execution readiness + handoff.** Decide the readiness level and route the work:
-   - **Ready to implement** → hand to `@skills/blueprint/SKILL.md` for a multi-PR plan, or to `@skills/create-issues-from-text/SKILL.md` to break it into tracker issues.
+   - **Ready to implement** → hand to `@skills/create-issues-from-text/SKILL.md` to break it into tracker issues.
    - **Needs architecture review** → route the data-model / layering questions through `@rules/laravel/architecture.mdc` before planning.
    - **Needs product clarification** → list the open questions that block a contract; stop until they are answered.
 
@@ -61,7 +61,7 @@ Write the plan to a durable file (`PRODUCT.md` at the repo root, or a `docs/` ca
 4. **Implementation contract** — actors, surfaces, states, interfaces, data model (step 3).
 5. **Non-goals** — what this capability explicitly does not cover.
 6. **Open questions** — every unresolved decision that blocks or shapes implementation, with who must answer it.
-7. **Handoff** — the readiness level and the named next step (`blueprint`, `create-issues-from-text`, or architecture review).
+7. **Handoff** — the readiness level and the named next step (`create-issues-from-text` or architecture review).
 
 Fill every section. If a section has nothing, write an explicit note (e.g. `No non-goals identified.`) rather than leaving it blank.
 

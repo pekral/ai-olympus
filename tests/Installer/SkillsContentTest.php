@@ -429,18 +429,6 @@ test('resolve-issue claims the GitHub issue before implementation and releases o
     expect($content)->toContain('no claim step');
 });
 
-test('autoresolve QUERY excludes already-claimed issues via label negation (issue #704)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/autoresolve-oldest-github-issue/SKILL.md');
-
-    // QUERY must include the -label: negation to skip already-claimed issues.
-    expect($content)->toContain('-label:');
-    expect($content)->toContain('Resolve_by_AI:in-progress');
-    expect($content)->toContain('CLAIM_LABEL');
-    // Line-17 amendment: claim label is a sanctioned write owned by the delegated skill.
-    expect($content)->toContain('sanctioned write owned by the delegated skill');
-});
-
 test('JIRA context-consuming skills offer gather-issue-context.sh', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skills = [
@@ -594,7 +582,6 @@ test('dependency-selection rule gates every new Composer package on activity and
     $callers = [
         $packageDir . '/skills/resolve-issue/SKILL.md',
         $packageDir . '/skills/class-refactoring/SKILL.md',
-        $packageDir . '/skills/composer-update/SKILL.md',
         $packageDir . '/skills/security-threat-analysis/SKILL.md',
         $packageDir . '/skills/code-review/SKILL.md',
         $packageDir . '/skills/security-review/SKILL.md',
@@ -729,25 +716,6 @@ test('cleanup-local-branches skill prunes gone and stale local branches safely (
     expect($content)->toContain('rebase');
 });
 
-test('refresh-claude-md skill regenerates CLAUDE.md only when stale or missing', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/refresh-claude-md/SKILL.md');
-
-    expect($content)->toContain('name: refresh-claude-md');
-    expect($content)->toContain('@rules/php/core-standards.mdc');
-    expect($content)->toContain('@rules/git/general.mdc');
-    // Narrow trigger: the skill runs only to keep CLAUDE.md correct, never as a general onboarding task.
-    expect($content)->toContain('Trigger only to update or create `CLAUDE.md`');
-    expect($content)->toContain('no refresh needed');
-    // Four-phase ECC shape with selective reconnaissance.
-    expect($content)->toContain('Reconnaissance');
-    expect($content)->toContain('Glob and Grep');
-    // Human-authored content must be preserved, never blindly replaced.
-    expect($content)->toContain('preserve all human-authored sections');
-    // Build validation must use the detected command, not a hard-coded PHP toolchain.
-    expect($content)->toContain('detected build / quality command');
-});
-
 test('every ECC-ported skill ships with valid frontmatter conventions', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
@@ -794,7 +762,7 @@ test('e2e-testing skill is gated on Playwright already being present', function 
     expect($content)->toContain('@playwright/test');
     // When Playwright is absent the skill must not install it; it defers to manual / Pest-Dusk testing.
     expect($content)->toContain('Do not install Playwright');
-    expect($content)->toContain('@skills/test-like-human/SKILL.md');
+    expect($content)->toContain('manual, scenario-based testing');
 });
 
 test('frontend and vite skills target the Blade/Livewire/Alpine/Vite stack, not React', function (): void {

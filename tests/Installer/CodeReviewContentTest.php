@@ -305,40 +305,17 @@ test('every code review skill runs analyze-problem for assignment conformance', 
     }
 });
 
-test('code-review skill After Completion section keeps test-like-human on demand', function (): void {
+test('CR and resolution skills carry no live reference to the removed test-like-human skill (issue #6)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.mdc',
-    );
-
-    expect($content)->not->toMatch('/##\s*After Completion[^#]*Always run @skills\/test-like-human\/SKILL\.md/s');
-    expect($content)->toMatch('/##\s*After Completion[^#]*Do \*\*not\*\* auto-invoke `@skills\/test-like-human\/SKILL\.md`/s');
-});
-
-test('code-review-jira skill After Completion section keeps test-like-human on demand', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
-
-    expect($content)->not->toMatch('/##\s*After Completion[^#]*Always run @skills\/test-like-human\/SKILL\.md/s');
-    expect($content)->toMatch('/##\s*After Completion[^#]*Do \*\*not\*\* auto-invoke `@skills\/test-like-human\/SKILL\.md`/s');
-});
-
-test('CR and resolution skills never auto-invoke test-like-human', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $forbiddenSubstrings = [
-        'Always run @skills/test-like-human/SKILL.md, regardless of code review findings',
-        'Run @skills/test-like-human/SKILL.md if changes are testable',
-        '- Run `@skills/test-like-human/SKILL.md`',
-        '2. Run `@skills/test-like-human/SKILL.md`',
+    $skills = [
+        'code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag',
+        'process-code-review', 'resolve-issue',
     ];
-    $skills = ['code-review', 'code-review-github', 'code-review-jira', 'process-code-review', 'resolve-issue'];
 
     foreach ($skills as $skill) {
         $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
 
-        foreach ($forbiddenSubstrings as $needle) {
-            expect($content)->not->toContain($needle);
-        }
+        expect($content)->not->toContain('test-like-human');
     }
 });
 

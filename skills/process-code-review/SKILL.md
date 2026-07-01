@@ -153,7 +153,6 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
 **Precondition:** the Review loop above must have exited with `criticalCount + moderateCount == 0`. If the loop hit `maxIterations` without converging, do not proceed — return the remaining findings to the user for manual triage instead.
 
-- Do **not** auto-invoke `@skills/test-like-human/SKILL.md`. The user-perspective testing skill runs **on demand only** — leave it for the user to trigger via `/test-like-human` after the PR is updated.
 - Commit and push changes
 - If PR does not exist, create it according to @rules/git/general.mdc — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
   - Title in English (per `@rules/git/general.mdc`)
