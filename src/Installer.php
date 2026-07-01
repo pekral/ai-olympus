@@ -145,7 +145,7 @@ final class Installer
 
     private static function reportInstallSummary(int $copied, int $pruned, int $permissionsAdded, bool $coAuthoredByDisabled): void
     {
-        echo sprintf('Cursor rules installed (%d files, %d pruned).%s', $copied, $pruned, PHP_EOL);
+        echo sprintf('Rules and skills installed (%d files, %d pruned).%s', $copied, $pruned, PHP_EOL);
 
         if ($permissionsAdded > 0) {
             echo sprintf('Allowed %d bundled-script permission(s) in ~/.claude/settings.json.%s', $permissionsAdded, PHP_EOL);

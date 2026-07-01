@@ -407,7 +407,7 @@ test('install --editor=claude --allow-bundled-scripts writes the permissions and
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->toContain('Allowed 2 bundled-script permission(s) in ~/.claude/settings.json.');
 
@@ -463,7 +463,7 @@ test('install --editor=cursor --allow-bundled-scripts does not write settings.js
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=cursor', '--allow-bundled-scripts']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
         expect(is_file($root . '/.claude/settings.json'))->toBeFalse();
@@ -489,7 +489,7 @@ test('install --editor=claude without --allow-bundled-scripts still disables AI 
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
         expect($output)->toContain('Disabled AI co-author attribution (includeCoAuthoredBy: false) in ~/.claude/settings.json.');
@@ -522,7 +522,7 @@ test('install --editor=claude --allow-subagent-writes writes the allow entries a
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-subagent-writes']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->toContain('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.');
 
@@ -561,7 +561,7 @@ test('install --editor=cursor --allow-subagent-writes does not write settings.lo
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=cursor', '--allow-subagent-writes']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed subagent file writes');
         expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
@@ -587,7 +587,7 @@ test('install --editor=claude without --allow-subagent-writes does not write set
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed subagent file writes');
         expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
@@ -610,7 +610,7 @@ test('install --editor=claude --allow-bundled-scripts with HOME unset is a no-op
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
     } finally {
@@ -651,7 +651,7 @@ test('install --editor=claude --allow-bundled-scripts is idempotent across two c
 
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
-        $secondOutput = (string) ob_get_clean();
+        $secondOutput = ob_get_clean();
 
         expect($secondOutput)->not->toContain('Allowed');
         expect(InstallerClaudeSettings::loadAllowList($root))

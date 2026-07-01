@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "Cursor Rules - Test Commands"
+	@echo "Laravel Agent Skills - Test Commands"
 	@echo "============================"
 	@echo ""
 	@echo "Available commands:"

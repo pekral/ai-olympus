@@ -8,7 +8,7 @@ use AgenticVibes\AgentSkills\InstallerPath;
 test('run shows help when executed without arguments', function (): void {
     ob_start();
     $exitCode = Installer::run(['agent-skills']);
-    $output = (string) ob_get_clean();
+    $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain('Usage:');
@@ -30,7 +30,7 @@ test('run returns error code for invalid editor', function (): void {
 test('run shows prune option in help output', function (): void {
     ob_start();
     $exitCode = Installer::run(['agent-skills']);
-    $output = (string) ob_get_clean();
+    $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain('--prune');
@@ -39,7 +39,7 @@ test('run shows prune option in help output', function (): void {
 test('help text documents the --allow-bundled-scripts flag', function (): void {
     ob_start();
     $exitCode = Installer::run(['agent-skills']);
-    $output = (string) ob_get_clean();
+    $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain('--allow-bundled-scripts');
@@ -57,7 +57,7 @@ test('normalizeCliArguments splits --allow-bundled-scripts from a concatenated a
 test('help text documents the --allow-subagent-writes flag', function (): void {
     ob_start();
     $exitCode = Installer::run(['agent-skills']);
-    $output = (string) ob_get_clean();
+    $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain('--allow-subagent-writes');

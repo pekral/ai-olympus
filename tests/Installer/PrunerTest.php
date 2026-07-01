@@ -102,7 +102,7 @@ test('install with prune reports pruned file count in output', function (): void
 
         ob_start();
         Installer::run(['agent-skills', 'install', '--editor=cursor', '--prune']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($output)->toContain('1 pruned');
     } finally {

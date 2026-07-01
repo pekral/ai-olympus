@@ -1,6 +1,6 @@
 {
   "name": "agentic-vibes/laravel-agent-skills",
-  "description": "Composer plugin for PHP and Laravel projects that installs Cursor/Claude/Codex rules and agent skills — coding standards, testing, and conventions",
+  "description": "Laravel Agent Skills — a Composer plugin for PHP and Laravel projects that installs Cursor/Claude/Codex rules and agent skills: coding standards, testing, and conventions",
   "license": "MIT",
   "type": "composer-plugin",
   "keywords": [

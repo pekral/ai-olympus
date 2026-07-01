@@ -403,7 +403,7 @@ test('install with editor=all copies all files to all rule and skill directories
         chdir($root);
         ob_start();
         $exitCode = Installer::run(['agent-skills', 'install', '--editor=all']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
 
@@ -658,7 +658,7 @@ test('install from package root installs rules and skills into .cursor', functio
         chdir($packageRoot);
         ob_start();
         $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
-        $output = (string) ob_get_clean();
+        $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
         expect($output)->toContain('installed');
