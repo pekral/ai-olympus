@@ -228,7 +228,7 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($codeReview)->toContain('Verify the coverage of the refactor commit alone');
 });
 
-test('readme reports the current skill count and lists tester-cookbook and security-threat-analysis', function (): void {
+test('readme reports the current skill count in the Why This Package bullet', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $readme = (string) file_get_contents($packageDir . '/README.md');
     $entries = scandir($packageDir . '/skills');
@@ -244,9 +244,6 @@ test('readme reports the current skill count and lists tester-cookbook and secur
     ));
 
     expect($readme)->toContain($skillCount . ' comprehensive Agent skills');
-    expect($readme)->toContain($skillCount . ' skills for issue resolution');
-    expect($readme)->toContain('`tester-cookbook`');
-    expect($readme)->toContain('`security-threat-analysis`');
 });
 
 test('class-refactoring skill surfaces the speculative-interface refactoring', function (): void {

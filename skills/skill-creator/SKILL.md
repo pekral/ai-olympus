@@ -131,8 +131,7 @@ Do not silence checks; fix the SKILL.md content until the report is clean.
 After the new SKILL.md passes validation:
 - Add a `CHANGELOG.md` entry under `[Unreleased]` describing the new skill and referencing the issue (e.g. `(#432)`).
 - Update `README.md`:
-  - bump the skill count in the "Skills Overview" header and the "Why This Package" bullet
-  - add the new skill to the appropriate table (Issue Resolution, Code Review, Testing, Platform & Data, etc.)
+  - bump the skill count in the "Why This Package" bullet
 
 Skip the README update only when the skill is intentionally internal and not part of the public catalog — state this explicitly in the PR description.
 
