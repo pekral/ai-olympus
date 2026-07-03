@@ -42,6 +42,19 @@
 
 ---
 
+## Excluded per assignment
+
+> Render only when the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) moved at least one non-security Moderate/Minor finding here. Omit the entire section — no `None.` placeholder — when nothing was excluded. Entries here are not actionable findings: they never block merge, never count toward `N` in the Assignment Conformance verdict, and are never turned into a reproducer test or fix.
+
+1. **Location:** `path/to/file.php:42`
+   **Original severity:** Moderate | Minor
+   **Description:** one sentence describing the finding that was excluded.
+   **Declaration quote:** "verbatim quote of the assignment declaration"
+   **Source:** `<issue/PR comment URL>` — declared by `<@account>` (`author_association: OWNER|MEMBER|COLLABORATOR`)
+   **Note:** excluded per assignment declaration, not resolved.
+
+---
+
 ## Refactoring (DRY / tech debt)
 
 > Render only when at least one in-scope refactoring item exists. Only items on lines touched by this PR (added or modified). Each item must reduce tech debt — no stylistic preferences. Omit the entire section when there are no items.

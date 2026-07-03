@@ -50,6 +50,7 @@ metadata:
 - Build the checklist from **both** sources:
   1. Structured CR findings published by the review skills (general comments come from `comments[]`).
   2. **Unresolved reviewer threads** from the `reviewThreads` query — add every thread where `isResolved == false` (human reviewer **and** bot) as a checklist item, and **skip every thread where `isResolved == true`**. Record each thread's `id` so it can be marked resolved once its fix lands (see **Resolve addressed reviewer threads** below).
+- **`## Excluded per assignment` entries are not findings (issue #17).** A CR's `## Excluded per assignment` section (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) lists findings the Exclusion Gate already relocated out of the blocking buckets — do **not** add these entries to the checklist, do not extract a reproducer for them, and do not generate a fix commit for them.
 - Map each finding to a concrete code or test change
 
 #### Reproducer extraction (per finding)

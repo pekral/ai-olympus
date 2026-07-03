@@ -813,6 +813,143 @@ test(
     },
 );
 
+test('rule defines the Assignment-Declared Test-Only Conditions Exclusion Gate with the security carve-out (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('## Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)');
+    expect($rule)->toContain('### Detection conditions (all four required)');
+    expect($rule)->toContain('**Explicit source.**');
+    expect($rule)->toContain('**Explicit anchor.**');
+    expect($rule)->toContain('**Explicit purpose.**');
+    expect($rule)->toContain('**Scope match.**');
+
+    // Security carve-out predicate — supplied verbatim by athena, must never be diluted.
+    expect($rule)->toContain('**Security carve-out (final predicate — supersedes the conservative default above).**');
+    expect($rule)->toContain('The Exclusion Gate MAY move a finding to `## Excluded per assignment` **only when the finding is');
+    expect($rule)->toContain('non-security AND its original severity is Moderate or Minor**.');
+    expect($rule)->toContain('**(S1) Source-lens test.**');
+    expect($rule)->toContain('**(S2) Security-rule test.**');
+    expect($rule)->toContain('**(S3) Security-surface test.**');
+    expect($rule)->toContain(
+        '**Severity is read at the original value assigned by the producing lens, before any assignment annotation**',
+    );
+    expect($rule)->toContain('**Ordering & interaction with Critical Findings Verification (issue #537).**');
+    expect($rule)->toContain('**Authorship trust (REQUIRED).**');
+    expect($rule)->toContain('GitHub `author_association` of `OWNER`, `MEMBER`, or `COLLABORATOR`');
+    expect($rule)->toContain('CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `NONE`, `MANNEQUIN`');
+    expect($rule)->toContain('**Edge cases (all resolve toward keeping the finding):**');
+
+    // Auditability record — author_association field required next to the quote/source.
+    expect($rule)->toContain('### Auditability — `## Excluded per assignment` record');
+    expect($rule)->toContain('the **original severity** the finding was raised at before the move (Moderate or Minor)');
+    expect($rule)->toContain('a **verbatim citation** of the assignment declaration');
+    expect($rule)->toContain('the **declaring account and its `author_association`**');
+    expect($rule)->toContain('excluded per assignment declaration, not resolved');
+
+    expect($rule)->toContain('### Interaction with the Assignment Conformance Gate');
+    expect($rule)->toContain('### Dedup — filter, not detection');
+    expect($rule)->toContain('introduces **no severity collision**');
+    expect($rule)->toContain('requires **no cross-file gating clause**');
+});
+
+test(
+    'code-review skill wires the Exclusion Gate after Critical Findings Verification and before the Assignment Conformance verdict (issue #17)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    
+        expect($skill)->toContain('### Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)');
+        expect($skill)->toContain('Run this step **after** Critical Findings Verification (issue #537) above and **before** the Output assembly');
+        expect($skill)->toContain('a finding moved to `## Excluded per assignment` never counts toward `N`');
+        expect($skill)->toContain(
+            'and an out-of-scope traceability finding always counts toward `N` regardless of any test-only declaration',
+        );
+        expect($skill)->toContain('- **`## Excluded per assignment` section (issue #17).**');
+    },
+);
+
+test('code-review canonical template renders the Excluded per assignment section conditionally (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $template = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
+
+    expect($template)->toContain('## Excluded per assignment');
+    expect($template)->toContain('Entries here are not actionable findings');
+    expect($template)->toContain('**Original severity:** Moderate | Minor');
+    expect($template)->toContain('**Declaration quote:**');
+    expect($template)->toContain('author_association: OWNER|MEMBER|COLLABORATOR');
+    expect($template)->toContain('excluded per assignment declaration, not resolved.');
+});
+
+test('security-review and laravel-authorization-review declare the never-excludable security carve-out (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $securityReview = (string) file_get_contents($packageDir . '/skills/security-review/SKILL.md');
+    $authorizationReview = (string) file_get_contents($packageDir . '/skills/laravel-authorization-review/SKILL.md');
+
+    expect($securityReview)->toContain('### Assignment-declared "test-only" carve-out (issue #17)');
+    expect($securityReview)->toContain('never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate');
+    expect($securityReview)->toContain('at **any** severity (Critical/High/Medium/Low)');
+
+    expect($authorizationReview)->toContain('### Assignment-declared "test-only" carve-out (issue #17)');
+    expect($authorizationReview)->toContain('never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate');
+    expect($authorizationReview)->toContain('at **any** severity (Critical/Moderate/Minor)');
+});
+
+test('api-review defers the Exclusion Gate to the core CR skill (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/api-review/SKILL.md');
+
+    expect($content)->toContain('is applied by `@skills/code-review/SKILL.md`, not here');
+    expect($content)->toContain('fall under the gate\'s security carve-out and are never excludable');
+});
+
+test('CR wrappers confirm they already load the first-class assignment sources for the Exclusion Gate (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
+
+    expect($github)->toContain('- **`## Excluded per assignment` section (issue #17).**');
+    expect($github)->toContain('requires for detection condition 1');
+
+    expect($jira)->toContain('- **`## Excluded per assignment` section (issue #17).**');
+    expect($jira)->toContain('requires for detection condition 1');
+
+    expect($bugsnag)->toContain('- **`## Excluded per assignment` section (issue #17).**');
+    expect($bugsnag)->toContain('requires for detection condition 1');
+});
+
+test('process-code-review skips Excluded per assignment entries as non-actionable (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    expect($content)->toContain('- **`## Excluded per assignment` entries are not findings (issue #17).**');
+    expect($content)->toContain('do **not** add these entries to the checklist, do not extract a reproducer for them');
+});
+
+test('full-tree grep finds no orphaned or duplicated Excluded per assignment / Exclusion Gate references (issue #17)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $expectedFiles = [
+        'rules/code-review/general.mdc',
+        'skills/code-review/SKILL.md',
+        'skills/code-review/templates/review-output.md',
+        'skills/security-review/SKILL.md',
+        'skills/laravel-authorization-review/SKILL.md',
+        'skills/api-review/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
+        'skills/process-code-review/SKILL.md',
+    ];
+
+    foreach ($expectedFiles as $relativePath) {
+        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        $hasMarker = str_contains($content, 'Excluded per assignment') || str_contains($content, 'Exclusion Gate');
+        expect($hasMarker)->toBeTrue(sprintf('Expected %s to reference the Exclusion Gate (issue #17).', $relativePath));
+    }
+});
+
 test('code-review skill flags enum-mode match() in Data Validator bullet and New storage reuse analysis (issue #708)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(

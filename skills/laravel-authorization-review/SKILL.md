@@ -161,6 +161,9 @@ Produce the report using `templates/report.md` as the template:
 
 List each route once, in its most-severe lane; the coverage map carries the rest.
 
+### Assignment-declared "test-only" carve-out (issue #17)
+Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/Moderate/Minor). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
+
 ### 8. Saving the report (optional, on request only)
 By default **output to the conversation only**. You may offer to save to
 `storage/logs/authorization-review-<YYYY-MM-DD>.md` (Laravel-native, git-ignored) — write

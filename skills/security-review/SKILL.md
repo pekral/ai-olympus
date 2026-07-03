@@ -133,6 +133,9 @@ The **Suggested Fix** normalizes to **NFC** and strips / rejects the disallowed 
 
 ## Report
 
+### Assignment-declared "test-only" carve-out (issue #17)
+Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/High/Medium/Low). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
+
 ### Severity
 - Critical
 - High

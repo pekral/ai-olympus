@@ -58,6 +58,8 @@ Walk the diff against each pillar of `@rules/api/general.mdc` and raise one find
 - Do not propose API features the current scope does not require (YAGNI per `@rules/php/core-standards.mdc`).
 
 ## Report
+Findings from this skill fold into the core CR's severity buckets; the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) is applied by `@skills/code-review/SKILL.md`, not here — trust-boundary / authorization findings from Core Check 6 fall under the gate's security carve-out and are never excludable.
+
 Use the severity scale of `@skills/code-review/SKILL.md` so findings fold cleanly into the code review:
 
 - **Critical** / **Moderate** / **Minor** — apply the severity declared in `@rules/api/general.mdc` *CR Severity Rules*.
