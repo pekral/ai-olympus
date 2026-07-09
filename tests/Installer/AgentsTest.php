@@ -247,8 +247,10 @@ test('every agent definition declares a model in frontmatter', function (): void
     foreach ($agentFiles as $agentFile) {
         $content = (string) file_get_contents($agentFile);
         // Anchor to a frontmatter line starting with `model:` so a stray substring
-        // (e.g. the prose "## Delegation model") cannot satisfy the assertion.
-        expect($content)->toMatch('/^model:\s*\S+/m');
+        // (e.g. the prose "## Delegation model") cannot satisfy the assertion,
+        // and restrict the value to the aliases Claude Code accepts so a typo
+        // cannot ship and silently fall back at dispatch time.
+        expect($content)->toMatch('/^model:\s*(opus|sonnet|haiku|fable)$/m');
     }
 });
 
