@@ -14,7 +14,7 @@
 # PR comment.
 #
 # Usage:
-#   gather-issue-context.sh <NUMBER|URL>
+#   gather-issue-context.sh <URL>
 #
 # Env:
 #   GITHUB_CONTEXT_DEPTH      how many link hops to follow (default 1, 0 = root only)
@@ -35,10 +35,10 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: gather-issue-context.sh <NUMBER|URL>
+Usage: gather-issue-context.sh <URL>
 
-  NUMBER  bare GitHub issue or PR number (e.g. 445)
-  URL     any github.com URL containing /issues/<N> or /pull/<N>
+  URL  any github.com URL containing /issues/<N> or /pull/<N>
+       (bare issue/PR numbers are rejected — always pass the full GitHub URL)
 
 Env: GITHUB_CONTEXT_DEPTH (default 1), GITHUB_CONTEXT_MAX_ITEMS (default 25)
 EOF

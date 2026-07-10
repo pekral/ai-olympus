@@ -8,7 +8,7 @@
 # comments (via the deterministic load-issue.sh) and downloads each one.
 #
 # Usage:
-#   download-attachments.sh <NUMBER|URL> [--dest DIR]
+#   download-attachments.sh <URL> [--dest DIR]
 #
 # Auth: a Bearer token from `gh auth token`, written only into a 0600 curl --config
 # file (never in argv / logs). The token is sent to github.com only — curl follows the
@@ -27,10 +27,10 @@ SHARED_DIR="${SCRIPT_DIR}/../../_shared"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: download-attachments.sh <NUMBER|URL> [--dest DIR]
+Usage: download-attachments.sh <URL> [--dest DIR]
 
-  NUMBER|URL   GitHub issue / PR number or URL
-  --dest       quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
+  URL     full GitHub issue / PR URL (bare issue/PR numbers are rejected)
+  --dest  quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
 
 Auth: uses `gh auth token` (run `gh auth login` first).
 EOF

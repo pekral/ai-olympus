@@ -297,7 +297,11 @@ test('github load-issue script is shipped, executable, and documents the same sh
 
     $content = (string) file_get_contents($script);
     expect($content)->toStartWith('#!/usr/bin/env bash');
-    expect($content)->toContain('Usage: load-issue.sh <NUMBER|URL>');
+    expect($content)->toContain('Usage: load-issue.sh <URL>');
+    // Bare issue/PR numbers are rejected — the caller must always pass the
+    // full GitHub URL so the load never depends on the caller's cwd / remote.
+    expect($content)->toContain('always pass the full GitHub URL');
+    expect($content)->not->toContain('<NUMBER|URL>');
     expect($content)->toContain('"kind"');
     expect($content)->toContain('"comments"');
     expect($content)->toContain('"closingIssues"');
@@ -470,8 +474,8 @@ test('resolve-issue moves the issue to code review via the transition helper aft
 test('new GitHub agent scripts are shipped, executable, and documented', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $scripts = [
-        'gather-issue-context.sh' => 'Usage: gather-issue-context.sh <NUMBER|URL>',
-        'parse-comments.sh' => 'Usage: parse-comments.sh <NUMBER|URL>',
+        'gather-issue-context.sh' => 'Usage: gather-issue-context.sh <URL>',
+        'parse-comments.sh' => 'Usage: parse-comments.sh <URL>',
     ];
 
     foreach ($scripts as $name => $usage) {
@@ -790,7 +794,7 @@ test('duplicate and unsupported ECC skills were intentionally not ported', funct
 test('attachment download scripts are shipped, executable, and documented for all three trackers', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $scripts = [
-        '/skills/code-review-github/scripts/download-attachments.sh' => 'Usage: download-attachments.sh <NUMBER|URL> [--dest DIR]',
+        '/skills/code-review-github/scripts/download-attachments.sh' => 'Usage: download-attachments.sh <URL> [--dest DIR]',
         '/skills/code-review-jira/scripts/download-attachments.sh' => 'Usage: download-attachments.sh <KEY|URL> [--dest DIR]',
         '/skills/code-review-bugsnag/scripts/download-attachments.sh' => 'Usage: download-attachments.sh <URL|ORG_SLUG/PROJECT_SLUG/ERROR_ID> [--dest DIR]',
     ];

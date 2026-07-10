@@ -4,14 +4,14 @@
 #
 # Thin projection over load-issue.sh so an AI agent can read and triage comments
 # without re-parsing the full issue/PR payload. The heavy lifting (gh call,
-# NUMBER/URL normalisation, JSON shaping) already lives in load-issue.sh — this
+# URL normalisation, JSON shaping) already lives in load-issue.sh — this
 # script only reshapes its `.comments[]` output.
 #
 # Usage:
-#   parse-comments.sh <NUMBER|URL>
+#   parse-comments.sh <URL>
 #
-# Accepts the same NUMBER|URL forms as load-issue.sh (bare number, /issues/<N>
-# URL, or /pull/<N> URL).
+# Accepts the same URL forms as load-issue.sh (/issues/<N> URL or /pull/<N>
+# URL; bare issue/PR numbers are rejected — always pass the full GitHub URL).
 #
 # Output (stdout): a JSON array in chronological order, one object per comment:
 #   [ { "index", "author", "created", "updated", "url", "body",
@@ -27,10 +27,10 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: parse-comments.sh <NUMBER|URL>
+Usage: parse-comments.sh <URL>
 
-  NUMBER  bare GitHub issue or PR number (e.g. 445)
-  URL     any github.com URL containing /issues/<N> or /pull/<N>
+  URL  any github.com URL containing /issues/<N> or /pull/<N>
+       (bare issue/PR numbers are rejected — always pass the full GitHub URL)
 EOF
 }
 
