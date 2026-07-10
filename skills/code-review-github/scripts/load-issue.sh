@@ -296,7 +296,9 @@ $payload as $p
     headRefName: (if $kind == "pr" then ($p.headRefName // null) else null end),
     baseRefOid:  (if $kind == "pr" then ($p.baseRefOid  // null) else null end),
     headRefOid:  (if $kind == "pr" then ($p.headRefOid  // null) else null end),
-    isDraft:     (if $kind == "pr" then ($p.isDraft     // null) else null end),
+    # No `// null` here: the jq alternative operator treats `false` as empty,
+    # so `$p.isDraft // null` would collapse a non-draft PR `false` to `null`.
+    isDraft:     (if $kind == "pr" then $p.isDraft else null end),
     mergeable:   (if $kind == "pr" then ($p.mergeable   // null) else null end),
     mergeStateStatus: (if $kind == "pr" then ($p.mergeStateStatus // null) else null end),
     mergedAt:    (if $kind == "pr" then ($p.mergedAt    // null) else null end),

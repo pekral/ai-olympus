@@ -314,6 +314,10 @@ test('github load-issue script is shipped, executable, and documents the same sh
     expect($content)->toContain('subIssues(first:');
     expect($content)->toContain('gh api graphql');
     expect($content)->toContain('subIssues: (if $kind == "issue" then $subIssues else [] end)');
+    // jq's `//` treats false as empty, so `$p.isDraft // null` would collapse a
+    // non-draft PR's false to null — the projection must not use it for isDraft.
+    expect($content)->toContain('isDraft:     (if $kind == "pr" then $p.isDraft else null end)');
+    expect($content)->not->toContain('$p.isDraft     // null');
 });
 
 test('jira load-issue embeds full subtask context (description, comments, attachments)', function (): void {
