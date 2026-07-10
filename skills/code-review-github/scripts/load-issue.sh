@@ -12,8 +12,9 @@
 #
 # Bare issue/PR numbers are rejected — always pass the full GitHub URL. A bare
 # number would resolve against the caller's cwd git remote and silently load
-# the wrong repo when run outside the target checkout, and a `#445`-style
-# argument never even reaches the script (the shell drops it as a comment).
+# the wrong repo when run outside the target checkout. An unquoted `#445`-style
+# argument never even reaches the script (the shell drops it as a comment);
+# a quoted "#445" arrives and is rejected by the guard below.
 #
 # Emits one JSON document on stdout with the following stable shape:
 #
