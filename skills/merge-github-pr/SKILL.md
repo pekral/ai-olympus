@@ -27,7 +27,7 @@ Merge pull requests that meet all required conditions.
 
 ### 1. Load PRs
 - Identify candidate PRs ready for merge
-- For each candidate, load PR context by running `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — the single deterministic entry point. Never call `gh pr view`, `gh pr checks`, or `gh api /repos/.../pulls/...` directly. Read `isDraft`, `mergeable`, `mergeStateStatus`, `reviewDecision`, and `statusCheckRollup[]` off the resulting JSON document.
+- For each candidate, load PR context by running `skills/code-review-github/scripts/load-issue.sh <URL>` — the single deterministic entry point; always pass the full GitHub PR URL, never a bare number (the loader rejects it). Never call `gh pr view`, `gh pr checks`, or `gh api /repos/.../pulls/...` directly. Read `isDraft`, `mergeable`, `mergeStateStatus`, `reviewDecision`, and `statusCheckRollup[]` off the resulting JSON document.
 - If the script is unavailable (missing tool, exit code 2/3) fall back to the GitHub MCP server.
 
 ### 2. Pre-checks (must all pass)

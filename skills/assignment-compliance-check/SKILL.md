@@ -29,7 +29,7 @@ metadata:
 
 ### 1. Load the assignment
 - Detect the originating tracker from the PR description / linked issue.
-- **GitHub-originated:** run `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` against the linked issue. Read the full `body`, every entry in `comments[]` (including replies), and every referenced attachment URL.
+- **GitHub-originated:** run `skills/code-review-github/scripts/load-issue.sh <URL>` against the linked issue — always the full GitHub URL, never a bare number (the loader rejects it). Read the full `body`, every entry in `comments[]` (including replies), and every referenced attachment URL.
 - **JIRA-originated:** run `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>`. Read `descriptionText`, `comments[]`, and any attachment metadata.
 - **Bugsnag-originated:** run `skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>` (requires `BUGSNAG_TOKEN`) to read the error class, `message`, `context`, and `latestEvent.stacktrace` as the assignment. The error is also mirrored to GitHub via `linkedIssues[]`; load that linked GitHub issue as well to pick up any human-authored acceptance criteria and apply the GitHub branch on top.
 - Never call `gh`, `acli`, `api.bugsnag.com`, or REST endpoints directly — always use the deterministic loaders.
@@ -45,7 +45,7 @@ For the assignment + current comments, enumerate:
 Skip generic developer hygiene wishes ("clean code", "tests please"). The check is strictly about business behavior described by the reporter.
 
 ### 3. Load the implementation
-- Run `skills/code-review-github/scripts/load-issue.sh <PR-NUMBER>` for the PR and read `files[]`, `body`, and `commits[]`.
+- Run `skills/code-review-github/scripts/load-issue.sh <PR-URL>` for the PR and read `files[]`, `body`, and `commits[]`.
 - For each extracted requirement from step 2, locate the matching change in the diff: the function, controller action, Livewire method, job, command, view, or test that should realize the requirement.
 - If a requirement has no corresponding change in the diff, that is itself a Critical gap candidate (see step 4).
 

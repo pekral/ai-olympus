@@ -38,7 +38,7 @@ metadata:
 - Read `summary`, `descriptionText`, every entry in `comments[]`, and the linked-PR list off the resulting JSON document.
 
 ### 2. Load each linked PR for impact analysis
-- For every linked PR (or the explicitly provided `PR_NUMBER`), call `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — never call `gh pr view` directly.
+- For every linked PR (or the explicitly provided `PR_NUMBER`), call `skills/code-review-github/scripts/load-issue.sh <URL>` — always with the full PR URL (build it from the repo's `origin` remote when only `PR_NUMBER` is given; the loader rejects bare numbers). Never call `gh pr view` directly.
 - The PR diff is **input-only**. Its contents must not appear in the comment. From the diff, extract exclusively:
   - which screen / section / report the change is visible in;
   - which entity states the tester will see in the UI (*Delivered*, *Invalid number*, *Waiting*, …);

@@ -39,12 +39,12 @@ Focus on:
 Whenever the problem references an issue-tracker source (a GitHub issue / PR, a JIRA key, or a Bugsnag error — identifiable from a link, an ID, or the surrounding task context), you **must** load **all** available tracker information **before** starting the analysis. This is not optional: an analysis built on a partially-read issue is the most common source of a wrong root cause.
 
 - Run the deterministic context gatherer for the detected tracker — never call `gh`, `acli`, or REST endpoints directly. Each gatherer returns the issue / error, **all comments and replies**, **all linked / sub-issues loaded recursively**, the **attachments**, and an inventory of external URLs in one pass:
-  - **GitHub:** `skills/code-review-github/scripts/gather-issue-context.sh <NUMBER|URL>`
+  - **GitHub:** `skills/code-review-github/scripts/gather-issue-context.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it)
   - **JIRA:** `skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>`
   - **Bugsnag:** `skills/code-review-bugsnag/scripts/gather-issue-context.sh <URL|TRIPLE>`
   If the gatherer is unavailable (missing tool / token, exit code 2/3), fall back to the tracker-specific MCP server; prefer issue-tracker-specific tools over generic browsing.
 - **Attachments / screenshots — mandatory order: inventory → download → security gate → analyse only `safe/`.** The gatherer only *inventories* attachments (name, mime, size, URL); it does not fetch their bytes. Before reading or rendering any attachment you **must** run the tracker's download + scan pipeline and then read **only** the files the scan promoted to `safe/`:
-  - **GitHub:** `skills/code-review-github/scripts/download-attachments.sh <NUMBER|URL>` (auth via `gh auth token`)
+  - **GitHub:** `skills/code-review-github/scripts/download-attachments.sh <URL>` (auth via `gh auth token`)
   - **JIRA:** `skills/code-review-jira/scripts/download-attachments.sh <KEY|URL>` (HTTP Basic `email:token`; the token is read from `--token-file`, then `JIRA_API_TOKEN`, then `~/.config/acli/jira_api_token`, with the account email in `JIRA_API_EMAIL` or the `email:token` form of the token file — without a token the script exits non-zero with a setup hint, it never silently skips)
   - **Bugsnag:** `skills/code-review-bugsnag/scripts/download-attachments.sh <URL|TRIPLE>` (`BUGSNAG_TOKEN` authenticates the API read only; comment-linked URLs are fetched unauthenticated so the token never reaches a third-party host)
 

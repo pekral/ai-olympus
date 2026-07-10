@@ -28,7 +28,7 @@ metadata:
 
 ### For each PR:
 
-- Load PR context by running `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — the single deterministic entry point. Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly. Read review comments, files, commits, status checks, and `closingIssues` off the resulting JSON document. If the script is unavailable (missing tool, exit code 2/3) fall back to the GitHub MCP server, and always prefer the MCP fallback for review-thread / line-anchored comments that the script does not return.
+- Load PR context by running `skills/code-review-github/scripts/load-issue.sh <URL>` — the single deterministic entry point; always pass the full GitHub PR URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly. Read review comments, files, commits, status checks, and `closingIssues` off the resulting JSON document. If the script is unavailable (missing tool, exit code 2/3) fall back to the GitHub MCP server, and always prefer the MCP fallback for review-thread / line-anchored comments that the script does not return.
 - **Load unresolved reviewer threads (mandatory, GitHub).** `load-issue.sh` returns general `comments[]` and `reviews[]` but never the line-anchored review threads nor their resolved/unresolved state. Fetch them deterministically with the GraphQL `reviewThreads` connection — this is **not** one of the forbidden REST endpoints (`gh issue view`, `gh pr view`, `gh api /repos/.../issues/...`):
   ```
   gh api graphql -f query='
@@ -63,7 +63,7 @@ For every Critical and Moderate finding, extract the reproducer fields published
 - **Suggested Fix** — the minimal corrected snippet that resolves the finding (may be `n/a — <reason>` when the Fix narrative is sufficient)
 
 Read the reproducer fields off `comments[]` and `body` / `descriptionText` returned by the deterministic loader for the originating tracker instead of re-fetching the issue:
-- **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>`. Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
+- **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
 - **JIRA-originated reviews:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>`. Never call `acli` directly.
 
 Use these to write a failing test **before** applying the fix:

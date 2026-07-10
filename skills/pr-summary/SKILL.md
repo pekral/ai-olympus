@@ -28,7 +28,7 @@ metadata:
 2. Load all commits in the current branch since it diverged from the base branch (`git log base..HEAD`).
 3. For each commit, read the commit message and the diff to understand what changed and why.
 4. If a PR already exists for this branch, load the PR description and linked issue(s) for additional context (business motivation, acceptance criteria, reporter's expectations):
-   - **GitHub:** `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — read `body`, `comments[]`, `author`, `commits[].author`, and `closingIssues[]` off the resulting JSON document.
+   - **GitHub:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it); read `body`, `comments[]`, `author`, `commits[].author`, and `closingIssues[]` off the resulting JSON document.
    - **JIRA:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — read `descriptionText`, `comments[]`, `assignee`, `reporter`, and linked PRs.
    - Never call `gh pr view`, `gh issue view`, or `acli` directly; fall back to the GitHub / JIRA MCP server only when the loader is unavailable (exit code 2/3).
 5. **Resolve the real change author(s):**

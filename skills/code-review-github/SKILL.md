@@ -25,9 +25,9 @@ Run a full code review for GitHub pull requests and publish findings directly to
 ## Execution
 
 ### 1. Load Context
-- Load PR context by running `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — the single deterministic entry point. Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly. Read PR header, description, comments, commits, files, reviews, status checks, and `closingIssues` off the resulting JSON document.
-- For a single ready-to-read context brief — the issue/PR plus its body, comments, changed files, commits, reviews, CI checks, recursively-loaded linked issues/PRs, and an inventory of external URLs, rendered as Markdown — run `skills/code-review-github/scripts/gather-issue-context.sh <NUMBER|URL>` instead of hand-assembling the JSON. To read only the comments as a structured array, use `skills/code-review-github/scripts/parse-comments.sh <NUMBER|URL>`. Both build on `load-issue.sh`, so the same exit codes and MCP fallback apply. Attachment content and the inventoried URLs are not fetched by the scripts — read them with your own tools when a finding depends on them.
-- Load each linked issue (from `closingIssues[]`) the same way — pass its number or URL to the same script.
+- Load PR context by running `skills/code-review-github/scripts/load-issue.sh <URL>` — the single deterministic entry point. Always pass the full GitHub URL (`https://github.com/<owner>/<repo>/pull/<N>`), never a bare number or `#<N>` — the loader rejects bare numbers. Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly. Read PR header, description, comments, commits, files, reviews, status checks, and `closingIssues` off the resulting JSON document.
+- For a single ready-to-read context brief — the issue/PR plus its body, comments, changed files, commits, reviews, CI checks, recursively-loaded linked issues/PRs, and an inventory of external URLs, rendered as Markdown — run `skills/code-review-github/scripts/gather-issue-context.sh <URL>` instead of hand-assembling the JSON. To read only the comments as a structured array, use `skills/code-review-github/scripts/parse-comments.sh <URL>`. Both build on `load-issue.sh`, so the same full-URL contract, exit codes, and MCP fallback apply. Attachment content and the inventoried URLs are not fetched by the scripts — read them with your own tools when a finding depends on them.
+- Load each linked issue (from `closingIssues[]`) the same way — pass its `url` field to the same script.
 - If the script is unavailable (missing tool, exit code 2/3) fall back to the GitHub MCP server. Always prefer the MCP fallback for data the script cannot cover: review-thread / line-anchored comments, per-commit check runs, and binary attachment contents.
 - If multiple PRs exist for one issue, review each independently
 - **Branch checkout gate (mandatory, always).** Before running any review step, check out the PR branch (`headRefName` from the loaded JSON) and pull the latest commits — `git fetch origin`, `git checkout <headRefName>`, `git pull` — so the review always runs against the **actual current codebase on disk (the checked-out working tree)**, never against the `gh` remote diff in isolation. Confirm local `HEAD` equals the PR head SHA from the loaded context. If the checkout fails (missing ref, detached `HEAD`, or local changes that would be overwritten), **stop and report it** instead of reviewing from the diff. Every sub-review then reads the checked-out files.
@@ -35,7 +35,7 @@ Run a full code review for GitHub pull requests and publish findings directly to
 #### Issue Context Analysis
 Before reviewing code, load and analyze the full linked issue:
 
-1. Fetch the complete GitHub issue via `skills/code-review-github/scripts/load-issue.sh <NUMBER|URL>` — description, all comments, and any referenced attachments or links come off the resulting JSON document.
+1. Fetch the complete GitHub issue via `skills/code-review-github/scripts/load-issue.sh <URL>` — description, all comments, and any referenced attachments or links come off the resulting JSON document.
 2. Extract from the issue:
    - **Requirements and acceptance criteria** — what the code must do
    - **Expected behavior** — how the feature or fix should work
