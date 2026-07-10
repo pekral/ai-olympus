@@ -190,3 +190,11 @@
 - Example: issue #12 / PR #14 — the new logo was pasted as `github.com/user-attachments/assets/91331de3-…`; unauthenticated `curl -L` returned a 9-byte `Not Found`, while `curl --config <0600 token file>` fetched the real 1254×1254 PNG. Then `file` + a visual `Read` confirmed it was the tech-stack logo (not a polyglot) before replacing `assets/logo.png`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/14   Added: 2026-07-01
 - Role:    shared
+
+### jq-alternative-operator-false-collapse — jq `//` treats `false` as empty, so `value // null` corrupts boolean fields in JSON projections
+
+- Trigger: writing or reviewing a jq projection in a skill script (`skills/*/scripts/*.sh`) that maps a boolean field with the alternative operator — `($p.someFlag // null)`, `(.enabled // false)`, or any `bool // default` shape.
+- Rule:    The jq `//` operator falls through on `null` **and** `false`, so `($p.isDraft // null)` emits `null` for every non-draft PR — consumers cannot distinguish `false` from a missing field. For boolean fields, pass the value through untouched (`$p.isDraft`) — jq already yields `null` for a missing key — or use `if has("key") then .key else null end` when the missing-key case must be explicit. The same footgun applies to numeric `0` and empty-string fields when the fallback differs from the natural value (`0 // 5` yields `5` is false — `0` is truthy in jq — but `false // x` and `null // x` both yield `x`). Pin the corrected fragment with a content assertion in `tests/Installer/SkillsContentTest.php` so the pattern cannot regress.
+- Example: PR #22 — `load-issue.sh` emitted `isDraft: null` for a freshly-promoted non-draft PR right after `gh pr ready`; the `merge-github-pr` Draft gate reads `isDraft` off this JSON. Fix commit `a23c0bc` dropped the `// null` and added the content regression test.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/22   Added: 2026-07-10
+- Role:    shared
