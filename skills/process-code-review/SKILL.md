@@ -98,7 +98,7 @@ Rules:
      - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
    - Either way, pre-existing fixes follow the same diff-scoped 100% coverage rule as CR fixes.
 4. In the `cr-status` PR comment posted during **PR update**, list every pre-existing fix under a `## Pre-existing fixes` heading with a one-line rationale, so reviewers can review them independently of the CR thread.
-5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the `cr-status` comment as a deferred follow-up with the reason — the reviewer can then file a follow-up issue.
+5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the `cr-status` comment as a deferred follow-up with the reason, **and file it yourself as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*) — do not leave the filing to the reviewer. The `cr-status` entry carries the created issue URL.
 
 ---
 
@@ -180,7 +180,7 @@ After the fixes are committed and pushed (Finalization above), mark every review
 gh api graphql -f query='mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread{ isResolved } } }' -F threadId=<thread-id>
 ```
 
-- Resolve **only** threads that were fixed. Leave a thread unresolved when its point was rejected or deferred, and record the rejection reason in the `cr-status` report instead of resolving it.
+- Resolve **only** threads that were fixed. Leave a thread unresolved when its point was rejected or deferred, and record the rejection reason in the `cr-status` report instead of resolving it. A **deferred** (not rejected) point must additionally be filed as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); the `cr-status` entry carries the created issue URL — rejection is a decision, deferral is a promise.
 - If `gh api graphql` is unavailable, fall back to the GitHub MCP server's resolve-review-thread operation.
 - Resolving a thread is a GitHub PR state change, not a code change — it stays within the read-fixes-push-resolve flow this skill already owns and never touches the protected main branch.
 
@@ -223,6 +223,7 @@ Rules:
   - resolved items
   - reviewer threads resolved (count) and any left unresolved with the rejection / deferral reason
   - reviewer comments fulfilled (the final `M/N fulfilled` verdict) — every actionable reviewer instruction satisfied, or rejected/deferred with its recorded reason
+  - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
   - loop iteration count and final convergence status
   - remaining blockers (if any — should be empty when convergence was reached)
 

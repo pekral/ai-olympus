@@ -117,6 +117,19 @@ Any run that begins implementing a tracker issue **must claim it atomically befo
 
 The per-tracker mechanics (claim label name, helper script call) live in `@skills/resolve-issue/SKILL.md`. This section owns the principle; that skill owns the execution.
 
+## File deferred points as follow-up tracker issues
+
+When a run resolving a tracker task **knowingly defers a point** — an assignment item split out as out-of-scope, a non-trivial pre-existing issue moved to a TODO, a review follow-up recorded as deferred instead of fixed — the deferral must be registered as a **new issue in the originating tracker** before the run reports completion. A deferred point that lives only in a PR body is a silent scope cut: the PR gets merged, its `## TODO` checklist dies with it, and nobody ever schedules the follow-up.
+
+- **What must be filed.** Every item the run itself records as deferred future work: entries in the PR `## TODO` checklist, entries under a `Deferred` heading in a `cr-status` comment, and pre-existing issues deferred as non-trivial. A point **rejected with a stated reason** (decided against, not postponed) is not filed — rejection is a decision, deferral is a promise.
+- **Where.** The same tracker as the source assignment: a GitHub-originated task files a GitHub issue in the same repository; a JIRA-originated task files a JIRA issue in the same project; a Bugsnag-originated task files a GitHub issue in the repository of the error's linked issue (`linkedIssues[]`).
+- **Content.** The new issue carries the deferred point verbatim, the deferral reason, and links back to the source task and the PR that deferred it — the next agent must be able to act on it without re-deriving context. Do not rewrite or shrink the point (`@skills/create-issue/SKILL.md` owns the create-without-rewriting convention).
+- **Deduplicate before filing.** Search the tracker for an existing open issue covering the same point first; when one exists, link it from the deferral entry instead of creating a duplicate.
+- **Verify the issue actually landed.** External writes can be silently blocked in auto-mode — re-read the created issue via the tracker's deterministic loader after filing. When creation is blocked or unavailable, surface the unfiled point in the final report as a blocker for a human to file manually.
+- **Cross-link.** The PR `## TODO` / `Deferred` entry references the created issue URL, so the checklist item and the tracker issue point at each other.
+
+The per-tracker mechanics (CLI calls, dedup search, the blocked-write fallback) live in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*; this section owns the principle.
+
 ## What Not To Do
 
 - Do not let a durable lesson live only in a commit message or a closed PR thread — promote the reusable part into the project's memory file.

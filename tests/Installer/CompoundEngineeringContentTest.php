@@ -188,3 +188,30 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     // The rule must reference daidalos step 7 as the reference implementation.
     expect($content)->toContain('daidalos');
 });
+
+test('deferred points must be filed as follow-up tracker issues so they are not forgotten', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The section heading must exist and own the principle.
+    expect($rule)->toContain('## File deferred points as follow-up tracker issues');
+    expect($rule)->toContain('silent scope cut');
+    expect($rule)->toContain('Deduplicate before filing');
+    expect($rule)->toContain('Verify the issue actually landed');
+
+    // Principle/execution split mirrors the claim section — resolve-issue owns the mechanics.
+    expect($rule)->toContain('*Deferred-item follow-up issues*');
+
+    // resolve-issue carries the per-tracker mechanics and the no-URL-no-done guarantee.
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    expect($resolveIssue)->toContain('### Deferred-item follow-up issues');
+    expect($resolveIssue)->toContain('never report the deferral as handled without a live issue URL');
+
+    // The other deferring flows route through the same rule.
+    $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($processCr)->toContain('File deferred points as follow-up tracker issues');
+
+    $createMissing = (string) file_get_contents($packageDir . '/skills/create-missing-tests-in-pr/SKILL.md');
+    expect($createMissing)->toContain('Deferred-item follow-up issues');
+});

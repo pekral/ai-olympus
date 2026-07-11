@@ -85,7 +85,7 @@ Run `@skills/prepare-issue-context/SKILL.md` with `MODE=resolve-issue` and the s
 7. Review the input from step 6 and split the identified items into three groups:
    - **In scope** — items that directly match the issue requirements. These will be implemented.
    - **Pre-existing issues** — bugs, project-rule violations, or security vulnerabilities already present in the affected files before this task (see *Pre-existing issue handling* below). These will be fixed in **separate commits** inside the same PR.
-   - **Out of scope (deferred)** — valid findings that fall outside the current issue **and** do not qualify as pre-existing issues to fix now (e.g. enhancements, refactors, future features). These will be added to the PR summary as a `## TODO` list for future tasks.
+   - **Out of scope (deferred)** — valid findings that fall outside the current issue **and** do not qualify as pre-existing issues to fix now (e.g. enhancements, refactors, future features). These will be added to the PR summary as a `## TODO` list for future tasks **and each will be filed as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
 
 ### Read, Map & Verify before implementing (mandatory pre-flight)
 
@@ -183,7 +183,7 @@ Resolve any **Critical** or **Moderate** finding from the security review before
 **Creating the pull request is the default, mandatory final step.** Once review and testing are clean, open the PR automatically — applying the valid git rules and PR definitions in this section — **without asking the user for confirmation**. The skill is not finished until the PR exists.
 
 **Opt-out — the user must explicitly ask to skip the PR.** Only when the user's request explicitly states that no pull request should be created (e.g. "don't open a PR", "no PR", "just implement locally", "leave it on the branch") do you skip PR creation. A silent or ambiguous request is **not** an opt-out — when in doubt, create the PR. When the user did opt out:
-- Still run the full flow through implementation, the code-quality / review loop, and the security review — only the PR creation and **every step that depends on an open PR** are skipped: the technical report on the PR, the non-technical report on the original tracker, the JIRA Code-Review transition, the GitHub `ready for review` label, and the compound-memory step (`@skills/record-project-memory/SKILL.md`). None of them run without a PR.
+- Still run the full flow through implementation, the code-quality / review loop, and the security review — only the PR creation and **every step that depends on an open PR** are skipped: the technical report on the PR, the non-technical report on the original tracker, the *Deferred-item follow-up issues* step, the JIRA Code-Review transition, the GitHub `ready for review` label, and the compound-memory step (`@skills/record-project-memory/SKILL.md`). None of them run without a PR — report the deferred items in the handoff instead so they are filed when the PR opens.
 - Commit the changes on the local feature branch (do **not** push or open the PR) and leave the working tree on that branch.
 - Release the tracker claim the same way the before-PR release does (*Release on Blocked / abort (before PR)* in step 1) — this is a deliberate stop, not a failure, but no PR will own the claim, so removing the `Resolve_by_AI:in-progress` label lets a human pick the issue up. Name the issue / key in the handoff.
 - Report what was implemented, the review/security outcome, and the exact `gh pr create --draft …` command the user can run later to open the PR.
@@ -198,7 +198,19 @@ Once review and testing are clean and the user has **not** opted out:
   - testing instructions
   - **Summary** — concise overview of what changed and why
   - **Pre-existing fixes** — if any pre-existing issues were fixed per *Pre-existing issue handling*, list each fix commit under a `## Pre-existing fixes` section with a one-line rationale so reviewers can review them independently of the assignment
-  - **TODO list** — if any **out-of-scope (deferred)** items were identified in step 7 (or non-trivial pre-existing issues were deferred), include them under a `## TODO` section as a checklist of potential follow-up tasks
+  - **TODO list** — if any **out-of-scope (deferred)** items were identified in step 7 (or non-trivial pre-existing issues were deferred), include them under a `## TODO` section as a checklist of potential follow-up tasks; each entry is then cross-linked to its follow-up tracker issue by the *Deferred-item follow-up issues* step below
+
+### Deferred-item follow-up issues
+
+Every item the run knowingly deferred — the *Out of scope (deferred)* group from step 7 and every non-trivial pre-existing issue deferred per *Pre-existing issue handling* rule 5 — must be registered as a **new issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues*. A PR `## TODO` checklist alone is not durable: the PR gets merged and the list is forgotten. Run this step right after the PR exists (so the new issue can link to it) and before the final report:
+
+1. **Deduplicate** — search the tracker for an existing open issue covering the point first (`gh issue list --search "<keywords>" --state open` for GitHub; a JQL search via `acli` for JIRA). When one exists, reference that issue in the `## TODO` entry instead of filing a duplicate.
+2. **File** — create the issue in the originating tracker, carrying the deferred point verbatim, the deferral reason, and links to the source task and this PR (follow the create-without-rewriting convention of `@skills/create-issue/SKILL.md`):
+   - **GitHub:** `gh issue create --title "<short point>" --body "<verbatim point + reason + source/PR links>"` in the source repository. When the repository uses a backlog label for agent-resolvable work (e.g. `Resolve_by_AI`), apply it so the selection flow can pick the issue up; skip when no such label exists.
+   - **JIRA:** create the issue in the source project via `acli` (fall back to the JIRA MCP server when `acli` is unavailable).
+   - **Bugsnag:** file a GitHub issue in the repository of the error's `linkedIssues[]`.
+3. **Verify** — re-read the created issue via the tracker's deterministic loader and confirm it exists; external writes can be silently blocked in auto-mode. When filing fails or is blocked, list the unfiled point in the final report as a blocker for a human to file manually — never report the deferral as handled without a live issue URL.
+4. **Cross-link** — update the PR `## TODO` entry with the created issue URL (`- [ ] <point> — filed as <issue URL>`).
 
 ## Final report
 
@@ -257,6 +269,7 @@ After the reviews converged (no Critical / Moderate) and the reports are posted,
 - A clean pull request is created with a summary **by default** — skipped only when the user explicitly opted out of PR creation (see *Pull request*), in which case the committed local branch and the ready-to-run `gh pr create --draft …` command are reported instead
 - Technical report posted on the GitHub PR (skipped on PR opt-out)
 - Non-technical report posted on the original issue tracker (skipped on PR opt-out)
+- Every deferred `## TODO` item has a follow-up tracker issue cross-linked per *Deferred-item follow-up issues*, or is listed in the final report as a blocker for manual filing (skipped on PR opt-out)
 - For JIRA issues: PR is linked back and a summary comment is posted (skipped on PR opt-out)
 - Durable lessons (if any cleared the promotion bar) were recorded into the project memory file via `@skills/record-project-memory/SKILL.md` (skipped on PR opt-out)
 
