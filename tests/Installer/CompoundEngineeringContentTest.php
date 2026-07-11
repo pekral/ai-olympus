@@ -203,6 +203,11 @@ test('deferred points must be filed as follow-up tracker issues so they are not 
     // Principle/execution split mirrors the claim section — resolve-issue owns the mechanics.
     expect($rule)->toContain('*Deferred-item follow-up issues*');
 
+    // The rule names its single sanctioned exception (resolve-issue PR opt-out)
+    // so the rule and the skill never contradict each other.
+    expect($rule)->toContain('single sanctioned exception');
+    expect($rule)->toContain('filed when the PR opens');
+
     // resolve-issue carries the per-tracker mechanics and the no-URL-no-done guarantee.
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     expect($resolveIssue)->toContain('### Deferred-item follow-up issues');
