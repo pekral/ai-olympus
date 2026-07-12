@@ -32,15 +32,15 @@ test('install ignores rules directory in project root and uses package source', 
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
 
-        $foreignFile = $root . '/.cursor/rules/example.mdc';
+        $foreignFile = $root . '/.claude/rules/example.mdc';
         expect(is_file($foreignFile))->toBeFalse();
 
-        $installedDir = $root . '/.cursor/rules';
+        $installedDir = $root . '/.claude/rules';
         expect(is_dir($installedDir))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {
@@ -59,12 +59,12 @@ test('install copies rules from package when no development directory', function
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
 
-        $installedDir = $root . '/.cursor/rules';
+        $installedDir = $root . '/.claude/rules';
         expect(is_dir($installedDir))->toBeTrue();
 
         $iterator = new RecursiveIteratorIterator(
@@ -90,7 +90,7 @@ test('install copies rules from package when no development directory', function
 
 test('install respects force flag', function (): void {
     $root = installerCreateProjectRoot();
-    $installedFile = $root . '/.cursor/rules/php/core-standards.mdc';
+    $installedFile = $root . '/.claude/rules/php/core-standards.mdc';
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
@@ -98,7 +98,7 @@ test('install respects force flag', function (): void {
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
         $originalContent = file_get_contents($installedFile);
         expect($originalContent)->toBeString();
@@ -106,12 +106,12 @@ test('install respects force flag', function (): void {
         file_put_contents($installedFile, 'modified content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('modified content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--force']);
+        Installer::run(['agent-skills', 'install', '--force']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe($originalContent);
     } finally {
@@ -126,7 +126,7 @@ test('install respects force flag', function (): void {
 test('install never overwrites existing project.mdc in target', function (): void {
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/rules/project.mdc', 'package default content');
-    $installedFile = $root . '/.cursor/rules/project.mdc';
+    $installedFile = $root . '/.claude/rules/project.mdc';
     installerWriteFile($installedFile, 'my project-specific content');
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -135,12 +135,12 @@ test('install never overwrites existing project.mdc in target', function (): voi
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('my project-specific content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--force']);
+        Installer::run(['agent-skills', 'install', '--force']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('my project-specific content');
     } finally {
@@ -166,10 +166,10 @@ test('install creates symlinks when requested', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--symlink']);
+        Installer::run(['agent-skills', 'install', '--symlink']);
         ob_end_clean();
 
-        $target = $root . '/.cursor/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.mdc';
 
         expect(is_link($target))->toBeTrue();
         expect(file_get_contents($target))->not->toBeEmpty();
@@ -190,17 +190,17 @@ test('install without --symlink installs regular files via copy fallback, not sy
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $target = $root . '/.cursor/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.mdc';
         $packageSource = dirname(__DIR__, 2) . '/rules/php/core-standards.mdc';
 
         expect(is_file($target))->toBeTrue();
         expect(is_link($target))->toBeFalse();
         expect(file_get_contents($target))->toBe(file_get_contents($packageSource));
 
-        $script = $root . '/.cursor/skills/code-review-github/scripts/load-issue.sh';
+        $script = $root . '/.claude/skills/code-review-github/scripts/load-issue.sh';
         expect(is_file($script))->toBeTrue();
         expect(is_link($script))->toBeFalse();
         expect(is_executable($script))->toBeTrue();
@@ -221,10 +221,10 @@ test('install creates regular files (copy fallback), never symlinks, when symlin
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--symlink']);
+        Installer::run(['agent-skills', 'install', '--symlink']);
         ob_end_clean();
 
-        $target = $root . '/.cursor/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.mdc';
 
         expect(is_file($target))->toBeTrue();
         expect(file_get_contents($target))->not->toBeEmpty();
@@ -251,10 +251,10 @@ test('install copies nested directories', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $installedFile = $root . '/.cursor/rules/laravel/architecture.mdc';
+        $installedFile = $root . '/.claude/rules/laravel/architecture.mdc';
 
         expect(is_file($installedFile))->toBeTrue();
         expect(file_get_contents($installedFile))->not->toBeEmpty();
@@ -267,7 +267,7 @@ test('install copies nested directories', function (): void {
     }
 });
 
-test('install with editor=cursor copies rules and skills only to .cursor', function (): void {
+test('install never creates .cursor or .codex directories', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -275,13 +275,13 @@ test('install with editor=cursor copies rules and skills only to .cursor', funct
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        expect(is_file($root . '/.cursor/rules/php/core-standards.mdc'))->toBeTrue();
-        expect(is_file($root . '/.cursor/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_dir($root . '/.claude/skills'))->toBeFalse();
-        expect(is_dir($root . '/.codex/skills'))->toBeFalse();
+        expect(is_file($root . '/.claude/rules/php/core-standards.mdc'))->toBeTrue();
+        expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_dir($root . '/.cursor'))->toBeFalse();
+        expect(is_dir($root . '/.codex'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -291,7 +291,7 @@ test('install with editor=cursor copies rules and skills only to .cursor', funct
     }
 });
 
-test('install with editor=all copies skills to all target directories', function (): void {
+test('install copies skills to project and home target directories', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -307,10 +307,10 @@ test('install with editor=all copies skills to all target directories', function
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=all']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        foreach (InstallerPath::resolveSkillsTargetDirectories($root, InstallerPath::EDITOR_ALL) as $targetDir) {
+        foreach (InstallerPath::resolveSkillsTargetDirectories($root) as $targetDir) {
             $installedSkill = $targetDir . '/code-review/SKILL.md';
             expect(is_file($installedSkill))->toBeTrue('Skills should be installed to ' . $targetDir);
             expect(file_get_contents($installedSkill))->not->toBeEmpty();
@@ -328,10 +328,10 @@ test('install appends output humanization directive to installed skill', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $installedSkill = $root . '/.cursor/skills/code-review/SKILL.md';
+        $installedSkill = $root . '/.claude/skills/code-review/SKILL.md';
         $contents = file_get_contents($installedSkill);
 
         expect($contents)->toContain('## Output Humanization');
@@ -355,10 +355,10 @@ test('install does not duplicate output humanization directive in installed skil
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $installedSkill = $root . '/.cursor/skills/code-review/SKILL.md';
+        $installedSkill = $root . '/.claude/skills/code-review/SKILL.md';
         $contents = file_get_contents($installedSkill);
 
         expect(substr_count((string) $contents, '## Output Humanization'))->toBe(1);
@@ -372,7 +372,7 @@ test('install does not duplicate output humanization directive in installed skil
     }
 });
 
-test('install with editor=all copies all files to all rule and skill directories', function (): void {
+test('install copies all files to every rule, skill, and agent directory', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rulesSource = $packageDir . '/rules';
     $skillsSource = $packageDir . '/skills';
@@ -387,9 +387,9 @@ test('install with editor=all copies all files to all rule and skill directories
         putenv('USERPROFILE=' . $root);
     }
 
-    $rulesTargets = InstallerPath::resolveRulesTargetDirectories($root, InstallerPath::EDITOR_ALL);
-    $skillTargets = InstallerPath::resolveSkillsTargetDirectories($root, InstallerPath::EDITOR_ALL);
-    $agentTargets = InstallerPath::resolveAgentsTargetDirectories($root, InstallerPath::EDITOR_ALL);
+    $rulesTargets = InstallerPath::resolveRulesTargetDirectories($root);
+    $skillTargets = InstallerPath::resolveSkillsTargetDirectories($root);
+    $agentTargets = InstallerPath::resolveAgentsTargetDirectories($root);
     $expectedAgentsCount = installerCountFiles($packageDir . '/agents');
     $claudeMdCount = InstallerPath::resolveClaudeMdSource() !== null ? 1 : 0;
     $expectedTotalFiles = $expectedRulesCount * count($rulesTargets)
@@ -402,7 +402,7 @@ test('install with editor=all copies all files to all rule and skill directories
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=all']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
@@ -431,14 +431,14 @@ test('install with editor=all copies all files to all rule and skill directories
 test('install fails when target path is a file instead of directory', function (): void {
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/rules/test.mdc', 'content');
-    file_put_contents($root . '/.cursor', 'blocking file');
+    file_put_contents($root . '/.claude', 'blocking file');
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -453,7 +453,7 @@ test('install fails when target path is a file instead of directory', function (
 
 test('install fails when destination is directory that cannot be removed', function (): void {
     $root = installerCreateProjectRoot();
-    $targetDir = $root . '/.cursor/rules/php/core-standards.mdc';
+    $targetDir = $root . '/.claude/rules/php/core-standards.mdc';
     installerEnsureDirectory($targetDir);
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -461,7 +461,7 @@ test('install fails when destination is directory that cannot be removed', funct
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor', '--force']);
+        $exitCode = Installer::run(['agent-skills', 'install', '--force']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -476,7 +476,7 @@ test('install fails when destination is directory that cannot be removed', funct
 
 test('install fails when rules subdirectory path is a file', function (): void {
     $root = installerCreateProjectRoot();
-    $targetSubdir = $root . '/.cursor/rules/php';
+    $targetSubdir = $root . '/.claude/rules/php';
     installerEnsureDirectory(dirname($targetSubdir));
     file_put_contents($targetSubdir, 'blocking file');
     $cwd = getcwd();
@@ -485,7 +485,7 @@ test('install fails when rules subdirectory path is a file', function (): void {
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -506,10 +506,10 @@ test('install copies security rules from rules/security directory', function ():
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $securityDir = $root . '/.cursor/rules/security';
+        $securityDir = $root . '/.claude/rules/security';
 
         expect(is_file($securityDir . '/backend.md'))->toBeTrue();
         expect(file_get_contents($securityDir . '/backend.md'))->not->toBeEmpty();
@@ -537,17 +537,17 @@ test('install always force-copies security rules even without force flag', funct
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $securityFile = $root . '/.cursor/rules/security/backend.md';
-        $regularFile = $root . '/.cursor/rules/php/core-standards.mdc';
+        $securityFile = $root . '/.claude/rules/security/backend.md';
+        $regularFile = $root . '/.claude/rules/php/core-standards.mdc';
 
         file_put_contents($securityFile, 'old security content');
         file_put_contents($regularFile, 'old rules content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         expect(file_get_contents($securityFile))->toBe($originalSecurityContent);
@@ -561,77 +561,19 @@ test('install always force-copies security rules even without force flag', funct
     }
 });
 
-test('install with editor=claude copies to .claude only', function (): void {
+test('install detects a concatenated --force--editor argument and returns exit 1', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
     try {
         chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
-        ob_end_clean();
-
-        expect(is_file($root . '/.claude/rules/php/core-standards.mdc'))->toBeTrue();
-        expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_dir($root . '/.cursor/rules'))->toBeFalse();
-        expect(is_dir($root . '/.codex/rules'))->toBeFalse();
-    } finally {
-        if ($originalCwd !== '') {
-            chdir($originalCwd);
-        }
-
-        installerRemoveDirectory($root);
-    }
-});
-
-test('install supports combined force and editor flags for claude', function (): void {
-    $root = installerCreateProjectRoot();
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-    $packageDir = dirname(__DIR__, 2);
-    $originalContent = file_get_contents($packageDir . '/rules/php/core-standards.mdc');
-
-    try {
-        chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
+        $exitCode = Installer::run(['agent-skills', 'install', '--force--editor=claude']);
         ob_end_clean();
 
-        $ruleFile = $root . '/.claude/rules/php/core-standards.mdc';
-        file_put_contents($ruleFile, 'old rules');
-
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--force--editor=claude']);
-        ob_end_clean();
-
-        expect(file_get_contents($ruleFile))->toBe($originalContent);
-        expect(is_dir($root . '/.cursor/rules'))->toBeFalse();
-        expect(is_dir($root . '/.codex/rules'))->toBeFalse();
-    } finally {
-        if ($originalCwd !== '') {
-            chdir($originalCwd);
-        }
-
-        installerRemoveDirectory($root);
-    }
-});
-
-test('install with editor=codex copies to .codex only', function (): void {
-    $root = installerCreateProjectRoot();
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=codex']);
-        ob_end_clean();
-
-        expect(is_file($root . '/.codex/rules/php/core-standards.mdc'))->toBeTrue();
-        expect(is_file($root . '/.codex/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_dir($root . '/.cursor/rules'))->toBeFalse();
+        expect($exitCode)->toBe(1);
         expect(is_dir($root . '/.claude/rules'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
@@ -642,7 +584,7 @@ test('install with editor=codex copies to .codex only', function (): void {
     }
 });
 
-test('install from package root installs rules and skills into .cursor', function (): void {
+test('install from package root installs rules and skills into .claude', function (): void {
     $packageRoot = dirname(__DIR__, 2);
 
     if (!file_exists($packageRoot . '/composer.json') || !is_dir($packageRoot . '/rules')) {
@@ -657,15 +599,15 @@ test('install from package root installs rules and skills into .cursor', functio
     try {
         chdir($packageRoot);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
         expect($output)->toContain('installed');
-        expect(is_dir($packageRoot . '/.cursor/rules'))->toBeTrue();
-        expect(is_dir($packageRoot . '/.cursor/skills'))->toBeTrue();
-        expect(installerCountFiles($packageRoot . '/.cursor/rules'))->toBeGreaterThan(0);
-        expect(installerCountFiles($packageRoot . '/.cursor/skills'))->toBeGreaterThan(0);
+        expect(is_dir($packageRoot . '/.claude/rules'))->toBeTrue();
+        expect(is_dir($packageRoot . '/.claude/skills'))->toBeTrue();
+        expect(installerCountFiles($packageRoot . '/.claude/rules'))->toBeGreaterThan(0);
+        expect(installerCountFiles($packageRoot . '/.claude/skills'))->toBeGreaterThan(0);
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -681,7 +623,7 @@ test('install fails when copy fails due to unwritable destination', function ():
     }
 
     $root = installerCreateProjectRoot();
-    $targetDir = $root . '/.cursor/rules/php';
+    $targetDir = $root . '/.claude/rules/php';
     installerEnsureDirectory($targetDir . '/examples');
     chmod($targetDir, 0555);
     $cwd = getcwd();
@@ -691,7 +633,7 @@ test('install fails when copy fails due to unwritable destination', function ():
         chdir($root);
         ob_start();
         set_error_handler(static fn (): bool => true);
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        $exitCode = Installer::run(['agent-skills', 'install']);
         restore_error_handler();
         ob_get_clean();
 
@@ -715,7 +657,7 @@ test('install fails when existing file cannot be removed', function (): void {
     }
 
     $root = installerCreateProjectRoot();
-    $targetDir = $root . '/.cursor/rules/php';
+    $targetDir = $root . '/.claude/rules/php';
     $targetFile = $targetDir . '/core.mdc';
     installerWriteFile($targetFile, 'old content');
     chmod($targetDir, 0555);
@@ -726,7 +668,7 @@ test('install fails when existing file cannot be removed', function (): void {
         chdir($root);
         ob_start();
         set_error_handler(static fn (): bool => true);
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor', '--force']);
+        $exitCode = Installer::run(['agent-skills', 'install', '--force']);
         restore_error_handler();
         ob_get_clean();
 
@@ -750,47 +692,18 @@ test('install preserves executable bit on shipped scripts', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         $installedScripts = [
-            $root . '/.cursor/skills/code-review-github/scripts/load-issue.sh',
-            $root . '/.cursor/skills/code-review-jira/scripts/load-issue.sh',
+            $root . '/.claude/skills/code-review-github/scripts/load-issue.sh',
+            $root . '/.claude/skills/code-review-jira/scripts/load-issue.sh',
         ];
 
         foreach ($installedScripts as $script) {
             expect(is_file($script))->toBeTrue($script . ' should exist after install');
             expect(is_executable($script))->toBeTrue($script . ' must be executable after install');
         }
-    } finally {
-        if ($originalCwd !== '') {
-            chdir($originalCwd);
-        }
-
-        installerRemoveDirectory($root);
-    }
-});
-
-test('install with --editor flag overrides composer.json editor', function (): void {
-    $root = installerCreateProjectRoot();
-    file_put_contents($root . '/composer.json', json_encode([
-        'extra' => [
-            'agent-skills' => [
-                'editor' => 'claude',
-            ],
-        ],
-    ]));
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
-        ob_end_clean();
-
-        expect(is_file($root . '/.cursor/rules/php/core-standards.mdc'))->toBeTrue();
-        expect(is_dir($root . '/.claude/rules'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -809,7 +722,7 @@ test('install with prune on non-existent target directory does nothing', functio
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=cursor', '--prune']);
+        $exitCode = Installer::run(['agent-skills', 'install', '--prune']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
@@ -838,7 +751,7 @@ test('installer never installs the per-project memory file into a target project
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=all']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         foreach (['.cursor', '.claude', '.codex'] as $editorDir) {

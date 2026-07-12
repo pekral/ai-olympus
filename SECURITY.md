@@ -41,14 +41,13 @@ Granting `allow-plugins: true` also enables the package's Composer plugin to rea
 {
   "extra": {
     "agent-skills": {
-      "auto-install": true,
-      "editor": "claude"
+      "auto-install": true
     }
   }
 }
 ```
 
-When `auto-install` is `true`, every `composer install` or `composer update` automatically runs `Installer::run(['agent-skills', 'install', '--force', '--editor=<editor>'])` — the same installer that you would call manually, with `--force` and without any opt-in flags (`--allow-bundled-scripts`, `--allow-subagent-writes`). **Security implication:** any package that ships a `post-install-cmd` / `post-update-cmd` hook and is trusted via `allow-plugins` can trigger code execution during a routine `composer install`. Review the `extra.agent-skills` block in your `composer.json` before enabling `auto-install`, and treat it the same way you treat other Composer script hooks.
+When `auto-install` is `true`, every `composer install` or `composer update` automatically runs `Installer::run(['agent-skills', 'install', '--force'])` — the same installer that you would call manually, with `--force` and without any opt-in flags (`--allow-bundled-scripts`, `--allow-subagent-writes`). **Security implication:** any package that ships a `post-install-cmd` / `post-update-cmd` hook and is trusted via `allow-plugins` can trigger code execution during a routine `composer install`. Review the `extra.agent-skills` block in your `composer.json` before enabling `auto-install`, and treat it the same way you treat other Composer script hooks.
 
 See also: [README — Automatic Installation via Composer Plugin](README.md#automatic-installation-via-composer-plugin).
 
@@ -58,7 +57,7 @@ All security-sensitive installer flags are **opt-in by design** — the package 
 
 ### `--allow-bundled-scripts`
 
-**What it does.** When `--editor=claude` or `--editor=all` is used alongside this flag, the installer idempotently appends a narrow allow-list for this package's bundled scripts to `~/.claude/settings.json` (`permissions.allow`):
+**What it does.** Alongside this flag, the installer idempotently appends a narrow allow-list for this package's bundled scripts to `~/.claude/settings.json` (`permissions.allow`):
 
 ```
 Bash(*skills/code-review-github/scripts/load-issue.sh:*)
@@ -67,7 +66,7 @@ Bash(*skills/code-review-jira/scripts/load-issue.sh:*)
 
 These two patterns pre-approve the GitHub and JIRA `load-issue.sh` scripts that the `code-review-github` and `code-review-jira` skills invoke, so Claude Code stops prompting for confirmation on every run.
 
-**What it does not do.** It grants access only to the two specific, version-controlled scripts shipped in this package. All other entries in `~/.claude/settings.json` are preserved untouched. The flag has no effect when `--editor=cursor` or `--editor=codex` is used, or when neither `HOME` nor `USERPROFILE` is available.
+**What it does not do.** It grants access only to the two specific, version-controlled scripts shipped in this package. All other entries in `~/.claude/settings.json` are preserved untouched. The flag has no effect when neither `HOME` nor `USERPROFILE` is available.
 
 **Implementation reference.** `src/InstallerClaudeSettings.php` — `applyIfRequested()` → `ensureBundledScriptPermissions()`.
 
@@ -75,7 +74,7 @@ See also: [README — CLI Switches](README.md#cli-switches).
 
 ### `--allow-subagent-writes`
 
-**What it does.** When `--editor=claude` or `--editor=all` is used alongside this flag, the installer prepends two scoped permission entries to `permissions.allow` in the project's `.claude/settings.local.json`:
+**What it does.** Alongside this flag, the installer prepends two scoped permission entries to `permissions.allow` in the project's `.claude/settings.local.json`:
 
 ```
 Edit(//<absolute-project-path>/**)
@@ -96,13 +95,13 @@ See also: [docs/agents.md — Troubleshooting (subagent file writes blocked)](do
 
 | Path | Created by | Condition |
 |------|-----------|-----------|
-| `~/.claude/settings.json` — sets `includeCoAuthoredBy: false` | `install` (unconditional) | `--editor=claude` or `--editor=all`; `HOME`/`USERPROFILE` set; key absent — never overwrites an existing value |
-| `~/.claude/settings.json` — adds `permissions.allow` bundled-script entries | `--allow-bundled-scripts` | `--editor=claude` or `--editor=all`; `HOME`/`USERPROFILE` set |
-| `.claude/settings.local.json` | `--allow-subagent-writes` | `--editor=claude` or `--editor=all` |
-| `.cursor/rules/`, `.claude/rules/`, `.codex/rules/` | `install` | always, for the chosen editor |
-| `.cursor/skills/`, `.claude/skills/`, `.codex/skills/` | `install` | always, for the chosen editor |
-| `.claude/agents/` | `install` | `--editor=claude` or `--editor=all` only |
-| `CLAUDE.md` | `install` | `--editor=claude` or `--editor=all`; never overwrites an existing file |
+| `~/.claude/settings.json` — sets `includeCoAuthoredBy: false` | `install` (unconditional) | `HOME`/`USERPROFILE` set; key absent — never overwrites an existing value |
+| `~/.claude/settings.json` — adds `permissions.allow` bundled-script entries | `--allow-bundled-scripts` | `HOME`/`USERPROFILE` set |
+| `.claude/settings.local.json` | `--allow-subagent-writes` | always |
+| `.claude/rules/` | `install` | always |
+| `.claude/skills/` (and `~/.claude/skills/` when `HOME`/`USERPROFILE` is set) | `install` | always |
+| `.claude/agents/` | `install` | always |
+| `CLAUDE.md` | `install` | always; never overwrites an existing file |
 
 The installer never writes outside the project directory and the user's home directory, and it never modifies `composer.json` or any project source file.
 

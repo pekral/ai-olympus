@@ -12,7 +12,7 @@ test('run shows help when executed without arguments', function (): void {
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain('Usage:');
-    expect($output)->toContain('--editor=EDITOR');
+    expect($output)->not->toContain('--editor');
 });
 
 test('run returns error code for unknown command', function (): void {
@@ -21,10 +21,12 @@ test('run returns error code for unknown command', function (): void {
     expect($exitCode)->toBe(1);
 });
 
-test('run returns error code for invalid editor', function (): void {
-    $exitCode = Installer::run(['agent-skills', 'install', '--editor=invalid']);
+test('install with any --editor argument returns exit 1 (flag removed, never silently ignored)', function (): void {
+    foreach (['claude', 'cursor', 'codex', 'all', 'invalid'] as $editorValue) {
+        $exitCode = Installer::run(['agent-skills', 'install', '--editor=' . $editorValue]);
 
-    expect($exitCode)->toBe(1);
+        expect($exitCode)->toBe(1);
+    }
 });
 
 test('run shows prune option in help output', function (): void {
@@ -71,8 +73,26 @@ test('normalizeCliArguments splits --allow-subagent-writes from a concatenated a
     expect($normalized)->toContain('--allow-subagent-writes');
 });
 
-test('install without --editor returns error', function (): void {
-    $exitCode = Installer::run(['agent-skills', 'install']);
+test('install without any flags succeeds and targets Claude Code only', function (): void {
+    $root = installerCreateProjectRoot();
+    $cwd = getcwd();
+    $originalCwd = $cwd !== false ? $cwd : '';
 
-    expect($exitCode)->toBe(1);
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['agent-skills', 'install']);
+        ob_end_clean();
+
+        expect($exitCode)->toBe(0);
+        expect(is_dir($root . '/.claude/rules'))->toBeTrue();
+        expect(is_dir($root . '/.cursor'))->toBeFalse();
+        expect(is_dir($root . '/.codex'))->toBeFalse();
+    } finally {
+        if ($originalCwd !== '') {
+            chdir($originalCwd);
+        }
+
+        installerRemoveDirectory($root);
+    }
 });

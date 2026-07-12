@@ -32,15 +32,13 @@ final class Installer
                 return 1;
             }
 
-            $editor = self::parseEditor($normalizedArgv);
-
-            if ($editor === null) {
-                fwrite(STDERR, 'Missing or invalid --editor value. Allowed: cursor, claude, codex, all.' . PHP_EOL);
+            if (self::hasEditorArgument($normalizedArgv)) {
+                fwrite(STDERR, 'The --editor option has been removed; the installer now targets Claude Code only. Re-run without --editor.' . PHP_EOL);
 
                 return 1;
             }
 
-            return self::install($editor, $options);
+            return self::install($options);
         } catch (InstallerFailure $exception) {
             fwrite(STDERR, $exception->getMessage() . PHP_EOL);
 
@@ -51,45 +49,40 @@ final class Installer
     /**
      * @param array<int, string> $argv
      */
-    private static function parseEditor(array $argv): ?string
+    private static function hasEditorArgument(array $argv): bool
     {
         foreach ($argv as $arg) {
             if (str_starts_with($arg, '--editor=')) {
-                $value = trim(substr($arg, strlen('--editor=')));
-                $value = strtolower($value);
-
-                return in_array($value, InstallerPath::getAllowedEditors(), strict: true) ? $value : null;
+                return true;
             }
         }
 
-        return null;
+        return false;
     }
 
     private static function showHelp(): int
     {
         echo "Usage:\n";
-        echo "  vendor/bin/agent-skills install --editor=EDITOR [--force] [--symlink] [--prune] [--allow-bundled-scripts] [--allow-subagent-writes]\n\n";
-        echo "Options:\n  --editor=EDITOR         Target editor (required): cursor, claude, codex, all.\n";
-        echo "  --force                 Overwrite existing files.\n";
+        echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--allow-bundled-scripts] [--allow-subagent-writes]\n\n";
+        echo "Options:\n  --force                 Overwrite existing files.\n";
         echo "  --symlink               Create symlinks instead of copying (falls back to copy on Windows).\n";
         echo "  --prune                 Remove files in target that no longer exist in source.\n";
-        echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in; --editor=claude/all only.\n";
+        echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in.\n";
         echo "  --allow-subagent-writes Allow dispatched-subagent file writes by adding scoped Edit/Write entries for the project\n";
-        echo "                          tree to permissions.allow in .claude/settings.local.json. Opt-in; --editor=claude/all only.\n";
+        echo "                          tree to permissions.allow in .claude/settings.local.json. Opt-in.\n";
 
         return 0;
     }
 
-    private static function install(string $editor, InstallOptions $options): int
+    private static function install(InstallOptions $options): int
     {
         $root = InstallerPath::resolveProjectRoot();
-        [$copied, $pruned] = self::runAllSyncs(self::collectSyncPayloads($root, $editor), $options->force, $options->symlink, $options->prune);
+        [$copied, $pruned] = self::runAllSyncs(self::collectSyncPayloads($root), $options->force, $options->symlink, $options->prune);
 
-        $claudeMdSource = InstallerPath::isClaudeMdEditor($editor) ? InstallerPath::resolveClaudeMdSource() : null;
-        $copied += self::installSingleFile($claudeMdSource, InstallerPath::resolveClaudeMdTarget($root));
-        $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts, $editor);
-        $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference($editor);
-        $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $editor, $root);
+        $copied += self::installSingleFile(InstallerPath::resolveClaudeMdSource(), InstallerPath::resolveClaudeMdTarget($root));
+        $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
+        $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
+        $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
 
         self::reportInstallSummary($copied, $pruned, $permissionsAdded, $coAuthoredByDisabled);
 
@@ -103,23 +96,22 @@ final class Installer
     /**
      * @return array<int, array{0: string, 1: array<int, string>}>
      */
-    private static function collectSyncPayloads(string $root, string $editor): array
+    private static function collectSyncPayloads(string $root): array
     {
         $payloads = [
-            [InstallerPath::resolveRulesSource($root), InstallerPath::resolveRulesTargetDirectories($root, $editor)],
+            [InstallerPath::resolveRulesSource($root), InstallerPath::resolveRulesTargetDirectories($root)],
         ];
 
         $skillsSource = InstallerPath::resolveSkillsSource();
 
         if ($skillsSource !== null) {
-            $payloads[] = [$skillsSource, InstallerPath::resolveSkillsTargetDirectories($root, $editor)];
+            $payloads[] = [$skillsSource, InstallerPath::resolveSkillsTargetDirectories($root)];
         }
 
         $agentsSource = InstallerPath::resolveAgentsSource();
-        $agentsTargets = InstallerPath::resolveAgentsTargetDirectories($root, $editor);
 
-        if ($agentsSource !== null && $agentsTargets !== []) {
-            $payloads[] = [$agentsSource, $agentsTargets];
+        if ($agentsSource !== null) {
+            $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root)];
         }
 
         return $payloads;

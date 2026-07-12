@@ -25,7 +25,7 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 - A controller, job, command, listener, or Livewire component method contains business orchestration that should be moved into an Action.
 - You want a thin entry point that delegates one use case to one Action.
 
-## Manual invocation in Cursor
+## Manual invocation
 Always include:
 - Entry-point file path
 - Target method (`Class::method`)

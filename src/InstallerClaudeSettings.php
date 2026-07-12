@@ -32,13 +32,12 @@ final class InstallerClaudeSettings
 
     /**
      * Applies bundled-script permissions only when the caller opted in
-     * (`--allow-bundled-scripts`), the editor is `claude` or `all`, and a
-     * usable home directory is available. Returns the number of entries newly
-     * added; 0 in every other case.
+     * (`--allow-bundled-scripts`) and a usable home directory is available.
+     * Returns the number of entries newly added; 0 in every other case.
      */
-    public static function applyIfRequested(bool $allowBundledScripts, string $editor): int
+    public static function applyIfRequested(bool $allowBundledScripts): int
     {
-        if (!$allowBundledScripts || !InstallerPath::isClaudeMdEditor($editor)) {
+        if (!$allowBundledScripts) {
             return 0;
         }
 
@@ -53,16 +52,12 @@ final class InstallerClaudeSettings
 
     /**
      * Disables AI co-author attribution in Claude Code commits/PRs by writing
-     * `includeCoAuthoredBy: false` into the user's settings, but only for the
-     * `claude`/`all` editors and when a usable home directory is available.
-     * Returns true when the setting was newly written; false in every other case.
+     * `includeCoAuthoredBy: false` into the user's settings, when a usable home
+     * directory is available. Returns true when the setting was newly written;
+     * false in every other case.
      */
-    public static function applyCoAuthoredByPreference(string $editor): bool
+    public static function applyCoAuthoredByPreference(): bool
     {
-        if (!InstallerPath::isClaudeMdEditor($editor)) {
-            return false;
-        }
-
         $home = InstallerPath::resolveHomeDirectoryOrNull();
 
         if ($home === null) {
@@ -101,14 +96,13 @@ final class InstallerClaudeSettings
 
     /**
      * Enables dispatched-subagent file writes only when the caller opted in
-     * (`--allow-subagent-writes`) and the editor is `claude` or `all`. Returns true
-     * when at least one allow entry was newly written; false in every other case.
-     * Opt-in by design — this grants a write permission, so it stays an explicit,
-     * human-owned decision.
+     * (`--allow-subagent-writes`). Returns true when at least one allow entry
+     * was newly written; false in every other case. Opt-in by design — this
+     * grants a write permission, so it stays an explicit, human-owned decision.
      */
-    public static function applySubagentWritesIfRequested(bool $allowSubagentWrites, string $editor, string $projectRoot): bool
+    public static function applySubagentWritesIfRequested(bool $allowSubagentWrites, string $projectRoot): bool
     {
-        if (!$allowSubagentWrites || !InstallerPath::isClaudeMdEditor($editor)) {
+        if (!$allowSubagentWrites) {
             return false;
         }
 

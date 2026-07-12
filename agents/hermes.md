@@ -38,7 +38,7 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 ## Registration dependency
 
-`hermes` is dispatchable only after the installer copies `agents/hermes.md` to `.claude/agents/` (via `--editor=claude` or `--editor=all`). Until then it is a documented future step. Document this dependency in any handoff that references it.
+`hermes` is dispatchable only after the installer copies `agents/hermes.md` to `.claude/agents/` (`vendor/bin/agent-skills install`). Until then it is a documented future step. Document this dependency in any handoff that references it.
 
 ## Output — handoff to the caller
 

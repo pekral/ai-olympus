@@ -9,7 +9,7 @@ metadata:
 ## Constraints
 - Apply `@rules/compound-engineering/general.mdc` *Compound Memory (per project)* — this skill is the write side of that rule; it owns the promotion bar, the curation pass, and the file convention defined there.
 - Apply `@rules/git/general.mdc`
-- **Write-only to the memory file.** This skill modifies exactly one file: `docs/memory/PROJECT_MEMORY.md` in the project being worked on. It never edits production code, tests, configuration, `CLAUDE.md`, or `.cursor/rules/project.mdc`.
+- **Write-only to the memory file.** This skill modifies exactly one file: `docs/memory/PROJECT_MEMORY.md` in the project being worked on. It never edits production code, tests, configuration, or `CLAUDE.md`.
 - **Never record secrets, credentials, tokens, or PII** — apply the same prohibition the security rules apply to logs and tracker comments. When a lesson can only be stated with a secret, generalize it until the secret is gone or drop the entry.
 - **Per-project only.** The memory file lives in the target project, never in this shared rules package. Never write a project lesson into `rules/**` as a global rule.
 - Output must be in English (the memory file is a code artifact, like `CLAUDE.md`).
@@ -31,7 +31,7 @@ Do **not** run this skill mid-task, before convergence, or for a task that produ
 ### 1. Locate (or plan) the memory file
 - Target `docs/memory/PROJECT_MEMORY.md` in the project being worked on.
 - If it does not exist, plan to create it with a one-line index header (`# Project memory — <project>`). Creating it is allowed; this is the file's first write.
-- If the project demonstrably has no `docs/` tree and refuses to grow one, fall back to the project's existing learnings / decision-log file per `@rules/compound-engineering/general.mdc`. Never fall back to `CLAUDE.md` or `.cursor/rules/project.mdc` themselves.
+- If the project demonstrably has no `docs/` tree and refuses to grow one, fall back to the project's existing learnings / decision-log file per `@rules/compound-engineering/general.mdc`. Never fall back to `CLAUDE.md` itself.
 
 ### 2. Extract candidate lessons from the converged context
 List every candidate lesson the task surfaced: a recurring review finding, a non-obvious bug cause, a rejected approach, an architectural decision, or the canonical "this kind of change belongs in an existing part of the system, not a new abstraction" insight.
@@ -76,7 +76,7 @@ Read the existing file and curate so it stays small and non-redundant:
 - Every candidate lesson was run through the three-gate promotion bar.
 - Surviving lessons were written to `docs/memory/PROJECT_MEMORY.md` in the entry format, after the curation pass deduped/superseded/pruned.
 - No secrets, credentials, tokens, or PII were written.
-- Only the memory file was modified — no production code, tests, `CLAUDE.md`, or `.cursor/rules/project.mdc`.
+- Only the memory file was modified — no production code, tests, or `CLAUDE.md`.
 - The report lists the slugs added/edited/pruned, or states `no entry: nothing cleared the promotion bar`.
 
 ## Output Humanization

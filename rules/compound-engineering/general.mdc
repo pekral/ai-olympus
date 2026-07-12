@@ -19,9 +19,9 @@ Turn one-off lessons into reusable rules by maintaining a **per-project memory**
 ### Where to store it (the memory file)
 
 - **Canonical home:** a dedicated, greppable, curated memory file at `docs/memory/PROJECT_MEMORY.md` in the project being worked on. It is the index *and* the body — an index line at the top plus one short entry per lesson, the same shape as a `MEMORY.md` index with one fact per topic.
-- **Keep it separate from the hand-maintained files.** The memory file is auto-appended by agents, so it must be **distinct** from `CLAUDE.md` and `.cursor/rules/project.mdc`, which humans curate by hand — an auto-write must never clobber human prose. Reference the memory file from `CLAUDE.md` (a one-line pointer) so it stays discoverable, exactly as a `MEMORY.md` index makes its facts discoverable.
-- **The installer never touches it.** `docs/memory/PROJECT_MEMORY.md` is project data, not package data — the rules installer only syncs `rules/`, `skills/`, `agents/`, and `CLAUDE.md`, so it never creates, overwrites, or prunes the memory file. The file is therefore a safe, durable home that survives re-installation, the same guarantee `CLAUDE.md` and `.cursor/rules/project.mdc` carry.
-- **Fallback for projects without a `docs/` convention:** when a project demonstrably has no `docs/` tree and refuses to grow one, fall back to a learnings / decision-log file the project already uses (e.g. `docs/decisions/`); never fall back to writing lessons into `CLAUDE.md` or `.cursor/rules/project.mdc` themselves.
+- **Keep it separate from the hand-maintained files.** The memory file is auto-appended by agents, so it must be **distinct** from `CLAUDE.md`, which humans curate by hand — an auto-write must never clobber human prose. Reference the memory file from `CLAUDE.md` (a one-line pointer) so it stays discoverable, exactly as a `MEMORY.md` index makes its facts discoverable.
+- **The installer never touches it.** `docs/memory/PROJECT_MEMORY.md` is project data, not package data — the rules installer only syncs `rules/`, `skills/`, `agents/`, and `CLAUDE.md`, so it never creates, overwrites, or prunes the memory file. The file is therefore a safe, durable home that survives re-installation, the same guarantee `CLAUDE.md` carries.
+- **Fallback for projects without a `docs/` convention:** when a project demonstrably has no `docs/` tree and refuses to grow one, fall back to a learnings / decision-log file the project already uses (e.g. `docs/decisions/`); never fall back to writing lessons into `CLAUDE.md` itself.
 
 ### Entry format (greppable, one lesson per entry)
 
@@ -98,7 +98,7 @@ On completion — both on the final handoff and on a `Blocked` stop — every ag
 - **Working-tree write-lock** (`.claude/run/.daidalos-write.lock`) — released by `daidalos` in step 7.
 - **Temporary `.md` preparation files** created during the run (aligns with `@rules/git/general.mdc` *Cleanup*).
 
-**Memory files are NEVER deleted** — `docs/memory/PROJECT_MEMORY.md` in the target project and any user-level memory files (`~/.claude/.../memory/*.md`) are durable, not temporary; they survive every run. Hand-maintained files (`CLAUDE.md`, `.cursor/rules/project.mdc`) are also excluded from this cleanup.
+**Memory files are NEVER deleted** — `docs/memory/PROJECT_MEMORY.md` in the target project and any user-level memory files (`~/.claude/.../memory/*.md`) are durable, not temporary; they survive every run. The hand-maintained `CLAUDE.md` is also excluded from this cleanup.
 
 Scripts and shell steps that create temporary files must bind their cleanup to `trap … EXIT` (shell) or `finally` (other languages) so the cleanup runs even when the script exits with an error.
 

@@ -350,22 +350,15 @@ test('ensureSubagentWritesEnabled recovers when permissions key is the wrong sha
 test('applySubagentWritesIfRequested returns false when the flag is not set', function (): void {
     $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
 
-    expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: false, editor: 'claude', projectRoot: $root))->toBeFalse();
+    expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: false, projectRoot: $root))->toBeFalse();
     expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
 });
 
-test('applySubagentWritesIfRequested returns false for a non-claude editor', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
-
-    expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, editor: 'cursor', projectRoot: $root))->toBeFalse();
-    expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
-});
-
-test('applySubagentWritesIfRequested writes the allow entries for editor=claude when requested', function (): void {
+test('applySubagentWritesIfRequested writes the allow entries when requested', function (): void {
     $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
 
     try {
-        expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, editor: 'claude', projectRoot: $root))->toBeTrue();
+        expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, projectRoot: $root))->toBeTrue();
         expect(is_file($root . '/.claude/settings.local.json'))->toBeTrue();
     } finally {
         installerRemoveDirectory($root);
@@ -390,7 +383,7 @@ test('validateSubagentWritePermissions throws when a required entry is missing',
     })->toThrow(InstallerFailure::class);
 });
 
-test('install --editor=claude --allow-bundled-scripts writes the permissions and reports them', function (): void {
+test('install --allow-bundled-scripts writes the permissions and reports them', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -406,7 +399,7 @@ test('install --editor=claude --allow-bundled-scripts writes the permissions and
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
+        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
         $output = ob_get_clean();
 
         expect($output)->toContain('Allowed 2 bundled-script permission(s) in ~/.claude/settings.json.');
@@ -420,7 +413,7 @@ test('install --editor=claude --allow-bundled-scripts writes the permissions and
     }
 });
 
-test('install --editor=all --allow-bundled-scripts writes the permissions to ~/.claude/settings.json', function (): void {
+test('install without --allow-bundled-scripts still disables AI co-author attribution', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -436,59 +429,7 @@ test('install --editor=all --allow-bundled-scripts writes the permissions to ~/.
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=all', '--allow-bundled-scripts']);
-        ob_end_clean();
-
-        $settingsPath = $root . '/.claude/settings.json';
-        expect(is_file($settingsPath))->toBeTrue();
-    } finally {
-        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
-    }
-});
-
-test('install --editor=cursor --allow-bundled-scripts does not write settings.json', function (): void {
-    $root = installerCreateProjectRoot();
-    $homeEnv = getenv('HOME');
-    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    putenv('HOME=' . $root);
-
-    if (getenv('USERPROFILE') !== false) {
-        putenv('USERPROFILE=' . $root);
-    }
-
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--allow-bundled-scripts']);
-        $output = ob_get_clean();
-
-        expect($output)->not->toContain('Allowed');
-        expect(is_file($root . '/.claude/settings.json'))->toBeFalse();
-    } finally {
-        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
-    }
-});
-
-test('install --editor=claude without --allow-bundled-scripts still disables AI co-author attribution', function (): void {
-    $root = installerCreateProjectRoot();
-    $homeEnv = getenv('HOME');
-    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    putenv('HOME=' . $root);
-
-    if (getenv('USERPROFILE') !== false) {
-        putenv('USERPROFILE=' . $root);
-    }
-
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
+        Installer::run(['agent-skills', 'install']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
@@ -505,7 +446,7 @@ test('install --editor=claude without --allow-bundled-scripts still disables AI 
     }
 });
 
-test('install --editor=claude --allow-subagent-writes writes the allow entries and reports it', function (): void {
+test('install --allow-subagent-writes writes the allow entries and reports it', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -521,7 +462,7 @@ test('install --editor=claude --allow-subagent-writes writes the allow entries a
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-subagent-writes']);
+        Installer::run(['agent-skills', 'install', '--allow-subagent-writes']);
         $output = ob_get_clean();
 
         expect($output)->toContain('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.');
@@ -544,7 +485,7 @@ test('install --editor=claude --allow-subagent-writes writes the allow entries a
     }
 });
 
-test('install --editor=cursor --allow-subagent-writes does not write settings.local.json', function (): void {
+test('install without --allow-subagent-writes does not write settings.local.json', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -560,7 +501,7 @@ test('install --editor=cursor --allow-subagent-writes does not write settings.lo
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--allow-subagent-writes']);
+        Installer::run(['agent-skills', 'install']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed subagent file writes');
@@ -570,33 +511,7 @@ test('install --editor=cursor --allow-subagent-writes does not write settings.lo
     }
 });
 
-test('install --editor=claude without --allow-subagent-writes does not write settings.local.json', function (): void {
-    $root = installerCreateProjectRoot();
-    $homeEnv = getenv('HOME');
-    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    putenv('HOME=' . $root);
-
-    if (getenv('USERPROFILE') !== false) {
-        putenv('USERPROFILE=' . $root);
-    }
-
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
-        $output = ob_get_clean();
-
-        expect($output)->not->toContain('Allowed subagent file writes');
-        expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
-    } finally {
-        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
-    }
-});
-
-test('install --editor=claude --allow-bundled-scripts with HOME unset is a no-op for settings.json', function (): void {
+test('install --allow-bundled-scripts with HOME unset is a no-op for settings.json', function (): void {
     $root = installerCreateProjectRoot();
     $homeBefore = getenv('HOME');
     $userProfileBefore = getenv('USERPROFILE');
@@ -609,7 +524,7 @@ test('install --editor=claude --allow-bundled-scripts with HOME unset is a no-op
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
+        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
@@ -630,7 +545,7 @@ test('install --editor=claude --allow-bundled-scripts with HOME unset is a no-op
     }
 });
 
-test('install --editor=claude --allow-bundled-scripts is idempotent across two consecutive runs', function (): void {
+test('install --allow-bundled-scripts is idempotent across two consecutive runs', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -646,11 +561,11 @@ test('install --editor=claude --allow-bundled-scripts is idempotent across two c
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
+        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
         ob_end_clean();
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--allow-bundled-scripts']);
+        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
         $secondOutput = ob_get_clean();
 
         expect($secondOutput)->not->toContain('Allowed');
@@ -718,10 +633,6 @@ test('ensureCoAuthoredByDisabled merges into existing settings.json without drop
     } finally {
         installerRemoveDirectory($home);
     }
-});
-
-test('applyCoAuthoredByPreference skips non-claude editors', function (): void {
-    expect(InstallerClaudeSettings::applyCoAuthoredByPreference('cursor'))->toBeFalse();
 });
 
 test('ensureCoAuthoredByDisabled preserves empty JSON objects elsewhere in settings.json', function (): void {

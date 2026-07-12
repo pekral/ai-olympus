@@ -68,7 +68,7 @@ This agent applies the following rule sets as the authoritative cross-cutting po
 
 ## Registration dependency and fallback
 
-**Athéna is dispatchable only after the installer registers her.** The installer copies `agents/athena.md` to `.claude/agents/` when run with `--editor=claude` or `--editor=all`. Until that step is completed, `daidalos` cannot dispatch `athena` as a subagent.
+**Athéna is dispatchable only after the installer registers her.** The installer copies `agents/athena.md` to `.claude/agents/` when run (`vendor/bin/agent-skills install`). Until that step is completed, `daidalos` cannot dispatch `athena` as a subagent.
 
 **Fallback (before registration):** security runs inline inside the CR skills — `code-review-github` already invokes `@skills/security-review/SKILL.md` as part of its pipeline. That inline pass remains active regardless of whether `athena` is registered; it is the continuity path, not a replacement. Once registered, `athena` provides a deeper, dedicated parallel security pass in addition to the inline fallback.
 

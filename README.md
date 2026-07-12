@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Cursor, Claude Code, and Codex. One `composer require --dev` brings the whole team: seven specialized subagents (`daidalos` orchestration, `metis` analysis, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into the editor's rules path and the `skills/` directory into the editor's skills path, and copies or symlinks every file into the target project.
+**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: seven specialized subagents (`daidalos` orchestration, `metis` analysis, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
 
 ## Why This Package
 
@@ -27,30 +27,19 @@
 
 ```bash
 composer require agentic-vibes/laravel-agent-skills --dev
-vendor/bin/agent-skills install --editor=cursor --force
+vendor/bin/agent-skills install --force
 ```
 
-The `--editor` flag is **required**. Use it to choose the target agent:
+The installer targets **Claude Code only**:
 
-- **cursor**: `.cursor/rules`, `.cursor/skills`
-- **claude**: `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
-- **codex**: `.codex/rules`, `.codex/skills`, and when `HOME`/`USERPROFILE` is set also `~/.codex/skills`
-- **all**: all of the above (Cursor, Claude, Codex in project + home)
-
-### Editor compatibility
-
-| Feature | Cursor | Claude | Codex |
-|---------|--------|--------|-------|
-| Rules | ✅ | ✅ | experimental / unverified |
-| Skills | ✅ | ✅ | ✅ |
-| Agents | — | ✅ | — |
-
-Agents are installed only for `--editor=claude` and `--editor=all`; they are skipped for `cursor` and `codex` because only Claude Code has a native subagent format. Codex rules support is listed as experimental / unverified — the installer copies the files into `.codex/rules`, but native rule loading by Codex has not been confirmed; report your findings in [#663](https://github.com/agentic-vibes/laravel-agent-skills/issues/663).
+- `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
+- `.claude/agents` (the seven subagents)
+- `CLAUDE.md` in the project root
 
 When the package is required via Composer, sources are read from `vendor/agentic-vibes/laravel-agent-skills/rules` and `vendor/agentic-vibes/laravel-agent-skills/skills`.
 
 > [!IMPORTANT]
-> By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/agent-skills install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `.cursor/rules/project.mdc` and `CLAUDE.md` are never overwritten once they exist in the target project, so you can safely customize them.
+> By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/agent-skills install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
 
 ### Automatic Installation via Composer Plugin
 
@@ -60,8 +49,7 @@ By default, the Composer plugin does **not** auto-install rules on `composer ins
 {
   "extra": {
     "agent-skills": {
-      "auto-install": true,
-      "editor": "claude"
+      "auto-install": true
     }
   }
 }
@@ -70,7 +58,6 @@ By default, the Composer plugin does **not** auto-install rules on `composer ins
 | Option         | Description                                              | Default   |
 |----------------|----------------------------------------------------------|-----------|
 | `auto-install` | Enable automatic install on `composer install/update`.   | `false`   |
-| `editor`       | Target editor for auto-install (`cursor`, `claude`, `codex`, `all`). | `cursor` |
 
 If you prefer manual control, simply call `vendor/bin/agent-skills install` in your Composer `post-update-cmd` scripts with the desired flags.
 
@@ -78,22 +65,19 @@ If you prefer manual control, simply call `vendor/bin/agent-skills install` in y
 
 ```bash
 vendor/bin/agent-skills help                                  # print help
-vendor/bin/agent-skills install --editor=cursor               # install for Cursor
-vendor/bin/agent-skills install --editor=claude               # install for Claude
-vendor/bin/agent-skills install --editor=codex                # install for Codex
-vendor/bin/agent-skills install --editor=all                  # install for Cursor, Claude, and Codex
-vendor/bin/agent-skills install --editor=cursor --force       # overwrite existing files
-vendor/bin/agent-skills install --editor=cursor --symlink     # prefer symlinks (fallback to copy)
-vendor/bin/agent-skills install --editor=claude --allow-bundled-scripts   # whitelist this package's bundled scripts in ~/.claude/settings.json
+vendor/bin/agent-skills install                                # install for Claude Code
+vendor/bin/agent-skills install --force                        # overwrite existing files
+vendor/bin/agent-skills install --symlink                      # prefer symlinks (fallback to copy)
+vendor/bin/agent-skills install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 ```
 
 ### Installer Flow
 
 1. Determine the project root by walking up from the current directory until `composer.json` is found.
 2. Resolve the rules source (local `rules/` or `vendor/agentic-vibes/laravel-agent-skills/rules`).
-3. Install rules into the target directory(ies) for the chosen editor (see `--editor`).
-4. If present, resolve the skills source and install into the corresponding skill directory(ies).
-5. For `--editor=claude` or `--editor=all`: copy `CLAUDE.md` to the project root (never overwrites existing).
+3. Install rules into `.claude/rules`.
+4. If present, resolve the skills source and install into `.claude/skills` (and `~/.claude/skills` when `HOME`/`USERPROFILE` is set).
+5. Copy `agents/` to `.claude/agents` and `CLAUDE.md` to the project root (never overwrites existing).
 6. Optionally overwrite existing files with `--force`; use `--symlink` to prefer symlinks (fallback to copy on Windows).
 7. Surface explicit errors for missing directories, removal failures, and copy/symlink failures.
 
@@ -101,11 +85,10 @@ vendor/bin/agent-skills install --editor=claude --allow-bundled-scripts   # whit
 
 | Option            | Description                                                                 |
 |-------------------|-----------------------------------------------------------------------------|
-| `--editor=EDITOR`         | Target editor (required): `cursor`, `claude`, `codex`, `all`.                                                                                              |
 | `--force`                 | Overwrite files that already exist in the target directory.                                                                                                 |
 | `--symlink`               | Create symlinks when the OS permits; automatically falls back to copy.                                                                                      |
 | `--prune`                 | Remove files in target that no longer exist in source.                                                                                                       |
-| `--allow-bundled-scripts` | Opt-in. With `--editor=claude` or `--editor=all`, idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when the editor target is `cursor` / `codex` or when `HOME` / `USERPROFILE` is not set. |
+| `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ---
@@ -211,13 +194,13 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ### How to use `argos` in practice
 
-1. Install for Claude Code (or every editor):
+1. Install for Claude Code:
 
    ```bash
-   vendor/bin/agent-skills install --editor=claude   # or --editor=all
+   vendor/bin/agent-skills install
    ```
 
-   Agents land in `.claude/agents/`. They are **not** installed for `--editor=cursor` or `--editor=codex`.
+   Agents land in `.claude/agents/`.
 
 2. Invoke it with a **source** — a GitHub PR/issue, a JIRA key, a Bugsnag error, or just the current branch/PR:
 
@@ -233,7 +216,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ### How to use `talos` in practice
 
-1. Install for Claude Code (or every editor), exactly as for `argos` — agents land in `.claude/agents/` and are skipped for `--editor=cursor` / `--editor=codex`.
+1. Install for Claude Code, exactly as for `argos` — agents land in `.claude/agents/`.
 
 2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
 
@@ -252,7 +235,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ### How to use `metis` in practice
 
-1. Install for Claude Code (or every editor), exactly as for `argos` / `talos` — agents land in `.claude/agents/` and are skipped for `--editor=cursor` / `--editor=codex`.
+1. Install for Claude Code, exactly as for `argos` / `talos` — agents land in `.claude/agents/`.
 
 2. Invoke it with a **subject** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just a problem you want thought through:
 
@@ -270,7 +253,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 `daidalos` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
 
-1. Install for Claude Code (or every editor), exactly as for the other agents.
+1. Install for Claude Code, exactly as for the other agents.
 
 2. Invoke it with a request — it resolves the source and chooses the route:
 
@@ -311,7 +294,7 @@ Rules included in this package:
 | `security/frontend.md`        | Frontend security rules (XSS, CSRF, CSP)                  | Frontend |
 | `security/mobile.md`          | Mobile-specific security rules and WebView checks          | Mobile   |
 
-All `.mdc` and `.md` files are ready for automatic injection by Cursor so every PHP and Laravel edit stays aligned with the enforced standards.
+All `.mdc` and `.md` files are ready for automatic injection by Claude Code so every PHP and Laravel edit stays aligned with the enforced standards.
 
 ## Development & Testing
 

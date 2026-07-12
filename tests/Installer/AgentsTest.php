@@ -11,32 +11,12 @@ test('resolveAgentsSource returns the package agents directory when it exists', 
     expect(InstallerPath::resolveAgentsSource())->toBe($packageDir . '/agents');
 });
 
-test('isAgentsEditor matches only claude and all', function (): void {
-    expect(InstallerPath::isAgentsEditor(InstallerPath::EDITOR_CLAUDE))->toBeTrue();
-    expect(InstallerPath::isAgentsEditor(InstallerPath::EDITOR_ALL))->toBeTrue();
-    expect(InstallerPath::isAgentsEditor(InstallerPath::EDITOR_CURSOR))->toBeFalse();
-    expect(InstallerPath::isAgentsEditor(InstallerPath::EDITOR_CODEX))->toBeFalse();
-});
-
-test('resolveAgentsTargetDirectories returns .claude/agents for editor=claude', function (): void {
-    expect(InstallerPath::resolveAgentsTargetDirectories('/project', InstallerPath::EDITOR_CLAUDE))
+test('resolveAgentsTargetDirectories always returns .claude/agents', function (): void {
+    expect(InstallerPath::resolveAgentsTargetDirectories('/project'))
         ->toBe(['/project/.claude/agents']);
 });
 
-test('resolveAgentsTargetDirectories returns .claude/agents for editor=all', function (): void {
-    expect(InstallerPath::resolveAgentsTargetDirectories('/project', InstallerPath::EDITOR_ALL))
-        ->toBe(['/project/.claude/agents']);
-});
-
-test('resolveAgentsTargetDirectories returns empty list for editor=cursor', function (): void {
-    expect(InstallerPath::resolveAgentsTargetDirectories('/project', InstallerPath::EDITOR_CURSOR))->toBe([]);
-});
-
-test('resolveAgentsTargetDirectories returns empty list for editor=codex', function (): void {
-    expect(InstallerPath::resolveAgentsTargetDirectories('/project', InstallerPath::EDITOR_CODEX))->toBe([]);
-});
-
-test('install with editor=claude copies the argos agent to .claude/agents', function (): void {
+test('install copies the argos agent to .claude/agents', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -52,39 +32,13 @@ test('install with editor=claude copies the argos agent to .claude/agents', func
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         expect(is_file($root . '/.claude/agents/argos.md'))->toBeTrue();
         expect(is_file($root . '/.claude/agents/athena.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
         expect(is_dir($root . '/.codex/agents'))->toBeFalse();
-    } finally {
-        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
-    }
-});
-
-test('install with editor=cursor does not copy agents', function (): void {
-    $root = installerCreateProjectRoot();
-    $homeEnv = getenv('HOME');
-    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    putenv('HOME=' . $root);
-
-    if (getenv('USERPROFILE') !== false) {
-        putenv('USERPROFILE=' . $root);
-    }
-
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
-        ob_end_clean();
-
-        expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
-        expect(is_dir($root . '/.claude/agents'))->toBeFalse();
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }

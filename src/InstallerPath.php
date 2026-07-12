@@ -4,26 +4,8 @@ declare(strict_types = 1);
 
 namespace AgenticVibes\AgentSkills;
 
-use JsonException;
-
 final class InstallerPath
 {
-
-    public const string EDITOR_CURSOR = 'cursor';
-
-    public const string EDITOR_CLAUDE = 'claude';
-
-    public const string EDITOR_CODEX = 'codex';
-
-    public const string EDITOR_ALL = 'all';
-
-    /**
-     * @return array<int, string>
-     */
-    public static function getAllowedEditors(): array
-    {
-        return [self::EDITOR_CURSOR, self::EDITOR_CLAUDE, self::EDITOR_CODEX, self::EDITOR_ALL];
-    }
 
     public static function resolveProjectRoot(): string
     {
@@ -129,28 +111,13 @@ final class InstallerPath
     }
 
     /**
-     * Agent target directories for the given editor.
-     * Claude Code subagents only install for editor=claude or editor=all.
+     * Claude Code subagents always install to .claude/agents.
      *
      * @return array<int, string>
      */
-    public static function resolveAgentsTargetDirectories(string $root, string $editor): array
+    public static function resolveAgentsTargetDirectories(string $root): array
     {
-        if (!self::isAgentsEditor($editor)) {
-            return [];
-        }
-
         return [$root . '/.claude/agents'];
-    }
-
-    /**
-     * Whether Claude Code subagents should be installed for the given editor.
-     */
-    public static function isAgentsEditor(string $editor): bool
-    {
-        $editor = strtolower($editor);
-
-        return $editor === self::EDITOR_CLAUDE || $editor === self::EDITOR_ALL;
     }
 
     /**
@@ -162,157 +129,31 @@ final class InstallerPath
     }
 
     /**
-     * Whether CLAUDE.md should be installed for the given editor.
-     */
-    public static function isClaudeMdEditor(string $editor): bool
-    {
-        return $editor === self::EDITOR_CLAUDE || $editor === self::EDITOR_ALL;
-    }
-
-    public static function resolveTargetDirectory(string $root): string
-    {
-        return $root . '/.cursor/rules';
-    }
-
-    public static function resolveSkillsTargetDirectory(string $root): string
-    {
-        return $root . '/.cursor/skills';
-    }
-
-    /**
-     * Rules target directories for the given editor.
+     * Rules target directory: always .claude/rules.
      *
      * @return array<int, string>
      */
-    public static function resolveRulesTargetDirectories(string $root, string $editor): array
+    public static function resolveRulesTargetDirectories(string $root): array
     {
-        $editor = strtolower($editor);
-
-        if ($editor === self::EDITOR_ALL) {
-            return [
-                $root . '/.cursor/rules',
-                $root . '/.claude/rules',
-                $root . '/.codex/rules',
-            ];
-        }
-
-        $baseDir = match ($editor) {
-            self::EDITOR_CURSOR => '.cursor',
-            self::EDITOR_CLAUDE => '.claude',
-            self::EDITOR_CODEX => '.codex',
-            default => '.cursor',
-        };
-
-        return [$root . '/' . $baseDir . '/rules'];
+        return [$root . '/.claude/rules'];
     }
 
     /**
-     * Skill target directories for the given editor.
-     * Includes user home paths for claude/codex when HOME or USERPROFILE is set.
+     * Skill target directories: always .claude/skills, plus the user home skills
+     * directory when HOME or USERPROFILE is set.
      *
      * @return array<int, string>
      */
-    public static function resolveSkillsTargetDirectories(string $root, string $editor): array
+    public static function resolveSkillsTargetDirectories(string $root): array
     {
-        $editor = strtolower($editor);
         $home = self::resolveHomeDirectory();
+        $targets = [$root . '/.claude/skills'];
 
-        if ($editor === self::EDITOR_ALL) {
-            $targets = [
-                $root . '/.cursor/skills',
-                $root . '/.claude/skills',
-                $root . '/.codex/skills',
-            ];
-            $targets = self::appendHomeSkillPaths($targets, $home);
-
-            return array_values(array_unique($targets));
+        if ($home !== false && $home !== '') {
+            $targets[] = $home . '/.claude/skills';
         }
-
-        $baseDir = match ($editor) {
-            self::EDITOR_CURSOR => '.cursor',
-            self::EDITOR_CLAUDE => '.claude',
-            self::EDITOR_CODEX => '.codex',
-            default => '.cursor',
-        };
-
-        $targets = [$root . '/' . $baseDir . '/skills'];
-        $targets = self::appendHomeSkillPathForEditor($targets, $home, $baseDir, $editor);
 
         return array_values(array_unique($targets));
-    }
-
-    /**
-     * All skill target directories for Cursor/Claude/Codex compatibility (editor=all).
-     *
-     * @return array<int, string>
-     */
-    public static function resolveAllSkillsTargetDirectories(string $root): array
-    {
-        return self::resolveSkillsTargetDirectories($root, self::EDITOR_ALL);
-    }
-
-    /**
-     * Reads the editor setting from composer.json extra.agent-skills.editor.
-     */
-    public static function resolveEditorFromComposerJson(string $projectRoot): ?string
-    {
-        $data = self::readComposerJson($projectRoot);
-
-        if ($data === null) {
-            return null;
-        }
-
-        $extra = $data['extra'] ?? [];
-
-        if (!is_array($extra)) {
-            return null;
-        }
-
-        $config = $extra['agent-skills'] ?? [];
-
-        if (!is_array($config)) {
-            return null;
-        }
-
-        $config = array_change_key_case($config, CASE_LOWER);
-        $editor = $config['editor'] ?? null;
-
-        if (!is_string($editor)) {
-            return null;
-        }
-
-        $editor = strtolower($editor);
-
-        return in_array($editor, self::getAllowedEditors(), strict: true) ? $editor : null;
-    }
-
-    /**
-     * @return array<mixed>|null
-     */
-    private static function readComposerJson(string $projectRoot): ?array
-    {
-        $composerJsonPath = $projectRoot . '/composer.json';
-
-        if (!is_file($composerJsonPath)) {
-            return null;
-        }
-
-        $contents = file_get_contents($composerJsonPath);
-
-        // @codeCoverageIgnoreStart
-        if ($contents === false) {
-            return null;
-        }
-
-        // @codeCoverageIgnoreEnd
-
-        try {
-            $data = json_decode($contents, associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
-        }
-
-        return is_array($data) ? $data : null;
     }
 
     private static function resolveHomeDirectory(): string|false
@@ -320,41 +161,6 @@ final class InstallerPath
         $homeEnv = getenv('HOME');
 
         return $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    }
-
-    /**
-     * @param array<int, string> $targets
-     * @return array<int, string>
-     */
-    private static function appendHomeSkillPaths(array $targets, string|false $home): array
-    {
-        if ($home === false || $home === '') {
-            return $targets;
-        }
-
-        $targets[] = $home . '/.claude/skills';
-        $targets[] = $home . '/.codex/skills';
-
-        return $targets;
-    }
-
-    /**
-     * @param array<int, string> $targets
-     * @return array<int, string>
-     */
-    private static function appendHomeSkillPathForEditor(array $targets, string|false $home, string $baseDir, string $editor): array
-    {
-        if ($home === false || $home === '') {
-            return $targets;
-        }
-
-        if ($editor !== self::EDITOR_CLAUDE && $editor !== self::EDITOR_CODEX) {
-            return $targets;
-        }
-
-        $targets[] = $home . '/' . $baseDir . '/skills';
-
-        return $targets;
     }
 
     private static function getPackageDirectory(): string

@@ -20,14 +20,7 @@ test('resolveClaudeMdTarget returns CLAUDE.md path in project root', function ()
     expect($target)->toBe('/project/CLAUDE.md');
 });
 
-test('isClaudeMdEditor returns true for claude and all editors', function (): void {
-    expect(InstallerPath::isClaudeMdEditor(InstallerPath::EDITOR_CLAUDE))->toBeTrue();
-    expect(InstallerPath::isClaudeMdEditor(InstallerPath::EDITOR_ALL))->toBeTrue();
-    expect(InstallerPath::isClaudeMdEditor(InstallerPath::EDITOR_CURSOR))->toBeFalse();
-    expect(InstallerPath::isClaudeMdEditor(InstallerPath::EDITOR_CODEX))->toBeFalse();
-});
-
-test('install with editor=claude copies CLAUDE.md to project root', function (): void {
+test('install copies CLAUDE.md to project root', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -35,7 +28,7 @@ test('install with editor=claude copies CLAUDE.md to project root', function ():
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         $claudeMd = $root . '/CLAUDE.md';
@@ -47,54 +40,6 @@ test('install with editor=claude copies CLAUDE.md to project root', function ():
         }
 
         installerRemoveDirectory($root);
-    }
-});
-
-test('install with editor=cursor does not copy CLAUDE.md', function (): void {
-    $root = installerCreateProjectRoot();
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
-        ob_end_clean();
-
-        expect(is_file($root . '/CLAUDE.md'))->toBeFalse();
-    } finally {
-        if ($originalCwd !== '') {
-            chdir($originalCwd);
-        }
-
-        installerRemoveDirectory($root);
-    }
-});
-
-test('install with editor=all copies CLAUDE.md to project root', function (): void {
-    $root = installerCreateProjectRoot();
-    $homeEnv = getenv('HOME');
-    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
-    putenv('HOME=' . $root);
-
-    if (getenv('USERPROFILE') !== false) {
-        putenv('USERPROFILE=' . $root);
-    }
-
-    $cwd = getcwd();
-    $originalCwd = $cwd !== false ? $cwd : '';
-
-    try {
-        chdir($root);
-        ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=all']);
-        ob_end_clean();
-
-        $claudeMd = $root . '/CLAUDE.md';
-        expect(is_file($claudeMd))->toBeTrue();
-        expect(file_get_contents($claudeMd))->toContain('Behavioral guidelines');
-    } finally {
-        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
 });
 
@@ -108,7 +53,7 @@ test('install does not overwrite existing CLAUDE.md without force flag', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
         expect(file_get_contents($claudeMd))->toBe('my custom CLAUDE.md');
@@ -131,7 +76,7 @@ test('install never overwrites existing CLAUDE.md even with force flag', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=claude', '--force']);
+        Installer::run(['agent-skills', 'install', '--force']);
         ob_end_clean();
 
         expect(file_get_contents($claudeMd))->toBe('my custom CLAUDE.md');

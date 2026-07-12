@@ -46,8 +46,7 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
             return;
         }
 
-        $editor = $this->resolveEditorFromConfig();
-        Installer::run(['agent-skills', 'install', '--force', '--editor=' . $editor]);
+        Installer::run(['agent-skills', 'install', '--force']);
     }
 
     /**
@@ -66,16 +65,6 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
         $config = $this->getAgentSkillsConfig();
 
         return ($config['auto-install'] ?? false) === true;
-    }
-
-    private function resolveEditorFromConfig(): string
-    {
-        $config = $this->getAgentSkillsConfig();
-        $editor = $config['editor'] ?? InstallerPath::EDITOR_CURSOR;
-
-        return in_array($editor, InstallerPath::getAllowedEditors(), true)
-            ? $editor
-            : InstallerPath::EDITOR_CURSOR;
     }
 
     /**

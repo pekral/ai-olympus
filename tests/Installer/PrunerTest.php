@@ -14,18 +14,18 @@ test('install with prune removes files from target that no longer exist in sourc
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        installerWriteFile($root . '/.cursor/skills/orphaned-skill/SKILL.md', 'orphaned content');
+        installerWriteFile($root . '/.claude/skills/orphaned-skill/SKILL.md', 'orphaned content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--prune']);
+        Installer::run(['agent-skills', 'install', '--prune']);
         ob_end_clean();
 
-        expect(is_file($root . '/.cursor/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_file($root . '/.cursor/skills/orphaned-skill/SKILL.md'))->toBeFalse();
-        expect(is_dir($root . '/.cursor/skills/orphaned-skill'))->toBeFalse();
+        expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/skills/orphaned-skill/SKILL.md'))->toBeFalse();
+        expect(is_dir($root . '/.claude/skills/orphaned-skill'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -37,17 +37,17 @@ test('install with prune removes files from target that no longer exist in sourc
 
 test('install without prune keeps orphaned files in target', function (): void {
     $root = installerCreateProjectRoot();
-    installerWriteFile($root . '/.cursor/skills/orphaned-skill/SKILL.md', 'orphaned content');
+    installerWriteFile($root . '/.claude/skills/orphaned-skill/SKILL.md', 'orphaned content');
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        expect(is_file($root . '/.cursor/skills/orphaned-skill/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/skills/orphaned-skill/SKILL.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -66,17 +66,17 @@ test('install with prune also removes rules that no longer exist in source', fun
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        installerWriteFile($root . '/.cursor/rules/removed.mdc', 'removed rule');
+        installerWriteFile($root . '/.claude/rules/removed.mdc', 'removed rule');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--prune']);
+        Installer::run(['agent-skills', 'install', '--prune']);
         ob_end_clean();
 
-        expect(is_file($root . '/.cursor/rules/php/core-standards.mdc'))->toBeTrue();
-        expect(is_file($root . '/.cursor/rules/removed.mdc'))->toBeFalse();
+        expect(is_file($root . '/.claude/rules/php/core-standards.mdc'))->toBeTrue();
+        expect(is_file($root . '/.claude/rules/removed.mdc'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -95,13 +95,13 @@ test('install with prune reports pruned file count in output', function (): void
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor']);
+        Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        installerWriteFile($root . '/.cursor/skills/drop-skill/SKILL.md', 'drop');
+        installerWriteFile($root . '/.claude/skills/drop-skill/SKILL.md', 'drop');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--editor=cursor', '--prune']);
+        Installer::run(['agent-skills', 'install', '--prune']);
         $output = ob_get_clean();
 
         expect($output)->toContain('1 pruned');

@@ -1,13 +1,13 @@
 {
   "name": "agentic-vibes/laravel-agent-skills",
-  "description": "Laravel Agent Skills — a Composer plugin for PHP and Laravel projects that installs Cursor/Claude/Codex rules and agent skills: coding standards, testing, and conventions",
+  "description": "Laravel Agent Skills — a Composer plugin for PHP and Laravel projects that installs Claude Code rules and agent skills: coding standards, testing, and conventions",
   "license": "MIT",
   "type": "composer-plugin",
   "keywords": [
     "composer-plugin",
-    "cursor",
     "agent-skills",
-    "cursor-editor",
+    "claude",
+    "claude-code",
     "php-agent-skills",
     "laravel-agent-skills",
     "php",
@@ -89,7 +89,7 @@
       "vendor/bin/phpstan analyse --memory-limit=2G"
     ],
     "build": [
-      "bin/agent-skills install --editor=all --force",
+      "bin/agent-skills install --force",
       "@fix",
       "@check"
     ],
