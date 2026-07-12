@@ -198,3 +198,11 @@
 - Example: PR #22 — `load-issue.sh` emitted `isDraft: null` for a freshly-promoted non-draft PR right after `gh pr ready`; the `merge-github-pr` Draft gate reads `isDraft` off this JSON. Fix commit `a23c0bc` dropped the `// null` and added the content regression test.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/22   Added: 2026-07-10
 - Role:    shared
+
+### state-detection-heuristics-authoritative-vs-corroborating — Skill-prose state detection must key on authoritative tracker signals; correlated artifacts only corroborate
+
+- Trigger: writing or reviewing skill instructions that derive an issue / PR state (reopened, claimed, regressed) from loader JSON fields — especially when the detected state gates a hard consequence such as a Blocked stop or a narrowed scope.
+- Rule:    Key the detection on the tracker's authoritative field for that state (GitHub `stateReason: REOPENED`) and demote correlated artifacts — a closed-unmerged PR in `closingPullRequests[]`, a merged PR on a still-active JIRA issue — to corroboration only, because they occur legitimately on states the heuristic does not mean (abandoned PR attempts, phased multi-PR tasks). Walk every signal against its false-positive case before wiring it to a hard consequence; when the signals are only heuristic, degrade to fresh-assignment behavior instead of blocking. Pin the tightened wording with a content test in `tests/Installer/SkillsContentTest.php`, and anchor placement assertions on a unique string (`strpos` finds the first occurrence — a cross-reference earlier in the file silently satisfies a naive anchor).
+- Example: PR #24 — reopen detection in `skills/resolve-issue/SKILL.md` initially fired on any closed PR in `closingPullRequests[]`, so a never-closed issue with one abandoned PR attempt would be flagged as a reopened continuation and stopped Blocked asking for a nonexistent reopen reason; fix commit `0e2116c` made `stateReason: REOPENED` authoritative and required recorded prior Done / Resolved evidence on JIRA.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/24   Added: 2026-07-12
+- Role:    shared
