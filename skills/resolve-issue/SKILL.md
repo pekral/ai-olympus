@@ -52,8 +52,8 @@ Before starting the resolution flow:
      - **Bugsnag:** the error `status` must be `open`. Refuse when it is `fixed`, `ignored`, or `snoozed`.
    - If the issue is not open / active, **do not resolve it** — stop and inform the user that the task is closed and must be reopened before it can be worked on.
    - **Detect a reopened task.** While verifying the open state, also determine whether the issue was closed and reopened in the past — a reopened task is a **continuation of earlier work**, not a fresh assignment. Read the signals off the JSON already loaded by the deterministic loader:
-     - **GitHub:** `stateReason` is `REOPENED`, or `closingPullRequests[]` contains a merged / closed PR from a previous resolution run.
-     - **JIRA:** `pullRequests[]` / `devSummary` shows a merged PR (or a comment records a prior Done / Resolved transition) while the issue sits in an active status again. When precision is needed, read the issue changelog via the JIRA MCP server — the deterministic loader intentionally does not carry it.
+     - **GitHub:** `stateReason` is `REOPENED` — the authoritative signal. A **merged** PR in `closingPullRequests[]` corroborates it; a closed-unmerged PR alone is an abandoned attempt, not evidence of a reopen.
+     - **JIRA:** a comment or the issue changelog (read via the JIRA MCP server — the deterministic loader intentionally does not carry it) records a prior Done / Resolved / Closed status while the issue sits in an active status again. A merged PR in `pullRequests[]` / `devSummary` alone is **not** sufficient — phased tasks merge PRs while staying In Progress.
      - **Bugsnag:** the mirrored GitHub issue in `linkedIssues[]` was reopened, or comments show the error was previously marked fixed and has regressed.
      When any signal matches, mark the run as a **reopened continuation** and apply the *Reopened task (mandatory deep pass)* clause of the comment analysis in step 5 before making any scoping decision.
    - **Claim the issue immediately** (per `@rules/compound-engineering/general.mdc` *Claim a tracker issue before working on it*). Do this before any code change.
@@ -82,7 +82,7 @@ Before starting the resolution flow:
    - Read the comments posted **after the most recent close / merge** first — they carry why the task was reopened and what still fails or is missing; wherever they conflict with the original description, the post-reopen comments win.
    - Load every earlier PR linked to the issue (`closingPullRequests[]` for GitHub, `pullRequests[]` / `devSummary` for JIRA, the mirrored issue's PRs for Bugsnag) via the tracker's deterministic loader and record what already landed. Classify that delivered work as **Resolved items** — never reimplement or revert it unless a post-reopen comment explicitly asks for it.
    - Derive the **continuation scope**: current requirements = the delta demanded by the post-reopen comments plus any originally stated requirement that verifiably never landed — not the original assignment from scratch.
-   - If no comment or linked activity explains why the task was reopened, stop as **Blocked**: post a question on the tracker asking for the reopen reason and release the claim per step 1 (*Release on Blocked / abort*) — never guess the continuation scope.
+   - If no comment or linked activity explains why the task was reopened, stop as **Blocked**: post a question on the tracker asking for the reopen reason and release the claim per step 1 (*Release on Blocked / abort (before PR)*) — never guess the continuation scope.
 
 ### Context preparation (mandatory pre-flight)
 

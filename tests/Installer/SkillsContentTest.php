@@ -442,6 +442,10 @@ test('resolve-issue analyzes comments and continues work on reopened tasks', fun
     expect($content)->toContain('Detect a reopened task');
     expect($content)->toContain('REOPENED');
     expect($content)->toContain('reopened continuation');
+    // Only authoritative signals may flag a reopen — correlated artifacts corroborate only.
+    expect($content)->toContain('the authoritative signal');
+    expect($content)->toContain('an abandoned attempt, not evidence of a reopen');
+    expect($content)->toContain('phased tasks merge PRs while staying In Progress');
     // Post-reopen comments are a mandatory, blocking deep pass.
     expect($content)->toContain('Reopened task (mandatory deep pass)');
     // The run continues the remaining work instead of restarting.
@@ -449,6 +453,28 @@ test('resolve-issue analyzes comments and continues work on reopened tasks', fun
     expect($content)->toContain('never reimplement or revert');
     // Missing reopen reason blocks the run instead of guessing.
     expect($content)->toContain('reopen reason');
+
+    // Placement: detection sits inside the step-1 gate before the claim step,
+    // and the deep pass lives inside the Comment analysis section.
+    $detectPos = strpos($content, 'Detect a reopened task');
+    $claimPos = strpos($content, 'Claim the issue immediately');
+    $commentAnalysisPos = strpos($content, '### Comment analysis');
+    $contextPreparationPos = strpos($content, '### Context preparation');
+    // The bold clause heading is unique — step 1 references the clause in italics.
+    $deepPassPos = strpos($content, '**Reopened task (mandatory deep pass).**');
+    expect($detectPos)->not->toBeFalse();
+    expect($claimPos)->not->toBeFalse();
+    expect($commentAnalysisPos)->not->toBeFalse();
+    expect($contextPreparationPos)->not->toBeFalse();
+    expect($deepPassPos)->not->toBeFalse();
+
+    if (!is_int($detectPos) || !is_int($claimPos) || !is_int($commentAnalysisPos) || !is_int($contextPreparationPos) || !is_int($deepPassPos)) {
+        return;
+    }
+
+    expect($detectPos)->toBeLessThan($claimPos);
+    expect($deepPassPos)->toBeGreaterThan($commentAnalysisPos);
+    expect($deepPassPos)->toBeLessThan($contextPreparationPos);
 });
 
 test('JIRA context-consuming skills offer gather-issue-context.sh', function (): void {
