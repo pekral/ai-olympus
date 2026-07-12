@@ -206,3 +206,19 @@
 - Example: PR #24 — reopen detection in `skills/resolve-issue/SKILL.md` initially fired on any closed PR in `closingPullRequests[]`, so a never-closed issue with one abandoned PR attempt would be flagged as a reopened continuation and stopped Blocked asking for a nonexistent reopen reason; fix commit `0e2116c` made `stateReason: REOPENED` authoritative and required recorded prior Done / Resolved evidence on JIRA.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/24   Added: 2026-07-12
 - Role:    shared
+
+### github-social-preview-image-has-no-api-field — Custom social preview (OG image) upload cannot be automated via gh CLI or GitHub REST/GraphQL
+
+- Trigger: a task asks to set or update a repository's custom social preview / Open Graph image (`usesCustomOpenGraphImage`) — e.g. a positioning/SEO chore that wants a 1280×640 preview image live on the repo.
+- Rule:    Verified by introspection that neither REST `PATCH /repos/{owner}/{repo}` nor the GraphQL `UpdateRepositoryInput` expose a field for this — the upload is only reachable through the web UI (Settings → General → Social preview, multipart form). When asked to automate this, commit the generated asset (SVG source + rendered PNG at exactly 1280×640, verified with `sips`/`file`) to the repo and clearly document the web-UI upload as a **manual step the repo owner must complete after merge** — do not report the sub-task as fully done while `usesCustomOpenGraphImage` is still `false` (check with `gh repo view --json usesCustomOpenGraphImage`).
+- Example: issue #9 / PR #31 — `assets/social-preview.svg` + `assets/social-preview.png` committed; PR description and the reporting comment on #9 both flagged the Settings upload as an open manual step for the owner (`pekral`).
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/31   Added: 2026-07-12
+- Role:    talos
+
+### background-cr-dispatch-can-silently-lose-output — A background-dispatched argos/athena review reporting "completed" is not proof it actually published
+
+- Trigger: daidalos dispatches argos and/or athena in parallel with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed before proceeding to convergence / merge.
+- Rule:    A background agent can return a `task-notification` with `status: completed` and a full-looking result summary while **no corresponding PR comment, review, or brief handoff section actually exists** — the work was lost between the agent's return and the caller reading it (observed: both argos and athena "finished" with no trace on the PR and no `### argos` / `### athena` section in the shared brief). Before trusting a background CR completion, verify with `gh pr view <n> --json comments,reviews` (or the loader) and `grep` the brief for the agent's handoff section; if either is empty, treat the run as lost and re-dispatch synchronously (`run_in_background: false`) rather than assuming convergence. Do not proceed to the merge gate on an unverified background handoff.
+- Example: issue #9 / PR #31 — first parallel argos+athena background dispatch returned "done" summaries but left zero PR comments/reviews and no brief sections; re-dispatched both synchronously in the same message, which produced verifiable PR comments (`gh api .../issues/31/comments` confirmed) and correct brief entries, converging at 0 Critical / 0 Moderate / 1 Minor.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/31   Added: 2026-07-12
+- Role:    daidalos
