@@ -434,6 +434,23 @@ test('resolve-issue claims the GitHub issue before implementation and releases o
     expect($content)->toContain('no claim step');
 });
 
+test('resolve-issue analyzes comments and continues work on reopened tasks', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // Reopen detection runs inside the open-state gate, off the loader JSON.
+    expect($content)->toContain('Detect a reopened task');
+    expect($content)->toContain('REOPENED');
+    expect($content)->toContain('reopened continuation');
+    // Post-reopen comments are a mandatory, blocking deep pass.
+    expect($content)->toContain('Reopened task (mandatory deep pass)');
+    // The run continues the remaining work instead of restarting.
+    expect($content)->toContain('continuation scope');
+    expect($content)->toContain('never reimplement or revert');
+    // Missing reopen reason blocks the run instead of guessing.
+    expect($content)->toContain('reopen reason');
+});
+
 test('JIRA context-consuming skills offer gather-issue-context.sh', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skills = [

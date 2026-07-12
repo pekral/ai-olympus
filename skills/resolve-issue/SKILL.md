@@ -51,6 +51,11 @@ Before starting the resolution flow:
      - **JIRA:** the issue must not sit in a terminal status — anything in the `Done` status category (`Done`, `Closed`, `Resolved`, `Cancelled`, or the project's equivalent). Refuse when it is.
      - **Bugsnag:** the error `status` must be `open`. Refuse when it is `fixed`, `ignored`, or `snoozed`.
    - If the issue is not open / active, **do not resolve it** — stop and inform the user that the task is closed and must be reopened before it can be worked on.
+   - **Detect a reopened task.** While verifying the open state, also determine whether the issue was closed and reopened in the past — a reopened task is a **continuation of earlier work**, not a fresh assignment. Read the signals off the JSON already loaded by the deterministic loader:
+     - **GitHub:** `stateReason` is `REOPENED`, or `closingPullRequests[]` contains a merged / closed PR from a previous resolution run.
+     - **JIRA:** `pullRequests[]` / `devSummary` shows a merged PR (or a comment records a prior Done / Resolved transition) while the issue sits in an active status again. When precision is needed, read the issue changelog via the JIRA MCP server — the deterministic loader intentionally does not carry it.
+     - **Bugsnag:** the mirrored GitHub issue in `linkedIssues[]` was reopened, or comments show the error was previously marked fixed and has regressed.
+     When any signal matches, mark the run as a **reopened continuation** and apply the *Reopened task (mandatory deep pass)* clause of the comment analysis in step 5 before making any scoping decision.
    - **Claim the issue immediately** (per `@rules/compound-engineering/general.mdc` *Claim a tracker issue before working on it*). Do this before any code change.
      - **GitHub:** re-read the issue via `skills/code-review-github/scripts/load-issue.sh <URL>`. If the label `Resolve_by_AI:in-progress` is already present → another run owns it → **abort** with the message `Issue #<N> already claimed (Resolve_by_AI:in-progress) — another run is working on it`. If absent → apply it: `gh issue edit <N> --add-label "Resolve_by_AI:in-progress"`. Then **re-read and verify** the label actually landed (external writes can be silently blocked in auto-mode; verify against the tracker, not just the command exit code). If it did not land → **abort** rather than proceed unclaimed. Note: the apply-then-verify is not perfectly atomic (GitHub has no CAS on labels), but it collapses the race window to the gap between two loader reads — adequate to stop two long-running agent pipelines from colliding.
      - **JIRA:** run `skills/code-review-jira/scripts/transition-to-in-progress.sh <KEY|URL>`. Exit 0 = claimed (or idempotent no-op for this run). Exit 4 = issue is already past In Progress from another run → **abort** with the message `Issue <KEY> is already past In Progress — another run may be working on it`. Exit 5 = target status name differs for this project — discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human. Any other non-zero exit → stop and report the failure. This is the second sanctioned status transition (the first is the Code Review transition on PR open); all others remain human-only.
@@ -72,6 +77,12 @@ Before starting the resolution flow:
      - **Resolved items** — requirements already addressed by merged PRs or subsequent comments.
      - **Outdated items** — requests superseded by newer comments or decisions.
    - Use only the **current requirements** (combined with the issue description) as input for the next step.
+
+   **Reopened task (mandatory deep pass).** When step 1 marked the run as a reopened continuation, the comment analysis above is blocking and gains these obligations:
+   - Read the comments posted **after the most recent close / merge** first — they carry why the task was reopened and what still fails or is missing; wherever they conflict with the original description, the post-reopen comments win.
+   - Load every earlier PR linked to the issue (`closingPullRequests[]` for GitHub, `pullRequests[]` / `devSummary` for JIRA, the mirrored issue's PRs for Bugsnag) via the tracker's deterministic loader and record what already landed. Classify that delivered work as **Resolved items** — never reimplement or revert it unless a post-reopen comment explicitly asks for it.
+   - Derive the **continuation scope**: current requirements = the delta demanded by the post-reopen comments plus any originally stated requirement that verifiably never landed — not the original assignment from scratch.
+   - If no comment or linked activity explains why the task was reopened, stop as **Blocked**: post a question on the tracker asking for the reopen reason and release the claim per step 1 (*Release on Blocked / abort*) — never guess the continuation scope.
 
 ### Context preparation (mandatory pre-flight)
 
