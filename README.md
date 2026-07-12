@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="Laravel Agent Skills" width="280">
 </p>
 
-# Laravel Agent Skills — Composer Plugin for PHP and Laravel
+# Laravel Agent Skills — An AI Development Team for Laravel
 
 <p align="center">
   <a href="https://packagist.org/packages/agentic-vibes/laravel-agent-skills"><img src="https://img.shields.io/packagist/v/agentic-vibes/laravel-agent-skills" alt="Packagist Version"></a>
@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** — a **Composer plugin** for PHP/Laravel projects that installs a complete set of `.mdc` rule files and Agent skills for Cursor, Claude Code, and Codex. One package for PHP and Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into the editor's rules path and the `skills/` directory into the editor's skills path, and copies or symlinks every file into the target project. Use Laravel Agent Skills to keep every edit aligned with enforced standards, plus comprehensive Agent skills for issue resolution, bug fixing, code review, security analysis, refactoring, testing, frontend and UI, platform and data, and package review.
+**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Cursor, Claude Code, and Codex. One `composer require --dev` brings the whole team: seven specialized subagents (`daidalos` orchestration, `metis` analysis, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into the editor's rules path and the `skills/` directory into the editor's skills path, and copies or symlinks every file into the target project.
 
 ## Why This Package
 
