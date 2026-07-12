@@ -967,3 +967,69 @@ test('code-review skill flags enum-mode match() in Data Validator bullet and New
     expect($content)->toContain('Can this data be stored in an existing storage without a drastic impact on performance?');
     expect($content)->toContain('Severity: **Moderate** (see `@rules/sql/optimalize.mdc` *New storage reuse analysis*)');
 });
+
+test('core-standards Testing bullet mandates arrange-act-assert structure with exceptions (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+
+    expect($content)->toContain('Structure every test body arrange-act-assert (AAA), in that order');
+    expect($content)->toContain('phases separated by a blank line when the body has more than one multi-statement phase');
+    expect($content)->toContain('`// Arrange` / `// Act` / `// Assert` comments are optional, never required');
+    expect($content)->toContain('act and assert merged in one idiomatic expression');
+    expect($content)->toContain('sequential workflow tests where each act→assert step depends on the state left by the previous step');
+    expect($content)->toContain('When multiple independent act→assert cycles share no state, split them into separate tests or a dataset');
+
+    // old, non-mandatory wording must not remain
+    expect($content)->not->toContain('Use the arrange-act-assert structure when it improves readability.');
+});
+
+test('code-testing rules reference the canonical mandatory AAA rule (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
+
+    expect($content)->toContain(
+        'Structure every test body arrange-act-assert per @rules/php/core-standards.mdc Testing (phases in order, '
+        . 'comments optional — see the canonical rule for the exception list).',
+    );
+});
+
+test('code-review Test Organization gate and Core Analysis bullet enforce AAA structure (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($content)->toContain(
+        'AAA phase order per `@rules/code-testing/general.mdc` / `@rules/php/core-standards.mdc` Testing — setup, '
+        . 'then action, then assertions, each phase contiguous.',
+    );
+    expect($content)->toContain('verify four things per `@rules/code-testing/general.mdc` *Test Organization*');
+    expect($content)->toContain('4. **AAA structure (issue #25).**');
+    expect($content)->toContain('no comment convention required, this is pattern-matching on phase order and interleaving');
+    expect($content)->toContain('The AAA check (4) is never escalated past **Moderate**');
+    expect($content)->toContain('the finding belongs to the existing "Tests must not contain conditions"');
+    expect($content)->toContain('"Split complex conditional test setups"');
+    expect($content)->toContain('**AAA fix**');
+});
+
+test('create-test and create-missing-tests-in-pr skills require mandatory AAA structure (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $createTest = (string) file_get_contents($packageDir . '/skills/create-test/SKILL.md');
+    $createMissing = (string) file_get_contents($packageDir . '/skills/create-missing-tests-in-pr/SKILL.md');
+
+    foreach ([$createTest, $createMissing] as $content) {
+        expect($content)->toContain(
+            'Structure every test body arrange-act-assert per `@rules/php/core-standards.mdc` Testing',
+        );
+        expect($content)->toContain('phases in order (setup → action → assertions), comments optional');
+    }
+});
+
+test('rewrite-tests-pest skill requires mandatory AAA flow, not merely preferred (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/rewrite-tests-pest/SKILL.md');
+
+    expect($content)->toContain(
+        'Keep tests structured and easy to read, with arrange / act / assert flow per '
+        . '`@rules/php/core-standards.mdc` Testing (mandatory; see the canonical rule for the exception list).',
+    );
+    expect($content)->not->toContain('preferably with clear arrange / act / assert flow.');
+});

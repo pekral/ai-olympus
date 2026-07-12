@@ -74,6 +74,7 @@ A flaky test fails inconsistently, is hard to reproduce, and is often "fixed" by
 - Prefer simple, readable tests over complex setups.
 - Use data providers (datasets) where they improve readability and reduce duplication across similar test cases.
 - Tests must not contain conditions (e.g., `if`, `switch`); split conditional logic into separate test cases or data providers instead.
+- Structure every test body arrange-act-assert per @rules/php/core-standards.mdc Testing (phases in order, comments optional — see the canonical rule for the exception list).
 
 ## Coverage
 - Every test change must be verified to be functional — run affected tests after each modification.

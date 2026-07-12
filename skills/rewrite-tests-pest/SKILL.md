@@ -41,7 +41,7 @@ Only after Read, Map, and Verify are complete may the rewrite begin.
 4. Use datasets/data providers where they simplify similar test cases.
 5. Move broadly shared lightweight test helpers to `Pest.php` when it improves clarity and reuse.
 6. If a Pest test needs to call a helper method defined on the test case for abstract-class scenarios, use `test()->methodName()`.
-7. Keep tests structured and easy to read, preferably with clear arrange / act / assert flow.
+7. Keep tests structured and easy to read, with arrange / act / assert flow per `@rules/php/core-standards.mdc` Testing (mandatory; see the canonical rule for the exception list).
 8. Separate success and failure scenarios into distinct test cases where practical.
 9. Run the rewritten tests and confirm they pass consistently.
 10. Simplify nearby similar tests only when the cleanup is small, safe, and clearly improves maintainability.
