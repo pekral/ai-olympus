@@ -69,7 +69,7 @@ Then continue with the analysis:
 Apply these 10 steps in order. Each step feeds the next — never jump ahead to a solution before evidence and root cause are settled.
 
 1. **Context extraction** — what we actually know from the assignment, comments, linked / sub-issues, attachments, and surrounding code (all loaded via the *Issue-tracker context* mandatory pre-flight above). First **consult the per-project compound memory** (`docs/memory/PROJECT_MEMORY.md` per `@rules/compound-engineering/general.mdc` *Compound Memory (per project)*): read it when present and reuse any entry whose `Trigger:` matches this problem instead of re-deriving a lesson the project already recorded. Apply the per-role read filter from `@rules/compound-engineering/general.mdc` *Read protocol* — load only entries where `Role: metis` or `Role: shared`; skip entries tagged for other roles.
-2. **Problem statement** — one precise sentence describing the real problem.
+2. **Task-type classification & problem statement** — first classify the task from the context (feature, bug, regression, performance, data issue, security, UX, refactor, tooling, unclear requirement, or other) and state that type explicitly at the top of the Summary so a reader sees it immediately; then write one precise sentence describing the real problem — for a feature, the target behavior to build rather than a malfunction.
 3. **Expected vs actual behavior** — what should happen, and what is happening instead.
 4. **Evidence** — logs, screenshots, issue comments, files, reproduction steps. Verified facts only.
 5. **Root cause hypothesis** — the most likely cause, clearly separated from facts. State certainty.
@@ -109,8 +109,8 @@ State where the plan artifact was written (file path or issue URL) in the analys
 
 The output uses the template at `templates/analysis-report.md`. The template has 12 sections that map onto the framework above:
 
-1. **Summary** — short summary (covers steps 1–2)
-2. **Problem Definition** — problem statement, expected/actual behavior, affected area, problem type (steps 2–3)
+1. **Summary** — task-type classification and short summary (covers steps 1–2)
+2. **Problem Definition** — problem statement, expected/actual behavior, affected area (steps 2–3)
 3. **Verified Facts** — verified facts only (step 4)
 4. **Assumptions and Missing Information** — assumptions and unknowns (supports step 5)
 5. **Probable Root Cause** — root cause, certainty, alternative causes (step 5)

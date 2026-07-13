@@ -2,8 +2,17 @@
 
 ## 1. Summary
 
-<!-- Short summary of the problem in 2–5 sentences.
-Explain what is happening, where it is happening, and the most likely reason. -->
+**Task type:**
+<!-- The primary classification of this task, stated first so a reader sees it immediately.
+Pick the single value that best fits the assignment context:
+Feature / Bug / Regression / Performance / Data issue / Security / UX / Refactor / Tooling / Unclear requirement / Other.
+A feature adds new behavior; a bug fixes incorrect existing behavior. -->
+
+...
+
+<!-- Short summary in 2–5 sentences.
+For a bug: what is happening, where, and the most likely reason.
+For a feature: the target behavior to build and where it belongs. -->
 
 ...
 
@@ -28,11 +37,6 @@ Explain what is happening, where it is happening, and the most likely reason. --
 
 **Affected area:**
 <!-- Module, feature, page, API endpoint, command, job, database table, external service, etc. -->
-
-...
-
-**Problem type:**
-<!-- Bug / regression / performance / data issue / security / UX / unclear requirement / other -->
 
 ...
 

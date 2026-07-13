@@ -722,6 +722,30 @@ test('analyze-problem report template carries the mandatory Sources section (iss
     expect($template)->toContain('### External References');
 });
 
+test('analyze-problem classifies and surfaces the task type up front (issue #42)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
+    $template = (string) file_get_contents($packageDir . '/skills/analyze-problem/templates/analysis-report.md');
+
+    // The framework step classifies the task type from the context, distinguishing feature from bug.
+    expect($skill)->toContain('**Task-type classification & problem statement**');
+    expect($skill)->toContain('classify the task from the context (feature, bug');
+    expect($skill)->toContain('for a feature, the target behavior to build rather than a malfunction');
+
+    // The Output Structure announces the task type up front in the Summary.
+    expect($skill)->toContain('task-type classification and short summary');
+
+    // The report template surfaces the task type as the first, clearly visible field in the Summary.
+    expect($template)->toContain('**Task type:**');
+    expect($template)->toContain(
+        'Feature / Bug / Regression / Performance / Data issue / Security / UX / Refactor / Tooling / Unclear requirement / Other',
+    );
+    expect($template)->toContain('A feature adds new behavior; a bug fixes incorrect existing behavior.');
+
+    // The old, feature-less "Problem type" field was consolidated into the Task type badge, not duplicated.
+    expect($template)->not->toContain('**Problem type:**');
+});
+
 test('api rule codifies the API-as-contract design standard (issue #552)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/api/general.mdc');
