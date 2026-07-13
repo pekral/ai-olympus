@@ -1047,3 +1047,25 @@ test('code-review rule and skill enforce backward-compatible data/storage change
     // The code-review skill enumerates the concern so every CR wrapper inherits it.
     expect($skill)->toContain('backward-compatible data / storage changes (issue #38)');
 });
+
+test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issue #41)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+
+    // Both canonical rule locations enumerate the @-prefixed spelling verbatim and stay byte-in-sync.
+    $fragment = '; each `phpcs:` annotation also matches in its `@`-prefixed spelling — `// @phpcs:ignore`, '
+        . '`// @phpcs:disable` — which PHP_CodeSniffer honors identically';
+    expect($phpRule)->toContain($fragment);
+    expect($crRule)->toContain($fragment);
+
+    // The rule pair itself was previously unpinned — lock the Moderate severity contract.
+    expect($phpRule)->toContain('**Do not introduce new static-analysis / linter suppressions.**');
+    expect($phpRule)->toContain('CR severity for an unjustified new suppression: **Moderate**.');
+    expect($crRule)->toContain('**New static-analysis / linter suppression introduced:**');
+    expect($crRule)->toContain('Severity: **Moderate** (declared in `@rules/php/core-standards.mdc` PHP Practices)');
+
+    // The code-review skill enumerates the concern so every CR wrapper inherits it.
+    expect($skill)->toContain('new static-analysis / linter suppression');
+});
