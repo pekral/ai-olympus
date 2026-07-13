@@ -1033,3 +1033,17 @@ test('rewrite-tests-pest skill requires mandatory AAA flow, not merely preferred
     );
     expect($content)->not->toContain('preferably with clear arrange / act / assert flow.');
 });
+
+test('code-review rule and skill enforce backward-compatible data/storage changes (issue #38)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+
+    // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the gating.
+    expect($rule)->toContain('**Backward-compatible data / storage changes (issue #38)**');
+    expect($rule)->toContain('unless the linked assignment explicitly authorizes ignoring data compatibility');
+    expect($rule)->toContain('the **New storage reuse analysis** bullet owns *net-new* storage surfaces');
+
+    // The code-review skill enumerates the concern so every CR wrapper inherits it.
+    expect($skill)->toContain('backward-compatible data / storage changes (issue #38)');
+});
