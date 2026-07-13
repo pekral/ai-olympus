@@ -208,6 +208,21 @@ test('every agent definition declares a model in frontmatter', function (): void
     }
 });
 
+test('every agent definition sets the model effort to max in frontmatter (issue #40)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
+        // cannot satisfy the assertion, and require exactly `max` per the assignment.
+        $content = (string) file_get_contents($agentFile);
+        expect($content)->toMatch('/^effort:\s*max$/m');
+    }
+});
+
 test('daidalos delegates the end-to-end run by dispatching metis, talos and argos to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');

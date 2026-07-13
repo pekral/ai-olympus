@@ -104,6 +104,7 @@ name: argos
 description: When to auto-delegate to this agent (the trigger sentence).
 tools: Read, Glob, Grep, Bash
 model: opus
+effort: max
 ---
 
 System prompt: what the agent does, which skills it orchestrates, and the handoff it returns.
@@ -112,6 +113,7 @@ System prompt: what the agent does, which skills it orchestrates, and the handof
 - **`name`** — lowercase, the id used as `subagent_type` / `@name`.
 - **`description`** — drives auto-delegation; phrase it as the situation that should trigger the agent.
 - **`tools`** — restrict to what the agent needs. A read-only reviewer needs `Read, Glob, Grep, Bash` only.
+- **`effort`** — reasoning effort while the agent is active (`low` / `medium` / `high` / `xhigh` / `max`); set to `max` on every agent so each runs at maximum reasoning depth. The runtime clamps to the highest level the agent's `model` supports.
 - **System prompt** — orchestration only. Delegate to skills via `@skills/<name>/SKILL.md`; **never duplicate a skill's rules** — defer to the skill as the source of truth.
 
 ## Handoff contract
