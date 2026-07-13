@@ -238,3 +238,11 @@
 - Example: issue #16 / PR #33 — initial grep list from the analysis (metis) missed 5 files that a final full-tree completeness grep caught before opening the PR (`rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md`, `skills/refactor-entry-point-to-action/SKILL.md`, `agents/athena.md`, `agents/hermes.md`) plus the social-preview asset re-render.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/33   Added: 2026-07-12
 - Role:    talos
+
+### pr-body-closing-keyword-must-be-literal-english — A translated GitHub closing keyword in a PR body leaves the issue unlinked pre-merge
+
+- Trigger: resolve-issue / process-code-review opens a PR whose description is written in the assignment language (Czech per `@rules/reports/general.mdc`) and the PR must close its issue on merge.
+- Rule:    GitHub only recognises the English closing keywords (`close`/`closes`/`closed`, `fix`/`fixes`/`fixed`, `resolve`/`resolves`/`resolved`). A translated keyword (e.g. Czech "Uzavírá #42") is NOT parsed, so `closingIssuesReferences` stays empty pre-merge — the PR shows no linked issue and the `code-review-github` linked-issue `pr-summary` step skips as "no linked issue — issue summary skipped". Always put the literal English `Closes #<N>` in the PR body (it is a machine directive, exempt from the assignment-language rule like a code identifier). The commit body's `Closes #<N>` still auto-closes on rebase-merge, which masks the missing PR-level link — do not rely on it; verify after opening the PR with `gh api graphql` on `closingIssuesReferences`.
+- Example: PR #43 (issue #42) used "Uzavírá #42" → `closingIssuesReferences` empty, CR linked-issue summary skipped; PR #44 (issue #40) used "Closes #40" → `closingIssuesReferences` = [40]. Verify: `gh api graphql -f query='{repository(owner:"…",name:"…"){pullRequest(number:N){closingIssuesReferences(first:5){nodes{number}}}}}'`.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/44   Added: 2026-07-13
+- Role:    shared
