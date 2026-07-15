@@ -254,6 +254,19 @@ test('class-refactoring skill surfaces the speculative-interface refactoring', f
     expect($content)->toContain('@rules/php/core-standards.mdc');
 });
 
+test('class-refactoring skill holds runtime-efficiency non-regression for high-load refactors (issue #39)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
+
+    expect($content)->toContain('- efficiency under load');
+    expect($content)->toContain('**Runtime efficiency is part of the behavior-preservation contract.**');
+    expect($content)->toContain('at least as efficient as the original');
+    expect($content)->toContain('never both on the same line');
+    expect($content)->toContain('@skills/latency-critical-systems/SKILL.md');
+    expect($content)->toContain('not a measurement mandate');
+    expect($content)->toContain('In `MODE=cr`, raise an efficiency regression introduced by the diff');
+});
+
 test('class-refactoring skill enforces the seven business logic layers including Eloquent models', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
