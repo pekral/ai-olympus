@@ -220,3 +220,51 @@ test('deferred points must be filed as follow-up tracker issues so they are not 
     $createMissing = (string) file_get_contents($packageDir . '/skills/create-missing-tests-in-pr/SKILL.md');
     expect($createMissing)->toContain('Deferred-item follow-up issues');
 });
+
+test('newly created tracker issues get the single most relevant existing label (issue #54)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The section heading must exist; unlike the two sections above it owns both
+    // the principle and the per-tracker mechanics (four executors, not one).
+    expect($rule)->toContain('## Label newly created tracker issues');
+
+    // Select-only-from-loaded-list + never-create, with the EPIC exception named
+    // inline (rule<->skill parity: an absolute the skill legitimately violates
+    // must be named in the rule, not left to silently contradict it).
+    expect($rule)->toContain('never create a new label');
+    expect($rule)->toContain('single sanctioned exception is the structural `EPIC` label');
+
+    // The three semantic exclusion classes stay generic (name/description-driven),
+    // not hardcoded to this repository's own label set.
+    expect($rule)->toContain('workflow/state/structural');
+    expect($rule)->toContain('verdict/triage');
+    expect($rule)->toContain('audience');
+
+    // No-fit fallback is "no label" — never a forced fit, never a new label.
+    expect($rule)->toContain('No fitting candidate, no label.');
+
+    // Additive to the existing EPIC / backlog-claim / ready-for-review label mechanics.
+    expect($rule)->toContain('Stay additive.');
+
+    // Per-tracker mechanics: GitHub needs an explicit --limit (the gh CLI default is only 30).
+    expect($rule)->toContain('gh label list --json name,description --limit 200');
+    // JIRA labels carry no description or registry; harvest via JQL and match by name only.
+    expect($rule)->toContain('labels IS NOT EMPTY');
+
+    // Every one of the 4 call sites carries a one-line reference to the rule section.
+    $createIssue = (string) file_get_contents($packageDir . '/skills/create-issue/SKILL.md');
+    $createIssuesFromText = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $metis = (string) file_get_contents($packageDir . '/agents/metis.md');
+
+    expect($createIssue)->toContain('Label newly created tracker issues');
+    expect($createIssuesFromText)->toContain('Label newly created tracker issues');
+    expect($resolveIssue)->toContain('Label newly created tracker issues');
+    expect($metis)->toContain('Label newly created tracker issues');
+
+    // Additive-only: the pre-existing EPIC structural-label mechanism stays untouched.
+    expect($createIssuesFromText)->toContain('EPIC parent & sub-issues');
+    expect($createIssuesFromText)->toContain('gh label create EPIC');
+});
