@@ -167,34 +167,33 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 Follow the workflow defined in `references/quality-gates.md`.
 
-## Code quality and review loop
+## Code quality self-check (single pass)
 
-After implementation and pre-push quality gates pass, and **before creating the pull request**, run the review loop on the local changes:
+After implementation and pre-push quality gates pass, and **before creating the pull request**, run one self-check pass on the local changes:
 
 1. **Run the review inline.** Invoke `@skills/code-review/SKILL.md` directly in this skill's context, passing the current branch / diff context plus the instruction "run `@skills/code-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings with their reproducer fields (Faulty Example, Expected Behavior, Test Hint, Suggested Fix)". Do not dispatch the review as a subagent — run it sequentially in the current context.
 2. If **Critical** or **Moderate** findings exist:
    - Apply the **Suggested Fix** snippet from each finding directly to the working tree
    - Add or update a reproducer test for each finding using its **Faulty Example**, **Expected Behavior**, and **Test Hint**
    - Re-run the pre-push quality gates on touched files
-   - Repeat from step 1
-3. Iterate until no **Critical** or **Moderate** findings remain
+3. **Do not iterate the review to convergence.** This self-check runs exactly once: one review pass, one fix round for the findings it surfaced, one quality-gates re-run. Convergence to 0 Critical + 0 Moderate is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `argos` ‖ `athena` ↔ `talos` loop), which reviews the full diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
 
-PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR loop because it requires an open PR to operate on.
+PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR self-check because it requires an open PR to operate on.
 
 ## Testing
 
-After the code review loop passes clean, and **still before creating the pull request**, validate the change:
+After the code quality self-check pass, and **still before creating the pull request**, validate the change:
 
 1. **Run the security review inline.** Invoke `@skills/security-review/SKILL.md` directly in this skill's context, passing the current diff context plus the instruction "run `@skills/security-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings". Do not dispatch the review as a subagent — run it sequentially in the current context.
 
-Resolve any **Critical** or **Moderate** finding from the security review before continuing. If a finding requires code changes, re-run the **Code quality and review loop** to re-validate.
+Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review and re-run the pre-push quality gates on touched files. Like the code quality self-check, this is a single pass — do not re-enter a review loop; the authoritative post-PR convergence loop re-validates the full diff.
 
 ## Pull request
 
 **Creating the pull request is the default, mandatory final step.** Once review and testing are clean, open the PR automatically — applying the valid git rules and PR definitions in this section — **without asking the user for confirmation**. The skill is not finished until the PR exists.
 
 **Opt-out — the user must explicitly ask to skip the PR.** Only when the user's request explicitly states that no pull request should be created (e.g. "don't open a PR", "no PR", "just implement locally", "leave it on the branch") do you skip PR creation. A silent or ambiguous request is **not** an opt-out — when in doubt, create the PR. When the user did opt out:
-- Still run the full flow through implementation, the code-quality / review loop, and the security review — only the PR creation and **every step that depends on an open PR** are skipped: the technical report on the PR, the non-technical report on the original tracker, the *Deferred-item follow-up issues* step, the JIRA Code-Review transition, the GitHub `ready for review` label, and the compound-memory step (`@skills/record-project-memory/SKILL.md`). None of them run without a PR — report the deferred items in the handoff instead so they are filed when the PR opens.
+- Still run the full flow through implementation, the code quality self-check, and the security review — only the PR creation and **every step that depends on an open PR** are skipped: the technical report on the PR, the non-technical report on the original tracker, the *Deferred-item follow-up issues* step, the JIRA Code-Review transition, the GitHub `ready for review` label, and the compound-memory step (`@skills/record-project-memory/SKILL.md`). None of them run without a PR — report the deferred items in the handoff instead so they are filed when the PR opens.
 - Commit the changes on the local feature branch (do **not** push or open the PR) and leave the working tree on that branch.
 - Release the tracker claim the same way the before-PR release does (*Release on Blocked / abort (before PR)* in step 1) — this is a deliberate stop, not a failure, but no PR will own the claim, so removing the `Resolve_by_AI:in-progress` label lets a human pick the issue up. Name the issue / key in the handoff.
 - Report what was implemented, the review/security outcome, and the exact `gh pr create --draft …` command the user can run later to open the PR.
@@ -202,7 +201,7 @@ Resolve any **Critical** or **Moderate** finding from the security review before
 Once review and testing are clean and the user has **not** opted out:
 
 - Create a branch (name always in English, regardless of the assignment language) and commit changes following `@rules/git/general.mdc`
-- **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/general.mdc` *Draft pull requests*. The inline review loop above is the implementer's pre-PR self-check, **not** the authoritative code review — the authoritative `code-review-github` / `process-code-review` (the `argos` / `athena` ↔ `talos` convergence loop) still runs **after** the PR exists, so at creation time the PR is not yet ready to merge and agents will keep working on it. It is promoted out of Draft (`gh pr ready`) by `@skills/process-code-review/SKILL.md` once that review converges to 0 Critical + 0 Moderate.
+- **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/general.mdc` *Draft pull requests*. The inline self-check above is the implementer's single-pass pre-PR self-check, **not** the authoritative code review — the authoritative `code-review-github` / `process-code-review` (the `argos` / `athena` ↔ `talos` convergence loop) still runs **after** the PR exists, so at creation time the PR is not yet ready to merge and agents will keep working on it. It is promoted out of Draft (`gh pr ready`) by `@skills/process-code-review/SKILL.md` once that review converges to 0 Critical + 0 Moderate.
 - Create the pull request with:
   - clear description of the change
   - reference to the original issue
@@ -275,7 +274,7 @@ After the reviews converged (no Critical / Moderate) and the reports are posted,
 - Tests cover affected logic with 100% coverage and pass
 - Pre-push fixers and checkers ran clean on all changed files
 - No sensitive data is exposed
-- Code review loop passed with no Critical or Moderate findings **before the PR was created**
+- Code quality self-check pass ran and its Critical / Moderate findings were addressed **before the PR was created**
 - Security review completed **before the PR was created**
 - A clean pull request is created with a summary **by default** — skipped only when the user explicitly opted out of PR creation (see *Pull request*), in which case the committed local branch and the ready-to-run `gh pr create --draft …` command are reported instead
 - Technical report posted on the GitHub PR (skipped on PR opt-out)

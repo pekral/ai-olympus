@@ -44,14 +44,15 @@ test('dry review rule is referenced by process-code-review skill', function (): 
     expect($content)->toContain('DRY violations');
 });
 
-test('unified resolve-issue skill requires code review before PR creation', function (): void {
+test('unified resolve-issue skill requires a single-pass code quality self-check before PR creation (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect($content)->toContain('Code review loop passed with no Critical or Moderate findings');
+    expect($content)->toContain('Code quality self-check pass ran and its Critical / Moderate findings were addressed');
     expect($content)->toContain('Security review completed');
+    expect($content)->toContain('Do not iterate the review to convergence');
     expect($content)->not->toContain('After checks pass, automatically push');
 
-    $reviewLoopPos = strpos($content, '## Code quality and review loop');
+    $reviewLoopPos = strpos($content, '## Code quality self-check (single pass)');
     $testingPos = strpos($content, '## Testing');
     $pullRequestPos = strpos($content, '## Pull request');
     expect($reviewLoopPos)->not->toBeFalse();
