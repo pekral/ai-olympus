@@ -12,6 +12,10 @@
 
 ---
 
+## Technical Review
+
+> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.mdc`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
+
 ## Findings
 
 > Render only when at least one Critical, Moderate, or Minor finding exists. Within this section, render only the severity sub-headings that have items — omit the others entirely. When all three severities are empty, omit the entire `## Findings` parent heading.
@@ -94,6 +98,20 @@
 - **Tool:** {discovered coverage command name, or "not available — <reason>"}
 - **Command:** `<exact command run>`
 - **Result:** {list of uncovered added/changed lines — which must also appear as Critical findings — or "coverage tooling unavailable — <reason>"}
+
+---
+
+## Functional Review
+
+> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already run for this review — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
+
+{conformant → "All stated assignment requirements are satisfied." | gaps → list every Critical functional / business-logic gap below — still counted in the Counts line above}
+
+### 🔴 Critical 1. <short title>  *(gaps case only)*
+
+(same six fields as `## Findings` — Location / Rule / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.mdc` path)
+
+(Repeat for every gap.)
 
 ---
 

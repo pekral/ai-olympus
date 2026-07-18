@@ -1069,3 +1069,111 @@ test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issu
     // The code-review skill enumerates the concern so every CR wrapper inherits it.
     expect($skill)->toContain('new static-analysis / linter suppression');
 });
+
+test('rule defines the Two-Part CR Output — Technical & Functional Review contract (issue #56)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('## Two-Part CR Output — Technical & Functional Review');
+    expect($rule)->toContain('**`## Technical Review`**');
+    expect($rule)->toContain('**`## Functional Review`**');
+    expect($rule)->toContain('All stated assignment requirements are satisfied.');
+    expect($rule)->toContain(
+        'never its count in the `Counts:` header line nor in the `criticalCount + moderateCount == 0` convergence gate',
+    );
+    expect($rule)->toContain('the terse Summary-line token coexists with the new prose');
+    expect($rule)->toContain(
+        'Direction 2 (changes → requirements traceability / scope-creep, out-of-scope findings) **stays in `## Technical Review`**',
+    );
+});
+
+test('code-review skill routes Assignment Conformance Gate Critical findings to Functional Review, not Findings (issue #56)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+
+    expect($canonical)->toContain(
+        'these Critical findings publish under `## Functional Review`, not `## Findings`',
+    );
+    expect($canonical)->toContain(
+        'published under `## Functional Review` per the Two-Part CR Output contract',
+    );
+    expect($canonical)->toContain('**Two-part output (`## Technical Review` / `## Functional Review`).**');
+});
+
+test('every CR wrapper skill references the canonical Two-Part CR Output contract tersely (issue #56)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $wrappers = [
+        $packageDir . '/skills/code-review-github/SKILL.md',
+        $packageDir . '/skills/code-review-jira/SKILL.md',
+        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
+    ];
+
+    foreach ($wrappers as $skillFile) {
+        $content = (string) file_get_contents($skillFile);
+        expect($content)->toContain('**Two-part output (`## Technical Review` / `## Functional Review`).**');
+        expect($content)->toContain('`@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*');
+    }
+});
+
+test('every code review template renders Technical Review before Findings and Functional Review before the Summary line (issue #56)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $templates = [
+        $packageDir . '/skills/code-review/templates/review-output.md',
+        $packageDir . '/skills/code-review-github/templates/pr-comment-output.md',
+        $packageDir . '/skills/code-review-jira/templates/github-output.md',
+        $packageDir . '/skills/code-review-bugsnag/templates/github-output.md',
+    ];
+
+    foreach ($templates as $template) {
+        $content = (string) file_get_contents($template);
+
+        expect($content)->toContain("\n## Technical Review\n");
+        expect($content)->toContain("\n## Functional Review\n");
+        expect($content)->toContain('All stated assignment requirements are satisfied.');
+        expect($content)->toContain('still counted in the Counts line above');
+
+        $technicalPos = strpos($content, "\n## Technical Review\n");
+        $findingsPos = strpos($content, "\n## Findings\n");
+        $coveragePos = strpos($content, "\n## Coverage\n");
+        $functionalPos = strpos($content, "\n## Functional Review\n");
+        $summaryPos = strpos($content, "\n**Summary:**");
+
+        expect($technicalPos)->not->toBeFalse();
+        expect($findingsPos)->not->toBeFalse();
+        expect($coveragePos)->not->toBeFalse();
+        expect($functionalPos)->not->toBeFalse();
+        expect($summaryPos)->not->toBeFalse();
+        assert($technicalPos !== false);
+        assert($findingsPos !== false);
+        assert($coveragePos !== false);
+        assert($functionalPos !== false);
+        assert($summaryPos !== false);
+
+        expect($technicalPos)->toBeLessThan($findingsPos);
+        expect($findingsPos)->toBeLessThan($coveragePos);
+        expect($coveragePos)->toBeLessThan($functionalPos);
+        expect($functionalPos)->toBeLessThan($summaryPos);
+    }
+});
+
+test('full-tree grep finds every CR skill/template/rule references the Two-Part CR Output contract (issue #56)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $expectedFiles = [
+        'rules/code-review/general.mdc',
+        'skills/code-review/SKILL.md',
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/SKILL.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ];
+
+    foreach ($expectedFiles as $relativePath) {
+        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        $hasMarker = str_contains($content, 'Two-Part CR Output') || str_contains($content, '## Functional Review');
+        expect($hasMarker)->toBeTrue(sprintf('Expected %s to reference the Two-Part CR Output contract (issue #56).', $relativePath));
+    }
+});
