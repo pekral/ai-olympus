@@ -126,7 +126,7 @@ Rules:
 
 This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, or **Completion** until the loop converges. The final report (technical and non-technical) is published only **once**, after convergence.
 
-1. Initialise `iteration = 1` and `maxIterations = 5` (safety net to avoid runaway loops).
+1. Initialise `iteration = 1` and `maxIterations = 3` (safety net to avoid runaway loops; a non-converged run escalates to the user, and the merge gate still requires 0 Critical + 0 Moderate — a lower cap surrenders hard cases to a human sooner without lowering the quality bar of anything that merges).
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`

@@ -173,7 +173,7 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
 
     expect($process)->toContain('### Review loop (mandatory — convergence gate)');
-    expect($process)->toContain('`maxIterations = 5`');
+    expect($process)->toContain('`maxIterations = 3`');
     expect($process)->toContain('`criticalCount + moderateCount == 0`');
     expect($process)->toContain('do not publish; return findings as in-memory markdown for this loop iteration only');
     expect($process)->toContain('### Finalization (only after Review loop converged)');
