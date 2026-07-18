@@ -311,3 +311,11 @@
 - Example: PR #49 (issue #39) — CI was already green when the user's explicit merge-gate mandate #2 ("`composer build` MUST pass with zero errors") called for independent verification; `apollon` was dispatched for a dedicated full local `composer build` run (`install --force` + `@fix` + `@check`, all 8 `@check` steps including `skill-check` and `composer-normalize-check`) and confirmed 0 errors, 308/308 tests, 100% coverage — a check CI alone would not have covered.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/49   Added: 2026-07-15
 - Role:    shared
+
+### pinned-test-mandate-conflict-defers-to-owner-decision — A recommendation conflicting with a prior user mandate pinned in an installer content test is deferred to an owner-decision issue, not implemented
+
+- Trigger: an analysis / optimization issue recommends changing something in `agents/*.md`, `skills/**`, or `rules/**` (e.g. lowering an agent's `effort:` level), and an installer content test pins the current state as an explicit prior assignment (the test name cites the mandating issue, e.g. "every agent definition sets the model effort to max in frontmatter (issue #40)").
+- Rule:    A pinning test whose name cites an issue number is not just a regression guard — it encodes a deliberate, user-mandated invariant. A newer recommendation that contradicts it must not be implemented by simply updating the test (that silently reverts an explicit owner decision). Defer the conflicting recommendation into its own tracker issue that names the collision (recommendation X vs mandate issue Y) and let the owner decide; implement only the recommendations that do not touch a pinned mandate. Grep `tests/Installer/*Test.php` for "(issue #" citations over the surfaces the change touches before scoping, so the conflict is found at planning time, not at `composer build` failure time.
+- Example: issue #62 R4 ("right-size `effort`: hermes → low/medium, metis/apollon/talos → high") conflicted with `tests/Installer/AgentsTest.php` "every agent definition sets the model effort to max in frontmatter (issue #40)"; PR #63 implemented R1–R3 and deferred R4 as decision issue #64 instead of editing the pinned test.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/63   Added: 2026-07-18
+- Role:    shared
