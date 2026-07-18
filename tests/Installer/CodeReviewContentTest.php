@@ -563,7 +563,8 @@ test('code-review skill short-circuits coverage section in Output Rules + Covera
 
     // Output Rules opening clause no longer claims `## Coverage` is always rendered.
     expect($content)->toContain(
-        'Only the header block (Status / Counts / Last updated / tracker-status line) and the final `Summary` line are always rendered.',
+        'The header block (Status / Counts / Last updated / tracker-status line), '
+        . '`## Functional Review`, and the final `Summary` line are always rendered.',
     );
     expect($content)->toContain('all conditional');
     // The old "always render Coverage" sentence must be gone — verify by checking a distinctive fragment that only existed in the legacy sentence.
@@ -591,7 +592,7 @@ test('code-review-jira skill + template short-circuit coverage section (issue #5
     $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-jira/templates/github-output.md');
 
-    expect($skill)->toContain('Only the header block (Status / Counts / Last updated / Linked-tracker mirror)');
+    expect($skill)->toContain('The header block (Status / Counts / Last updated / Linked-tracker mirror)');
     expect($skill)->toContain('the final `Summary` line are always rendered in the GitHub PR comment.');
     expect($skill)->toContain('all conditional');
     expect($skill)->toContain('includes a `## Coverage` section before the summary line **only** when the coverage gate has something to report');
