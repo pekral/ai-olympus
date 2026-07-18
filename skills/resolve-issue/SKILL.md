@@ -176,7 +176,8 @@ After implementation and pre-push quality gates pass, and **before creating the 
    - Apply the **Suggested Fix** snippet from each finding directly to the working tree
    - Add or update a reproducer test for each finding using its **Faulty Example**, **Expected Behavior**, and **Test Hint**
    - Re-run the pre-push quality gates on touched files
-3. **Do not iterate the review to convergence.** This self-check runs exactly once: one review pass, one fix round for the findings it surfaced, one quality-gates re-run. Convergence to 0 Critical + 0 Moderate is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `argos` ‖ `athena` ↔ `talos` loop), which reviews the full diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
+3. **Do not re-run the full review to convergence.** The full-diff review runs exactly once; after applying the fixes, re-verify each fixed finding in a targeted way — re-read the finding's code path and re-run the pre-push quality gates on the touched files — instead of re-invoking the full review over the whole diff. Full-diff convergence is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `argos` ‖ `athena` ↔ `talos` loop), which reviews the complete diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
+4. **PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding surfaced by this pass is resolved (0 Critical + 0 Moderate remaining). When a surfaced finding cannot be resolved, stop as **Blocked** and surface it to the user instead of opening a PR that knowingly carries it.
 
 PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR self-check because it requires an open PR to operate on.
 
@@ -186,7 +187,7 @@ After the code quality self-check pass, and **still before creating the pull req
 
 1. **Run the security review inline.** Invoke `@skills/security-review/SKILL.md` directly in this skill's context, passing the current diff context plus the instruction "run `@skills/security-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings". Do not dispatch the review as a subagent — run it sequentially in the current context.
 
-Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review and re-run the pre-push quality gates on touched files. Like the code quality self-check, this is a single pass — do not re-enter a review loop; the authoritative post-PR convergence loop re-validates the full diff.
+Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review and re-run the pre-push quality gates on touched files. Like the code quality self-check, this is a single full pass — do not re-enter a full review loop; re-verify the fixed findings in a targeted way, and the authoritative post-PR convergence loop re-validates the full diff. The same **PR gate** applies: the pull request may be created only when every surfaced Critical / Moderate security finding is resolved (0 Critical + 0 Moderate remaining) — otherwise stop as **Blocked**.
 
 ## Pull request
 
@@ -274,7 +275,7 @@ After the reviews converged (no Critical / Moderate) and the reports are posted,
 - Tests cover affected logic with 100% coverage and pass
 - Pre-push fixers and checkers ran clean on all changed files
 - No sensitive data is exposed
-- Code quality self-check pass ran and its Critical / Moderate findings were addressed **before the PR was created**
+- Code quality self-check ran as a single full-diff pass and every surfaced Critical / Moderate finding was resolved (0 Critical + 0 Moderate) **before the PR was created**
 - Security review completed **before the PR was created**
 - A clean pull request is created with a summary **by default** — skipped only when the user explicitly opted out of PR creation (see *Pull request*), in which case the committed local branch and the ready-to-run `gh pr create --draft …` command are reported instead
 - Technical report posted on the GitHub PR (skipped on PR opt-out)

@@ -47,9 +47,10 @@ test('dry review rule is referenced by process-code-review skill', function (): 
 test('unified resolve-issue skill requires a single-pass code quality self-check before PR creation (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect($content)->toContain('Code quality self-check pass ran and its Critical / Moderate findings were addressed');
+    expect($content)->toContain('every surfaced Critical / Moderate finding was resolved (0 Critical + 0 Moderate)');
     expect($content)->toContain('Security review completed');
-    expect($content)->toContain('Do not iterate the review to convergence');
+    expect($content)->toContain('Do not re-run the full review to convergence');
+    expect($content)->toContain('**PR gate — 0 Critical / 0 Moderate.**');
     expect($content)->not->toContain('After checks pass, automatically push');
 
     $reviewLoopPos = strpos($content, '## Code quality self-check (single pass)');
