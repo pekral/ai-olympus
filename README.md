@@ -160,7 +160,7 @@ The entry point for a free-form request. Resolves a concrete source, then dispat
 
 **`apollon` — test engineer & post-convergence reporter**
 
-Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after each landing step, and after convergence publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
+Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after landing steps (after PR-open for high-risk changes, always after convergence), and after convergence publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
 
 **Orchestrates:** `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `pr-summary`
 

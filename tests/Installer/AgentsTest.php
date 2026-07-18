@@ -246,6 +246,22 @@ test('daidalos dispatches athena for a pre-implementation security-risk analysis
     expect($content)->toContain('Security analysis done');
 });
 
+test(
+    'daidalos gates the pre-convergence apollon validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    
+        // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
+        expect($daidalos)->toContain('Only for a high-risk change dispatch `apollon` through the Task tool');
+        expect($daidalos)->toContain('the post-convergence `apollon` pass in step 6 stays mandatory for every run');
+    
+        // apollon documents the same conditionality in its scoped-mode contract.
+        $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
+        expect($apollon)->toContain('only when `daidalos` classified the change as high-risk');
+    },
+);
+
 test('daidalos marks a cross-cutting mix of requirements as an EPIC with linked sub-issues', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
