@@ -5,15 +5,15 @@
 
 ## Summary of changes
 
-**[Short headline naming the change — one line]**
+**[Short headline naming the change — one line, terse]**
 
-[One paragraph (3–5 sentences) in plain language explaining the business reason, the affected area, and just enough technical context (integration, payload, table, endpoint, …) that a developer can locate the change without reading the diff. Phrase impersonally — "The change …", "This update …" — never first person.]
+[Terse paragraph — 1–3 short sentences or fragments: business reason, affected area, just enough technical context (integration, payload, table, endpoint, …) to locate the change without reading the diff. No filler, no hedging, drop articles where the language has them; all substance stays. Phrase impersonally — never first person.]
 
 ## How to test
 
 1. [If *Available behind* is set, this step **must** enable the toggle / supply the parameter / switch the admin flag — naming the exact value]
-2. [Next action a tester performs]
-3. [Outcome the tester verifies]
+2. [Next action the tester performs — short imperative, no filler; exact names / values / URLs verbatim]
+3. [Outcome the tester verifies — terse but complete; keep every word needed for unambiguous verification]
 
 {embedded_blocks}
 

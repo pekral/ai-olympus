@@ -3,8 +3,8 @@
 h2. How to test
 
 # [If the change is reachable only behind a test parameter (feature flag, ENV switch, query string, request header, admin toggle, allow-listed account), this first step *must* enable it — naming the exact value: admin switch label _New pricing preview_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature key {{feature.new_pricing}}. Omit this step when the change is reachable unconditionally.]
-# [Next concrete action the tester performs]
-# [Outcome the tester verifies]
+# [Next concrete action the tester performs — short imperative, no filler; exact names / values verbatim]
+# [Outcome the tester verifies — terse but complete; keep every word needed for unambiguous verification]
 
 {embedded_blocks}
 

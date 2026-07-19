@@ -218,6 +218,24 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
     expect($template)->toContain('h2. Clarifying questions');
 });
 
+test('pr-summary output style is terse — caveman-style prose compression (issue #51)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+    $githubTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md');
+    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+
+    expect($prSummary)->toContain('Terse output style (issue #51)');
+    expect($prSummary)->toContain('never invent new abbreviations');
+    expect($prSummary)->toContain('Compress the style, never the language');
+    expect($prSummary)->toContain('Never name or announce the style');
+    expect($prSummary)->toContain('write normal, fully explicit sentences');
+    expect($prSummary)->toContain('Never compressed at all');
+
+    expect($githubTemplate)->toContain('1–3 short sentences or fragments');
+    expect($githubTemplate)->toContain('short imperative');
+    expect($jiraTemplate)->toContain('short imperative');
+});
+
 test('GitHub PR comment templates use a compact AI-parseable header with severity icons', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
