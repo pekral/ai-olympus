@@ -221,7 +221,7 @@ scripts/resolve-and-review.sh --merge "<issue-ref|text>"   # …and merge when t
 The sequence is always:
 
 1. **`/resolve-issue <issue-ref|text>`** — implement the change and open the PR (`talos`).
-2. **`/code-review-<tracker> <PR>`** — a fresh CR round on the PR (`argos` + the `athena` security pass); the wrapper picks `code-review-github` / `code-review-jira` / `code-review-bugsnag` from the source's tracker.
+2. **`/code-review-<tracker>`** — a fresh CR round on the PR (`argos` + the `athena` security pass); the wrapper is picked from the source's tracker and takes a matching argument: `code-review-github <PR>`, `code-review-jira <KEY>`, or `code-review-bugsnag <error>` (the JIRA / Bugsnag wrappers resolve the linked PR themselves).
 3. **`/process-code-review <PR>`** — resolve the findings when the CR round reported any, iterating to `0 Critical + 0 Moderate`.
 4. **`/merge-github-pr <PR>`** — merge into the base branch, only when a merge was requested.
 

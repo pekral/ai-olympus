@@ -22,16 +22,14 @@ test('resolve-and-review script sequences the four pipeline skills in order', fu
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/scripts/resolve-and-review.sh');
 
-    // Step 1 always resolves the issue and opens the PR.
-    expect($content)->toContain('/resolve-issue');
-    // Step 2 routes to the tracker-matching code-review wrapper.
+    // All three tracker-matching code-review wrappers are offered for step 2.
     expect($content)->toContain('/code-review-github');
     expect($content)->toContain('/code-review-jira');
     expect($content)->toContain('/code-review-bugsnag');
-    // Step 3 processes any findings.
-    expect($content)->toContain('/process-code-review');
-    // Step 4 merges, opt-in.
-    expect($content)->toContain('/merge-github-pr');
+
+    // The printed plan lists the four numbered steps in the fixed order 1 -> 2 -> 3 -> 4
+    // (step 2 renders the tracker-matching wrapper via the ${cr_skill} placeholder).
+    expect($content)->toMatch('#1\. /resolve-issue[\s\S]*2\. \$\{cr_skill\}[\s\S]*3\. /process-code-review[\s\S]*4\. /merge-github-pr#');
 });
 
 test('resolve-and-review script detects the source tracker from the assignment reference', function (): void {

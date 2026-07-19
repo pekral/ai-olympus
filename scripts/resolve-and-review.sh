@@ -107,22 +107,32 @@ main() {
     local tracker
     tracker="$(detect_tracker "$input")"
 
-    # The code-review step routes to the tracker-matching wrapper skill; a free-form
-    # text assignment has no tracker, so its PR is reviewed with code-review-github.
+    # The code-review step routes to the tracker-matching wrapper skill. Its argument
+    # differs by tracker: code-review-github reviews a GitHub <PR>, while code-review-jira
+    # and code-review-bugsnag take the original tracker reference and resolve the linked PR
+    # themselves. A free-form text assignment has no tracker, so its PR is reviewed with
+    # code-review-github.
     local cr_skill
+    local cr_arg
     local cr_note=""
     case "$tracker" in
         jira)
             cr_skill="/code-review-jira"
+            cr_arg="${input}"
+            cr_note=" (JIRA reference — code-review-jira resolves the linked PR itself)"
             ;;
         bugsnag)
             cr_skill="/code-review-bugsnag"
+            cr_arg="${input}"
+            cr_note=" (Bugsnag reference — code-review-bugsnag resolves the linked PR itself)"
             ;;
         github)
             cr_skill="/code-review-github"
+            cr_arg="<PR>"
             ;;
         text)
             cr_skill="/code-review-github"
+            cr_arg="<PR>"
             cr_note=" (no tracker detected — the PR is a GitHub PR, so it reviews with code-review-github)"
             ;;
     esac
@@ -142,7 +152,7 @@ finish before starting the next — every step feeds the one after it.
        explicitly opt out inside the skill). Note the PR URL it reports — the next
        steps operate on it. Substitute it for <PR> below.
 
-  2. ${cr_skill} <PR>${cr_note}
+  2. ${cr_skill} ${cr_arg}${cr_note}
        Run a fresh code-review round on the PR opened in step 1.
 
   3. /process-code-review <PR>

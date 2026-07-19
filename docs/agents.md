@@ -120,9 +120,10 @@ A full request is carried to a clean, reviewed result by the **harness**, which 
 
 ```text
 1. /resolve-issue <issue-ref|text>     → talos (= resolve-issue): implement + open the PR (always)
-2. /code-review-<tracker> <PR>          → argos (+ athena security pass): fresh CR round on the PR
-                                          (code-review-github | code-review-jira | code-review-bugsnag,
-                                           picked from the tracker of the source)
+2. /code-review-<tracker> <PR|ref>      → argos (+ athena security pass): fresh CR round on the PR
+                                          (code-review-github <PR> | code-review-jira <KEY> |
+                                           code-review-bugsnag <error> — picked from the source's
+                                           tracker; the JIRA/Bugsnag wrappers resolve the linked PR)
 3. /process-code-review <PR>            → resolve the findings when the CR round reported any
 4. /merge-github-pr <PR>                → merge into the base branch, only when a merge was requested
 ```
