@@ -1067,6 +1067,23 @@ test('code-review rule and skill enforce backward-compatible data/storage change
     expect($skill)->toContain('backward-compatible data / storage changes (issue #38)');
 });
 
+test('code-review rule and skill enforce storage relocation / migration completeness (issue #55)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+
+    // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the 3-way gating.
+    expect($rule)->toContain('**Storage relocation / migration completeness (issue #55)**');
+    expect($rule)->toContain('unless the linked assignment explicitly authorizes leaving the old data behind');
+    expect($rule)->toContain('a data migration / backfill command that copies or moves the existing data from the old storage into the new one');
+    expect($rule)->toContain('the **New storage reuse analysis** bullet owns the *introduction* of the net-new storage surface itself');
+    expect($rule)->toContain('this bullet owns the *redirected read / write path* between two storages');
+    expect($rule)->toContain('never raise two of these three findings on the same line');
+
+    // The code-review skill enumerates the concern so every CR wrapper inherits it.
+    expect($skill)->toContain('storage relocation / migration completeness (issue #55)');
+});
+
 test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issue #41)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
