@@ -33,10 +33,6 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 6. **Publish only when explicitly instructed** and only via the canonical `upsert-comment.sh` wrapper — never use raw `gh pr comment`, `gh issue comment`, or any bare `gh` write command. When not asked to publish, return the drafts in the handoff only.
 
-## Shared task brief
-
-When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`), it is the run's shared memory — **read it first** as the authoritative context (resolved source, gathered data, work-breakdown plan, and every prior specialist's handoff) so you don't re-derive what is already there. When you finish, **append your handoff section** to it via `Bash` (`cat >> "$BRIEF" <<'EOF' … EOF`: `### hermes — Announce done` plus the result you return) so the next specialist inherits it. Appending to this git-ignored scratch file is the **only** write you perform — your read-only stance on source, tests, and config is unchanged. Delete any temporary files you created during this run (except memory files) per `@rules/compound-engineering/general.mdc` *Temporary-file hygiene*.
-
 ## Registration dependency
 
 `hermes` is dispatchable only after the installer copies `agents/hermes.md` to `.claude/agents/` (`vendor/bin/agent-skills install`). Until then it is a documented future step. Document this dependency in any handoff that references it.
@@ -45,7 +41,7 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 Your final message is returned to the caller as the result, so make it a clean handoff.
 
-**Language:** write this handoff — and any drafted content — in the **same natural language the assignment was given in** (if the request came in Czech, the handoff is in Czech). **When the caller passed a shared brief, its recorded `## Language` field is the authoritative source — reply in that language** rather than re-guessing it from the prompt. Identifiers stay verbatim regardless of that language: branch names, **commit messages, PR titles**, ticket / issue keys, links, CLI commands, and skill / agent names are never translated — commit messages and PR titles are always English per `@rules/git/general.mdc`. Never mix two natural languages inside a single handoff.
+**Language:** write this handoff — and any drafted content — in the **same natural language the assignment was given in** (if the request came in Czech, the handoff is in Czech). Identifiers stay verbatim regardless of that language: branch names, **commit messages, PR titles**, ticket / issue keys, links, CLI commands, and skill / agent names are never translated — commit messages and PR titles are always English per `@rules/git/general.mdc`. Never mix two natural languages inside a single handoff.
 
 - **Status:** `Announce done` — drafts ready, not yet published. `Published` — content was explicitly requested and successfully posted via the canonical wrapper. `Blocked` — content could not be prepared or publication failed (e.g. auto-mode blocked the external write), with the reason and `Blocked: external-write blocked by auto-mode classifier` when applicable.
 - **Source:** link to the originating tracker item (GitHub issue / PR / JIRA ticket / Bugsnag error).
