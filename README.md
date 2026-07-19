@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: seven specialized subagents (`daidalos` orchestration, `metis` analysis, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
+**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: five specialized subagents (`talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The specialists are sequenced by the Claude Code harness itself (see the [`scripts/resolve-and-review.sh`](scripts/resolve-and-review.sh) pipeline template) — there is no separate orchestrator agent. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
 
 ## Why This Package
 
@@ -33,7 +33,7 @@ vendor/bin/agent-skills install --force
 The installer targets **Claude Code only**:
 
 - `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
-- `.claude/agents` (the seven subagents)
+- `.claude/agents` (the five subagents)
 - `CLAUDE.md` in the project root
 
 When the package is required via Composer, sources are read from `vendor/agentic-vibes/laravel-agent-skills/rules` and `vendor/agentic-vibes/laravel-agent-skills/skills`.
@@ -112,7 +112,7 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 **`argos` — code-review gatekeeper** · read-only
 
-Reviews a PR from context or a tracker link, posts the findings back to the PR, and returns a `CR done` handoff. Owns code quality, architecture, and optimisation, and consolidates `athena`'s security findings.
+Reviews a PR from context or a tracker link, posts the findings back to the PR, and returns a `CR done` handoff. Owns code quality, architecture, and optimisation; security is owned by `athena`, which runs as a separate pass.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`
 
@@ -131,38 +131,14 @@ Implements an issue from context or a tracker link, runs local checks (`composer
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/metis.png" alt="metis avatar" width="80"></td>
-<td valign="top">
-
-**`metis` — problem-analysis advisor** · read-only
-
-Analyses a problem or a vague assignment, proposes the smallest safe solution, and publishes a reusable plan as a GitHub issue. Never implements — hand its plan to `talos`.
-
-**Orchestrates:** `analyze-problem`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><img src="assets/agents/daidalos.png" alt="daidalos avatar" width="80"></td>
-<td valign="top">
-
-**`daidalos` — engineering-workflow orchestrator** · the front door
-
-The entry point for a free-form request. Resolves a concrete source, then dispatches `metis` (analysis), `talos` (implementation), `apollon` (scoped validation), `argos` (quality CR), and `athena` (security CR) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
-
-**Orchestrates:** `metis`, `talos`, `apollon`, `argos`, `athena` (dispatched)
-
-</td>
-</tr>
-<tr>
 <td width="96" valign="top"><img src="assets/agents/apollon.png" alt="apollon avatar" width="80"></td>
 <td valign="top">
 
-**`apollon` — test engineer & post-convergence reporter**
+**`apollon` — test engineer**
 
-Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after landing steps (after PR-open for high-risk changes, always after convergence), and after convergence publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
+Designs test scenarios (edge cases, regression) from the assignment, writes the PHPUnit/Pest tests, generates browser test scenarios, and verifies every acceptance criterion. Write-capable for test code only; runs on `sonnet` at the lowest effort for fast, cheap validation.
 
-**Orchestrates:** `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `pr-summary`
+**Orchestrates:** `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
 
 </td>
 </tr>
@@ -172,7 +148,7 @@ Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validat
 
 **`athena` — security analyst & CR sentinel** · read-only
 
-Two modes: an on-demand pre-implementation security analysis (feeding a remediation plan to `talos`), and a security CR run in parallel with `argos` after `talos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+Two modes: an on-demand pre-implementation security analysis (feeding a remediation plan to `talos`), and a dedicated security CR over a PR or diff. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
 **Orchestrates:** `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
@@ -233,39 +209,23 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 > [!NOTE]
 > **If `talos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
 
-### How to use `metis` in practice
+### How to run the full pipeline
 
-1. Install for Claude Code, exactly as for `argos` / `talos` — agents land in `.claude/agents/`.
+There is no orchestrator agent — the Claude Code harness sequences the specialists and the skills itself, in a fixed order. [`scripts/resolve-and-review.sh`](scripts/resolve-and-review.sh) is a template / wrapper that validates the input, detects the tracker (GitHub / JIRA / Bugsnag), and prints the exact skills to run in order (it does **not** invoke Claude — you run each printed skill in your Claude Code session):
 
-2. Invoke it with a **subject** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just a problem you want thought through:
+```bash
+scripts/resolve-and-review.sh "<issue-ref|text>"           # resolve → code review → process review
+scripts/resolve-and-review.sh --merge "<issue-ref|text>"   # …and merge when the review converges
+```
 
-   ```text
-   @metis analyse #123
-   @metis analyse https://your.atlassian.net/browse/PROJ-42
-   @metis analyse why the nightly export job times out
-   ```
+The sequence is always:
 
-3. `metis` runs `analyze-problem`, then returns a handoff: `Analysis done` + a link to the published plan-artifact issue + the subject link + a one-line root cause + the recommended solution.
+1. **`/resolve-issue <issue-ref|text>`** — implement the change and open the PR (`talos`).
+2. **`/code-review-<tracker> <PR>`** — a fresh CR round on the PR (`argos` + the `athena` security pass); the wrapper picks `code-review-github` / `code-review-jira` / `code-review-bugsnag` from the source's tracker.
+3. **`/process-code-review <PR>`** — resolve the findings when the CR round reported any, iterating to `0 Critical + 0 Moderate`.
+4. **`/merge-github-pr <PR>`** — merge into the base branch, only when a merge was requested.
 
-`metis` is **read-only** — it analyses and plans, but never edits code, commits, or implements. Hand its plan issue to `talos` to build next.
-
-### How to use `daidalos` in practice
-
-`daidalos` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
-
-1. Install for Claude Code, exactly as for the other agents.
-
-2. Invoke it with a request — it resolves the source and chooses the route:
-
-   ```text
-   @daidalos resolve a random Resolve_by_AI issue
-   @daidalos resolve https://github.com/owner/repo/issues/123
-   @daidalos implement a dark-mode toggle for the settings page
-   ```
-
-3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: ambiguous / large work → `metis` (analysis → plan) → `talos`; clear work → `talos` directly; then `argos` for the review-and-fix loop to convergence. For a broad subject that bundles separable concerns → `metis` decomposes it into multiple structured issues via `create-issues-from-text` (with `## Dependencies` and planned resolve order) and reports the list of created issues — no PR on this path. It returns a handoff naming the chosen route and reason, written in the same language as your request.
-
-`daidalos` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
+Each specialist stays a standalone role you can also invoke directly (`@argos review PR #123`, `@talos implement #123`). See [`docs/agents.md`](docs/agents.md) *End-to-end run* for the full picture.
 
 ---
 
