@@ -20,8 +20,6 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
     // Pillar 2 — per-project compound memory, stored in the project, not this package.
     expect($content)->toContain('## Compound Memory (per project)');
     expect($content)->toContain('in the project being worked on, never in this shared rules package');
-    expect($content)->toContain('existing part of the system rather than in a new abstraction');
-    expect($content)->toContain('collective memory');
 
     // The rule is listed in the README Rules Overview table.
     $readme = (string) file_get_contents($packageDir . '/README.md');
@@ -95,10 +93,7 @@ test('compound-engineering rule defines the per-project memory file convention (
     $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
 
     expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
-    expect($content)->toContain('### Promotion bar');
-    expect($content)->toContain('### Curation pass');
     expect($content)->toContain('### Read protocol');
-    expect($content)->toContain('Do not record secrets, credentials, tokens, or PII in the memory file');
 });
 
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
@@ -113,20 +108,6 @@ test('compound-engineering rule provides the Blocked delegation hard-stop sectio
     expect($talos)->toContain('*Blocked delegation is a hard stop*');
 });
 
-test('record-project-memory skill exists and is write-only to the memory file (issue #626)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $skill = $packageDir . '/skills/record-project-memory/SKILL.md';
-
-    expect(is_file($skill))->toBeTrue();
-
-    $content = (string) file_get_contents($skill);
-    expect($content)->toContain('name: record-project-memory');
-    expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
-    expect($content)->toContain('promotion bar');
-    expect($content)->toContain('Curation pass');
-    expect($content)->toContain('Never record secrets, credentials, tokens, or PII');
-});
-
 test('compound memory reads are hooked into the context phases (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
@@ -139,15 +120,32 @@ test('compound memory reads are hooked into the context phases (issue #626)', fu
     expect($prepare)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
 
-test('compound memory writes are hooked into convergence steps (issue #626)', function (): void {
+test('compound memory write mechanism is removed (issue #77)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $resolve = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    // The write-side skill is gone entirely.
+    expect(is_dir($packageDir . '/skills/record-project-memory'))->toBeFalse();
+
+    // No former write hook still references the removed skill.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    expect($resolve)->toContain('@skills/record-project-memory/SKILL.md');
-    expect($process)->toContain('@skills/record-project-memory/SKILL.md');
-    expect($daidalos)->toContain('record-project-memory');
+    expect($rule)->not->toContain('record-project-memory');
+    expect($resolveIssue)->not->toContain('record-project-memory');
+    expect($processCr)->not->toContain('record-project-memory');
+    expect($daidalos)->not->toContain('record-project-memory');
+
+    // The write-protocol sections of the rule are gone; the read side stays.
+    expect($rule)->not->toContain('### Write protocol');
+    expect($rule)->not->toContain('### Promotion bar');
+    expect($rule)->not->toContain('### Curation pass');
+    expect($rule)->not->toContain('### What feeds the memory');
+    expect($rule)->toContain('## Compound Memory (per project)');
+    expect($rule)->toContain('### Where to store it');
+    expect($rule)->toContain('### Read protocol');
+    expect($rule)->toContain('Memory files are NEVER deleted');
 });
 
 test('compound-engineering rule mandates early idempotent claim before work starts (issue #704)', function (): void {

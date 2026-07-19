@@ -1,5 +1,5 @@
 ---
-description: Compound engineering — every change must make future work easier, and every mistake, insight, or decision becomes durable per-project memory the next agent can reuse.
+description: Compound engineering — every change must make future work easier; the per-project memory file is read at task start.
 alwaysApply: true
 globs: ["*"]
 ---
@@ -14,14 +14,13 @@ Compound engineering is **not** "let the AI write the code". It is a system wher
 
 ## Compound Memory (per project)
 
-Turn one-off lessons into reusable rules by maintaining a **per-project memory**. This memory is project-specific by definition — it lives **in the project being worked on, never in this shared rules package**. A lesson learned on one project does not become a global rule shipped to every project; it stays in that project's own memory.
+A **per-project memory** file holds durable lessons distilled from past work, so agents reuse them instead of re-deriving them. This memory is project-specific by definition — it lives **in the project being worked on, never in this shared rules package**. A lesson recorded for one project never becomes a global rule shipped to every project; it stays in that project's own memory. Automated writes to this file were removed (issue #77); it is now a hand-curated, historical artifact, maintained manually the same way `CLAUDE.md` is.
 
 ### Where to store it (the memory file)
 
 - **Canonical home:** a dedicated, greppable, curated memory file at `docs/memory/PROJECT_MEMORY.md` in the project being worked on. It is the index *and* the body — an index line at the top plus one short entry per lesson, the same shape as a `MEMORY.md` index with one fact per topic.
-- **Keep it separate from the hand-maintained files.** The memory file is auto-appended by agents, so it must be **distinct** from `CLAUDE.md`, which humans curate by hand — an auto-write must never clobber human prose. Reference the memory file from `CLAUDE.md` (a one-line pointer) so it stays discoverable, exactly as a `MEMORY.md` index makes its facts discoverable.
+- **Keep it separate from the hand-maintained files.** The memory file must stay **distinct** from `CLAUDE.md`, which humans curate by hand for AI behavioural guidelines. Reference the memory file from `CLAUDE.md` (a one-line pointer) so it stays discoverable, exactly as a `MEMORY.md` index makes its facts discoverable.
 - **The installer never touches it.** `docs/memory/PROJECT_MEMORY.md` is project data, not package data — the rules installer only syncs `rules/`, `skills/`, `agents/`, and `CLAUDE.md`, so it never creates, overwrites, or prunes the memory file. The file is therefore a safe, durable home that survives re-installation, the same guarantee `CLAUDE.md` carries.
-- **Fallback for projects without a `docs/` convention:** when a project demonstrably has no `docs/` tree and refuses to grow one, fall back to a learnings / decision-log file the project already uses (e.g. `docs/decisions/`); never fall back to writing lessons into `CLAUDE.md` itself.
 
 ### Entry format (greppable, one lesson per entry)
 
@@ -37,25 +36,6 @@ Each entry is short and scannable — prefer one rule per lesson over a long ess
 ```
 
 The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `daidalos` = orchestration / briefing / dispatch decisions; `metis` = analysis / problem framing; `talos` = implementation / PR mechanics; `argos` = code review / CR loop; `apollon` = test authoring / validation. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
-
-### Promotion bar (record only the most important things)
-
-An entry is written **only** when the lesson clears all three gates — this is what keeps the memory small and curated instead of an endless log:
-
-1. **It will recur beyond this one task** — the lesson generalizes to future work, not a one-off detail of this issue.
-2. **It cost real effort to discover** — it was non-obvious, surprising, or only learned after a wrong turn (a review finding, a bug, a rejected approach, an architectural decision).
-3. **It is not already captured elsewhere** — the lesson is not already obvious from the code, the tests, the git history, or an existing rule. If reading the code already teaches it, do not duplicate it into memory.
-
-The canonical trigger to record: it is discovered that a certain *kind* of change belongs in an **existing part of the system rather than in a new abstraction** — capture that so the next agent reaches for the existing part first instead of re-deriving (or re-mistaking) it. A trivial task that clears none of the gates writes **nothing**.
-
-### Curation pass (run on every write)
-
-Before appending, curate so the file stays small and non-redundant:
-
-- **Dedup** — if an equivalent entry already exists, do not add a second; strengthen the existing one only if the new occurrence adds a sharper trigger or example.
-- **Supersede** — when a new lesson contradicts or replaces an older entry, update the old entry (or mark it superseded) instead of leaving both.
-- **Prune** — drop entries that no longer hold (the code they referenced was removed, the rule was promoted into a real `rules/**` file).
-- **Soft cap** — keep the file small; when it grows past a comfortable size, consolidate related entries rather than letting it sprawl.
 
 ### Read protocol (load memory before acting)
 
@@ -74,18 +54,6 @@ include entries where Role: == <your-role> OR Role: == shared
 ```
 
 Grep idiom: `grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"` — then include the entries that match.
-
-### Write protocol (per-agent write at convergence)
-
-At task convergence (end of `@skills/resolve-issue`, `@skills/process-code-review`, and `daidalos` step 7), each agent that participated in the run writes its own durable lessons **tagged with its `Role:`** via `@skills/record-project-memory`. The promotion bar and curation pass apply unchanged — trivial tasks write nothing.
-
-`daidalos` drives the per-agent write loop: for every agent role that genuinely participated in the run (derivable from the handoff log in the shared brief), call `@skills/record-project-memory` with that role's converged context and the matching `AGENT_ROLE`. Only after all role passes complete does `daidalos` remove the brief and release the write-lock.
-
-The loop is ordered by participation: `metis` (if dispatched) → `talos` → `argos` → `apollon` (if dispatched) → `daidalos` (orchestration lessons last). Skip roles not active in this run.
-
-### What feeds the memory
-
-Review comments and post-mortems are **inputs** to this memory, not throwaway chat. When a code-review finding or a human correction generalizes beyond the current PR, promote it through the promotion bar so it stops recurring — that is how mistakes and review comments become the team's collective memory. The write happens at task convergence (end of `@skills/resolve-issue`, `@skills/process-code-review`, and the final report), after the review loop reaches 0 Critical / 0 Moderate, via `@skills/record-project-memory`.
 
 ## Temporary-file hygiene (clean up on completion)
 
@@ -148,10 +116,7 @@ Call sites carry only a one-line reference to this section — the heuristic and
 
 ## What Not To Do
 
-- Do not let a durable lesson live only in a commit message or a closed PR thread — promote the reusable part into the project's memory file.
-- Do not write a project-specific lesson into this shared rules package as a new global rule. Per-project lessons stay in the project's own memory; only genuinely universal standards belong here.
-- Do not record secrets, credentials, tokens, or PII in the memory file — the same prohibition that applies to logs and tracker comments applies to memory.
-- Do not auto-append lessons that fail the promotion bar — an uncurated log of every task is noise, not memory.
+- Do not write a project-specific lesson into this shared rules package as a new global rule — only genuinely universal standards belong here.
 
 ## Blocked delegation is a hard stop
 
@@ -160,4 +125,3 @@ When an orchestrator delegates a step (analysis, implementation, review) and the
 ## Code Review Application
 
 - Treat a change that makes future work harder — new abstraction where an existing part fit, undocumented non-obvious decision, hidden coupling — as a finding, with the concrete existing part it should have used.
-- When the same code-review finding recurs across PRs, require it to be promoted into the project's compound memory so the next agent does not repeat it.
