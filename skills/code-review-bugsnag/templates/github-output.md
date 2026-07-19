@@ -103,7 +103,7 @@
 
 ## Functional Review
 
-> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already run for this review — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
+> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already behind the `assignment conformance:` token on the Summary line below — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
 
 {conformant → "All stated assignment requirements are satisfied." | gaps → list every Critical functional / business-logic gap below — still counted in the Counts line above}
 
@@ -115,4 +115,4 @@
 
 ---
 
-**Summary:** {n} Critical · {n} Moderate · {n} Minor · {n} Refactoring{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass} · {linked-tracker mirror status}
+**Summary:** {n} Critical · {n} Moderate · {n} Minor · {n} Refactoring · assignment conformance: {conformant | N gap(s) | no linked issue}{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass} · {linked-tracker mirror status}

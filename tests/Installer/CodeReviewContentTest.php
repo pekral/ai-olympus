@@ -1213,3 +1213,31 @@ test('full-tree grep finds every CR skill/template/rule references the Two-Part 
         expect($hasMarker)->toBeTrue(sprintf('Expected %s to reference the Two-Part CR Output contract (issue #56).', $relativePath));
     }
 });
+
+test('code-review-bugsnag Summary line carries the assignment conformance token — drift fixed (issue #60)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $templates = [
+        $packageDir . '/skills/code-review/templates/review-output.md',
+        $packageDir . '/skills/code-review-github/templates/pr-comment-output.md',
+        $packageDir . '/skills/code-review-jira/templates/github-output.md',
+        $packageDir . '/skills/code-review-bugsnag/templates/github-output.md',
+    ];
+
+    foreach ($templates as $template) {
+        $content = (string) file_get_contents($template);
+        $summaryPos = strpos($content, "\n**Summary:**");
+        expect($summaryPos)->not->toBeFalse();
+        assert($summaryPos !== false);
+
+        $summaryLine = substr($content, $summaryPos);
+        expect($summaryLine)->toContain('assignment conformance: {conformant | N gap(s) | no linked issue}');
+    }
+
+    // Bugsnag's Functional Review blockquote now points at the Summary line, byte-identical to the other 3 templates.
+    $bugsnagTemplate = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/templates/github-output.md');
+    expect($bugsnagTemplate)->toContain('`assignment conformance:` token on the Summary line below');
+
+    // The rule's "Bugsnag has no token" exception clause is gone now that the drift is fixed.
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    expect($rule)->not->toContain('except `@skills/code-review-bugsnag`');
+});
