@@ -813,6 +813,25 @@ test('code review flags comments and docs that only restate the code (issue #53)
     expect($skill)->toContain('explanatory comments / docs that restate the code (issue #53)');
 });
 
+test('code review output must state only verified facts, never assumptions (issue #74)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('Output Rules — Truthful reporting (issue #74)');
+    // Governs the whole output, not just findings.
+    expect($rule)->toContain('governs the **whole** output');
+    // A confident-but-wrong line is worse than an omitted one.
+    expect($rule)->toContain('a confident-but-wrong line is worse than an omitted one');
+    // A delegated pass records a delegation, not a delivery.
+    expect($rule)->toContain('delegation, not a delivery');
+    // No fabricated anchors.
+    expect($rule)->toContain('No fabricated specifics');
+
+    // The CR skill points at the canonical contract.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('Truthful reporting (issue #74)');
+});
+
 test('code review enforces test isolation against real HTTP and system processes (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
