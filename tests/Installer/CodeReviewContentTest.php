@@ -794,6 +794,25 @@ test('code review flags a translation key that exists in no locale (issue #37)',
     expect($content)->toContain('this walk owns a key that exists nowhere');
 });
 
+test('code review flags comments and docs that only restate the code (issue #53)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('Explanatory comments and docs that restate the code (issue #53)');
+    // The fix is a better name, not a comment.
+    expect($rule)->toContain('a comment is not a substitute for a name');
+    // The three carve-outs the code genuinely cannot express.
+    expect($rule)->toContain('explain *why*, not *what*');
+    expect($rule)->toContain('domain glossary');
+    expect($rule)->toContain('navigation markers');
+    // A doc file that narrates behaviour is worse than a comment — it drifts.
+    expect($rule)->toContain('a second, lying source of truth');
+
+    // Enumerated in the CR skill so every wrapper inherits it.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('explanatory comments / docs that restate the code (issue #53)');
+});
+
 test('code review enforces test isolation against real HTTP and system processes (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
