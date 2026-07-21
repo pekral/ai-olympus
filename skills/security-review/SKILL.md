@@ -28,6 +28,8 @@ Perform a focused security review with emphasis on:
 
 Avoid generic best-practice noise.
 
+**Target the attack surface, not every changed line (issue #83).** Spend the review budget on the parts of the diff an attacker can actually reach or influence — do not sweep security effort evenly across code that carries no attack surface. A changed line is **on** the attack surface when it handles attacker-influenceable data or a security decision: user / request input (HTTP params, headers, cookies, uploaded files, webhook / API payloads), authentication and authorization, any query / command / template / deserialization / external request built from that input, secrets and crypto, and anything rendered back to another user. A changed line is **off** it when it cannot be reached or influenced by an attacker — a pure internal calculation on already-validated in-memory values, a constant, a log-format tweak with no user data, a test double. This is prioritization, not exclusion: an off-surface line is not scanned line-by-line for injection, but the moment a data-flow trace shows attacker-controlled input reaching it, it is on the surface and fully in scope. State, in one phrase per finding, the reachable entry point that puts the finding on the attack surface — that is what makes the review targeted rather than a flat pattern sweep.
+
 ---
 
 ## Core Checks
@@ -114,6 +116,7 @@ The **Suggested Fix** normalizes to **NFC** and strips / rejects the disallowed 
 ### Dependencies & Configuration
 - vulnerable packages (`composer.lock`, `composer audit`)
 - unsafe configuration (uploads, execution, credentials)
+- **Known-CVE awareness for the project's own stack (issue #83).** When the diff adds or bumps a dependency, or introduces a code pattern in a component with published vulnerabilities, check it against known CVEs **relevant to this project's stack** — never a hardcoded CVE list from another ecosystem. Determine the stack from `composer.json` / `package.json` (framework, CMS, major libraries) and match only advisories for what the project actually runs: a Laravel/PHP project is checked against PHP / Laravel / its Composer packages, not against WordPress or npm-only advisories that can never execute here. Sources in priority order: `composer audit` (already above) for locked-package CVEs; the GitHub Advisory Database / NVD for a named component or version the diff touches; and `@skills/security-threat-analysis/SKILL.md` when a specific CVE / GHSA reference needs a full remediation walk. A hardcoded cross-ecosystem CVE check that can never fire on this stack is **not** a finding to add — it is dead weight; the awareness must be scoped to the stack the project runs. Flag a diff that introduces or retains a version in the vulnerable range of a stack-relevant advisory; cite the CVE / GHSA id verbatim.
 
 ### Queues & Background Jobs
 - retry abuse
