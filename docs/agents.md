@@ -8,15 +8,13 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-Each agent is a **standalone specialist**: you (or the orchestrating harness) dispatch the one that matches the step at hand. There is no dedicated orchestrator agent — the harness itself sequences the specialists and the skills, so the end-to-end run is driven by the harness (and the `scripts/resolve-and-review.sh` pipeline template), not by an agent that dispatches other agents. See *End-to-end run* below.
-
 ## Agent roster
 
 Every agent has its own avatar under [`assets/agents/`](../assets/agents). When no custom artwork has been supplied yet, the slot falls back to the universal placeholder ([`placeholder.svg`](../assets/agents/placeholder.svg)) — swap `assets/agents/<name>.svg` to give an agent its own face.
 
 ### <img src="../assets/agents/argos.png" alt="argos avatar" width="48" align="left"> `argos` — code-review gatekeeper
 
-The all-seeing code-review gatekeeper, named after **Argos Panoptes**, the hundred-eyed watcher nothing escaped. Give it a PR — from the current context or a tracker link (GitHub, JIRA, Bugsnag) — and it loads the source, runs the matching `code-review-*` wrapper skill, posts the findings to the PR, and hands back a `CR done` summary with links and Critical / Moderate / Minor counts. Argos focuses on **code quality, architecture, and optimisation**; security is owned by `athena`, which runs as a separate security pass.
+The all-seeing code-review gatekeeper, named after **Argos Panoptes**, the hundred-eyed watcher nothing escaped. Give it a PR — from the current context or a tracker link (GitHub, JIRA, Bugsnag) — and it loads the source, runs the matching `code-review-*` wrapper skill, posts the findings to the PR, and hands back a `CR done` summary with links and Critical / Moderate / Minor counts. Argos focuses on **code quality, architecture, and optimisation**; security is owned by `athena`. When `daidalos` dispatches both in parallel, argos consolidates `athena`'s security findings into the final CR summary before publishing.
 
 - **Trigger:** a pull request needs reviewing (code quality, architecture, optimisation).
 - **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`.
@@ -24,34 +22,56 @@ The all-seeing code-review gatekeeper, named after **Argos Panoptes**, the hundr
 
 ### <img src="../assets/agents/athena.png" alt="athena avatar" width="48" align="left"> `athena` — security analyst & CR sentinel
 
-The strategic security sentinel, named after **Athena**, goddess of wisdom and strategic defence. It owns the security domain in **two modes**. (1) **Security analysis (pre-implementation)** — run on demand when the task carries a cyber-security question: it scopes the security risk through all security skills, frames the smallest safe remediation via `analyze-problem`, publishes a plan artifact, and hands back a `Security analysis done` summary that `talos` implements. (2) **Security review (post-implementation)** — given a PR from the current context or a tracker link, it orchestrates all security skills, applies all security rules, labels each finding (Critical / Moderate / Minor), publishes the security review to the tracker-matching CR channel, and hands back a `Security CR done` summary. The caller passes its findings to the agents that need them.
+The strategic security sentinel, named after **Athena**, goddess of wisdom and strategic defence, and daughter of Metis. It owns the security domain in **two modes**. (1) **Security analysis (pre-implementation)** — dispatched on demand when the task carries a cyber-security question: it scopes the security risk through all security skills, frames the smallest safe remediation via `analyze-problem`, publishes a plan artifact, and hands back a `Security analysis done` summary that `talos` implements. (2) **Security review (post-implementation)** — given a PR from the current context or a tracker link, it orchestrates all security skills, applies all security rules, labels each finding (Critical / Moderate / Minor), posts a consolidated security review to the PR, and hands back a `Security CR done` summary; dispatched by `daidalos` **after `talos`, in parallel with `argos`** — two independent CR passes on the same PR, results consolidated by `argos`. The caller passes its findings to the agents that need them.
 
 - **Trigger:** a task carries a cyber-security question and needs a pre-implementation security-risk analysis, or a pull request needs a dedicated security review.
 - **Orchestrates:** `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis` (plus `analyze-problem` in analysis mode).
 - **Rules applied:** `@rules/security/backend.md`, `@rules/security/frontend.md`, `@rules/security/mobile.md`.
 - **Safety:** read-only — never edits, commits, pushes, or merges (`talos` implements what it analyses).
-- **Registration dependency:** dispatchable only after the installer copies `agents/athena.md` to `.claude/agents/`. Until then, security runs inline in `code-review-github → security-review` (the continuity fallback).
+- **Registration dependency:** dispatchable only after the installer copies `agents/athena.md` to `.claude/agents/`. Until then, security runs inline in `code-review-github → security-review` (the continuity fallback), and the analysis mode falls back to `metis` with a security-focused brief.
 
 ### <img src="../assets/agents/talos.png" alt="talos avatar" width="48" align="left"> `talos` — code-writing implementer
 
-The tireless bronze automaton, named after **Talos**, the forged guardian that worked without rest. Give it a source — a tracker link (GitHub, JIRA, Bugsnag) or the current task — and it implements the fix or feature, runs local checks (`composer build`: tests, phpstan, pint, rector, phpcs, skill-check) and fixes their errors, opens a pull request, and hands back an `Impl done` summary with links. Code review (quality, architecture, optimisation) belongs to `argos`; security CR belongs to `athena`; test authoring and validation belong to `apollon` — `talos` does not own any of these. It is the write-side counterpart to `argos`: `argos` is the tireless eye (review), `talos` the tireless hands (implementation).
+The tireless bronze automaton, named after **Talos**, the forged guardian that worked without rest. Give it a source — a tracker link (GitHub, JIRA, Bugsnag) or the current task — and it implements the fix or feature, runs local checks (`composer build`: tests, phpstan, pint, rector, phpcs, skill-check) and fixes their errors, opens a pull request, and hands back an `Impl done` summary with links. Code review (quality, architecture, optimisation) belongs to `argos`; security CR belongs to `athena`; scoped validation gating belongs to `apollon` — `talos` does not own any of these. Read-only CR runs by `argos` and `athena` may run in parallel; write-capable runs are serialised via the working-tree write-lock (rule #627). It is the write-side counterpart to `argos`: `argos` is the tireless eye (review), `talos` the tireless hands (implementation).
 
 - **Trigger:** an issue or task needs implementing.
 - **Orchestrates:** `resolve-issue`.
 - **Safety:** stops at the PR — never reviews its own work and never merges. If a caller explicitly instructs a merge, the only permitted path is `@skills/merge-github-pr/SKILL.md` — never `gh pr merge` or bare CLI.
 
-### <img src="../assets/agents/apollon.png" alt="apollon avatar" width="48" align="left"> `apollon` — test engineer
+### <img src="../assets/agents/metis.png" alt="metis avatar" width="48" align="left"> `metis` — problem-analysis advisor
 
-The test engineer who reveals the truth about a change, named after **Apollo**, the god of truth, prophecy, and order, and the unerring archer who never misses the mark. Give it a change — an issue, a PR, or the current task — and it authors the test coverage and validates the behaviour: it designs the test scenarios (edge cases, regression) from the assignment, writes the PHPUnit / Pest tests, generates the browser test scenarios, and verifies every acceptance criterion — understanding **both the code and the product assignment**. It hands back a `Tests done` summary with the authored tests and the acceptance-criteria coverage.
+The counsel of wise planning, named after **Metis**, the Titaness of deliberation and cunning planning (and mother of Athena). Give it a problem — a tracker link, a described failure, or an under-specified assignment — and it runs the analyze-problem framework, proposes the smallest safe solution, and publishes a reusable plan as a GitHub issue, then hands back an `Analysis done` summary. It is the thinking front-end to the roster: `metis` the mind (analysis), `talos` the hands (implementation), `argos` the eyes (review). In **decomposition mode** (dispatched by `daidalos` for a broad subject), it splits the assignment into multiple independently deliverable issues with `## Dependencies` / ordering, and hands back a `Decomposition done` summary with issue URLs and planned resolve order instead of a single plan artifact.
 
-- **Trigger:** a change needs test coverage authored and its behaviour validated — design tests, write PHPUnit/Pest tests, generate browser scenarios, verify acceptance criteria.
-- **Orchestrates:** `create-test` / `create-missing-tests-in-pr` (PHPUnit/Pest authoring), `e2e-testing` (browser scenarios when Playwright is present).
+- **Trigger:** a problem needs analysis, or a vague assignment needs a proposed solution before any code is written; also dispatched by `daidalos` in decomposition mode to split a broad subject into multiple structured issues.
+- **Orchestrates:** `analyze-problem`, `create-issues-from-text` (decomposition mode), `create-issue` (decomposition mode, single-issue fallback).
+- **Safety:** read-only — never edits, commits, pushes, or implements; publishes its plan or issues to the tracker.
+
+### <img src="../assets/agents/daidalos.png" alt="daidalos avatar" width="48" align="left"> `daidalos` — engineering-workflow orchestrator
+
+The master craftsman who runs the workshop, named after **Daidalos**, the legendary engineer who designed the work and directed the makers. It is the **entry point** for a free-form engineering request — *"resolve a random issue"*, *"resolve this URL"*, *"implement this"* — and the conductor that drives the job to a clean, reviewed result. It resolves a concrete source, decides whether the task needs a plan first, then **delegates each step by dispatching the matching specialist agent** through the Task tool — `metis` (analysis, if needed; or decomposition of a broad subject into multiple structured issues via `create-issues-from-text`, after which it reports the created issues and stops — no PR), `talos` (implementation), `apollon` (fast scoped validation — after talos PR-open for high-risk changes only, always after argos convergence — and post-convergence reporting), `argos` (code quality / architecture / optimisation CR) and `athena` (security — a pre-implementation security-risk analysis on demand when the task carries a cyber-security question, and a security CR dispatched **in parallel with `argos`** after `talos`) — and reports the result to the user. When resolving multiple linked issues, it plans a dependency-aware resolve order (reading `## Dependencies` from each issue) that takes precedence over strict oldest-first. `metis` the mind, `talos` the hands, `argos` the eyes, `athena` the security sentinel, `apollon` the scoped-validation gate and post-convergence reporter; `daidalos` the workshop lead that directs them.
+
+- **Trigger:** a free-form engineering request — from a vague idea to a tracker link — that should be carried end to end.
+- **Orchestrates (dispatches via the Task tool):** `metis` (analysis step — owns `analyze-problem`), `talos` (implementation step — owns `resolve-issue`, which runs a pre-PR self-check with `code-review` + `security-review` over its own diff — a single-pass self-validation, not the authoritative review that `argos` owns; the PR opens only with every surfaced Critical/Moderate finding resolved, and full-diff convergence belongs to the `argos` loop), `apollon` (fast scoped validation gate — dispatched after talos PR-open only for high-risk changes and always after argos convergence; runs only the tests covering the diff and verifies the relevant acceptance criteria; full `composer build` only for broad changes; **and post-convergence reporting** — dispatched once more after argos convergence is confirmed, to publish a human-readable non-technical summary to the source tracker via `pr-summary`), `argos` (code quality / architecture / optimisation CR — part of the `talos` ↔ `argos` convergence loop, owns `process-code-review` / `code-review-github`, `maxIterations = 3`), `athena` (security — on demand a pre-implementation **security analysis** (security skills + `analyze-problem` → remediation plan that `talos` implements) when the task carries a cyber-security question, and after `talos` a **security CR** dispatched **in parallel with `argos`** on the same PR; `daidalos` is the dispatcher for both, never `argos` → `athena`; `athena` is active only after the installer registers it — fallback: security runs inline in `code-review-github → security-review`); resolves the source itself using an oldest-open-issue selection (label `Resolve_by_AI`, excluding already-claimed issues) and `resolve-issue` source detection.
+- **Convergence gate:** the run is done only at **0 Critical + 0 Moderate** (security Critical findings from `athena` count); on `maxIterations` or a blocker it stops and escalates rather than reporting success. Merging stays a separate, explicit step — when instructed, always via `@skills/merge-github-pr/SKILL.md`, never ad-hoc CLI.
+- **Safety:** read-only orchestrator — never analyses, implements, or reviews itself; it delegates each step by dispatching the matching specialist agent, the iteration loop is skill-driven (state lives in the skill the specialist owns), and it must be the top-level agent (not a nested subagent) per the one-level nesting rule below — that single level is what it spends to dispatch `metis` / `talos` / `apollon` / `argos` / `athena`.
+
+### <img src="../assets/agents/apollon.png" alt="apollon avatar" width="48" align="left"> `apollon` — test engineer and post-convergence reporter
+
+The test engineer who reveals the truth about a change, named after **Apollo**, the god of truth, prophecy, and order, and the unerring archer who never misses the mark. Give it a change — an issue, a PR, or the current task — and it authors the test coverage and validates the behaviour: it designs the test scenarios (edge cases, regression) from the assignment, writes the PHPUnit / Pest tests, generates the browser test scenarios, and verifies every acceptance criterion — understanding **both the code and the product assignment**. It hands back a `Tests done` summary with the authored tests and the acceptance-criteria coverage. It also serves as `daidalos`'s **post-convergence reporter**: after the review-and-fix loop converges, `daidalos` dispatches `apollon` to publish a human-readable non-technical summary (what changed + how to test) to the source tracker via `pr-summary`.
+
+- **Trigger:** a change needs test coverage authored and its behaviour validated — design tests, write PHPUnit/Pest tests, generate browser scenarios, verify acceptance criteria. Also triggered by `daidalos` after convergence as the post-convergence reporting step.
+- **Orchestrates:** `create-test` / `create-missing-tests-in-pr` (PHPUnit/Pest authoring), `e2e-testing` (browser scenarios when Playwright is present), `pr-summary` (post-convergence reporting to the source tracker).
 - **Safety:** write-capable for **test code only** — never touches application code, never merges, never pushes to a protected default branch.
-- **Model:** `sonnet` at the lowest effort — its work (authoring and running scoped tests) does not need maximum reasoning depth, so it runs fast and cheap.
+- **Three modes:**
+  - **On-demand** — dispatched explicitly when full test authoring and validation is wanted (`create-test`, `e2e-testing`).
+  - **Fast scoped validation gate (push-level)** — `daidalos` dispatches `apollon` after landing steps: after `talos` opens the PR only when `daidalos` classified the change as high-risk (shared / core / config surface, more than 10 files, or security impact), and always once after `argos` convergence. In this mode `apollon` derives the changed surface from the diff, runs only the affected tests, and verifies the relevant acceptance criteria against the diff. Full `composer build` is used only when the change is broad (shared/core/config files or more than 10 files changed). This gate runs at push-level granularity — inside the `argos` loop itself would violate the one-level nesting rule, so `daidalos` is the dispatcher, not `argos`. Handoff: `Tests done (scoped)` or `Blocked` (forwarded back to `talos`).
+  - **Post-convergence reporting** — `daidalos` dispatches `apollon` once more after the scoped validation confirms convergence, as the final reporting step (outside the convergence loop — after `argos` loop ends, not inside it). `apollon` composes a human-readable, non-technical summary (what changed + how to test) in the language from the brief `## Language` and publishes it to the source tracker (GitHub issue or JIRA ticket) via `@skills/pr-summary/SKILL.md`. The mode is `light` (scenarios and `How to test` only, no test authoring or build) or `full` (full pipeline including `create-test`, `e2e-testing`, `composer build`) — set by `daidalos` and recorded in the brief `## Reporting mode`. When there is no linked tracker (described-task run), `apollon` returns the summary inline in the handoff; `daidalos` passes it to the user in the chat. **This dispatch is effective only after `apollon` is registered as a dispatchable subagent** (installer must copy `agents/apollon.md` to `.claude/agents/`). Until then `daidalos` falls back and notes *„apollon není registrován — shrnutí v chatu chybí"* in its final report. Handoff: `Reporting done` (with tracker comment link) or `Reporting done (no tracker)` (with inline summary).
+
+> A future top-level, cross-domain orchestrator (reserved name `zeus`) will sit above `daidalos` and coordinate non-engineering domains too (e.g. marketing). `daidalos` owns the engineering tier only.
 
 ### <img src="../assets/agents/hermes.png" alt="hermes avatar" width="48" align="left"> `hermes` — release announcer / publicista
 
-The messenger who carries the message after the work is done, named after **Hermés (posel bohů / messenger of the gods)**, the swift divine messenger whose sole role was to deliver the official announcement. Give it a merged change, a release, or a shipped feature — from the current context or a tracker link — and it loads the source read-only, composes the announcement content (Twitter/X tweet ≤280 chars + thread, release notes, marketing summary with **pekral.cz** promotion), and hands back an `Announce done` summary with all drafts inline. It runs **post-delivery**, outside the CR loop — after the change has merged or after a release tag is cut.
+The messenger who carries the message after the work is done, named after **Hermés (posel bohů / messenger of the gods)**, the swift divine messenger whose sole role was to deliver the official announcement. Give it a merged change, a release, or a shipped feature — from the current context or a tracker link — and it loads the source read-only, composes the announcement content (Twitter/X tweet ≤280 chars + thread, release notes, marketing summary with **pekral.cz** promotion), and hands back an `Announce done` summary with all drafts inline. It runs **post-delivery**, outside the CR loop — after `talos` has merged or after a release tag is cut.
 
 - **Trigger:** a merged change or release needs announcement content — tweet, thread, release notes, or marketing summary.
 - **Orchestrates:** `resolve-issue/references/source-detection` (source loading, read-only).
@@ -66,11 +86,13 @@ Every agent is named after a figure from **Greek mythology**, chosen so the figu
 |---|---|---|
 | `argos` | Argos Panoptes, the hundred-eyed all-seeing watcher | nothing escapes his gaze → thorough PR inspection (quality, architecture, optimisation) |
 | `talos` | Talos, the bronze automaton forged to work and guard without rest | tireless artificial labourer → forges working code |
+| `metis` | Metis, Titaness of wise counsel and cunning planning | deliberation before action → problem analysis & planning |
+| `daidalos` | Daidalos, the master craftsman who runs the workshop and directs the makers | head of production → routes engineering work to the right specialist |
 | `apollon` | Apollo, god of truth, prophecy, and order, and the unerring archer | reveals the truth about a change and hits the acceptance mark → test authoring & validation |
-| `athena` | Athena, goddess of wisdom and strategic defence | wisdom + strategic vigilance → security analyst (pre-implementation, on demand) and dedicated security CR sentinel |
+| `athena` | Athena, goddess of wisdom and strategic defence, daughter of Metis | wisdom + strategic vigilance → security analyst (pre-implementation, on demand) and dedicated security CR sentinel (parallel to argos) |
 | `hermes` | Hermés (posel bohů / messenger of the gods) | swift divine messenger, carries the message after the work is done → release announcer & publicista |
 
-Naming ideas for future agents: `themis` (order / verdict), `rhadamanthys` (fair judge), `iris` (delivery / merge).
+Naming ideas for future agents: `themis` (order / verdict), `rhadamanthys` (fair judge), `iris` (delivery / merge), `zeus` (top-level cross-domain orchestrator above `daidalos`).
 
 ## Anatomy of an agent
 
@@ -91,12 +113,12 @@ System prompt: what the agent does, which skills it orchestrates, and the handof
 - **`name`** — lowercase, the id used as `subagent_type` / `@name`.
 - **`description`** — drives auto-delegation; phrase it as the situation that should trigger the agent.
 - **`tools`** — restrict to what the agent needs. A read-only reviewer needs `Read, Glob, Grep, Bash` only.
-- **`effort`** — reasoning effort while the agent is active (`low` / `medium` / `high` / `xhigh` / `max`); set to `max` on every agent so each runs at maximum reasoning depth. The one exception is `apollon`, which runs at `low` — its scoped test authoring and validation does not need deep reasoning, so it stays fast and cheap. The runtime clamps to the highest level the agent's `model` supports.
+- **`effort`** — reasoning effort while the agent is active (`low` / `medium` / `high` / `xhigh` / `max`); set to `max` on every agent so each runs at maximum reasoning depth. The runtime clamps to the highest level the agent's `model` supports.
 - **System prompt** — orchestration only. Delegate to skills via `@skills/<name>/SKILL.md`; **never duplicate a skill's rules** — defer to the skill as the source of truth.
 
 ## Handoff contract
 
-An agent's final message is returned to the caller as the tool result, so it must be a self-contained handoff the next step can act on without re-deriving context:
+An agent's final message is returned to the caller as the tool result, so it must be a self-contained handoff the next agent can act on without re-deriving context:
 
 - **Status** — e.g. `CR done`.
 - **Links** — the PR and the originating source (GitHub / JIRA / Bugsnag).
@@ -104,31 +126,73 @@ An agent's final message is returned to the caller as the tool result, so it mus
 
 **Language of the handoff / report.** Every agent writes the human-facing prose of its handoff and any end-user report in the **same natural language the assignment was given in** (if the request came in Czech, the handoff is in Czech). Identifiers stay verbatim regardless of that language — branch names, ticket / issue keys, links, severity labels, CLI commands, and skill / agent names are never translated, and two natural languages are never mixed inside a single handoff.
 
+**How the language survives delegation.** When `daidalos` orchestrates, the assignment's natural language is not re-guessed at each hop — `daidalos` records it once in the shared brief's `## Language` field, writes every `Task` dispatch prompt in that language, and each specialist takes the brief's `## Language` field as the authoritative source for its reply. So a Czech request produces Czech output through the whole `metis → talos → apollon → argos` chain, not just in `daidalos`'s own final report.
+
+## Shared task brief (inter-agent memory)
+
+The handoff above is the *return* channel. For the *forward* channel — passing context **into** each agent efficiently — `daidalos` writes a **shared task brief** that every dispatched specialist reads, so the run's data is gathered once instead of re-derived by each agent.
+
+- **Owner & gather phase.** Right after it resolves the source and **before the first dispatch**, `daidalos` runs a gather phase: it collects everything the task needs solved — the tracker payload and acceptance criteria (via the deterministic loaders), the relevant files / symbols / reproduction, known constraints, and its own **work-breakdown plan** (which specialist does what, with each one's success gate).
+- **Location & lifecycle.** The brief lives at `.claude/run/<source-slug>.md`. `.claude/` is git-ignored, so it is **ephemeral and never committed**; `daidalos` removes it (`rm -f`) after the final report or a `Blocked` stop.
+- **Read-then-append.** `daidalos` passes the brief's absolute path in every `Task` dispatch prompt. Each specialist **reads it first** as authoritative shared context, then **appends its own handoff section** (`### <agent> — <status>`) when it finishes, so the next specialist in the chain inherits the full history — source, plan, and every prior handoff — without `daidalos` re-passing it.
+- **No new write scope.** Every agent already carries `Bash`, so the brief is created and appended through `Bash` redirection (`cat >> "$BRIEF" <<'EOF' … EOF`) to the git-ignored scratch path. No agent gains `Write` / `Edit` over the codebase from this — the read-only reviewers (`argos`, `metis`) and the read-only orchestrator (`daidalos`) keep their read-only-codebase stance; the brief is the only file they touch, and it is not source.
+- **Top-level runs only.** The brief's value — a single gather shared across **separate** dispatched subagents — materialises only when `daidalos` runs **top-level** and dispatches `talos` / `argos` as real Task subagents (separate processes, shared filesystem). A `daidalos` invoked **as a subagent itself** has already spent the one nesting level, so it cannot dispatch separate specialists and instead returns a routing handoff (*Subagents of an agent*, case (b)) — there is no second process to read or append the brief, so the read-then-append loop does not apply to that nested case.
+
+## Concurrency — working-tree write-lock
+
+Several top-level `daidalos` runs can target the **same project at once** (interactively). **The writing path never uses git worktrees**, so every writing run shares **one git working tree** and two runs that both write to it would corrupt each other's checkout and uncommitted edits. `daidalos` guards this with a **scope-conditioned write-lock**, and processes the sources of a single request **sequentially, never fanning out**. The read-only code-review agents (`argos`, `athena`) **may** opt into a throwaway read-only worktree for their parallel review — they carry no write-lock, so they never contend here, and `daidalos` removes any CR worktree during its post-run cleanup:
+
+- **Read-only runs overlap.** An analysis-only run (dispatching `metis`) — including a decomposition run that produces issues instead of a PR — never modifies the working tree, so it takes **no** lock — any number of independent analysis or decomposition runs overlap freely, with each other and with a writing run. When a single request resolves multiple sources, they are still processed **one at a time** (no parallel fan-out); when multiple linked issues exist, `daidalos` plans a dependency-aware resolve order (reading `## Dependencies` from each issue) that takes precedence over oldest-first when issues are interlinked.
+- **Writing runs serialise.** A full-delivery run (dispatching `talos`) acquires a lock before the dispatch and runs one at a time. A second writing run that finds a live holder stops with `Blocked` and a remediation (**wait for the holder to finish and retry** — the writing path takes no worktree, so there is no isolated-worktree escape to run writing work in parallel) instead of dispatching `talos` into another run's changes.
+- **Keyed to the toplevel.** The lock is a directory at `.claude/run/.daidalos-write.lock` inside the current toplevel's git-ignored `.claude/run/`. Because the writing path never uses worktrees, every full-delivery run resolves to the same toplevel and the same lock, so concurrent writing runs always serialise on the shared tree. Acquire is atomic (`mkdir`), a stale lock from a crashed run is reclaimed via a `kill -0` PID probe, and the lock is released on the final report and on any `Blocked` stop. See `agents/daidalos.md` *Concurrency & the working-tree write-lock* for the mechanism.
+
 ## Subagents of an agent
 
 Claude Code subagents invoked via the Task tool generally **cannot spawn their own subagents** (one level of nesting). This shapes how the roster composes:
 
-1. **The top-level harness dispatches specialists through the Task tool.** The harness (the session you talk to) spends its single nesting level dispatching `talos` / `argos` / `athena` / `apollon` / `hermes` directly. Each specialist then orchestrates its own skills inline — `talos` runs `resolve-issue`, `argos` runs `code-review-github`, and so on.
+1. **A top-level orchestrator dispatches specialists through the Task tool.** `daidalos` runs as the top-level agent the user talks to, and spends its single nesting level dispatching `metis` / `talos` / `apollon` / `argos` directly. Each specialist then orchestrates its own skills inline — `talos` runs `resolve-issue`, `argos` runs `code-review-github`, and so on.
 2. **Lens skills called inline** by an orchestrating skill — e.g. `code-review-github` already runs `code-review`, `security-review`, `api-review`, `assignment-compliance-check` inline. This is what each dispatched specialist does in its own context, and it is also the fallback when no further nesting level is available.
 3. **Parallel fan-out via the Workflow tool** — a DAG of agents for heavy runs that genuinely need concurrency.
 
-Because of the one-level limit, no agent tries to become a nested orchestrator that spawns other agents from inside another agent. The harness is the single dispatch level; a specialist that needs another specialist's output returns a handoff for the harness to act on, rather than dispatching it itself.
+Because of the one-level limit, an orchestrator like `daidalos` must be the **top-level agent the user talks to** — it delegates each step by dispatching the matching specialist agent (or, if `daidalos` was itself invoked headless and the nesting level is already spent, returns a routing handoff for the caller to execute), never by becoming a nested subagent that tries to spawn `metis` / `talos` / `apollon` / `argos` from inside another agent. A future `zeus → daidalos → specialist` chain cannot stack three Task-subagent levels; it must collapse to a single dispatch level plus the inline / Workflow model.
 
-### End-to-end run (harness-driven, skill-owned steps)
+### End-to-end run (agent-dispatched, skill-owned loop)
 
-A full request is carried to a clean, reviewed result by the **harness**, which sequences the standalone specialists and the skills they own. The canonical order is captured as a runnable checklist in [`scripts/resolve-and-review.sh`](../scripts/resolve-and-review.sh) — a template / wrapper that validates the input, detects the tracker, and prints the exact skills to run in order (it does not invoke Claude itself):
+The `daidalos` run carries a request all the way to a clean, reviewed result. `daidalos` resolves the source itself, then **dispatches each step as the matching specialist agent through the Task tool**; the iterative `talos` ↔ `argos` review-and-fix loop is **owned by the skill the dispatched specialist drives** (its state lives there), not modelled as agents calling agents:
 
 ```text
-1. /resolve-issue <issue-ref|text>     → talos (= resolve-issue): implement + open the PR (always)
-2. /code-review-<tracker> <PR|ref>      → argos (+ athena security pass): fresh CR round on the PR
-                                          (code-review-github <PR> | code-review-jira <KEY> |
-                                           code-review-bugsnag <error> — picked from the source's
-                                           tracker; the JIRA/Bugsnag wrappers resolve the linked PR)
-3. /process-code-review <PR>            → resolve the findings when the CR round reported any
-4. /merge-github-pr <PR>                → merge into the base branch, only when a merge was requested
+user → daidalos                                         (top-level; resolves source, then dispatches via Task tool)
+         │  resolve source (oldest-open-issue selection / resolve-issue source-detection)
+         │  decompose? ── yes ─→ Task ▶ metis   (= create-issues-from-text → N issues, dependency-aware order) → report issues, no PR
+         │     │ no
+         │  analyse? ── yes ─→ Task ▶ metis   (= analyze-problem → plan)
+         │     │            └─ security-focused? ─→ Task ▶ athena (security analysis mode = security skills + analyze-problem → remediation plan; Security analysis done) → feeds talos
+         │     │ no
+         ▼     ▼
+       Task ▶ talos   (= resolve-issue)
+         │        └─ pre-PR self-check: code-review + security-review (single pass, not the authoritative review) → 0 Critical/Moderate → opens PR
+         ▼
+       Task ▶ apollon   (fast scoped validation — high-risk changes only; diff-targeted tests + acceptance-criteria check; full build only for broad changes)
+         │        └─ Tests done (scoped) → proceed | Blocked → escalate to talos
+         ▼
+       Task ▶ argos   (= process-code-review / code-review-github — code quality / architecture / optimisation — the talos ↔ argos loop)
+       Task ▶ athena  (= security-review + laravel-security + security-bounty-hunter + security-threat-analysis — parallel security CR; dispatched by daidalos, not by argos)
+         │        └─ argos: convergence loop (code-review-github + fixes, maxIterations 3); reads athena's Security CR done from brief → consolidates → 0 Critical/Moderate
+         │           athena: Security CR done → findings recorded in brief for argos to consolidate
+         │           (athena dispatch guarded by registration check — fallback: security inline in code-review-github → security-review)
+         ▼
+       Task ▶ apollon   (fast scoped validation — final gate after convergence)
+         │        └─ Tests done (scoped) → proceed | Blocked → escalate to user
+         ▼
+       Task ▶ apollon   (post-convergence reporting — publishes human-readable "co se změnilo + jak otestovat" to source tracker via pr-summary; light or full mode per brief ## Reporting mode; fallback: inline summary in handoff when no tracker)
+         │        └─ Reporting done (tracker comment link) | Reporting done (no tracker) (inline) | apollon not registered → skip + note in report
+         ▼
+       daidalos → reports result to the user   (merge stays a separate, explicit step — always via @skills/merge-github-pr/SKILL.md)
 ```
 
-The convergence gate is **0 Critical + 0 Moderate**: step 3 iterates the review-and-fix loop (owned by `process-code-review`, `maxIterations = 3`) until it converges, and the merge in step 4 is gated on it. Test authoring / validation (`apollon`) and release announcements (`hermes`) are dispatched on demand around this spine when a change needs them.
+The apollon dispatch runs at **push-level granularity** — after `talos` opens the PR (high-risk changes only) and once after `argos` converges (every run). Running it inside the `argos` loop would require `argos` to dispatch `apollon` as a subagent, which violates the one-level nesting rule (the nesting level is already spent on dispatching `argos` from `daidalos`). `daidalos` is therefore the correct dispatcher for both `apollon` passes.
+
+The convergence gate is **0 Critical + 0 Moderate**; on `maxIterations` or a blocker the run stops and escalates instead of reporting success.
 
 ## Troubleshooting — subagent file writes blocked
 
@@ -136,7 +200,7 @@ The convergence gate is **0 Critical + 0 Moderate**: step 3 iterates the review-
 
 **Cause:** the agent declares `Write` / `Edit` in its frontmatter, but those tools are *capabilities*, not grants. A dispatched subagent runs **non-interactively** — when its `Edit` / `Write` is not already pre-allowed for the path it targets, it cannot fall back to an interactive approval the way the main thread can, so the write is denied at runtime. This is an environment setting, not something the agent definition or this package can grant.
 
-**Correct behaviour (already enforced):** the blocked agent returns `Blocked: sandbox denied file write` and the harness escalates it to the user — the work is **never** silently completed outside the delegated, reviewed pipeline (`@rules/compound-engineering/general.mdc` *Blocked delegation is a hard stop*).
+**Correct behaviour (already enforced):** the blocked agent returns `Blocked: sandbox denied file write` and the orchestrator escalates it — the work is **never** silently completed outside the delegated, reviewed pipeline (`@rules/compound-engineering/general.mdc` *Blocked delegation is a hard stop*).
 
 **Remediation (the human enables subagent writes) — pre-allow scoped `Edit` / `Write` on the working tree.** Add two scoped allow entries to **`permissions.allow`** in the project's `.claude/settings.local.json`, naming the project's absolute path:
 
@@ -164,5 +228,5 @@ The installer always copies `agents/` to `.claude/agents/` — Claude Code is th
 1. Pick a Greek figure whose myth matches the job; use the lowercase name.
 2. Create `agents/<name>.md` with the frontmatter + an orchestration-only system prompt that delegates to skills and returns a handoff.
 3. Add it to the README *Claude Code Subagents* roster (an avatar + role card).
-4. Add a test asserting the file ships with its required frontmatter (mirror the `argos` test in `tests/Installer/AgentsTest.php`).
+4. Add a test asserting the file ships with its required frontmatter (mirror the `argos` test in `tests/InstallerTest.php`).
 5. Run `composer build` — the installer file-count tests pick up the new agent automatically.

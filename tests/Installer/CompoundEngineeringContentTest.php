@@ -99,18 +99,23 @@ test('compound-engineering rule defines the per-project memory file convention (
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
     $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
 
     expect($rule)->toContain('## Blocked delegation is a hard stop');
     expect(substr_count($rule, '## Blocked delegation is a hard stop'))->toBe(1);
+    expect($daidalos)->toContain('*Blocked delegation is a hard stop*');
     expect($talos)->toContain('*Blocked delegation is a hard stop*');
 });
 
 test('compound memory reads are hooked into the context phases (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
     $analyze = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
     $prepare = (string) file_get_contents($packageDir . '/skills/prepare-issue-context/SKILL.md');
 
+    expect($daidalos)->toContain('## Project memory');
+    expect($daidalos)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($analyze)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($prepare)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
@@ -125,10 +130,12 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     expect($rule)->not->toContain('record-project-memory');
     expect($resolveIssue)->not->toContain('record-project-memory');
     expect($processCr)->not->toContain('record-project-memory');
+    expect($daidalos)->not->toContain('record-project-memory');
 
     // The write-protocol sections of the rule are gone; the read side stays.
     expect($rule)->not->toContain('### Write protocol');
@@ -176,8 +183,8 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     // The exception must state that memory files are never deleted.
     expect($content)->toContain('NEVER deleted');
 
-    // The rule must name the orchestrating harness as the reference implementation of the cleanup.
-    expect($content)->toContain('orchestrating harness');
+    // The rule must reference daidalos step 7 as the reference implementation.
+    expect($content)->toContain('daidalos');
 });
 
 test('deferred points must be filed as follow-up tracker issues so they are not forgotten', function (): void {
@@ -244,14 +251,16 @@ test('newly created tracker issues get the single most relevant existing label (
     // JIRA labels carry no description or registry; harvest via JQL and match by name only.
     expect($rule)->toContain('labels IS NOT EMPTY');
 
-    // Every one of the 3 call sites carries a one-line reference to the rule section.
+    // Every one of the 4 call sites carries a one-line reference to the rule section.
     $createIssue = (string) file_get_contents($packageDir . '/skills/create-issue/SKILL.md');
     $createIssuesFromText = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $metis = (string) file_get_contents($packageDir . '/agents/metis.md');
 
     expect($createIssue)->toContain('Label newly created tracker issues');
     expect($createIssuesFromText)->toContain('Label newly created tracker issues');
     expect($resolveIssue)->toContain('Label newly created tracker issues');
+    expect($metis)->toContain('Label newly created tracker issues');
 
     // Additive-only: the pre-existing EPIC structural-label mechanism stays untouched.
     expect($createIssuesFromText)->toContain('EPIC parent & sub-issues');

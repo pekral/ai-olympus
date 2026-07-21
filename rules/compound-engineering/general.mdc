@@ -32,22 +32,22 @@ Each entry is short and scannable — prefer one rule per lesson over a long ess
 - Rule:    <the decision / what to do next time>
 - Example: <a concrete pointer: file / area / symbol>
 - Source:  <PR / issue link>   Added: <YYYY-MM-DD>
-- Role:    <talos | argos | apollon | shared>
+- Role:    <daidalos | metis | talos | argos | apollon | shared>
 ```
 
-The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles (including analysis / problem framing and orchestration lessons that are no longer owned by a dedicated agent). `talos` = implementation / PR mechanics; `argos` = code review / CR loop; `apollon` = test authoring / validation. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
+The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `daidalos` = orchestration / briefing / dispatch decisions; `metis` = analysis / problem framing; `talos` = implementation / PR mechanics; `argos` = code review / CR loop; `apollon` = test authoring / validation. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
 
 ### Read protocol (load memory before acting)
 
 The memory only compounds if it is **read at the start of each task**, before re-deriving anything:
 
-- The **orchestrating harness** reads the **full** memory file at the start of a run (it must see all roles) and folds the relevant entries into the context it passes to each dispatched specialist, so they inherit the lessons without re-deriving them.
-- Each **specialist agent** (`talos`, `argos`, `apollon`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
+- The **daidalos gather phase** reads the memory file and folds the relevant entries into the shared brief under a `## Project memory` section, so every dispatched specialist inherits the lessons without re-deriving them. `daidalos` reads the **full** file (it is the orchestrator and must see all roles).
+- Each **specialist agent** (`metis`, `talos`, `argos`, `apollon`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
 - `@skills/analyze-problem` (*Context extraction*) and `@skills/prepare-issue-context` consult the memory file before mapping scenarios to code, filtering by the calling agent's role.
 
 #### Per-role read filter
 
-When reading `docs/memory/PROJECT_MEMORY.md` as a specialist (not as the orchestrating harness), apply this filter:
+When reading `docs/memory/PROJECT_MEMORY.md` as a specialist (not as `daidalos`), apply this filter:
 
 ```
 include entries where Role: == <your-role> OR Role: == shared
@@ -61,14 +61,16 @@ On completion — both on the final handoff and on a `Blocked` stop — every ag
 
 - **Scratchpad files** written to the session scratchpad directory.
 - **System temp files** created via `/tmp`, `mktemp`, or `tempnam`.
-- **Any run-scoped scratch file** written under the git-ignored `.claude/run/` — scratch memory for the run, not a kept artifact.
+- **Shared task brief** (`.claude/run/<source-slug>.md`) — scratch memory for the run, not a kept artifact.
+- **Per-brief append lock** (`$BRIEF.lock`) — must not outlive the run.
+- **Working-tree write-lock** (`.claude/run/.daidalos-write.lock`) — released by `daidalos` in step 7.
 - **Temporary `.md` preparation files** created during the run (aligns with `@rules/git/general.mdc` *Cleanup*).
 
 **Memory files are NEVER deleted** — `docs/memory/PROJECT_MEMORY.md` in the target project and any user-level memory files (`~/.claude/.../memory/*.md`) are durable, not temporary; they survive every run. The hand-maintained `CLAUDE.md` is also excluded from this cleanup.
 
 Scripts and shell steps that create temporary files must bind their cleanup to `trap … EXIT` (shell) or `finally` (other languages) so the cleanup runs even when the script exits with an error.
 
-The orchestrating harness runs this cleanup as its final step, removing every run-scoped scratch file it created under `.claude/run/` on both the final report and a `Blocked` stop.
+`daidalos` step 7 is the **reference implementation** of this contract: it removes the shared brief (`rm -f "$BRIEF"`) and releases the write-lock (`rm -rf .claude/run/.daidalos-write.lock`) on both the final report and a `Blocked` stop.
 
 ## Claim a tracker issue before working on it
 
