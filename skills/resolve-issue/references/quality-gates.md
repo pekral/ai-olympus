@@ -11,3 +11,12 @@ Run in this order:
 3. **Coverage** — if a coverage command exists, run it and confirm 100% coverage for changed code paths.
 
 If both fixers and checkers fail or are not found, stop and inform the user.
+
+## Loop gate vs. final gate (issue #65)
+
+A review/fix loop runs these gates **many times** — once per iteration — so the per-iteration gate must stay cheap without lowering the bar of the *merged* result. Distinguish the two:
+
+- **Loop iteration (cheap, diff-scoped).** After applying a fix inside a review loop or a pre-PR self-check, run the **changed-files** variants only, and **skip the dependency/skill reinstall step** (`vendor/bin/agent-skills install --force`, `composer install`, `npm install`) — nothing the loop does changes the installed dependencies or skills, so reinstalling every iteration is pure latency. Prefer the project's diff-scoped scripts when they exist (`composer check:changed`, `composer test:coverage:diff`, or the equivalent) over the full `composer build` / `composer check`. Coverage is asserted **on the changed lines only** (never the full-suite `--min=100`) during a loop iteration.
+- **Final gate (full, before push / PR).** Run the project's **full** build once — `composer build` (install + fixers + full `check`, including full-suite `--min=100` coverage) — as the last step before the changes are pushed or the PR is opened, and also whenever the change is **broad** (touches shared / core / config surface, or more than ~10 files — the same high-risk heuristic `apollon` uses). This is the gate that guarantees a merge never lands with a broken project (issue #75); the loop lightening above never removes it, it only stops re-running it on every intermediate iteration.
+
+The rule is one full build at the boundary, diff-scoped checks in the loop — not a full build per iteration, and not a merge on diff-scoped checks alone.

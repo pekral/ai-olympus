@@ -147,6 +147,8 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
 ### Pre-push quality gates
 
+This runs **inside the review loop**, once per iteration, so it uses the cheap **loop gate** from `@skills/resolve-issue/references/quality-gates.md` *Loop gate vs. final gate (issue #65)*: diff-scoped fixers / checkers / coverage on the changed files only, and **skip** the dependency/skill reinstall (`agent-skills install --force`, `composer install`) — nothing the loop does changes them. The full `composer build` (install + full-suite `--min=100`) is **not** run per iteration; it is the **final gate** run once in *Finalization* below, before the push. This lightens the loop without weakening the merge bar — the full build still guards the boundary (issue #75).
+
 - Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`)
 - Run available fixers on all changed files and fix any violations
 - Run available checkers/analyzers on all changed files and resolve all reported errors
@@ -155,6 +157,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
 **Precondition:** the Review loop above must have exited with `criticalCount + moderateCount == 0`. If the loop hit `maxIterations` without converging, do not proceed — return the remaining findings to the user for manual triage instead.
 
+- **Final gate — run the full build once before pushing** (`@skills/resolve-issue/references/quality-gates.md` *Loop gate vs. final gate*): the loop iterations used diff-scoped checks, so run the project's full `composer build` (install + fixers + full-suite `--min=100`) here, as the last step before push. This is the boundary gate that guarantees the merge never lands with a broken project (issue #75).
 - Commit and push changes
 - If PR does not exist, create it according to @rules/git/general.mdc — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
   - Title in English (per `@rules/git/general.mdc`)

@@ -1034,3 +1034,24 @@ test('analyze-problem enforces inventory -> download -> security gate -> safe-on
     expect($content)->toContain('skills/_shared/scan-attachments.sh');
     expect($content)->toContain('Read only files under `safe/`');
 });
+
+test('review loop uses a cheap diff-scoped gate and a full final gate (issue #65)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The shared reference distinguishes the per-iteration loop gate from the
+    // one-time final gate, so the loop lightens without lowering the merge bar.
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain('Loop gate vs. final gate (issue #65)');
+    // The loop skips the reinstall — nothing it does changes dependencies/skills.
+    expect($gates)->toContain('skip the dependency/skill reinstall');
+    expect($gates)->toContain('agent-skills install --force');
+    // Diff-scoped tools in the loop; full build only at the boundary.
+    expect($gates)->toContain('composer test:coverage:diff');
+    // The final full build still guards the boundary — issue #75 is preserved.
+    expect($gates)->toContain('a merge never lands with a broken project (issue #75)');
+
+    // process-code-review wires both halves: loop gate per iteration, full final gate before push.
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($process)->toContain('Loop gate vs. final gate (issue #65)');
+    expect($process)->toContain('Final gate — run the full build once before pushing');
+});
