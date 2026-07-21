@@ -208,7 +208,7 @@ test('every agent definition declares a model in frontmatter', function (): void
     }
 });
 
-test('every agent definition sets the model effort to max in frontmatter (issue #40)', function (): void {
+test('every agent definition sets the model effort to max in frontmatter, except apollon which runs at the lowest effort (issue #40)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $globResult = glob($packageDir . '/agents/*.md');
     $agentFiles = $globResult !== false ? $globResult : [];
@@ -217,9 +217,16 @@ test('every agent definition sets the model effort to max in frontmatter (issue 
 
     foreach ($agentFiles as $agentFile) {
         // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
-        // cannot satisfy the assertion, and require exactly `max` per the assignment.
+        // cannot satisfy the assertion.
         $content = (string) file_get_contents($agentFile);
-        expect($content)->toMatch('/^effort:\s*max$/m');
+
+        if (basename($agentFile) === 'apollon.md') {
+            // apollon runs fast, cheap validation on sonnet at the lowest effort.
+            expect($content)->toMatch('/^effort:\s*low$/m');
+        } else {
+            // Every other agent runs at maximum reasoning depth (issue #40).
+            expect($content)->toMatch('/^effort:\s*max$/m');
+        }
     }
 });
 
