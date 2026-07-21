@@ -78,11 +78,7 @@ Before starting the resolution flow:
      - **Outdated items** — requests superseded by newer comments or decisions.
    - Use only the **current requirements** (combined with the issue description) as input for the next step.
 
-   **Reopened task (mandatory deep pass).** When step 1 marked the run as a reopened continuation, the comment analysis above is blocking and gains these obligations:
-   - Read the comments posted **after the most recent close / merge** first — they carry why the task was reopened and what still fails or is missing; wherever they conflict with the original description, the post-reopen comments win.
-   - Load every earlier PR linked to the issue (`closingPullRequests[]` for GitHub, `pullRequests[]` / `devSummary` for JIRA, the mirrored issue's PRs for Bugsnag) via the tracker's deterministic loader and record what already landed. Classify that delivered work as **Resolved items** — never reimplement or revert it unless a post-reopen comment explicitly asks for it.
-   - Derive the **continuation scope**: current requirements = the delta demanded by the post-reopen comments plus any originally stated requirement that verifiably never landed — not the original assignment from scratch.
-   - If no comment or linked activity explains why the task was reopened, stop as **Blocked**: post a question on the tracker asking for the reopen reason and release the claim per step 1 (*Release on Blocked / abort (before PR)*) — never guess the continuation scope.
+   **Reopened task (mandatory deep pass).** When step 1 marked the run as a reopened continuation, the comment analysis above is blocking: read the comments posted **after the most recent close / merge** first (they win over the original description on why it was reopened and what still fails), then load every earlier linked PR (`closingPullRequests[]` / `pullRequests[]` / `devSummary` / the mirrored issue's PRs) via the deterministic loader and classify what already landed as **Resolved items** — **never reimplement or revert** it unless a post-reopen comment asks. Derive the **continuation scope** as the post-reopen delta plus any stated requirement that verifiably never landed, not the original assignment from scratch. If nothing explains the reopen, stop as **Blocked**, post a question asking the reopen reason, and release the claim per step 1 — never guess the continuation scope.
 
 ### Context preparation (mandatory pre-flight)
 
@@ -90,13 +86,13 @@ Run `@skills/prepare-issue-context/SKILL.md` with `MODE=resolve-issue` and the s
 
 ### Problem analysis
 
-6. **Gate — assignment specificity.** The pre-flight in step 5 already guarantees every scenario is mapped to a concrete code path; this gate only decides how clear the *requirements* are. Pick **specific** or **general** based on the scenario table and the current requirements from comment analysis:
-   - **Specific** — expected behavior is unambiguous for every scenario, and the root cause (for bugs) or target behavior (for features) is explicitly stated in the assignment or current requirements. **Skip** `@skills/analyze-problem/SKILL.md` and use the scenario table together with the current requirements as the input for step 7.
-   - **General** — requirements are vague, acceptance criteria are missing or open-ended, or the root cause is not identified. When in doubt, treat the assignment as general. **Run** `@skills/analyze-problem/SKILL.md` using the issue description, the scenario table, current requirements, and any available context, and use its output as the input for step 7.
+6. **Gate — assignment specificity.** Step 5 already mapped every scenario to a code path; this gate only decides how clear the *requirements* are, from the scenario table and the current requirements:
+   - **Specific** — expected behavior is unambiguous for every scenario and the root cause (bugs) or target behavior (features) is explicitly stated. **Skip** `@skills/analyze-problem/SKILL.md`; use the scenario table plus current requirements as the input for step 7.
+   - **General** — requirements are vague, acceptance criteria are missing, or the root cause is not identified (when in doubt, general). **Run** `@skills/analyze-problem/SKILL.md` over the issue description, scenario table, and current requirements, and use its output for step 7.
 7. Review the input from step 6 and split the identified items into three groups:
-   - **In scope** — items that directly match the issue requirements. These will be implemented.
-   - **Pre-existing issues** — bugs, project-rule violations, or security vulnerabilities already present in the affected files before this task (see *Pre-existing issue handling* below). These will be fixed in **separate commits** inside the same PR.
-   - **Out of scope (deferred)** — valid findings that fall outside the current issue **and** do not qualify as pre-existing issues to fix now (e.g. enhancements, refactors, future features). These will be added to the PR summary as a `## TODO` list for future tasks **and each will be filed as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
+   - **In scope** — items that directly match the issue requirements; implemented.
+   - **Pre-existing issues** — bugs, project-rule violations, or security vulnerabilities already in the affected files (see *Pre-existing issue handling* below); fixed in **separate commits** in the same PR.
+   - **Out of scope (deferred)** — valid findings outside the current issue that are not pre-existing to fix now (enhancements, refactors, future features); added to the PR `## TODO` list **and each filed as a follow-up issue** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
 
 ### Read, Map & Verify before implementing (mandatory pre-flight)
 
@@ -110,36 +106,11 @@ Only after Read, Map, and Verify are complete may phase planning and implementat
 
 ### Phase planning (commit plan)
 
-Before writing any code, decide how the in-scope work will be split into commits within the PR, applying the **one phase = one commit** rule from `@rules/git/general.mdc` *Git Rules*.
-
-1. **Detect existing phases** in the issue description and the kept comments. Phase markers include explicit headings such as `Phase 1`, numbered milestones, ordered acceptance-criteria blocks, or a step-by-step plan written by the reporter.
-2. **If phases exist:** treat each phase as exactly **one commit**. Keep the original phase order as commit order. Do not merge, reorder, or re-scope phases.
-3. **If no phases exist but the assignment is long or covers multiple distinct concerns:** propose a phased breakdown — each phase must be independently reviewable and yield a working state — then map **one phase per commit**.
-4. **If the assignment is small and atomic:** keep it as a single commit. Do not invent artificial phases.
-5. Record the planned phases as a numbered list (one line per commit, with the intended commit message in `type(scope): description` form per `@rules/git/general.mdc`) **before** starting implementation. This list is the commit plan for step 11.
-6. During implementation, commit at the end of each phase. Run pre-push fixers and tests on the changes belonging to that phase before moving on.
+Before writing any code, decide how the in-scope work splits into commits, applying **one phase = one commit** from `@rules/git/general.mdc` *Git Rules*: detect phases already in the issue / kept comments and keep each as one commit in the original order; propose a phased breakdown (each phase independently reviewable and working) only when the assignment is long or spans distinct concerns; keep a small atomic assignment as a single commit without inventing phases. Record the planned commits as a numbered list of `type(scope): description` subjects **before** implementing — this is the commit plan for step 11 — and commit at the end of each phase, running the pre-push fixers and tests on that phase's changes first. The full step-by-step is in `references/phase-planning.md`.
 
 ### Pre-existing issue handling
 
-While reading and modifying the files required for the in-scope work, you may encounter problems that are **unrelated to the current assignment** but were already present in those files. The following categories qualify as pre-existing issues that must be fixed in this PR:
-
-- **Bugs** — incorrect logic, broken edge cases, null-dereference risks, race conditions, or runtime errors that exist before this task.
-- **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraints* block (`@rules/php/core-standards.mdc`, `@rules/laravel/*`, `@rules/sql/optimalize.mdc`, etc.) or any other rule under `.claude/rules/`.
-- **Security vulnerabilities** — anything `@rules/security/backend.md`, `@rules/security/frontend.md`, or `@rules/security/mobile.md` would flag (injection, missing authn/authz, unsafe deserialization, sensitive-data exposure, …).
-
-Rules:
-
-1. **Do not silently ignore** a pre-existing issue you encountered in a file you had to read for the in-scope work — fix it in this PR.
-2. **Do not expand scope** by actively scanning unrelated files for additional pre-existing issues. Limit attention to files already touched by the in-scope changes (or their direct dependencies you must read to understand the change).
-3. Land each pre-existing fix in its **own separate commit** inside the same PR:
-   - Use a Conventional Commits subject per `@rules/git/general.mdc`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
-   - The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance (e.g. `fix(user): pre-existing — null check before dispatching welcome mail`).
-   - **Test coverage workflow depends on the commit type:**
-     - `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.
-     - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
-   - Either way, pre-existing fixes follow the same 100% coverage rule on changed lines as in-scope changes (step 16).
-4. Order pre-existing fix commits **before** the in-scope commits in the commit plan from the previous section, so they form an independently revertable base. Update the recorded commit plan to include them before starting implementation.
-5. If a pre-existing issue is **non-trivial** (would significantly expand the PR, requires architectural decisions, or affects shared infrastructure beyond the touched files), do **not** fix it inline. Move it to the *Out of scope (deferred)* group from step 7 and surface it under the PR's `## TODO` section with a one-line reason for deferral.
+While reading and modifying the files required for the in-scope work, you may encounter problems **unrelated to the current assignment** but already present in those files — bugs, project-rule violations, or security vulnerabilities. **Fix a pre-existing issue you encountered in a file you had to read**, in its own `pre-existing — ` commit ordered before the in-scope commits; **do not** scan unrelated files for more, and defer any **non-trivial** one (rule 5) to the *Out of scope (deferred)* group instead of fixing it inline. The full categories, commit conventions, and per-type test-coverage workflow live in `references/pre-existing-issue-handling.md`.
 
 ### If bug
 
@@ -213,15 +184,7 @@ Once review and testing are clean and the user has **not** opted out:
 
 ### Deferred-item follow-up issues
 
-Every item the run knowingly deferred — the *Out of scope (deferred)* group from step 7 and every non-trivial pre-existing issue deferred per *Pre-existing issue handling* rule 5 — must be registered as a **new issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues*. A PR `## TODO` checklist alone is not durable: the PR gets merged and the list is forgotten. Run this step right after the PR exists (so the new issue can link to it) and before the final report:
-
-1. **Deduplicate** — search the tracker for an existing open issue covering the point first (`gh issue list --search "<keywords>" --state open` for GitHub; a JQL search via `acli` for JIRA). When one exists, reference that issue in the `## TODO` entry instead of filing a duplicate.
-2. **File** — create the issue in the originating tracker, carrying the deferred point verbatim, the deferral reason, and links to the source task and this PR (follow the create-without-rewriting convention of `@skills/create-issue/SKILL.md`):
-   - **GitHub:** `gh issue create --title "<short point>" --body "<verbatim point + reason + source/PR links>"` in the source repository. When the repository uses a backlog label for agent-resolvable work (e.g. `Resolve_by_AI`), apply it so the selection flow can pick the issue up; skip when no such label exists. Also select and apply the single most relevant existing content label per `@rules/compound-engineering/general.mdc` *Label newly created tracker issues*.
-   - **JIRA:** create the issue in the source project via `acli` (fall back to the JIRA MCP server when `acli` is unavailable). Also select and apply the single most relevant existing label per `@rules/compound-engineering/general.mdc` *Label newly created tracker issues*.
-   - **Bugsnag:** file a GitHub issue in the repository of the error's `linkedIssues[]` (inherits the GitHub label-selection mechanics per `@rules/compound-engineering/general.mdc` *Label newly created tracker issues*).
-3. **Verify** — re-read the created issue via the tracker's deterministic loader and confirm it exists; external writes can be silently blocked in auto-mode. When filing fails or is blocked, list the unfiled point in the final report as a blocker for a human to file manually — never report the deferral as handled without a live issue URL.
-4. **Cross-link** — update the PR `## TODO` entry with the created issue URL (`- [ ] <point> — filed as <issue URL>`).
+Every item the run knowingly deferred — the *Out of scope (deferred)* group from step 7 and every non-trivial pre-existing issue deferred per *Pre-existing issue handling* rule 5 — must be registered as a **new issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues*, right after the PR exists (so the new issue can link to it) and before the final report. **Never report a deferral as handled without a live issue URL.** The full per-tracker procedure — deduplicate, file, verify, cross-link — lives in `references/deferred-follow-up.md`.
 
 ## Final report
 
@@ -264,6 +227,9 @@ The non-technical report must be understandable by non-technical testers and pro
 
 - references/source-detection.md
 - references/quality-gates.md
+- references/deferred-follow-up.md
+- references/pre-existing-issue-handling.md
+- references/phase-planning.md
 
 ## Done when
 - The issue is fully addressed

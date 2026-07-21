@@ -206,10 +206,13 @@ test('deferred points must be filed as follow-up tracker issues so they are not 
     expect($rule)->toContain('single sanctioned exception');
     expect($rule)->toContain('filed when the PR opens');
 
-    // resolve-issue carries the per-tracker mechanics and the no-URL-no-done guarantee.
+    // resolve-issue keeps the section heading and the no-URL-no-done guarantee;
+    // the per-tracker mechanics were extracted to a reference (issue #59).
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     expect($resolveIssue)->toContain('### Deferred-item follow-up issues');
-    expect($resolveIssue)->toContain('never report the deferral as handled without a live issue URL');
+    expect($resolveIssue)->toContain('Never report a deferral as handled without a live issue URL');
+    $deferredRef = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
+    expect($deferredRef)->toContain('never report the deferral as handled without a live issue URL');
 
     // The other deferring flows route through the same rule.
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
@@ -254,7 +257,8 @@ test('newly created tracker issues get the single most relevant existing label (
     // Every one of the 4 call sites carries a one-line reference to the rule section.
     $createIssue = (string) file_get_contents($packageDir . '/skills/create-issue/SKILL.md');
     $createIssuesFromText = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
-    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    // resolve-issue's per-tracker filing mechanics were extracted to a reference (issue #59).
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
     $metis = (string) file_get_contents($packageDir . '/agents/metis.md');
 
     expect($createIssue)->toContain('Label newly created tracker issues');
