@@ -594,8 +594,10 @@ test('code-review-github skill + template short-circuit coverage section (issue 
     $skill = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
 
-    expect($skill)->toContain('Only the header block (Status / Counts / Last updated / Issue tracker summary)');
-    expect($skill)->toContain('the final `Summary` line are always rendered in the PR comment.');
+    expect($skill)->toContain(
+        'The header block (Status / Counts / Last updated / Issue tracker summary), '
+        . '`## Functional Review`, and the final `Summary` line are always rendered in the PR comment.',
+    );
     expect($skill)->toContain('all conditional');
     expect($skill)->toContain('includes a `## Coverage` section before the summary line **only** when the coverage gate has something to report');
     expect($skill)->not->toContain('Counts / Coverage / Issue tracker summary');
