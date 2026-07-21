@@ -83,26 +83,43 @@ The default branch itself is exempt — pull it directly with `git pull`. Read-o
 Do NOT rebase a branch that has been pushed and that others may have based work on, nor any protected branch (`main`, `develop`), nor already-merged history. Rebase rewrites commits and breaks everyone downstream. For published branches, fix forward with `git revert` instead.
 
 ## Conflict resolution
+
+A conflict is a question about **intent**, not a formatting problem. Both sides compiled and passed review on their own branch; the merge is where you decide what the combined codebase should mean. Resolve it in this order — the commands are the last step, not the first.
+
+**1. See the current state.** `git status` lists the conflicted files; `git log --merge -p <file>` shows only the commits that touched the conflicting hunks from both sides.
+
+**2. Find the primary source of each side.** Read the commit message, the PR, and the linked issue for both branches. A hunk you cannot explain is a hunk you cannot resolve — you can only guess, and a guess here silently reverts someone's work.
+
+**3. Resolve each hunk.** Preserve both intents wherever they are compatible. Where they genuinely conflict, keep the one matching the merge's stated goal and record the trade-off in the merge commit body. **Never invent new behaviour in a conflict resolution** — a merge commit is the worst place to introduce a change nobody reviewed, because reviewers read the diff against each parent and a third behaviour appears in neither.
+
+**4. Run the project's checks.** Discover them rather than assuming (`composer.json` scripts, `package.json` scripts, the CI workflow) and run the full gate — for this project `composer build`. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart.
+
+**5. Finish.** Stage and continue (`git commit` for a merge, `git rebase --continue` for a rebase, repeating until every commit is replayed).
+
 ```bash
-# 1. Trigger the conflict (or hit it during rebase/merge)
-git status                       # lists conflicted files
+git status                       # 1. which files conflict
+git log --merge -p path/to/file  # 2. the commits behind this hunk
 
-# 2. Resolve each file. Conflict markers:
+# 3. Edit each file. Markers:
 #    <<<<<<< HEAD ... ======= ... >>>>>>> feature/user-auth
-#    Edit to the correct result and delete all three markers.
+#    Delete all three markers — a committed marker breaks the file silently.
 
-# Accept one whole side when appropriate:
+# Accept one whole side ONLY when you have established that side is complete:
 git checkout --ours  path/to/file    # keep current branch version
 git checkout --theirs path/to/file   # keep incoming version
 
-# 3. Stage and finish
-git add path/to/file
-git commit            # for merge
-# or
-git rebase --continue # for rebase
-# bail out entirely:  git merge --abort  /  git rebase --abort
+git add path/to/file             # 4. after the project checks pass
+git commit                       # 5. merge
+git rebase --continue            #    or rebase, until all commits are replayed
 ```
-Prevention: keep branches small and short-lived, rebase onto `main` frequently, and coordinate before touching shared files. After resolving, re-run the project checks (see below) before continuing.
+
+**`--ours` / `--theirs` discard a whole file.** They are a shortcut for "that side's version is already correct in full", which you must have verified. During a **rebase** the two are inverted relative to a merge — `--ours` is the branch being rebased onto, `--theirs` is your own work — so reaching for them from muscle memory mid-rebase is how a branch loses its own changes.
+
+**Aborting is a decision, not an escape.** `git merge --abort` / `git rebase --abort` are correct when the merge itself was wrong (wrong base, wrong branch, or a scope you now know needs splitting). They are not a way out of a conflict that is merely hard — abandoning the resolution leaves the same conflict for the next person with less context than you have now. Abort deliberately, and say why.
+
+Prevention: keep branches small and short-lived, rebase onto the default branch frequently, and coordinate before touching shared files.
+
+Adapted from [mattpocock/skills — resolving-merge-conflicts](https://github.com/mattpocock/skills/blob/main/skills/engineering/resolving-merge-conflicts/SKILL.md).
 
 ## Stash workflow
 ```bash

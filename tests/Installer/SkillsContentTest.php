@@ -840,6 +840,25 @@ test('mysql-patterns and git-workflow defer to existing rules and skills instead
     expect($git)->toContain('Defer to');
 });
 
+test('git-workflow conflict resolution leads with intent, not commands (issue #50)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $git = (string) file_get_contents($packageDir . '/skills/git-workflow/SKILL.md');
+
+    // A conflict is a question about intent — find the primary source of each
+    // side before touching the markers, and never invent a third behaviour.
+    expect($git)->toContain('A conflict is a question about **intent**');
+    expect($git)->toContain('Find the primary source of each side');
+    expect($git)->toContain('Never invent new behaviour in a conflict resolution');
+
+    // The rebase inversion of --ours/--theirs is the trap worth naming.
+    expect($git)->toContain('During a **rebase** the two are inverted relative to a merge');
+
+    // Abort is a decision about the merge, not an escape from a hard conflict.
+    expect($git)->toContain('Aborting is a decision, not an escape');
+
+    expect($git)->toContain('mattpocock/skills');
+});
+
 test('e2e-testing skill is gated on Playwright already being present', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/e2e-testing/SKILL.md');
