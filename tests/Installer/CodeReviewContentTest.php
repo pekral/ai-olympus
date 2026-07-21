@@ -777,6 +777,23 @@ test('code review enforces translatable UI, console, and API strings (issue #553
     expect($content)->toContain('**API** (JSON `message` fields');
 });
 
+test('code review flags a translation key that exists in no locale (issue #37)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    // Laravel returns the raw key on a miss, so a referenced-but-nonexistent
+    // key reaches the user as a dotted identifier and passes every other gate.
+    expect($content)->toContain('Referenced translation key must exist (issue #37)');
+    expect($content)->toContain('returns the literal string `user.profile.saved`');
+    // Both key layouts must be resolved.
+    expect($content)->toContain('lang/{locale}/{file}.php');
+    expect($content)->toContain('lang/{locale}.json');
+    // Dynamic keys are not guessed.
+    expect($content)->toContain('cannot be resolved statically');
+    // The scope boundary against the completeness walk keeps it one finding per key.
+    expect($content)->toContain('this walk owns a key that exists nowhere');
+});
+
 test('code review enforces test isolation against real HTTP and system processes (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
