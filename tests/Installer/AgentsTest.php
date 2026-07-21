@@ -253,6 +253,20 @@ test('daidalos dispatches athena for a pre-implementation security-risk analysis
     expect($content)->toContain('Security analysis done');
 });
 
+test('daidalos runs the pre-implementation metis and athena analyses in parallel (issue #66)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // Both are read-only analyses of the same single source, so they parallelise
+    // like argos ‖ athena — not sequential.
+    expect($content)->toContain('in parallel** — two `Task` invocations in one message');
+    expect($content)->toContain('issue #66');
+    // The barrier: wait for both handoffs before dispatching talos.
+    expect($content)->toContain('wait for **both** `Analysis done` and `Security analysis done`');
+    // This within-one-source parallelism does not contradict the no-fan-out-across-sources rule.
+    expect($content)->toContain('does not contradict *Sequential processing of multiple sources*');
+});
+
 test(
     'daidalos gates the pre-convergence apollon validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
     function (): void {
