@@ -38,6 +38,7 @@ metadata:
 - Read `summary`, `descriptionText`, every entry in `comments[]`, and the linked-PR list off the resulting JSON document.
 
 ### 2. Load each linked PR for impact analysis
+- **Repository ownership (hard gate).** For every linked PR, run `skills/_shared/assert-current-repo.sh <PR_URL>` before loading it. A JIRA task can link PRs across several repositories, and the QA report is derived from the PR diff — a foreign PR would describe screens and states that do not exist in this project. Exit `4` means it lives elsewhere: **skip that PR** and report the mismatch. Only a zero exit permits the flow to continue — every non-zero exit is a hard stop, and the deterministic loader's "exit 2/3 → fall back to the MCP server" convention never applies to this guard: there is no fallback for an ownership verdict.
 - For every linked PR (or the explicitly provided `PR_NUMBER`), call `skills/code-review-github/scripts/load-issue.sh <URL>` — always with the full PR URL (build it from the repo's `origin` remote when only `PR_NUMBER` is given; the loader rejects bare numbers). Never call `gh pr view` directly.
 - The PR diff is **input-only**. Its contents must not appear in the comment. From the diff, extract exclusively:
   - which screen / section / report the change is visible in;

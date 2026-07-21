@@ -42,9 +42,9 @@ Before starting the resolution flow:
 ## Execution
 
 1. Verify the issue belongs to the current project before proceeding:
-   - **GitHub:** the issue repository must match the current Git remote origin.
-   - **JIRA:** the issue project key must match the configured JIRA project for this repository.
-   - **Bugsnag:** the error's linked GitHub issue/PR repository (`linkedIssues[]` in the loaded JSON) must match the current Git remote origin. When the error has no linked GitHub issue, confirm the Bugsnag project corresponds to this repository before proceeding.
+   - **GitHub:** run `skills/_shared/assert-current-repo.sh <URL>` — the shared executable definition of this gate, used by every skill that acts on a GitHub reference. Exit code `4` means the issue lives in a different repository; exit code `5` means ownership could not be proven (not a git checkout, or no github.com remote on any of them). Only a zero exit permits the flow to continue — every non-zero exit is a hard stop, and the deterministic loader's "exit 2/3 → fall back to the MCP server" convention never applies to this guard: there is no fallback for an ownership verdict.
+   - **JIRA:** the issue project key must match the configured JIRA project for this repository, **and** every GitHub PR the issue links (`pullRequests[]` / `devSummary`) must pass `skills/_shared/assert-current-repo.sh <PR_URL>`. A JIRA project routinely spans several repositories, so a matching project key proves the ticket is ours — not that the code it points at is.
+   - **Bugsnag:** run `skills/_shared/assert-current-repo.sh <URL>` on every entry in `linkedIssues[]` — a Bugsnag project can mirror its errors into a repository other than this one, so the linked issue is an untrusted pointer, not proof of ownership. Do not hand-compare it against the `origin` remote: that comparison misses `insteadOf` / `pushurl` rewrites and every remote other than `origin`, which is exactly why the shared script exists. When the error has no linked GitHub issue, confirm the Bugsnag project corresponds to this repository before proceeding.
    - If the issue does not belong to the current project, refuse to process it and inform the user.
    - **The issue must be open / active.** Read the status field off the loaded JSON and refuse to resolve a task that is already closed / resolved / done:
      - **GitHub:** the issue (or PR) `state` must be `OPEN`. Refuse when it is `CLOSED`.
