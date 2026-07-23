@@ -119,6 +119,20 @@ test('merge-github-pr post-merge step includes conditional worktree cleanup with
     expect($merge)->toContain('git worktree prune');
 });
 
+test('merge-github-pr billing exception honours an explicit merge-anytime request', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+
+    // An explicit "merge anytime" request waives the substitute local build for billing entries.
+    expect($merge)->toContain('Explicit "merge anytime" request waives the substitute build');
+    // The waiver never widens beyond confirmed billing / account-limit entries.
+    expect($merge)->toContain('strictly **billing-only**');
+    // A general merge request must not trigger the waiver.
+    expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
+    // The waiver must stay auditable in the merge report.
+    expect($merge)->toContain('waived by the caller\'s explicit "merge anytime" request');
+});
+
 test('resolve-random skills are not shipped in source skills directory', function (): void {
     $packageDir = dirname(__DIR__, 2);
     expect(is_dir($packageDir . '/skills/resolve-random-github-issue'))->toBeFalse();
