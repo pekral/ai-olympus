@@ -17,7 +17,7 @@ Merge pull requests that meet all required conditions.
 - Apply @rules/git/general.mdc
 - **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — 0 Critical + 0 Moderate findings (Minor does not block). This is the hard merge gate from `@rules/git/general.mdc` *Merging*; it is mandatory on every merge and is verified in step 2 below.
 - Never merge PRs with conflicts
-- Never merge PRs with failing CI (unless explicitly instructed)
+- Never merge PRs with failing CI — the only sanctioned relaxation is the *GitHub Actions billing exception* below; no other explicit instruction, including "merge anytime", overrides a real CI failure
 - Never bypass required approvals or protections
 - The only tolerated CI failure is a **GitHub Actions billing / account-limit error**, and only when a **green local `composer build` on the exact head commit** stands in for the missing CI signal — or when the caller **explicitly requested a "merge anytime"**, which waives the substitute build for billing entries only (see *GitHub Actions billing exception* below). Any other failure — real test failure, lint, static analysis — still blocks.
 

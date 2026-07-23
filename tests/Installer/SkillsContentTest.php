@@ -131,6 +131,10 @@ test('merge-github-pr billing exception honours an explicit merge-anytime reques
     expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
     // The waiver must stay auditable in the merge report.
     expect($merge)->toContain('waived by the caller\'s explicit "merge anytime" request');
+    // The failing-CI constraint must name the billing exception as the only sanctioned relaxation,
+    // so no generic "explicitly instructed" escape hatch can override a real CI failure.
+    expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
+    expect($merge)->not->toContain('Never merge PRs with failing CI (unless explicitly instructed)');
 });
 
 test('resolve-random skills are not shipped in source skills directory', function (): void {
