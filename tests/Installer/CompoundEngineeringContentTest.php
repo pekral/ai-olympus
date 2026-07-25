@@ -254,19 +254,18 @@ test('newly created tracker issues get the single most relevant existing label (
     // JIRA labels carry no description or registry; harvest via JQL and match by name only.
     expect($rule)->toContain('labels IS NOT EMPTY');
 
-    // Every one of the 4 call sites carries a one-line reference to the rule section.
+    // Every one of the 3 call sites carries a one-line reference to the rule section.
     $createIssue = (string) file_get_contents($packageDir . '/skills/create-issue/SKILL.md');
     $createIssuesFromText = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
     // resolve-issue's per-tracker filing mechanics were extracted to a reference (issue #59).
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
-    $metis = (string) file_get_contents($packageDir . '/agents/metis.md');
 
     expect($createIssue)->toContain('Label newly created tracker issues');
     expect($createIssuesFromText)->toContain('Label newly created tracker issues');
     expect($resolveIssue)->toContain('Label newly created tracker issues');
-    expect($metis)->toContain('Label newly created tracker issues');
 
     // Additive-only: the pre-existing EPIC structural-label mechanism stays untouched.
     expect($createIssuesFromText)->toContain('EPIC parent & sub-issues');
     expect($createIssuesFromText)->toContain('gh label create EPIC');
+    expect($createIssuesFromText)->toContain('Part of #<parent>');
 });

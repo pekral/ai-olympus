@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: seven specialized subagents (`daidalos` orchestration, `metis` analysis, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
+**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: six specialized subagents (`daidalos` orchestration, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
 
 ## Why This Package
 
@@ -33,7 +33,7 @@ vendor/bin/agent-skills install --force
 The installer targets **Claude Code only**:
 
 - `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
-- `.claude/agents` (the seven subagents)
+- `.claude/agents` (the six subagents)
 - `CLAUDE.md` in the project root
 
 When the package is required via Composer, sources are read from `vendor/agentic-vibes/laravel-agent-skills/rules` and `vendor/agentic-vibes/laravel-agent-skills/skills`.
@@ -131,26 +131,14 @@ Implements an issue from context or a tracker link, runs local checks (`composer
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/metis.png" alt="metis avatar" width="80"></td>
-<td valign="top">
-
-**`metis` — problem-analysis advisor** · read-only
-
-Analyses a problem or a vague assignment, proposes the smallest safe solution, and publishes a reusable plan as a GitHub issue. Never implements — hand its plan to `talos`.
-
-**Orchestrates:** `analyze-problem`
-
-</td>
-</tr>
-<tr>
 <td width="96" valign="top"><img src="assets/agents/daidalos.png" alt="daidalos avatar" width="80"></td>
 <td valign="top">
 
 **`daidalos` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `metis` (analysis), `talos` (implementation), `apollon` (scoped validation), `argos` (quality CR), and `athena` (security CR) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
+The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation), `apollon` (scoped validation), `argos` (quality CR), and `athena` (security CR) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
-**Orchestrates:** `metis`, `talos`, `apollon`, `argos`, `athena` (dispatched)
+**Orchestrates:** `talos`, `apollon`, `argos`, `athena` (dispatched)
 
 </td>
 </tr>
@@ -233,22 +221,6 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 > [!NOTE]
 > **If `talos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
 
-### How to use `metis` in practice
-
-1. Install for Claude Code, exactly as for `argos` / `talos` — agents land in `.claude/agents/`.
-
-2. Invoke it with a **subject** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just a problem you want thought through:
-
-   ```text
-   @metis analyse #123
-   @metis analyse https://your.atlassian.net/browse/PROJ-42
-   @metis analyse why the nightly export job times out
-   ```
-
-3. `metis` runs `analyze-problem`, then returns a handoff: `Analysis done` + a link to the published plan-artifact issue + the subject link + a one-line root cause + the recommended solution.
-
-`metis` is **read-only** — it analyses and plans, but never edits code, commits, or implements. Hand its plan issue to `talos` to build next.
-
 ### How to use `daidalos` in practice
 
 `daidalos` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
@@ -263,7 +235,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
    @daidalos implement a dark-mode toggle for the settings page
    ```
 
-3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: ambiguous / large work → `metis` (analysis → plan) → `talos`; clear work → `talos` directly; then `argos` for the review-and-fix loop to convergence. For a broad subject that bundles separable concerns → `metis` decomposes it into multiple structured issues via `create-issues-from-text` (with `## Dependencies` and planned resolve order) and reports the list of created issues — no PR on this path. It returns a handoff naming the chosen route and reason, written in the same language as your request.
+3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `talos`; everything else → `talos` directly; then `argos` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
 `daidalos` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
 

@@ -75,16 +75,19 @@ test('agents directory ships the talos code-writing subagent with required front
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
 
-test('agents directory ships the metis problem-analysis subagent with required frontmatter', function (): void {
+test('the roster ships no general problem-analysis subagent and daidalos routes accordingly', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/metis.md';
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    expect(is_file($agentPath))->toBeTrue();
+    // The analysis subagent and its avatar are gone from the package.
+    expect(is_file($packageDir . '/agents/metis.md'))->toBeFalse();
+    expect(is_file($packageDir . '/assets/agents/metis.png'))->toBeFalse();
 
-    $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: metis');
-    expect($content)->toContain('tools: Read, Glob, Grep, Bash');
-    expect($content)->toContain('@skills/analyze-problem/SKILL.md');
+    // Only the security-focused analysis has a specialist (athena); a general analysis request stops.
+    expect($daidalos)->toContain('There is no general (non-security) analysis agent in the roster');
+    expect($daidalos)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
+    // A subject too broad for one PR is reported back instead of being decomposed by an agent.
+    expect($daidalos)->toContain('Too broad for one PR');
 });
 
 test('agents directory ships the daidalos orchestrator subagent with required frontmatter', function (): void {
@@ -184,7 +187,7 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['metis', 'talos', 'argos', 'apollon', 'athena', 'hermes'] as $agent) {
+    foreach (['talos', 'argos', 'apollon', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('Shared task brief');
         expect($content)->toContain('.claude/run/');
@@ -230,12 +233,11 @@ test('every agent definition sets the model effort to max in frontmatter, except
     }
 });
 
-test('daidalos delegates the end-to-end run by dispatching metis, talos and argos to convergence', function (): void {
+test('daidalos delegates the end-to-end run by dispatching talos and argos to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
-    expect($content)->toContain('dispatch `metis` through the Task tool');
     expect($content)->toContain('Dispatch `talos` through the Task tool');
     expect($content)->toContain('Dispatch `argos` through the Task tool');
     // The implementation step still routes through resolve-issue (owned by talos), and the convergence gate is named.
@@ -251,20 +253,6 @@ test('daidalos dispatches athena for a pre-implementation security-risk analysis
     expect($content)->toContain('dispatch `athena` through the Task tool');
     expect($content)->toContain('security analysis mode');
     expect($content)->toContain('Security analysis done');
-});
-
-test('daidalos runs the pre-implementation metis and athena analyses in parallel (issue #66)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-
-    // Both are read-only analyses of the same single source, so they parallelise
-    // like argos ‖ athena — not sequential.
-    expect($content)->toContain('in parallel** — two `Task` invocations in one message');
-    expect($content)->toContain('issue #66');
-    // The barrier: wait for both handoffs before dispatching talos.
-    expect($content)->toContain('wait for **both** `Analysis done` and `Security analysis done`');
-    // This within-one-source parallelism does not contradict the no-fan-out-across-sources rule.
-    expect($content)->toContain('does not contradict *Sequential processing of multiple sources*');
 });
 
 test(
@@ -283,28 +271,6 @@ test(
     },
 );
 
-test('daidalos marks a cross-cutting mix of requirements as an EPIC with linked sub-issues', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-
-    // daidalos detects the cross-cutting mix and dispatches metis to build the EPIC parent + sub-issues.
-    expect($daidalos)->toContain('EPIC parent');
-    expect($daidalos)->toContain('one sub-issue per application area');
-    expect($daidalos)->toContain('linked back to the parent');
-
-    // The EPIC variant wins over the plain decomposition bullet when both could apply.
-    expect($daidalos)->toContain('this EPIC variant takes precedence');
-
-    // EPIC run-mode parity: the handoff contract omits PR / feedback for an EPIC run too.
-    expect($daidalos)->toContain('or an EPIC run, which have no PR');
-
-    // The how lives in the create-issues-from-text skill, which daidalos / metis defer to.
-    $skill = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
-    expect($skill)->toContain('EPIC parent & sub-issues');
-    expect($skill)->toContain('gh label create EPIC');
-    expect($skill)->toContain('Part of #<parent>');
-});
-
 test('daidalos processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
@@ -312,8 +278,8 @@ test('daidalos processes multiple resolved sources sequentially and never fans t
     // The concurrency section processes a single request's multiple sources strictly one at a time.
     expect($content)->toContain('Sequential processing of multiple sources');
     expect($content)->toContain('one at a time, strictly sequentially — never in parallel');
-    // The analysis-only branch dispatches metis sequentially, not as a parallel fan-out.
-    expect($content)->toContain('dispatch their `metis` runs one after another — strictly sequentially, never in parallel');
+    // The analysis-only branch dispatches athena sequentially, not as a parallel fan-out.
+    expect($content)->toContain('dispatch their `athena` runs one after another — strictly sequentially, never in parallel');
     // No fan-out across sources in one message.
     expect($content)->toContain('Do **not** fan work out across sources');
     // Each source still gets its own per-source brief.
@@ -408,7 +374,7 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daidalos', 'talos', 'argos', 'athena', 'metis', 'apollon', 'hermes'] as $agent) {
+    foreach (['daidalos', 'talos', 'argos', 'athena', 'apollon', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
