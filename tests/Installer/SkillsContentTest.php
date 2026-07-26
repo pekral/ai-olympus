@@ -1137,3 +1137,28 @@ test('review loop uses a cheap diff-scoped gate and a full final gate (issue #65
     expect($process)->toContain('Loop gate vs. final gate (issue #65)');
     expect($process)->toContain('Final gate — run the full build once before pushing');
 });
+
+test('savings-mode build-gate cache never skips the mandatory full run on the exact final head SHA before merge (issue #119)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain('### Savings-mode build-gate cache (opt-in, issue #119)');
+    expect($gates)->toContain('## Savings mode: on');
+    expect($gates)->toContain('## Build gate cache');
+    expect($gates)->toContain('git stash create');
+    expect($gates)->toContain('**This never applies to the mandatory full run on the exact final head SHA immediately before merge**');
+
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($process)->toContain(
+        'this Finalization run is still an intermediate step relative to the mandatory full run on the exact head SHA immediately before merge',
+    );
+    expect($process)->toContain('a cache hit here never substitutes for that final check');
+
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain('**Savings-mode cache reuse (opt-in, never a weaker check).**');
+    expect($merge)->toContain('only when that entry\'s recorded tree hash exactly equals the hash of this exact head commit');
+    expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
+
+    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
+    expect($apollon)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
+});

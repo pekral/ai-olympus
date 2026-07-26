@@ -269,3 +269,66 @@ test('newly created tracker issues get the single most relevant existing label (
     expect($createIssuesFromText)->toContain('gh label create EPIC');
     expect($createIssuesFromText)->toContain('Part of #<parent>');
 });
+
+test(
+    'compound-engineering rule requires every orchestrator turn to end in a result or a hard blocker, never a narrated plan (issue #119)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    
+        // The section heading must exist and state the binary stopping condition.
+        expect($rule)->toContain('## Orchestrator turns must end in a result or a hard blocker, never a narrated plan');
+        expect($rule)->toContain('**(a) A completed result**');
+        expect($rule)->toContain('**(b) An explicit hard blocker**');
+    
+        // The dispatch must be synchronous in the same turn — never a promised future one.
+        expect($rule)->toContain('dispatch **must happen synchronously, in the same turn**');
+    
+        // This is unconditional — a correctness fix, never gated behind the opt-in savings mode.
+        expect($rule)->toContain('it applies unconditionally, whether or not `Savings mode` below is engaged');
+    
+        // daidalos (the only orchestrator today) references the rule and applies it every turn.
+        expect($daidalos)->toContain('*Orchestrator turns must end in a result or a hard blocker, never a narrated plan*');
+        expect($daidalos)->toContain('the `Task` invocation happens in the same turn');
+    },
+);
+
+test('compound-engineering rule defines an opt-in savings mode that never reduces review depth or process (issue #119)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The section heading and the opt-in toggle contract.
+    expect($rule)->toContain('## Savings mode (opt-in, token-efficient orchestration)');
+    expect($rule)->toContain('## Savings mode: on');
+    expect($rule)->toContain('## Savings mode: off');
+    expect($rule)->toContain('**Opt-in only, off by default.**');
+    expect($rule)->toContain('never inferred, never defaulted on, never silently applied');
+
+    // AC1 — engaging the mode never changes output artifacts.
+    expect($rule)->toContain('**Never changes output artifacts.**');
+
+    // The four mechanisms mapped to the four remaining waste sources.
+    expect($rule)->toContain('Shared context pack + disjoint reviewer checklists');
+    expect($rule)->toContain('Build-gate cache keyed by the working-tree content hash');
+    expect($rule)->toContain('Single coverage-verdict owner when a CR reviewer runs in an isolated worktree');
+    expect($rule)->toContain('Thin orchestration reasoning for a linear pipeline');
+
+    // AC3 — the cache never skips the mandatory full run on the exact final head SHA before merge.
+    expect($rule)->toContain('The full build gate must still run at least once, unconditionally, on the exact literal final head SHA before merge');
+    expect($rule)->toContain('reusing a result recorded for a different hash is never permitted');
+
+    // AC2 — the preserved-invariants list proves no mechanism reduces review depth.
+    expect($rule)->toContain('### What never changes (preserved invariants)');
+    expect($rule)->toContain('the same two independent reviewers run (`argos` + `athena`)');
+    expect($rule)->toContain('the same convergence gate applies (`0 Critical + 0 Moderate`, `maxIterations = 3`)');
+    expect($rule)->toContain('the same full build gate runs at least once on the exact final head SHA before merge');
+    expect($rule)->toContain('documentation updates ship exactly as without the flag');
+
+    // The design-rationale pointer (AC2 — why tokens actually drop, since this repo has no live benchmark harness).
+    expect($rule)->toContain('`docs/agents.md` *Savings mode*');
+
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->toContain('## Savings mode (opt-in, token-efficient orchestration)');
+    expect($docs)->toContain('Why it saves tokens without reducing review depth');
+});

@@ -37,6 +37,8 @@ When dispatched to analyse a security-focused task before any code is written, y
 
 ## Security review mode (post-implementation)
 
+**Savings mode:** when the shared brief records `## Savings mode: on` (`@rules/compound-engineering/general.mdc` *Savings mode*), read the brief's `## Context pack` (diff / assignment / acceptance criteria / invariants) instead of independently re-deriving them from the tracker, and check only the invariants the brief's disjoint-checklist split assigns to you — security-exclusive findings are never split; only the shared / architectural middle ground `argos` owns is skipped here.
+
 1. **Detect the source** using `@skills/resolve-issue/references/source-detection.md`. Load context only through the deterministic loaders — never call `gh pr view`, `acli`, or tracker REST endpoints directly.
 
 2. **Run all security skills in sequence over the resolved diff:**
@@ -97,6 +99,7 @@ Because you and `argos` run as two concurrent CR passes, you **may run your secu
 - Create it with `git worktree add <path> <ref>` where `<ref>` is the PR head you are reviewing. This is the only filesystem write you make beyond the shared-brief append, and it adds **no** change to tracked files, branches, or history — your read-only stance is unchanged. You **read** in the worktree; you never edit, commit, push, or merge there.
 - **Record the worktree path in your handoff** (and in the shared-brief append) so `daidalos` removes it during its cleanup (step 7 of `agents/daidalos.md`) — this is how it keeps the repository clean after the run / merge.
 - When you run **standalone** (no `daidalos` orchestrating the cleanup), remove your own worktree after the review: verify it is not the active tree and has no uncommitted changes (never `--force`), then `git worktree remove <path>` followed by `git worktree prune`.
+- When this review runs in such a worktree and the brief records `## Savings mode: on`, do not assert an *executed* coverage-gate verdict from a static read of the diff (no `vendor/` exists here to run the suite) — reuse a fresh CI coverage result on the exact head SHA when one exists, and otherwise report the coverage gate as deferred to `apollon`, per `@rules/compound-engineering/general.mdc` *Savings mode*.
 
 ## Output — handoff to the caller
 

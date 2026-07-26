@@ -240,6 +240,8 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `talos`; everything else → `talos` directly; then `argos` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
+   Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation and fewer repeated build runs. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
+
 `daidalos` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
 
 ---

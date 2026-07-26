@@ -379,3 +379,53 @@ test('every agent keeps commit messages and PR titles in English regardless of t
         expect($content)->toContain('commit messages and PR titles are always English');
     }
 });
+
+test('daidalos decides the opt-in savings mode once during gather and never narrates an undispatched plan (issue #119)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // Decided once, during gather, only on an explicit user request.
+    expect($daidalos)->toContain('**Savings mode (opt-in).** Decide once, here');
+    expect($daidalos)->toContain('## Savings mode: on` or `## Savings mode: off`');
+
+    // The dedicated section explains what the dispatcher does differently.
+    expect($daidalos)->toContain('## Savings mode (opt-in)');
+    expect($daidalos)->toContain('## Orchestration mode: thin');
+    expect($daidalos)->toContain('The dispatch sequence is unchanged.');
+
+    // Brief layout carries the new fields alongside the pre-existing ones.
+    expect($daidalos)->toContain('## Context pack');
+    expect($daidalos)->toContain('## Build gate cache');
+});
+
+test(
+    'argos and athena read the shared context pack and defer an isolated-worktree coverage verdict to apollon when savings mode is on (issue #119)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+    
+        foreach (['argos', 'athena'] as $agent) {
+            $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+            expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
+            expect($content)->toContain('read the brief\'s `## Context pack`');
+            expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
+            expect($content)->toContain('otherwise report the coverage gate as deferred to `apollon`');
+        }
+    
+        // Each reviewer's own exclusive lens is preserved — only the shared middle ground is split.
+        $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
+        expect($argos)->toContain('your own quality / architecture / optimisation lens is never split');
+    
+        $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+        expect($athena)->toContain('security-exclusive findings are never split');
+    },
+);
+
+test('apollon owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
+
+    expect($apollon)->toContain('**Savings-mode build-gate cache (opt-in).**');
+    expect($apollon)->toContain('check the brief\'s `## Build gate cache`');
+    expect($apollon)->toContain('**Own the coverage verdict when savings mode is on.**');
+    expect($apollon)->toContain('you are the sole authoritative source for the executed coverage number in this run');
+});
