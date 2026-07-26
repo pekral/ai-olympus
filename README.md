@@ -20,7 +20,7 @@
 - unified PHP coding guidelines for PHP 8.4 projects
 - Pest-based testing with mandatory code analysis and 100% coverage
 - strong focus on clean code: typed properties, SRP, no redundant comments
-- **48 comprehensive Agent skills** for automated workflows (v0.9.1)
+- **48 comprehensive Agent skills** for automated workflows
 - fast onboarding inside development repositories
 
 ## Installation
@@ -68,7 +68,9 @@ vendor/bin/agent-skills help                                  # print help
 vendor/bin/agent-skills install                                # install for Claude Code
 vendor/bin/agent-skills install --force                        # overwrite existing files
 vendor/bin/agent-skills install --symlink                      # prefer symlinks (fallback to copy)
+vendor/bin/agent-skills install --prune                        # remove files in target that no longer exist in source
 vendor/bin/agent-skills install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
+vendor/bin/agent-skills install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 ```
 
 ### Installer Flow
@@ -89,6 +91,7 @@ vendor/bin/agent-skills install --allow-bundled-scripts         # whitelist this
 | `--symlink`               | Create symlinks when the OS permits; automatically falls back to copy.                                                                                      |
 | `--prune`                 | Remove files in target that no longer exist in source.                                                                                                       |
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
+| `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `talos`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ---
@@ -248,10 +251,13 @@ Rules included in this package:
 | File                          | Description                                                | Scope    |
 |-------------------------------|------------------------------------------------------------|----------|
 | `php/core-standards.mdc`      | Project context, AI behavior, and unified PHP/Laravel coding standards | Always   |
+| `php/examples/named-arguments.md` | Named-arguments usage examples (good/avoid) supporting the PHP core standards | Always   |
+| `php/dependency-selection.mdc` | Composer dependency selection — activity and compatibility gates before adopting a new package | Dependencies |
 | `compound-engineering/general.mdc` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
 | `git/general.mdc`             | Unified git workflow, commits, and pull request rules       | Always   |
 | `code-review/general.mdc`     | Code review conventions and output rules                   | Always   |
 | `code-testing/general.mdc`    | Testing conventions and quality standards                  | Always   |
+| `api/general.mdc`             | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency | API      |
 | `refactoring/general.mdc`     | Shared refactoring definition (legacy → modern, incremental migration) | Refactor |
 | `jira/general.mdc`            | JIRA CLI usage and formatting rules                        | JIRA     |
 | `reports/general.mdc`         | Language rule for reports published to issue trackers (assignment language) | Always   |

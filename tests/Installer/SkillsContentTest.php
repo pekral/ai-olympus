@@ -290,6 +290,46 @@ test('readme reports the current skill count in the Why This Package bullet', fu
     expect($readme)->toContain($skillCount . ' comprehensive Agent skills');
 });
 
+test('readme rules overview table lists every rule file exactly once with no phantom rows (issue #102)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageDir . '/rules', FilesystemIterator::SKIP_DOTS),
+    );
+    $ruleFiles = [];
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile()) {
+            continue;
+        }
+
+        if (!in_array($file->getExtension(), ['mdc', 'md'], strict: true)) {
+            continue;
+        }
+
+        $ruleFiles[] = ltrim(str_replace($packageDir . '/rules', '', $file->getPathname()), '/');
+    }
+
+    sort($ruleFiles);
+
+    $sectionStart = strpos($readme, '## Rules Overview');
+    assert($sectionStart !== false);
+    $sectionEnd = strpos($readme, "\n## ", $sectionStart + 1);
+    assert($sectionEnd !== false);
+    $section = substr($readme, $sectionStart, $sectionEnd - $sectionStart);
+
+    // Every table row's File column is a backtick-wrapped path at the start of the line;
+    // comparing the sorted extracted tokens against the sorted real file list catches a
+    // missing row, a duplicate row, and a phantom row (referencing a file that no longer
+    // exists) in a single assertion.
+    preg_match_all('/^\|\s*`([^`]+)`\s*\|/m', $section, $matches);
+    $tableFiles = $matches[1];
+    sort($tableFiles);
+
+    expect($tableFiles)->toBe($ruleFiles);
+});
+
 test('class-refactoring skill surfaces the speculative-interface refactoring', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');

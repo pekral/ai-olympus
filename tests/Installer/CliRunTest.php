@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use AgenticVibes\AgentSkills\Installer;
 use AgenticVibes\AgentSkills\InstallerPath;
+use AgenticVibes\AgentSkills\InstallOptions;
 
 test('run shows help when executed without arguments', function (): void {
     ob_start();
@@ -71,6 +72,42 @@ test('normalizeCliArguments splits --allow-subagent-writes from a concatenated a
 
     expect($normalized)->toContain('--editor=claude');
     expect($normalized)->toContain('--allow-subagent-writes');
+});
+
+test('readme documents every InstallOptions flag in both the command list and the CLI switches table (issue #102)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+
+    $constructor = new ReflectionClass(InstallOptions::class)->getConstructor();
+    assert($constructor !== null);
+
+    // Derive the live flag names from the constructor instead of hardcoding them, so a
+    // future flag added to InstallOptions without a matching README update fails here.
+    $flags = array_map(
+        static fn (ReflectionParameter $parameter): string => '--' . strtolower(
+            (string) preg_replace('/(?<!^)[A-Z]/', '-$0', $parameter->getName()),
+        ),
+        $constructor->getParameters(),
+    );
+
+    expect($flags)->not->toBeEmpty();
+
+    $commandsStart = strpos($readme, '### Available Commands');
+    assert($commandsStart !== false);
+    $commandsEnd = strpos($readme, '### Installer Flow', $commandsStart + 1);
+    assert($commandsEnd !== false);
+    $commandsSection = substr($readme, $commandsStart, $commandsEnd - $commandsStart);
+
+    $switchesStart = strpos($readme, '### CLI Switches');
+    assert($switchesStart !== false);
+    $switchesEnd = strpos($readme, "\n---", $switchesStart + 1);
+    assert($switchesEnd !== false);
+    $switchesSection = substr($readme, $switchesStart, $switchesEnd - $switchesStart);
+
+    foreach ($flags as $flag) {
+        expect($commandsSection)->toContain($flag);
+        expect($switchesSection)->toContain('`' . $flag . '`');
+    }
 });
 
 test('install without any flags succeeds and targets Claude Code only', function (): void {
