@@ -137,6 +137,30 @@ test('merge-github-pr billing exception honours an explicit merge-anytime reques
     expect($merge)->not->toContain('Never merge PRs with failing CI (unless explicitly instructed)');
 });
 
+test('dependency-only pull requests are exempt from the code-review merge gate', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // Canonical policy lives in the git rule.
+    $git = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+    expect($git)->toContain('### Dependency-only pull requests (code-review exemption)');
+    expect($git)->toContain('**Manifests and lockfiles only.**');
+    expect($git)->toContain('**Version bumps of already-present packages only.**');
+    expect($git)->toContain('**CI is green.**');
+
+    // merge-github-pr implements the exemption.
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain('#### Dependency-only PR exemption (code review not required)');
+    // Qualification is evidence-based, never inferred from the author being a bot.
+    expect($merge)->toContain('never from the PR title, the branch name, or the author being a bot');
+    expect($merge)->toContain('files[]');
+    // Adding or removing a package keeps the full code-review gate.
+    expect($merge)->toContain('@rules/php/dependency-selection.mdc');
+    // The exemption covers the code-review gate only.
+    expect($merge)->toContain('The exemption covers the code-review gate **and nothing else**.');
+    // The waiver must stay auditable in the merge report.
+    expect($merge)->toContain('the code-review gate was exempted as a dependency-only PR');
+});
+
 test('resolve-random skills are not shipped in source skills directory', function (): void {
     $packageDir = dirname(__DIR__, 2);
     expect(is_dir($packageDir . '/skills/resolve-random-github-issue'))->toBeFalse();
