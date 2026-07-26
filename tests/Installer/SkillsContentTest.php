@@ -1154,9 +1154,13 @@ test('savings-mode build-gate cache never skips the mandatory full run on the ex
     );
     expect($process)->toContain('a cache hit here never substitutes for that final check');
 
+    // The cache key is a tree hash compared against a tree hash — never a bare commit SHA — and a
+    // reused entry must carry this-run provenance, not just a matching hash (issue #119 CR fix).
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     expect($merge)->toContain('**Savings-mode cache reuse (opt-in, never a weaker check).**');
-    expect($merge)->toContain('only when that entry\'s recorded tree hash exactly equals the hash of this exact head commit');
+    expect($merge)->toContain('only when that entry\'s recorded hash exactly equals the tree hash of this exact head commit');
+    expect($merge)->toContain('a bare commit SHA can never equal a tree hash, so the comparison is always tree-to-tree');
+    expect($merge)->toContain('the entry carries this-run provenance');
     expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
 
     $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');

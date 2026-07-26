@@ -631,6 +631,30 @@ test('CR base review-output template short-circuits coverage section (issue #528
     expect($content)->toContain('omitted on a clean 100% pass');
 });
 
+test(
+    'coverage gate names the savings-mode isolated-worktree deferral as a sanctioned, non-Critical exception with a defined owner (issue #119)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+    
+        $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+        expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
+        expect($codeReview)->toContain('reports the gate as `deferred to apollon` instead of the Critical finding the bullet above otherwise requires');
+    
+        $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
+        expect($codeTesting)->toContain('**Sanctioned exception:**');
+        expect($codeTesting)->toContain('reports `deferred to apollon` here instead of a Critical finding');
+    
+        $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+        expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
+    
+        // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
+        // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
+        $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+        expect($github)->toContain('a savings-mode `deferred to apollon` verdict (non-Critical');
+        expect($github)->toContain('render `Coverage: deferred to apollon (isolated worktree, no vendor/)`');
+    },
+);
+
 test('code-review skill mandates a standalone Laravel architecture walk on every CR run (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(

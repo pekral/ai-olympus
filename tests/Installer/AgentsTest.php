@@ -396,6 +396,11 @@ test('daidalos decides the opt-in savings mode once during gather and never narr
     // Brief layout carries the new fields alongside the pre-existing ones.
     expect($daidalos)->toContain('## Context pack');
     expect($daidalos)->toContain('## Build gate cache');
+
+    // The cache is written by talos / apollon only — argos/athena stay read-only and never run a
+    // full build, so they never write this section (issue #119 CR fix for the cross-file contradiction
+    // with argos.md's "the only write you perform" clause).
+    expect($daidalos)->toContain('`argos` and `athena` never write this section');
 });
 
 test(
@@ -409,12 +414,18 @@ test(
             expect($content)->toContain('read the brief\'s `## Context pack`');
             expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
             expect($content)->toContain('otherwise report the coverage gate as deferred to `apollon`');
+            // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
+            // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
+            expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
+            // Coverage ownership is a first-class handoff field, not folded into a status string
+            // (issue #119 CR fix — agent-new-mode-status-result-parity).
+            expect($content)->toContain('**Coverage:** `executed`');
         }
-    
+
         // Each reviewer's own exclusive lens is preserved — only the shared middle ground is split.
         $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
         expect($argos)->toContain('your own quality / architecture / optimisation lens is never split');
-    
+
         $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
         expect($athena)->toContain('security-exclusive findings are never split');
     },
@@ -428,4 +439,9 @@ test('apollon owns the executed coverage verdict and reuses the cached build gat
     expect($apollon)->toContain('check the brief\'s `## Build gate cache`');
     expect($apollon)->toContain('**Own the coverage verdict when savings mode is on.**');
     expect($apollon)->toContain('you are the sole authoritative source for the executed coverage number in this run');
+
+    // Coverage is a dedicated handoff field, and the scoped status definition states whether the
+    // coverage gate is included (issue #119 CR fix — agent-new-mode-status-result-parity).
+    expect($apollon)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
+    expect($apollon)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });

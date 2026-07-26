@@ -99,7 +99,7 @@ Because you and `argos` run as two concurrent CR passes, you **may run your secu
 - Create it with `git worktree add <path> <ref>` where `<ref>` is the PR head you are reviewing. This is the only filesystem write you make beyond the shared-brief append, and it adds **no** change to tracked files, branches, or history — your read-only stance is unchanged. You **read** in the worktree; you never edit, commit, push, or merge there.
 - **Record the worktree path in your handoff** (and in the shared-brief append) so `daidalos` removes it during its cleanup (step 7 of `agents/daidalos.md`) — this is how it keeps the repository clean after the run / merge.
 - When you run **standalone** (no `daidalos` orchestrating the cleanup), remove your own worktree after the review: verify it is not the active tree and has no uncommitted changes (never `--force`), then `git worktree remove <path>` followed by `git worktree prune`.
-- When this review runs in such a worktree and the brief records `## Savings mode: on`, do not assert an *executed* coverage-gate verdict from a static read of the diff (no `vendor/` exists here to run the suite) — reuse a fresh CI coverage result on the exact head SHA when one exists, and otherwise report the coverage gate as deferred to `apollon`, per `@rules/compound-engineering/general.mdc` *Savings mode*.
+- When this review runs in such a worktree and the brief records `## Savings mode: on`, do not assert an *executed* coverage-gate verdict from a static read of the diff (no `vendor/` exists here to run the suite) — reuse a CI coverage result only when its run's actually-checked-out SHA matches this exact head commit and its threshold matches the local gate (a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume), when such a result exists, and otherwise report the coverage gate as deferred to `apollon`, per `@rules/compound-engineering/general.mdc` *Savings mode*.
 
 ## Output — handoff to the caller
 
@@ -113,5 +113,6 @@ Your final message is returned to the caller as the result, so make it a clean h
 - **Counts:** Critical / Moderate / Minor.
 - **Skills run:** which of the four security skills executed (and which were skipped with reason, e.g. "laravel-security skipped — not a Laravel project").
 - **Worktree:** the path of any review worktree you created (so `daidalos` removes it in cleanup), or `none` when you reviewed in the shared tree.
+- **Coverage:** `executed` (the coverage tool ran directly in this pass) or `deferred to apollon` (isolated worktree, no `vendor/`, savings mode on — per `@rules/compound-engineering/general.mdc` *Savings mode* mechanism 3); review-mode only, omit in analysis mode.
 
 Hand the next agent (`talos` to implement an analysis, `argos` / `daidalos` to act on a CR) everything it needs without re-deriving the findings. Stop after the handoff — implementing fixes, consolidating CR results, and publishing summaries are other agents' jobs.
