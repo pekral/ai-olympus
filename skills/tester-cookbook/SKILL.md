@@ -10,7 +10,7 @@ metadata:
 - Apply `@rules/php/core-standards.mdc`
 - Apply `@rules/git/general.mdc`
 - Apply `@rules/jira/general.mdc` — JIRA comments must be in Wiki Markup, never Markdown
-- Apply `@rules/reports/general.mdc` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ECOMAIL-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
+- Apply `@rules/reports/general.mdc` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
 - Read-only relative to the codebase. The skill never modifies code; it only publishes a JIRA comment.
 - Never change the JIRA task status — per `@rules/jira/general.mdc`, status transitions are handled by humans only.
 - The audience is an internal QA tester who is not a programmer. Everything in the report must be verifiable by clicking in the application, opening a report screen, reading a delivered email/SMS, or checking the account balance. Anything that cannot be verified that way belongs in the dev-team report as a flag for the development team, not as a tester action.
@@ -28,7 +28,7 @@ metadata:
 - The dev team needs a clear, concrete list of symptoms the tester should report back if observed; the tester optionally needs a brief click-path to reach the affected area.
 
 ## Inputs
-- `JIRA_KEY` — required. The JIRA task that owns the assignment (e.g. `ECOMAIL-1234`).
+- `JIRA_KEY` — required. The JIRA task that owns the assignment (e.g. `ACME-1234`).
 - `PR_NUMBER` — optional. A specific linked pull request to focus on; when omitted, use every PR linked from the JIRA task.
 
 ## Required approach

@@ -28,7 +28,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: parse-comments.sh <KEY|URL>
 
-  KEY  JIRA issue key (e.g. ECOMAIL-1234)
+  KEY  JIRA issue key (e.g. ACME-1234)
   URL  /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
 EOF
 }

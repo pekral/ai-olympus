@@ -11,7 +11,7 @@
 #   transition-to-code-review.sh <KEY|URL> [<STATUS>]
 #
 # Inputs:
-#   KEY|URL  Bare JIRA key (e.g. ECOMAIL-1234), a /browse/<KEY> URL, or any URL
+#   KEY|URL  Bare JIRA key (e.g. ACME-1234), a /browse/<KEY> URL, or any URL
 #            containing ?selectedIssue=<KEY>.
 #   STATUS   Optional exact target status name. Resolution order:
 #              1. this argument
@@ -56,7 +56,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: transition-to-code-review.sh <KEY|URL> [<STATUS>]
 
-  KEY     JIRA issue key (e.g. ECOMAIL-1234)
+  KEY     JIRA issue key (e.g. ACME-1234)
   URL     /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   STATUS  optional exact target status name (default: $JIRA_CODE_REVIEW_STATUS
           or "Code Review"); must be a review status per the review-name guard

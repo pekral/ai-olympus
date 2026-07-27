@@ -35,7 +35,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: gather-issue-context.sh <KEY|URL>
 
-  KEY  JIRA issue key (e.g. ECOMAIL-1234)
+  KEY  JIRA issue key (e.g. ACME-1234)
   URL  /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
 
 Env: JIRA_CONTEXT_DEPTH (default 1), JIRA_CONTEXT_MAX_ISSUES (default 25)

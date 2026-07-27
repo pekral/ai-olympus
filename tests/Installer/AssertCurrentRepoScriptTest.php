@@ -56,7 +56,7 @@ test('guard self-test blocks foreign repositories and path traversal', function 
     // Traversal is the bypass that made the first version worthless: the first
     // two path segments read as ours while the server resolves a different repo.
     expect($content)->toContain('\'traversal in reference\'');
-    expect($content)->toContain('pekral/ecomail-cockpit');
+    expect($content)->toContain('attacker/other-repo');
     expect($content)->toContain('\'foreign repo\'');
     expect($content)->toContain('\'foreign owner\'');
     expect($content)->toContain('\'foreign repo name\'');

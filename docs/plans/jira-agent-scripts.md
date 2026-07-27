@@ -1,6 +1,6 @@
 # Plán: Bash scripty pro AI agenta nad JIRA
 
-Stav: **implementováno a ověřeno** proti SS-3046 (build 212 testů zelený). Vzniklo ze
+Stav: **implementováno a ověřeno** proti reálnému JIRA ticketu (build 212 testů zelený). Vzniklo ze
 `/analyze-problem`, rozsah pak rozšířen uživatelem o komplexní context-loader.
 
 Reálně dodáno (oproti původnímu návrhu níže přibyl `gather-issue-context.sh`):

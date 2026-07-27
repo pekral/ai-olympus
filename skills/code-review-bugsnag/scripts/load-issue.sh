@@ -8,7 +8,7 @@
 #   - a Bugsnag dashboard URL, e.g.
 #     https://app.bugsnag.com/<org-slug>/<project-slug>/errors/<error-id>?filters[...]
 #     (the optional `www.` host prefix is tolerated)
-#   - a slash triple, e.g. ecomail-dot-cz/ecomailapp-dot-cz-1/6a295f14b8b7f261a8ade4db
+#   - a slash triple, e.g. your-org/your-project/0123456789abcdef01234567
 #
 # Auth:
 #   Reads a personal Data Access API token from the BUGSNAG_TOKEN env var

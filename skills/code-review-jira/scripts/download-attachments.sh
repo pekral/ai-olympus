@@ -32,7 +32,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: download-attachments.sh <KEY|URL> [--dest DIR]
 
-  KEY|URL   JIRA issue key (e.g. ECOMAIL-1234) or a /browse/<KEY> URL
+  KEY|URL   JIRA issue key (e.g. ACME-1234) or a /browse/<KEY> URL
   --dest    quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
 
 Auth:

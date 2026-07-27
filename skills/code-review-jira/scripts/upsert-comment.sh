@@ -9,7 +9,7 @@
 #   <body-producer> | upsert-comment.sh <KEY|URL> - [<MARKER_KEY>]
 #
 # Inputs:
-#   KEY|URL     Bare JIRA issue key (e.g. ECOMAIL-1234), a /browse/<KEY> URL,
+#   KEY|URL     Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL,
 #               or any URL containing ?selectedIssue=<KEY>.
 #   BODY_FILE   Path to a file holding the JIRA Wiki Markup body, or `-` to
 #               read from stdin.
@@ -36,7 +36,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: upsert-comment.sh <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
-  KEY         JIRA issue key (e.g. ECOMAIL-1234)
+  KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
   MARKER_KEY  optional, accepted for backward compatibility but ignored

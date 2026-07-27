@@ -12,7 +12,7 @@
 #   transition-to-in-progress.sh <KEY|URL> [<STATUS>]
 #
 # Inputs:
-#   KEY|URL  Bare JIRA key (e.g. ECOMAIL-1234), a /browse/<KEY> URL, or any URL
+#   KEY|URL  Bare JIRA key (e.g. ACME-1234), a /browse/<KEY> URL, or any URL
 #            containing ?selectedIssue=<KEY>.
 #   STATUS   Optional exact target status name. Resolution order:
 #              1. this argument
@@ -62,7 +62,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: transition-to-in-progress.sh <KEY|URL> [<STATUS>]
 
-  KEY     JIRA issue key (e.g. ECOMAIL-1234)
+  KEY     JIRA issue key (e.g. ACME-1234)
   URL     /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   STATUS  optional exact target status name (default: $JIRA_IN_PROGRESS_STATUS
           or "In Progress"); must be a progress status per the progress-name guard

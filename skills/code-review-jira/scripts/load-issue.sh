@@ -5,8 +5,8 @@
 #   load-issue.sh <KEY|URL>
 #
 # Accepts:
-#   - a bare issue key, e.g. ECOMAIL-1234
-#   - a /browse/<KEY> URL, e.g. https://ecomail.atlassian.net/browse/ECOMAIL-1234
+#   - a bare issue key, e.g. ACME-1234
+#   - a /browse/<KEY> URL, e.g. https://your-company.atlassian.net/browse/ACME-1234
 #   - any JIRA URL containing ?selectedIssue=<KEY> (atlOrigin and other query
 #     params are tolerated and ignored)
 #
@@ -78,11 +78,11 @@ usage() {
   cat >&2 <<'EOF'
 Usage: load-issue.sh <KEY|URL>
 
-  KEY    bare JIRA work-item key (e.g. ECOMAIL-1234)
+  KEY    bare JIRA work-item key (e.g. ACME-1234)
   URL    /browse/<KEY> URL or any URL with ?selectedIssue=<KEY>
 
 Env:
-  JIRA_SITE                  override the JIRA host (e.g. ecomail.atlassian.net)
+  JIRA_SITE                  override the JIRA host (e.g. your-company.atlassian.net)
   JIRA_DEV_SUMMARY_FIELD     customfield id feeding devSummary (default: customfield_10000)
 EOF
 }

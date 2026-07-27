@@ -154,7 +154,7 @@ github_nwo_from_url() {
   #
   # This split is the whole point of the function. Stripping userinfo with a
   # blind `${rest#*@}` cuts at the first `@` ANYWHERE — including one sitting
-  # in the path — which lets `…/pekral/ecomail-cockpit/issues/1@github.com/us/ours`
+  # in the path — which lets `…/attacker/other-repo/issues/1@github.com/us/ours`
   # read as ours while the loader (and GitHub) resolve the other repository.
   # Userinfo only ever lives inside the authority, so the authority has to be
   # isolated before it is touched.
@@ -394,7 +394,7 @@ self_test() {
   }
 
   local ours='https://github.com/agentic-vibes/laravel-agent-skills/issues/75'
-  local theirs='https://github.com/pekral/ecomail-cockpit/issues/2017'
+  local theirs='https://github.com/attacker/other-repo/issues/2017'
   local OURS_NWO='agentic-vibes/laravel-agent-skills'
 
   # Every remote spelling git accepts must recognise its own repository.
@@ -420,10 +420,10 @@ self_test() {
   #
   # An `@` in the PATH must not be mistaken for userinfo. Stripping at the
   # first `@` made the guard vouch for the trailing segment while the loader
-  # read `pekral/ecomail-cockpit` from the front. The verdict must follow the
+  # read `attacker/other-repo` from the front. The verdict must follow the
   # first two path segments, exactly as every other GitHub parser reads them.
   check 'userinfo lookalike in path' 'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/pekral/ecomail-cockpit/issues/1@github.com/agentic-vibes/laravel-agent-skills' 4
+    'https://github.com/attacker/other-repo/issues/1@github.com/agentic-vibes/laravel-agent-skills' 4
 
   # An SSH host alias is a local ~/.ssh/config name. Honouring it over https
   # accepted `github.com-evil.example`, which anyone can register.
@@ -437,15 +437,15 @@ self_test() {
 
   # Traversal, in every spelling that reaches a different repository.
   check 'traversal in reference'    'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/../../pekral/ecomail-cockpit/issues/1' 1
+    'https://github.com/agentic-vibes/laravel-agent-skills/../../attacker/other-repo/issues/1' 1
   check 'encoded traversal'         'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/%2e%2e/%2e%2e/pekral/ecomail-cockpit' 1
+    'https://github.com/agentic-vibes/laravel-agent-skills/%2e%2e/%2e%2e/attacker/other-repo' 1
   check 'double-encoded traversal'  'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/%252e%252e/pekral/ecomail-cockpit' 1
+    'https://github.com/agentic-vibes/laravel-agent-skills/%252e%252e/attacker/other-repo' 1
   check 'encoded separator in path' 'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills%2f..%2fpekral%2fecomail-cockpit' 1
+    'https://github.com/agentic-vibes/laravel-agent-skills%2f..%2fattacker%2fother-repo' 1
   check 'backslash separator'       'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills\..\pekral\ecomail-cockpit' 1
+    'https://github.com/agentic-vibes/laravel-agent-skills\..\attacker\other-repo' 1
 
   # Look-alike hosts and malformed input.
   check 'host suffix attack'        'https://github.com/agentic-vibes/laravel-agent-skills'     'https://github.com.evil.example/agentic-vibes/laravel-agent-skills' 1
