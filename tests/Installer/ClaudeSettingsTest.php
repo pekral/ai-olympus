@@ -367,7 +367,6 @@ test('applySubagentWritesIfRequested writes the allow entries when requested', f
 
 test('validateSubagentWritePermissions passes when every required entry is present', function (): void {
     $data = json_decode('{"permissions":{"allow":["Edit(//tmp/p/**)","Write(//tmp/p/**)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
-    assert($data instanceof stdClass);
 
     InstallerClaudeSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
 
@@ -376,7 +375,6 @@ test('validateSubagentWritePermissions passes when every required entry is prese
 
 test('validateSubagentWritePermissions throws when a required entry is missing', function (): void {
     $data = json_decode('{"permissions":{"allow":["Edit(//tmp/p/**)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
-    assert($data instanceof stdClass);
 
     expect(static function () use ($data): void {
         InstallerClaudeSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
