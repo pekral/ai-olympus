@@ -48,8 +48,8 @@
     "pestphp/pest-plugin": "^4.0",
     "pestphp/pest-plugin-type-coverage": "^4.0.4",
     "phpstan/extension-installer": "^1.4.3",
-    "phpstan/phpstan": "^2.2.5",
-    "phpstan/phpstan-deprecation-rules": "^2.0.4",
+    "phpstan/phpstan": "^2.2.6",
+    "phpstan/phpstan-deprecation-rules": "^2.0.5",
     "phpstan/phpstan-mockery": "^2.0",
     "phpstan/phpstan-phpunit": "^2.0.18",
     "roave/security-advisories": "dev-latest",
@@ -91,7 +91,7 @@
       "vendor/bin/phpstan analyse --memory-limit=2G"
     ],
     "build": [
-      "bin/agent-skills install --force",
+      "bin/agent-skills install --force --allow-subagent-writes",
       "@fix",
       "@check"
     ],
