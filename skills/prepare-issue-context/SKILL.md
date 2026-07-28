@@ -20,7 +20,7 @@ De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-l
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - **Read-only for production code.** This skill never modifies production source files. It is allowed to: create temporary seeders / factories / Tinker scripts under `database/seeders/`, `database/factories/`, or a scratch directory; insert rows into the **development** database; create scratch Pest tests that reproduce the bug. It is **never** allowed to mutate the production database, run destructive migrations, drop tables, push to the remote, or modify code in `src/` / `app/` outside of seed-only fixtures.
 - Never invent values that are not derivable from the assignment, the codebase, or the existing dev database. When a required value (account ID, contact phone, enum case, config key) cannot be resolved, list it as a gap — do not guess.
-- Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420604240203`-style sentinels, `qa-*` aliases) explicitly tagged as such.
+- Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420600000000`-style sentinels, `qa-*` aliases) explicitly tagged as such.
 - Apply `@rules/reports/general.mdc` — when a context-preparation summary is published to the tracker (via `@skills/pr-summary/SKILL.md`), it must be written in the language of the source assignment. The in-conversation `ready` / `blocked` status is allowed to stay in English.
 
 ---
@@ -75,7 +75,7 @@ When the mapping cannot be made (no matching entry point in the codebase, ambigu
 ### 4. Build the data inventory
 For every scenario that mapped cleanly in step 3, enumerate the records that must exist in the development database before the scenario can be exercised:
 
-- the account / tenant / workspace the scenario lives under (use the test alias from the assignment when one exists, e.g. `qa-cz-1`);
+- the account / tenant / workspace the scenario lives under (use the test alias from the assignment when one exists, e.g. `qa-demo-1`);
 - every entity the scenario reads or filters on, with the exact column values from step 2 (status enum cases, dates inside the boundary window, link fragments, contact identifiers);
 - adjacent records needed only to make the scenario observable (e.g. *one contact whose log contains a click event, one contact whose log contains only an open event, one contact with no events* — when the scenario distinguishes outcomes between these three);
 - timing-sensitive fields (`created_at`, `sent_at`, `delivered_at`) set explicitly inside / outside the boundary window — never *now*, never a random factory value.
