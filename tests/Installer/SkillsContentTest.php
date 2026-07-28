@@ -1142,20 +1142,48 @@ test('quality gates reuse a green CI result for the loop gate but never the fina
     $packageDir = dirname(__DIR__, 2);
 
     // The loop gate may skip a check CI already validated on the exact current commit;
-    // the staleness guard and the CI-never-runs-these carve-out must stay explicit.
+    // the provenance requirement, the workflow-redefinition carve-out, the security-audit
+    // exclusion, the staleness guard, and the CI-never-runs-these carve-out must stay explicit.
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     expect($gates)->toContain('### CI-result reuse for the loop gate (issue #124)');
-    expect($gates)->toContain('**Reuse CI results when available.**');
+    expect($gates)->toContain('**Reuse CI results when available, from structured provenance only.**');
+    expect($gates)->toContain('gh run view <run-id> --json jobs --jq');
+    expect($gates)->toContain('Never grep the human-readable run log');
+    expect($gates)->toContain('matched by name to the local check it corresponds to');
+    expect($gates)->toContain('**Reuse is forbidden when the diff redefines the gate itself.**');
+    expect($gates)->toContain('.github/workflows/**');
+    expect($gates)->toContain('adding `continue-on-error: true` to it');
+    expect($gates)->toContain('**`security-audit` is never reused, regardless of CI status.**');
+    expect($gates)->toContain('are untracked in the `laravel-agent-skills` repository');
+    expect($gates)->toContain('queries a live advisory database at run time');
     expect($gates)->toContain('**Staleness guard (mandatory, exact match — no heuristics).**');
+    expect($gates)->toContain('git status --porcelain --untracked-files=all');
+    expect($gates)->toContain('**actually-checked-out SHA** (not merely the workflow\'s nominal trigger SHA');
+    expect($gates)->toContain('a `pull_request` event may check out a merge ref');
+    expect($gates)->toContain('there is no per-check "could not have affected it" carve-out');
+    expect($gates)->toContain('the same coverage threshold as the local gate');
+    expect($gates)->toContain('a loop iteration that just applied a fix always has a dirty tree');
     expect($gates)->toContain('**Checks CI never runs are never reused.**');
     expect($gates)->toContain('`skill-check`, `composer-normalize-check`, and `shell-self-tests`');
+    expect($gates)->toContain('this repository\'s own example, not a portable list');
+    expect($gates)->toContain('**Failing / incomplete CI — never treat a non-green status as a pass.**');
+    expect($gates)->toContain('`skipped`, `neutral`, `timed_out`, `stale`, `action_required`');
     expect($gates)->toContain('**Scope: loop gate only, never the final gate.**');
     expect($gates)->toContain('there is nothing to reuse until it is pushed and CI completes');
 
-    // process-code-review's own loop-gate paragraph cites the new subsection, the same
-    // way it already cites `Loop gate vs. final gate (issue #65)` right next to it.
+    // process-code-review's own loop-gate paragraph cites the new subsection and restates the
+    // loop-only scope, the clean-tree condition, the non-green catch-all, and the security-audit
+    // exclusion inline — not just an incomplete "e.g." exception list.
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     expect($process)->toContain('CI-result reuse for the loop gate (issue #124)');
+    expect($process)->toContain('never treats a non-green conclusion as a pass');
+    expect($process)->toContain('`security-audit` is excluded from reuse entirely');
+
+    // resolve-issue's own Pre-push quality gates section is the FINAL gate — state that
+    // explicitly so a reader does not conflate it with process-code-review's loop gate.
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    expect($resolveIssue)->toContain('this section **is** the **final gate**');
+    expect($resolveIssue)->toContain('never applies here, regardless of the shared section title');
 });
 
 test('savings-mode build-gate cache never skips the mandatory full run on the exact final head SHA before merge (issue #119)', function (): void {

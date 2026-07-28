@@ -136,7 +136,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 ## Pre-push quality gates
 
-Follow the workflow defined in `references/quality-gates.md`.
+Follow `references/quality-gates.md` — this section **is** the **final gate**; CI-reuse never applies here, regardless of the shared section title.
 
 ## Code quality self-check (single pass)
 
