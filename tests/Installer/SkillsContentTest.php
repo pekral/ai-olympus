@@ -1138,6 +1138,26 @@ test('review loop uses a cheap diff-scoped gate and a full final gate (issue #65
     expect($process)->toContain('Final gate — run the full build once before pushing');
 });
 
+test('quality gates reuse a green CI result for the loop gate but never the final gate (issue #124)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The loop gate may skip a check CI already validated on the exact current commit;
+    // the staleness guard and the CI-never-runs-these carve-out must stay explicit.
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain('### CI-result reuse for the loop gate (issue #124)');
+    expect($gates)->toContain('**Reuse CI results when available.**');
+    expect($gates)->toContain('**Staleness guard (mandatory, exact match — no heuristics).**');
+    expect($gates)->toContain('**Checks CI never runs are never reused.**');
+    expect($gates)->toContain('`skill-check`, `composer-normalize-check`, and `shell-self-tests`');
+    expect($gates)->toContain('**Scope: loop gate only, never the final gate.**');
+    expect($gates)->toContain('there is nothing to reuse until it is pushed and CI completes');
+
+    // process-code-review's own loop-gate paragraph cites the new subsection, the same
+    // way it already cites `Loop gate vs. final gate (issue #65)` right next to it.
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($process)->toContain('CI-result reuse for the loop gate (issue #124)');
+});
+
 test('savings-mode build-gate cache never skips the mandatory full run on the exact final head SHA before merge (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
