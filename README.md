@@ -20,7 +20,7 @@
 - unified PHP coding guidelines for PHP 8.4 projects
 - Pest-based testing with mandatory code analysis and 100% coverage
 - strong focus on clean code: typed properties, SRP, no redundant comments
-- **48 comprehensive Agent skills** for automated workflows
+- **49 comprehensive Agent skills** for automated workflows
 - fast onboarding inside development repositories
 
 ## Installation
