@@ -1341,3 +1341,85 @@ test(
         expect($content)->not->toContain('per violating class');
     },
 );
+
+test('code-review rule requires a concrete SQL rewrite in Database Analysis, not just a category label (issue #132)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain(
+        'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
+        . 'snippet implementing that fix per `@rules/sql/optimalize.mdc` (issue #132) — a category label alone '
+        . '(e.g. "query rewrite to reuse an existing index") is never sufficient by itself.',
+    );
+});
+
+test('code-review-github and code-review-jira Output Rules require the same concrete SQL Database Analysis fix (issue #132)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+
+    foreach ([$github, $jira] as $content) {
+        expect($content)->toContain(
+            'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
+            . 'snippet implementing that fix per `@rules/sql/optimalize.mdc` (issue #132) — never a category label alone.',
+        );
+    }
+});
+
+test(
+    'every code review template renders a concrete SQL Suggested Fix in Database Analysis, before Architecture and Coverage (issue #132)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $templates = [
+            $packageDir . '/skills/code-review/templates/review-output.md',
+            $packageDir . '/skills/code-review-github/templates/pr-comment-output.md',
+            $packageDir . '/skills/code-review-jira/templates/github-output.md',
+            $packageDir . '/skills/code-review-bugsnag/templates/github-output.md',
+        ];
+    
+        foreach ($templates as $template) {
+            $content = (string) file_get_contents($template);
+    
+            expect($content)->toContain("\n## Database Analysis\n");
+            expect($content)->toContain('{one-sentence fix category — query rewrite to reuse an existing index');
+            expect($content)->toContain(
+                '-- concrete rewritten query, index DDL, or batch-operation replacement implementing the fix above '
+                . '(issue #132) — never a category label alone',
+            );
+            expect($content)->toContain("```sql\n");
+    
+            $databaseAnalysisPos = strpos($content, "\n## Database Analysis\n");
+            $architecturePos = strpos($content, "\n## Architecture\n");
+            $coveragePos = strpos($content, "\n## Coverage\n");
+    
+            expect($databaseAnalysisPos)->not->toBeFalse();
+            expect($architecturePos)->not->toBeFalse();
+            expect($coveragePos)->not->toBeFalse();
+            assert($databaseAnalysisPos !== false);
+            assert($architecturePos !== false);
+            assert($coveragePos !== false);
+    
+            expect($databaseAnalysisPos)->toBeLessThan($architecturePos);
+            expect($architecturePos)->toBeLessThan($coveragePos);
+        }
+    },
+);
+
+test('full-tree grep finds every CR skill/template/rule references the concrete SQL Database Analysis contract (issue #132)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $expectedFiles = [
+        'rules/code-review/general.mdc',
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ];
+
+    foreach ($expectedFiles as $relativePath) {
+        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        expect($content)->toContain('(issue #132)');
+    }
+});
