@@ -1447,14 +1447,55 @@ test(
             . 'is not this violation',
         );
 
+        // The boolean-prefix trigger is anchored at a camelCase word boundary so `issueInvoice()` / `hashPassword()` /
+        // `cancelOrder()` / `canonicalUrl()` no longer false-positive (PR #138 review — Moderate 2).
+        expect($phpRule)->toContain('an `is` / `has` / `can` prefix followed by an uppercase letter');
+        expect($phpRule)->toContain('never `issueInvoice`, `hashPassword`, `cancelOrder`, or `canonicalUrl`');
+        expect($phpRule)->toContain('the same camelCase-boundary test as above');
+
+        // The former trigger 4 (read-only-implying prefixes) is merged into the getter-shaped trigger — one
+        // disjoint test instead of two overlapping ones (PR #138 review — Minor 1) — and its "whose body" wording
+        // now also covers variables/properties, matching issue #123's own requirement to cover both variables
+        // and methods (PR #138 review — Minor 2).
+        expect($phpRule)->toContain('`get*`, `find*`, `fetch*`, `resolve*`, `list*`, `read*`, a `$cached*` variable');
+        expect($phpRule)->toContain(
+            'whose body (or, for a variable/property, the expression assigned to it and the writes performed '
+            . 'through it)',
+        );
+
+        // Idiomatic memoization / read-through caching / lock-guarded population is explicitly exempted, so the
+        // rule no longer false-positives on this package's own `skills/redis-patterns/SKILL.md` stampede-protection
+        // example (PR #138 review — Moderate 1).
+        expect($phpRule)->toContain('Exemptions to the read-only/getter-shaped trigger above (do **not** flag):');
+        expect($phpRule)->toContain(
+            'read-through cache population (`Cache::remember()` / `Cache::get() ?? …put()`)',
+        );
+        expect($phpRule)->toContain(
+            'an explicit get-or-create contract whose name states it (`firstOrCreate()`, `getOrCreateX()`)',
+        );
+
         // A new CR Severity Rules subsection declares the severity explicitly and gates it against the existing Minor bucket.
         expect($phpRule)->toContain("\n## CR Severity Rules\n");
         expect($phpRule)->toContain('Mark as **Moderate**:');
         expect($phpRule)->toContain(
             'a real maintainability hazard a fixer cannot catch, but not an architectural/structural violation',
         );
-        expect($phpRule)->toContain('**Gating — never both on the same identifier:**');
+        expect($phpRule)->toContain('**Gating — never both with the Minor naming-nit bucket on the same identifier:**');
         expect($phpRule)->toContain('is no longer "without a binding rule" and is always this Moderate finding instead');
+        expect($phpRule)->toContain('The same identifier is never reported under both **these two** severities.');
+        expect($phpRule)->toContain('This gating is scoped to the Minor naming-nit default only');
+
+        // A misleading identifier that is itself a security control escalates to Critical instead of a flat
+        // Moderate, and defers to security-review to avoid double-reporting the same identifier (PR #138 review —
+        // Moderate 3).
+        expect($phpRule)->toContain(
+            'Escalate to **Critical** when the misleading identifier is itself a security control — an authn/authz '
+            . 'predicate (`isAuthorized()`, `canAccess()`, `hasPermission()`)',
+        );
+        expect($phpRule)->toContain(
+            'When `@skills/security-review/SKILL.md` already raises the same identifier under broken access '
+            . 'control / improper input validation, that walk owns the finding — raise it once, not twice.',
+        );
 
         // The CR walk-through carries the standard reproducer fields so the finding is actionable without re-deriving context.
         expect($crRule)->toContain('**Misleading method / variable name (name contradicts actual behavior):**');
@@ -1466,6 +1507,19 @@ test(
             'Severity: **Moderate** (declared in `@rules/php/core-standards.mdc` CR Severity Rules — a real '
             . 'maintainability defect a fixer cannot catch, not an architectural violation).',
         );
+
+        // The general.mdc restatement stays in sync with core-standards.mdc: same exemptions, same escalation,
+        // same rescoped gating (PR #138 review — Moderate 1, Moderate 3, Moderate 4).
+        expect($crRule)->toContain(
+            'Exemptions (do **not** flag): memoization / lazy initialization of the returned value, read-through '
+            . 'cache population',
+        );
+        expect($crRule)->toContain(
+            'Escalate to **Critical** when the misleading identifier is itself a security control — an authn/authz '
+            . 'predicate (`isAuthorized()`, `canAccess()`, `hasPermission()`)',
+        );
+        expect($crRule)->toContain('**Gating — never both with the Minor naming-nit bucket on the same identifier:**');
+        expect($crRule)->toContain('This gating is scoped to the Minor naming-nit default only');
 
         // The code-review skill enumerates the concern so every CR wrapper inherits it via the shared walk-through.
         expect($skill)->toContain('misleading method/variable naming');
