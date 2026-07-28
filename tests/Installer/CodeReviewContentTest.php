@@ -1423,3 +1423,51 @@ test('full-tree grep finds every CR skill/template/rule references the concrete 
         expect($content)->toContain('(issue #132)');
     }
 });
+
+test(
+    'core-standards Naming section flags a misleading name as Moderate, gated against the naming-nit Minor bucket (issue #123)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+        $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+        $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+
+        // The Naming section defines the binding misleading-name rule with concrete triggers, for both methods and variables.
+        expect($phpRule)->toContain(
+            'A misleading name — one whose claim about behavior or shape is actively contradicted by what the '
+            . 'method, variable, or property actually does — is a binding naming rule, not a stylistic nit; it '
+            . 'applies identically to methods and to variables/properties.',
+        );
+        expect($phpRule)->toContain('a **getter-shaped name**');
+        expect($phpRule)->toContain('an **`is*` / `has*` / `can*`-prefixed name**');
+        expect($phpRule)->toContain('**describes one specific action or condition**');
+        expect($phpRule)->toContain('**implying read-only / non-destructive access**');
+        expect($phpRule)->toContain(
+            'A name that is merely **less descriptive than it could be**, without misrepresenting behavior or shape, '
+            . 'is not this violation',
+        );
+
+        // A new CR Severity Rules subsection declares the severity explicitly and gates it against the existing Minor bucket.
+        expect($phpRule)->toContain("\n## CR Severity Rules\n");
+        expect($phpRule)->toContain('Mark as **Moderate**:');
+        expect($phpRule)->toContain(
+            'a real maintainability hazard a fixer cannot catch, but not an architectural/structural violation',
+        );
+        expect($phpRule)->toContain('**Gating — never both on the same identifier:**');
+        expect($phpRule)->toContain('is no longer "without a binding rule" and is always this Moderate finding instead');
+
+        // The CR walk-through carries the standard reproducer fields so the finding is actionable without re-deriving context.
+        expect($crRule)->toContain('**Misleading method / variable name (name contradicts actual behavior):**');
+        expect($crRule)->toContain('**Faulty Example:**');
+        expect($crRule)->toContain('isEligibleForDiscount');
+        expect($crRule)->toContain('**Expected Behavior:**');
+        expect($crRule)->toContain('**Test Hint:**');
+        expect($crRule)->toContain(
+            'Severity: **Moderate** (declared in `@rules/php/core-standards.mdc` CR Severity Rules — a real '
+            . 'maintainability defect a fixer cannot catch, not an architectural violation).',
+        );
+
+        // The code-review skill enumerates the concern so every CR wrapper inherits it via the shared walk-through.
+        expect($skill)->toContain('misleading method/variable naming');
+    },
+);
