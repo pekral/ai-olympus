@@ -1322,3 +1322,22 @@ test('code-review-bugsnag Summary line carries the assignment conformance token 
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
     expect($rule)->not->toContain('except `@skills/code-review-bugsnag`');
 });
+
+test(
+    'code-review class inventory bullet carries a worked Service-vs-Action Faulty Example and explicit collision gating (issue #126)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+        expect($content)->toContain('final readonly class InvoiceAttachmentSizeService');
+        expect($content)->toContain('A `Service`-suffixed class not extending `BaseModelService` is always in this bucket, unconditionally');
+        expect($content)->toContain('raise **one** Critical finding per violation of this condition, never two');
+        expect($content)->toContain('Gating against the Moderate "Action-fit" bullet — never both');
+
+        // The dedup is scoped to the two restatements of this one condition. It must never be
+        // readable as "one Critical per class", which would swallow a concurrent Read/write,
+        // Data Validator or Data Builder finding on the same bare Service.
+        expect($content)->toContain('never collapses a separately triggered Critical on the same class into this one');
+        expect($content)->not->toContain('per violating class');
+    },
+);

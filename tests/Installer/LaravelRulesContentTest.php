@@ -255,3 +255,29 @@ test(
         expect($content)->toContain('vendor/pekral/arch-app-services');
     },
 );
+
+test(
+    'architecture rules mandate an unconditional Service→BaseModelService rule with a structural Action-shape test (issue #126)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+
+        expect($content)->toContain('Every class named with a `Service` suffix must extend `BaseModelService`');
+        expect($content)->toContain('unconditionally; there is no');
+        expect($content)->toContain('A class whose only public method is already `__invoke()` needs no counting');
+        expect($content)->toContain('A `Service`-suffixed class exposing exactly one public business method');
+        expect($content)->toContain('is Action-shaped, not Model-Service-shaped');
+        expect($content)->toContain('not gated on whether it is judged to be "tied to one model"');
+        expect($content)->toContain('a `Service`-suffixed class that already `extends BaseModelService` (so neither Critical bullet above fires)');
+        expect($content)->toContain('not flagged by this bullet regardless of its public method count');
+
+        // The dedup between the two Critical restatements must stay scoped to this one condition.
+        expect($content)->toContain('this condition earns exactly one Critical finding, not two');
+        expect($content)->toContain('never suppresses a separately triggered Critical on the same class');
+        expect($content)->not->toContain('a violating class earns exactly one Critical finding');
+
+        // The subjective wording the mechanical test replaces must be gone, not merely supplemented.
+        expect($content)->not->toContain('primarily serve a single model');
+        expect($content)->not->toContain('If logic does not primarily serve a single model');
+    },
+);
