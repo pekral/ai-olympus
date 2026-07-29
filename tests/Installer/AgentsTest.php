@@ -105,6 +105,23 @@ test('agents directory ships the daidalos orchestrator subagent with required fr
     expect($content)->toContain('.claude/run/');
 });
 
+test('daidalos repairs an unmet code-review merge gate instead of escalating it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // A merge blocked solely by a missing/stale review is a prerequisite daidalos owns, not a hard stop.
+    expect($daidalos)->toContain('An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.');
+    expect($daidalos)->toContain('dispatch the step-6 review-and-fix loop on the current diff');
+    expect($daidalos)->toContain('re-enter the merge');
+
+    // The repaired gate is re-checked against the post-fix head, since the fixes themselves move it.
+    expect($daidalos)->toContain('Re-run the gate against the new head commit, never against the pre-fix one');
+
+    // The repair never becomes a licence to merge unreviewed, and a non-converging loop still escalates.
+    expect($daidalos)->toContain('never a reason to merge without one');
+    expect($daidalos)->toContain('Escalate to the user only when the repair loop itself cannot converge');
+});
+
 test('agents directory ships the athena security-CR subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $agentPath = $packageDir . '/agents/athena.md';
