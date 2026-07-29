@@ -45,9 +45,10 @@ test('install without prune keeps orphaned files in target', function (): void {
         chdir($root);
         ob_start();
         Installer::run(['agent-skills', 'install']);
-        ob_end_clean();
+        $output = ob_get_clean();
 
         expect(is_file($root . '/.claude/skills/orphaned-skill/SKILL.md'))->toBeTrue();
+        expect($output)->toContain('1 file(s) in target no longer exist in source. Re-run with --prune to remove them.');
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -105,6 +106,7 @@ test('install with prune reports pruned file count in output', function (): void
         $output = ob_get_clean();
 
         expect($output)->toContain('1 pruned');
+        expect($output)->not->toContain('Re-run with --prune');
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);

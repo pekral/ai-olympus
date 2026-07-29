@@ -77,14 +77,14 @@ final class Installer
     private static function install(InstallOptions $options): int
     {
         $root = InstallerPath::resolveProjectRoot();
-        [$copied, $pruned] = self::runAllSyncs(self::collectSyncPayloads($root), $options->force, $options->symlink, $options->prune);
+        [$copied, $pruned, $orphaned] = self::runAllSyncs(self::collectSyncPayloads($root), $options->force, $options->symlink, $options->prune);
 
         $copied += self::installSingleFile(InstallerPath::resolveClaudeMdSource(), InstallerPath::resolveClaudeMdTarget($root));
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
 
-        self::reportInstallSummary($copied, $pruned, $permissionsAdded, $coAuthoredByDisabled);
+        self::reportInstallSummary($copied, $pruned, $orphaned, $permissionsAdded, $coAuthoredByDisabled);
 
         if ($subagentWritesEnabled) {
             echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
@@ -119,25 +119,31 @@ final class Installer
 
     /**
      * @param array<int, array{0: string, 1: array<int, string>}> $payloads
-     * @return array{int, int}
+     * @return array{int, int, int}
      */
     private static function runAllSyncs(array $payloads, bool $force, bool $symlink, bool $prune): array
     {
         $totalCopied = 0;
         $totalPruned = 0;
+        $totalOrphaned = 0;
 
         foreach ($payloads as [$source, $targets]) {
-            [$copied, $prunedCount] = self::syncDirectories($source, $targets, $force, $symlink, $prune);
+            [$copied, $prunedCount, $orphanedCount] = self::syncDirectories($source, $targets, $force, $symlink, $prune);
             $totalCopied += $copied;
             $totalPruned += $prunedCount;
+            $totalOrphaned += $orphanedCount;
         }
 
-        return [$totalCopied, $totalPruned];
+        return [$totalCopied, $totalPruned, $totalOrphaned];
     }
 
-    private static function reportInstallSummary(int $copied, int $pruned, int $permissionsAdded, bool $coAuthoredByDisabled): void
+    private static function reportInstallSummary(int $copied, int $pruned, int $orphaned, int $permissionsAdded, bool $coAuthoredByDisabled): void
     {
         echo sprintf('Rules and skills installed (%d files, %d pruned).%s', $copied, $pruned, PHP_EOL);
+
+        if ($orphaned > 0) {
+            echo sprintf('%d file(s) in target no longer exist in source. Re-run with --prune to remove them.%s', $orphaned, PHP_EOL);
+        }
 
         if ($permissionsAdded > 0) {
             echo sprintf('Allowed %d bundled-script permission(s) in ~/.claude/settings.json.%s', $permissionsAdded, PHP_EOL);
@@ -150,22 +156,25 @@ final class Installer
 
     /**
      * @param array<int, string> $targets
-     * @return array{int, int}
+     * @return array{int, int, int}
      */
     private static function syncDirectories(string $source, array $targets, bool $force, bool $symlink, bool $prune): array
     {
         $copied = 0;
         $pruned = 0;
+        $orphaned = 0;
 
         foreach ($targets as $target) {
             $copied += self::installDirectory($source, $target, $force, $symlink);
 
             if ($prune) {
                 $pruned += InstallerPruner::pruneDirectory($source, $target);
+            } else {
+                $orphaned += count(InstallerPruner::findOrphans($source, $target));
             }
         }
 
-        return [$copied, $pruned];
+        return [$copied, $pruned, $orphaned];
     }
 
     private static function installDirectory(string $source, string $targetDir, bool $force, bool $symlink): int

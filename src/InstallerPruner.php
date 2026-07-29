@@ -17,19 +17,9 @@ final class InstallerPruner
 
     public static function pruneDirectory(string $source, string $targetDir): int
     {
-        if (!is_dir($targetDir)) {
-            return 0;
-        }
-
-        $sourceFiles = array_flip(self::listFiles($source));
-        $targetFiles = self::listFiles($targetDir);
         $pruned = 0;
 
-        foreach ($targetFiles as $relativePath) {
-            if (isset($sourceFiles[$relativePath])) {
-                continue;
-            }
-
+        foreach (self::findOrphans($source, $targetDir) as $relativePath) {
             $target = $targetDir . '/' . $relativePath;
 
             set_error_handler(static fn (): bool => true);
@@ -45,6 +35,27 @@ final class InstallerPruner
         }
 
         return $pruned;
+    }
+
+    /**
+     * Relative paths that exist in the target directory but no longer exist in the source
+     * directory. Pure lookup — never deletes or otherwise mutates the filesystem.
+     *
+     * @return array<int, string>
+     */
+    public static function findOrphans(string $source, string $targetDir): array
+    {
+        if (!is_dir($targetDir)) {
+            return [];
+        }
+
+        $sourceFiles = array_flip(self::listFiles($source));
+        $targetFiles = self::listFiles($targetDir);
+
+        return array_values(array_filter(
+            $targetFiles,
+            static fn (string $relativePath): bool => !isset($sourceFiles[$relativePath]),
+        ));
     }
 
     private static function removeEmptyDirectories(string $directory, string $stopAt): void
