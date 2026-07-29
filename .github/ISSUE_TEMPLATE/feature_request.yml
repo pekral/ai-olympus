@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an idea or enhancement for laravel-agent-skills
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Please describe the problem and your proposed solution below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation or limitation that prompted this request.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+
+  - type: input
+    id: skill-or-agent
+    attributes:
+      label: Related skill / agent
+      description: >-
+        Which skill (under `skills/`) or subagent (`daidalos`, `talos`, `argos`, `athena`, `apollon`, `hermes`)
+        does this relate to? Free text — leave blank if it's a request for a new skill/agent or doesn't apply
+        to an existing one.
+      placeholder: "e.g. code-review, resolve-issue, talos"
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative solutions or workarounds you've considered.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true

@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a problem with laravel-agent-skills
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in every field below — the details make the problem reproducible.
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command you ran
+      description: The exact command that triggered the problem.
+      placeholder: "e.g. vendor/bin/agent-skills install --force"
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      options:
+        - "composer require --dev + vendor/bin/agent-skills install"
+        - "Composer plugin auto-install (extra.agent-skills.auto-install)"
+        - "Cloned this repository directly (development mode)"
+        - "Other (describe in Relevant log output / additional context)"
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      description: Output of `php -v`
+      placeholder: "e.g. 8.4.1"
+    validations:
+      required: true
+
+  - type: input
+    id: composer-version
+    attributes:
+      label: Composer version
+      description: Output of `composer --version`
+      placeholder: "e.g. 2.10.2"
+    validations:
+      required: true
+
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`
+      placeholder: "e.g. 1.x.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any relevant error output or stack trace. This will be automatically formatted as code.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
