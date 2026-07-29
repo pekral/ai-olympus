@@ -462,3 +462,77 @@ test('apollon owns the executed coverage verdict and reuses the cached build gat
     expect($apollon)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
     expect($apollon)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
+
+test('daidalos sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    expect($daidalos)->toContain('**Startup sweep, then gather context & write the shared brief');
+    expect($daidalos)->toContain('other than the file this run is about to write (this run\'s own `<source-slug>.md`)');
+    expect($daidalos)->toContain('probe it with `kill -0`');
+    expect($daidalos)->toContain('a live peer run — leave it untouched');
+    expect($daidalos)->toContain('Run `git worktree prune` first');
+    expect($daidalos)->toContain('a live PID means a peer\'s CR pass is actively using that worktree, **never remove it**');
+    expect($daidalos)->toContain('## PID');
+});
+
+/**
+ * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep*: a brief file is safe to
+ * delete when it is not this run's own slug AND its recorded `## PID` is dead or absent.
+ *
+ * @return array<int, string> basenames of brief files judged safe to delete
+ */
+function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBasename): array
+{
+    $deletable = [];
+    $paths = glob($runDir . '/*.md');
+    $paths = $paths !== false ? $paths : [];
+
+    foreach ($paths as $path) {
+        $basename = basename($path);
+
+        if ($basename === $ownBriefBasename) {
+            continue;
+        }
+
+        $content = (string) file_get_contents($path);
+        $alive = false;
+
+        if (preg_match('/^## PID\s+(\d+)/m', $content, $matches) === 1) {
+            $alive = posix_kill((int) $matches[1], 0);
+        }
+
+        if (!$alive) {
+            $deletable[] = $basename;
+        }
+    }
+
+    return $deletable;
+}
+
+test('daidalos startup-sweep algorithm deletes dead-PID/no-PID briefs, preserves a live-PID one and this run\'s own slug (issue #148)', function (): void {
+    $root = installerCreateProjectRoot();
+    $runDir = $root . '/.claude/run';
+    $livePid = getmypid();
+    expect($livePid)->not->toBeFalse();
+
+    installerWriteFile(
+        $runDir . '/gh-dead.md',
+        "# Task brief — gh-dead\n## PID               999999999\n## Source            https://example.com/issues/1\n",
+    );
+    installerWriteFile(
+        $runDir . '/gh-live.md',
+        "# Task brief — gh-live\n## PID               {$livePid}\n## Source            https://example.com/issues/2\n",
+    );
+    installerWriteFile($runDir . '/gh-no-pid.md', "# Task brief — gh-no-pid\n## Source            https://example.com/issues/3\n");
+    installerWriteFile($runDir . '/gh-own.md', "# Task brief — gh-own\n## Source            https://example.com/issues/4\n");
+
+    try {
+        $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
+        sort($deletable);
+
+        expect($deletable)->toBe(['gh-dead.md', 'gh-no-pid.md']);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
