@@ -281,3 +281,19 @@ test(
         expect($content)->not->toContain('If logic does not primarily serve a single model');
     },
 );
+
+test('laravel rules mandate the native Image facade over Intervention Image/GD/Imagick for image processing (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+
+    expect($content)->toContain('## Image Processing');
+    expect($content)->toContain('Illuminate\Support\Facades\Image');
+    expect($content)->toContain('Laravel 13.20');
+    expect($content)->toContain('Intervention Image v4');
+    expect($content)->toContain('This sits ahead of the **New Feature Implementation** package waterfall');
+    expect($content)->toContain('$request->image(\'avatar\')');
+    expect($content)->toContain('Image::fromPath(...)');
+    expect($content)->toContain('cover($width, $height)');
+    expect($content)->toContain('Reserve `resize($width, $height)` for a call site that intentionally accepts distortion.');
+    expect($content)->toContain('An `Image` instance cannot be serialized and throws `ImageException` when passed into a queued job.');
+});

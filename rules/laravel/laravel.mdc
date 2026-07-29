@@ -157,6 +157,13 @@ globs:
   3. Only build a custom solution if no suitable package exists
 - When using an existing package, prefer the simplest and most efficient integration
 
+## Image Processing
+- Prefer Laravel's native image processing (`Illuminate\Support\Facades\Image`, added in Laravel 13.20 on top of Intervention Image v4) over `intervention/image` used directly, another image package, or raw GD/Imagick calls, whenever it covers the use case — resizing, cropping, format conversion, quality control, and simple effects. This sits ahead of the **New Feature Implementation** package waterfall (Spatie → community package → custom) for images: reach for a package or a raw driver call only when a transformation the `Image` facade does not expose is genuinely required.
+- Create the image through the facade or the request helper, not by instantiating an Intervention Image manager directly: `$request->image('avatar')` for an uploaded file, or `Image::fromPath(...)`, `Image::fromStorage(...)`, `Image::fromUrl(...)`, `Image::fromBytes(...)`, `Image::fromBase64(...)` for every other source.
+- Pick the resizing method that matches the intent instead of defaulting to `resize()`: `cover($width, $height)` for fixed-size thumbnails/avatars (crops to fill, no distortion), `contain($width, $height, $background)` to fit inside the dimensions with padding, `scale($width, $height)` to shrink proportionally without upscaling, and `crop($width, $height, $x, $y)` for an explicit region. Reserve `resize($width, $height)` for a call site that intentionally accepts distortion.
+- Every transformation call returns a **new**, immutable `Image` instance and processes nothing until an output call (`store()`, `toBytes()`, `width()`, …) runs the pipeline. Branch variants (e.g. a thumbnail and a display size) from one base `Image` instance instead of re-reading the source per variant.
+- An `Image` instance cannot be serialized and throws `ImageException` when passed into a queued job. Store the processed result first (`store()` / `storeAs()` / `storePublicly()`) and dispatch the resulting path, consistent with the existing **Queue and Jobs** rule against dispatching heavyweight objects to queued jobs.
+
 ## General Laravel Practices
 - Prefer Laravel conventions and built-in features first.
 - Prefer dependency injection over manual resolution.
