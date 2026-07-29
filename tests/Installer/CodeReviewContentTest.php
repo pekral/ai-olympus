@@ -1563,3 +1563,51 @@ test('every review skill defers to the canonical Real-Code Grounding contract (i
         expect($content)->not->toContain('in the run\'s notes');
     }
 });
+
+test(
+    'Coverage gate Staleness guard uses the hardened actually-checked-out-SHA wording, cited (not restated) by quality-gates.md (issue #137)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+        $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+        // rules/code-review/general.mdc Coverage gate now carries the same hardened wording already
+        // established in rules/compound-engineering/general.mdc, agents/argos.md, and agents/athena.md —
+        // this was the weakest of the four restatements before issue #137's fix.
+        expect($crRule)->toContain(
+            '**Staleness guard:** CI results are valid only when that run\'s actually-checked-out SHA '
+            . '(not merely the workflow\'s nominal trigger SHA — a `pull_request` event may check out a merge ref) '
+            . 'matches the current PR `headRefOid`.',
+        );
+
+        // The same bullet's earlier, unhardened parenthetical ("confirm the run's head SHA matches the
+        // PR headRefOid") is harmonized to the same actually-checked-out-SHA wording — this bullet became
+        // the canonical source cited by quality-gates.md below, so a weaker restatement left in its own
+        // opening sentence would have undermined the very guarantee the citation relies on (CR follow-up).
+        expect($crRule)->toContain(
+            'exact PR head commit** (confirm that run\'s **actually-checked-out SHA** matches the PR `headRefOid`)',
+        );
+
+        // quality-gates.md's own loop-gate Staleness guard bullet cites the rule above as the single
+        // canonical source of what "actually-checked-out SHA" means, instead of restating that definition
+        // a second time — but it still states its own, additional loop-gate-specific predicate explicitly:
+        // the local `HEAD` must equal that SHA (not merely the PR's remote `headRefOid`), because a fix
+        // committed locally but not yet pushed leaves a clean tree while `headRefOid` still lags behind
+        // (CR follow-up — a bare citation had silently dropped this local comparison).
+        expect($gates)->toContain(
+            '`HEAD` must equal that run\'s **actually-checked-out SHA** — as defined by the canonical '
+            . '**Staleness guard** sentence in `@rules/code-review/general.mdc` *Validation & Coverage Gate* '
+            . '→ Coverage gate → "Reuse CI results when available"',
+        );
+        expect($gates)->toContain('the loop gate additionally requires the local `HEAD` to equal that actually-checked-out SHA');
+        expect($gates)->toContain(
+            'a locally committed but not-yet-pushed fix leaves a clean tree while `headRefOid` still points '
+            . 'at the previous commit',
+        );
+
+        // Negative pin, matched on a markup/case-independent fragment so a non-bold or reworded restatement
+        // of the definitional caveat cannot slip back in unnoticed (CR follow-up — the original bold-only
+        // pin would not have caught that).
+        expect($gates)->not->toContain('nominal trigger SHA');
+    },
+);
