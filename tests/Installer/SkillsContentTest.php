@@ -1280,3 +1280,29 @@ test('compact-project-memory skill compacts only the entries a write touched, wi
     expect($content)->toContain('**anchor-based substring replacement**');
     expect($content)->toContain('never a line-number-based edit');
 });
+
+test(
+    'compact-project-memory skill sanctions an explicit opt-in MODE: bulk pass without weakening the diff-scoped default (issue #148)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/skills/compact-project-memory/SKILL.md');
+    
+        // The diff-scoped default non-goal wording survives unchanged (issue #98 pinned phrase).
+        expect($content)->toContain('a one-shot bulk pass over all existing entries is an explicit non-goal');
+    
+        // MODE: bulk is documented as a distinct, explicit, caller-supplied input — never inferred, never the default.
+        expect($content)->toContain('`MODE: bulk`');
+        expect($content)->toContain('never inferred, never the default');
+        expect($content)->toContain('**Mode** — default **diff-scoped**');
+    
+        // Execution step 1 branches: bulk skips git-diff detection and takes every entry as the primary set.
+        expect($content)->toContain('skip the git-diff detection below entirely — every existing entry in the file is the primary set');
+    
+        // Step 3 (expand to related) is not applicable under bulk mode.
+        expect($content)->toContain('**Not applicable under `MODE: bulk`:**');
+        expect($content)->toContain('always `N/A` under `MODE: bulk`');
+    
+        // Done when names the sanctioned exception inline instead of leaving a contradicted absolute (rule<->skill parity).
+        expect($content)->toContain('never from a bulk read of the whole file, **except** when the caller explicitly supplied `MODE: bulk`');
+    },
+);

@@ -120,6 +120,17 @@ test('compound memory reads are hooked into the context phases (issue #626)', fu
     expect($prepare)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
 
+test('CLAUDE.md points to the per-project memory file so it stays discoverable (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $claudeMd = (string) file_get_contents($packageDir . '/CLAUDE.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // general.mdc already mandates the pointer; CLAUDE.md (root, and the shipped template
+    // installed into consumer projects) must actually carry it.
+    expect($rule)->toContain('Reference the memory file from `CLAUDE.md`');
+    expect($claudeMd)->toContain('docs/memory/PROJECT_MEMORY.md');
+});
+
 test('compound memory write mechanism is removed (issue #77)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
@@ -407,3 +418,133 @@ test(
 // The compact-project-memory SKILL.md content itself (frontmatter, invariant list) is
 // pinned in tests/Installer/SkillsContentTest.php, matching every other skill-content
 // assertion; this file owns only the compound-engineering rule wiring above.
+
+// Per the project's test-isolation rule a Pest test cannot exec a real shell command, so
+// this mirrors the documented awk block-extraction algorithm in PHP and proves it against
+// a synthetic fixture instead of shelling out to the awk snippet pinned in general.mdc.
+function compoundMemoryLineDeclaresRole(string $line, string $role): bool
+{
+    return str_starts_with($line, '- Role:') && preg_match('/(' . preg_quote($role, '/') . '|shared)/', $line) === 1;
+}
+
+/**
+ * @return array<int, string>
+ */
+function compoundMemoryFilterRoleBlocks(string $content, string $role): array
+{
+    $blocks = [];
+    $buf = '';
+    $matched = false;
+
+    foreach (explode("\n", $content) as $line) {
+        if (str_starts_with($line, '### ')) {
+            if ($matched) {
+                $blocks[] = $buf;
+            }
+
+            $buf = '';
+            $matched = false;
+        }
+
+        $buf .= $line . "\n";
+        $matched = $matched || compoundMemoryLineDeclaresRole($line, $role);
+    }
+
+    if ($matched) {
+        $blocks[] = $buf;
+    }
+
+    return $blocks;
+}
+
+test('per-role read filter extracts entries whose Role: line sits past a fixed grep -A5 window (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The old fixed-offset idiom is gone; the corrected filter is a whole-block awk extraction.
+    expect($rule)->not->toContain('grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"');
+    expect($rule)->toContain('entry bodies carry a variable number of inserted lines');
+    expect($rule)->toContain('/^### / { if (buf != "" && matched) printf "%s", buf; buf = ""; matched = 0 }');
+    expect($rule)->toContain('/^- Role:/ { if ($0 ~ ("(" role "|shared)")) matched = 1 }');
+
+    // Fixture: one entry whose `Role:` sits immediately after `Trigger:` (shallow — the old
+    // `grep -A5` window already covered this) and one whose `Role:` sits past a fixed 5-line
+    // offset behind several inserted continuation lines, mirroring a real `**Recurrence (#N)**`
+    // paragraph — the exact shape that made the old fixed-offset window miss most real entries.
+    $fixture = <<<'MEMORY'
+    # Project memory — fixture
+
+    ### shallow-match — Role sits immediately after Trigger
+    - Trigger: something happens.
+    - Role:    talos
+
+    ### deep-match — Role sits past a fixed 5-line offset
+    - Trigger: something else happens.
+    - Rule:    do the thing.
+    - Example: see file X.
+    - Example: a second continuation line.
+    - Example: a third continuation line.
+    - Example: a fourth continuation line.
+    - Source:  https://example.com/pull/1   Added: 2026-01-01
+    - Role:    shared
+
+    ### no-match — Role is a different role entirely
+    - Trigger: unrelated.
+    - Role:    daidalos
+
+    ### no-role — carries no Role line at all
+    - Trigger: unrelated.
+    MEMORY;
+
+    $matches = compoundMemoryFilterRoleBlocks($fixture, 'talos');
+
+    expect($matches)->toHaveCount(2);
+    expect($matches[0])->toContain('shallow-match');
+    expect($matches[1])->toContain('deep-match');
+});
+
+test('PROJECT_MEMORY.md entries stay within the per-entry size budget (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
+
+    $entries = preg_split('/(?=^### )/m', $memory);
+    expect($entries)->not->toBeFalse();
+
+    if ($entries === false) {
+        return;
+    }
+
+    $entries = array_values(array_filter($entries, static fn (string $entry): bool => str_starts_with($entry, '### ')));
+    expect($entries)->not->toBe([]);
+
+    // Target is ~1200 bytes/entry (issue #148); the hard ceiling allows headroom for entries
+    // whose `### <slug>` is long (slugs are never renamed/shortened — invariant #1) or that
+    // legitimately carry multiple preserved counter-examples/recurrences (invariant #5/#6) —
+    // after compaction the tightest entries sit near 1200 B and the single largest is ~1500 B.
+    foreach ($entries as $entry) {
+        $title = strtok($entry, "\n");
+
+        expect(strlen($entry))->toBeLessThanOrEqual(1_600, 'Entry exceeds the per-entry byte budget: ' . $title);
+    }
+});
+
+test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
+
+    $entries = preg_split('/(?=^### )/m', $memory);
+    expect($entries)->not->toBeFalse();
+
+    if ($entries === false) {
+        return;
+    }
+
+    $entries = array_values(array_filter($entries, static fn (string $entry): bool => str_starts_with($entry, '### ')));
+    expect($entries)->not->toBe([]);
+
+    foreach ($entries as $entry) {
+        $title = strtok($entry, "\n");
+
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|argos|apollon|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+    }
+});

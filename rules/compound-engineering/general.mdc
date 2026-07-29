@@ -55,7 +55,18 @@ When reading `docs/memory/PROJECT_MEMORY.md` as a specialist (not as `daidalos`)
 include entries where Role: == <your-role> OR Role: == shared
 ```
 
-Grep idiom: `grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"` — then include the entries that match.
+The naive `grep -A5 "^### " | grep -E "Role:.*(<your-role>|shared)"` idiom is unreliable — entry bodies carry a variable number of inserted lines (e.g. `**Recurrence (#N)**` continuations) before the `Role:` field, so a fixed 5-line offset window silently misses most entries whose `Role:` line falls past it. Extract whole entry blocks instead and test each block for a matching `Role:` line anywhere inside it:
+
+```
+awk -v role="<your-role>" '
+  /^### / { if (buf != "" && matched) printf "%s", buf; buf = ""; matched = 0 }
+  { buf = buf $0 "\n" }
+  /^- Role:/ { if ($0 ~ ("(" role "|shared)")) matched = 1 }
+  END { if (buf != "" && matched) printf "%s", buf }
+' docs/memory/PROJECT_MEMORY.md
+```
+
+then include the entries that match.
 
 ### Write protocol (compact after every write)
 

@@ -66,4 +66,5 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **Before push changes into repository run `composer build` and fix all errors, never ignore errors!**
 
 - Files in the .claude/ and .cursor/ directories are not tracked by Git (they are likely listed in .gitignore). You only need to commit changes in the skills/ directory.
+- See `docs/memory/PROJECT_MEMORY.md` for durable, project-specific lessons from past work — read the entries relevant to your role before starting a new task.
   
