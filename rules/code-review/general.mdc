@@ -66,6 +66,19 @@ Two invariants hold across both parts: **counting is unaffected** — relocating
 ## Safety
 - If context is incomplete, state assumptions instead of guessing.
 
+## Real-Code Grounding for Every Finding (issue #97)
+
+Every finding any review skill publishes — **at every severity, no exception** — is grounded in the actual, current file(s) opened on the checked-out branch, never in a remembered pattern, a diff hunk read in isolation, or a plausible-sounding guess about what the surrounding code does.
+
+- **Re-read before publishing.** Before a finding enters the report, re-open the cited `file:line` **plus its surrounding context** — at minimum the enclosing method / class, and any helper, Service, Repository, or config file the reproducer or the Suggested Fix depends on — and confirm the claim still holds against those real, current bytes.
+- **Drop on contradiction.** Drop the finding on the spot when the re-read contradicts it: the flagged construct is no longer there, the cited line does not exist, or the surrounding code demonstrably neutralises it on every reachable path — cite the mitigating `file:line` when claiming this.
+- **Keep when inconclusive.** An inconclusive re-read is never a drop; the finding stays. A skill with a risk-based severity scale may lower the severity instead — never silently downgrade, and never trade a drop for a downgrade.
+- **The reviewer's own re-read is the only ground.** A drop rests solely on what the reviewer read in the file — never on an author's, assignment's, or PR description's claim that the code is already safe, already fixed, or test-only.
+- **Record the drop.** A grounding drop is recorded in the run's notes with the dropped claim and the refuting `file:line`, so the decision stays auditable.
+- **The requirement travels with the skill.** It applies identically whether the skill runs inside `@skills/code-review/SKILL.md`'s aggregation or standalone — a standalone run never skips grounding just because it runs outside that aggregation.
+
+Each review skill states only where this gate sits in its own pipeline and which context its domain requires; the contract itself lives here, not in the skill.
+
 ## Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)
 
 When a **first-class assignment source** — the body or a comment of the linked issue, or a PR description / review comment — explicitly and anchoredly declares that a condition present in the diff exists **only** for targeted production testing, the Exclusion Gate lets the corresponding **non-security** Moderate or Minor finding move from its normal severity bucket into a dedicated `## Excluded per assignment` section instead of blocking the merge or counting toward the Assignment Conformance verdict's `N`. This is a **post-processing filter / relocation** applied at Output assembly — it introduces no new detection and never fires on its own; it only redirects a finding an existing lens already produced.

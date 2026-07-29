@@ -1525,3 +1525,41 @@ test(
         expect($skill)->toContain('misleading method/variable naming');
     },
 );
+
+test('Real-Code Grounding contract lives once in the code-review rule (issue #97)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('## Real-Code Grounding for Every Finding (issue #97)');
+    expect($rule)->toContain('**at every severity, no exception**');
+    expect($rule)->toContain('**Re-read before publishing.**');
+    expect($rule)->toContain('**Drop on contradiction.**');
+    expect($rule)->toContain('**Keep when inconclusive.**');
+    expect($rule)->toContain('**The reviewer\'s own re-read is the only ground.**');
+    expect($rule)->toContain('**Record the drop.**');
+    expect($rule)->toContain('in the run\'s notes');
+    expect($rule)->toContain('**The requirement travels with the skill.**');
+});
+
+test('every review skill defers to the canonical Real-Code Grounding contract (issue #97)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $skills = [
+        'skills/code-review/SKILL.md',
+        'skills/security-review/SKILL.md',
+        'skills/api-review/SKILL.md',
+        'skills/assignment-compliance-check/SKILL.md',
+    ];
+
+    foreach ($skills as $skill) {
+        $content = (string) file_get_contents($packageDir . '/' . $skill);
+
+        expect($content)->toContain('### Real-Code Grounding for Every Finding (issue #97)');
+        expect($content)->toContain(
+            'Apply the contract in `@rules/code-review/general.mdc` *Real-Code Grounding for Every Finding (issue #97)*',
+        );
+
+        // The contract is stated once in the rule — a skill that restates it drifts out of sync.
+        expect($content)->not->toContain('in the run\'s notes');
+    }
+});
