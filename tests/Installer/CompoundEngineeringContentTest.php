@@ -137,8 +137,10 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     expect($processCr)->not->toContain('record-project-memory');
     expect($daidalos)->not->toContain('record-project-memory');
 
-    // The write-protocol sections of the rule are gone; the read side stays.
-    expect($rule)->not->toContain('### Write protocol');
+    // The old fully-automated write-protocol sections stay gone; the read side stays.
+    // (A narrower, compaction-only "### Write protocol" is reintroduced by issue #98 —
+    // see 'compound-engineering rule adds a narrower compaction-only Write protocol
+    // sibling to Read protocol (issue #98)' below; it never generates new lessons.)
     expect($rule)->not->toContain('### Promotion bar');
     expect($rule)->not->toContain('### Curation pass');
     expect($rule)->not->toContain('### What feeds the memory');
@@ -276,18 +278,18 @@ test(
         $packageDir = dirname(__DIR__, 2);
         $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    
+
         // The section heading must exist and state the binary stopping condition.
         expect($rule)->toContain('## Orchestrator turns must end in a result or a hard blocker, never a narrated plan');
         expect($rule)->toContain('**(a) A completed result**');
         expect($rule)->toContain('**(b) An explicit hard blocker**');
-    
+
         // The dispatch must be synchronous in the same turn — never a promised future one.
         expect($rule)->toContain('dispatch **must happen synchronously, in the same turn**');
-    
+
         // This is unconditional — a correctness fix, never gated behind the opt-in savings mode.
         expect($rule)->toContain('it applies unconditionally, whether or not `Savings mode` below is engaged');
-    
+
         // daidalos (the only orchestrator today) references the rule and applies it every turn.
         expect($daidalos)->toContain('*Orchestrator turns must end in a result or a hard blocker, never a narrated plan*');
         expect($daidalos)->toContain('the `Task` invocation happens in the same turn');
@@ -347,3 +349,61 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
     expect($docs)->toContain('## Savings mode (opt-in, token-efficient orchestration)');
     expect($docs)->toContain('Why it saves tokens without reducing review depth');
 });
+
+test(
+    'compound-engineering rule adds a narrower compaction-only Write protocol sibling to Read protocol (issue #98)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+        // The new section is a sibling of Read protocol, under the same Compound Memory heading.
+        expect($rule)->toContain('### Write protocol (compact after every write)');
+        $compoundMemoryPos = strpos($rule, '## Compound Memory (per project)');
+        $writeProtocolPos = strpos($rule, '### Write protocol (compact after every write)');
+        $readProtocolPos = strpos($rule, '### Read protocol');
+        $temporaryFileHygienePos = strpos($rule, '## Temporary-file hygiene');
+        expect($compoundMemoryPos)->not->toBeFalse();
+        expect($writeProtocolPos)->not->toBeFalse();
+        expect($readProtocolPos)->not->toBeFalse();
+        expect($temporaryFileHygienePos)->not->toBeFalse();
+
+        if (!is_int($compoundMemoryPos) || !is_int($writeProtocolPos)
+            || !is_int($readProtocolPos) || !is_int($temporaryFileHygienePos)
+        ) {
+            return;
+        }
+
+        // Read protocol, then Write protocol, both nested inside Compound Memory, before the next `##` section.
+        expect($compoundMemoryPos)->toBeLessThan($readProtocolPos);
+        expect($readProtocolPos)->toBeLessThan($writeProtocolPos);
+        expect($writeProtocolPos)->toBeLessThan($temporaryFileHygienePos);
+
+        // The protocol names the compacting skill and is an unconditional default, not opt-in.
+        expect($rule)->toContain('@skills/compact-project-memory/SKILL.md');
+        expect($rule)->toContain('immediately after the write, before the run reports completion');
+        expect($rule)->toContain('This is an unconditional default, not an opt-in step.');
+
+        // Scoped to the touched entries, not a whole-file maintenance pass; a no-op without a diff.
+        expect($rule)->toContain('scoped to the entries the write actually touched (plus at most 3 demonstrably related ones)');
+        expect($rule)->toContain('is a no-op when the file carries no diff');
+
+        // Never resurrects the automated lesson-generation mechanism removed in #77.
+        expect($rule)->toContain('This protocol never reintroduces the automated lesson-generation mechanism removed in #77');
+        expect($rule)->toContain('it never invents, re-derives, or adds new lesson content');
+
+        // Cross-referenced from Entry format, so the per-entry budget has one home.
+        $entryFormatPos = strpos($rule, '### Entry format');
+        expect($entryFormatPos)->not->toBeFalse();
+
+        if (!is_int($entryFormatPos)) {
+            return;
+        }
+
+        expect($entryFormatPos)->toBeLessThan($writeProtocolPos);
+        expect($rule)->toContain('has one home in `### Write protocol` below');
+    },
+);
+
+// The compact-project-memory SKILL.md content itself (frontmatter, invariant list) is
+// pinned in tests/Installer/SkillsContentTest.php, matching every other skill-content
+// assertion; this file owns only the compound-engineering rule wiring above.

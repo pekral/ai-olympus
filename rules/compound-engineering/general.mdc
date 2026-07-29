@@ -37,6 +37,8 @@ Each entry is short and scannable — prefer one rule per lesson over a long ess
 
 The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `daidalos` = orchestration / briefing / dispatch decisions; `talos` = implementation / PR mechanics; `argos` = code review / CR loop; `apollon` = test authoring / validation. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
 
+The per-entry token budget an entry is compacted back down to after every write — so this shape stays short and scannable instead of drifting into an essay — has one home in `### Write protocol` below.
+
 ### Read protocol (load memory before acting)
 
 The memory only compounds if it is **read at the start of each task**, before re-deriving anything:
@@ -54,6 +56,17 @@ include entries where Role: == <your-role> OR Role: == shared
 ```
 
 Grep idiom: `grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"` — then include the entries that match.
+
+### Write protocol (compact after every write)
+
+Every write compounds the file's growth unless something shrinks it back down. Automated *writes of new lessons* stay removed (issue #77) — a human or agent still curates what gets recorded — but a hand-curated entry still needs its token footprint kept in check once it exists, or every future read of the file gets more expensive.
+
+- Any agent, skill, or human-directed run that writes to `docs/memory/PROJECT_MEMORY.md` — appending a new entry or editing an existing one — must run `@skills/compact-project-memory/SKILL.md` on that file **immediately after the write, before the run reports completion**. This is an unconditional default, not an opt-in step.
+- The compaction is scoped to the entries the write actually touched (plus at most 3 demonstrably related ones) — it is part of the write itself, not a separate maintenance pass over the whole file. `@skills/compact-project-memory/SKILL.md` derives that scope deterministically from `git diff` and is a no-op when the file carries no diff.
+- When an agent starts a run and finds the memory file already dirty in git from an earlier, uncompacted write, it may run the skill on that existing diff first, before making its own edit.
+- This protocol never reintroduces the automated lesson-generation mechanism removed in #77 — the skill only shrinks the wording of an entry someone already wrote; it never invents, re-derives, or adds new lesson content, and it never loses a recorded fact.
+
+See `@skills/compact-project-memory/SKILL.md` for the exact mechanics — touched-range detection, the per-entry budget, and the invariants that guarantee no fact is ever lost.
 
 ## Temporary-file hygiene (clean up on completion)
 
