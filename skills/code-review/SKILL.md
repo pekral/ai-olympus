@@ -136,6 +136,10 @@ The diff-scoped steps (per-block evaluation against `@skills/class-refactoring/S
 - Verify acceptance criteria
 - **Acceptance-criteria use-case coverage** and the full **Coverage gate** (changed-files-only scope, CI-result reuse with the staleness guard, coverage-tooling discovery, short-by-default coverage reporting, and the missing-test-scenario walk) live in `@rules/code-review/general.mdc` *Validation & Coverage Gate*. Every acceptance criterion without a dedicated use-case test, and every uncovered changed line, is a **Critical** finding.
 
+### Real-Code Grounding for Every Finding (issue #97)
+
+Ground every finding — **Critical, Moderate, and Minor alike; no severity is exempt** — in the actual, current file(s) opened on the checked-out branch, never a remembered pattern or an isolated diff hunk. Before publishing, re-open the cited `file:line` plus its surrounding context (enclosing method/class, and any helper/Service the Suggested Fix relies on) and confirm the claim still holds; drop the finding if the re-read contradicts it. This is additive to, and distinct from, **Critical Findings Verification (issue #537)** below — that gate's Moderate/Minor exemption applies only to its own `analyze-problem` confirm/refute pass; this grounding step still covers every severity.
+
 ### Critical Findings Verification (issue #537)
 
 Run this step **after every preceding analysis step has produced its findings** and **before** the Output assembly. Walk every **Critical** finding through `@skills/analyze-problem/SKILL.md` to confirm it reflects a real problem before it blocks the PR; the binary keep / drop procedure (Confirmed → keep verbatim, Refuted → drop entirely, never silently downgrade, Moderate / Minor exempt) is defined in `@rules/code-review/general.mdc` *Critical Findings Verification (issue #537) — procedure*.

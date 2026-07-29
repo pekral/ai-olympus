@@ -58,6 +58,10 @@ Walk the diff against each pillar of `@rules/api/general.mdc` and raise one find
 - Do not propose API features the current scope does not require (YAGNI per `@rules/php/core-standards.mdc`).
 
 ## Report
+
+### Real-Code Grounding for Every Finding (issue #97)
+Ground every finding — **Critical, Moderate, and Minor alike; no severity is exempt** — in the actual, current file(s) the reviewer opened on the checked-out branch, never in a remembered pattern or a diff hunk read in isolation. Before a finding is added to the report, re-open the cited `file:line` plus its surrounding context — the enclosing route / controller / FormRequest / API Resource, and any Service or DTO the Suggested Fix depends on — and confirm the claim still holds against those real, current bytes; drop a finding on the spot when the re-read contradicts it. This requirement travels with the skill whether it runs inside a `@skills/code-review/SKILL.md` pass or standalone (e.g. a pre-release API design check).
+
 Findings from this skill fold into the core CR's severity buckets; the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) is applied by `@skills/code-review/SKILL.md`, not here — trust-boundary / authorization findings from Core Check 6 fall under the gate's security carve-out and are never excludable.
 
 Use the severity scale of `@skills/code-review/SKILL.md` so findings fold cleanly into the code review:
@@ -86,4 +90,5 @@ Use the template defined in `templates/review-output.md`. Omit any severity sect
 ## Done when
 - Every API-surface change on the diff has been walked against the six Core Checks.
 - Findings are grouped by severity with the mandatory reproducer fields on every Critical and Moderate item.
+- Every published finding was re-grounded in the real, current file per Real-Code Grounding (issue #97).
 - No code, git, or remote state was modified (read-only).

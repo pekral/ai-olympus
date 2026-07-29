@@ -136,6 +136,9 @@ The **Suggested Fix** normalizes to **NFC** and strips / rejects the disallowed 
 
 ## Report
 
+### Real-Code Grounding for Every Finding (issue #97)
+Ground every finding this skill publishes — **Critical, High, Medium, and Low alike; no severity is exempt** — in the actual, current file(s) the reviewer opened on the checked-out branch, never in a remembered pattern, a diff hunk read in isolation, or a plausible-sounding guess about what the surrounding code does. Before a finding is added to the report, re-open the cited `file:line` plus its surrounding context — at minimum the enclosing method / class, and any helper, Service, Repository, or config file the exploit scenario or Suggested Fix depends on — and confirm the claim still holds against those real, current bytes. Drop a finding on the spot when the re-read contradicts it: the flagged construct is no longer there, the surrounding code already mitigates it, or the cited line does not exist. This requirement travels with the skill regardless of who invokes it — inside a `@skills/code-review/SKILL.md` pass or standalone (e.g. `athena`'s independent security-CR mode, where `SECURITY_OWNER=athena` skips `code-review`'s own inline security pass) — so a standalone run never skips grounding just because it runs outside `code-review`'s aggregation.
+
 ### Assignment-declared "test-only" carve-out (issue #17)
 Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/High/Medium/Low). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
 
