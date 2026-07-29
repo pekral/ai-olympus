@@ -58,6 +58,9 @@ For every requirement from step 2, decide one of:
 
 Do **not** report stylistic / architectural / test-coverage concerns even if you notice them — those belong in `@skills/code-review/SKILL.md` and `@skills/security-review/SKILL.md`.
 
+### Real-Code Grounding for Every Finding (issue #97)
+Ground every gap this skill reports — it reports only Critical gaps, and every one of them, no exception — in the actual, current implementation file(s) on the checked-out branch, never in the diff hunk `load-issue.sh` returns read in isolation. Before classifying a requirement as Partially satisfied, Missing, or Divergent above, open the real file the diff hunk belongs to and confirm, against its current, full content and surrounding context, that the requirement genuinely is not satisfied — drop the gap candidate on the spot when the re-read contradicts it (the required behavior is present elsewhere in the file, in a helper the diff hunk does not show, or the requirement is already met). This gate matters most here: this skill is invoked directly by every CR wrapper (`code-review-github`, `code-review-jira`, `code-review-bugsnag`), reads only the diff in step 3, and never passes through `@skills/code-review/SKILL.md`'s own aggregation or Critical Findings Verification (issue #537) — its Critical gaps publish straight to a non-technical tracker audience with no verification layer behind this skill.
+
 ### 5. Return the report to the caller
 
 > **Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`):** the loop iterations call this skill with "do not publish; return findings as in-memory markdown for this loop iteration only" — which is now the **only** mode this skill ever operates in. The skill never publishes anywhere itself; every caller (loop iteration or final consolidating publish) receives the same in-memory return. The loop convergence math still counts Critical gaps from the returned block.
