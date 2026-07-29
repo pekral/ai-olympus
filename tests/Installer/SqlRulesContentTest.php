@@ -43,6 +43,14 @@ test('sql optimalize rule carries the Naming Conventions section', function (): 
     expect($content)->toContain('`weight_grams`, `timeout_seconds`');
 });
 
+test('sql optimalize naming conventions section maps singular table names onto an explicit Eloquent $table override', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('Eloquent derives a model\'s table name as the plural of the class name');
+    expect($content)->toContain('protected $table = \'post\';');
+});
+
 test('sql optimalize rule carries the Nullability and Defaults section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
@@ -63,6 +71,14 @@ test('sql optimalize rule carries the Date and Time Column Types section', funct
     expect($content)->toContain('Never use `TIMESTAMP`');
     expect($content)->toContain('year-2038 range limit');
     expect($content)->toContain('Use `DATETIME` instead');
+});
+
+test('sql optimalize date and time column types section maps the TIMESTAMP prohibition onto Laravel\'s timestamps() helper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('`$table->timestamps()` emits `TIMESTAMP` columns');
+    expect($content)->toContain('`$table->datetimes()` (Laravel 10.0+)');
 });
 
 test('sql optimalize rule carries the modified_at vs updated_at section', function (): void {
@@ -138,7 +154,8 @@ test('sql optimalize rule carries the Collation section', function (): void {
 
     expect($content)->toContain('## Collation');
     expect($content)->toContain('`utf8mb4_0900_*` family');
-    expect($content)->toContain('Legacy `utf8mb4_czech_ci`, `unicode_ci` (UCA 4.0.0), `general_ci`, and `_bin`');
+    expect($content)->toContain('Legacy `utf8mb4_czech_ci`, `unicode_ci` (UCA 4.0.0), `general_ci`, and `utf8mb4_bin`');
+    expect($content)->not->toContain('`general_ci`, and `_bin` have no place');
     expect($content)->toContain('CHECK (`lang` REGEXP \'^[a-z]{2}$\')');
 });
 
