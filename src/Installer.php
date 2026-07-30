@@ -4,11 +4,6 @@ declare(strict_types = 1);
 
 namespace AgenticVibes\AgentSkills;
 
-use FilesystemIterator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
-
 final class Installer
 {
 
@@ -77,14 +72,24 @@ final class Installer
     private static function install(InstallOptions $options): int
     {
         $root = InstallerPath::resolveProjectRoot();
-        [$copied, $pruned, $orphaned] = self::runAllSyncs(self::collectSyncPayloads($root), $options->force, $options->symlink, $options->prune);
+        $syncCounts = self::runAllSyncs(self::collectSyncPayloads($root), $options->force, $options->symlink, $options->prune);
 
-        $copied += self::installSingleFile(InstallerPath::resolveClaudeMdSource(), InstallerPath::resolveClaudeMdTarget($root));
+        $copied = $syncCounts->copied + InstallerFileCopier::installSingleFile(
+            InstallerPath::resolveClaudeMdSource(),
+            InstallerPath::resolveClaudeMdTarget($root),
+        );
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
 
-        self::reportInstallSummary($copied, $pruned, $orphaned, $permissionsAdded, $coAuthoredByDisabled);
+        self::reportInstallSummary(new InstallSummary(
+            copied: $copied,
+            pruned: $syncCounts->pruned,
+            orphaned: $syncCounts->orphaned,
+            permissionsAdded: $permissionsAdded,
+            coAuthoredByDisabled: $coAuthoredByDisabled,
+            orphanedTargets: $syncCounts->orphanedTargets,
+        ));
 
         if ($subagentWritesEnabled) {
             echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
@@ -119,245 +124,70 @@ final class Installer
 
     /**
      * @param array<int, array{0: string, 1: array<int, string>}> $payloads
-     * @return array{int, int, int}
      */
-    private static function runAllSyncs(array $payloads, bool $force, bool $symlink, bool $prune): array
+    private static function runAllSyncs(array $payloads, bool $force, bool $symlink, bool $prune): SyncCounts
     {
-        $totalCopied = 0;
-        $totalPruned = 0;
-        $totalOrphaned = 0;
+        $total = new SyncCounts(copied: 0, pruned: 0, orphaned: 0);
 
         foreach ($payloads as [$source, $targets]) {
-            [$copied, $prunedCount, $orphanedCount] = self::syncDirectories($source, $targets, $force, $symlink, $prune);
-            $totalCopied += $copied;
-            $totalPruned += $prunedCount;
-            $totalOrphaned += $orphanedCount;
+            $total = $total->add(self::syncDirectories($source, $targets, $force, $symlink, $prune));
         }
 
-        return [$totalCopied, $totalPruned, $totalOrphaned];
+        return $total;
     }
 
-    private static function reportInstallSummary(int $copied, int $pruned, int $orphaned, int $permissionsAdded, bool $coAuthoredByDisabled): void
+    private static function reportInstallSummary(InstallSummary $summary): void
     {
-        echo sprintf('Rules and skills installed (%d files, %d pruned).%s', $copied, $pruned, PHP_EOL);
+        echo sprintf('Rules and skills installed (%d files, %d pruned).%s', $summary->copied, $summary->pruned, PHP_EOL);
 
-        if ($orphaned > 0) {
-            echo sprintf('%d file(s) in target no longer exist in source. Re-run with --prune to remove them.%s', $orphaned, PHP_EOL);
+        if ($summary->orphaned > 0) {
+            $targetsSuffix = $summary->orphanedTargets === [] ? '' : sprintf(' (%s)', implode(', ', $summary->orphanedTargets));
+            echo sprintf(
+                '%d file(s) in target no longer exist in source. Re-run with --prune to remove them.%s%s',
+                $summary->orphaned,
+                $targetsSuffix,
+                PHP_EOL,
+            );
         }
 
-        if ($permissionsAdded > 0) {
-            echo sprintf('Allowed %d bundled-script permission(s) in ~/.claude/settings.json.%s', $permissionsAdded, PHP_EOL);
+        if ($summary->permissionsAdded > 0) {
+            echo sprintf('Allowed %d bundled-script permission(s) in ~/.claude/settings.json.%s', $summary->permissionsAdded, PHP_EOL);
         }
 
-        if ($coAuthoredByDisabled) {
+        if ($summary->coAuthoredByDisabled) {
             echo sprintf('Disabled AI co-author attribution (includeCoAuthoredBy: false) in ~/.claude/settings.json.%s', PHP_EOL);
         }
     }
 
     /**
      * @param array<int, string> $targets
-     * @return array{int, int, int}
      */
-    private static function syncDirectories(string $source, array $targets, bool $force, bool $symlink, bool $prune): array
+    private static function syncDirectories(string $source, array $targets, bool $force, bool $symlink, bool $prune): SyncCounts
     {
         $copied = 0;
         $pruned = 0;
         $orphaned = 0;
+        $orphanedTargets = [];
+        // Listed once per payload instead of once per target — `pruneDirectory()`/`findOrphans()`
+        // no longer each re-walk the identical source tree for every target of this payload.
+        $sourceFiles = InstallerPruner::listSourceFiles($source);
 
         foreach ($targets as $target) {
-            $copied += self::installDirectory($source, $target, $force, $symlink);
+            $copied += InstallerFileCopier::installDirectory($source, $target, $force, $symlink);
 
             if ($prune) {
-                $pruned += InstallerPruner::pruneDirectory($source, $target);
+                $pruned += InstallerPruner::pruneDirectory($source, $target, $sourceFiles);
             } else {
-                $orphaned += count(InstallerPruner::findOrphans($source, $target));
+                $targetOrphanCount = count(InstallerPruner::findOrphans($source, $target, $sourceFiles));
+                $orphaned += $targetOrphanCount;
+
+                if ($targetOrphanCount > 0) {
+                    $orphanedTargets[] = $target;
+                }
             }
         }
 
-        return [$copied, $pruned, $orphaned];
-    }
-
-    private static function installDirectory(string $source, string $targetDir, bool $force, bool $symlink): int
-    {
-        InstallerPath::ensureDirectory($targetDir);
-        self::replicateDirectories($source, $targetDir);
-
-        $files = self::listFiles($source);
-
-        return self::processFiles($files, $source, $targetDir, $force, $symlink);
-    }
-
-    /**
-     * @param array<int, string> $files
-     */
-    private static function processFiles(array $files, string $source, string $targetDir, bool $force, bool $symlink): int
-    {
-        return array_reduce(
-            $files,
-            static fn (int $copied, string $relativePath): int => $copied + (self::shouldProcessFile(
-                $relativePath,
-                $source,
-                $targetDir,
-                $force,
-                $symlink,
-            ) ? 1 : 0),
-            0,
-        );
-    }
-
-    private static function shouldProcessFile(string $relativePath, string $source, string $targetDir, bool $force, bool $symlink): bool
-    {
-        $src = $source . '/' . $relativePath;
-        $dst = $targetDir . '/' . $relativePath;
-        $dirName = dirname($dst);
-
-        InstallerPath::ensureDirectory($dirName);
-
-        $effectiveForce = $force || self::isSecurityRule($relativePath);
-
-        if (file_exists($dst) && !$effectiveForce) {
-            return false;
-        }
-
-        return self::installFile($src, $dst, $symlink);
-    }
-
-    private static function isSecurityRule(string $relativePath): bool
-    {
-        return str_starts_with($relativePath, 'security/') || str_starts_with($relativePath, 'security\\');
-    }
-
-    private static function installFile(string $src, string $dst, bool $symlink): bool
-    {
-        self::removeExistingTarget($dst);
-
-        if ($symlink && self::canSymlink()) {
-            if (!symlink($src, $dst)) {
-                // @codeCoverageIgnoreStart
-                self::copy($src, $dst);
-                // @codeCoverageIgnoreEnd
-            }
-        } else {
-            self::copy($src, $dst);
-            self::preserveExecutableBit($src, $dst);
-        }
-
-        InstallerHumanizer::appendIfNeeded($dst);
-
-        return true;
-    }
-
-    private static function preserveExecutableBit(string $src, string $dst): void
-    {
-        $mode = fileperms($src);
-
-        if ($mode === false || ($mode & 0111) === 0) {
-            return;
-        }
-
-        set_error_handler(static fn (): bool => true);
-        chmod($dst, ($mode & 0777) | 0111);
-        restore_error_handler();
-    }
-
-    private static function removeExistingTarget(string $destination): void
-    {
-        if (!file_exists($destination)) {
-            return;
-        }
-
-        if (is_dir($destination)) {
-            throw InstallerFailure::removalFailed($destination);
-        }
-
-        set_error_handler(static fn (): bool => true);
-        $deleted = unlink($destination);
-        restore_error_handler();
-
-        // @codeCoverageIgnoreStart
-        if ($deleted === false) {
-            throw InstallerFailure::removalFailed($destination);
-        }
-        // @codeCoverageIgnoreEnd
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function listFiles(string $base): array
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(
-                $base,
-                FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS,
-            ),
-            RecursiveIteratorIterator::LEAVES_ONLY,
-        );
-        $files = [];
-
-        foreach ($iterator as $file) {
-            /** @var \SplFileInfo $file */
-            $files[] = self::extractFilePath($file, $base);
-        }
-
-        sort($files);
-
-        return $files;
-    }
-
-    private static function replicateDirectories(string $source, string $targetDir): void
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(
-                $source,
-                FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS,
-            ),
-            RecursiveIteratorIterator::SELF_FIRST,
-        );
-
-        foreach ($iterator as $directory) {
-            if (!$directory instanceof SplFileInfo || !$directory->isDir()) {
-                continue;
-            }
-
-            $relativePath = self::extractFilePath($directory, $source);
-
-            InstallerPath::ensureDirectory($targetDir . '/' . $relativePath);
-        }
-    }
-
-    private static function extractFilePath(SplFileInfo $file, string $base): string
-    {
-        $pathname = $file->getPathname();
-
-        return ltrim(str_replace($base, '', $pathname), '/');
-    }
-
-    private static function copy(string $src, string $dst): void
-    {
-        if (!copy($src, $dst)) {
-            throw InstallerFailure::fileCopyFailed($src, $dst);
-        }
-    }
-
-    private static function installSingleFile(?string $source, string $target): int
-    {
-        if ($source === null || file_exists($target)) {
-            return 0;
-        }
-
-        return self::installFile($source, $target, symlink: false) ? 1 : 0;
-    }
-
-    private static function canSymlink(): bool
-    {
-        if (stripos(PHP_OS, 'WIN') === 0) {
-            // @codeCoverageIgnoreStart
-            return false;
-            // @codeCoverageIgnoreEnd
-        }
-
-        return function_exists('symlink');
+        return new SyncCounts(copied: $copied, pruned: $pruned, orphaned: $orphaned, orphanedTargets: $orphanedTargets);
     }
 
 }

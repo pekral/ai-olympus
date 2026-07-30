@@ -46,20 +46,29 @@ function installerRemoveDirectory(string $directory): void
     );
 
     foreach ($iterator as $fileInfo) {
-        if (!$fileInfo instanceof SplFileInfo) {
-            continue;
+        if ($fileInfo instanceof SplFileInfo) {
+            installerRemoveFileSystemEntry($fileInfo);
         }
-
-        if ($fileInfo->isDir()) {
-            rmdir($fileInfo->getPathname());
-
-            continue;
-        }
-
-        unlink($fileInfo->getPathname());
     }
 
     rmdir($directory);
+}
+
+/**
+ * A symlink must be checked before isDir() — isDir() follows the link and would route a
+ * directory symlink into rmdir(), which POSIX refuses ("Not a directory") since the link itself,
+ * not a directory, sits at that path. unlink() removes the link entry only, never whatever it
+ * points to (PR #150 CR fix — a test fixture creating a directory symlink surfaced this).
+ */
+function installerRemoveFileSystemEntry(SplFileInfo $fileInfo): void
+{
+    if ($fileInfo->isLink() || !$fileInfo->isDir()) {
+        unlink($fileInfo->getPathname());
+
+        return;
+    }
+
+    rmdir($fileInfo->getPathname());
 }
 
 function installerSymlinkUnsupported(): bool
