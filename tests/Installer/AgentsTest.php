@@ -477,8 +477,43 @@ test('daidalos sweeps stale briefs and worktrees at startup before writing its o
 });
 
 /**
- * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep*: a brief file is safe to
- * delete when it is not this run's own slug AND its recorded `## PID` is dead or absent.
+ * ESRCH ("no such process") is the only confirmed-dead outcome; EPERM ("process exists, no
+ * permission") means alive under another UID/namespace. Shared by both the brief-half and the
+ * worktree-half sweep mirrors below (PR #150 CR fix).
+ */
+function daidalosPidConfirmedDead(int $pid): bool
+{
+    if (posix_kill($pid, 0)) {
+        return false;
+    }
+
+    return stripos(posix_strerror(posix_get_last_error()), 'permitted') === false;
+}
+
+/**
+ * A brief is judged confirmed-dead only from a `## PID` line found in its header region (before
+ * the first fenced code block) matching `^[0-9]{1,7}$` — a line that merely looks like
+ * `## PID <n>` inside a fenced tracker-payload quote (e.g. `## Gathered context`) must never be
+ * read as the real one.
+ */
+function daidalosBriefConfirmedDead(string $content): bool
+{
+    $headerRegion = explode('```', $content, 2)[0];
+
+    if (preg_match('/^## PID\s+([0-9]{1,7})\b/m', $headerRegion, $matches) !== 1) {
+        return false;
+    }
+
+    return daidalosPidConfirmedDead((int) $matches[1]);
+}
+
+/**
+ * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep*: fail-safe by construction.
+ * A brief file is safe to delete only on POSITIVE PROOF of death (`daidalosBriefConfirmedDead()`
+ * above). Everything else — no PID line, a malformed token, a PID found only inside a fenced
+ * tracker-payload quote, a live PID, or an EPERM probe — is preserved, never deleted (PR #150 CR
+ * fix for issue #148: the original algorithm treated "no PID" as deletable, a fail-unsafe
+ * default this mirror must never reproduce again).
  *
  * @return array<int, string> basenames of brief files judged safe to delete
  */
@@ -491,18 +526,7 @@ function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBas
     foreach ($paths as $path) {
         $basename = basename($path);
 
-        if ($basename === $ownBriefBasename) {
-            continue;
-        }
-
-        $content = (string) file_get_contents($path);
-        $alive = false;
-
-        if (preg_match('/^## PID\s+(\d+)/m', $content, $matches) === 1) {
-            $alive = posix_kill((int) $matches[1], 0);
-        }
-
-        if (!$alive) {
+        if ($basename !== $ownBriefBasename && daidalosBriefConfirmedDead((string) file_get_contents($path))) {
             $deletable[] = $basename;
         }
     }
@@ -510,29 +534,215 @@ function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBas
     return $deletable;
 }
 
-test('daidalos startup-sweep algorithm deletes dead-PID/no-PID briefs, preserves a live-PID one and this run\'s own slug (issue #148)', function (): void {
+test(
+    'daidalos startup-sweep algorithm is fail-safe: only a confirmed-dead, header-region, format-valid PID is deletable (PR #150 CR fix)',
+    function (): void {
+        $root = installerCreateProjectRoot();
+        $runDir = $root . '/.claude/run';
+        $livePid = getmypid();
+        expect($livePid)->not->toBeFalse();
+
+        installerWriteFile(
+            $runDir . '/gh-dead.md',
+            "# Task brief — gh-dead\n## PID               9999999\n## Source            https://example.com/issues/1\n",
+        );
+        installerWriteFile(
+            $runDir . '/gh-live.md',
+            "# Task brief — gh-live\n## PID               {$livePid}\n## Source            https://example.com/issues/2\n",
+        );
+        installerWriteFile($runDir . '/gh-no-pid.md', "# Task brief — gh-no-pid\n## Source            https://example.com/issues/3\n");
+        installerWriteFile($runDir . '/gh-own.md', "# Task brief — gh-own\n## Source            https://example.com/issues/4\n");
+        installerWriteFile(
+            $runDir . '/gh-malformed.md',
+            "# Task brief — gh-malformed\n## PID               not-a-number\n## Source            https://example.com/issues/5\n",
+        );
+        installerWriteFile(
+            $runDir . '/gh-fenced.md',
+            "# Task brief — gh-fenced\n## Source            https://example.com/issues/6\n\n"
+                . "## Gathered context\n```text\n## PID 9999999\n```\n",
+        );
+
+        try {
+            $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
+            sort($deletable);
+
+            // Only the confirmed-dead, header-region, format-valid PID is deletable — a missing
+            // PID, a malformed token, and a PID found only inside a fenced tracker-payload quote
+            // are all fail-safe: preserved, exactly like the genuinely live one.
+            expect($deletable)->toBe(['gh-dead.md']);
+        } finally {
+            installerRemoveDirectory($root);
+        }
+    },
+);
+
+test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as dead (PR #150 CR fix)', function (): void {
+    if (posix_getuid() === 0) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
     $root = installerCreateProjectRoot();
     $runDir = $root . '/.claude/run';
-    $livePid = getmypid();
-    expect($livePid)->not->toBeFalse();
 
+    // PID 1 (init/launchd) exists but is owned by another user — kill(pid, 0) fails with EPERM,
+    // not ESRCH, for a non-root caller. EPERM proves the process exists, so it must count as alive.
     installerWriteFile(
-        $runDir . '/gh-dead.md',
-        "# Task brief — gh-dead\n## PID               999999999\n## Source            https://example.com/issues/1\n",
+        $runDir . '/gh-eperm.md',
+        "# Task brief — gh-eperm\n## PID               1\n## Source            https://example.com/issues/7\n",
     );
-    installerWriteFile(
-        $runDir . '/gh-live.md',
-        "# Task brief — gh-live\n## PID               {$livePid}\n## Source            https://example.com/issues/2\n",
-    );
-    installerWriteFile($runDir . '/gh-no-pid.md', "# Task brief — gh-no-pid\n## Source            https://example.com/issues/3\n");
-    installerWriteFile($runDir . '/gh-own.md', "# Task brief — gh-own\n## Source            https://example.com/issues/4\n");
 
     try {
         $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
-        sort($deletable);
 
-        expect($deletable)->toBe(['gh-dead.md', 'gh-no-pid.md']);
+        expect($deletable)->toBe([]);
     } finally {
         installerRemoveDirectory($root);
     }
 });
+
+/**
+ * A worktree porcelain entry is judged confirmed-dead only from a `locked <reason>` line whose
+ * reason carries a `pid <N>` token matching `^[0-9]{1,7}$` — no `locked` line at all, or one with
+ * no parseable pid token, is never confirmed-dead.
+ */
+function daidalosWorktreeEntryConfirmedDead(string $entry): bool
+{
+    if (preg_match('/^locked (.*)$/m', $entry, $lockMatch) !== 1) {
+        return false;
+    }
+
+    if (preg_match('/\bpid (\d{1,7})\b/', $lockMatch[1], $pidMatch) !== 1) {
+        return false;
+    }
+
+    return daidalosPidConfirmedDead((int) $pidMatch[1]);
+}
+
+/**
+ * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep* for the WORKTREE half —
+ * previously covered only by string assertions, not an algorithmic fixture (PR #150 CR fix,
+ * Critical 4's test gap). A `.claude/worktrees/agent-*` entry from `git worktree list
+ * --porcelain` is safe to remove only on positive proof of death (`daidalosWorktreeEntryConfirmedDead()`
+ * above) — an entry with no `locked` line at all, or a `locked` line whose reason carries no
+ * parseable pid token, is left in place — never removed (fail-safe, inverted from the original
+ * "no locked line → treat like a stale lock → remove" behaviour).
+ *
+ * @return array<int, string> worktree paths judged safe to remove
+ */
+function daidalosStartupSweepRemovableWorktrees(string $porcelain): array
+{
+    $removable = [];
+    $entries = array_filter(explode("\n\n", trim($porcelain)), static fn (string $entry): bool => $entry !== '');
+
+    foreach ($entries as $entry) {
+        if (preg_match('/^worktree (.+)$/m', $entry, $pathMatch) === 1 && daidalosWorktreeEntryConfirmedDead($entry)) {
+            $removable[] = $pathMatch[1];
+        }
+    }
+
+    return $removable;
+}
+
+test(
+    'daidalos startup-sweep worktree algorithm is fail-safe: only a confirmed-dead, parseable locked pid is removable (PR #150 CR fix)',
+    function (): void {
+        $livePid = getmypid();
+        expect($livePid)->not->toBeFalse();
+
+        $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-dead' . "\n"
+            . 'HEAD 1111111111111111111111111111111111111111' . "\n"
+            . 'branch refs/heads/talos/gh-1' . "\n"
+            . 'locked pid 9999999 slug gh-1' . "\n"
+            . "\n"
+            . 'worktree /repo/.claude/worktrees/agent-cr-live' . "\n"
+            . 'HEAD 2222222222222222222222222222222222222222' . "\n"
+            . 'branch refs/heads/talos/gh-2' . "\n"
+            . 'locked pid ' . $livePid . ' slug gh-2' . "\n"
+            . "\n"
+            . 'worktree /repo/.claude/worktrees/agent-cr-unlocked' . "\n"
+            . 'HEAD 3333333333333333333333333333333333333333' . "\n"
+            . 'branch refs/heads/talos/gh-3' . "\n"
+            . "\n"
+            . 'worktree /repo/.claude/worktrees/agent-cr-no-pid-token' . "\n"
+            . 'HEAD 4444444444444444444444444444444444444444' . "\n"
+            . 'branch refs/heads/talos/gh-4' . "\n"
+            . 'locked keep — manual bisect in progress' . "\n";
+
+        $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
+
+        // Only the confirmed-dead, parseable-pid locked entry is removable — the unlocked entry
+        // and the locked-but-no-pid-token entry are both preserved, exactly like the live one.
+        expect($removable)->toBe(['/repo/.claude/worktrees/agent-cr-dead']);
+    },
+);
+
+test('daidalos startup-sweep worktree algorithm treats a locked EPERM pid as alive, never as dead (PR #150 CR fix)', function (): void {
+    if (posix_getuid() === 0) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
+    $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-eperm' . "\n"
+        . 'HEAD 5555555555555555555555555555555555555555' . "\n"
+        . 'branch refs/heads/talos/gh-5' . "\n"
+        . 'locked pid 1 slug gh-5' . "\n";
+
+    $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
+
+    expect($removable)->toBe([]);
+});
+
+test(
+    'daidalos startup sweep documents the fail-safe default, single PID source, format validation, and a dedicated sweep lock (PR #150 CR fix)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    
+        // Fail-safe by construction — absence of a signal is never proof of death.
+        expect($daidalos)->toContain('it deletes only on positive proof of death, never on the mere absence of a liveness signal');
+    
+        // A single, run-stable PID source — $$ is explicitly ruled out everywhere it is prescribed.
+        expect($daidalos)->toContain('**never `$$`**, the ephemeral PID of the single Bash subshell one tool call runs in');
+        expect($daidalos)->toContain('two consecutive Bash calls in this environment report two different `$$` values but an identical, stable `$PPID`');
+    
+        // Header-region-only parsing and format validation guard against attacker-influenced tracker text.
+        expect($daidalos)->toContain('read `## PID` only from the brief\'s header region — the lines before the first fenced');
+        expect($daidalos)->toContain('require the captured token to match `^[0-9]{1,7}$`');
+        expect($daidalos)->toContain('always double-quote it when it reaches a command (`kill -0 "$pid"`)');
+    
+        // ESRCH vs EPERM is distinguished everywhere a `kill -0` probe is prescribed.
+        expect($daidalos)->toContain('conflates "no such process" (ESRCH) with "process exists, no permission" (EPERM)');
+    
+        // The sweep itself runs under a dedicated, short-lived lock distinct from the write-lock.
+        expect($daidalos)->toContain('.claude/run/.daidalos-sweep.lock');
+        expect($daidalos)->toContain('This is separate from, and much shorter-lived than, the write-lock above');
+    
+        // An unlocked worktree entry (or one with no parseable pid token) is left in place, not removed —
+        // inverted from the original "no locked line → treat like a stale lock → remove" default.
+        expect($daidalos)->toContain('is left in place — never removed');
+    
+        // The brief is created atomically, `## PID` first, closing the mid-write observation window.
+        expect($daidalos)->toContain('Atomic, PID-first brief creation');
+        expect($daidalos)->toContain('so no peer\'s sweep can ever observe the file between its creation and the `## PID` line landing');
+    },
+);
+
+test(
+    'argos and athena lock every CR worktree at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+    
+        foreach (['argos', 'athena'] as $agent) {
+            $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+    
+            expect($content)->toContain('.claude/worktrees/agent-cr-<slug>');
+            expect($content)->toContain('lock it immediately on creation');
+            expect($content)->toContain('git worktree lock --reason "pid $PPID slug <slug>"');
+            expect($content)->toContain('never `$$`, the ephemeral per-Bash-call subshell PID');
+            expect($content)->toContain('git worktree unlock <path>');
+        }
+    },
+);
