@@ -466,6 +466,12 @@ test('per-role read filter extracts entries whose Role: line sits past a fixed g
     expect($rule)->toContain('entry bodies carry a variable number of inserted lines');
     expect($rule)->toContain('/^### / { if (buf != "" && matched) printf "%s", buf; buf = ""; matched = 0 }');
     expect($rule)->toContain('/^- Role:/ { if ($0 ~ ("(" role "|shared)")) matched = 1 }');
+    // The role binding, the accumulation line, and the END clause complete the shipped awk
+    // program — previously unpinned, so a regression in any of them kept the suite green while
+    // the idiom itself broke (PR #150 CR fix — Minor 5).
+    expect($rule)->toContain('awk -v role="<your-role>" \'');
+    expect($rule)->toContain('{ buf = buf $0 "\n" }');
+    expect($rule)->toContain('END { if (buf != "" && matched) printf "%s", buf }');
 
     // Fixture: one entry whose `Role:` sits immediately after `Trigger:` (shallow — the old
     // `grep -A5` window already covered this) and one whose `Role:` sits past a fixed 5-line
@@ -503,44 +509,53 @@ test('per-role read filter extracts entries whose Role: line sits past a fixed g
     expect($matches[1])->toContain('deep-match');
 });
 
-test('PROJECT_MEMORY.md entries stay within the per-entry size budget (issue #148)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
-
+/**
+ * Parses `docs/memory/PROJECT_MEMORY.md` into its per-entry blocks (each starting at its own
+ * `### slug` heading), asserting the split succeeded and produced at least one entry. Shared by
+ * every test below that walks all entries, so the parsing preamble exists exactly once instead of
+ * being repeated per test (PR #150 CR fix — Refactoring 1).
+ *
+ * @return array<int, string>
+ */
+function compoundMemoryParseEntries(string $memory): array
+{
     $entries = preg_split('/(?=^### )/m', $memory);
     expect($entries)->not->toBeFalse();
 
     if ($entries === false) {
-        return;
+        return [];
     }
 
     $entries = array_values(array_filter($entries, static fn (string $entry): bool => str_starts_with($entry, '### ')));
     expect($entries)->not->toBe([]);
 
-    // Target is ~1200 bytes/entry (issue #148); the hard ceiling allows headroom for entries
-    // whose `### <slug>` is long (slugs are never renamed/shortened — invariant #1) or that
-    // legitimately carry multiple preserved counter-examples/recurrences (invariant #5/#6) —
-    // after compaction the tightest entries sit near 1200 B and the single largest is ~1500 B.
+    return $entries;
+}
+
+test('PROJECT_MEMORY.md entries stay within the per-entry size budget (issue #148)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
+    $entries = compoundMemoryParseEntries($memory);
+
+    // Target is ~1200 bytes/entry (issue #148) — NOT met, a deliberate trade-off (see CHANGELOG.md
+    // and the PR description): the CR fix for PR #150 Critical 2 restored concrete pointers that a
+    // first compaction pass had dropped, violating compact-project-memory's invariant #4 ("no
+    // concrete pointer is ever dropped"). Keeping every restored pointer takes priority over the
+    // byte target. The tightest entries sit near 1200 B; the single largest
+    // (`skills-tree-convention-removal-grep-full-tree`, several restored file paths plus a restored
+    // pin-assertion reference) measures ~1685 B, so the ceiling below sits just above the measured
+    // maximum — tight enough to fail on the next byte of drift, not the next hundred.
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect(strlen($entry))->toBeLessThanOrEqual(1_600, 'Entry exceeds the per-entry byte budget: ' . $title);
+        expect(strlen($entry))->toBeLessThanOrEqual(1_700, 'Entry exceeds the per-entry byte budget: ' . $title);
     }
 });
 
 test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
-
-    $entries = preg_split('/(?=^### )/m', $memory);
-    expect($entries)->not->toBeFalse();
-
-    if ($entries === false) {
-        return;
-    }
-
-    $entries = array_values(array_filter($entries, static fn (string $entry): bool => str_starts_with($entry, '### ')));
-    expect($entries)->not->toBe([]);
+    $entries = compoundMemoryParseEntries($memory);
 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");

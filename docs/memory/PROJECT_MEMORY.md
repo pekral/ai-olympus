@@ -37,7 +37,7 @@
 
 ### agent-rename-sync-points — Renaming an agent must sync pinned InstallerTest phrases and reserved-name notes too
 - Trigger: an agent is renamed (e.g. `keryx` → `hermes`) and the author updates the obvious files but forgets a non-obvious sync point: pinned phrases in `tests/InstallerTest.php`, or a reserved-name note in `docs/agents.md`.
-- Rule:    Renaming touches more than 4 obvious files: (1) `git mv agents/<old>.md agents/<new>.md`, rewrite `name:`/prose/handoff phrases; (2) `tests/InstallerTest.php` pins agent prose verbatim — every phrase must stay byte-identical or `composer build` fails; (3) grep the repo for the old slug (all case variants), confirm 0 occurrences; (4) if `docs/agents.md` reserves the new name for a future agent, redirect that reservation to another free Greek name. Do it all in one commit, including the avatar swap at `assets/agents/<new>.png`.
+- Rule:    Renaming touches more than 4 obvious files: (1) `git mv agents/<old>.md agents/<new>.md`, rewrite `name:`/prose/handoff phrases; (2) `tests/InstallerTest.php` pins agent prose verbatim — every phrase must stay byte-identical or `composer build` fails; (3) grep the repo for the old slug (all case variants), confirm 0 occurrences; (4) if `docs/agents.md` reserves the new name for a future agent, redirect that reservation to another free Greek name. Do it all in one commit, including the avatar swap at `assets/agents/<new>.png` (swapped in from `placeholder.svg`).
 - Example: PR #647 renamed `keryx` → `hermes`: pinned phrases in `tests/InstallerTest.php` rewritten in lockstep, the `hermes` reservation (~`docs/agents.md:95`) redirected to `iris`. argos converged iteration 1 (0/0/0); `grep -ri keryx` returned 0 outside `.claude/`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/647   Added: 2026-06-20
 - Role:    talos
@@ -51,15 +51,15 @@
 
 ### installer-security-doc-source-of-truth — Security docs must list unconditional installer writes, not only opt-in-gated ones
 - Trigger: writing/reviewing security/trust-model docs (SECURITY.md, README CLI Switches, installer trust model) for a PHP Composer installer + ComposerPlugin, describing which files the installer writes.
-- Rule:    Source of truth is `src/Installer.php`, `src/InstallerClaudeSettings.php`, `src/ComposerPlugin.php` — not the CLI flag list. Name explicitly: (1) `Installer::install()` unconditionally calls `applyCoAuthoredByPreference()`, writing `includeCoAuthoredBy: false` into `~/.claude/settings.json` when absent (never overwrites); (2) `allow-plugins: true` unlocks `ComposerPlugin`'s `post-install-cmd`/`post-update-cmd` hook, which (when `extra.agent-skills.auto-install: true`) runs the installer with `--force` on every `composer install`/`update` — an ungated code-execution surface. Omitting either lets CR flag Critical (home-dir write) or Moderate (auto-install hook).
+- Rule:    Source of truth is `src/Installer.php`, `src/InstallerClaudeSettings.php`, `src/ComposerPlugin.php` — not the CLI flag list. Name explicitly: (1) `Installer::install()` unconditionally calls `applyCoAuthoredByPreference()`, writing `includeCoAuthoredBy: false` into `~/.claude/settings.json` when absent (never overwrites); (2) `allow-plugins: true` in `composer.json` unlocks `ComposerPlugin`'s `post-install-cmd`/`post-update-cmd` hook, which (when `extra.agent-skills.auto-install: true`) runs the installer with `--force` on every `composer install`/`update` — an ungated code-execution surface. Omitting either lets CR flag Critical (home-dir write) or Moderate (auto-install hook).
 - Example: PR #672 (issue #664) SECURITY.md gated all home-dir writes behind opt-in flags; argos found the unconditional `includeCoAuthoredBy` write (Critical) and `allow-plugins` hook (Moderate) missing. Refs: `src/Installer.php:91`, `src/InstallerClaudeSettings.php:60-95`, `src/ComposerPlugin.php:43-69`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/672   Added: 2026-06-22
 - Role:    shared
 
 ### skills-tree-verbatim-distribution — Any file under skills/ ships verbatim to consumer trees via the installer
 - Trigger: a PR adds a non-`SKILL.md` file under `skills/` (dataset, fixture, payload, README), especially one parseable/executable by a runtime (`.php` with `<?php`, `.sh` with a shebang).
-- Rule:    `src/Installer.php` copies the entire `skills/` subtree verbatim into `.claude/skills/` and `~/.claude/skills/` with no extension filter (Cursor/Codex targets removed in PR #33/issue #16). Every file added under `skills/` ships to every consumer. Dataset/fixture payloads must be INERT: no `<?php` tag, no shebang, no executable syntax — represent payloads as plain text. Add a regression assertion in `tests/Installer/SecurityContentTest.php` that the dataset dir contains no PHP open tags whenever a new executable-syntax category is introduced.
-- Example: `skills/security-review/datasets/malicious-uploads/mime-double-extension/evil.php.jpg` contained a real `<?php … ?>` block passing `php -l`; argos caught Moderate in PR #685 iteration 1; fix `a940708` neutered it to plain text + regression guard in `tests/Installer/SecurityContentTest.php`.
+- Rule:    `src/Installer.php` copies the entire `skills/` subtree verbatim into `.claude/skills/` and `~/.claude/skills/` with no extension filter (Cursor/Codex targets removed in PR #33/issue #16). Every file added under `skills/` ships to every consumer. Dataset/fixture payloads must be INERT: no `<?php` tag, no shebang, no executable syntax — represent payloads as plain text (e.g. `[php-open-tag] echo "xss"; [php-close-tag]`). Add a regression assertion in `tests/Installer/SecurityContentTest.php` that the dataset dir contains no PHP open tags (or equivalent runtime entry point) whenever a new executable-syntax category is introduced.
+- Example: `skills/security-review/datasets/malicious-uploads/mime-double-extension/evil.php.jpg` contained a real `<?php … ?>` block passing `php -l`; argos caught Moderate in PR #685 iteration 1; fix `a940708` neutered it to plain text + regression guard in `tests/Installer/SecurityContentTest.php`. Dataset inertness is declared in per-directory READMEs and per-file INERT headers.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/685   Added: 2026-06-22
 - Role:    shared
 
@@ -87,13 +87,13 @@
 ### skills-tree-convention-removal-grep-full-tree — Removing a shared convention across skills/ needs a full-tree grep, not just named files
 - Trigger: a task removes/renames a shared convention (marker text, function name, section title, anchor pattern) referenced across `skills/`, and the implementer updates only the explicitly named files.
 - Rule:    Before opening the PR, `grep -r '<pattern>' skills/` across the whole tree — including verbatim-distributed templates, cross-skill SKILL.md files, helper scripts. A file still mentioning the old convention is a live artifact shipped by `src/Installer.php` and a likely Moderate finding. Pin the absence with `not->toContain(...)` in the relevant installer content test. When the removed skill is also a delegation target, inline the delegated contract into the agent file in the same commit, not just delete the pointer.
-- Example: PR #700 removed an anchor from 3 SKILL.md files but missed 2 refs (`skills/code-review/templates/review-output.md`, `skills/process-code-review/SKILL.md`) — 2 Moderate, fixed `197a442`, pinned in `CodeReviewContentTest.php`. PR #7 (issue #6, 13 skills removed) reconfirmed: full-tree grep found 3 more refs; 3 agents (`hermes.md`→`article-writing`, `apollon.md`→`test-like-human`, `daidalos.md`→`autoresolve-oldest-github-issue`) needed delegated behavior inlined.
+- Example: PR #700 removed `{anchor:cr-comment-actor-<slug>}` from 3 SKILL.md files but missed 2 refs (`skills/code-review/templates/review-output.md`, `skills/process-code-review/SKILL.md`) — 2 Moderate, fixed `197a442`, pinned in `CodeReviewContentTest.php`. PR #7 (issue #6, 13 skills removed) reconfirmed: full-tree grep found 3 more refs (`skills/product-capability/SKILL.md`, `skills/resolve-issue/SKILL.md`, `skills/skill-creator/SKILL.md`); 3 agents (`hermes.md`→`article-writing`, `apollon.md`→`test-like-human`, `daidalos.md`→`autoresolve-oldest-github-issue`) needed delegated behavior inlined, pinned via `not->toContain('test-like-human')`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/700   Added: 2026-06-23   Updated: 2026-07-01 (PR #7)
 - Role:    talos
 
 ### laravel-rules-tracked-source — The canonical tracked source of Laravel rules is rules/laravel/architecture.mdc at the repo root, not .claude/rules/
 - Trigger: a task adds/modifies a Laravel CR rule (detection bullet, severity, convention text) and the implementer looks for the file to edit.
-- Rule:    Canonical, git-tracked source is `rules/laravel/architecture.mdc` (repo root). `.claude/rules/laravel/architecture.mdc` is git-ignored, installer-generated — editing it changes nothing. Always edit the root file. Any new phrase must be byte-identically pinned in `tests/Installer/LaravelRulesContentTest.php`; a companion `skills/code-review/SKILL.md` bullet is pinned in `tests/Installer/CodeReviewContentTest.php`. Run `composer build` before opening the PR.
+- Rule:    Canonical, git-tracked source is `rules/laravel/architecture.mdc` (repo root). `.claude/rules/laravel/architecture.mdc` is git-ignored, installer-generated — editing it changes nothing. Always edit the root file. Any new phrase must be byte-identically pinned (via `toContain()`) in `tests/Installer/LaravelRulesContentTest.php`; a companion `skills/code-review/SKILL.md` bullet is pinned in `tests/Installer/CodeReviewContentTest.php`. Run `composer build` before opening the PR.
 - Example: PR #703 (issue #698) — gather step confirmed the tracked file since both paths had identical content. 4 byte-identical phrases pinned in each test file; all passed the first `composer build` run.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/703   Added: 2026-06-23
 - Role:    talos
@@ -108,7 +108,7 @@
 ### per-tracker-claim-belongs-in-resolve-issue-and-autoresolve — A claim mechanism needs an idempotent abort-on-conflict claim AND a selection-exclusion filter
 - Trigger: a task asks to mark a tracker issue "In progress"/claimed at work-start so two AI agents don't pick the same task in parallel; the naive implementation only sets a status.
 - Rule:    A claim alone doesn't prevent the collision. The guard is two-sided: (1) the claim step is idempotent, apply-and-verify (re-read, never trust the write exit code — [[auto-mode-external-write-blocked]]), and ABORTs if already claimed; (2) the selection step EXCLUDEs already-claimed issues. GitHub: claim label (`Resolve_by_AI:in-progress`) + `-label:"${CLAIM_LABEL}"` negation in the `autoresolve` query. JIRA: a second sanctioned transition helper (clone of `transition-to-code-review.sh`). Bugsnag stays hands-off. Release the claim on Blocked/abort before the PR opens; keep it on success.
-- Example: issue #704/PR #706 — `general.mdc` gained *Claim a tracker issue…*; `skills/code-review-jira/scripts/transition-to-in-progress.sh` (new); `resolve-issue`/`autoresolve-oldest-github-issue` updated. Converged argos+athena 0/0/0 iteration 1.
+- Example: issue #704/PR #706 — `general.mdc` gained *Claim a tracker issue…*; `skills/code-review-jira/scripts/transition-to-in-progress.sh` (new); `skills/resolve-issue/SKILL.md`/`skills/autoresolve-oldest-github-issue/SKILL.md` updated. Converged argos+athena 0/0/0 iteration 1.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/706   Added: 2026-06-23
 - Role:    shared
 
@@ -132,9 +132,9 @@
 - Role:    shared
 
 ### shared-skills-helper-dir-and-readme-skill-count — A non-skill helper dir under skills/ needs the README count test gated on SKILL.md
-- Trigger: adding a shared helper dir under `skills/` (e.g. `skills/_shared/` with sourced libs/scripts) reused by more than one skill.
+- Trigger: adding a shared helper dir under `skills/` (e.g. `skills/_shared/` with sourced libs/scripts) reused by more than one skill, instead of duplicating logic or a per-skill `_lib.sh`.
 - Rule:    Two gotchas: (1) the README skill-count test in `tests/Installer/SkillsContentTest.php` counted every dir under `skills/`, inflating the count on a non-skill helper dir — fix it to count only dirs with a `SKILL.md` (matches `skill-check`'s own definition). (2) Cross-skill sourcing via `${SCRIPT_DIR}/../../_shared/lib.sh` resolves fine in consumer trees too, since `src/Installer.php` copies the whole `skills/` tree verbatim (see [[skills-tree-verbatim-distribution]]) — a shared `_shared/` lib is compatible with verbatim distribution; the self-contained convention only applies to the JIRA transition-helper siblings.
-- Example: issue #725/PR #726 — `skills/_shared/attachments.sh` (sourced) + `scan-attachments.sh` (standalone gate) reused by 3 `download-attachments.sh` wrappers; auth token kept out of argv via a 0600 curl `--config` file, TLS pinned. No exec tests (test-isolation rule) — proof lives in `scan-attachments.sh --self-test`, content-pinned in Pest.
+- Example: issue #725/PR #726 — `skills/_shared/attachments.sh` (sourced) + `skills/_shared/scan-attachments.sh` (standalone gate) reused by 3 `download-attachments.sh` wrappers; auth token kept out of argv via a 0600 curl `--config` file, TLS pinned. No exec tests (test-isolation rule) — proof lives in `scan-attachments.sh --self-test`, content-pinned in Pest.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/726   Added: 2026-06-29
 - Role:    talos
 
@@ -147,7 +147,7 @@
 
 ### brand-rename-completeness-grep-all-token-forms — Brand/namespace rename completeness grep must enumerate all token forms including bare PascalCase symbols
 - Trigger: a task renames a brand/package/PHP namespace across the repo, with a completeness gate (`git grep`) defined to verify zero remaining references.
-- Rule:    Enumerate every token form of the old brand: (1) hyphen-slug `old/package-name`, (2) backslash-namespace `Old\Namespace`, AND (3) the bare PascalCase token `OldPascal` in PHP symbol names (methods/properties/variables). Omitting (3) lets stale symbols pass the gate. Gate: `git grep -niI -e '<old-slug>' -e '<Old\Namespace>' -e '<OldPascalToken>' -- src/ bin/ tests/` → 0 occurrences.
+- Rule:    Enumerate every token form of the old brand: (1) hyphen-slug `old/package-name`, (2) backslash-namespace `Old\Namespace`, AND (3) the bare PascalCase token `OldPascal` in PHP symbol names (methods/properties/variables, e.g. `getOldPascalConfig()`). Omitting (3) lets stale symbols pass the gate. Gate: `git grep -niI -e '<old-slug>' -e '<Old\Namespace>' -e '<OldPascalToken>' -- src/ bin/ tests/` → 0 occurrences.
 - Example: a rename's grep covered the slug + namespace but missed the PascalCase token; `get<OldPascal>Config()` in `src/ComposerPlugin.php` passed the gate despite already using the new identifier internally — Moderate in review iteration 1, renamed to `getAgentSkillsConfig()`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/731   Added: 2026-06-30
 - Role:    shared
@@ -174,7 +174,7 @@
 - Role:    shared
 
 ### jq-alternative-operator-false-collapse — jq `//` treats `false` as empty, so `value // null` corrupts boolean fields in JSON projections
-- Trigger: writing/reviewing a jq projection in a skill script mapping a boolean field with `//` (`($p.someFlag // null)`, `(.enabled // false)`).
+- Trigger: writing/reviewing a jq projection in a skill script (`skills/*/scripts/*.sh`) mapping a boolean field with `//` (`($p.someFlag // null)`, `(.enabled // false)`).
 - Rule:    jq's `//` falls through on both `null` and `false`, so `($p.isDraft // null)` emits `null` for every non-draft PR — consumers can't distinguish `false` from missing. Pass booleans through untouched (`$p.isDraft` — jq yields `null` for a missing key already), or use `if has("key") then .key else null end` when the missing-key case must be explicit. Same footgun for numeric `0`/empty-string fields when the fallback differs from the natural value. Pin the fix with a content assertion in `tests/Installer/SkillsContentTest.php`.
 - Example: PR #22 — `load-issue.sh` emitted `isDraft: null` for a freshly-promoted non-draft PR right after `gh pr ready`, breaking the `merge-github-pr` Draft gate. Fix `a23c0bc` dropped `// null` + added the regression test.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/22   Added: 2026-07-10
@@ -190,7 +190,7 @@
 ### github-social-preview-image-has-no-api-field — Custom social preview (OG image) upload cannot be automated via gh CLI or GitHub REST/GraphQL
 - Trigger: a task asks to set/update a repo's custom social preview/OG image (`usesCustomOpenGraphImage`).
 - Rule:    Neither REST `PATCH /repos/{owner}/{repo}` nor GraphQL `UpdateRepositoryInput` expose this field — the upload is reachable only via the web UI (Settings → General → Social preview). Commit the generated asset (SVG source + rendered PNG at exactly 1280×640, verified with `sips`/`file`) and document the web-UI upload as a manual step the repo owner must complete after merge — do not report the sub-task done while `usesCustomOpenGraphImage` is still `false` (`gh repo view --json usesCustomOpenGraphImage`).
-- Example: issue #9/PR #31 — `assets/social-preview.svg`+`.png` committed; PR description + reporting comment on #9 both flagged the Settings upload as an open manual step for the owner.
+- Example: issue #9/PR #31 — `assets/social-preview.svg` + `assets/social-preview.png` committed; PR description + reporting comment on #9 both flagged the Settings upload as an open manual step for the owner.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/31   Added: 2026-07-12
 - Role:    talos
 
@@ -210,7 +210,7 @@
 
 ### editor-target-removal-touches-docs-and-non-code-assets-too — Removing a CLI target ripples into README, assets, and agent prose, not only src/tests
 - Trigger: a task removes a supported CLI target/mode (an `--editor` value, a feature flag) from an installer whose compatibility matrix is documented in multiple places.
-- Rule:    A completeness grep for the removed token (case-insensitive, whole-word) must run over the **entire** tree, not just `src/`/`tests/`. In this repo that meant `README.md`, `SECURITY.md`, `docs/agents.md`, `rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md`, `agents/athena.md`/`agents/hermes.md`, and even a binary/SVG asset needing a re-render. Grep alone isn't exhaustive — cross-check every file category (docs, rules, skills, agents, assets) and re-render any generated asset the text change invalidates.
+- Rule:    A completeness grep for the removed token (case-insensitive, whole-word) must run over the **entire** tree, not just `src/`/`tests/`. In this repo that meant `README.md`, `SECURITY.md`, `docs/agents.md`, `rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md` (`.cursor/rules/project.mdc` mentions), `agents/athena.md`/`agents/hermes.md`, and even a binary/SVG asset needing a re-render. Grep alone isn't exhaustive — cross-check every file category (docs, rules, skills, agents, assets) and re-render any generated asset the text change invalidates.
 - Example: issue #16/PR #33 — the initial grep list missed 5 files (`rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md`, `skills/refactor-entry-point-to-action/SKILL.md`, `agents/athena.md`, `agents/hermes.md`) caught only by a final full-tree grep, plus the social-preview asset re-render.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/33   Added: 2026-07-12
 - Role:    talos
@@ -237,7 +237,7 @@
 - Role:    apollon
 
 ### load-issue-top-level-comment-updated-at-always-null — `load-issue.sh` never returns `updatedAt` for a PR's top-level comments; use an equivalent staleness check
-- Trigger: a staleness check (`@skills/merge-github-pr/SKILL.md` step 2, or `code-review-github`'s upsert-in-place convergence check) needs a PR-level top-level comment's `updatedAt`.
+- Trigger: a staleness check (`@skills/merge-github-pr/SKILL.md` step 2, or `@skills/code-review-github/SKILL.md`'s upsert-in-place convergence check) needs a PR-level top-level comment's `updatedAt`.
 - Rule:    This is a structural loader limitation, not the [[jq-alternative-operator-false-collapse]] bug — the field is simply absent from `gh`'s `--json comments` projection for top-level PR comments (present only for `subIssues[].comments[].updatedAt` via GraphQL). Do not assume staleness from a `null` `updatedAt`. Use an equivalent check: `createdAt` is after the head commit's `authoredDate`, commit count/list unchanged since, and the comment body names the reviewed head SHA.
 - Example: PR #47 (issue #41) — `updatedAt` was `null`; `talos` verified currency via `createdAt` (`2026-07-13T18:10:01Z`) after the commit's `authoredDate`, unchanged commit count, and the comment naming head `568e2ae`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/47   Added: 2026-07-13
@@ -301,7 +301,7 @@
 
 ### process-code-review-completion-skips-duplicate-cr-comment-after-upstream-publish — When argos/athena already published the CR comment, Completion publishes only `cr-status`
 - Trigger: `process-code-review` runs (typically as `talos`) on a PR where `argos` (optionally consolidating `athena`) already published the single technical `cr-comment` upstream of this skill's own Review loop.
-- Rule:    Taken literally, the skill's Completion re-triggers a second technical-review publish, duplicating the `cr-comment` thread. When the upstream review already exists and the diff is unchanged or only gained a trivial, re-verified-safe fix commit, treat that comment as satisfying the review and publish only the distinct `cr-status` comment, then promote out of Draft. Do not also publish the linked-issue mirror if another pipeline step already owns that duty.
+- Rule:    Taken literally, `@skills/process-code-review/SKILL.md` Completion re-triggers a second technical-review publish, duplicating the `cr-comment` thread. When the upstream review already exists and the diff is unchanged or only gained a trivial, re-verified-safe fix commit, treat that comment as satisfying the review and publish only the distinct `cr-status` comment, then promote out of Draft. Do not also publish the linked-issue mirror if another pipeline step already owns that duty.
 - Example: issue #55/PR #73 — `argos` published the consolidated `cr-comment` (0/0/2 Minor) before `process-code-review` started; `talos` added one trivial CHANGELOG commit, re-verified `composer build` green, published only `cr-status`, promoted out of Draft — the linked-issue summary left to `apollon`'s dedicated reporting step.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/73   Added: 2026-07-19
 - Role:    talos
