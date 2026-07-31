@@ -538,13 +538,15 @@ test('PROJECT_MEMORY.md entries stay within the per-entry size budget (issue #14
     $entries = compoundMemoryParseEntries($memory);
 
     // Target is ~1200 bytes/entry (issue #148) — NOT met, a deliberate trade-off (see CHANGELOG.md
-    // and the PR description): the CR fix for PR #150 Critical 2 restored concrete pointers that a
-    // first compaction pass had dropped, violating compact-project-memory's invariant #4 ("no
-    // concrete pointer is ever dropped"). Keeping every restored pointer takes priority over the
-    // byte target. The tightest entries sit near 1200 B; the single largest
-    // (`skills-tree-convention-removal-grep-full-tree`, several restored file paths plus a restored
-    // pin-assertion reference) measures ~1685 B, so the ceiling below sits just above the measured
-    // maximum — tight enough to fail on the next byte of drift, not the next hundred.
+    // and the PR description): two PR #150 CR-fix rounds each restored concrete pointers a
+    // compaction pass had dropped, violating compact-project-memory's invariant #4 ("no concrete
+    // pointer is ever dropped") — most recently a per-entry re-run of the loss-check (run-2
+    // Critical 3) against `origin/master`, restoring 19 more entries' worth of pointers/refs.
+    // Keeping every restored pointer takes priority over the byte target. The tightest entries sit
+    // near 1200 B; the single largest (`skills-tree-convention-removal-grep-full-tree`, several
+    // restored file paths plus a restored pin-assertion reference) measures ~1699 B, so the ceiling
+    // below sits just above the measured maximum — tight enough to fail on the next byte of drift,
+    // not the next hundred.
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
@@ -562,4 +564,38 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
 
         expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|argos|apollon|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
     }
+});
+
+/**
+ * PR #150 run-2 Critical 3: a per-entry loss-check against `origin/master` (the same {slug / URL /
+ * `#N` / concrete pointer / counter-example} token superset-or-equal invariant Execution step 5
+ * mandates) found 36 genuine tokens across 20 entries still missing after the first CR-fix round —
+ * dropped by the original bulk compaction and never actually re-verified. Pins the restored tokens
+ * so a future compaction cannot silently drop them again without this test failing — the concrete,
+ * mechanical proof `git show origin/master:...` diffing itself cannot be a committed test (this
+ * project's test-isolation rule forbids shelling out from a test).
+ */
+test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass dropped (PR #150 CR fix, run-2 Critical 3)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
+
+    // Six real issue/PR references the first pass dropped (verified not ordinals, e.g. "mandate #2")
+    // — pinned in their own restored context, not as a bare `#N` a coincidentally-numbered
+    // unrelated entry could satisfy.
+    expect($memory)->toContain('installer targets Claude Code only since issue #16 — the `--editor` flag was removed in PR #33');
+    expect($memory)->toContain('The `gh-71` run (issue #71, already shipped via merged PR #72');
+    expect($memory)->toContain('the `gh-69` run (issue #69) and concurrent `gh-57` run (issue #57)');
+
+    // Concrete pointers named explicitly in the consolidated CR comment as lost without a trace —
+    // pinned in their own restored context (several of these bare tokens also legitimately occur,
+    // coincidentally, in unrelated entries, so a bare-token check alone would not regression-guard
+    // the specific restoration).
+    expect($memory)->toContain('the obvious files (`agents/<name>.md`, `docs/agents.md`, `README.md`)');
+    expect($memory)->toContain('rewritten in lockstep with `agents/hermes.md`');
+    expect($memory)->toContain('2 Moderate, fixed `197a442`, pinned in `tests/Installer/CodeReviewContentTest.php`');
+    expect($memory)->toContain('including verbatim-distributed templates (`skills/code-review/templates/`)');
+    expect($memory)->toContain(
+        '3 agents (`agents/hermes.md`→`article-writing`, `agents/apollon.md`→`test-like-human`, `agents/daidalos.md`→`autoresolve-oldest-github-issue`)',
+    );
+    expect($memory)->toContain('the write-lock (`.claude/run/.daidalos-write.lock`) is held');
 });
