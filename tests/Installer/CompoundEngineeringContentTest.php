@@ -598,4 +598,8 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
         '3 agents (`agents/hermes.md`→`article-writing`, `agents/apollon.md`→`test-like-human`, `agents/daidalos.md`→`autoresolve-oldest-github-issue`)',
     );
     expect($memory)->toContain('the write-lock (`.claude/run/.daidalos-write.lock`) is held');
+
+    // PR #150 run-3 CR fix: this pointer was still dropped after the second restoration round — the
+    // entry named only "the deterministic loader" with no token left to resolve which script that is.
+    expect($memory)->toContain('load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`)');
 });
