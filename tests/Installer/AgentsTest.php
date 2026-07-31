@@ -277,11 +277,11 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    
+
         // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
         expect($daidalos)->toContain('Only for a high-risk change dispatch `apollon` through the Task tool');
         expect($daidalos)->toContain('the post-convergence `apollon` pass in step 6 stays mandatory for every run');
-    
+
         // apollon documents the same conditionality in its scoped-mode contract.
         $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
         expect($apollon)->toContain('only when `daidalos` classified the change as high-risk');
@@ -424,7 +424,7 @@ test(
     'argos and athena read the shared context pack and defer an isolated-worktree coverage verdict to apollon when savings mode is on (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-    
+
         foreach (['argos', 'athena'] as $agent) {
             $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
             expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
@@ -469,7 +469,7 @@ test('daidalos sweeps stale briefs and worktrees at startup before writing its o
 
     expect($daidalos)->toContain('**Startup sweep, then gather context & write the shared brief');
     expect($daidalos)->toContain('other than the file this run is about to write (this run\'s own `<source-slug>.md`)');
-    expect($daidalos)->toContain('probe it with `kill -0`');
+    expect($daidalos)->toContain('probe it with `LC_ALL=C kill -0 "$pid" 2>&1`');
     expect($daidalos)->toContain('a live peer run — leave it untouched');
     expect($daidalos)->toContain('Run `git worktree prune` first');
     expect($daidalos)->toContain('a live PID means a peer\'s CR pass is actively using that worktree, **never remove it**');
@@ -479,7 +479,10 @@ test('daidalos sweeps stale briefs and worktrees at startup before writing its o
 /**
  * ESRCH ("no such process") is the only confirmed-dead outcome; EPERM ("process exists, no
  * permission") means alive under another UID/namespace. Shared by both the brief-half and the
- * worktree-half sweep mirrors below (PR #150 CR fix).
+ * worktree-half sweep mirrors below (PR #150 CR fix). The predicate matches the exact phrase
+ * `agents/daidalos.md`'s prose pins (`LC_ALL=C kill -0 "$pid" 2>&1` looking for "not permitted") —
+ * previously the prose and this mirror matched on two different substrings (PR #150 CR fix,
+ * run-2 Minor 1).
  */
 function daidalosPidConfirmedDead(int $pid): bool
 {
@@ -487,20 +490,25 @@ function daidalosPidConfirmedDead(int $pid): bool
         return false;
     }
 
-    return stripos(posix_strerror(posix_get_last_error()), 'permitted') === false;
+    return stripos(posix_strerror(posix_get_last_error()), 'not permitted') === false;
 }
 
 /**
- * A brief is judged confirmed-dead only from a `## PID` line found in its header region (before
- * the first fenced code block) matching `^[0-9]{1,7}$` — a line that merely looks like
- * `## PID <n>` inside a fenced tracker-payload quote (e.g. `## Gathered context`) must never be
- * read as the real one.
+ * A brief is judged confirmed-dead only from the `## PID` field found by FIXED POSITION — the
+ * file's second line, immediately below the title — never by scanning for a line that merely
+ * looks like `## PID <n>` anywhere else in the file. A fence-based "read only the lines before the
+ * first fenced block" boundary is not a trust boundary (measured against the briefs actually on
+ * disk, one carries no fenced block at all, making its "header region" the whole file) — position
+ * is. The anchor requires digits immediately followed by a space/tab: never `\s+` (crosses a
+ * newline onto a value written on the next line) and never `\b` (admits the leading digits of a
+ * timestamp written before the PID, e.g. capturing `2026` out of a timestamp-first line) (PR #150
+ * CR fix, run-2 Critical 1).
  */
 function daidalosBriefConfirmedDead(string $content): bool
 {
-    $headerRegion = explode('```', $content, 2)[0];
+    $secondLine = explode("\n", $content, 3)[1] ?? '';
 
-    if (preg_match('/^## PID\s+([0-9]{1,7})\b/m', $headerRegion, $matches) !== 1) {
+    if (preg_match('/^## PID[ \t]+(\d{1,7})[ \t]/', $secondLine, $matches) !== 1) {
         return false;
     }
 
@@ -535,7 +543,7 @@ function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBas
 }
 
 test(
-    'daidalos startup-sweep algorithm is fail-safe: only a confirmed-dead, header-region, format-valid PID is deletable (PR #150 CR fix)',
+    'daidalos startup-sweep algorithm is fail-safe: only a confirmed-dead, fixed-position, format-valid PID is deletable (PR #150 CR fix)',
     function (): void {
         $root = installerCreateProjectRoot();
         $runDir = $root . '/.claude/run';
@@ -544,31 +552,43 @@ test(
 
         installerWriteFile(
             $runDir . '/gh-dead.md',
-            "# Task brief — gh-dead\n## PID               9999999\n## Source            https://example.com/issues/1\n",
+            "# Task brief — gh-dead\n## PID 9999999 2026-01-01T00:00:00Z\n## Source            https://example.com/issues/1\n",
         );
         installerWriteFile(
             $runDir . '/gh-live.md',
-            "# Task brief — gh-live\n## PID               {$livePid}\n## Source            https://example.com/issues/2\n",
+            "# Task brief — gh-live\n## PID {$livePid} 2026-01-01T00:00:00Z\n## Source            https://example.com/issues/2\n",
         );
         installerWriteFile($runDir . '/gh-no-pid.md', "# Task brief — gh-no-pid\n## Source            https://example.com/issues/3\n");
         installerWriteFile($runDir . '/gh-own.md', "# Task brief — gh-own\n## Source            https://example.com/issues/4\n");
         installerWriteFile(
             $runDir . '/gh-malformed.md',
-            "# Task brief — gh-malformed\n## PID               not-a-number\n## Source            https://example.com/issues/5\n",
+            "# Task brief — gh-malformed\n## PID not-a-number 2026-01-01T00:00:00Z\n## Source            https://example.com/issues/5\n",
         );
         installerWriteFile(
             $runDir . '/gh-fenced.md',
             "# Task brief — gh-fenced\n## Source            https://example.com/issues/6\n\n"
-                . "## Gathered context\n```text\n## PID 9999999\n```\n",
+                . "## Gathered context\n```text\n## PID 9999999 2026-01-01T00:00:00Z\n```\n",
+        );
+        // Run-2 Critical 1 regressions: no attacker needed for either.
+        installerWriteFile(
+            $runDir . '/gh-timestamp-first.md',
+            "# Task brief — gh-timestamp-first\n## PID 2026-07-31T06:59:18Z 11073\n## Source            https://example.com/issues/8\n",
+        );
+        installerWriteFile(
+            $runDir . '/gh-prefixed.md',
+            "# Task brief — gh-prefixed\n## PID\nrun 3 — resumed, pid 11073\n"
+                . "## Source            https://example.com/issues/9\n## Gathered context\n## PID 9999999\n",
         );
 
         try {
             $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
             sort($deletable);
 
-            // Only the confirmed-dead, header-region, format-valid PID is deletable — a missing
-            // PID, a malformed token, and a PID found only inside a fenced tracker-payload quote
-            // are all fail-safe: preserved, exactly like the genuinely live one.
+            // Only the confirmed-dead, fixed-position, format-valid PID is deletable. A missing
+            // PID, a malformed token, a PID found only inside a fenced tracker-payload quote, a
+            // timestamp written before the PID on the same line, and a brief whose own field is
+            // malformed with a PID-looking line later in the file are all fail-safe: preserved,
+            // exactly like the genuinely live one.
             expect($deletable)->toBe(['gh-dead.md']);
         } finally {
             installerRemoveDirectory($root);
@@ -590,7 +610,7 @@ test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as 
     // not ESRCH, for a non-root caller. EPERM proves the process exists, so it must count as alive.
     installerWriteFile(
         $runDir . '/gh-eperm.md',
-        "# Task brief — gh-eperm\n## PID               1\n## Source            https://example.com/issues/7\n",
+        "# Task brief — gh-eperm\n## PID 1 2026-01-01T00:00:00Z\n## Source            https://example.com/issues/7\n",
     );
 
     try {
@@ -601,6 +621,117 @@ test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as 
         installerRemoveDirectory($root);
     }
 });
+
+/**
+ * Mirrors the confirmed-dead-gated steal decision in agents/daidalos.md step 2 *Sweep lock*: a
+ * lock is stolen only when it carries a holder file AND that holder's recorded PID probes
+ * confirmed-dead — never on a bare timeout, and never when the holder file is missing or its PID
+ * is alive/EPERM (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
+ *
+ * @param array{PID: int}|null $holder the parsed holder file contents, or null when absent/unreadable
+ */
+function daidalosSweepLockShouldSteal(?array $holder): bool
+{
+    if ($holder === null || !isset($holder['PID'])) {
+        return false;
+    }
+
+    return daidalosPidConfirmedDead($holder['PID']);
+}
+
+test('daidalos sweep-lock steal is gated on a confirmed-dead holder, never a bare timeout (PR #150 CR fix)', function (): void {
+    $livePid = getmypid();
+    expect($livePid)->not->toBeFalse();
+
+    if ($livePid === false) {
+        // @codeCoverageIgnoreStart
+        return;
+        // @codeCoverageIgnoreEnd
+    }
+
+    // No holder file at all (an older, pre-holder lock, or an unreadable one) — never steal.
+    expect(daidalosSweepLockShouldSteal(holder: null))->toBeFalse();
+    // Confirmed-dead holder — the only condition that justifies a steal.
+    expect(daidalosSweepLockShouldSteal(['PID' => 999_999_999]))->toBeTrue();
+    // Live holder — never steal, no matter how many attempts have elapsed.
+    expect(daidalosSweepLockShouldSteal(['PID' => $livePid]))->toBeFalse();
+});
+
+/**
+ * Parses `ps -o etime=` output (`[[DD-]HH:]MM:SS`) into a duration in seconds, so a process's own
+ * start time can be computed as `now - elapsed` without parsing the locale-dependent `lstart`
+ * calendar format at all. `etime` is portable across macOS/BSD and Linux ps — empirically verified
+ * on this machine: `ps -o etimes=` fails with "keyword not found", `ps -o etime=` succeeds (PR #150
+ * CR fix, run-2 Moderate 1).
+ */
+function daidalosParseEtimeToSeconds(string $etime): int
+{
+    $etime = trim($etime);
+    $days = 0;
+
+    if (str_contains($etime, '-')) {
+        [$daysPart, $etime] = explode('-', $etime, 2);
+        $days = (int) $daysPart;
+    }
+
+    $parts = explode(':', $etime);
+    $seconds = (int) array_pop($parts);
+    $minutes = $parts !== [] ? (int) array_pop($parts) : 0;
+    $hours = $parts !== [] ? (int) array_pop($parts) : 0;
+
+    return ($days * 86_400) + ($hours * 3_600) + ($minutes * 60) + $seconds;
+}
+
+test('daidalosParseEtimeToSeconds parses every ps -o etime= shape into seconds (PR #150 CR fix)', function (): void {
+    expect(daidalosParseEtimeToSeconds('00:00'))->toBe(0);
+    expect(daidalosParseEtimeToSeconds('01:23'))->toBe(83);
+    expect(daidalosParseEtimeToSeconds('02:03:04'))->toBe(7_384);
+    expect(daidalosParseEtimeToSeconds('1-02:03:04'))->toBe(93_784);
+});
+
+/**
+ * Mirrors the identity-corroboration probe in agents/daidalos.md *Concurrency & the working-tree
+ * write-lock* → *Stale reclaim*: a bare alive PID only proves that PID number is currently in use
+ * by *something*, never that it is the same process that wrote the lock's `STARTED` timestamp. The
+ * process's own start time (`now - etime`) must fall at or before `STARTED`, allowing a small
+ * tolerance for clock/measurement skew — a process cannot have written a timestamp before it
+ * existed. A later computed start time means the PID was recycled since the lock was written:
+ * identity is not corroborated, and the holder is treated exactly like a confirmed-dead probe
+ * (PR #150 CR fix, run-2 Moderate 1 — closing the gap where the fix added `STARTED` to the layout
+ * but nothing ever read it).
+ */
+function daidalosWriteLockIdentityCorroborated(int $recordedStartedEpoch, int $processStartEpoch, int $toleranceSeconds = 60): bool
+{
+    return $processStartEpoch <= $recordedStartedEpoch + $toleranceSeconds;
+}
+
+test(
+    'daidalos write-lock identity corroboration treats a PID that started after STARTED as recycled, not the same run (PR #150 CR fix)',
+    function (): void {
+        $recordedStartedEpoch = 1_800_000_000;
+
+        // The genuinely same process always starts at or before the moment it later writes STARTED.
+        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeTrue();
+        // A little clock/measurement skew right around the same instant is tolerated.
+        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 30))->toBeTrue();
+        // A PID that provably started AFTER the recorded write cannot be the same process — recycled.
+        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeFalse();
+    },
+);
+
+test(
+    'daidalos write-lock reclaim documents identity corroboration, not just PID existence (PR #150 CR fix, run-2 Moderate 1)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+        expect($daidalos)->toContain('corroborate identity before trusting it as a live blocker');
+        expect($daidalos)->toContain('`ps -o etime= -p "$PID"`');
+        expect($daidalos)->toContain('a process cannot have written a timestamp before it existed');
+        expect($daidalos)->toContain('the PID has been recycled by an unrelated process since the lock was written');
+        expect($daidalos)->toContain('write-lock-staleness-needs-corroborating-evidence-not-bare-pid');
+    },
+);
 
 /**
  * A worktree porcelain entry is judged confirmed-dead only from a `locked <reason>` line whose
@@ -700,30 +831,36 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    
+
         // Fail-safe by construction — absence of a signal is never proof of death.
         expect($daidalos)->toContain('it deletes only on positive proof of death, never on the mere absence of a liveness signal');
-    
+
         // A single, run-stable PID source — $$ is explicitly ruled out everywhere it is prescribed.
         expect($daidalos)->toContain('**never `$$`**, the ephemeral PID of the single Bash subshell one tool call runs in');
         expect($daidalos)->toContain('two consecutive Bash calls in this environment report two different `$$` values but an identical, stable `$PPID`');
-    
-        // Header-region-only parsing and format validation guard against attacker-influenced tracker text.
-        expect($daidalos)->toContain('read `## PID` only from the brief\'s header region — the lines before the first fenced');
+
+        // Fixed-position parsing (never a fence-based "header region") and format validation guard
+        // against attacker-influenced tracker text (PR #150 CR fix, run-2 Critical 1).
+        expect($daidalos)->toContain('`## PID` is always the file\'s fixed **second line**');
+        expect($daidalos)->toContain('read **only that one line, by position**, and never anything else in the file');
+        expect($daidalos)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
         expect($daidalos)->toContain('require the captured token to match `^[0-9]{1,7}$`');
         expect($daidalos)->toContain('always double-quote it when it reaches a command (`kill -0 "$pid"`)');
-    
+
         // ESRCH vs EPERM is distinguished everywhere a `kill -0` probe is prescribed.
         expect($daidalos)->toContain('conflates "no such process" (ESRCH) with "process exists, no permission" (EPERM)');
-    
-        // The sweep itself runs under a dedicated, short-lived lock distinct from the write-lock.
-        expect($daidalos)->toContain('.claude/run/.daidalos-sweep.lock');
+
+        // The sweep itself runs under a dedicated, short-lived lock distinct from the write-lock,
+        // keyed on the repository-wide common git dir (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
+        expect($daidalos)->toContain('git rev-parse --git-common-dir');
+        expect($daidalos)->toContain('.daidalos-sweep.lock');
+        expect($daidalos)->toContain('mkdir -p "$LOCKROOT/agent-run"');
         expect($daidalos)->toContain('This is separate from, and much shorter-lived than, the write-lock above');
-    
+
         // An unlocked worktree entry (or one with no parseable pid token) is left in place, not removed —
         // inverted from the original "no locked line → treat like a stale lock → remove" default.
         expect($daidalos)->toContain('is left in place — never removed');
-    
+
         // The brief is created atomically, `## PID` first, closing the mid-write observation window.
         expect($daidalos)->toContain('Atomic, PID-first brief creation');
         expect($daidalos)->toContain('so no peer\'s sweep can ever observe the file between its creation and the `## PID` line landing');
@@ -734,15 +871,24 @@ test(
     'argos and athena lock every CR worktree at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-    
+
         foreach (['argos', 'athena'] as $agent) {
             $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-    
-            expect($content)->toContain('.claude/worktrees/agent-cr-<slug>');
+
+            expect($content)->toContain('.claude/worktrees/agent-cr-<slug>-' . $agent);
             expect($content)->toContain('lock it immediately on creation');
-            expect($content)->toContain('git worktree lock --reason "pid $PPID slug <slug>"');
+            expect($content)->toContain('git worktree lock --reason "pid $PPID agent ' . $agent . ' slug <slug>"');
             expect($content)->toContain('never `$$`, the ephemeral per-Bash-call subshell PID');
             expect($content)->toContain('git worktree unlock <path>');
+            // Moderate 3 (path/reason collide between the two peers) — per-agent suffix disambiguates both.
+            expect($content)->toContain('the `-' . $agent . '` suffix keeps this path and lock reason distinct from');
+            // Moderate 4 (unvalidated <slug> reaching a shell/path) — slug format guard, reject-and-stay-shared.
+            expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
+            expect($content)->toContain('do not create a worktree** — continue the review in the shared tree instead');
+            // Minor 2 (`<ref>` fails on an already-checked-out PR head branch) — --detach + head SHA instead.
+            expect($content)->toContain('git worktree add --detach .claude/worktrees/agent-cr-<slug>-' . $agent . ' <head-sha>');
+            // Standalone cleanup removes only this agent's own path, never a peer's.
+            expect($content)->toContain('remove **only your own** worktree after the review — never a peer\'s');
         }
     },
 );
