@@ -48,6 +48,11 @@ final class InstallerPruner
      * Relative paths that exist in the target directory but no longer exist in the source
      * directory. Pure lookup — never deletes or otherwise mutates the filesystem.
      *
+     * Scope is regular files only (leaf entries) — an orphaned target directory that no longer
+     * exists in the source but holds no regular file of its own is neither counted here nor
+     * removable by `pruneDirectory()` (which only removes an empty directory as a side effect of
+     * deleting the last file it held). This mirrors the CLI report's own "file(s)" wording.
+     *
      * @param array<int, string>|null $sourceFiles pre-listed source files for this payload
      *                                             (avoids re-walking the same source tree once per target — see `Installer::syncDirectories()`)
      * @return array<int, string>

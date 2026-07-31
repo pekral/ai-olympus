@@ -142,8 +142,12 @@ final class Installer
 
         if ($summary->orphaned > 0) {
             $targetsSuffix = $summary->orphanedTargets === [] ? '' : sprintf(' (%s)', implode(', ', $summary->orphanedTargets));
+            // "across the target directories", not "in target": $summary->orphaned sums the count
+            // across every target of every payload, so the same relative path orphaned in more
+            // than one target (e.g. both `.claude/skills` and `~/.claude/skills`) is counted once
+            // per target — a singular "in target" would misleadingly imply exactly one directory.
             echo sprintf(
-                '%d file(s) in target no longer exist in source. Re-run with --prune to remove them.%s%s',
+                '%d file(s) across the target directories no longer exist in source. Re-run with --prune to remove them.%s%s',
                 $summary->orphaned,
                 $targetsSuffix,
                 PHP_EOL,
@@ -168,12 +172,13 @@ final class Installer
         $pruned = 0;
         $orphaned = 0;
         $orphanedTargets = [];
-        // Listed once per payload instead of once per target — `pruneDirectory()`/`findOrphans()`
-        // no longer each re-walk the identical source tree for every target of this payload.
+        // Listed once per payload instead of once per target — `installDirectory()`,
+        // `pruneDirectory()`, and `findOrphans()` all reuse this single listing instead of each
+        // re-walking the identical source tree for every target of this payload.
         $sourceFiles = InstallerPruner::listSourceFiles($source);
 
         foreach ($targets as $target) {
-            $copied += InstallerFileCopier::installDirectory($source, $target, $force, $symlink);
+            $copied += InstallerFileCopier::installDirectory($source, $target, $force, $symlink, $sourceFiles);
 
             if ($prune) {
                 $pruned += InstallerPruner::pruneDirectory($source, $target, $sourceFiles);

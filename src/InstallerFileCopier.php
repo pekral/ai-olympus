@@ -17,12 +17,16 @@ use SplFileInfo;
 final class InstallerFileCopier
 {
 
-    public static function installDirectory(string $source, string $targetDir, bool $force, bool $symlink): int
+    /**
+     * @param array<int, string>|null $sourceFiles pre-listed source files for this payload
+     *                                             (avoids re-walking the same source tree once per target — see `Installer::syncDirectories()`)
+     */
+    public static function installDirectory(string $source, string $targetDir, bool $force, bool $symlink, ?array $sourceFiles = null): int
     {
         InstallerPath::ensureDirectory($targetDir);
         self::replicateDirectories($source, $targetDir);
 
-        $files = self::listFiles($source);
+        $files = $sourceFiles ?? InstallerPruner::listSourceFiles($source);
 
         return self::processFiles($files, $source, $targetDir, $force, $symlink);
     }
@@ -128,30 +132,6 @@ final class InstallerFileCopier
             throw InstallerFailure::removalFailed($destination);
         }
         // @codeCoverageIgnoreEnd
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function listFiles(string $base): array
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(
-                $base,
-                FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS,
-            ),
-            RecursiveIteratorIterator::LEAVES_ONLY,
-        );
-        $files = [];
-
-        foreach ($iterator as $file) {
-            /** @var \SplFileInfo $file */
-            $files[] = self::extractFilePath($file, $base);
-        }
-
-        sort($files);
-
-        return $files;
     }
 
     private static function replicateDirectories(string $source, string $targetDir): void

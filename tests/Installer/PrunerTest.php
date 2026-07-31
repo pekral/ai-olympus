@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use AgenticVibes\AgentSkills\Installer;
+use AgenticVibes\AgentSkills\InstallerFileCopier;
 use AgenticVibes\AgentSkills\InstallerPruner;
 
 test('install with prune removes files from target that no longer exist in source', function (): void {
@@ -48,7 +49,7 @@ test('install without prune keeps orphaned files in target', function (): void {
         $output = ob_get_clean();
 
         expect(is_file($root . '/.claude/skills/orphaned-skill/SKILL.md'))->toBeTrue();
-        expect($output)->toContain('1 file(s) in target no longer exist in source. Re-run with --prune to remove them.');
+        expect($output)->toContain('1 file(s) across the target directories no longer exist in source. Re-run with --prune to remove them.');
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -76,7 +77,9 @@ test('the orphan report names which target directory the orphan is in (PR #150 C
         // symlinks in the path (e.g. macOS's /tmp -> /private/tmp), so the reported target must
         // be compared against the same resolved form, not the raw temp-dir path.
         expect($output)->toContain(
-            '1 file(s) in target no longer exist in source. Re-run with --prune to remove them. (' . realpath($root) . '/.claude/skills)',
+            '1 file(s) across the target directories no longer exist in source. Re-run with --prune to remove them. (' . realpath(
+                $root,
+            ) . '/.claude/skills)',
         );
     } finally {
         if ($originalCwd !== '') {
@@ -350,7 +353,7 @@ test('reportInstallSummary places each counter in its own distinct message (PR #
         $output = ob_get_clean();
 
         expect($output)->toContain('0 pruned');
-        expect($output)->toContain('1 file(s) in target no longer exist in source. Re-run with --prune to remove them.');
+        expect($output)->toContain('1 file(s) across the target directories no longer exist in source. Re-run with --prune to remove them.');
         expect($output)->toContain('Allowed 2 bundled-script permission(s) in ~/.claude/settings.json.');
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
@@ -358,7 +361,7 @@ test('reportInstallSummary places each counter in its own distinct message (PR #
     }
 });
 
-test('syncing a payload lists the source tree once and reuses it across every target', function (): void {
+test('findOrphans reuses a caller-supplied source listing across targets (PR #150 CR fix — Minor 6)', function (): void {
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/source/skill-a/SKILL.md', 'source content');
     installerWriteFile($root . '/target-a/skill-a/SKILL.md', 'target content');
@@ -375,3 +378,30 @@ test('syncing a payload lists the source tree once and reuses it across every ta
         installerRemoveDirectory($root);
     }
 });
+
+test(
+    'installDirectory copies exactly a caller-supplied source listing instead of re-walking the source tree (PR #150 CR fix — Refactoring 1)',
+    function (): void {
+        $root = installerCreateProjectRoot();
+        installerWriteFile($root . '/source/skill-a/SKILL.md', 'a');
+        installerWriteFile($root . '/source/skill-b/SKILL.md', 'b');
+
+        try {
+            // Deliberately omits skill-b: if installDirectory() silently re-listed $source itself
+            // instead of honouring the supplied listing, skill-b would be copied anyway.
+            $copied = InstallerFileCopier::installDirectory(
+                $root . '/source',
+                $root . '/target',
+                force: false,
+                symlink: false,
+                sourceFiles: ['skill-a/SKILL.md'],
+            );
+
+            expect($copied)->toBe(1);
+            expect(is_file($root . '/target/skill-a/SKILL.md'))->toBeTrue();
+            expect(is_file($root . '/target/skill-b/SKILL.md'))->toBeFalse();
+        } finally {
+            installerRemoveDirectory($root);
+        }
+    },
+);
