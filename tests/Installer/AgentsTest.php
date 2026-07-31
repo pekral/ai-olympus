@@ -494,25 +494,32 @@ function daidalosPidConfirmedDead(int $pid): bool
 }
 
 /**
- * A brief is judged confirmed-dead only from the `## PID` field found by FIXED POSITION — the
- * file's second line, immediately below the title — never by scanning for a line that merely
- * looks like `## PID <n>` anywhere else in the file. A fence-based "read only the lines before the
- * first fenced block" boundary is not a trust boundary (measured against the briefs actually on
- * disk, one carries no fenced block at all, making its "header region" the whole file) — position
- * is. The anchor requires digits immediately followed by a space/tab: never `\s+` (crosses a
+ * A brief is judged confirmed-dead only from the `## PID` field found by FIXED POSITION — scanning
+ * only the file's first 5 lines, never the whole file — rather than by scanning for a line that
+ * merely looks like `## PID <n>` anywhere else in the file. A fence-based "read only the lines
+ * before the first fenced block" boundary is not a trust boundary (measured against the briefs
+ * actually on disk, one carries no fenced block at all, making its "header region" the whole file)
+ * — position is. Five lines tolerates the natural one-blank-line-after-H1 markdown shape (measured
+ * against the 3 real briefs on disk, none of which put `## PID` on the literal second line) while
+ * staying far short of `## Gathered context`, where the attacker-controlled tracker payload lives —
+ * `gh-fenced` below places it at line 6, one line outside this window (PR #150 CR fix, run-3
+ * Minor 2 — a strict "second line only" rule was a permanent no-op against every brief actually on
+ * disk). The anchor requires digits immediately followed by a space/tab: never `\s+` (crosses a
  * newline onto a value written on the next line) and never `\b` (admits the leading digits of a
  * timestamp written before the PID, e.g. capturing `2026` out of a timestamp-first line) (PR #150
  * CR fix, run-2 Critical 1).
  */
 function daidalosBriefConfirmedDead(string $content): bool
 {
-    $secondLine = explode("\n", $content, 3)[1] ?? '';
+    $lines = explode("\n", $content, 6);
 
-    if (preg_match('/^## PID[ \t]+(\d{1,7})[ \t]/', $secondLine, $matches) !== 1) {
-        return false;
+    foreach (array_slice($lines, 0, 5) as $line) {
+        if (preg_match('/^## PID[ \t]+(\d{1,7})[ \t]/', $line, $matches) === 1) {
+            return daidalosPidConfirmedDead((int) $matches[1]);
+        }
     }
 
-    return daidalosPidConfirmedDead((int) $matches[1]);
+    return false;
 }
 
 /**
@@ -579,6 +586,22 @@ test(
             "# Task brief — gh-prefixed\n## PID\nrun 3 — resumed, pid 11073\n"
                 . "## Source            https://example.com/issues/9\n## Gathered context\n## PID 9999999\n",
         );
+        // Run-3 Minor 2: the natural one-blank-line-after-H1 markdown shape (every real brief on
+        // disk) puts `## PID` on line 3, not the literal second line — still confirmed-dead within
+        // the tolerant 5-line window.
+        installerWriteFile(
+            $runDir . '/gh-blank-line-before-pid.md',
+            "# Task brief — gh-blank-line-before-pid\n\n## PID 9999999 2026-01-01T00:00:00Z\n"
+                . "## Source            https://example.com/issues/10\n",
+        );
+        // Run-3 Minor 2 counterpart: the tolerant window still has a hard outer bound. A dead PID
+        // placed beyond the first 5 lines is never read — fail-safe stays intact, it never regresses
+        // into an unbounded whole-file scan.
+        installerWriteFile(
+            $runDir . '/gh-beyond-window.md',
+            "# Task brief — gh-beyond-window\n\n\n\n\n## PID 9999999 2026-01-01T00:00:00Z\n"
+                . "## Source            https://example.com/issues/11\n",
+        );
 
         try {
             $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
@@ -586,10 +609,11 @@ test(
 
             // Only the confirmed-dead, fixed-position, format-valid PID is deletable. A missing
             // PID, a malformed token, a PID found only inside a fenced tracker-payload quote, a
-            // timestamp written before the PID on the same line, and a brief whose own field is
-            // malformed with a PID-looking line later in the file are all fail-safe: preserved,
-            // exactly like the genuinely live one.
-            expect($deletable)->toBe(['gh-dead.md']);
+            // timestamp written before the PID on the same line, a brief whose own field is
+            // malformed with a PID-looking line later in the file, and a dead PID placed beyond the
+            // tolerant window are all fail-safe: preserved, exactly like the genuinely live one. Only
+            // the strict second-line and the blank-line-tolerated third-line placements are deletable.
+            expect($deletable)->toBe(['gh-blank-line-before-pid.md', 'gh-dead.md']);
         } finally {
             installerRemoveDirectory($root);
         }
@@ -628,6 +652,14 @@ test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as 
  * confirmed-dead — never on a bare timeout, and never when the holder file is missing or its PID
  * is alive/EPERM (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
  *
+ * This decision-level mirror alone gave FALSE ASSURANCE in run 2: it encodes the intended
+ * `posix_kill()`-first semantics correctly, so it stayed green while the literal shell shipped at
+ * `agents/daidalos.md:104` independently miscomputed the same decision by reading a downstream
+ * `grep`'s exit status instead of `kill -0`'s own (PR #150 CR fix, run-3 Critical 1 — the mirror
+ * tested a different implementation than the one that actually ran). `daidalosSweepLockKillProbeConfirmedDead()`
+ * below closes that gap on the same two primitives the shell computes, and the shell's exact
+ * corrected text is separately content-pinned in the sweep-lock documentation test above.
+ *
  * @param array{PID: int}|null $holder the parsed holder file contents, or null when absent/unreadable
  */
 function daidalosSweepLockShouldSteal(?array $holder): bool
@@ -656,6 +688,39 @@ test('daidalos sweep-lock steal is gated on a confirmed-dead holder, never a bar
     // Live holder — never steal, no matter how many attempts have elapsed.
     expect(daidalosSweepLockShouldSteal(['PID' => $livePid]))->toBeFalse();
 });
+
+/**
+ * Mirrors the corrected two-step shell probe at `agents/daidalos.md:104` on the SAME two primitives
+ * the shell itself computes — `kill -0`'s own exit status ($rc) and its captured stderr message —
+ * instead of collapsing straight to a live PID through `posix_kill()`. This is what lets the test
+ * isolate the precise shape of the run-2 regression: a live holder produces `rc=0` AND an empty
+ * message, a combination `daidalosSweepLockShouldSteal()` above cannot represent because
+ * `posix_kill()` always resolves both facts atomically in one call (PR #150 CR fix, run-3
+ * Critical 1 — "the mirror must reproduce the shell's two-branch logic — exit status + message —
+ * not just the resulting predicate").
+ */
+function daidalosSweepLockKillProbeConfirmedDead(int $rc, string $capturedMessage): bool
+{
+    if ($rc === 0) {
+        return false;
+    }
+
+    return !str_contains($capturedMessage, 'not permitted');
+}
+
+test(
+    'daidalos sweep-lock steal gate checks kill -0\'s own exit status first, never a downstream grep\'s (PR #150 CR fix, run-3 Critical 1)',
+    function (): void {
+        // Live holder: `kill -0` SUCCEEDS (rc=0) and prints nothing — exactly the input that broke
+        // the shipped shell, since `grep -q 'not permitted'` on an EMPTY piped stream exits 1
+        // regardless of kill -0's own success, and the old snippet never captured kill -0's own $?.
+        expect(daidalosSweepLockKillProbeConfirmedDead(0, ''))->toBeFalse();
+        // Confirmed-dead (ESRCH): kill -0 fails, the message does not mention permission.
+        expect(daidalosSweepLockKillProbeConfirmedDead(1, 'kill: (999999999): No such process'))->toBeTrue();
+        // EPERM: kill -0 fails, but only because of a permission boundary — alive under another UID.
+        expect(daidalosSweepLockKillProbeConfirmedDead(1, 'kill: (1): Operation not permitted'))->toBeFalse();
+    },
+);
 
 /**
  * Parses `ps -o etime=` output (`[[DD-]HH:]MM:SS`) into a duration in seconds, so a process's own
@@ -730,6 +795,61 @@ test(
         expect($daidalos)->toContain('a process cannot have written a timestamp before it existed');
         expect($daidalos)->toContain('the PID has been recycled by an unrelated process since the lock was written');
         expect($daidalos)->toContain('write-lock-staleness-needs-corroborating-evidence-not-bare-pid');
+    },
+);
+
+/**
+ * Mirrors the fail-safe default added to agents/daidalos.md *Stale reclaim* for the case the
+ * identity check cannot be evaluated at all — a holder file with no `STARTED` key, or an
+ * unparseable/empty `ps -o etime=` result (the process exits between the `kill -0` probe and the
+ * `ps` call, `hidepid=2`, a PID namespace). An inconclusive check must resolve to "still a live
+ * blocker", exactly like a missing/malformed `## PID` in the startup sweep — never fall through to
+ * the steal branch a genuinely-recycled PID takes (PR #150 CR fix, run-3 Moderate 2: the prior
+ * wording defined only two outcomes — corroborated or recycled — leaving "cannot compute" to fall
+ * through to reclaim by default).
+ */
+function daidalosWriteLockShouldReclaim(?int $recordedStartedEpoch, ?int $processStartEpoch, int $toleranceSeconds = 60): bool
+{
+    if ($recordedStartedEpoch === null || $processStartEpoch === null) {
+        return false;
+    }
+
+    return $processStartEpoch > $recordedStartedEpoch + $toleranceSeconds;
+}
+
+test(
+    'daidalos write-lock reclaim treats an inconclusive identity check as a live blocker, never as grounds to reclaim (PR #150 CR fix, run-3 Moderate 2)',
+    function (): void {
+        $recordedStartedEpoch = 1_800_000_000;
+
+        // Resolvable cases: only a PROVEN-recycled PID (started after STARTED) reclaims.
+        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeFalse();
+        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeTrue();
+
+        // Inconclusive cases: no STARTED key in the holder file, or ps yielded no parseable etime —
+        // both must resolve to "do not reclaim", exactly like a missing/malformed `## PID`.
+        expect(daidalosWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: $recordedStartedEpoch - 60))->toBeFalse();
+        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, processStartEpoch: null))->toBeFalse();
+        expect(daidalosWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: null))->toBeFalse();
+    },
+);
+
+test(
+    'daidalos write-lock reclaim states a fail-safe default for an inconclusive check, reconciled with step 5 (PR #150 CR fix, run-3 Moderate 2)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+        expect($daidalos)->toContain('the identity check is **inconclusive, not falsified**');
+        expect($daidalos)->toContain('treat the lock as held by a live run and report the inconclusive corroboration');
+        expect($daidalos)->toContain('mirroring the fail-safe default the startup sweep applies to a missing or malformed `## PID`');
+
+        // Step 5's own summary no longer contradicts *Stale reclaim* by saying "reclaim ... when the
+        // probe fails" (an EPERM probe IS a failed probe, yet must never reclaim) — it now defers to
+        // the full ESRCH/EPERM + identity-corroboration logic documented there.
+        expect($daidalos)->toContain('probe the holder per *Stale reclaim* above');
+        expect($daidalos)->toContain('only on a confirmed-dead probe (ESRCH, not EPERM) **and** a failed identity corroboration');
+        expect($daidalos)->not->toContain('reclaim a stale lock (`rm -rf` then re-acquire) when the probe fails');
     },
 );
 
@@ -841,9 +961,14 @@ test(
 
         // Fixed-position parsing (never a fence-based "header region") and format validation guard
         // against attacker-influenced tracker text (PR #150 CR fix, run-2 Critical 1).
-        expect($daidalos)->toContain('`## PID` is always the file\'s fixed **second line**');
-        expect($daidalos)->toContain('read **only that one line, by position**, and never anything else in the file');
         expect($daidalos)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
+
+        // The read window tolerates the natural one-blank-line-after-H1 markdown shape instead of
+        // requiring the literal second line — still position-bounded, never content-based, and still
+        // far short of the attacker-controlled `## Gathered context` payload (PR #150 CR fix, run-3
+        // Minor 2 — the strict "second line only" rule was a permanent no-op against every real brief).
+        expect($daidalos)->toContain('read by scanning only the file\'s **first 5 lines**, stopping at the first match');
+        expect($daidalos)->toContain('A file with no matching line inside that window is treated exactly like a missing `## PID`');
         expect($daidalos)->toContain('require the captured token to match `^[0-9]{1,7}$`');
         expect($daidalos)->toContain('always double-quote it when it reaches a command (`kill -0 "$pid"`)');
 
@@ -856,6 +981,29 @@ test(
         expect($daidalos)->toContain('.daidalos-sweep.lock');
         expect($daidalos)->toContain('mkdir -p "$LOCKROOT/agent-run"');
         expect($daidalos)->toContain('This is separate from, and much shorter-lived than, the write-lock above');
+
+        // The steal gate captures `kill -0`'s OWN exit status before inspecting its message — never
+        // a downstream `grep`'s exit status, which a live same-UID holder (no stderr output at all)
+        // would silently misclassify as confirmed-dead (PR #150 CR fix, run-3 Critical 1).
+        expect($daidalos)->toContain('probe="$(LC_ALL=C kill -0 "$holder_pid" 2>&1)"; rc=$?');
+        expect($daidalos)->toContain(
+            'if [ -n "$holder_pid" ] && [ "$rc" -ne 0 ] && ! printf \'%s\' "$probe" | grep -q \'not permitted\'; then',
+        );
+        expect($daidalos)->not->toContain(
+            '! LC_ALL=C kill -0 "$holder_pid" 2>&1 | grep -q \'not permitted\'',
+        );
+
+        // The holder file is written only on the branch that actually acquired the lock — never on
+        // the "skip this run's sweep" branch, which would otherwise clobber a live peer's holder
+        // (PR #150 CR fix, run-3 Moderate 1).
+        expect($daidalos)->toContain('skipping this run\'s sweep" >&2; skip=1; break');
+        expect($daidalos)->toContain('[ -z "$skip" ] && printf \'PID=%s\nSLUG=%s\nSTARTED=%s\n\'');
+
+        // The sweep-lock holder's own `PID=` token is format-validated before it reaches `kill -0`,
+        // the one PID token that previously skipped this section's own mandatory check
+        // (PR #150 CR fix, run-3 Minor 1).
+        expect($daidalos)->toContain('case "$holder_pid" in \'\'|*[!0-9]*) holder_pid=\'\' ;; esac');
+        expect($daidalos)->toContain('Lock-holder `PID=` (write-lock and sweep-lock holder files)');
 
         // An unlocked worktree entry (or one with no parseable pid token) is left in place, not removed —
         // inverted from the original "no locked line → treat like a stale lock → remove" default.
