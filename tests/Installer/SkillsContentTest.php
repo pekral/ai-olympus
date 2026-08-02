@@ -1178,9 +1178,15 @@ test('quality gates reuse a green CI result for the loop gate but never the fina
     expect($process)->toContain('CI-result reuse for the loop gate (issue #124)');
     expect($process)->toContain('never treats a non-green conclusion as a pass');
     expect($process)->toContain('`security-audit` is excluded from reuse entirely');
-    // Pinned so this restatement of the local HEAD-equality predicate cannot silently drift away from
-    // the hardened actually-checked-out-SHA definition it depends on (issue #137 CR follow-up).
-    expect($process)->toContain('requires a clean working tree with `HEAD` at the exact commit CI validated');
+    // Pinned so this sentence keeps *citing* the canonical staleness-guard definition rather than
+    // restating it on its own — a fifth independent restatement of the same CI-reuse staleness
+    // concept is exactly what issue #143 removed (follow-up to the #137 hardening). The negative
+    // assertion keeps the removed restatement from creeping back in alongside the citation.
+    expect($process)->toContain('is gated by that subsection\'s **Staleness guard** bullet');
+    expect($process)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.mdc`');
+    expect($process)->toContain('not merely the workflow\'s nominal trigger SHA — a `pull_request` event may check out a merge ref');
+    expect($process)->toContain('a clean working tree with the local `HEAD` equal to it');
+    expect($process)->not->toContain('requires a clean working tree with `HEAD` at the exact commit CI validated');
 
     // resolve-issue's own Pre-push quality gates section is the FINAL gate — state that
     // explicitly so a reader does not conflate it with process-code-review's loop gate.
