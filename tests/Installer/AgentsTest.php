@@ -1100,3 +1100,18 @@ test('daidalos gates CR worktree cleanup on the same confirmed-dead probe as the
     expect($content)->toContain('a live CR pass and a crashed one look **identical** on both signals');
     expect($content)->toContain('never remove on the absence of a liveness signal');
 });
+
+test('both parallel reviewers deliver incrementally and treat the handoff as authoritative (issue #172)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    foreach (['argos', 'athena'] as $agent) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+
+        expect($content)->toContain('Deliver as you go, and never let the brief be your only channel.');
+        expect($content)->toContain('Append the skeleton early, then fill it in.');
+        expect($content)->toContain('Your returned handoff is the authoritative delivery');
+        expect($content)->toContain('delivery: brief append failed');
+        // The agents hold no Write tool, so a non-Bash pickup file is not reachable for them.
+        expect($content)->toContain('You have no `Write` tool');
+    }
+});
