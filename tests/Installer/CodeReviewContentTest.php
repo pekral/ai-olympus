@@ -1733,10 +1733,17 @@ test('quality-gates records that this repository\'s own PR CI cannot satisfy the
     $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
 
     // The documented consequence is only true while the workflow keeps this exact shape: a
-    // pull_request trigger with a checkout that does NOT pin the head SHA. Pin the premise, not just
-    // the prose — otherwise a later workflow change would silently turn the note into a false claim.
+    // pull_request trigger with a checkout that does NOT pin any ref. Pin the premise, not just the
+    // prose — otherwise a later workflow change would silently turn the note into a false claim.
     expect($workflow)->toContain('pull_request:');
     expect($workflow)->toContain('uses: actions/checkout@v4');
+    // Assert the ABSENCE of a `with:` block on the checkout step (the step line is followed by a
+    // blank line), not the absence of one forbidden expression. Forbidding a single spelling leaves
+    // every other one silently passing — `ref: ${{ github.head_ref }}` is the shorter, likelier edit
+    // and would check out the branch head instead of the merge ref, falsifying the whole note while
+    // the substring check below still went green (CR fix, PR #153 Moderate 1).
+    expect($workflow)->toMatch('#uses: actions/checkout@v4\s*\n\s*\n#');
+    // Kept as a second, more specific guard on the spelling the note names verbatim.
     expect($workflow)->not->toContain('github.event.pull_request.head.sha');
 
     expect($gates)->toContain('the reuse path is structurally unreachable here (issue #144)');
@@ -1751,4 +1758,16 @@ test('quality-gates records that this repository\'s own PR CI cannot satisfy the
     expect($gates)->toContain('Do not "fix" the above by pointing the checkout at the head SHA.');
     expect($gates)->toContain('validates the **merged** result for one that validates the branch in isolation');
     expect($gates)->toContain('never on `@skills/resolve-issue/SKILL.md`\'s pre-PR gate');
+});
+
+test('the CI-reuse unreachability note cites the vendor documentation its premise rests on (issue #144 CR fix)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    // The note asserts third-party behaviour, so it must carry its own provenance — a reader of the
+    // file cannot otherwise verify the premise without re-deriving it (CR fix, PR #153 Minor 1).
+    expect($gates)->toContain('defaults to the reference or SHA for that event');
+    expect($gates)->toContain('https://github.com/actions/checkout');
+    expect($gates)->toContain('`refs/pull/<pr_number>/merge`');
+    expect($gates)->toContain('https://docs.github.com/en/actions/reference/workflows-and-actions/variables');
 });
