@@ -1655,6 +1655,11 @@ test('an unresolved third-party contract produces an answerable blocking documen
     expect($skill)->toContain('Request the documentation link when no source resolves');
     // The "no lookup tool in this run" branch must route here too, not silently into an assumed contract.
     expect($skill)->toContain('cannot be performed at all (no lookup tool available in this run)');
+    // The pre-existing escalation survives the rewrite: an unlocatable reference is still a Moderate,
+    // never a silently assumed contract — the request is added on top of it, not in place of it.
+    expect($skill)->toContain('raise a **Moderate** finding');
+    expect($skill)->toContain('instead of silently assuming the contract');
+
     // A Moderate on its own is explicitly declared insufficient output.
     expect($skill)->toContain('A bare Moderate finding is **not** a sufficient output');
     expect($skill)->toContain('the author must be able to close it with a single link');
