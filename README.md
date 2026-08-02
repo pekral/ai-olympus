@@ -337,6 +337,9 @@ An issue already carrying `Resolve_by_AI:in-progress` is skipped, so two overlap
 | `--merge` | Merge the pull request once the review converges. Off by default. |
 | `--dry-run` | Print the chosen issue and the prompt without starting an agent run. |
 
+> [!IMPORTANT]
+> The trigger label is the only gate on what an unattended run will work on. Anyone who can apply that label to an issue can decide what the agent spends a run on, so keep it restricted to people you would let open a pull request. The command never passes `--dangerously-skip-permissions`; grant only the narrow permissions the run needs (the installer's `--allow-subagent-writes` adds scoped `Edit`/`Write` entries for the project tree).
+
 Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and the `claude` binary on `PATH`. Scheduling every two hours:
 
 ```bash

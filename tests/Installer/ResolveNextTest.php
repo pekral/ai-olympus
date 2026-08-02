@@ -277,3 +277,22 @@ test('the cli passes every other command through to the installer', function ():
     expect($spy->calls())->toHaveCount(0);
     expect($output)->toContain('resolve-next');
 });
+
+test('the binary propagates the dispatcher exit code instead of always exiting zero', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $binary = (string) file_get_contents($packageDir . '/bin/agent-skills');
+
+    // Until #158 the last line was a bare `Installer::run($argv);`, so the script always
+    // exited 0 — a cron entry or CI step checking $? could never see a failure. Pinned
+    // here rather than by running the binary, which the testing rules forbid.
+    expect($binary)->toContain('exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor));');
+    expect($binary)->not->toMatch('/^AgenticVibes\\\\AgentSkills\\\\Installer::run\(\$argv\);$/m');
+});
+
+test('the binary never disables Claude Code permission checks on the user behalf', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $sources = (string) file_get_contents($packageDir . '/bin/agent-skills')
+        . (string) file_get_contents($packageDir . '/src/AgenticIssueResolver.php');
+
+    expect($sources)->not->toContain('--dangerously-skip-permissions');
+});
