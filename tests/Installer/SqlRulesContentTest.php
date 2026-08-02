@@ -27,10 +27,13 @@ test('sql optimalize states the schema block version scope under Schema Design, 
 
     expect($content)->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
     expect($content)->not->toContain('The schema-design guidance below (through **When to Break These Rules**) assumes MySQL 8.0.16+');
-    expect(strpos($content, '**Scope: MySQL 8.0.16+ on InnoDB.**'))
-        ->toBeLessThan(strpos($content, '## Strict SQL Mode'));
-    expect(strpos($content, '## Schema Design'))
-        ->toBeLessThan(strpos($content, '**Scope: MySQL 8.0.16+ on InnoDB.**'));
+
+    // The statement has to sit in the section a reader opens looking for it, not in the sql_mode one.
+    preg_match('/^## Schema Design\n(.*?)^## /ms', $content, $schemaDesign);
+    expect($schemaDesign[1] ?? '')->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
+
+    preg_match('/^## Strict SQL Mode\n(.*?)^## /ms', $content, $strictMode);
+    expect($strictMode[1] ?? '')->not->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
 });
 
 test('sql optimalize schema design scope narrows the block to MySQL and hands PostgreSQL to its own skill (issue #156)', function (): void {
@@ -149,7 +152,9 @@ test('sql optimalize boolean defaults require the restrictive state for permissi
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
 
-    expect($content)->toContain('(`can_*`, `is_admin`, `*_verified`, `two_factor_enabled`) the safe state is the **restrictive** one, so it is always `DEFAULT 0`');
+    expect($content)->toContain(
+        '(`can_*`, `is_admin`, `*_verified`, `two_factor_enabled`) the safe state is the **restrictive** one, so it is always `DEFAULT 0`',
+    );
     expect($content)->toContain('grants the privilege to every row created before anyone thought about it');
 });
 
@@ -224,7 +229,10 @@ test('every sql example in the optimalize rule is a complete statement, not a fr
             '/^(SELECT|WITH|CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|DELIMITER)\b/i',
             sprintf('sql example #%d starts with a fragment: %s', $index + 1, $statementLines[0]),
         );
-        expect(rtrim(end($statementLines), ';'))->not->toEndWith(',');
+
+        foreach (array_slice($statementLines, -1) as $lastLine) {
+            expect(rtrim($lastLine, ';'))->not->toEndWith(',');
+        }
     }
 });
 
