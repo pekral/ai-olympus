@@ -196,14 +196,18 @@ Two columns that look interchangeable and are not — the deciding question is *
 - **`modified_at`** measures a **domain-meaningful change** — "date of the last edit, from the reader's point of view". A flag toggle or a view-counter increment must not move it. `ON UPDATE CURRENT_TIMESTAMP` is the wrong mechanism here; maintain it with a trigger that watches only the named columns that count as a real edit.
 - **`updated_at`** measures "something changed, period" — it is a row-version / concurrency token used to detect a conflicting concurrent edit. Here `ON UPDATE CURRENT_TIMESTAMP` is exactly correct, and a trigger would be **worse**: it would have to enumerate every editable column and silently go stale the moment an eleventh one is added, quietly dropping optimistic-locking protection for new fields.
 - Every magically-maintained column needs a `COMMENT` naming what maintains it — `updated_at` especially ("concurrency token, `ON UPDATE` is intentional"), or a well-meaning future reader "fixes" it onto a trigger and silently breaks optimistic locking.
-- **Set `DEFINER` explicitly on the trigger.** A trigger always executes with its definer's privileges — MySQL has no `SQL SECURITY INVOKER` mode for triggers, that clause is a syntax error there — so an omitted `DEFINER` silently binds the trigger to whoever happened to run the migration, typically the deployment's most privileged account, and that choice then travels with `SHOW CREATE TRIGGER` into every dump and every environment restored from one. Name a least-privilege account instead (`@rules/security/backend.md` *Database*), but grant that account the `TRIGGER` privilege on the table **and** whatever the body touches: without it, every write to the table fails with `ERROR 1142 TRIGGER command denied` regardless of who issued it — the least-privilege definer is a table-wide outage, not a silently skipped trigger.
+- **Set `DEFINER` explicitly on the trigger.** A trigger always executes with its definer's privileges — MySQL has no `SQL SECURITY INVOKER` mode for triggers, that clause is a syntax error there — so an omitted `DEFINER` silently binds the trigger to whoever happened to run the migration, typically the deployment's most privileged account, and that choice then travels with `SHOW CREATE TRIGGER` into every dump and every environment restored from one. Name a least-privilege account instead (`@rules/security/backend.md` *Database*), under two constraints that decide *how* you name it:
+
+  - **The definer needs the `TRIGGER` privilege on the table** and whatever else the body touches. Without it every write to the table fails with `ERROR 1142 TRIGGER command denied` regardless of who issued the write — a least-privilege definer without the grant is a table-wide outage, not a silently skipped trigger.
+  - **Naming an account other than the creator requires `SET_ANY_DEFINER`** (`SET_USER_ID` before MySQL 8.2) **or `SUPER` on the creating account** — otherwise `CREATE TRIGGER` fails with `ERROR 1227`. Do **not** grant that privilege to the deploy user to make the clause work: it is what allows creating stored objects that run as *any* account, so it hands full privilege escalation to anyone who can land a migration — strictly worse than the omitted clause. Run the migration **as** the intended low-privilege account instead and write `DEFINER = CURRENT_USER`, which is least-privilege and needs no extra grant.
 
 ```sql
 DELIMITER ;;
 
--- DEFINER is explicit: least-privilege, and never inherited from whoever ran the migration
+-- DEFINER is explicit, and CURRENT_USER because the migration runs as the low-privilege
+-- account that should own the trigger — naming a different one would need SET_ANY_DEFINER
 -- BEFORE, because only there does SET NEW.* have any effect
-CREATE DEFINER = `app_migrator`@`localhost` TRIGGER `page_before_update_touch_modified_at`
+CREATE DEFINER = CURRENT_USER TRIGGER `page_before_update_touch_modified_at`
 BEFORE UPDATE ON `page` FOR EACH ROW
 BEGIN
     -- COLLATE bin on both sides: without it, a diacritics-only fix is not seen as a change (see Collation)

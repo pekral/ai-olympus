@@ -145,9 +145,16 @@ test('sql optimalize trigger example sets DEFINER explicitly and states the priv
     // Verified on MySQL 8.4.6: `SQL SECURITY INVOKER` on CREATE TRIGGER is ERROR 1064; an omitted
     // DEFINER records the migration's user; revoking TRIGGER from the definer makes every UPDATE
     // on the table fail with ERROR 1142 even when the invoker is root.
-    expect($content)->toContain('CREATE DEFINER = `app_migrator`@`localhost` TRIGGER `page_before_update_touch_modified_at`');
+    expect($content)->toContain('CREATE DEFINER = CURRENT_USER TRIGGER `page_before_update_touch_modified_at`');
     expect($content)->toContain('MySQL has no `SQL SECURITY INVOKER` mode for triggers');
     expect($content)->toContain('every write to the table fails with `ERROR 1142 TRIGGER command denied`');
+
+    // Verified on MySQL 8.4.6: a deploy account with ALL PRIVILEGES on the schema but no
+    // SET_ANY_DEFINER cannot name a foreign DEFINER -- ERROR 1227. The rule must not push a
+    // project into granting that privilege, which is itself a privilege-escalation primitive.
+    expect($content)->toContain('**Naming an account other than the creator requires `SET_ANY_DEFINER`**');
+    expect($content)->toContain('Do **not** grant that privilege to the deploy user to make the clause work');
+    expect($content)->toContain('Run the migration **as** the intended low-privilege account instead and write `DEFINER = CURRENT_USER`');
 });
 
 test('sql optimalize boolean defaults require the restrictive state for permission flags (issue #156)', function (): void {
