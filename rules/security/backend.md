@@ -58,6 +58,33 @@ Apply the following rules only if authentication relies on cookies instead of to
 - Validate and sanitize all user-supplied URLs before making requests.
 - Implement request timeouts and rate limits to prevent abuse.
 
+## Server-Side Request Forgery (SSRF) (issue #169)
+The section above states the policy; this one is how it is checked. An outbound request whose **URL, host, port, or path is influenced by user input** makes the server a proxy into everything it can reach that the caller cannot — the cloud metadata endpoint, an internal admin panel, a database HTTP interface, a neighbouring service on the private network. Apply to every code path the diff adds or modifies that issues an outbound request.
+
+**Sinks to match.** Any of these is in scope the moment part of the destination derives from user input — a request parameter, a webhook payload field, a header, an uploaded file's contents, or a database column that was originally populated from any of those:
+
+- **Laravel HTTP client** — `Http::get()`, `Http::post()`, `Http::put()`, `Http::patch()`, `Http::delete()`, `Http::head()`, `Http::send()`, and the same calls behind `Http::withOptions()` / `withHeaders()` / `withToken()` / `baseUrl()` / `pool()`.
+- **Guzzle** — `$client->request()` / `->get()` / `->post()` / `->send()` / `->sendAsync()`, `new GuzzleHttp\Psr7\Request(...)`, and a `GuzzleHttp\Client` whose `base_uri` comes from input.
+- **cURL** — `curl_init($url)`, `curl_setopt($ch, CURLOPT_URL, $url)`, `curl_setopt_array()` carrying `CURLOPT_URL`.
+- **Stream wrappers, which are outbound requests in disguise** — `file_get_contents($url)`, `fopen($url, …)`, `copy($url, …)`, `readfile()`, `getimagesize()`, `simplexml_load_file()`, `DOMDocument::load()` / `loadXML()` with network entities enabled, and any image / PDF library handed a URL instead of bytes.
+- **Framework and vendor wrappers** — webhook-registration endpoints that store a callback URL, avatar / favicon / OG-preview fetchers, URL-import features, and any SDK method whose endpoint is configurable at runtime from input.
+
+**Required controls.** A sink is a finding unless *all* of the following hold on the path from input to request:
+
+- **Scheme allow-list.** Accept only the schemes the feature genuinely needs — in practice `https`, and `http` only with a stated reason. `file://`, `gopher://`, `dict://`, `ftp://`, `php://`, `data://`, and `blob:` must be rejected outright, not merely absent from the happy path.
+- **Host allow-list, never a deny-list.** Match the destination host against an explicit list of permitted hosts. A deny-list of "known bad" targets is not a control: the attacker picks the target, and the encodings (decimal IP, IPv6-mapped IPv4, trailing dot, unicode homograph, `@`-userinfo confusion) outnumber any list.
+- **Private and special-purpose ranges rejected after resolution.** Resolve the host and reject loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16` — this is the **cloud metadata** endpoint `169.254.169.254`, and its IPv6 form `fd00:ec2::254`), RFC-1918 (`10/8`, `172.16/12`, `192.168/16`), ULA (`fc00::/7`), `0.0.0.0`, and internal suffixes (`localhost`, `*.local`, `*.internal`, `*.localdomain`). Validating the *string* is not enough — a hostname that looks public can resolve into any of these.
+- **Redirects re-validated or disabled.** Both the Laravel HTTP client and Guzzle **follow redirects by default**, so a URL that passes every check above can `302` to an internal one and the entire validation is bypassed. Either disable redirects (`Http::withoutRedirecting()`, Guzzle `'allow_redirects' => false`) and treat a `3xx` as a rejected response, or re-run the full host / scheme / range validation on **every** hop. A validated first hop is not a validated request.
+- **Bounded.** An explicit connect and total timeout, plus a response-size cap, so the sink cannot be used to hang workers or pull an unbounded body.
+
+**Residual risk that must be named, not silently ignored.** Validating a host and then letting the HTTP client resolve it again is a time-of-check / time-of-use gap — DNS rebinding can return a public address to the validator and a private one to the connection. Closing it requires resolving once and connecting to the pinned address, or routing outbound traffic through an egress proxy that enforces the allow-list. When the project accepts the gap instead, the acceptance belongs in a comment at the sink; an unstated gap is a finding.
+
+**Suggested Fix.** Route every user-influenced URL through one central validator — a reusable validation rule, a Data Validator, or a dedicated `SafeUrl` value object — that performs the scheme check, the allow-list match, and the post-resolution range rejection, and returns the validated URL. Never re-implement the checks per call site: the second copy is where the drift starts. Pair it with `withoutRedirecting()` (or per-hop re-validation) and an explicit timeout. This repository applies exactly that shape to its own outbound documentation lookups — see `@skills/code-review/SKILL.md` *Third-Party API & Service Analysis* step 2, which allows only public `https://` vendor hosts and names the same forbidden ranges.
+
+**Severity.** **Critical** when the destination is attacker-controlled and the sink is reachable unauthenticated or by a low-privilege caller, when the response body or status is observable to the caller, or when cloud metadata / an internal admin surface is reachable. **High** otherwise, including blind SSRF where only timing or side effects leak.
+
+> **Scope boundary.** This section owns the **destination** of an outbound request. Disabled TLS validation on that request is owned by *Malicious Code & Supply-Chain Indicators (issue #549)*, and an unvalidated user-supplied URL used as an **HTTP redirect target for the browser** is an open redirect owned by `@rules/security/frontend.md` *Redirects* — raise one finding per violation, never two for the same line.
+
 ## Malicious Code & Supply-Chain Indicators (issue #549)
 Code that fetches remote content, executes processes, or handles transport security can hide attacker behaviour behind ordinary-looking flags. Treat the patterns below as high-signal indicators of malicious or compromised code and flag every match on a line the diff adds or modifies — in application code (`exec()`, `shell_exec()`, `system()`, `proc_open()`, backticks, `Process::run()`), in shell / deploy / CI scripts (`*.sh`, `Makefile`, `composer.json` / `package.json` script hooks, GitHub Actions steps), and in installer / post-install hooks. Each pattern is a finding unless the surrounding code documents an explicit, legitimate reason inline.
 

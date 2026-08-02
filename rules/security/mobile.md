@@ -18,6 +18,16 @@ Apply the same enumeration / introspection / authorization-leak rules as `@rules
 - **Logs / debug overlays are not user-facing channels.** Verbose authentication or API-error logging is allowed only when the build flag (debug / staging) explicitly enables it; production builds must strip the detail from any surface the end user can read (Logcat over USB does not count, in-app debug menus do).
 - **Translation parity.** Every locale shipped in the app bundle (`strings.xml`, `Localizable.strings`, JSON locale assets) carries the same safe wording — a localizer must not reintroduce *"Email not registered"* in one locale after the source removed it.
 
+## Server-Side Request Forgery (SSRF) (issue #169)
+Apply `@rules/security/backend.md` *Server-Side Request Forgery (SSRF)* — the allow-list, scheme check, post-resolution range rejection, and redirect handling all live on the server. Mobile-specific specifics:
+
+- **A URL the app sends for the backend to fetch is attacker input.** The app binary is redistributable and the traffic is interceptable, so any destination the client supplies — an avatar URL, a webhook callback, an "import from link" field — reaches the backend as untrusted data no matter what the app validated first. Send an identifier the server resolves against its own allow-list wherever the feature allows it.
+- **In-app validation never substitutes for the server check.** A repackaged build or a direct API call bypasses whatever the app enforced; treat client-side URL checks as UX only.
+- **WebView and deep-link URLs carry the same rule.** A URL arriving via a deep link, a share sheet, or a push payload and then loaded — or forwarded to the backend to load — is attacker-controlled. Restrict WebView loads to an allow-list of hosts over HTTPS (see *WebView Usage* below) and never forward such a URL to a server-side fetch without the backend validation.
+- **Do not follow redirects blindly.** A native client fetching a user-supplied URL must disable automatic redirect following (`URLSession` delegate returning `nil` for the redirect, OkHttp `followRedirects(false)`) or re-validate every hop, mirroring the backend rule.
+
+Severity follows the backend rule.
+
 ## Malicious Code & Supply-Chain Indicators (issue #549)
 Apply `@rules/security/backend.md` *Malicious Code & Supply-Chain Indicators*, with these mobile-specific clauses:
 

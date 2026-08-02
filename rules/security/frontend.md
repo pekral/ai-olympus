@@ -18,6 +18,16 @@ Frontend forms, toasts, banners, and locale resources surface the same wording t
 - **Strip stack traces and SDK errors before display.** Network failures, schema mismatches, and SDK exception payloads must not be shown verbatim. Replace with a generic *"Something went wrong. Please try again."* and log the detail to the project's error sink — never to `console` on production builds.
 - **Translation parity.** Apply the same locale-wide safety walk: a French / Czech / Spanish locale must not reintroduce identity-revealing wording the English source has removed.
 
+## Server-Side Request Forgery (SSRF) (issue #169)
+Apply `@rules/security/backend.md` *Server-Side Request Forgery (SSRF)* — the destination allow-list, the scheme check, the post-resolution range rejection, and the redirect handling are all server-side controls and cannot be enforced from the client. Client-side specifics:
+
+- **A URL the client hands the server to fetch is attacker input, not a parameter.** A `?url=` / `image_url` / `callback_url` field that the backend then requests is the SSRF sink; the browser is only the delivery mechanism. Never design a feature where the client picks an arbitrary destination for a server-side fetch — pass an identifier the server resolves against its own allow-list instead.
+- **Client-side URL validation is a UX nicety.** Checking the scheme or host in JavaScript before submit tells the user they typed something wrong; it stops no attacker, who submits the raw request directly. The authoritative check is the backend rule above — defer to it and never present the client check as the control.
+- **Node, Electron, and build tooling are servers for this purpose.** A `fetch()` / `axios` / `http.request()` call in a Node service, an Electron main process, or a build script whose URL comes from configuration, a lockfile, or user input carries the full backend rule, including the private-range rejection and the redirect re-validation.
+- **Do not follow redirects blindly in a proxying endpoint.** A Node route that proxies a client-supplied URL must disable automatic redirect following (`redirect: 'manual'` for `fetch`, `maxRedirects: 0` for axios) or re-validate every hop, exactly as the backend rule requires.
+
+Severity follows the backend rule. Browser-origin `fetch()` to a third-party host is constrained by CORS and is not this finding; the finding is a **server-side** fetch whose destination the client chose.
+
 ## Malicious Code & Supply-Chain Indicators (issue #549)
 Client-side, build-tooling, and Node / Electron code carry the same attacker indicators as the backend. Apply `@rules/security/backend.md` *Malicious Code & Supply-Chain Indicators*, with these client-side specifics:
 
