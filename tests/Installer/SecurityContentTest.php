@@ -264,6 +264,74 @@ test('security-bounty-hunter keeps tooling optional and stays distinct from the 
     expect($content)->toContain('optional');
 });
 
+test('security/backend.md carries the SSRF section with the sinks and the required controls (issue #169)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/security/backend.md');
+
+    expect($content)->toContain('## Server-Side Request Forgery (SSRF) (issue #169)');
+
+    // The sinks the assignment names, plus the stream wrappers that are outbound
+    // requests without looking like one.
+    expect($content)->toContain('`Http::get()`');
+    expect($content)->toContain('**Guzzle**');
+    expect($content)->toContain('`curl_init($url)`');
+    expect($content)->toContain('`file_get_contents($url)`');
+
+    // Host and scheme validation, the two controls the assignment asks about.
+    expect($content)->toContain('**Scheme allow-list.**');
+    expect($content)->toContain('**Host allow-list, never a deny-list.**');
+    expect($content)->toContain('169.254.169.254');
+
+    // Redirects are the control most often missing, because both clients follow them by default.
+    expect($content)->toContain('**Redirects re-validated or disabled.**');
+    expect($content)->toContain('A validated first hop is not a validated request.');
+
+    // A safer implementation, not just a complaint.
+    expect($content)->toContain('**Suggested Fix.**');
+    expect($content)->toContain('one central validator');
+    expect($content)->toContain('DNS rebinding');
+
+    // Never fires twice with the neighbouring rules.
+    expect($content)->toContain('raise one finding per violation, never two for the same line');
+});
+
+test('security/frontend.md carries the SSRF mirror (issue #169)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/security/frontend.md');
+
+    expect($content)->toContain('## Server-Side Request Forgery (SSRF) (issue #169)');
+    expect($content)->toContain('@rules/security/backend.md');
+    expect($content)->toContain('**Client-side URL validation is a UX nicety.**');
+    expect($content)->toContain('**Node, Electron, and build tooling are servers for this purpose.**');
+});
+
+test('security/mobile.md carries the SSRF mirror (issue #169)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/security/mobile.md');
+
+    expect($content)->toContain('## Server-Side Request Forgery (SSRF) (issue #169)');
+    expect($content)->toContain('@rules/security/backend.md');
+    expect($content)->toContain('**In-app validation never substitutes for the server check.**');
+    expect($content)->toContain('**WebView and deep-link URLs carry the same rule.**');
+});
+
+test('security-review skill walks the SSRF rule and points the checklist at it (issue #169)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/security-review/SKILL.md');
+
+    expect($content)->toContain('### Server-Side Request Forgery (SSRF) (issue #169)');
+    expect($content)->toContain('@rules/security/backend.md');
+
+    // Greppable sinks, so the walk is performable rather than aspirational.
+    expect($content)->toContain('`Http::get(`');
+    expect($content)->toContain('`curl_init(`');
+    expect($content)->toContain('`getimagesize(`');
+
+    // The pre-existing checklist must hand off to the walk instead of competing with it.
+    expect($content)->toContain('### External Interaction (APIs & SSRF)');
+    expect($content)->toContain('The SSRF half of this checklist has a dedicated walk below');
+});
+
 test('security/backend.md carries the Hidden / Invisible Characters in Stored Fields section (issue #714)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/security/backend.md');

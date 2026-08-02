@@ -70,6 +70,9 @@ Avoid generic best-practice noise.
 - detection gaps the diff introduces by removing or bypassing an existing audit-trail hook
 
 ### External Interaction (APIs & SSRF)
+
+> The SSRF half of this checklist has a dedicated walk below — **Server-Side Request Forgery (issue #169)** — which carries the sinks to match, the controls that make a sink safe, and the severity split. Use this list to orient; use that walk to decide.
+
 - outbound requests with user-controlled input
 - missing domain allowlists
 - access to internal/private IPs
@@ -77,6 +80,22 @@ Avoid generic best-practice noise.
 - missing validation after redirects
 - missing rate limiting or abuse protection
 - third-party API contract — when the diff integrates with a third-party API or service, verify the security-critical aspects of the implementation against the public API documentation: authentication and scope handling, signature/webhook verification, idempotency and retry semantics, error envelopes, and rate-limit handling. Functional alignment with the issue assignment is owned by `@skills/code-review/SKILL.md` — do not duplicate it here.
+
+### Server-Side Request Forgery (SSRF) (issue #169)
+Walk every code path the diff adds or modifies that issues an outbound request whose destination is influenced by user input — a request parameter, a webhook payload field, a header, an uploaded file's contents, or a column originally populated from any of those — against `@rules/security/backend.md` *Server-Side Request Forgery (SSRF)* (and the frontend / mobile mirrors for client surfaces).
+
+**Grep for the sinks first, then trace the URL back to its source:**
+- **Laravel HTTP client** — `Http::get(`, `Http::post(`, `Http::put(`, `Http::patch(`, `Http::delete(`, `Http::head(`, `Http::send(`, `->baseUrl(`, `Http::pool(`
+- **Guzzle** — `->request(`, `->sendAsync(`, `new Client(`, `'base_uri' =>`
+- **cURL** — `curl_init(`, `CURLOPT_URL`
+- **Stream wrappers that are outbound requests in disguise** — `file_get_contents(`, `fopen(`, `copy(`, `readfile(`, `getimagesize(`, `simplexml_load_file(`, `DOMDocument::load`
+- **Feature shapes** — webhook-callback registration, avatar / favicon / OG-preview fetchers, "import from URL", any SDK endpoint configurable from input
+
+Raise a finding when the traced path reaches the sink without **all** of: a scheme allow-list rejecting `file://` / `gopher://` / `dict://` / `php://` / `data://`; a host **allow**-list (never a deny-list); rejection of loopback / link-local (`169.254.169.254`) / RFC-1918 / ULA / internal suffixes **after resolution**, not on the string; redirects disabled or **every hop** re-validated (both Laravel and Guzzle follow redirects by default, so a validated first hop proves nothing); and an explicit timeout plus response-size cap.
+
+State the **reachable entry point** in the finding, per the attack-surface rule above — an unauthenticated endpoint that returns the fetched body is a different finding from a queued job whose output nobody sees. Severity: **Critical** when the sink is reachable unauthenticated or by a low-privilege caller, when the response is observable, or when cloud metadata / an internal admin surface is reachable; **High** otherwise, including blind SSRF. The **Suggested Fix** routes the URL through one central validator (a validation rule, a Data Validator, or a `SafeUrl` value object) rather than repeating the checks per call site, and pairs it with `withoutRedirecting()` and a timeout.
+
+A DNS-rebinding gap left open (host validated, then re-resolved by the client) is a finding when nothing at the sink acknowledges it; an inline comment accepting the trade-off downgrades it to a note. Scope boundary — disabled TLS on the same request belongs to *Malicious Code & Supply-Chain Indicators (issue #549)* below, and a user-supplied browser redirect target is an open redirect; raise one finding per violation, never two for the same line.
 
 ### Malicious Code & Supply-Chain Indicators (issue #549)
 Walk every line the diff adds or modifies in application code, shell / deploy / CI scripts, `composer.json` / `package.json` script hooks, and installer hooks against `@rules/security/backend.md` *Malicious Code & Supply-Chain Indicators* (and the frontend / mobile mirrors for client surfaces). Raise a finding on each indicator:
