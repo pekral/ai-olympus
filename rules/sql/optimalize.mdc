@@ -140,8 +140,10 @@ foreach ($externalIds as $externalId) {
 - Use `SHOW ENGINE INNODB STATUS` to diagnose lock waits.
 
 ## Schema Design
+**Scope: MySQL 8.0.16+ on InnoDB.** Everything from here through **When to Break These Rules** assumes that version — it is the one from which `CHECK` constraints are enforced instead of silently parsed and ignored — and assumes strict `sql_mode` (see **Strict SQL Mode** below). On PostgreSQL these are not a syntax translation but different semantics — `TIMESTAMP` there is 64-bit and the recommended type, `UNSIGNED` does not exist, and neither does `utf8mb4` — so use `@skills/postgres-patterns/SKILL.md` for that engine instead.
+
 - Primary keys on every table.
-- Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `DATETIME`.
+- Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `DATETIME`. Read that as a starting point, not as the permitted set — `DATE`, `BIGINT`, `TEXT` / `MEDIUMTEXT`, `ENUM`, and `CHAR(n)` are each mandated by a type section below (**Date and Time Column Types**, **Primary Key Sizing**, **String, Text, and ENUM Types**, **Money and Decimal Types**). Pick the type there; a reader who treats this one line as exhaustive stores a calendar day as `DATETIME`, which is the bug **Date and Time Column Types** exists to prevent.
 - InnoDB engine.
 - `lower_case_snake_case` naming.
 - Normalized unless denormalization is justified by read performance.
@@ -149,7 +151,7 @@ foreach ($externalIds as $externalId) {
 - Non-blocking index creation on large tables where supported.
 
 ## Strict SQL Mode
-The schema-design guidance below (through **When to Break These Rules**) assumes MySQL 8.0.16+ — the version from which `CHECK` constraints are enforced instead of silently parsed and ignored — and InnoDB. It also assumes `sql_mode` is strict: without it, every rule below degrades from an enforced guarantee to a best-effort default with a silent fallback.
+Strict `sql_mode` is the second prerequisite the whole schema block rests on (the first — MySQL 8.0.16+ on InnoDB — is stated under **Schema Design**). Without it, every rule in that block degrades from an enforced guarantee to a best-effort default with a silent fallback.
 
 - Set it **server-side**, never only on the connection — a connection-level setting can be silently overridden by any client: `STRICT_TRANS_TABLES,ONLY_FULL_GROUP_BY,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`.
 - Enable it **from day one**. Turning strict mode on over a database that already holds truncated or zero-value data does not fix that data — it only defers the crash to the first `UPDATE` of an affected row, months later.

@@ -21,6 +21,35 @@ test('sql optimalize schema design recommends DATETIME instead of TIMESTAMP', fu
     expect($content)->not->toContain('Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `TIMESTAMP`.');
 });
 
+test('sql optimalize states the schema block version scope under Schema Design, not under Strict SQL Mode (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
+    expect($content)->not->toContain('The schema-design guidance below (through **When to Break These Rules**) assumes MySQL 8.0.16+');
+    expect(strpos($content, '**Scope: MySQL 8.0.16+ on InnoDB.**'))
+        ->toBeLessThan(strpos($content, '## Strict SQL Mode'));
+    expect(strpos($content, '## Schema Design'))
+        ->toBeLessThan(strpos($content, '**Scope: MySQL 8.0.16+ on InnoDB.**'));
+});
+
+test('sql optimalize schema design scope narrows the block to MySQL and hands PostgreSQL to its own skill (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('`TIMESTAMP` there is 64-bit and the recommended type, `UNSIGNED` does not exist, and neither does `utf8mb4`');
+    expect($content)->toContain('use `@skills/postgres-patterns/SKILL.md` for that engine instead');
+});
+
+test('sql optimalize schema design type list points at the type sections instead of reading as exhaustive (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('Read that as a starting point, not as the permitted set');
+    expect($content)->toContain('`DATE`, `BIGINT`, `TEXT` / `MEDIUMTEXT`, `ENUM`, and `CHAR(n)` are each mandated by a type section below');
+    expect($content)->toContain('a reader who treats this one line as exhaustive stores a calendar day as `DATETIME`');
+});
+
 test('sql optimalize rule carries the Strict SQL Mode section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
