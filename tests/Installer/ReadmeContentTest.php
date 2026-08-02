@@ -45,11 +45,13 @@ test('installation docs carry every operational section moved out of the readme 
     expect($docs)->toContain('auto-install');
 });
 
-test('every relative markdown link in the readme points at a path that exists (issue #105)', function (): void {
+test('every relative markdown link in the readme and the installation docs points at a path that exists (issue #105)', function (string $document): void {
     $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
+    $source = (string) file_get_contents($packageDir . '/' . $document);
+    // Relative links resolve against the directory holding the document, not the repo root.
+    $base = dirname($packageDir . '/' . $document);
 
-    preg_match_all('/\]\(([^)\s]+)\)/', $readme, $matches);
+    preg_match_all('/\]\(([^)\s]+)\)/', $source, $matches);
     $targets = array_filter(
         $matches[1],
         static fn (string $target): bool => !str_starts_with($target, 'http')
@@ -60,10 +62,10 @@ test('every relative markdown link in the readme points at a path that exists (i
     expect($targets)->not->toBeEmpty();
 
     foreach ($targets as $target) {
-        $path = $packageDir . '/' . strtok($target, '#');
-        expect(file_exists($path))->toBeTrue('README links to missing path: ' . $target);
+        $path = $base . '/' . strtok($target, '#');
+        expect(file_exists($path))->toBeTrue($document . ' links to missing path: ' . $target);
     }
-});
+})->with(['README.md', 'docs/installation.md']);
 
 test('every in-page readme anchor resolves to one of its own headings (issue #105)', function (): void {
     $packageDir = dirname(__DIR__, 2);
