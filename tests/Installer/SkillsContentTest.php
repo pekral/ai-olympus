@@ -1329,3 +1329,19 @@ test(
         expect($content)->toContain('structurally blind to a dropped concrete pointer or a deleted counter-example');
     },
 );
+
+test(
+    'postgres-patterns excludes the MySQL-only schema-design block from what it defers to the SQL rule (issue #156)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/skills/postgres-patterns/SKILL.md');
+
+        expect($content)->toContain('**Its schema-design block is MySQL-only — do not defer to it on Postgres.**');
+        expect($content)->toContain('from `## Schema Design` through `## When to Break These Rules`');
+        expect($content)->toContain('Postgres `timestamp`/`timestamptz` is 64-bit and the recommended type');
+        expect($content)->toContain('`UNSIGNED` does not exist at all');
+
+        // The engine-neutral half must stay deferred — the exclusion is scoped, not a blanket opt-out.
+        expect($content)->toContain('The engine-neutral half');
+    },
+);
