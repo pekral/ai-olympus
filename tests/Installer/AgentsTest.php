@@ -1079,6 +1079,13 @@ test('daidalos dispatches every step blocking so a turn never ends mid-flight (i
     expect($content)->toContain('There is **no** step of this pipeline whose result you do not consume');
     expect($content)->toContain('two blocking Task calls in a single message');
     expect($content)->toContain('Blocked: harness neumožňuje blokující dispatch');
+
+    // Arithmetic from the issue's own table: reviewer passes total 1 362 135, so 838 024 is not more than
+    // all of them combined -- only more than the largest single pass (428 897).
+    expect($content)->toContain('more than any individual reviewer pass (the largest was 429 k), though less than the four of them combined (1.36 M)');
+    expect($content)->not->toContain('more than every reviewer pass combined');
+    // Harness scheduling for two blocking calls in one message was not measured -- the barrier must not rest on it.
+    expect($content)->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
 });
 
 test('daidalos keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {

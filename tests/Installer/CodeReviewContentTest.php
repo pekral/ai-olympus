@@ -1780,4 +1780,5 @@ test('code review rule breaks a parallel-reviewer severity divergence toward the
     expect($content)->toContain('**The higher severity wins.**');
     expect($content)->toContain('**One finding, not two.**');
     expect($content)->toContain('State the divergence in both handoffs.');
+    expect($content)->toContain('A rule-declared severity is not subject to the tie-break.');
 });
