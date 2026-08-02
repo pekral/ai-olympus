@@ -115,7 +115,7 @@ test('sql optimalize rule carries the modified_at vs updated_at section', functi
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
 
     expect($content)->toContain('## modified_at vs updated_at');
-    expect($content)->toContain('CREATE TRIGGER `page_before_update_touch_modified_at`');
+    expect($content)->toContain('TRIGGER `page_before_update_touch_modified_at`');
     expect($content)->toContain('NEW.content COLLATE utf8mb4_0900_bin <> OLD.content COLLATE utf8mb4_0900_bin');
     expect($content)->toContain('row-version / concurrency token');
     expect($content)->toContain('NEW.modified_at <=> OLD.modified_at');
@@ -131,6 +131,35 @@ test('sql optimalize rule carries the Boolean Columns section', function (): voi
     expect($content)->toContain('`is_` is a legitimate fallback');
     expect($content)->toContain('permissions always get `can_`');
     expect($content)->toContain('`tinyint(1) NOT NULL`');
+});
+
+test('sql optimalize trigger example sets DEFINER explicitly and states the privilege it needs (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    // Verified on MySQL 8.4.6: `SQL SECURITY INVOKER` on CREATE TRIGGER is ERROR 1064; an omitted
+    // DEFINER records the migration's user; revoking TRIGGER from the definer makes every UPDATE
+    // on the table fail with ERROR 1142 even when the invoker is root.
+    expect($content)->toContain('CREATE DEFINER = `app_migrator`@`localhost` TRIGGER `page_before_update_touch_modified_at`');
+    expect($content)->toContain('MySQL has no `SQL SECURITY INVOKER` mode for triggers');
+    expect($content)->toContain('every write to the table fails with `ERROR 1142 TRIGGER command denied`');
+});
+
+test('sql optimalize boolean defaults require the restrictive state for permission flags (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('(`can_*`, `is_admin`, `*_verified`, `two_factor_enabled`) the safe state is the **restrictive** one, so it is always `DEFAULT 0`');
+    expect($content)->toContain('grants the privilege to every row created before anyone thought about it');
+});
+
+test('sql optimalize primary key sizing denies that an unguessable key is a control (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('**A sequential key is enumerable, and its unguessability is never a security control.**');
+    expect($content)->toContain('@skills/laravel-authorization-review/SKILL.md');
+    expect($content)->toContain('expose a separate non-sequential public identifier');
 });
 
 test('sql optimalize rule carries the String, Text, and ENUM Types section', function (): void {

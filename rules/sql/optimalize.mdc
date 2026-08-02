@@ -196,12 +196,14 @@ Two columns that look interchangeable and are not — the deciding question is *
 - **`modified_at`** measures a **domain-meaningful change** — "date of the last edit, from the reader's point of view". A flag toggle or a view-counter increment must not move it. `ON UPDATE CURRENT_TIMESTAMP` is the wrong mechanism here; maintain it with a trigger that watches only the named columns that count as a real edit.
 - **`updated_at`** measures "something changed, period" — it is a row-version / concurrency token used to detect a conflicting concurrent edit. Here `ON UPDATE CURRENT_TIMESTAMP` is exactly correct, and a trigger would be **worse**: it would have to enumerate every editable column and silently go stale the moment an eleventh one is added, quietly dropping optimistic-locking protection for new fields.
 - Every magically-maintained column needs a `COMMENT` naming what maintains it — `updated_at` especially ("concurrency token, `ON UPDATE` is intentional"), or a well-meaning future reader "fixes" it onto a trigger and silently breaks optimistic locking.
+- **Set `DEFINER` explicitly on the trigger.** A trigger always executes with its definer's privileges — MySQL has no `SQL SECURITY INVOKER` mode for triggers, that clause is a syntax error there — so an omitted `DEFINER` silently binds the trigger to whoever happened to run the migration, typically the deployment's most privileged account, and that choice then travels with `SHOW CREATE TRIGGER` into every dump and every environment restored from one. Name a least-privilege account instead (`@rules/security/backend.md` *Database*), but grant that account the `TRIGGER` privilege on the table **and** whatever the body touches: without it, every write to the table fails with `ERROR 1142 TRIGGER command denied` regardless of who issued it — the least-privilege definer is a table-wide outage, not a silently skipped trigger.
 
 ```sql
 DELIMITER ;;
 
+-- DEFINER is explicit: least-privilege, and never inherited from whoever ran the migration
 -- BEFORE, because only there does SET NEW.* have any effect
-CREATE TRIGGER `page_before_update_touch_modified_at`
+CREATE DEFINER = `app_migrator`@`localhost` TRIGGER `page_before_update_touch_modified_at`
 BEFORE UPDATE ON `page` FOR EACH ROW
 BEGIN
     -- COLLATE bin on both sides: without it, a diacritics-only fix is not seen as a change (see Collation)
@@ -223,7 +225,7 @@ Do not mandate an `is_` prefix mechanically — follow this procedure instead, i
 - **When no adjective fits, reframe the question**: `use_avatar` → `avatar_enabled`, `hide_price` → `price_visible`, `noindex` → `indexable`.
 - **Otherwise, `is_` is a legitimate fallback**, not a failure — and permissions always get `can_`.
 - The point is the procedure, not a fixed prefix: hunting for an adjective is diagnostic. It surfaces columns that should never have been boolean, columns that are derivable (and so removable), and reversed-polarity columns — a mechanical prefix would paper over all three. It matters for templates too, not just SQL: `{if $user->avatarsVisible}` reads as a sentence, `{if $user->isShowAvatars}` does not, and `isXxx` is the ecosystem's method-naming shape, so a *property* with that shape is a visual false friend.
-- The column itself is always `tinyint(1) NOT NULL` with a default chosen for the safe state, not for aesthetics — `enabled DEFAULT 1` is fine even though the value is not zero.
+- The column itself is always `tinyint(1) NOT NULL` with a default chosen for the safe state, not for aesthetics — `enabled DEFAULT 1` is fine even though the value is not zero. For a permission or verification flag (`can_*`, `is_admin`, `*_verified`, `two_factor_enabled`) the safe state is the **restrictive** one, so it is always `DEFAULT 0`: a permissive default there grants the privilege to every row created before anyone thought about it, including every row an unrelated migration backfills.
 
 ## String, Text, and ENUM Types
 - **`VARCHAR(255)` is a cargo-cult default**, not an optimization. The number comes from historical limits — a one-byte length prefix maxed out at 255 bytes, and the old index-key limit was 767 B — that no longer apply under `utf8mb4`: 255 characters is up to 1020 bytes anyway, the length prefix is 2 bytes regardless, and the modern key limit is 3072 B. Today, 255 optimizes nothing — it is only a number copied from someone else's table.
@@ -312,6 +314,7 @@ SELECT REPLACE(slug, 'č', 'c') FROM post;       -- ERROR 3854 Cannot convert st
 - **`AUTO_INCREMENT` follows the maximum, not the row count.** It never recycles, and gaps left by rollbacks or `INSERT IGNORE` are never refilled — a queue or log table can exhaust `INT` with only a few million *live* rows. Size for how many rows will ever be inserted over the table's life, not how many will be sitting in it at once.
 - **The risk is asymmetric.** Undersizing is a production incident: the next `INSERT` fails, and converting to `BIGINT` is a long, heavy operation happening at the worst possible time. Oversizing costs four bytes per row. When in doubt, take `BIGINT`.
 - `UNSIGNED` is worthwhile on `INT` — doubling the range to 4.29 billion often means `BIGINT` is not needed at all. On `BIGINT` it no longer matters: the signed range is already absurd on its own, and the extra upper half is unreachable from PHP anyway.
+- **A sequential key is enumerable, and its unguessability is never a security control.** In Laravel this `id` reaches the URL through route-model binding by default, so `/invoice/41` invites `/invoice/42` and the whole set is walkable. The control is authorizing every lookup, on every route, per `@skills/laravel-authorization-review/SKILL.md` — never the fact that an identifier is hard to reach. Where the *size* or *membership* of the set is itself sensitive (an order count a competitor can read off the last ID, a private-beta user list), keep the sequential `id` internally and expose a separate non-sequential public identifier; do not swap the primary key for a UUID to hide it, which pays the full InnoDB index cost above for a property that was never a defence.
 
 ## Index and Constraint Naming
 - **Always name indexes and constraints explicitly.** Left unnamed, MySQL generates `post_ibfk_1`, `post_chk_1` — numbered by creation order. Drop and re-add one constraint, or create the same table from a dump instead of from migrations on a different environment, and the numbering diverges: `DROP FOREIGN KEY post_ibfk_2` then succeeds on one environment and fails — or drops something else entirely — on another.
