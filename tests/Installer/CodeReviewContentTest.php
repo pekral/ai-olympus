@@ -1626,6 +1626,13 @@ test(
         expect($skill)->toContain('walking these sources in order and stopping at the first that resolves');
         expect($skill)->toContain('a lower source never overrides a higher one that resolved');
         expect($skill)->toContain('A URL cited in the issue or in the PR');
+        // Source 1 outranks the vendor's own docs, so it must carry the repo's existing authorship-trust
+        // test — anyone can comment on a public PR, and a planted link would otherwise become the
+        // contract of record and suppress the finding the walk exists to raise.
+        expect($skill)->toContain('when it points at the vendor\'s own official documentation host and was cited by an account with write access');
+        expect($skill)->toContain('`author_association` of `OWNER` / `MEMBER` / `COLLABORATOR`');
+        expect($skill)->toContain('is a **hint, not the contract**');
+        expect($skill)->toContain('never cite a non-vendor host as the contract in step 6');
         expect($skill)->toContain('A reference already present in the repository');
         expect($skill)->toContain('The vendor\'s official public documentation, looked up online');
         // The version is derived from the project's own resolution, never guessed or taken as "latest".
