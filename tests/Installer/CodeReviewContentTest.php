@@ -1782,3 +1782,15 @@ test('code review rule breaks a parallel-reviewer severity divergence toward the
     expect($content)->toContain('State the divergence in both handoffs.');
     expect($content)->toContain('A rule-declared severity is not subject to the tie-break.');
 });
+
+test('code review rule assigns the remediation-conformance verdict to exactly one reviewer (issue #174)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($content)->toContain('## Remediation-conformance ownership — derive once, not once per reviewer (issue #174)');
+    expect($content)->toContain('**Exactly one reviewer derives the remediation-conformance verdict per PR head SHA.**');
+    expect($content)->toContain('**The non-owner does not re-derive it.**');
+    // The saving must not cost the second pair of eyes where a wrong verdict would go unchallenged.
+    expect($content)->toContain('Doubt is a licence to re-verify one entry, not the whole table.');
+    expect($content)->toContain('Keyed to the head SHA.');
+});
