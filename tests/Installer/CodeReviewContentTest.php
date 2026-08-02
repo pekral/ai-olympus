@@ -1726,3 +1726,29 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
     $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
     expect($bugsnag)->toContain('the Bugsnag error comment stays non-technical and never carries it');
 });
+
+test('quality-gates records that this repository\'s own PR CI cannot satisfy the CI-reuse staleness guard (issue #144)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
+
+    // The documented consequence is only true while the workflow keeps this exact shape: a
+    // pull_request trigger with a checkout that does NOT pin the head SHA. Pin the premise, not just
+    // the prose — otherwise a later workflow change would silently turn the note into a false claim.
+    expect($workflow)->toContain('pull_request:');
+    expect($workflow)->toContain('uses: actions/checkout@v4');
+    expect($workflow)->not->toContain('github.event.pull_request.head.sha');
+
+    expect($gates)->toContain('the reuse path is structurally unreachable here (issue #144)');
+    expect($gates)->toContain('checks out the **merge ref** (`refs/pull/<N>/merge`)');
+    expect($gates)->toContain('every check therefore always runs locally in `laravel-agent-skills` itself');
+    // A non-match forces the local run, so the dead path is conservative, not a defect.
+    expect($gates)->toContain('can never produce a false-positive reuse');
+    // Only the PR side is dead — the push trigger does check out the pushed commit.
+    expect($gates)->toContain('it is only the **PR-side** reuse');
+
+    // The rejected alternative is recorded with its reason so nobody "fixes" it back.
+    expect($gates)->toContain('Do not "fix" the above by pointing the checkout at the head SHA.');
+    expect($gates)->toContain('validates the **merged** result for one that validates the branch in isolation');
+    expect($gates)->toContain('never on `@skills/resolve-issue/SKILL.md`\'s pre-PR gate');
+});
