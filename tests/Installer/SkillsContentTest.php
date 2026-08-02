@@ -1338,7 +1338,11 @@ test(
 
         expect($content)->toContain('**Its schema-design block is MySQL-only — do not defer to it on Postgres.**');
         expect($content)->toContain('from `## Schema Design` through `## When to Break These Rules`');
-        expect($content)->toContain('Postgres `timestamp`/`timestamptz` is 64-bit and the recommended type');
+        expect($content)->toContain('both Postgres timestamp types are 64-bit and carry no such limit');
+
+        // The deferral note must not contradict Data Type Discipline below, which rejects plain `timestamp`.
+        expect($content)->toContain('the type to reach for here is `timestamptz` per **Data Type Discipline** below, never plain `timestamp`');
+        expect($content)->toContain('Plain `timestamp` drops the zone and is a recurring bug source.');
         expect($content)->toContain('`UNSIGNED` does not exist at all');
 
         // The engine-neutral half must stay deferred — the exclusion is scoped, not a blanket opt-out.

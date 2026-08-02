@@ -40,7 +40,9 @@ test('sql optimalize schema design scope narrows the block to MySQL and hands Po
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
 
-    expect($content)->toContain('`TIMESTAMP` there is 64-bit and the recommended type, `UNSIGNED` does not exist, and neither does `utf8mb4`');
+    expect($content)->toContain(
+        'its timestamp types are 64-bit so the `TIMESTAMP` prohibition below does not transfer, `UNSIGNED` does not exist, and neither does `utf8mb4`',
+    );
     expect($content)->toContain('use `@skills/postgres-patterns/SKILL.md` for that engine instead');
 });
 

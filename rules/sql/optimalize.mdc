@@ -140,7 +140,7 @@ foreach ($externalIds as $externalId) {
 - Use `SHOW ENGINE INNODB STATUS` to diagnose lock waits.
 
 ## Schema Design
-**Scope: MySQL 8.0.16+ on InnoDB.** Everything from here through **When to Break These Rules** assumes that version — it is the one from which `CHECK` constraints are enforced instead of silently parsed and ignored — and assumes strict `sql_mode` (see **Strict SQL Mode** below). On PostgreSQL these are not a syntax translation but different semantics — `TIMESTAMP` there is 64-bit and the recommended type, `UNSIGNED` does not exist, and neither does `utf8mb4` — so use `@skills/postgres-patterns/SKILL.md` for that engine instead.
+**Scope: MySQL 8.0.16+ on InnoDB.** Everything from here through **When to Break These Rules** assumes that version — it is the one from which `CHECK` constraints are enforced instead of silently parsed and ignored — and assumes strict `sql_mode` (see **Strict SQL Mode** below). On PostgreSQL these are not a syntax translation but different semantics — its timestamp types are 64-bit so the `TIMESTAMP` prohibition below does not transfer, `UNSIGNED` does not exist, and neither does `utf8mb4` — so use `@skills/postgres-patterns/SKILL.md` for that engine instead.
 
 - Primary keys on every table.
 - Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `DATETIME`. Read that as a starting point, not as the permitted set — `DATE`, `BIGINT`, `TEXT` / `MEDIUMTEXT`, `ENUM`, and `CHAR(n)` are each mandated by a type section below (**Date and Time Column Types**, **Primary Key Sizing**, **String, Text, and ENUM Types**, **Money and Decimal Types**). Pick the type there; a reader who treats this one line as exhaustive stores a calendar day as `DATETIME`, which is the bug **Date and Time Column Types** exists to prevent.
