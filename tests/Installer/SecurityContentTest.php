@@ -285,6 +285,9 @@ test('security/backend.md carries the SSRF section with the sinks and the requir
     // Redirects are the control most often missing, because both clients follow them by default.
     expect($content)->toContain('**Redirects re-validated or disabled.**');
     expect($content)->toContain('A validated first hop is not a validated request.');
+    // The safe-by-default posture, and the near-miss that does not achieve it.
+    expect($content)->toContain('Http::globalOptions([\'allow_redirects\' => false])');
+    expect($content)->toContain('`maxRedirects()` is **not** a substitute');
 
     // A safer implementation, not just a complaint.
     expect($content)->toContain('**Suggested Fix.**');
