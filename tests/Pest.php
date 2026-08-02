@@ -120,6 +120,92 @@ function coverageDiffCheckBuildClover(array $files): string
 }
 
 /**
+ * Returns `skill directory => raw front-matter description` for every shipped skill.
+ * `_shared/` carries no SKILL.md and is therefore not a skill.
+ *
+ * @return array<string, string>
+ */
+function skillFrontMatterDescriptions(): array
+{
+    $skillsDir = __DIR__ . '/../skills';
+    $entries = scandir($skillsDir);
+    assert($entries !== false);
+    $descriptions = [];
+
+    foreach ($entries as $entry) {
+        $file = $skillsDir . '/' . $entry . '/SKILL.md';
+
+        if ($entry === '.' || $entry === '..' || !is_file($file)) {
+            continue;
+        }
+
+        $source = (string) file_get_contents($file);
+
+        if (preg_match('/^---\n(.*?)\n---\n/s', $source, $frontMatter) !== 1) {
+            continue;
+        }
+
+        if (preg_match('/^description:\s*(.*?)(?=\n[a-z_]+:|\z)/ms', $frontMatter[1], $match) !== 1) {
+            continue;
+        }
+
+        $descriptions[$entry] = (string) preg_replace('/\s+/', ' ', trim($match[1]));
+    }
+
+    return $descriptions;
+}
+
+/**
+ * Derives the one-line catalog description from a skill's own front-matter: drop the
+ * `Use when` prefix so the column reads as a statement, then keep only the summary that
+ * precedes the detail list (an em dash), the alternative trigger (`, or when`), or the
+ * end of the first sentence. Nothing is added — the output is always a substring of the
+ * declared description, which is what makes "no invented capabilities" checkable.
+ */
+function skillCatalogDescription(string $frontMatterDescription): string
+{
+    $line = trim(trim(trim($frontMatterDescription), '"'));
+    $line = (string) preg_replace('/^Use when\s+/i', '', $line);
+    $line = rtrim(skillCatalogSummary($line), ' .,;:');
+
+    return str_replace('|', '\|', skillCatalogCapitalise($line));
+}
+
+/**
+ * Keeps only the summary that precedes the detail list, the alternative trigger, or the first sentence end.
+ */
+function skillCatalogSummary(string $line): string
+{
+    foreach ([' — ', ', or when '] as $cut) {
+        $position = strpos($line, $cut);
+
+        if ($position !== false && $position > 0) {
+            $line = substr($line, 0, $position);
+        }
+    }
+
+    if (preg_match('/\.\s+(?=[A-Z])/', $line, $sentence, PREG_OFFSET_CAPTURE) !== 1) {
+        return $line;
+    }
+
+    return substr($line, 0, $sentence[0][1]);
+}
+
+/**
+ * Leaves a leading path or identifier (`docs/memory/PROJECT_MEMORY.md`) in its own casing.
+ */
+function skillCatalogCapitalise(string $line): string
+{
+    $firstWord = strtok($line, ' ');
+
+    if ($line === '' || !ctype_alpha($line[0]) || !is_string($firstWord)) {
+        return $line;
+    }
+
+    return strpbrk($firstWord, '/.-') === false ? ucfirst($line) : $line;
+}
+
+/**
  * Returns every test file in this suite as `relative path => source`, so a rule can be
  * enforced against the suite itself rather than only documented.
  *

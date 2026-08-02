@@ -211,6 +211,110 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ---
 
+## Skill Catalog
+
+All 50 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+
+### Issue → PR workflow
+
+| Skill | What it is for |
+|-------|----------------|
+| [`resolve-issue`](skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
+| [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
+| [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
+| [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
+| [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
+| [`pr-deploy-planner`](skills/pr-deploy-planner/) | A pull request's commits should ship in smaller, safer increments instead of one big deploy |
+| [`create-issue`](skills/create-issue/) | Create a single issue from provided text without modifying its content |
+| [`create-issues-from-text`](skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
+
+### Code review
+
+| Skill | What it is for |
+|-------|----------------|
+| [`code-review`](skills/code-review/) | Senior PHP code review focused on architecture, business logic, and risk detection |
+| [`code-review-github`](skills/code-review-github/) | Perform code review for GitHub pull requests and post findings as PR comments plus a non-technical summary to every linked issue |
+| [`code-review-jira`](skills/code-review-jira/) | Run code review for JIRA issues and publish results to GitHub PR and JIRA |
+| [`code-review-bugsnag`](skills/code-review-bugsnag/) | Run code review for a Bugsnag error and publish results to the linked GitHub PR and the Bugsnag error |
+| [`api-review`](skills/api-review/) | Reviewing HTTP API design in a PR or change set |
+| [`assignment-compliance-check`](skills/assignment-compliance-check/) | Checking that the pull request implementation actually fulfills the business requirements stated in the linked issue or task |
+| [`laravel-authorization-review`](skills/laravel-authorization-review/) | Reviewing authorization / access control in a Laravel project |
+
+### Security
+
+| Skill | What it is for |
+|-------|----------------|
+| [`security-review`](skills/security-review/) | Performing a focused security review for Laravel/PHP projects |
+| [`security-bounty-hunter`](skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
+| [`security-threat-analysis`](skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
+| [`laravel-security`](skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
+
+### Testing
+
+| Skill | What it is for |
+|-------|----------------|
+| [`test-driven-development`](skills/test-driven-development/) | Implementing a feature or bugfix with strict TDD |
+| [`create-test`](skills/create-test/) | Create or update tests to ensure full coverage for current changes |
+| [`create-missing-tests-in-pr`](skills/create-missing-tests-in-pr/) | Reads your pull request code review, verifies that all recommended test coverage is implemented in the codebase, and adds missing tests using the create-test skill |
+| [`rewrite-tests-pest`](skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
+| [`e2e-testing`](skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
+| [`tester-cookbook`](skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |
+
+### Databases
+
+| Skill | What it is for |
+|-------|----------------|
+| [`mysql-patterns`](skills/mysql-patterns/) | Designing MySQL schema features or applying advanced MySQL patterns in Laravel |
+| [`mysql-problem-solver`](skills/mysql-problem-solver/) | Analyze real MySQL query and schema problems using code inspection, schema review, and EXPLAIN when available |
+| [`postgres-patterns`](skills/postgres-patterns/) | Designing PostgreSQL schema features or applying advanced Postgres patterns in Laravel |
+| [`redis-patterns`](skills/redis-patterns/) | Using Redis in a Laravel app |
+| [`laravel-telescope`](skills/laravel-telescope/) | Analyzing Laravel Telescope requests from URL and DB |
+
+### Frontend & UI
+
+| Skill | What it is for |
+|-------|----------------|
+| [`frontend-patterns`](skills/frontend-patterns/) | Building Livewire/Blade/Alpine UI in a Laravel app |
+| [`frontend-a11y`](skills/frontend-a11y/) | Building or reviewing accessible UI in a Laravel app |
+| [`frontend-design-direction`](skills/frontend-design-direction/) | The work is not just making UI function but making it feel purposeful and polished |
+| [`frontend-slides`](skills/frontend-slides/) | Building standalone HTML/CSS/JS presentation slide decks |
+| [`design-system`](skills/design-system/) | Generating, auditing, or reviewing the visual design system of a Laravel app |
+| [`seo`](skills/seo/) | Auditing, planning, or implementing SEO in a Laravel app |
+
+### Infrastructure & performance
+
+| Skill | What it is for |
+|-------|----------------|
+| [`docker-patterns`](skills/docker-patterns/) | Writing or reviewing Docker and docker-compose setups for a Laravel application |
+| [`latency-critical-systems`](skills/latency-critical-systems/) | Working on latency-sensitive Laravel paths |
+| [`vite-patterns`](skills/vite-patterns/) | Configuring or optimizing Vite (laravel-vite-plugin) asset bundling in a Laravel app |
+
+### Refactoring & code quality
+
+| Skill | What it is for |
+|-------|----------------|
+| [`class-refactoring`](skills/class-refactoring/) | Refactor PHP classes to improve structure, readability, and maintainability while preserving behavior |
+| [`refactor-entry-point-to-action`](skills/refactor-entry-point-to-action/) | Refactoring controller, job, command, listener, or Livewire entry-point logic into a dedicated Action class while preserving behavior and response contracts |
+| [`git-workflow`](skills/git-workflow/) | Choosing a Git branching strategy or handling merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging |
+| [`cleanup-local-branches`](skills/cleanup-local-branches/) | Cleaning up local Git branches after origin pruning |
+
+### Analysis & planning
+
+| Skill | What it is for |
+|-------|----------------|
+| [`analyze-problem`](skills/analyze-problem/) | Structured problem analysis for debugging, root cause identification, and breaking down complex issues before proposing solutions |
+| [`product-capability`](skills/product-capability/) | A PRD or product intent is clear but the implementation constraints are not |
+| [`understand-propose-implement-verify`](skills/understand-propose-implement-verify/) | Following a strict problem-solving loop: understand, propose, implement, verify |
+| [`smartest-project-addition`](skills/smartest-project-addition/) | You want exactly one high-impact, concrete proposal for the next project addition |
+
+### Meta & tooling
+
+| Skill | What it is for |
+|-------|----------------|
+| [`skill-creator`](skills/skill-creator/) | Creating a new Agent skill in this repository |
+| [`readme-generator`](skills/readme-generator/) | A repository needs a maintainer-ready README.md (or sibling root docs like CONTRIBUTING / SECURITY) built from the project's actual code, manifests, scripts, and tests |
+| [`compact-project-memory`](skills/compact-project-memory/) | docs/memory/PROJECT_MEMORY.md was just written to |
+
 ## Rules Overview
 
 Rules included in this package:
