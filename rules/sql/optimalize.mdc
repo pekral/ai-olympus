@@ -174,7 +174,12 @@ Builds on the `lower_case_snake_case` naming rule above. A database name is a pu
 - `DEFAULT` is a semantic claim, not a crash guard — set one only when the value is domain-meaningful **at the moment the row is created**. Let a genuinely required field fail the `INSERT` instead of silently defaulting it. `status DEFAULT 'draft'` is fine, an order really does start as a draft; `price DEFAULT 0` on a required price is not — nobody can later tell a real zero from an import that forgot to set it.
 
 ```sql
-`meta_title` varchar(160) NOT NULL DEFAULT '',
+CREATE TABLE `post` (
+    `id` int unsigned NOT NULL AUTO_INCREMENT,
+    -- NULL and '' would mean the same thing here, so only one of them is allowed to exist
+    `meta_title` varchar(160) NOT NULL DEFAULT '',
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
 ## Date and Time Column Types
@@ -254,8 +259,10 @@ Declare foreign keys explicitly, with both clauses set — never leave either to
 - Do not add a redundant `CHECK` where a cheaper mechanism already guarantees the same thing — `CHECK (age >= 0)` over a `TINYINT UNSIGNED` column is pure noise plus a cost on every write.
 
 ```sql
-CONSTRAINT `chk_order_shipped_needs_date`
-    CHECK (`status` <> 'shipped' OR `shipped_at` IS NOT NULL),
+-- Conditional obligation: A -> B written as NOT A OR B
+ALTER TABLE `customer_order`
+    ADD CONSTRAINT `chk_order_shipped_needs_date`
+        CHECK (`status` <> 'shipped' OR `shipped_at` IS NOT NULL);
 ```
 
 ## Collation
@@ -265,7 +272,11 @@ CONSTRAINT `chk_order_shipped_needs_date`
 - The same trap bites the trigger in **modified_at vs updated_at** above: without `COLLATE utf8mb4_0900_bin` on both sides, a diacritics-only fix is not seen as a change under the default collation — a routine correction a domain reader would call an edit is silently invisible to `modified_at`.
 
 ```sql
-CHECK (`lang` REGEXP '^[a-z]{2}$')
+-- Over a `_ai_ci` column this accepts 'CS' as readily as 'cs' — the pattern's
+-- case-sensitive half only bites once `lang` carries a `_bin` or `_as_cs` collation
+ALTER TABLE `page`
+    ADD CONSTRAINT `chk_page_lang_format`
+        CHECK (`lang` REGEXP '^[a-z]{2}$');
 ```
 
 ## Charset Choice for Externally-Queried Columns

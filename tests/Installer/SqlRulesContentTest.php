@@ -177,6 +177,38 @@ test('sql optimalize rule carries the CHECK Constraints section', function (): v
     expect($content)->toContain('an implication `A -> B` written as `NOT A OR B`');
 });
 
+test('every sql example in the optimalize rule is a complete statement, not a fragment (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    preg_match_all('/^```sql\n(.*?)^```$/ms', $content, $matches);
+    expect($matches[1])->not->toBeEmpty();
+
+    foreach ($matches[1] as $index => $block) {
+        $statementLines = array_values(array_filter(
+            array_map(static fn (string $line): string => trim($line), explode("\n", $block)),
+            static fn (string $line): bool => $line !== '' && !str_starts_with($line, '--'),
+        ));
+
+        expect($statementLines)->not->toBeEmpty();
+        expect($statementLines[0])->toMatch(
+            '/^(SELECT|WITH|CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|DELIMITER)\b/i',
+            sprintf('sql example #%d starts with a fragment: %s', $index + 1, $statementLines[0]),
+        );
+        expect(rtrim(end($statementLines), ';'))->not->toEndWith(',');
+    }
+});
+
+test('sql optimalize wraps the three schema examples added by #149 in complete DDL (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    // Verified on MySQL 8.4.6: all three statements execute, and the order CHECK is enforced (ERROR 3819).
+    expect($content)->toContain('CREATE TABLE `post` (');
+    expect($content)->toContain('ALTER TABLE `customer_order`' . "\n" . '    ADD CONSTRAINT `chk_order_shipped_needs_date`');
+    expect($content)->toContain('ALTER TABLE `page`' . "\n" . '    ADD CONSTRAINT `chk_page_lang_format`');
+});
+
 test('sql optimalize rule carries the Collation section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
