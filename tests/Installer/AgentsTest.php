@@ -1142,4 +1142,5 @@ test('the remediation-conformance owner is assigned by daidalos and honoured by 
     expect($argos)->toContain('**Remediation-conformance agenda:**');
     expect($argos)->toContain('do **not** re-derive it');
     expect($argos)->toContain('You own it when the plan was not hers');
+    expect($argos)->toContain('derive it yourself before publishing and say so in the handoff');
 });
