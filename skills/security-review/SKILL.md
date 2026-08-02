@@ -71,7 +71,7 @@ Avoid generic best-practice noise.
 
 ### External Interaction (APIs & SSRF)
 
-> The SSRF half of this checklist has a dedicated walk below — **Server-Side Request Forgery (issue #169)** — which carries the sinks to match, the controls that make a sink safe, and the severity split. Use this list to orient; use that walk to decide.
+> **Scope boundary.** The first five bullets below are the SSRF surface and are owned by the dedicated walk — **Server-Side Request Forgery (issue #169)**, which carries the sinks, the controls, and the severity split. They stay here as orientation only: **never raise a finding from this list and from that walk for the same line** — the walk owns the verdict. The last two bullets are this checklist's own and the walk does not cover them: rate limiting / abuse protection, and the third-party API contract.
 
 - outbound requests with user-controlled input
 - missing domain allowlists

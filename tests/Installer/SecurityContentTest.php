@@ -332,7 +332,10 @@ test('security-review skill walks the SSRF rule and points the checklist at it (
 
     // The pre-existing checklist must hand off to the walk instead of competing with it.
     expect($content)->toContain('### External Interaction (APIs & SSRF)');
-    expect($content)->toContain('The SSRF half of this checklist has a dedicated walk below');
+    // Binding, not a hint: the checklist above the walk is the likeliest duplicate source.
+    expect($content)->toContain('never raise a finding from this list and from that walk for the same line');
+    // The two bullets the walk does not subsume must stay the checklist's own.
+    expect($content)->toContain('rate limiting / abuse protection, and the third-party API contract');
 });
 
 test('security/backend.md carries the Hidden / Invisible Characters in Stored Fields section (issue #714)', function (): void {
