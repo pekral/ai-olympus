@@ -12,25 +12,43 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** adds an **AI development team** to your project — specialized agents that **resolve GitHub issues, open pull requests, review code, and write tests**, right inside Claude Code. One `composer require --dev` brings the whole team: six specialized subagents (`daidalos` orchestration, `talos` implementation, `argos` code review, `athena` security, `apollon` testing, `hermes` communication) plus the complete set of `.mdc` rules and Agent skills for PHP/Laravel coding standards, testing, and conventions. The installer discovers the project root (via `composer.json` lookup from the current directory), mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, and copies or symlinks every file into the target project.
+**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — six specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, and write Pest tests. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
-## Why This Package
-
-- a Composer plugin: PHP/Laravel rules + agent skills in one `composer require --dev` package
-- unified PHP coding guidelines for PHP 8.4 projects
-- Pest-based testing with mandatory code analysis and 100% coverage
-- strong focus on clean code: typed properties, SRP, no redundant comments
-- **50 comprehensive Agent skills** for automated workflows
-- fast onboarding inside development repositories
-
-## Installation
+## Quickstart
 
 ```bash
 composer require agentic-vibes/laravel-agent-skills --dev
 vendor/bin/agent-skills install --force
 ```
 
-The installer targets **Claude Code only**:
+Then point the front-door agent at real work, inside Claude Code:
+
+```text
+@daidalos resolve https://github.com/owner/repo/issues/123
+```
+
+`daidalos` picks the route, `talos` implements it, `argos` and `athena` review it to convergence, and you get a pull request back.
+
+## What You Get
+
+| Layer      | What it is                                                            | Installed into   |
+|------------|-----------------------------------------------------------------------|------------------|
+| **Rules**  | Long-lived project standards Claude Code applies to every edit        | `.claude/rules`  |
+| **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills` |
+| **Agents** | Orchestration roles that combine skills into an issue-to-PR pipeline  | `.claude/agents` |
+
+## Why This Package
+
+- **Ship an issue without writing the boilerplate** — one agent takes the ticket, implements it, and hands back a reviewed pull request
+- **Reviews that block on real findings** — quality and security run as separate passes and must reach zero Critical and Moderate before anything merges
+- **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
+- **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
+- **50 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
+
+## Installation
+
+The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
 - `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
 - `.claude/agents` (the six subagents)
@@ -39,7 +57,7 @@ The installer targets **Claude Code only**:
 > [!IMPORTANT]
 > By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/agent-skills install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
 
-Everything beyond these two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
+Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
 
 ---
 
