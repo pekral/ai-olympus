@@ -1069,3 +1069,34 @@ test('the read-only CR agents carry the web tools the third-party documentation 
     expect($docs)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
     expect($docs)->not->toContain('A read-only reviewer needs `Read, Glob, Grep, Bash` only.');
 });
+
+test('daidalos dispatches every step blocking so a turn never ends mid-flight (issue #172)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    expect($content)->toContain('### Dispatch blocking, not fire-and-forget');
+    expect($content)->toContain('pass `run_in_background: false`');
+    expect($content)->toContain('There is **no** step of this pipeline whose result you do not consume');
+    expect($content)->toContain('two blocking Task calls in a single message');
+    expect($content)->toContain('Blocked: harness neumožňuje blokující dispatch');
+});
+
+test('daidalos keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    expect($content)->toContain('### Dispatch ledger');
+    expect($content)->toContain('.claude/run/<source-slug>.dispatches');
+    expect($content)->toContain('The key is `{role, pr-head-sha, round}`');
+    expect($content)->toContain('Append-only lines, not a JSON document.');
+    expect($content)->toContain('Blocked: kolo <role>/<round> je již dispatchnuté a nedoručilo výsledek');
+});
+
+test('daidalos gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    expect($content)->toContain('Probe liveness first — the same confirmed-dead gate the startup sweep uses');
+    expect($content)->toContain('a live CR pass and a crashed one look **identical** on both signals');
+    expect($content)->toContain('never remove on the absence of a liveness signal');
+});
