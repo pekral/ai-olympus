@@ -47,6 +47,17 @@
 
 ---
 
+## Documentation Requests
+
+> Render only when **Third-Party API & Service Analysis** step 7 in `@skills/code-review/SKILL.md` produced at least one blocking documentation request — i.e. the ordered source walk in step 2 resolved no reference for a third-party contract the diff touches. Each entry accompanies (never replaces) the Moderate finding raised for that contract; it is what lets the author close it with a single link. Omit the entire section when every affected contract resolved a reference — no `None.` placeholder.
+
+1. **Vendor / service:** {name of the API, SDK, or webhook provider}
+   **Version in use:** {resolved version + where it was read from — `composer.json` / lock file / pinned API version in config — or `could not determine`}
+   **Verifying:** the concrete endpoints / SDK methods / webhook events / message contracts under review, one per line
+   **Needed:** a link to the official documentation for that version covering the items above.
+
+---
+
 ## Refactoring (DRY / tech debt)
 
 > Render only when at least one in-scope refactoring item exists. Only items on lines touched by this PR. Each item must reduce tech debt — no stylistic preferences. Omit the entire section when there are no items.

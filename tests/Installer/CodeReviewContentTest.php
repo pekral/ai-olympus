@@ -1672,3 +1672,42 @@ test('an unresolved third-party contract produces an answerable blocking documen
         expect($template)->toContain($field);
     }
 });
+
+test('every CR wrapper publishes the blocking documentation request on the surface its author reads (issue #151)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $wrappers = [
+        'code-review-github' => 'templates/pr-comment-output.md',
+        'code-review-jira' => 'templates/github-output.md',
+        'code-review-bugsnag' => 'templates/github-output.md',
+    ];
+
+    foreach ($wrappers as $wrapper => $template) {
+        $skill = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/SKILL.md');
+        $rendered = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/' . $template);
+
+        // The conditional trigger must reach step 7, not stop at "run the section".
+        expect($skill)->toContain('the blocking documentation request (step 7)');
+        // Each wrapper declares the section and its omit-if-empty contract in its own Output Rules.
+        expect($skill)->toContain('**`## Documentation Requests` section (issue #151).**');
+        expect($skill)->toContain('Omit the heading entirely when no request exists.');
+
+        // The technical PR comment template renders it between Findings and Refactoring.
+        expect($rendered)->toContain('## Documentation Requests');
+        expect(strpos($rendered, '## Documentation Requests'))->toBeLessThan((int) strpos($rendered, '## Refactoring'));
+        expect((int) strpos($rendered, '## Findings'))->toBeLessThan((int) strpos($rendered, '## Documentation Requests'));
+    }
+
+    // GitHub: the request stays on the PR comment — pr-summary's linked-issue comment is non-technical.
+    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    expect($github)->toContain('never moves to the linked-issue summary');
+
+    // JIRA: the JIRA reader gets the same ask in plain language through the existing questions block.
+    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    expect($jira)->toContain('**Every blocking documentation request**');
+    expect($jira)->toContain('Keep the endpoint / SDK-method list itself on the GitHub PR comment');
+
+    // Bugsnag: the fix author reads the linked PR, so the request lives there, not on the error comment.
+    $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
+    expect($bugsnag)->toContain('the Bugsnag error comment stays non-technical and never carries it');
+});
