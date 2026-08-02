@@ -297,6 +297,12 @@ test('sql optimalize charset section names the two facts that make the ascii tra
     expect($content)->toContain('ERROR 3854 Cannot convert string ... from utf8mb4 to ascii');
     expect($content)->toContain('**The table contents decide nothing; the compared string decides everything.**');
     expect($content)->toContain('The identical query against an **empty** table errors exactly the same way');
+
+    // Verified on MySQL 8.4.6: LENGTH/UPPER/SUBSTRING and CONCAT with an ASCII literal all succeed
+    // on the ascii column -- the failure needs a non-ASCII operand, so the claim stays scoped to those.
+    expect($content)->toContain('What decides it is the operand, not the operator');
+    expect($content)->toContain('operations on the column alone are unaffected');
+    expect($content)->not->toContain('No subset of string operations stays safe');
 });
 
 test('sql optimalize charset section presents CONVERT(? USING ascii) only as a limitation, never as the fix (issue #156)', function (): void {
