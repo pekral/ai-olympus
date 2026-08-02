@@ -315,6 +315,40 @@ All 50 skills, grouped by what you reach for them for. Each description is the s
 | [`readme-generator`](skills/readme-generator/) | A repository needs a maintainer-ready README.md (or sibling root docs like CONTRIBUTING / SECURITY) built from the project's actual code, manifests, scripts, and tests |
 | [`compact-project-memory`](skills/compact-project-memory/) | docs/memory/PROJECT_MEMORY.md was just written to |
 
+## Unattended Runs
+
+`resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler.
+
+```bash
+vendor/bin/agent-skills resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
+vendor/bin/agent-skills resolve-next                    # resolve it and leave the pull request for review
+vendor/bin/agent-skills resolve-next --merge            # ...and merge once the review converges
+vendor/bin/agent-skills resolve-next --label=bug --repo=owner/name
+```
+
+The run chains `/resolve-issue` → `/code-review-github` → `/process-code-review` on the issue it picked. **Merging is opt-in:** without `--merge` the prompt explicitly tells the agent to leave the pull request open, so an unattended schedule never merges on its own.
+
+An issue already carrying `Resolve_by_AI:in-progress` is skipped, so two overlapping ticks cannot pick the same issue. An empty backlog exits `0` — a quiet schedule is not a failure.
+
+| Option | Effect |
+|--------|--------|
+| `--label=NAME` | Only consider issues carrying this label. Repeatable; all of them must match. Defaults to `Resolve_by_AI`. |
+| `--repo=OWNER/NAME` | Target another repository instead of the current checkout. |
+| `--merge` | Merge the pull request once the review converges. Off by default. |
+| `--dry-run` | Print the chosen issue and the prompt without starting an agent run. |
+
+Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and the `claude` binary on `PATH`. Scheduling every two hours:
+
+```bash
+# Linux / macOS — crontab -e
+0 */2 * * * cd /path/to/project && vendor/bin/agent-skills resolve-next >> storage/logs/agent.log 2>&1
+```
+
+```powershell
+# Windows — Task Scheduler, every 2 hours
+schtasks /create /tn "agent-skills" /sc hourly /mo 2 /tr "cmd /c cd /d C:\path\to\project && vendor\bin\agent-skills resolve-next"
+```
+
 ## Rules Overview
 
 Rules included in this package:

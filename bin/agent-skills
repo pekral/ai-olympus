@@ -22,4 +22,27 @@ if (!$autoloadFound) {
     exit(1);
 }
 
-AgenticVibes\AgentSkills\Installer::run($argv);
+// The one place that actually spawns a process. An array command bypasses the shell
+// entirely, so no per-OS quoting rule applies and a label or prompt containing spaces or
+// quotes cannot be reinterpreted — the same call works on Linux, macOS, and Windows.
+// The issue listing is captured because it is parsed; the agent run inherits STDOUT so a
+// long session streams to the console instead of being buffered until it finishes.
+$executor = static function (array $command, bool $captureOutput): AgenticVibes\AgentSkills\CommandResult {
+    $descriptors = $captureOutput ? [1 => ['pipe', 'w'], 2 => STDERR] : [1 => STDOUT, 2 => STDERR];
+    $process = proc_open($command, $descriptors, $pipes);
+
+    if (!is_resource($process)) {
+        return new AgenticVibes\AgentSkills\CommandResult(127, '');
+    }
+
+    if (!$captureOutput) {
+        return new AgenticVibes\AgentSkills\CommandResult(proc_close($process), '');
+    }
+
+    $output = (string) stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+
+    return new AgenticVibes\AgentSkills\CommandResult(proc_close($process), $output);
+};
+
+exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor));

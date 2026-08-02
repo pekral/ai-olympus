@@ -58,13 +58,23 @@ final class Installer
     private static function showHelp(): int
     {
         echo "Usage:\n";
-        echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--allow-bundled-scripts] [--allow-subagent-writes]\n\n";
+        echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--allow-bundled-scripts] [--allow-subagent-writes]\n";
+        echo "  vendor/bin/agent-skills resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
+        echo "Commands:\n";
+        echo "  install                 Install rules, skills, and agents for Claude Code.\n";
+        echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code as one agent run.\n\n";
         echo "Options:\n  --force                 Overwrite existing files.\n";
         echo "  --symlink               Create symlinks instead of copying (falls back to copy on Windows).\n";
         echo "  --prune                 Remove files in target that no longer exist in source.\n";
         echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in.\n";
         echo "  --allow-subagent-writes Allow dispatched-subagent file writes by adding scoped Edit/Write entries for the project\n";
         echo "                          tree to permissions.allow in .claude/settings.local.json. Opt-in.\n";
+        echo "  --label=NAME            resolve-next: only consider issues carrying this label. Repeatable (all must match).\n";
+        echo '                          Defaults to ' . AgenticOptions::DEFAULT_LABEL . ".\n";
+        echo "  --repo=OWNER/NAME       resolve-next: target another repository instead of the current checkout.\n";
+        echo "  --merge                 resolve-next: merge the pull request once review converges. Off by default, so an\n";
+        echo "                          unattended run leaves it for a human.\n";
+        echo "  --dry-run               resolve-next: print the issue and the prompt without starting an agent run.\n";
 
         return 0;
     }

@@ -44,4 +44,9 @@ final class InstallerFailure extends RuntimeException
         return new self(sprintf('Invalid subagent-write permissions for %s: %s.', $path, $reason));
     }
 
+    public static function issueListUnparsable(string $reason): self
+    {
+        return new self(sprintf('The GitHub CLI returned an issue list that could not be read: %s.', $reason));
+    }
+
 }
