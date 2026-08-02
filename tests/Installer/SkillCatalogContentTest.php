@@ -2,6 +2,22 @@
 
 declare(strict_types = 1);
 
+test('front-matter is readable for every shipped skill (issue #104)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $entries = scandir($packageDir . '/skills');
+    assert($entries !== false);
+
+    $skillDirectories = array_values(array_filter(
+        $entries,
+        static fn (string $entry): bool => is_file($packageDir . '/skills/' . $entry . '/SKILL.md'),
+    ));
+
+    // Without this, a skill whose front-matter stops parsing drops out of the expected
+    // set and out of the catalog at the same time — and every other test here still
+    // passes, because they compare the catalog against that same shrunken set.
+    expect(array_keys(skillFrontMatterDescriptions()))->toEqualCanonicalizing($skillDirectories);
+});
+
 test('readme skill catalog lists every shipped skill exactly once (issue #104)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $catalog = installerDocsSection((string) file_get_contents($packageDir . '/README.md'), '## Skill Catalog');
