@@ -1122,3 +1122,21 @@ test('both parallel reviewers deliver incrementally and treat the handoff as aut
         expect($content)->toContain('You have no `Write` tool');
     }
 });
+
+test('the remediation-conformance owner is assigned by daidalos and honoured by both reviewers (issue #174)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    expect($daidalos)->toContain('Name the remediation-conformance owner in both dispatch prompts.');
+    expect($daidalos)->toContain('remediation-conformance owner: athena');
+    expect($daidalos)->toContain('remediation-conformance owner: argos');
+
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('When the pre-implementation analysis was yours, you own the remediation-conformance verdict');
+    expect($athena)->toContain('You derive it exactly once per PR head SHA');
+
+    $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
+    expect($argos)->toContain('**Remediation-conformance agenda:**');
+    expect($argos)->toContain('do **not** re-derive it');
+    expect($argos)->toContain('You own it when the plan was not hers');
+});
