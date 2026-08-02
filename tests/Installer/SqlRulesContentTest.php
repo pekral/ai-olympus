@@ -159,6 +159,16 @@ test('sql optimalize rule carries the Collation section', function (): void {
     expect($content)->toContain('CHECK (`lang` REGEXP \'^[a-z]{2}$\')');
 });
 
+test('sql optimalize collation section scopes the case-insensitive REGEXP trap to case only, not to length', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    // Verified on MySQL 8.4.6: 'CS' COLLATE utf8mb4_0900_ai_ci REGEXP '^[a-z]{2}$' returns 1,
+    // 'cs_CZ' returns 0 -- collation drives case folding, never anchors or quantifiers.
+    expect($content)->toContain('anchors and quantifiers are unaffected by collation, so `\'cs_CZ\'` is still rejected on length either way');
+    expect($content)->not->toContain('happily accepts `\'CS\'` and `\'cs_CZ\'`');
+});
+
 test('sql optimalize rule carries the Charset Choice for Externally-Queried Columns section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');

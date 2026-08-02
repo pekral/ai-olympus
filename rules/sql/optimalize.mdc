@@ -259,7 +259,7 @@ CONSTRAINT `chk_order_shipped_needs_date`
 ## Collation
 - **`utf8mb4` always, never `utf8`** — the latter is a 3-byte alias that breaks emoji.
 - Collation must be from the **`utf8mb4_0900_*` family** (UCA 9.0). Legacy `utf8mb4_czech_ci`, `unicode_ci` (UCA 4.0.0), `general_ci`, and `utf8mb4_bin` have no place in a new schema.
-- **Comparisons and `REGEXP` inside a `CHECK` honor the column's collation.** Under the default case-insensitive `_ai_ci` collation, the constraint below happily accepts `'CS'` and `'cs_CZ'` — the case-sensitive part of the pattern does nothing. A format/case-sensitive `CHECK` only has an effect over a column with a `_bin`, `ascii_bin`, or `_as_cs` collation.
+- **Comparisons and `REGEXP` inside a `CHECK` honor the column's collation.** Under the default case-insensitive `_ai_ci` collation, the constraint below happily accepts `'CS'` — the case-sensitive part of the pattern does nothing. Only the *case* sensitivity is lost: anchors and quantifiers are unaffected by collation, so `'cs_CZ'` is still rejected on length either way. A format/case-sensitive `CHECK` only has an effect over a column with a `_bin`, `ascii_bin`, or `_as_cs` collation.
 - The same trap bites the trigger in **modified_at vs updated_at** above: without `COLLATE utf8mb4_0900_bin` on both sides, a diacritics-only fix is not seen as a change under the default collation — a routine correction a domain reader would call an edit is silently invisible to `modified_at`.
 
 ```sql
