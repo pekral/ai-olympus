@@ -120,6 +120,57 @@ function coverageDiffCheckBuildClover(array $files): string
 }
 
 /**
+ * Returns every test file in this suite as `relative path => source`, so a rule can be
+ * enforced against the suite itself rather than only documented.
+ *
+ * @return array<string, string>
+ */
+function codeTestingSuiteFiles(): array
+{
+    // This file lives in the suite root, so __DIR__ is the canonical tests/ path — no
+    // `/../` segment that a str_replace prefix strip would then fail to match.
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(__DIR__, FilesystemIterator::SKIP_DOTS));
+    $files = [];
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
+
+        $files['tests/' . ltrim(substr($file->getPathname(), strlen(__DIR__)), '/')] = (string) file_get_contents($file->getPathname());
+    }
+
+    return $files;
+}
+
+/**
+ * Splits a Pest file into `test name => body`. Top-level `test(` / `it(` calls start at
+ * column zero, so the next one is the reliable end of the previous body.
+ *
+ * @return array<string, string>
+ */
+function codeTestingTestBlocks(string $source): array
+{
+    $parts = preg_split('/^(?=(?:test|it)\()/m', $source);
+
+    if ($parts === false) {
+        return [];
+    }
+
+    $blocks = [];
+
+    foreach ($parts as $part) {
+        if (preg_match('/^(?:test|it)\(\s*[\'"](.+?)[\'"]\s*,/s', $part, $match) !== 1) {
+            continue;
+        }
+
+        $blocks[$match[1]] = $part;
+    }
+
+    return $blocks;
+}
+
+/**
  * Returns the body of a Markdown section, from its `## Heading` to the next same-level
  * heading or the end of the document, so a section that closes the file still slices.
  */

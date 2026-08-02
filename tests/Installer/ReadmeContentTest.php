@@ -61,7 +61,7 @@ test('every relative markdown link in the readme points at a path that exists (i
 
     foreach ($targets as $target) {
         $path = $packageDir . '/' . strtok($target, '#');
-        expect(file_exists($path))->toBeTrue("README links to missing path: {$target}");
+        expect(file_exists($path))->toBeTrue('README links to missing path: ' . $target);
     }
 });
 
