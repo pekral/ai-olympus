@@ -1134,6 +1134,9 @@ test('the remediation-conformance owner is assigned by daidalos and honoured by 
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
     expect($athena)->toContain('When the pre-implementation analysis was yours, you own the remediation-conformance verdict');
     expect($athena)->toContain('You derive it exactly once per PR head SHA');
+    // The step joins the numbered sequence rather than dangling as a `3a.` outside it.
+    expect($athena)->toContain('4. **When the pre-implementation analysis was yours');
+    expect($athena)->not->toContain('3a. **When the pre-implementation analysis was yours');
 
     $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
     expect($argos)->toContain('**Remediation-conformance agenda:**');

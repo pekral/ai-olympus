@@ -1793,4 +1793,9 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     // The saving must not cost the second pair of eyes where a wrong verdict would go unchallenged.
     expect($content)->toContain('Doubt is a licence to re-verify one entry, not the whole table.');
     expect($content)->toContain('Keyed to the head SHA.');
+
+    // Savings-mode mechanism 1 splits invariants and is opt-in; this rule is always on. Cross-linked so they cannot drift.
+    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($savings)->toContain('is assigned to a single reviewer **always**, savings mode or not');
+    expect($savings)->toContain('the two assignments are complementary');
 });
