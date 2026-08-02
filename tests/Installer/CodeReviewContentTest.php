@@ -1771,3 +1771,13 @@ test('the CI-reuse unreachability note cites the vendor documentation its premis
     expect($gates)->toContain('`refs/pull/<pr_number>/merge`');
     expect($gates)->toContain('https://docs.github.com/en/actions/reference/workflows-and-actions/variables');
 });
+
+test('code review rule breaks a parallel-reviewer severity divergence toward the higher severity (issue #172)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($content)->toContain('## Severity divergence between parallel reviewers (issue #172)');
+    expect($content)->toContain('**The higher severity wins.**');
+    expect($content)->toContain('**One finding, not two.**');
+    expect($content)->toContain('State the divergence in both handoffs.');
+});
