@@ -119,6 +119,20 @@ function coverageDiffCheckBuildClover(array $files): string
     return $xml . '</project></coverage>';
 }
 
+/**
+ * Returns the body of a Markdown section, from its `## Heading` to the next same-level
+ * heading or the end of the document, so a section that closes the file still slices.
+ */
+function installerDocsSection(string $document, string $heading): string
+{
+    $start = strpos($document, $heading);
+    assert($start !== false);
+
+    $end = strpos($document, "\n## ", $start + 1);
+
+    return $end === false ? substr($document, $start) : substr($document, $start, $end - $start);
+}
+
 function installerRestoreEnvAndCleanup(string|false $homeBefore, string $originalCwd, string $root): void
 {
     if ($homeBefore !== false && $homeBefore !== '') {
