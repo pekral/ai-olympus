@@ -284,6 +284,13 @@ Charset is not chosen by what a column happens to store — it is chosen by what
 
 The connection is `utf8mb4`, so external input always arrives as `utf8mb4`. While it contains only ASCII characters, MySQL silently converts and compares it; the moment it contains a single non-ASCII character, that conversion is not possible and the query **errors instead of returning an empty result**. A value that is not in the table normally just fails to match — this query never gets that far, so the application never gets the chance to return its own 404, and the visitor gets a raw 500 for typing a diacritic into a URL. Tests will not catch this either: they exercise existing and non-existing values, not values containing diacritics.
 
+Two properties are what let you recognise this rule when you are staring at the error:
+
+- **Every string operator fails, not just `=`.** `=`, `<>`, `>`, `LIKE`, `IN`, and `REGEXP` all raise `ERROR 1267 Illegal mix of collations`, and so do `CONCAT` and `GREATEST`; `LOCATE` and `REPLACE` raise `ERROR 3854 Cannot convert string ... from utf8mb4 to ascii` instead. No subset of string operations stays safe, and which of the two error codes you see depends only on which operator the query reached first — so do not go looking for a second cause when the message changes.
+- **The table contents decide nothing; the compared string decides everything.** The identical query against an **empty** table errors exactly the same way, because the failure happens while the expression is resolved, before any row is read. An empty staging table, a fresh tenant, or a column the feature has not started writing yet therefore gives no warning at all — the first non-ASCII value in production is the first time anyone sees it.
+
+There is exactly one way to make a single such query survive: casting the parameter down with `CONVERT(? USING ascii)`, which returns an empty result instead of erroring. It is named here only to close the question, never as the fix — it has to be remembered at **every** call site that touches the column, so the first one that forgets restores the outage. The durable answer is the charset decision below.
+
 Ask "can a non-ASCII value ever reach this comparison?", not "is the data itself ASCII?". Reserve `CHARACTER SET ascii` for columns populated exclusively by the application and never queried with external input (`lang`, `country` — only where the value never originates from a request; `ip_address` typically does, so ascii does not belong there). Everything else gets `utf8mb4_0900_bin`, which does the same job at a few extra bytes per index entry. A wrong ASCII choice is an outage; a wrong `utf8mb4` choice is a few bytes.
 
 A binary collation also makes the `UNIQUE` guard byte-exact and case-sensitive — for an identity column such as a login name, that shifts the entire burden onto the application-side NFC + confusable/case normalization mandated by `@rules/security/backend.md` *Hidden / Invisible Characters in Stored Fields*, which must run **before** the uniqueness lookup. A slug, coupon code, or API token carries no such exposure: an exact byte match is exactly what those columns want.
@@ -291,9 +298,11 @@ A binary collation also makes the `UNIQUE` guard byte-exact and case-sensitive �
 This overlaps with `@rules/security/backend.md`'s existing principle — "Use error handling without revealing sensitive information." — since an unhandled illegal-mix-of-collations error reaching the client is exactly that: an availability/information leak triggered by attacker-controlled input. The fix here is a schema/charset decision, not an application error handler, so the rule stays here rather than duplicating content there.
 
 ```sql
--- slug varchar(100) CHARACTER SET ascii
-SELECT * FROM post WHERE slug = 'muj-clanek';  -- passes
-SELECT * FROM post WHERE slug = 'můj-článek';  -- ERROR 1267 Illegal mix of collations
+-- slug varchar(100) CHARACTER SET ascii; every statement below behaves the same on an empty table
+SELECT * FROM post WHERE slug = 'muj-clanek';   -- passes
+SELECT * FROM post WHERE slug = 'můj-článek';   -- ERROR 1267 Illegal mix of collations
+SELECT CONCAT(slug, 'č') FROM post;             -- ERROR 1267 — not only comparisons
+SELECT REPLACE(slug, 'č', 'c') FROM post;       -- ERROR 3854 Cannot convert string from utf8mb4 to ascii
 ```
 
 ## Primary Key Sizing

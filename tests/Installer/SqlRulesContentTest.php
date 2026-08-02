@@ -241,6 +241,27 @@ test('sql optimalize rule carries the Charset Choice for Externally-Queried Colu
     expect($content)->toContain('Use error handling without revealing sensitive information.');
 });
 
+test('sql optimalize charset section names the two facts that make the ascii trap recognisable (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    // Verified on MySQL 8.4.6 against an `ascii` column on an EMPTY table, connection utf8mb4:
+    // =, <>, >, LIKE, IN, REGEXP, CONCAT, GREATEST -> ERROR 1267; LOCATE, REPLACE -> ERROR 3854.
+    expect($content)->toContain('**Every string operator fails, not just `=`.**');
+    expect($content)->toContain('ERROR 3854 Cannot convert string ... from utf8mb4 to ascii');
+    expect($content)->toContain('**The table contents decide nothing; the compared string decides everything.**');
+    expect($content)->toContain('The identical query against an **empty** table errors exactly the same way');
+});
+
+test('sql optimalize charset section presents CONVERT(? USING ascii) only as a limitation, never as the fix (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+
+    expect($content)->toContain('It is named here only to close the question, never as the fix');
+    expect($content)->toContain('has to be remembered at **every** call site that touches the column');
+    expect($content)->not->toContain('use `CONVERT(? USING ascii)`');
+});
+
 test('sql optimalize rule carries the Primary Key Sizing section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
