@@ -655,6 +655,38 @@ test(
     },
 );
 
+test('code review rule flags extensive PHPDoc / inline commentary as a readability finding (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('**Extensive PHPDoc / inline commentary standing in for readable code**');
+
+    // The staleness argument is the whole rationale -- prose drifts, code does not.
+    expect($rule)->toContain('what the comment will say after the next refactor');
+
+    // It must not collide with the issue #53 redundancy bullet: volume vs restatement, one finding.
+    expect($rule)->toContain('This bullet owns **volume**');
+    expect($rule)->toContain('Raise exactly one of the two for the same block, never both.');
+
+    // The fix is always structural -- a shorter comment is never the remedy.
+    expect($rule)->toContain('The **Suggested Fix** is always the code change, never a shorter comment');
+
+    // Comments this same ruleset MANDATES must never become findings of this bullet.
+    expect($rule)->toContain('a comment this ruleset **mandates**');
+    expect($rule)->toContain('are required, and are never findings');
+
+    // The canonical standard states the preference; the CR bullet defers to it.
+    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    expect($standards)->toContain('**Write the code so that extensive PHPDoc and inline commentary are not needed.**');
+    expect($standards)->toContain('a comment block that is growing is a signal to restructure the code');
+    // Documenting real constraints stays required -- only its length is bounded.
+    expect($standards)->toContain('non-obvious side effects, and important constraints — **concisely**');
+
+    // The lens has to be registered in the walk-through the skill actually executes.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('**extensive PHPDoc / inline commentary standing in for readable code (issue #179)**');
+});
+
 test('code-review skill mandates a standalone Laravel architecture walk on every CR run (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(

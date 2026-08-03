@@ -93,7 +93,8 @@ globs: ["*"]
 
 ## Documentation
 - Prefer self-documenting code over explanatory comments.
-- Document APIs, complex business rules, non-obvious side effects, and important constraints.
+- **Write the code so that extensive PHPDoc and inline commentary are not needed.** Prose next to code goes stale — the code is refactored, the comment is not, and the reader is then left with two sources of truth of which only one is executed. Clean, readable code is the durable form of that documentation, so a comment block that is growing is a signal to restructure the code rather than to keep writing: rename the method or variable so it states its own purpose, extract a well-named private method for the step the comment was narrating, introduce a DTO or a value object so the shape needs no explanation, or split the method until each part is obvious. Reach for a comment only after the code genuinely cannot carry the fact.
+- Document APIs, complex business rules, non-obvious side effects, and important constraints — **concisely**. These are the facts the code provably cannot carry, and they stay; the requirement is that they are stated in as few lines as the fact needs, never expanded into a narrative the next refactor will invalidate.
 - PHPDoc should describe intent and domain meaning, not restate the method name or implementation steps.
 - Keep PHPDoc high-level and useful for maintainers.
 
