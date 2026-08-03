@@ -1,6 +1,6 @@
-# Phase planning (commit plan)
+# Commit planning (one point = one commit)
 
-Referenced from `skills/resolve-issue/SKILL.md` *Phase planning (commit plan)*. Extracted to keep the skill body under the skill-check token limit (issue #59).
+Referenced from `skills/resolve-issue/SKILL.md` *Commit planning (one point = one commit)*. Extracted to keep the skill body under the skill-check token limit (issue #59).
 
 Before writing any code, decide how the in-scope work will be split into commits within the PR, applying the **one phase = one commit** rule and its **one assignment point = one commit** clause from `@rules/git/general.mdc` *Git Rules*. The commit list is what a reviewer reads as the list of resolved points, so it is planned up front — never discovered while committing.
 

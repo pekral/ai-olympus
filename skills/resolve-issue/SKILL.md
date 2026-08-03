@@ -102,9 +102,9 @@ Reading, mapping, and verifying come first; implementing comes last. This pre-fl
 2. **Map** — map the change's blast radius: every call site, caller, data-flow path, and existing test that the in-scope change touches, plus the conventions, helpers, Services, and Actions already in the codebase to reuse instead of reinventing.
 3. **Verify** — check your assumptions against the real code and its observed behavior (for bugs, reproduce the failure; for features, confirm the integration points exist as assumed). If reading and mapping contradict the issue framing or the scenario table, stop and surface the discrepancy instead of implementing on a wrong premise.
 
-Only after Read, Map, and Verify are complete may phase planning and implementation begin.
+Only after Read, Map, and Verify are complete may commit planning and implementation begin.
 
-### Phase planning (commit plan)
+### Commit planning (one point = one commit)
 
 Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.mdc` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end, running the pre-push fixers and tests on its changes first.
 
