@@ -67,3 +67,17 @@ This table is the commit plan for step 11 of the skill body and the source of th
 Implement one point at a time and, at the end of each point, run the pre-push fixers and tests on that point's changes before committing it (`references/quality-gates.md`). Never start the next point with the previous one uncommitted — a mixed working tree is what silently merges two points into one commit.
 
 If implementation proves the plan wrong (a point turns out to need two commits, or two points are inseparable), update the table and reflect it in the PR `## Changes` list; the committed history and the plan must never diverge.
+
+## 6. Keep every later change in a logical commit
+
+Work that arrives after the plan — a finding from the pre-PR review loop, a correction to a commit you already made, a follow-through the first pass missed, the CHANGELOG entry — still lands in a logical commit, per `@rules/git/general.mdc` *Every change on the branch belongs to a logical commit*. For each such change decide **amend or new** before committing it:
+
+| The change… | Do this |
+|---|---|
+| completes or corrects a commit already on this branch, and that commit is not yet under review | fold it in — `git commit --amend` for the tip, `git commit --fixup=<sha>` + `git rebase --autosquash <base>` for an earlier one |
+| is a separate logical unit (a different point, a pre-existing fix, the CHANGELOG) | new commit |
+| corrects a commit that is already pushed **and under review** | new commit naming what it corrects — never a force-push that detaches review anchors and invalidates SHAs already cited |
+
+Then reconcile: run `git log <base>..HEAD` against the recorded plan table and confirm every commit is one logical change and every logical change is one commit. Split a commit that turned out to bundle two; fold two that turned out to be one. Do this **before** opening the PR, while the branch is still yours to rewrite — and re-derive every short SHA the plan table and the PR description cite, since a rewrite moves all of them.
+
+Review-loop and CHANGELOG commits stay **out** of the PR's `## Changes` checklist (that table maps assignment points), but they are still named in the PR description so no commit on the branch is unaccounted for.

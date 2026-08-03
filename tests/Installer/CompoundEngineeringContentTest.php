@@ -88,6 +88,46 @@ test('git/general.mdc mandates one commit per enumerated assignment point', func
     expect($content)->toContain('Independence is a **preference**');
 });
 
+test('git/general.mdc routes every post-plan change into a logical commit, amend or new (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+
+    // The point/phase rules map only the PLANNED work; this one covers what arrives after it.
+    expect($content)->toContain(
+        '**Every change on the branch belongs to a logical commit — amend the commit it belongs to, open a new one when it does not.**',
+    );
+    expect($content)->toContain('git commit --fixup=<sha>');
+    expect($content)->toContain('A separate *"follow-up to the commit above"* commit is the wrong shape');
+
+    // Amending must never become a way to shrink the commit count at the cost of the mapping.
+    expect($content)->toContain('the count is not the goal, one-logical-change-per-commit is');
+
+    // The guard that keeps "amend the existing commit" from destroying an in-flight review.
+    expect($content)->toContain('The branch is already pushed and under review → do not rewrite it.');
+    expect($content)->toContain('re-derive every SHA you have already cited');
+
+    // Reconciliation happens while the branch is still safe to rewrite.
+    expect($content)->toContain('**Reconcile before opening the PR.**');
+});
+
+test('resolve-issue commit planning carries the amend-or-new decision table (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
+
+    expect($content)->toContain('## 6. Keep every later change in a logical commit');
+    // The decision is made before committing, not discovered afterwards.
+    expect($content)->toContain('decide **amend or new** before committing it');
+    expect($content)->toContain('`git commit --fixup=<sha>` + `git rebase --autosquash <base>`');
+    // The under-review branch keeps its history; a new commit is the correct shape there.
+    expect($content)->toContain('never a force-push that detaches review anchors');
+    // A rewrite moves every short SHA the plan table and the PR description already cite.
+    expect($content)->toContain('re-derive every short SHA');
+    // No commit on the branch is unaccounted for, even the ones outside the `## Changes` table.
+    expect($content)->toContain('so no commit on the branch is unaccounted for');
+    // It defers to the rule instead of restating it.
+    expect($content)->toContain('@rules/git/general.mdc` *Every change on the branch belongs to a logical commit*');
+});
+
 test('resolve-issue skill anchors phase planning on the one-phase-one-commit git rule', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
