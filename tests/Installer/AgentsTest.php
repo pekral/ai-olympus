@@ -1261,3 +1261,46 @@ test('the remediation-conformance verdict is derived once, by the single reviewe
     // Step 7 joins the numbered review sequence rather than dangling outside it.
     expect($athena)->toContain('7. **Record the remediation-conformance verdict**');
 });
+
+test('every agent declares a per-agent Bash boundary and the harness-enforced disallowedTools it actually gets (issue #163)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($rule)->toContain('## Bash capability boundary (advisory, not harness-enforced)');
+    expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
+    expect($rule)->toContain('No outbound network request of any kind');
+    expect($rule)->toContain('Read-only agents (`athena`, `hermes`, `daidalos`) never create, modify, or delete a tracked file through Bash');
+    expect($rule)->toContain('**Residual risk — stated plainly, never assumed away.**');
+    expect($rule)->toContain('not expressible');
+    expect($rule)->toContain('session-wide, not per agent');
+    expect($rule)->toContain('**This section is therefore advisory: a declared behavioural boundary, not an enforced permission.**');
+    expect($rule)->toContain('`disallowedTools:` is the one real, additional, harness-enforced defence available today.');
+    expect($rule)->toContain('`memory:` frontmatter is a footgun this roster deliberately never uses.');
+
+    // The tools: line every agent already ships stays byte-identical (pinned elsewhere in this
+    // file) — disallowedTools is always a new, additive line, never a replacement.
+    $expectedDisallowed = [
+        'athena' => 'Write, Edit',
+        'hermes' => 'Write, Edit',
+        'daidalos' => 'Write, Edit',
+        'talos' => 'WebSearch, WebFetch',
+        'apollon' => 'WebSearch, WebFetch',
+    ];
+
+    foreach ($expectedDisallowed as $agent => $disallowed) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+
+        expect($content)->toContain('disallowedTools: ' . $disallowed);
+        expect($content)->toContain('## Bash boundary');
+        expect($content)->toContain('*Bash capability boundary*');
+        expect($content)->toContain('it is advisory here, not enforced');
+    }
+});
+
+test('SECURITY.md documents the agent capability model and its residual risk (issue #163)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/SECURITY.md');
+
+    expect($content)->toContain('## Agent capability model & residual risk');
+    expect($content)->toContain('the installer writes no Bash restriction');
+});

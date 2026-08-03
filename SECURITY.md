@@ -91,6 +91,15 @@ These entries pre-allow dispatched subagents (e.g. `talos`) to write files insid
 
 See also: [docs/agents.md — Troubleshooting (subagent file writes blocked)](docs/agents.md#troubleshooting--subagent-file-writes-blocked) and [docs/plans/agent-sandbox-write-blocked.md](docs/plans/agent-sandbox-write-blocked.md).
 
+## Agent capability model & residual risk
+
+The five shipped subagents (`agents/*.md`) each declare a `tools:` allow-list and, since issue #163, a `disallowedTools:` entry — the two layers the Claude Code harness actually enforces. Both are pinned by `tests/Installer/AgentsTest.php` so an agent cannot silently gain a tool it should not have. Full detail (per-agent Bash purpose lists, the harness research behind the numbers below) lives in `docs/agents.md` *Capability model* and `@rules/compound-engineering/general.mdc` *Bash capability boundary*; this section states only the facts a security reviewer of this package needs without opening either.
+
+- **Enforced today:** the `tools:` allow-list itself, and the `disallowedTools:` entry every agent now carries (read-only agents lose `Write, Edit`; agents with no documentation-fetch need lose `WebSearch, WebFetch`).
+- **Not enforced, advisory only:** every agent also carries `Bash`, which subsumes both write access and outbound network access regardless of what `tools:` / `disallowedTools:` say. There is no per-agent Bash command allow-list this package ships or can ship: the agent frontmatter `tools:` field has no syntax for a scoped command pattern (`Bash(gh:*)` is not expressible), and `permissions.allow` / `permissions.deny` patterns apply session-wide, never per agent, so scoping one agent's Bash would scope every agent's (and the human's) identically. The only genuinely per-agent mechanism, a `hooks: PreToolUse` validator script, is a runtime component this instructions-only package does not ship.
+- **What the installer actually writes today:** the installer writes no Bash restriction of any kind — not a `permissions.allow` / `permissions.deny` entry, not a hook, nothing. The two flags in *Installer security flags* above (`--allow-bundled-scripts`, `--allow-subagent-writes`) are the only permission-adjacent writes this package performs, and neither one restricts Bash — they only pre-approve two specific scripts and pre-allow `Write`/`Edit` for a dispatched subagent, respectively.
+- **Two mechanisms that would close the gap are deliberately deferred, not silently dropped:** an opt-in installer flag writing session-wide `permissions.deny` entries for network commands (mirroring the existing `--allow-subagent-writes` precedent, but session-wide rather than per-agent, and therefore a decision a human must opt into for their own project); and a per-agent `hooks: PreToolUse` validator, which is a runtime component outside this package's instructions-only scope. Both are tracked as follow-up issues rather than implemented here.
+
 ## Files this package writes
 
 | Path | Created by | Condition |

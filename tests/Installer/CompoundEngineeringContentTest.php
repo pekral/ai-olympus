@@ -710,6 +710,109 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
     }
 });
 
+test('compound memory is filtered per dispatch target, not folded unfiltered into the shared brief (issue #165)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // The rule names the new mechanism and where the slice travels.
+    expect($rule)->toContain('#### Per-dispatch memory slice');
+    expect($rule)->toContain('**Channel: the dispatch prompt, not the brief.**');
+    expect($rule)->toContain('## Project memory — <role>');
+    expect($rule)->toContain('**User-level / auto-memory never enters either channel.**');
+    expect($rule)->toContain('~/.claude/**/memory/MEMORY.md');
+
+    // Negative pin: the leak issue #165 found — memory folded unfiltered "for every dispatched
+    // specialist" — must not survive in daidalos.md, the file that used to compose it that way.
+    expect($daidalos)->not->toContain('so every specialist inherits the lessons without re-deriving them');
+    expect($daidalos)->not->toContain('so every dispatched specialist inherits the lessons');
+
+    // daidalos still reads the full memory file (it needs every role to slice correctly), but the
+    // brief itself carries only a pointer, and the actual slice travels in the dispatch prompt.
+    expect($daidalos)->toContain('*Per-dispatch memory slice*');
+    expect($daidalos)->toContain('## Project memory — <role>');
+    expect($daidalos)->toContain('pointer only');
+    expect($daidalos)->toContain('Never fold this into the brief file itself');
+
+    // Every specialist honours a slice already present in its own dispatch prompt instead of
+    // re-reading the whole memory file and undoing the filter daidalos just applied.
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    $liveAgentRoles = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
+
+    foreach (array_diff($liveAgentRoles, ['daidalos']) as $specialist) {
+        $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
+
+        expect($agent)->toContain('## Project memory — ' . $specialist);
+        expect($agent)->toContain('do not re-read the full `docs/memory/PROJECT_MEMORY.md`');
+    }
+});
+
+test('an audit trail obligation exists for memory reads, outbound requests, and external writes (issue #167)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // The section this package's own dangling cross-reference (Bash capability boundary) already
+    // pointed at before it existed.
+    expect($rule)->toContain('## Audit trail for memory reads, outbound requests, and external writes');
+    expect($rule)->toContain('.claude/run/<source-slug>.audit');
+    expect($rule)->toContain('memory-read|<PROJECT_MEMORY.md');
+    expect($rule)->toContain('outbound-request|<host>');
+    expect($rule)->toContain('external-write|<target');
+    expect($rule)->toContain('Moderate');
+
+    // Declared incompleteness must be literal, not implied — self-reported, and the Bash-via-curl
+    // gap must be named rather than silently assumed covered.
+    expect($rule)->toContain('self-reported');
+    expect($rule)->toContain('Bash execution of `curl`');
+    expect($rule)->toContain('until `Bash capability boundary` above is enforced by the harness rather than advisory');
+
+    // daidalos owns the ledger mechanics: create it, append to it, read the total before merge, and
+    // clean it up together with the brief and the dispatch ledger in step 7.
+    expect($daidalos)->toContain('### Audit trail ledger');
+    expect($daidalos)->toContain('.claude/run/<source-slug>.audit');
+    expect($daidalos)->toContain('Read the audit trail total once, before merge');
+    expect($daidalos)->toContain('rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit"');
+
+    // Temporary-file hygiene names the audit trail as scratch state, mirroring the dispatch ledger.
+    $hygieneSection = substr($rule, (int) strpos($rule, '## Temporary-file hygiene'));
+    $hygieneSection = substr($hygieneSection, 0, (int) strpos($hygieneSection, "\n## ", 1));
+    expect($hygieneSection)->toContain('.claude/run/<source-slug>.audit');
+
+    // resolve-issue's PR body template renders a mandatory `## Audit` section.
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    expect($resolveIssue)->toContain('**`## Audit`** — mandatory on every PR');
+    expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
+});
+
+test('an inventory of externally-visible actions and consent levels exists (issue #168)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    expect($rule)->toContain('## Externally-visible actions & consent levels');
+    expect($rule)->toContain('**L1 — pre-approved by invocation.**');
+    expect($rule)->toContain('**L2 — requires explicit instruction.**');
+    expect($rule)->toContain('**L3 — human-only.**');
+    expect($rule)->toContain('Do not add a confirmation where invocation already implies it.');
+
+    // Existing formulations gain an additive consent-level token — the sentence itself is
+    // untouched (append-only), never rewritten.
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->toContain('Publishes only when explicitly asked (L2) and only through the canonical upsert-comment wrapper');
+    expect($hermes)->toContain('**Publish only when explicitly instructed (L2)** and only via the canonical');
+
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    expect($daidalos)->toContain('Merging stays a separate, explicit step (L2,');
+
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('publishes one consolidated review to the tracker (L1)');
+    expect($athena)->toContain('so a human owns the disclosure decision (L3)');
+
+    $jiraRule = (string) file_get_contents($packageDir . '/rules/jira/general.mdc');
+    expect($jiraRule)->toContain('stays human-only (L3,');
+});
+
 /**
  * PR #150 run-2 Critical 3: a per-entry loss-check against `origin/master` (the same {slug / URL /
  * `#N` / concrete pointer / counter-example} token superset-or-equal invariant Execution step 5
