@@ -226,7 +226,10 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
 
     // Filed once per run, not once per loop iteration, and deduplicated against already-open issues.
     expect($content)->toContain('**Once per run, and never a duplicate.**');
-    expect($content)->toContain('**not** per loop iteration');
+    expect($content)->toContain('**Never** per loop iteration');
+    // In a loop-driven run the single publication is the one after convergence, since the earlier
+    // iterations run quiet -- naming that moment is what makes "once per run" actionable.
+    expect($content)->toContain('the single publication after convergence');
     expect($content)->toContain('already filed: <link>');
 
     // Queueing follow-up work must never gate the change under review.
