@@ -186,6 +186,9 @@ test('athena scopes every review pass to the current diff only (issue #179)', fu
     // another file" — that would trade scope creep for ungrounded findings.
     expect($content)->toContain('**Read beyond the diff, but only to judge the diff.**');
     expect($content)->toContain('What the surrounding code must never become is a **source of findings** of its own');
+    // A diff whose only change is a new call into an existing unsafe helper is a finding on the new
+    // call site -- unreachable without reading the callee, so the read-around list must name it.
+    expect($content)->toContain('a new call into an existing unsafe helper is a finding **on the new call site**');
 
     // The operative test: a published finding anchors to a line the diff touched.
     expect($content)->toContain('**A finding must anchor to a changed line.**');
@@ -231,6 +234,13 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
     // iterations run quiet -- naming that moment is what makes "once per run" actionable.
     expect($content)->toContain('the single publication after convergence');
     expect($content)->toContain('already filed: <link>');
+
+    // Filing must never turn into public disclosure of an unfixed vulnerability: `code-review`
+    // routes out-of-scope SECURITY shortcomings into the same Refactoring Proposals section.
+    expect($content)->toContain('**Never disclose an unfixed vulnerability on a public tracker.**');
+    expect($content)->toContain('gh repo view --json isPrivate');
+    expect($content)->toContain('is **not filed as a public issue**');
+    expect($content)->toContain('Withholding never means dropping it');
 
     // Queueing follow-up work must never gate the change under review.
     expect($content)->toContain('**A failure here never blocks the review.**');
