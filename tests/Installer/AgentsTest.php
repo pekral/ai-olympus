@@ -324,27 +324,41 @@ test('every agent definition declares a model in frontmatter', function (): void
     }
 });
 
-test('every agent definition sets the model effort to max in frontmatter, except apollon which runs at the lowest effort (issue #40)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $globResult = glob($packageDir . '/agents/*.md');
-    $agentFiles = $globResult !== false ? $globResult : [];
-
-    expect($agentFiles)->not->toBeEmpty();
-
-    foreach ($agentFiles as $agentFile) {
-        // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
-        // cannot satisfy the assertion.
-        $content = (string) file_get_contents($agentFile);
-
-        if (basename($agentFile) === 'apollon.md') {
-            // apollon runs fast, cheap validation on sonnet at the lowest effort.
-            expect($content)->toMatch('/^effort:\s*low$/m');
-        } else {
-            // Every other agent runs at maximum reasoning depth (issue #40).
-            expect($content)->toMatch('/^effort:\s*max$/m');
+test(
+    'every agent definition sets the model effort to high in frontmatter, except apollon which runs at the lowest effort (issue #179)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $globResult = glob($packageDir . '/agents/*.md');
+        $agentFiles = $globResult !== false ? $globResult : [];
+    
+        expect($agentFiles)->not->toBeEmpty();
+    
+        foreach ($agentFiles as $agentFile) {
+            // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
+            // cannot satisfy the assertion.
+            $content = (string) file_get_contents($agentFile);
+    
+            if (basename($agentFile) === 'apollon.md') {
+                // apollon runs fast, cheap validation on sonnet at the lowest effort.
+                expect($content)->toMatch('/^effort:\s*low$/m');
+            } else {
+                // Every other agent runs at high reasoning depth — `max` was lowered to `high`
+                // in issue #179, superseding the issue #40 mandate.
+                expect($content)->toMatch('/^effort:\s*high$/m');
+            }
+    
+            // `max` must not survive anywhere in frontmatter, on any agent.
+            expect($content)->not->toMatch('/^effort:\s*max$/m');
         }
-    }
-});
+    
+        // The anatomy doc must document the same level it ships, example included.
+        $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+        expect($docs)->toContain('effort: high');
+        expect($docs)->toContain('set to `high` on every agent (issue #179)');
+        expect($docs)->toContain('The one exception is `apollon`, which stays at `low`');
+        expect($docs)->not->toContain('set to `max` on every agent');
+    },
+);
 
 test('daidalos delegates the end-to-end run by dispatching talos and athena to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
