@@ -19,6 +19,8 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 ## How to run
 
+0. **Load per-role project memory.** Before drafting any announcement content, read `docs/memory/PROJECT_MEMORY.md` (if present) and filter it to entries where `Role: hermes` or `Role: shared` (per `@rules/compound-engineering/general.mdc` *Read protocol*). Reuse any entry whose `Trigger:` matches the current announcement — do not re-derive lessons the project already recorded. Skip entries tagged for other roles.
+
 1. **Detect the source** using `@skills/resolve-issue/references/source-detection.md`. Read the merged PR, the linked issue, and any release notes already in the repo.
 
 2. **Compose the social content** (Twitter/X tweet and thread) yourself, following these constraints:

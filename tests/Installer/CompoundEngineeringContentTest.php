@@ -664,7 +664,49 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|apollon|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|apollon|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+    }
+});
+
+test('Role dictionary and per-role read filter cover the full live agent roster (issue #166)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The live roster (excluding `shared`, which is not an agent) is derived from agents/*.md
+    // rather than pinned as a literal — a new agent dropped into agents/ without a matching
+    // dictionary/filter entry must fail this test, not silently pass it. See CHANGELOG.md
+    // "the code review is now one agent, not two — `athena` absorbs the entire role of `argos`"
+    // for why the roster shrank from six to five (issue #166 verified against the live tree).
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    $liveAgentRoles = array_map(
+        static fn (string $path): string => basename($path, '.md'),
+        $agentFiles,
+    );
+
+    // Dictionary: `- Role:    <daidalos | talos | athena | apollon | hermes | shared>` must
+    // enumerate exactly the live roster (plus `shared`, which the regex strips below).
+    preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
+    $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
+    expect(array_values(array_diff($dictionaryRoles, ['shared'])))->toEqualCanonicalizing($liveAgentRoles);
+
+    // Per-role read filter: `Each **specialist agent** (\`talos\`, ...) reads only the entries`
+    // must enumerate the live roster minus `daidalos` (the orchestrator reads the full file,
+    // never the filtered subset) — the exact parity issue #166 asked for.
+    preg_match('/Each \*\*specialist agent\*\* \(([^)]+)\) reads only the entries/', $rule, $filterMatch);
+    $filterRoles = array_map(static fn (string $r): string => trim($r, ' `'), explode(',', $filterMatch[1] ?? ''));
+    expect($filterRoles)->toEqualCanonicalizing(array_values(array_diff($liveAgentRoles, ['daidalos'])));
+
+    // Every specialist named by the filter must actually apply it — mirroring its own
+    // "Load per-role project memory" step — otherwise the rule's claim about that agent would
+    // contradict the agent's own behavior. Covers all specialists derived above, not just one.
+    foreach (array_diff($liveAgentRoles, ['daidalos']) as $specialist) {
+        $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
+
+        expect($agent)->toContain('**Load per-role project memory.**');
+        expect($agent)->toContain('`Role: ' . $specialist . '` or `Role: shared`');
     }
 });
 
