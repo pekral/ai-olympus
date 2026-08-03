@@ -1,6 +1,15 @@
 ---
 description: Backend security rules based on SecureCodeWarrior AI Security Rules. Apply when reviewing or writing server-side code.
-alwaysApply: true
+paths:
+  - "app/**/*.php"
+  - "src/**/*.php"
+  - "packages/**/*.php"
+  - "Modules/**/*.php"
+  - "bootstrap/**/*.php"
+  - "config/**/*.php"
+  - "database/**/*.php"
+  - "routes/**/*.php"
+  - "tests/**/*.php"
 ---
 
 ## General Secure Coding Practices

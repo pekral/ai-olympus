@@ -1,3 +1,9 @@
+---
+description: Named-argument usage examples for PHP, referenced from rules/php/core-standards.mdc.
+paths:
+  - "**/*.php"
+---
+
 # Named Arguments Examples
 
 ### Good: named arguments clarify unclear scalar values

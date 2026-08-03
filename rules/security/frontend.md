@@ -1,6 +1,15 @@
 ---
 description: Frontend security rules based on SecureCodeWarrior AI Security Rules. Apply when reviewing or writing client-side code.
-alwaysApply: true
+paths:
+  - "resources/**/*.js"
+  - "resources/**/*.ts"
+  - "resources/**/*.jsx"
+  - "resources/**/*.tsx"
+  - "resources/**/*.vue"
+  - "resources/**/*.blade.php"
+  - "resources/**/*.css"
+  - "resources/**/*.scss"
+  - "public/**/*.js"
 ---
 
 ## Output Handling

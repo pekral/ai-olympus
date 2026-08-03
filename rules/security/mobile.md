@@ -1,6 +1,10 @@
 ---
 description: Mobile security rules based on SecureCodeWarrior AI Security Rules. Apply when reviewing or writing mobile application code.
-alwaysApply: true
+paths:
+  - "mobile/**"
+  - "**/*.swift"
+  - "**/*.kt"
+  - "**/*.dart"
 ---
 
 ## General Secure Coding Practices
