@@ -96,6 +96,29 @@ test('resolve-issue skill anchors phase planning on the one-phase-one-commit git
     expect($content)->toContain('@rules/git/general.mdc');
 });
 
+test('resolve-issue plans one commit per point the assignment enumerates', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
+
+    // The body must name the point markers a run has to look for — a phase-only summary
+    // walks past an assignment that lists recommended fixes instead of phases.
+    expect($skill)->toContain('one point = one commit');
+    expect($skill)->toContain('recommended fixes, review findings, checklist entries, ordered acceptance criteria');
+    expect($skill)->toContain('independently cherry-pickable');
+
+    // The reference owns the procedure: inventory, mapping, independence ordering, and the
+    // recorded table the PR change list is rendered from.
+    expect($reference)->toContain('## 1. Inventory the points the assignment enumerates');
+    expect($reference)->toContain('## 2. Map one point to one commit');
+    expect($reference)->toContain('## 3. Order for independence (cherry-pick friendly — preferred, not required)');
+    expect($reference)->toContain('## 4. Record the commit plan before implementing');
+    expect($reference)->toContain('depends on #N');
+
+    // A deferred or pre-existing point must not silently become an in-scope commit.
+    expect($reference)->toContain('A point the run does **not** implement never becomes a commit');
+});
+
 test('resolve-issue skill refuses to resolve a closed / inactive task', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');

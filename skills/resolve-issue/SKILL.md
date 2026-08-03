@@ -106,7 +106,7 @@ Only after Read, Map, and Verify are complete may phase planning and implementat
 
 ### Phase planning (commit plan)
 
-Before writing any code, decide how the in-scope work splits into commits, applying **one phase = one commit** from `@rules/git/general.mdc` *Git Rules*: detect phases already in the issue / kept comments and keep each as one commit in the original order; propose a phased breakdown (each phase independently reviewable and working) only when the assignment is long or spans distinct concerns; keep a small atomic assignment as a single commit without inventing phases. Record the planned commits as a numbered list of `type(scope): description` subjects **before** implementing — this is the commit plan for step 11 — and commit at the end of each phase, running the pre-push fixers and tests on that phase's changes first. The full step-by-step is in `references/phase-planning.md`.
+Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.mdc` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end, running the pre-push fixers and tests on its changes first.
 
 ### Pre-existing issue handling
 
