@@ -2,10 +2,13 @@
 
 > **Section visibility — render only sections that have content.** Always render the header block (Status / Counts / Last updated / Issue tracker summary) and the final `Summary` line. The `Coverage:` header line, the `## Coverage` section, and the `coverage …` slot in the summary line are conditional — render them **only** when the coverage gate produced something to report (uncovered changed lines or unavailable / non-runnable tooling, both Critical findings per `@skills/code-review/SKILL.md` Coverage gate). When every changed line is at 100% coverage and the tool ran successfully, drop all three coverage surfaces; the Counts line is the clean signal. The `## Architecture` section follows the same conditional rule (issue #530): on Laravel projects the walk runs on every CR run, but the heading is rendered **only when the walk produces at least one finding** — when the walk is clean, omit the heading entirely (no "walked, 0 findings" line, no "clean" placeholder, no confirmation that the check ran). On non-Laravel projects (`laravel/framework` not in `composer.json` `require`), omit the `## Architecture` section entirely. Every section is conditional: omit its heading and body entirely when it has no items. Never emit `None.` / `Not applicable.` / `n/a` / `100%` / `walked, 0 findings` placeholders for empty sections or omitted coverage surfaces — drop them entirely. The Counts line in the header is the single source of "zero" signal; the goal is a clean, scannable PR comment a human can read at a glance — only items that still need action remain in the body.
 >
+> **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and drop the *Refactoring (DRY / tech debt)* and *Refactoring proposals* sections entirely, and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.mdc` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
+>
 > **Always-new comment:** this template is rendered into a fresh comment on every CR run. The hidden marker `<!-- cr-comment:actor=<gh-login> -->` (auto-appended by `skills/code-review-github/scripts/upsert-comment.sh`) stays in the body for per-actor traceability but does not drive an in-place edit — each run POSTs a new comment, so the PR thread keeps a chronological audit trail of CR outputs. The `Last updated` line below carries this run's timestamp.
 
 **Status:** clean / needs-fix
-**Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}
+**Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}  *(always the real detected counts — never zeroed to match a narrowed report scope)*
+**Report scope:** Critical + Moderate only (iteration {n} — Minor findings and refactoring sections suppressed)  *(render this line **only** when the caller passed `iteration > 2` — see `@rules/code-review/general.mdc` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*; omit it entirely on iterations 1–2 and on standalone runs)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
 **Issue tracker summary:** {posted summary to issue #N | no linked issue — issue summary skipped | failed to post on issue #N: <reason>}
@@ -40,7 +43,7 @@
 
 (same six fields as Critical)
 
-### 🟡 Minor 1. <short title>
+### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
 - **Note:** one sentence — naming, dead code, etc. Faulty Example / Expected behavior / Test hint / Suggested fix may be omitted when no behavior change is implied.
@@ -60,7 +63,7 @@
 
 ## Refactoring (DRY / tech debt)
 
-> Render only when at least one in-scope refactoring item exists. Only items on lines touched by this PR (added or modified). Each item must reduce tech debt — no stylistic preferences. Omit the entire section when there are no items.
+> Render only when at least one in-scope refactoring item exists. Only items on lines touched by this PR (added or modified). Each item must reduce tech debt — no stylistic preferences. Omit the entire section when there are no items, and omit it entirely when the report scope is narrowed (`iteration > 2`).
 
 1. **Location:** `path/to/file.php:42`
    **Problem:** one sentence — duplicated logic or structural breach in the changed code.
@@ -71,7 +74,7 @@
 
 ## Refactoring proposals
 
-> Render only when at least one out-of-scope structural improvement is justified by a rule. Omit the entire section when there are no items.
+> Render only when at least one out-of-scope structural improvement is justified by a rule. Omit the entire section when there are no items, and omit it entirely when the report scope is narrowed (`iteration > 2`).
 
 1. **Title:** short, actionable issue title
    **Scope:** affected file(s) or area
@@ -107,7 +110,7 @@
 
 (same six fields as Critical)
 
-### 🟡 Minor 1. <short title>
+### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
 - **Rule:** `@rules/laravel/architecture.mdc#<subsection>`

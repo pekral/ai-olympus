@@ -1801,3 +1801,92 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     expect($savings)->toContain('is assigned to a single reviewer **always**, savings mode or not');
     expect($savings)->toContain('the two assignments are complementary');
 });
+
+test('code review rule narrows the report to Critical and Moderate from the third CR iteration on', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    expect($rule)->toContain('## Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
+    // The trigger is an explicit caller-supplied value; absent it, nothing is narrowed.
+    expect($rule)->toContain('The narrowed scope applies when **`iteration > 2`**');
+    expect($rule)->toContain('treat the run as `iteration = 1` and render the full report; the narrowing never happens by default');
+    // Exactly what is dropped, and what survives because it is an audit record rather than a finding.
+    // The drop list itself must carry the security exemption — a reader who stops at the
+    // bullet list would otherwise suppress a finding the next paragraph exempts.
+    expect($rule)->toContain('**except** a security-lens finding, which is exempt at every severity');
+    expect($rule)->toContain('The entire `## Refactoring (DRY / tech debt)` section.');
+    expect($rule)->toContain('The entire `## Refactoring proposals` section.');
+    expect($rule)->toContain('`## Excluded per assignment` stays because it is an **audit record**, not a finding');
+    // Suppressing the rendering must not suppress the detection, or the counts would start lying (issue #74).
+    expect($rule)->toContain('**Filter, not detection.**');
+    expect($rule)->toContain('No analysis step, walk-through, or specialized review is skipped or shortened because the iteration is late');
+    expect($rule)->toContain('**Truthful reporting is preserved (issue #74).**');
+    expect($rule)->toContain('never zeroed to match what is rendered');
+    expect($rule)->toContain('Report scope: Critical + Moderate only (iteration 3 — Minor findings and refactoring sections suppressed)');
+    // Security findings map Low/Info onto CR Minor, and the sibling Exclusion Gate's S1 clause
+    // guarantees they are never removed from the published review — the narrowing must not
+    // contradict it, or the two filters give the same finding opposite treatments.
+    expect($rule)->toContain('**Security-lens findings are never suppressed, at any severity.**');
+    expect($rule)->toContain('is rendered even at `iteration > 2`');
+    expect($rule)->toContain('never a security observation');
+    // The verdict math is unaffected because a traceability finding is never Minor.
+    expect($rule)->toContain('**The Assignment Conformance verdict is unaffected.**');
+    expect($rule)->toContain('nothing the narrowing drops ever fed `N`');
+    // The merge bar is unchanged: the gate reads the two severities the narrowed report keeps.
+    expect($rule)->toContain('**The convergence gate is untouched.**');
+    expect($rule)->toContain('The **final publishing run** after convergence carries the loop\'s final iteration number');
+});
+
+test('every CR skill and template carries the late-iteration report scope', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($canonical)->toContain('### Late-Iteration Report Scope (CR iteration > 2)');
+    expect($canonical)->toContain('Run this step **last** — after the Exclusion Gate above and immediately before the Output assembly.');
+    expect($canonical)->toContain('absent `iteration`, treat the run as iteration 1 and render everything');
+    expect($canonical)->toContain('This is a rendering filter only — every analysis step still runs in full.');
+
+    foreach (['code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
+        $skill = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/SKILL.md');
+        expect($skill)->toContain('**Late-iteration report scope (iteration > 2):**');
+        expect($skill)->toContain('the caller passes `iteration = <N>` on every invocation, quiet or publishing');
+        expect($skill)->toContain('**Critical and Moderate findings only**');
+        // A wrapper read in isolation must not suppress a security Minor the canonical rule exempts.
+        expect($skill)->toContain('but **security-lens findings stay at every severity**');
+        expect($skill)->toContain('- **Late-iteration report scope.**');
+        expect($skill)->toContain('Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
+    }
+
+    foreach ([
+        'code-review/templates/review-output.md',
+        'code-review-github/templates/pr-comment-output.md',
+        'code-review-jira/templates/github-output.md',
+        'code-review-bugsnag/templates/github-output.md',
+    ] as $path) {
+        $template = (string) file_get_contents($packageDir . '/skills/' . $path);
+        expect($template)->toContain('**Late-iteration report scope (CR iteration > 2).**');
+        expect($template)->toContain('**Report scope:** Critical + Moderate only (iteration {n}');
+        expect($template)->toContain('*(always the real detected counts — never zeroed to match a narrowed report scope)*');
+        // Both Minor sub-headings (Findings + Architecture) and both refactoring sections carry the suppression note.
+        expect(substr_count($template, '*(suppressed entirely when the report scope is narrowed — `iteration > 2`)*'))->toBe(2);
+        expect(substr_count($template, 'omit it entirely when the report scope is narrowed (`iteration > 2`)'))->toBe(2);
+    }
+});
+
+test('process-code-review passes the iteration number to every CR wrapper invocation', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    expect($process)->toContain('#### Late-iteration report scope (iteration > 2)');
+    expect($process)->toContain('Pass `iteration = <N>` to the CR wrapper on **every** invocation');
+    // The loop's step 2 is the single line that makes the filter reachable during the loop;
+    // without it the subsection documents a contract nothing ever passes.
+    expect($process)->toContain('**and the current `iteration` value** (see **Late-iteration report scope** below)');
+    // The final publish is the surface a human reads, so it must inherit the loop's final iteration number.
+    expect($process)->toContain('that one carries the loop\'s **final** iteration number');
+    expect($process)->toContain('the loop\'s **final `iteration` value**');
+    // Nothing actionable is lost: the loop only ever fixed Critical / Moderate findings.
+    expect($process)->toContain('the suppressed items were never part of the loop\'s fix set');
+    expect($process)->toContain('The narrowing never changes what the review **detects** — only what it renders.');
+    expect($process)->toContain('plus the report scope the final publish used');
+});
