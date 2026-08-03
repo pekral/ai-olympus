@@ -72,6 +72,22 @@ test('git/general.mdc mandates one commit per phase for phased issues', function
     expect($content)->toContain('exactly one commit');
 });
 
+test('git/general.mdc mandates one commit per enumerated assignment point', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+
+    // The point-level mapping and the cherry-pick ordering preference are two separate
+    // mandates — a rule carrying only the first lets a run produce dependent commits
+    // silently, which is what makes a PR's change list unreadable.
+    expect($content)->toContain('One assignment point = one commit.');
+    expect($content)->toContain('in the assignment\'s own order');
+    expect($content)->toContain('Prefer independent, cherry-pickable commits.');
+
+    // Independence must stay a preference: a hard requirement would push a run to merge
+    // two points into one commit, which defeats the point-level mapping above.
+    expect($content)->toContain('Independence is a **preference**');
+});
+
 test('resolve-issue skill anchors phase planning on the one-phase-one-commit git rule', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
