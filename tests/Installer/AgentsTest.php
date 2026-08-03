@@ -174,6 +174,39 @@ test('agents directory ships the athena security-CR subagent with required front
     expect($content)->toContain('read-only');
 });
 
+test('athena scopes every review pass to the current diff only (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    expect($content)->toContain('## Review scope — the current diff only');
+    expect($content)->toContain('**Every review pass reads the diff of the current changes and nothing else.**');
+    expect($content)->toContain('git diff <base>..<head>');
+
+    // Reading around the diff is required for grounding, so the bound must not read as "never open
+    // another file" — that would trade scope creep for ungrounded findings.
+    expect($content)->toContain('**Read beyond the diff, but only to judge the diff.**');
+    expect($content)->toContain('What the surrounding code must never become is a **source of findings** of its own');
+
+    // The operative test: a published finding anchors to a line the diff touched.
+    expect($content)->toContain('**A finding must anchor to a changed line.**');
+    expect($content)->toContain('A pre-existing surface becomes in scope the moment the diff touches it');
+
+    // The Laravel architecture walk covers every rule section but still judges only the diff — it must
+    // not be mistaken for a licence to audit untouched files.
+    expect($content)->toContain('**The Laravel architecture walk is diff-scoped too.**');
+    expect($content)->toContain('a full walk of the *rules*, not a full audit of the *repository*');
+
+    // The whole-app audit workflow stays an explicit, caller-requested mode, never part of a PR review.
+    expect($content)->toContain('**Do not audit the repository.**');
+    expect($content)->toContain('it runs only when the caller explicitly asks for one');
+
+    // A real problem outside the diff is recorded, not silently dropped.
+    expect($content)->toContain('**Something real but out of scope is not dropped, it is recorded.**');
+
+    // The cap of three iterations is only affordable because each round re-reads a diff.
+    expect($content)->toContain('each round re-reads a diff, not a repository');
+});
+
 test('athena also runs a pre-implementation security-analysis mode that feeds talos', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
