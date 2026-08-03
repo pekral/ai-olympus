@@ -45,6 +45,20 @@ Write the plan down **before** the first line of production code, as a numbered 
 
 This table is the commit plan for step 11 of the skill body and the source of the PR's `## Changes` section.
 
+**Rendering the PR `## Changes` list.** The PR carries one entry per commit, in commit order, so the change list and the commit list are the same list read twice:
+
+```markdown
+## Changes
+
+1. `fix(api): reject an empty import payload` — point 1: reject an empty payload instead of importing zero rows
+2. `feat(api): log a rejected import payload` — point 2: record every rejection in the audit log (depends on 1)
+```
+
+- One line per commit — never one line per file, and never a line for work that has no commit.
+- Name the assignment point the commit resolves, in the assignment's wording, so a reviewer can check the assignment off against the list.
+- Mark a dependency inline (`depends on <N>`) and say which commits are independently cherry-pickable when only some are; a reader deploying a subset needs that from the PR, not from the diff.
+- `## Pre-existing fixes` and `## TODO` keep their own sections — a pre-existing fix commit is listed there, not in `## Changes`.
+
 ## 5. Implement point by point
 
 Implement one point at a time and, at the end of each point, run the pre-push fixers and tests on that point's changes before committing it (`references/quality-gates.md`). Never start the next point with the previous one uncommitted — a mixed working tree is what silently merges two points into one commit.

@@ -119,6 +119,19 @@ test('resolve-issue plans one commit per point the assignment enumerates', funct
     expect($reference)->toContain('A point the run does **not** implement never becomes a commit');
 });
 
+test('resolve-issue PR description lists one entry per commit', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
+
+    // The PR content requirements must demand the change list, and the reference must define
+    // its shape — a per-file or per-topic list defeats the point-per-commit mapping.
+    expect($skill)->toContain('**Changes** — one entry per commit');
+    expect($reference)->toContain('Rendering the PR `## Changes` list.');
+    expect($reference)->toContain('One line per commit — never one line per file');
+    expect($reference)->toContain('depends on <N>');
+});
+
 test('resolve-issue skill refuses to resolve a closed / inactive task', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');

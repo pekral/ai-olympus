@@ -179,6 +179,7 @@ Once review and testing are clean and the user has **not** opted out:
   - reference to the original issue
   - testing instructions
   - **Summary** — concise overview of what changed and why
+  - **Changes** — one entry per commit, rendered from the commit plan per `references/phase-planning.md`
   - **Pre-existing fixes** — if any pre-existing issues were fixed per *Pre-existing issue handling*, list each fix commit under a `## Pre-existing fixes` section with a one-line rationale so reviewers can review them independently of the assignment
   - **TODO list** — if any **out-of-scope (deferred)** items were identified in step 7 (or non-trivial pre-existing issues were deferred), include them under a `## TODO` section as a checklist of potential follow-up tasks; each entry is then cross-linked to its follow-up tracker issue by the *Deferred-item follow-up issues* step below
 
