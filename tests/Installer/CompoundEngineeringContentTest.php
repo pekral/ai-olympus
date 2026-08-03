@@ -408,7 +408,7 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
     expect($rule)->toContain(
         '`prepare-issue-context`, `code-review`, `security-review`, `api-review`, `assignment-compliance-check`, `analyze-problem`, `class-refactoring`',
     );
-    expect($rule)->toContain('the same two independent reviewers run (`argos` + `athena`)');
+    expect($rule)->toContain('the same reviewer runs (`athena`)');
     expect($rule)->toContain('the same convergence gate applies (`0 Critical + 0 Moderate`, `maxIterations = 3`)');
     expect($rule)->toContain(
         'the same pre-merge build evidence that `@skills/merge-github-pr/SKILL.md` requires is produced before merge exactly as without the flag',
@@ -624,7 +624,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|argos|apollon|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|apollon|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
     }
 });
 

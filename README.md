@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — six specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, and write Pest tests. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, and write Pest tests. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 ## Quickstart
 
@@ -27,7 +27,7 @@ Then point the front-door agent at real work, inside Claude Code:
 @daidalos resolve https://github.com/owner/repo/issues/123
 ```
 
-`daidalos` picks the route, `talos` implements it, `argos` and `athena` review it to convergence, and you get a pull request back.
+`daidalos` picks the route, `talos` implements it, `athena` reviews it to convergence, and you get a pull request back.
 
 ## What You Get
 
@@ -40,7 +40,7 @@ Then point the front-door agent at real work, inside Claude Code:
 ## Why This Package
 
 - **Ship an issue without writing the boilerplate** — one agent takes the ticket, implements it, and hands back a reviewed pull request
-- **Reviews that block on real findings** — quality and security run as separate passes and must reach zero Critical and Moderate before anything merges
+- **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
 - **50 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
@@ -51,7 +51,7 @@ Then point the front-door agent at real work, inside Claude Code:
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
 - `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
-- `.claude/agents` (the six subagents)
+- `.claude/agents` (the five subagents)
 - `CLAUDE.md` in the project root
 
 > [!IMPORTANT]
@@ -75,18 +75,6 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 <table>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/argos.png" alt="argos avatar" width="80"></td>
-<td valign="top">
-
-**`argos` — code-review gatekeeper** · read-only
-
-Reviews a PR from context or a tracker link, posts the findings back to the PR, and returns a `CR done` handoff. Owns code quality, architecture, and optimisation, and consolidates `athena`'s security findings.
-
-**Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`
-
-</td>
-</tr>
-<tr>
 <td width="96" valign="top"><img src="assets/agents/talos.png" alt="talos avatar" width="80"></td>
 <td valign="top">
 
@@ -104,9 +92,9 @@ Implements an issue from context or a tracker link, runs local checks (`composer
 
 **`daidalos` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation), `apollon` (scoped validation), `argos` (quality CR), and `athena` (security CR) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
+The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation), `apollon` (scoped validation) and `athena` (the single CR pass) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
-**Orchestrates:** `talos`, `apollon`, `argos`, `athena` (dispatched)
+**Orchestrates:** `talos`, `apollon`, `athena` (dispatched)
 
 </td>
 </tr>
@@ -116,7 +104,7 @@ The entry point for a free-form request. Resolves a concrete source, then dispat
 
 **`apollon` — test engineer & post-convergence reporter**
 
-Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after landing steps (after PR-open for high-risk changes, always after convergence), and after convergence publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
+Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after landing steps (after PR-open for high-risk changes, always after convergence), and after the CR converges publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
 
 **Orchestrates:** `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `pr-summary`
 
@@ -126,11 +114,11 @@ Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validat
 <td width="96" valign="top"><img src="assets/agents/athena.png" alt="athena avatar" width="80"></td>
 <td valign="top">
 
-**`athena` — security analyst & CR sentinel** · read-only
+**`athena` — the code-review sentinel** · read-only
 
-Two modes: an on-demand pre-implementation security analysis (feeding a remediation plan to `talos`), and a security CR run in parallel with `argos` after `talos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `talos` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `talos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
-**Orchestrates:** `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
+**Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
 </td>
 </tr>
@@ -148,7 +136,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 </tr>
 </table>
 
-### How to use `argos` in practice
+### How to use `athena` in practice
 
 1. Install for Claude Code:
 
@@ -161,18 +149,18 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 2. Invoke it with a **source** — a GitHub PR/issue, a JIRA key, a Bugsnag error, or just the current branch/PR:
 
    ```text
-   @argos review PR #123
-   @argos review https://your.atlassian.net/browse/PROJ-42
-   @argos review the current diff
+   @athena review PR #123
+   @athena review https://your.atlassian.net/browse/PROJ-42
+   @athena review the current diff
    ```
 
-3. `argos` detects the tracker, runs the matching `code-review-*` skill, lets it **post the review to the PR**, then returns a handoff: `CR done` + PR link + source link + Critical/Moderate/Minor counts + assignment-conformance verdict.
+3. `athena` detects the tracker, runs the matching `code-review-*` skill (which drives the full CR skill set), adds the security skills that wrapper does not run, lets it **post one consolidated review to the PR**, then returns a handoff: `CR done` + PR link + source link + Critical/Moderate/Minor counts + assignment-conformance verdict.
 
-`argos` is **read-only** — it never applies fixes, commits, pushes, or merges. Those belong to separate agents.
+`athena` is **read-only** — it never applies fixes, commits, pushes, or merges. Those belong to separate agents.
 
 ### How to use `talos` in practice
 
-1. Install for Claude Code, exactly as for `argos` — agents land in `.claude/agents/`.
+1. Install for Claude Code, exactly as for `athena` — agents land in `.claude/agents/`.
 
 2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
 
@@ -184,7 +172,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 3. `talos` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
 
-`talos` **stops at the PR** — it never reviews its own work or merges. Code quality and architecture CR belong to `argos`; security CR belongs to `athena`. Hand the PR to `argos` (and optionally `athena`) for review next.
+`talos` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
 
 > [!NOTE]
 > **If `talos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
@@ -203,7 +191,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
    @daidalos implement a dark-mode toggle for the settings page
    ```
 
-3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `talos`; everything else → `talos` directly; then `argos` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
+3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `talos`; everything else → `talos` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
    Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation and fewer repeated build runs. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
 

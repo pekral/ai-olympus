@@ -1,6 +1,6 @@
 ---
 name: apollon
-description: Use when a change, issue, or pull request needs test coverage authored and its behaviour validated — design test scenarios (edge cases, regression) from the issue, write PHPUnit/Pest tests, generate browser test scenarios, and verify the acceptance criteria. Orchestrates create-test and e2e-testing; understands both the code and the product assignment. Authors and validates tests — never merges. Also runs as a fast scoped validation gate after landing steps (talos PR-open — high-risk changes only; argos convergence — every run) when dispatched by daidalos with a diff context.
+description: Use when a change, issue, or pull request needs test coverage authored and its behaviour validated — design test scenarios (edge cases, regression) from the issue, write PHPUnit/Pest tests, generate browser test scenarios, and verify the acceptance criteria. Orchestrates create-test and e2e-testing; understands both the code and the product assignment. Authors and validates tests — never merges. Also runs as a fast scoped validation gate after landing steps (talos PR-open — high-risk changes only; athena convergence — every run) when dispatched by daidalos with a diff context.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 effort: low
@@ -57,7 +57,7 @@ You accept one **source**, in this order of preference:
 
 ## Fast scoped validation mode
 
-When `daidalos` dispatches you **after a landing step** (talos PR-open — only when `daidalos` classified the change as high-risk — or argos convergence, every run), you run in fast scoped mode instead of the full on-demand flow. The goal is a quick, diff-targeted pass — not a full test authoring run.
+When `daidalos` dispatches you **after a landing step** (talos PR-open — only when `daidalos` classified the change as high-risk — or athena convergence, every run), you run in fast scoped mode instead of the full on-demand flow. The goal is a quick, diff-targeted pass — not a full test authoring run.
 
 **Input:** the diff (`git diff <base>..<head>` or the PR branch diff) and the shared brief path.
 
@@ -72,7 +72,7 @@ When `daidalos` dispatches you **after a landing step** (talos PR-open — only 
      - the brief or the caller explicitly requests a full build.
    - State which mode you chose and why in the handoff.
    - **Savings-mode build-gate cache (opt-in).** Before running a **full** `composer build` in this step, when the shared brief records `## Savings mode: on`, apply `@rules/compound-engineering/general.mdc` *Savings mode* mechanism 2 (the canonical hash definition, hit / miss / failing-entry semantics, and the per-brief append lock all live there — do not recompute or restate them here): check the brief's `## Build gate cache` for a passing entry keyed to the current tree's exact hash and cite it instead of re-running when it matches; on a miss, run the full build as usual and append the result to the brief, under the per-brief append lock, so a later step (or the eventual merge gate) can reuse it. This never applies to the mandatory full run on the exact final head SHA immediately before merge.
-3. **Verify acceptance criteria against the diff.** Read the relevant acceptance criteria from the shared brief. For each criterion, check whether the diff contains the logic that satisfies it. A criterion is `satisfied` when the diff implements the required behaviour and a passing test covers it; `unsatisfied` when the diff lacks the implementation or no test covers it. **Own the coverage verdict when savings mode is on.** When the shared brief records `## Savings mode: on` and a CR pass (`argos` / `athena`) reported its coverage gate as deferred because it ran in an isolated worktree with no `vendor/` (`@rules/compound-engineering/general.mdc` *Savings mode*), you are the sole authoritative source for the executed coverage number in this run — report it explicitly in your handoff instead of assuming the CR pass already covered it.
+3. **Verify acceptance criteria against the diff.** Read the relevant acceptance criteria from the shared brief. For each criterion, check whether the diff contains the logic that satisfies it. A criterion is `satisfied` when the diff implements the required behaviour and a passing test covers it; `unsatisfied` when the diff lacks the implementation or no test covers it. **Own the coverage verdict when savings mode is on.** When the shared brief records `## Savings mode: on` and the CR pass (`athena`) reported its coverage gate as deferred because it ran in an isolated worktree with no `vendor/` (`@rules/compound-engineering/general.mdc` *Savings mode*), you are the sole authoritative source for the executed coverage number in this run — report it explicitly in your handoff instead of assuming the CR pass already covered it.
 4. **Run the selected tests** and capture the result. If the test files for the changed surface do not yet exist, note it as a gap — do not author tests in this mode (that is the full on-demand flow's job). When a gap prevents validation, return `Blocked` with the list of missing test files.
 5. **Return the handoff** (see *Output — handoff to the caller* below, scoped status variant).
 
@@ -92,7 +92,7 @@ Your final message is returned to the caller as the result, so make it a clean h
 - **Source:** link to the originating tracker item (GitHub issue / JIRA ticket / Bugsnag error), or `none`.
 - **PR:** link to the PR under validation, or `no tracker — local diff`.
 - **Tests authored:** the test files added / updated (PHPUnit / Pest), the browser scenarios generated (real e2e tests vs. spec when Playwright is absent), and the suite result.
-- **Coverage:** the executed changed-lines coverage result and the command that produced it, or `deferred by <argos|athena> (isolated worktree) — now executed here` when this run took over an unmeasured verdict per *Own the coverage verdict when savings mode is on* above.
+- **Coverage:** the executed changed-lines coverage result and the command that produced it, or `deferred by athena (isolated worktree) — now executed here` when this run took over an unmeasured verdict per *Own the coverage verdict when savings mode is on* above.
 - **Acceptance criteria:** each criterion with its covering test and `covered / uncovered` status.
 - **Next:** the residual gaps or the code fixes to hand to `talos`.
 

@@ -1572,7 +1572,7 @@ test(
         $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
         // rules/code-review/general.mdc Coverage gate now carries the same hardened wording already
-        // established in rules/compound-engineering/general.mdc, agents/argos.md, and agents/athena.md —
+        // established in rules/compound-engineering/general.mdc and agents/athena.md —
         // this was the weakest of the four restatements before issue #137's fix.
         expect($crRule)->toContain(
             '**Staleness guard:** CI results are valid only when that run\'s actually-checked-out SHA '

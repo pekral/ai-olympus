@@ -259,7 +259,7 @@ test('composer check actually runs the shared shell self-tests', function (): vo
     expect($composer)->toContain('skills/_shared/scan-attachments.sh --self-test');
 });
 
-test('CR wrappers skip the inline security pass only when athena owns it', function (): void {
+test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped agent sets', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // The always-run CR set is strictly sequential, so running security-review
@@ -273,10 +273,13 @@ test('CR wrappers skip the inline security pass only when athena owns it', funct
         expect($content)->toContain('security: owned by athena');
     }
 
-    // argos is the only caller that may set it, and only when athena is real.
-    $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
-    expect($argos)->toContain('SECURITY_OWNER=athena');
-    expect($argos)->toContain('Never set the flag when `athena` is not actually running');
+    // No shipped agent sets it any more: athena is the single reviewer, so the wrapper's inline
+    // security pass IS her security pass and suppressing it would skip the review with nothing
+    // behind it. The flag stays in the wrappers for an external caller that genuinely runs a
+    // second, concurrent security pass (issue #179).
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('Never set `SECURITY_OWNER=athena`');
+    expect($athena)->toContain('setting it here would skip the pass with nothing behind it');
 });
 
 test('a skipped security pass has somewhere to be declared on the summary line', function (): void {

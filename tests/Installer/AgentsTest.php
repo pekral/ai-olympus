@@ -16,7 +16,7 @@ test('resolveAgentsTargetDirectories always returns .claude/agents', function ()
         ->toBe(['/project/.claude/agents']);
 });
 
-test('install copies the argos agent to .claude/agents', function (): void {
+test('install copies the athena agent to .claude/agents', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -35,8 +35,8 @@ test('install copies the argos agent to .claude/agents', function (): void {
         Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        expect(is_file($root . '/.claude/agents/argos.md'))->toBeTrue();
         expect(is_file($root . '/.claude/agents/athena.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/agents/talos.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
         expect(is_dir($root . '/.codex/agents'))->toBeFalse();
     } finally {
@@ -44,14 +44,38 @@ test('install copies the argos agent to .claude/agents', function (): void {
     }
 });
 
-test('agents directory ships the argos code-review subagent with required frontmatter', function (): void {
+test('the roster ships exactly one code-review agent and it is athena (issue #179)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/argos.md';
 
-    expect(is_file($agentPath))->toBeTrue();
+    // argos is gone: athena absorbed the quality / architecture / optimisation lens, so a
+    // second CR agent (and its avatar) must not ship any more.
+    expect(is_file($packageDir . '/agents/argos.md'))->toBeFalse();
+    expect(is_file($packageDir . '/assets/agents/argos.png'))->toBeFalse();
 
-    $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: argos');
+    // No shipped agent, rule, doc or skill may still route review work to the removed agent.
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        $content = (string) file_get_contents($agentFile);
+
+        // athena and daidalos each keep one historical sentence explaining what the consolidation
+        // replaced — the rationale is the point of the change. Every other agent carries none.
+        if (in_array(basename($agentFile), ['athena.md', 'daidalos.md'], strict: true)) {
+            expect(substr_count($content, 'argos'))->toBe(1);
+
+            continue;
+        }
+
+        expect($content)->not->toContain('argos');
+    }
+});
+
+test('athena owns every code-review wrapper and the no-source fallback (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/athena.md');
+
     expect($content)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
     expect($content)->toContain('@skills/code-review-github/SKILL.md');
     expect($content)->toContain('@skills/code-review-jira/SKILL.md');
@@ -60,6 +84,15 @@ test('agents directory ships the argos code-review subagent with required frontm
     // No resolvable source falls back to the base read-only code-review skill rather than a tracker wrapper.
     expect($content)->toContain('No resolvable source');
     expect($content)->toContain('fall back to the default `@skills/code-review/SKILL.md`');
+    // The wrapper drives the full CR skill set; athena defers to it instead of re-listing the pipeline.
+    expect($content)->toContain('The wrapper drives the whole CR skill set');
+    // It owns the convergence loop that argos used to drive.
+    expect($content)->toContain('@skills/process-code-review/SKILL.md');
+    expect($content)->toContain('maxIterations = 3');
+    // The inline security pass is athena's own, so the delegation flag must never be set.
+    expect($content)->toContain('Never set `SECURITY_OWNER=athena`');
+    // Quality lens absorbed from argos.
+    expect($content)->toContain('**Architecture agenda:**');
 });
 
 test('agents directory ships the talos code-writing subagent with required frontmatter', function (): void {
@@ -145,14 +178,14 @@ test('athena also runs a pre-implementation security-analysis mode that feeds ta
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-    // Dual-mode contract: security analysis (pre-implementation) plus security review (post-implementation).
+    // Dual-mode contract: security analysis (pre-implementation) plus the full code review (post-implementation).
     expect($content)->toContain('Security analysis mode (pre-implementation)');
-    expect($content)->toContain('Security review mode (post-implementation)');
+    expect($content)->toContain('Code review mode (post-implementation)');
     // Analysis mode frames the remediation through analyze-problem so talos can implement it.
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
     // Both handoff statuses exist so the caller can route the result.
     expect($content)->toContain('Security analysis done');
-    expect($content)->toContain('Security CR done');
+    expect($content)->toContain('CR done');
 });
 
 test('athena references the laravel security audit workflow for existing-app audits', function (): void {
@@ -204,7 +237,7 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['talos', 'argos', 'apollon', 'athena', 'hermes'] as $agent) {
+    foreach (['talos', 'apollon', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('Shared task brief');
         expect($content)->toContain('.claude/run/');
@@ -250,13 +283,13 @@ test('every agent definition sets the model effort to max in frontmatter, except
     }
 });
 
-test('daidalos delegates the end-to-end run by dispatching talos and argos to convergence', function (): void {
+test('daidalos delegates the end-to-end run by dispatching talos and athena to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
     expect($content)->toContain('Dispatch `talos` through the Task tool');
-    expect($content)->toContain('Dispatch `argos` through the Task tool');
+    expect($content)->toContain('Dispatch `athena` through the Task tool');
     // The implementation step still routes through resolve-issue (owned by talos), and the convergence gate is named.
     expect($content)->toContain('@skills/resolve-issue');
     expect($content)->toContain('0 Critical');
@@ -313,26 +346,24 @@ test('daidalos keeps the writing path on the shared tree but lets read-only CR a
     expect($content)->toContain('The writing path never uses git worktrees');
     expect($content)->toContain('single shared git working tree');
     expect($content)->toContain('there is no isolated-worktree escape for the writing path');
-    // Read-only CR agents may isolate in a worktree for parallel review.
-    expect($content)->toContain('read-only code-review agents (`argos`, `athena`) may use a git worktree');
+    // The read-only CR agent may isolate in a worktree for its review.
+    expect($content)->toContain('read-only code-review agent (`athena`) may use a git worktree');
     // Daidalos owns worktree cleanup so the repo stays clean after the run / merge.
     expect($content)->toContain('git worktree remove');
     expect($content)->toContain('git worktree prune');
 });
 
-test('the read-only CR agents document an optional parallel-review worktree they hand back for daidalos cleanup', function (): void {
+test('the read-only CR agent documents an optional review worktree it hands back for daidalos cleanup', function (): void {
     $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-    foreach (['argos', 'athena'] as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-        // The CR agent may isolate its review in a read-only worktree when needed.
-        expect($content)->toContain('Parallel review worktree');
-        expect($content)->toContain('git worktree add');
-        // It hands the path back so daidalos removes it during cleanup.
-        expect($content)->toContain('Record the worktree path in your handoff');
-        // Standalone runs clean up after themselves.
-        expect($content)->toContain('git worktree remove');
-    }
+    // The CR agent may isolate its review in a read-only worktree when needed.
+    expect($content)->toContain('Review worktree');
+    expect($content)->toContain('git worktree add');
+    // It hands the path back so daidalos removes it during cleanup.
+    expect($content)->toContain('Record the worktree path in your handoff');
+    // Standalone runs clean up after themselves.
+    expect($content)->toContain('git worktree remove');
 });
 
 test('agents directory ships the apollon test-engineer subagent with required frontmatter', function (): void {
@@ -373,25 +404,24 @@ test('parallel agents share their split output through the brief under an append
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    // The brief is the rendezvous where parallel agents' split output becomes available to peers.
-    expect($daidalos)->toContain('Parallel handoff sharing');
+    // The mechanism survives as the standing contract for a future parallel step, explicitly dormant
+    // now that every dispatch is sequential (issue #179).
+    expect($daidalos)->toContain('Parallel handoff sharing (dormant — the roster dispatches sequentially)');
     // Concurrency-safe append: a per-brief append lock guards every `cat >>` so parallel writes never interleave.
     expect($daidalos)->toContain('Concurrency-safe append');
     expect($daidalos)->toContain('$BRIEF.lock');
-    // Barrier: a peer's parallel output is only consolidated after every parallel handoff has landed in the brief.
-    expect($daidalos)->toContain('Barrier before consolidation');
+    // With one reviewer there is no peer output to consolidate, so no barrier is held today.
+    expect($daidalos)->toContain('No barrier to hold.');
 
-    // The two parallel CR agents reference the append lock so their handoffs never clobber each other.
-    foreach (['argos', 'athena'] as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-        expect($content)->toContain('$BRIEF.lock');
-    }
+    // The CR agent still takes the append lock unconditionally, so a future parallel step needs no retrofit.
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('$BRIEF.lock');
 });
 
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daidalos', 'talos', 'argos', 'athena', 'apollon', 'hermes'] as $agent) {
+    foreach (['daidalos', 'talos', 'athena', 'apollon', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
@@ -414,37 +444,33 @@ test('daidalos decides the opt-in savings mode once during gather and never narr
     expect($daidalos)->toContain('## Context pack');
     expect($daidalos)->toContain('## Build gate cache');
 
-    // The cache is written by talos / apollon only — argos/athena stay read-only and never run a
-    // full build, so they never write this section (issue #119 CR fix for the cross-file contradiction
-    // with argos.md's "the only write you perform" clause).
-    expect($daidalos)->toContain('`argos` and `athena` never write this section');
+    // The cache is written by talos / apollon only — athena stays read-only and never runs a
+    // full build, so it never writes this section (issue #119 CR fix for the cross-file contradiction
+    // with the reviewer's "the only write you perform" clause).
+    expect($daidalos)->toContain('`athena` never writes this section');
 });
 
 test(
-    'argos and athena read the shared context pack and defer an isolated-worktree coverage verdict to apollon when savings mode is on (issue #119)',
+    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to apollon when savings mode is on (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-        foreach (['argos', 'athena'] as $agent) {
-            $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-            expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
-            expect($content)->toContain('read the brief\'s `## Context pack`');
-            expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
-            expect($content)->toContain('otherwise report the coverage gate as deferred to `apollon`');
-            // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
-            // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
-            expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
-            // Coverage ownership is a first-class handoff field, not folded into a status string
-            // (issue #119 CR fix — agent-new-mode-status-result-parity).
-            expect($content)->toContain('**Coverage:** `executed`');
-        }
+        expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
+        expect($content)->toContain('read the brief\'s `## Context pack`');
+        expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
+        expect($content)->toContain('otherwise report the coverage gate as deferred to `apollon`');
+        // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
+        // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
+        expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
+        // Coverage ownership is a first-class handoff field, not folded into a status string
+        // (issue #119 CR fix — agent-new-mode-status-result-parity).
+        expect($content)->toContain('**Coverage:** `executed`');
 
-        // Each reviewer's own exclusive lens is preserved — only the shared middle ground is split.
-        $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
-        expect($argos)->toContain('your own quality / architecture / optimisation lens is never split');
-
-        $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-        expect($athena)->toContain('security-exclusive findings are never split');
+        // With one reviewer the disjoint split has no peer to split against, so no lens is narrowed
+        // away and every invariant in the pack is checked (issue #179).
+        expect($content)->toContain('The pack\'s **disjoint invariant split** no longer applies');
+        expect($content)->toContain('security-exclusive findings are never split');
     },
 );
 
@@ -1016,35 +1042,32 @@ test(
 );
 
 test(
-    'argos and athena lock every CR worktree at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
+    'athena locks every CR worktree at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
+        $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-        foreach (['argos', 'athena'] as $agent) {
-            $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-
-            expect($content)->toContain('.claude/worktrees/agent-cr-<slug>-' . $agent);
-            expect($content)->toContain('lock it immediately on creation');
-            expect($content)->toContain('git worktree lock --reason "pid $PPID agent ' . $agent . ' slug <slug>"');
-            expect($content)->toContain('never `$$`, the ephemeral per-Bash-call subshell PID');
-            expect($content)->toContain('git worktree unlock <path>');
-            // Moderate 3 (path/reason collide between the two peers) — per-agent suffix disambiguates both.
-            expect($content)->toContain('the `-' . $agent . '` suffix keeps this path and lock reason distinct from');
-            // Moderate 4 (unvalidated <slug> reaching a shell/path) — slug format guard, reject-and-stay-shared.
-            expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
-            expect($content)->toContain('do not create a worktree** — continue the review in the shared tree instead');
-            // Minor 2 (`<ref>` fails on an already-checked-out PR head branch) — --detach + head SHA instead.
-            expect($content)->toContain('git worktree add --detach .claude/worktrees/agent-cr-<slug>-' . $agent . ' <head-sha>');
-            // Standalone cleanup removes only this agent's own path, never a peer's.
-            expect($content)->toContain('remove **only your own** worktree after the review — never a peer\'s');
-        }
+        expect($content)->toContain('.claude/worktrees/agent-cr-<slug>-athena');
+        expect($content)->toContain('lock it immediately on creation');
+        expect($content)->toContain('git worktree lock --reason "pid $PPID agent athena slug <slug>"');
+        expect($content)->toContain('never `$$`, the ephemeral per-Bash-call subshell PID');
+        expect($content)->toContain('git worktree unlock <path>');
+        // The per-agent suffix keeps the path attributable even without a peer to collide with.
+        expect($content)->toContain('the `-athena` suffix keeps this path and lock reason attributable to this agent');
+        // Moderate 4 (unvalidated <slug> reaching a shell/path) — slug format guard, reject-and-stay-shared.
+        expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
+        expect($content)->toContain('do not create a worktree** — continue the review in the shared tree instead');
+        // Minor 2 (`<ref>` fails on an already-checked-out PR head branch) — --detach + head SHA instead.
+        expect($content)->toContain('git worktree add --detach .claude/worktrees/agent-cr-<slug>-athena <head-sha>');
+        // Standalone cleanup removes only this agent's own path, never a peer's.
+        expect($content)->toContain('remove **only your own** worktree after the review — never a peer\'s');
     },
 );
 
-test('the read-only CR agents carry the web tools the third-party documentation walk requires (issue #151)', function (): void {
+test('the read-only CR agent carries the web tools the third-party documentation walk requires (issue #151)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['argos', 'athena'] as $agent) {
+    foreach (['athena'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
 
         // Without these two the ordered source walk's step 2 is unperformable, so the agent either
@@ -1077,15 +1100,20 @@ test('daidalos dispatches every step blocking so a turn never ends mid-flight (i
     expect($content)->toContain('### Dispatch blocking, not fire-and-forget');
     expect($content)->toContain('pass `run_in_background: false`');
     expect($content)->toContain('There is **no** step of this pipeline whose result you do not consume');
-    expect($content)->toContain('two blocking Task calls in a single message');
+    // The former parallel CR pair is one blocking dispatch now, so there is no both-handoffs barrier
+    // to implement — but the turn still must not end on `dispatched` (issue #179).
+    expect($content)->toContain('**The CR round is one blocking turn.**');
+    expect($content)->not->toContain('two blocking Task calls in a single message');
     expect($content)->toContain('Blocked: harness neumožňuje blokující dispatch');
 
     // Arithmetic from the issue's own table: reviewer passes total 1 362 135, so 838 024 is not more than
     // all of them combined -- only more than the largest single pass (428 897).
     expect($content)->toContain('more than any individual reviewer pass (the largest was 429 k), though less than the four of them combined (1.36 M)');
     expect($content)->not->toContain('more than every reviewer pass combined');
-    // Harness scheduling for two blocking calls in one message was not measured -- the barrier must not rest on it.
-    expect($content)->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
+    // There is no longer a two-call barrier whose correctness could rest on harness scheduling --
+    // one blocking dispatch per CR round removed the question (issue #179).
+    expect($content)->not->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
+    expect($content)->toContain('Collapsing the former parallel pair into one agent removed the barrier entirely');
 });
 
 test('daidalos keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
@@ -1108,10 +1136,10 @@ test('daidalos gates CR worktree cleanup on the same confirmed-dead probe as the
     expect($content)->toContain('never remove on the absence of a liveness signal');
 });
 
-test('both parallel reviewers deliver incrementally and treat the handoff as authoritative (issue #172)', function (): void {
+test('the reviewer delivers incrementally and treats the handoff as authoritative (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['argos', 'athena'] as $agent) {
+    foreach (['athena'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
 
         expect($content)->toContain('Deliver as you go, and never let the brief be your only channel.');
@@ -1123,24 +1151,23 @@ test('both parallel reviewers deliver incrementally and treat the handoff as aut
     }
 });
 
-test('the remediation-conformance owner is assigned by daidalos and honoured by both reviewers (issue #174)', function (): void {
+test('the remediation-conformance verdict is derived once, by the single reviewer (issue #174, issue #179)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
+    // daidalos still states whether a plan exists — it is the only participant that knows whether
+    // step 4 ran — but there is no owner to assign and no non-owner to hold back any more.
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    expect($daidalos)->toContain('Name the remediation-conformance owner in both dispatch prompts.');
-    expect($daidalos)->toContain('remediation-conformance owner: athena');
-    expect($daidalos)->toContain('remediation-conformance owner: argos');
+    expect($daidalos)->toContain('Name the remediation-conformance state in the dispatch prompt.');
+    expect($daidalos)->toContain('remediation-conformance: derive it — plan at <link>');
+    expect($daidalos)->toContain('remediation-conformance: no pre-implementation plan, step is empty');
+    expect($daidalos)->not->toContain('remediation-conformance owner:');
 
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    expect($athena)->toContain('When the pre-implementation analysis was yours, you own the remediation-conformance verdict');
-    expect($athena)->toContain('You derive it exactly once per PR head SHA');
-    // The step joins the numbered sequence rather than dangling as a `3a.` outside it.
-    expect($athena)->toContain('4. **When the pre-implementation analysis was yours');
-    expect($athena)->not->toContain('3a. **When the pre-implementation analysis was yours');
-
-    $argos = (string) file_get_contents($packageDir . '/agents/argos.md');
-    expect($argos)->toContain('**Remediation-conformance agenda:**');
-    expect($argos)->toContain('do **not** re-derive it');
-    expect($argos)->toContain('You own it when the plan was not hers');
-    expect($argos)->toContain('derive it yourself before publishing and say so in the handoff');
+    expect($athena)->toContain('**Remediation-conformance agenda:**');
+    expect($athena)->toContain('you own it whenever a plan exists');
+    expect($athena)->toContain('Derive it exactly once per head SHA');
+    // A stale verdict from an earlier head is never carried over.
+    expect($athena)->toContain('a verdict from an earlier head is stale and is re-derived, never carried over');
+    // Step 7 joins the numbered review sequence rather than dangling outside it.
+    expect($athena)->toContain('7. **Record the remediation-conformance verdict**');
 });
