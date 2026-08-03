@@ -55,6 +55,7 @@ This table is the commit plan for step 11 of the skill body and the source of th
 ```
 
 - One line per commit — never one line per file, and never a line for work that has no commit.
+- The list enumerates the **assignment-point commits** only. Two commit classes are deliberately outside it and are never appended to it: a `pre-existing — ` fix (it belongs to `## Pre-existing fixes`) and a **remediation commit pushed by the post-PR review loop** (`@skills/process-code-review/SKILL.md`), which reports its own work on the `cr-status` comment. Without this carve-out the list would go stale on the first review round, since no skill edits the PR description after the PR is open.
 - Name the assignment point the commit resolves, in the assignment's wording, so a reviewer can check the assignment off against the list.
 - Mark a dependency inline (`depends on <N>`) and say which commits are independently cherry-pickable when only some are; a reader deploying a subset needs that from the PR, not from the diff.
 - `## Pre-existing fixes` and `## TODO` keep their own sections — a pre-existing fix commit is listed there, not in `## Changes`.

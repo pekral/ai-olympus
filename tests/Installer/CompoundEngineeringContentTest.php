@@ -130,6 +130,11 @@ test('resolve-issue PR description lists one entry per commit', function (): voi
     expect($reference)->toContain('Rendering the PR `## Changes` list.');
     expect($reference)->toContain('One line per commit — never one line per file');
     expect($reference)->toContain('depends on <N>');
+
+    // The bijection needs the review-loop carve-out: the loop pushes commits after the PR
+    // body is written and nothing edits that body, so without it every converged PR would
+    // violate the one-entry-per-commit invariant.
+    expect($reference)->toContain('remediation commit pushed by the post-PR review loop');
 });
 
 test('resolve-issue skill refuses to resolve a closed / inactive task', function (): void {
