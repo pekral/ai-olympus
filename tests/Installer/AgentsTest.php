@@ -200,11 +200,41 @@ test('athena scopes every review pass to the current diff only (issue #179)', fu
     expect($content)->toContain('**Do not audit the repository.**');
     expect($content)->toContain('it runs only when the caller explicitly asks for one');
 
-    // A real problem outside the diff is recorded, not silently dropped.
-    expect($content)->toContain('**Something real but out of scope is not dropped, it is recorded.**');
+    // A real problem outside the diff is filed as its own issue, not silently dropped.
+    expect($content)->toContain('**Something real but out of scope is not dropped, it is filed.**');
 
     // The cap of three iterations is only affordable because each round re-reads a diff.
     expect($content)->toContain('each round re-reads a diff, not a repository');
+});
+
+test('athena files out-of-scope findings as issues on the resolved tracker (issue #179)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    expect($content)->toContain('9. **File the out-of-scope findings as tracker issues.**');
+    // Reuse the existing skill rather than re-implementing issue formatting / labelling.
+    expect($content)->toContain('@skills/create-issue/SKILL.md');
+
+    // Only out-of-scope items are deferred; an in-scope finding is still fixed in this PR and still
+    // counts toward the convergence gate.
+    expect($content)->toContain('never deferred to a new issue, and the convergence gate still counts it');
+
+    // The destination is the tracker the source resolved to, never a hardcoded channel.
+    expect($content)->toContain('**Where it is filed — the tracker the source resolved to.**');
+    expect($content)->toContain('**source you detected in step 2**');
+    expect($content)->toContain('no resolvable source');
+
+    // Filed once per run, not once per loop iteration, and deduplicated against already-open issues.
+    expect($content)->toContain('**Once per run, and never a duplicate.**');
+    expect($content)->toContain('**not** per loop iteration');
+    expect($content)->toContain('already filed: <link>');
+
+    // Queueing follow-up work must never gate the change under review.
+    expect($content)->toContain('**A failure here never blocks the review.**');
+    expect($content)->toContain('out-of-scope filing failed: <reason>');
+
+    // The result is a first-class handoff field, not buried in prose.
+    expect($content)->toContain('- **Out-of-scope issues filed:**');
 });
 
 test('athena also runs a pre-implementation security-analysis mode that feeds talos', function (): void {
