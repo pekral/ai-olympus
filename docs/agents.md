@@ -12,7 +12,7 @@ Agents = specialised orchestration roles over multiple skills
 
 Every agent has its own avatar under [`assets/agents/`](../assets/agents). When no custom artwork has been supplied yet, the slot falls back to the universal placeholder ([`placeholder.svg`](../assets/agents/placeholder.svg)) — swap `assets/agents/<name>.svg` to give an agent its own face.
 
-### <img src="../assets/agents/athena.png" alt="athena avatar" width="48" align="left"> `athena` — security analyst & CR sentinel
+### <img src="../assets/agents/athena.png" alt="athena avatar" width="48" align="left"> `athena` — code-review sentinel & security analyst
 
 The strategic sentinel and **the roster's only code-review agent**, named after **Athena**, goddess of wisdom and strategic defence. It owns the review domain in **two modes**. (1) **Security analysis (pre-implementation)** — dispatched on demand when the task carries a cyber-security question: it scopes the security risk through all security skills, frames the smallest safe remediation via `analyze-problem`, publishes a plan artifact, and hands back a `Security analysis done` summary that `talos` implements. (2) **Code review (post-implementation)** — given a PR from the current context or a tracker link, it runs the matching `code-review-*` wrapper (which drives the full CR skill set, security pass included), adds the three security skills the wrapper does not run, applies every security rule, labels each finding (Critical / Moderate / Minor), publishes **one** consolidated review, drives the fix loop to convergence, and hands back a `CR done` summary. There is no second CR pass to wait for, no barrier, and nothing to consolidate from a peer.
 
