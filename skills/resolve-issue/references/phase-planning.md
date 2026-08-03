@@ -12,6 +12,8 @@ Read the issue description together with the **current requirements** kept by th
 - **Recommended fixes / action points** — a numbered or bulleted list of defects, a checklist (`- [ ]`), a review report's findings with their `Suggested Fix` blocks, or a section collecting them (`Doporučené opravy`, `Recommended fixes`, `Findings`, `To do`).
 - **Individually testable acceptance criteria**, when the assignment enumerates nothing else.
 
+**Precedence when the enumerations nest.** An assignment often carries both — a `Phase 2` heading whose body is a checklist of three fixes. The **innermost independently verifiable level is the point**; the container is not a point of its own, it only fixes the order of the points inside it. So that phase yields three commits, never four, and never one. Two markers describe one point only when they are the same change stated twice (a heading repeating its single checklist item) — that is the deduplication case below, not a nesting case.
+
 Rules for the inventory:
 
 - Keep the assignment's **own wording and order**. Quote each point short enough to fit a commit subject and keep a stable reference to it (`point 3`, the finding title, the checklist line) so the commit and the PR can cite it.

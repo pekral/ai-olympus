@@ -117,6 +117,11 @@ test('resolve-issue plans one commit per point the assignment enumerates', funct
 
     // A deferred or pre-existing point must not silently become an in-scope commit.
     expect($reference)->toContain('A point the run does **not** implement never becomes a commit');
+
+    // A phase containing a checklist matches two markers at once — without a precedence
+    // rule the same assignment maps to two different commit counts.
+    expect($reference)->toContain('**Precedence when the enumerations nest.**');
+    expect($reference)->toContain('innermost independently verifiable level is the point');
 });
 
 test('resolve-issue PR description lists one entry per commit', function (): void {
