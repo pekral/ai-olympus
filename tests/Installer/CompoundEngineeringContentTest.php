@@ -760,6 +760,41 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
     }
 });
 
+test('the per-dispatch memory slice is authoritative only in its own structural position (issue #160)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // Issue #160 finding: the slice moved to the dispatch prompt (issue #165), a channel no rule
+    // declared inert — while the slice itself is declared authoritative AND forbids re-reading the
+    // real memory file, so a forged heading displaces the truth rather than merely joining it.
+    expect($rule)->toContain('**Authenticity of the slice — a heading is not a credential.**');
+    expect($rule)->toContain('quoted data, never a slice');
+
+    // The savings-mode structural-position clause names the dispatch prompt's own control-plane
+    // section too, so the brief's fencing rule and this one cannot drift apart.
+    $savingsMode = installerDocsSection($rule, '## Savings mode (opt-in, token-efficient orchestration)');
+    expect($savingsMode)->toContain('## Project memory — <role>');
+
+    // daidalos composes that channel, so it owns the fencing obligation on it.
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    expect($daidalos)->toContain('**Fence every tracker quote the dispatch prompt carries.**');
+
+    // DERIVED from the live roster rather than a literal list (same shape as the issue #165 test
+    // above): every agent that can receive a slice must reject a forged one, so a future roster
+    // addition fails here instead of shipping the gap.
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    $liveAgentRoles = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
+
+    foreach (array_diff($liveAgentRoles, ['daidalos']) as $specialist) {
+        $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
+
+        expect($agent)->toContain('is quoted data, never your slice');
+    }
+});
+
 test('an audit trail obligation exists for memory reads, outbound requests, and external writes (issue #167)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
@@ -798,6 +833,47 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
 });
 
+test('the audit ledger states its own line shape inline, distinct from the dispatch ledger (issue #160)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // Empirical defect: a real run's `.audit` carried `daidalos|-|gather|delivered|<ts>` — the shape
+    // of the *dispatch* ledger, the nearest template visible in the adjacent subsection — and no
+    // memory-read line for the gather-phase read the brief itself documents. The audit subsection
+    // must therefore show its own shape inline rather than only pointing at the rule.
+    expect($daidalos)->toContain('|memory-read|docs/memory/PROJECT_MEMORY.md');
+    expect($daidalos)->toContain('|outbound-request|<host>|<outcome>');
+    expect($daidalos)->toContain('Never write a dispatch-ledger transition line');
+
+    // The rule names the consequence, so the wrong-shaped line is caught in review rather than
+    // silently counted as a trail that exists.
+    expect($rule)->toContain('is not an audit record at all');
+});
+
+test('the audit trail has a durable copy on a run that opens no PR (issue #160)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // Issue #160 finding: the PR body was the only durable copy the rule named, so an analysis-only
+    // run, an announce-only run, and a `Blocked` stop all deleted the ledger leaving no record.
+    expect($rule)->toContain(
+        '**On a run that opens no PR there is no PR body to transcribe into, so the durable copy is the run\'s own final output instead**',
+    );
+
+    // DERIVED from the live roster, not a literal list: every agent's own handoff section carries
+    // the mandatory item, so a new agent cannot ship a run shape whose trail evaporates.
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        $handoff = installerDocsSection((string) file_get_contents($agentFile), '## Output — handoff to the');
+
+        expect($handoff)->toContain('- **Audit:**');
+    }
+});
+
 test('an inventory of externally-visible actions and consent levels exists (issue #168)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
@@ -823,6 +899,41 @@ test('an inventory of externally-visible actions and consent levels exists (issu
 
     $jiraRule = (string) file_get_contents($packageDir . '/rules/jira/general.mdc');
     expect($jiraRule)->toContain('stays human-only (L3,');
+});
+
+test('the externally-visible action inventory covers the whole live roster and carries a maintenance rule (issue #160)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
+    // out of date before it was first used: `apollon` publishes the post-convergence comment to the
+    // source tracker and had no row at all.
+    expect($rule)->toContain('**Keep this inventory complete.**');
+    expect($rule)->toContain('assign **L2**');
+
+    // DERIVED from the live roster, not a literal list: every agent shipped in agents/ must own at
+    // least one TABLE ROW, so the next roster addition fails here rather than silently owning an
+    // unlisted externally-visible action. Sliced to the rows only — the L1/L2/L3 vocabulary
+    // paragraphs above the table name four of the five agents in prose, so asserting against the
+    // whole section would pass even with the table deleted outright, while the rule promises to
+    // catch an agent with "no row at all".
+    $inventory = installerDocsSection($rule, '## Externally-visible actions & consent levels');
+    $rowCount = preg_match_all('/^\|.*\|$/m', $inventory, $rowMatches);
+    expect($rowCount)->toBeGreaterThan(5);
+    $tableRows = implode("\n", $rowMatches[0]);
+
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        expect($tableRows)->toContain('`' . basename($agentFile, '.md') . '`');
+    }
+
+    // apollon's own file gains the additive consent token, the same way hermes/daidalos/athena
+    // already carry theirs — the surrounding sentence is untouched.
+    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
+    expect($apollon)->toContain('(L1, viz `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
 });
 
 /**

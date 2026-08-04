@@ -1300,6 +1300,46 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     }
 });
 
+// `memory:` and `permissionMode:` widen an agent's capabilities without touching its `tools:` line.
+test('no agent frontmatter declares memory: or permissionMode: (issue #160)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        $content = (string) file_get_contents($agentFile);
+
+        // Slice the frontmatter block only — a prose line elsewhere in the file that happens to
+        // start with one of these tokens is not a capability grant and must not fail this test.
+        expect($content)->toStartWith("---\n");
+        $frontmatterEnd = strpos($content, "\n---", 3);
+        expect($frontmatterEnd)->not->toBeFalse();
+        $frontmatter = substr($content, 4, (int) $frontmatterEnd - 4);
+
+        // `memory:` automatically grants Read, Write AND Edit (vendor-documented), so it would
+        // silently restore write access to a read-only agent without changing its `tools:` line —
+        // which the pins above check byte-for-byte and would therefore never catch. Whether
+        // `disallowedTools:` strips that implicit grant back off is NOT vendor-documented, so the
+        // ban cannot rest on that assumption; this test is what holds it.
+        expect($frontmatter)->not->toMatch('/^memory:/m');
+
+        // Same shape of hole: `permissionMode:` raises the tool-approval stance without touching
+        // `tools:` either.
+        expect($frontmatter)->not->toMatch('/^permissionMode:/m');
+
+        // Deliberately NOT banned here: `hooks:`. Issue #185 may legitimately introduce it as the
+        // per-agent PreToolUse enforcement of the otherwise-advisory Bash capability boundary.
+    }
+
+    // The rule states why the ban is held by this test rather than by an assumption about
+    // `disallowedTools:` precedence.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($rule)->toContain('not documented by the vendor');
+    expect($rule)->toContain('It deliberately does **not** ban `hooks:`');
+});
+
 test('SECURITY.md documents the agent capability model and its residual risk (issue #163)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/SECURITY.md');
