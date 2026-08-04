@@ -43,7 +43,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **51 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **52 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -203,7 +203,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ## Skill Catalog
 
-All 51 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 52 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -213,6 +213,7 @@ All 51 skills, grouped by what you reach for them for. Each description is the s
 | [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
 | [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
+| [`resolve-and-merge`](skills/resolve-and-merge/) | A batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run |
 | [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`pr-deploy-planner`](skills/pr-deploy-planner/) | A pull request's commits should ship in smaller, safer increments instead of one big deploy |
 | [`create-issue`](skills/create-issue/) | Create a single issue from provided text without modifying its content |

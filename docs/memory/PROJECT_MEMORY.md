@@ -105,10 +105,10 @@
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/702   Added: 2026-06-23
 - Role:    daidalos
 
-### per-tracker-claim-belongs-in-resolve-issue-and-autoresolve — A claim mechanism needs an idempotent abort-on-conflict claim AND a selection-exclusion filter
+### per-tracker-claim-belongs-in-resolve-issue-and-selection — A claim mechanism needs an idempotent abort-on-conflict claim AND a selection-exclusion filter
 - Trigger: a task asks to mark a tracker issue "In progress"/claimed at work-start so two AI agents don't pick the same task in parallel; the naive implementation only sets a status.
-- Rule:    A claim alone doesn't prevent the collision. The guard is two-sided: (1) the claim step is idempotent, apply-and-verify (re-read, never trust the write exit code — [[auto-mode-external-write-blocked]]), and ABORTs if already claimed; (2) the selection step EXCLUDEs already-claimed issues. GitHub: claim label (`Resolve_by_AI:in-progress`) + `-label:"${CLAIM_LABEL}"` negation in the `autoresolve` query. JIRA: a second sanctioned transition helper (clone of `transition-to-code-review.sh`). Bugsnag stays hands-off. Release the claim on Blocked/abort before the PR opens; keep it on success.
-- Example: issue #704/PR #706 — `rules/compound-engineering/general.mdc` gained *Claim a tracker issue…*; `skills/code-review-jira/scripts/transition-to-in-progress.sh` (new); `skills/resolve-issue/SKILL.md`/`skills/autoresolve-oldest-github-issue/SKILL.md` updated. Converged argos+athena 0/0/0 iteration 1.
+- Rule:    A claim alone doesn't prevent the collision. The guard is two-sided: (1) the claim step is idempotent, apply-and-verify (re-read, never trust the write exit code — [[auto-mode-external-write-blocked]]), and ABORTs if already claimed; (2) the selection step EXCLUDEs already-claimed issues. GitHub: claim label (`Resolve_by_AI:in-progress`) + `-label:"${CLAIM_LABEL}"` negation in the issue-selection query (today `agents/daidalos.md` step 1 and `@skills/resolve-and-merge/SKILL.md` step 3). JIRA: a second sanctioned transition helper (clone of `transition-to-code-review.sh`). Bugsnag stays hands-off. Release the claim on Blocked/abort before the PR opens; keep it on success.
+- Example: issue #704/PR #706 — `rules/compound-engineering/general.mdc` gained *Claim a tracker issue…*; `skills/code-review-jira/scripts/transition-to-in-progress.sh` (new); `skills/resolve-issue/SKILL.md` plus the then-existing `autoresolve-oldest-github-issue` skill (removed from the repo since, no longer supported) updated. Converged argos+athena 0/0/0 iteration 1.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/706   Added: 2026-06-23
 - Role:    shared
 

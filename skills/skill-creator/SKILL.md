@@ -58,7 +58,27 @@ If running interactively, confirm the inputs with the user. If running autonomou
 
 ### 2. Choose the slug and location
 - Slug must be kebab-case, ≤ 64 chars, and not collide with an existing folder under `skills/`.
-- Create `skills/<slug>/SKILL.md`. Add subfolders (`templates/`, `references/`) only when the skill genuinely needs them.
+- Create `skills/<slug>/SKILL.md`. Add a subfolder only when the skill genuinely needs one — see the layout below.
+
+**Directory layout (Anthropic's recommended structure).** A skill is a directory whose entrypoint is `SKILL.md`; every other file is optional and exists so `SKILL.md` stays the overview rather than the whole payload ([skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), [Claude Code skills](https://code.claude.com/docs/en/skills)):
+
+```text
+<slug>/
+├── SKILL.md          # required — instructions and navigation
+├── references/       # detailed material Claude reads on demand
+├── scripts/          # utilities Claude executes, never loads into context
+└── templates/        # output shapes and examples Claude fills in
+```
+
+The rules that make the split work, each one load-bearing:
+
+- **Progressive disclosure.** Keep the `SKILL.md` body under 500 lines (this repo's `skill-check.config.json` enforces the same limit) and move detail into a sibling file rather than growing the body. A referenced file costs nothing until it is read.
+- **References stay one level deep.** Every supporting file links directly from `SKILL.md`. A file that is only reachable through another file gets partially read (`head -100`) instead of read whole.
+- **Say whether a script is executed or read.** *"Run `scripts/validate.sh`"* and *"see `scripts/validate.sh` for the algorithm"* are different instructions; execution is the default because it is cheaper and more reliable than regenerating the logic.
+- **Name files for their content and forward-slash every path.** `references/finance.md`, never `docs/file2.md`; `scripts/helper.sh`, never `scripts\helper.sh`.
+- **A reference file over 100 lines opens with a table of contents**, so a partial read still shows the full scope.
+
+Keep the folder names above rather than inventing synonyms — `references/`, `scripts/`, `templates/` are what the existing skills in this repo already use, and a consistent tree is what makes a skill portable to another Agent Skills host.
 
 ### 3. Write the frontmatter
 Required keys:
@@ -77,6 +97,10 @@ Rules from `skill-check.config.json`:
 - `description`: 50–1024 chars; should start with "Use when"
 - `name`: ≤ 64 chars
 - Body: ≤ 500 lines and ≤ 5000 tokens
+
+Portability rules from the Agent Skills spec — a skill that breaks one of these stops loading on another host even though `skill-check` passes:
+- `name`: lowercase letters, numbers, and hyphens only; no XML tags; never the reserved words `anthropic` or `claude`. It must match the directory name, which is what the `/<slug>` invocation resolves from.
+- `description`: non-empty, ≤ 1024 chars, no XML tags, written in the **third person** ("Resolves…", never "I can help you…"). It is injected into the system prompt and is the only thing a host sees before deciding to load the skill, so it states both *what the skill does* and *when to use it*. The repo's "Use when …" opening satisfies the *when* half — keep the *what* in the same sentence.
 
 ### 4. Compose the body
 The repo accepts two body layouts. Pick one and stay consistent within the file.
