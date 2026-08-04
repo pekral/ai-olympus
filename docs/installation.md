@@ -40,6 +40,7 @@ vendor/bin/agent-skills install --global                       # also install sk
 vendor/bin/agent-skills install --prune-global                 # remove this package's skills from ~/.claude/skills
 vendor/bin/agent-skills install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/agent-skills install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
+vendor/bin/agent-skills install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
 ```
 
 ## Installer Flow
@@ -63,6 +64,7 @@ vendor/bin/agent-skills install --allow-subagent-writes         # allow dispatch
 | `--prune-global`          | Remove this package's skills from `~/.claude/skills` so the project copy is the one Claude Code loads. Matches by skill name; skills under other names are left untouched, and a symlinked install is removed as the link only. Irreversible — see the warning under [Where skills are installed](#where-skills-are-installed). Cannot be combined with `--global`. |
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `talos`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
+| `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ## Where skills are installed

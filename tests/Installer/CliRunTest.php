@@ -74,6 +74,32 @@ test('normalizeCliArguments splits --allow-subagent-writes from a concatenated a
     expect($normalized)->toContain('--allow-subagent-writes');
 });
 
+test('help text documents the --deny-network-bash flag and its session-wide, project-scoped trade-off', function (): void {
+    ob_start();
+    $exitCode = Installer::run(['agent-skills']);
+    $output = ob_get_clean();
+
+    expect($exitCode)->toBe(0);
+    expect($output)->toContain('--deny-network-bash');
+    expect($output)->toContain('permissions.deny in .claude/settings.local.json');
+    expect($output)->toContain('session-wide');
+    expect($output)->toContain('project-scoped');
+});
+
+test('normalizeCliArguments splits --deny-network-bash from a concatenated argv blob', function (): void {
+    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--editor=claude--deny-network-bash']);
+
+    expect($normalized)->toContain('--editor=claude');
+    expect($normalized)->toContain('--deny-network-bash');
+});
+
+test('a concatenated --deny-network-bash actually reaches InstallOptions (a security flag must never silently no-op)', function (): void {
+    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--allow-subagent-writes--deny-network-bash']);
+
+    expect(InstallOptions::fromArgv($normalized)->denyNetworkBash)->toBeTrue();
+    expect(InstallOptions::fromArgv($normalized)->allowSubagentWrites)->toBeTrue();
+});
+
 test('installation docs document every InstallOptions flag in both the command list and the CLI switches table (issue #102)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     // Issue #105 moved the operational installer reference out of README.md; the

@@ -59,7 +59,7 @@ final class Installer
     {
         echo "Usage:\n";
         echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
-        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes]\n";
+        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
         echo "  vendor/bin/agent-skills resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, and agents for Claude Code.\n";
@@ -74,6 +74,10 @@ final class Installer
         echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in.\n";
         echo "  --allow-subagent-writes Allow dispatched-subagent file writes by adding scoped Edit/Write entries for the project\n";
         echo "                          tree to permissions.allow in .claude/settings.local.json. Opt-in.\n";
+        echo "  --deny-network-bash     Deny outbound-network Bash commands (curl, wget, nc, ssh, scp, openssl s_client, ...)\n";
+        echo "                          via permissions.deny in .claude/settings.local.json. Opt-in. The rule is session-wide\n";
+        echo "                          and project-scoped: within this project it applies to every agent AND to your own\n";
+        echo "                          interactive Bash, never per agent. Not an egress control - see SECURITY.md.\n";
         echo "  --label=NAME            resolve-next: only consider issues carrying this label. Repeatable (all must match).\n";
         echo '                          Defaults to ' . AgenticOptions::DEFAULT_LABEL . ".\n";
         echo "  --repo=OWNER/NAME       resolve-next: target another repository instead of the current checkout.\n";
@@ -102,6 +106,7 @@ final class Installer
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
+        $networkBashDenied = InstallerClaudeSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
 
         self::reportInstallSummary(new InstallSummary(
             copied: $copied,
@@ -112,14 +117,31 @@ final class Installer
             orphanedTargets: $syncCounts->orphanedTargets,
         ));
 
-        if ($subagentWritesEnabled) {
-            echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
-        }
-
+        self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied);
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
         return 0;
+    }
+
+    /**
+     * Reports the two opt-in writes to the project's `.claude/settings.local.json`.
+     * Each line is printed only when that write actually happened, never on the mere
+     * presence of its flag: an installer that reports a permission change it did not
+     * apply leaves the user believing in a restriction that does not exist.
+     */
+    private static function reportProjectLocalSettings(bool $subagentWritesEnabled, bool $networkBashDenied): void
+    {
+        if ($subagentWritesEnabled) {
+            echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
+        }
+
+        if ($networkBashDenied) {
+            echo sprintf(
+                'Denied outbound-network Bash commands (curl, wget, nc, ssh, scp, openssl s_client, ...) session-wide in .claude/settings.local.json.%s',
+                PHP_EOL,
+            );
+        }
     }
 
     private static function reportGlobalInstall(bool $global): void

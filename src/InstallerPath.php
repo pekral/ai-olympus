@@ -22,7 +22,7 @@ final class InstallerPath
     {
         $rawArguments = implode(' ', $argv);
         $parts = preg_split(
-            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|editor=))/',
+            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|deny-network-bash|editor=))/',
             trim($rawArguments),
             -1,
             PREG_SPLIT_NO_EMPTY,

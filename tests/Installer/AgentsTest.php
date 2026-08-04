@@ -1280,6 +1280,20 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('`disallowedTools:` is the one real, additional, harness-enforced defence available today.');
     expect($rule)->toContain('`memory:` frontmatter is a footgun this roster deliberately never uses.');
 
+    // Issue #184 turned "nothing enforces any bullet above" into a statement about the DEFAULT:
+    // the opt-in --deny-network-bash flag writes the outbound-network bullet into
+    // permissions.deny, so the harness does enforce that one bullet once a project opts in.
+    // The qualifier and the exception bullet must stay together — the absolute claim on its own
+    // contradicts SECURITY.md, which cites this section as the source of the harness research.
+    expect($rule)->toContain('Nothing in the Claude Code harness enforces any bullet above **by default**');
+    expect($rule)->toContain('**The one opt-in exception to "nothing enforces": `--deny-network-bash` (issue #184).**');
+    expect($rule)->toContain('refuses those command strings before they run');
+    expect($rule)->toContain('The flag is **off by default**');
+    // The exception must never be overstated: still session-wide, still not an egress control.
+    expect($rule)->toContain('it is **not per-agent**');
+    expect($rule)->toContain('it is **not an egress control**');
+    expect($rule)->toContain('never cite the flag as closing the gap this section documents');
+
     // The tools: line every agent already ships stays byte-identical (pinned elsewhere in this
     // file) — disallowedTools is always a new, additive line, never a replacement.
     $expectedDisallowed = [
@@ -1346,4 +1360,18 @@ test('SECURITY.md documents the agent capability model and its residual risk (is
 
     expect($content)->toContain('## Agent capability model & residual risk');
     expect($content)->toContain('the installer writes no Bash restriction');
+
+    // Issue #184 made the "no Bash restriction" fact conditional on the default: the opt-in
+    // --deny-network-bash flag does write one. The honest framing must survive both ways —
+    // the default still restricts nothing, and the opt-in must never be described as closing
+    // the gap, only as narrowing it for the literal command strings it matches.
+    expect($content)->toContain('without an opt-in flag');
+    expect($content)->toContain('### `--deny-network-bash`');
+    expect($content)->toContain('It narrows the gap; it does not close it.');
+    expect($content)->toContain('this is not an egress control');
+
+    // The preservation promise is exact, not approximate: a non-string item in permissions.deny
+    // really is dropped when the list is rewritten, so the doc says so instead of claiming that
+    // nothing is ever removed.
+    expect($content)->toContain('a **non-string** item inside `permissions.deny`');
 });
