@@ -60,10 +60,19 @@ final class Installer
         echo "Usage:\n";
         echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
+        echo "                                 [--enforce-agent-bash-boundary]\n";
         echo "  vendor/bin/agent-skills resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, and agents for Claude Code.\n";
         echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code as one agent run.\n\n";
+        self::showInstallOptions();
+        self::showResolveNextOptions();
+
+        return 0;
+    }
+
+    private static function showInstallOptions(): void
+    {
         echo "Options:\n  --force                 Overwrite existing files.\n";
         echo "  --symlink               Create symlinks instead of copying (falls back to copy on Windows).\n";
         echo "  --prune                 Remove files in target that no longer exist in source.\n";
@@ -78,14 +87,21 @@ final class Installer
         echo "                          via permissions.deny in .claude/settings.local.json. Opt-in. The rule is session-wide\n";
         echo "                          and project-scoped: within this project it applies to every agent AND to your own\n";
         echo "                          interactive Bash, never per agent. Not an egress control - see SECURITY.md.\n";
+        echo "  --enforce-agent-bash-boundary\n";
+        echo "                          Register a PreToolUse hook in .claude/settings.local.json that runs this package's\n";
+        echo "                          per-agent Bash boundary validator before every Bash call. Opt-in. Restart your\n";
+        echo "                          Claude Code session afterwards - hooks are read once at session start. Fails open\n";
+        echo "                          on an untrusted workspace and in several other cases - see SECURITY.md.\n";
+    }
+
+    private static function showResolveNextOptions(): void
+    {
         echo "  --label=NAME            resolve-next: only consider issues carrying this label. Repeatable (all must match).\n";
         echo '                          Defaults to ' . AgenticOptions::DEFAULT_LABEL . ".\n";
         echo "  --repo=OWNER/NAME       resolve-next: target another repository instead of the current checkout.\n";
         echo "  --merge                 resolve-next: merge the pull request once review converges. Off by default, so an\n";
         echo "                          unattended run leaves it for a human.\n";
         echo "  --dry-run               resolve-next: print the issue and the prompt without starting an agent run.\n";
-
-        return 0;
     }
 
     private static function install(InstallOptions $options): int

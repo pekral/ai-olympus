@@ -15,6 +15,12 @@ final class InstallerPath
     /**
      * Splits combined CLI flags (e.g. --force--editor=claude) into separate arguments.
      *
+     * The alternation below is hardcoded, so **every new flag must be added to it**. A flag that
+     * is missing here survives a spaced argv untouched but is swallowed whole when it arrives
+     * concatenated to its neighbour — `InstallOptions::fromArgv()` then never sees it and the
+     * flag silently does nothing. For a security flag that failure mode is the worst possible
+     * one: the user is told nothing and believes a restriction is in place.
+     *
      * @param array<int, string> $argv
      * @return array<int, string>
      */
@@ -22,7 +28,7 @@ final class InstallerPath
     {
         $rawArguments = implode(' ', $argv);
         $parts = preg_split(
-            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|deny-network-bash|editor=))/',
+            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|deny-network-bash|enforce-agent-bash-boundary|editor=))/',
             trim($rawArguments),
             -1,
             PREG_SPLIT_NO_EMPTY,
