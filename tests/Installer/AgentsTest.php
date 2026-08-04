@@ -1375,3 +1375,35 @@ test('SECURITY.md documents the agent capability model and its residual risk (is
     // nothing is ever removed.
     expect($content)->toContain('a **non-string** item inside `permissions.deny`');
 });
+
+test('docs/agents.md states the architecture constraint and scopes the one runtime component (issue #185)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+
+    // The section three other documents already cite by name must actually exist here.
+    expect($docs)->toContain('## Architecture constraint');
+    expect($docs)->toContain('**This package ships instructions, never a runtime.**');
+    expect($docs)->toContain('not a permission engine, a logging daemon, or a consent broker');
+
+    $section = installerDocsSection($docs, '## Architecture constraint');
+
+    // The validator's boundary is what keeps the constraint true, so each half is pinned: it is
+    // shipped, nothing calls it, it does no I/O, it reads a policy rather than the prose, and it
+    // is never described as closing the gap.
+    expect($section)->toContain('src/AgentBashBoundaryHook.php');
+    expect($section)->toContain('agent-skills bash-guard');
+    expect($section)->toContain('**Nothing invokes it.**');
+    expect($section)->toContain('no `hooks` entry in any settings file');
+    expect($section)->toContain('**It is a pure function.**');
+    expect($section)->toContain('never `allow`');
+    expect($section)->toContain('it narrows the gap; it does not close it');
+
+    // The advisory paragraph must point at it rather than being rewritten out of existence.
+    $capability = installerDocsSection($docs, '## Capability model');
+    expect($capability)->toContain('**Why Bash stays advisory.**');
+    expect($capability)->toContain('inert component nothing invokes');
+
+    // The rule file's own reference to this section stays resolvable.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($rule)->toContain('`docs/agents.md` *Architecture constraint*');
+});
