@@ -708,6 +708,18 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         expect($agent)->toContain('**Load per-role project memory.**');
         expect($agent)->toContain('`Role: ' . $specialist . '` or `Role: shared`');
     }
+
+    // The feature-request issue template's "Related skill / agent" field enumerates the same
+    // live roster (all agents, including `daidalos`) — derived here rather than pinned as a
+    // literal, so a future roster change fails this test instead of leaving the template stale
+    // again (issue #183: the template still listed the removed `argos` agent).
+    $template = (string) file_get_contents($packageDir . '/.github/ISSUE_TEMPLATE/feature_request.yml');
+    preg_match('/or subagent \(([^)]+)\)/', $template, $templateMatch);
+    $templateRoles = array_map(
+        static fn (string $r): string => trim($r, ' `'),
+        explode(',', $templateMatch[1] ?? ''),
+    );
+    expect($templateRoles)->toEqualCanonicalizing($liveAgentRoles);
 });
 
 test('compound memory is filtered per dispatch target, not folded unfiltered into the shared brief (issue #165)', function (): void {
