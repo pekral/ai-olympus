@@ -140,20 +140,44 @@ final class InstallerPath
 
     /**
      * Skill target directories: always .claude/skills, plus the user home skills
-     * directory when HOME or USERPROFILE is set.
+     * directory when $global is requested and HOME or USERPROFILE is set.
+     *
+     * The project directory is the default because Claude Code resolves a name collision
+     * the other way round: personal (~/.claude/skills) overrides project (.claude/skills),
+     * so a home copy shadows the checkout's own skills in every project on the machine.
+     * Installing locally keeps a project on the version it has checked out.
      *
      * @return array<int, string>
      */
-    public static function resolveSkillsTargetDirectories(string $root): array
+    public static function resolveSkillsTargetDirectories(string $root, bool $global = false): array
     {
-        $home = self::resolveHomeDirectory();
         $targets = [$root . '/.claude/skills'];
 
-        if ($home !== false && $home !== '') {
-            $targets[] = $home . '/.claude/skills';
+        if (!$global) {
+            return $targets;
+        }
+
+        $home = self::resolveHomeSkillsDirectory();
+
+        if ($home !== null) {
+            $targets[] = $home;
         }
 
         return array_values(array_unique($targets));
+    }
+
+    /**
+     * The user home skills directory, or null when neither HOME nor USERPROFILE is set.
+     */
+    public static function resolveHomeSkillsDirectory(): ?string
+    {
+        $home = self::resolveHomeDirectory();
+
+        if ($home === false || $home === '') {
+            return null;
+        }
+
+        return $home . '/.claude/skills';
     }
 
     private static function resolveHomeDirectory(): string|false

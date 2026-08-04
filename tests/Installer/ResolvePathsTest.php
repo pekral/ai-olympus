@@ -85,14 +85,41 @@ test('resolveRulesTargetDirectories always returns .claude/rules', function (): 
     expect($targets)->toBe(['/project/.claude/rules']);
 });
 
-test('resolveSkillsTargetDirectories returns only the project path when HOME is unset', function (): void {
+test('resolveSkillsTargetDirectories returns only the project path when --global is not requested', function (): void {
+    $homeBefore = getenv('HOME');
+    $userProfileBefore = getenv('USERPROFILE');
+    putenv('HOME=/fake/home');
+    putenv('USERPROFILE=/fake/home');
+
+    try {
+        // The home copy would shadow the project one (Claude Code: personal overrides project),
+        // so it is never installed unless the caller asks for it.
+        $targets = InstallerPath::resolveSkillsTargetDirectories('/project');
+
+        expect($targets)->toBe(['/project/.claude/skills']);
+    } finally {
+        if ($homeBefore !== false) {
+            putenv('HOME=' . $homeBefore);
+        } else {
+            putenv('HOME');
+        }
+
+        if ($userProfileBefore !== false) {
+            putenv('USERPROFILE=' . $userProfileBefore);
+        } else {
+            putenv('USERPROFILE');
+        }
+    }
+});
+
+test('resolveSkillsTargetDirectories returns only the project path when --global is requested but HOME is unset', function (): void {
     $homeBefore = getenv('HOME');
     $userProfileBefore = getenv('USERPROFILE');
     putenv('HOME');
     putenv('USERPROFILE');
 
     try {
-        $targets = InstallerPath::resolveSkillsTargetDirectories('/project');
+        $targets = InstallerPath::resolveSkillsTargetDirectories('/project', global: true);
 
         expect($targets)->toBe(['/project/.claude/skills']);
     } finally {
@@ -106,14 +133,14 @@ test('resolveSkillsTargetDirectories returns only the project path when HOME is 
     }
 });
 
-test('resolveSkillsTargetDirectories adds the home skills directory when HOME is set', function (): void {
+test('resolveSkillsTargetDirectories adds the home skills directory when --global is requested and HOME is set', function (): void {
     $homeBefore = getenv('HOME');
     $userProfileBefore = getenv('USERPROFILE');
     putenv('HOME=/fake/home');
     putenv('USERPROFILE=/fake/home');
 
     try {
-        $targets = InstallerPath::resolveSkillsTargetDirectories('/project');
+        $targets = InstallerPath::resolveSkillsTargetDirectories('/project', global: true);
 
         expect($targets)->toBe(['/project/.claude/skills', '/fake/home/.claude/skills']);
     } finally {

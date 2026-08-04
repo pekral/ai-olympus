@@ -13,6 +13,8 @@ final readonly class InstallOptions
         public bool $prune,
         public bool $allowBundledScripts,
         public bool $allowSubagentWrites,
+        public bool $global,
+        public bool $pruneGlobal,
     ) {
     }
 
@@ -27,6 +29,8 @@ final readonly class InstallOptions
             prune: in_array('--prune', $argv, strict: true),
             allowBundledScripts: in_array('--allow-bundled-scripts', $argv, strict: true),
             allowSubagentWrites: in_array('--allow-subagent-writes', $argv, strict: true),
+            global: in_array('--global', $argv, strict: true),
+            pruneGlobal: in_array('--prune-global', $argv, strict: true),
         );
     }
 

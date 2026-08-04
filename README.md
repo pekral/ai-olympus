@@ -50,9 +50,11 @@ Then point the front-door agent at real work, inside Claude Code:
 
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
-- `.claude/rules`, `.claude/skills`, and when `HOME`/`USERPROFILE` is set also `~/.claude/skills`
+- `.claude/rules` and `.claude/skills` in the project
 - `.claude/agents` (the five subagents)
 - `CLAUDE.md` in the project root
+
+Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
 
 > [!IMPORTANT]
 > By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/agent-skills install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.

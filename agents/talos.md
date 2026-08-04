@@ -3,7 +3,7 @@ name: talos
 description: Use when a tracker issue or a described task needs to be implemented as a safe fix or feature — a GitHub issue/PR number or URL, a JIRA key/URL, a Bugsnag error, or the current task context. Detects the source, implements the change, runs local checks (`composer build`) and fixes their errors, and opens a pull request, then hands back an "Impl done" handoff with links. Stops at the PR — never reviews its own work (the whole CR belongs to `athena`) and never merges.
 tools: Read, Write, Edit, Glob, Grep, Bash
 disallowedTools: WebSearch, WebFetch
-model: sonnet
+model: opus
 effort: high
 ---
 

@@ -291,7 +291,7 @@ test('install never creates .cursor or .codex directories', function (): void {
     }
 });
 
-test('install copies skills to project and home target directories', function (): void {
+test('install copies skills to the project target directory', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');

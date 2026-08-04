@@ -104,6 +104,9 @@ test('agents directory ships the talos code-writing subagent with required front
     $content = (string) file_get_contents($agentPath);
     expect($content)->toContain('name: talos');
     expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
+    // The implementer carries the whole change end to end and fixes what `composer build` reports,
+    // so it runs on the strongest model rather than the cheaper one it started on.
+    expect($content)->toContain('model: opus');
     expect($content)->toContain('@skills/resolve-issue/SKILL.md');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
