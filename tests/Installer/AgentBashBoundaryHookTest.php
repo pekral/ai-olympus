@@ -156,6 +156,20 @@ test('a stdin read that fails answers ask instead of ending the process non-zero
     expect(bashGuardDecode(trim($output))['permissionDecision'])->toBe('ask');
 });
 
+test('bash-guard --self-test answers deny from a fixed payload without touching stdin (issue #185)', function (): void {
+    // The installer runs exactly this before it writes a hook entry pointing at the binary: a
+    // read-back of settings.local.json proves the JSON landed, never that the command in it runs.
+    // Reading stdin here would be the defect — the installer has no payload to feed it.
+    $refuseStandardInput = static fn (): string => throw new RuntimeException('the self-test must not read stdin');
+
+    ob_start();
+    $exitCode = Cli::run(['agent-skills', 'bash-guard', '--self-test'], bashGuardRefuseToSpawn(...), $refuseStandardInput);
+    $output = (string) ob_get_clean();
+
+    expect($exitCode)->toBe(0);
+    expect(bashGuardDecode(trim($output))['permissionDecision'])->toBe('deny');
+});
+
 test('the binary reads the guard payload at the process edge with a cap', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $binary = (string) file_get_contents($packageDir . '/bin/agent-skills');

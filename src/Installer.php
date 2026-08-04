@@ -4,13 +4,21 @@ declare(strict_types = 1);
 
 namespace AgenticVibes\AgentSkills;
 
+use Closure;
+
 final class Installer
 {
 
     /**
+     * The process executor is the one way this class may spawn a process, supplied by
+     * `bin/agent-skills` so no test ever invokes an external binary. It is null when the caller has
+     * no process edge to offer (the Composer plugin), which only `--enforce-agent-bash-boundary`
+     * ever needs — and that flag then fails loudly rather than writing an unverified hook.
+     *
      * @param array<int, string> $argv
+     * @param \Closure(list<string>, bool): \AgenticVibes\AgentSkills\CommandResult|null $processExecutor
      */
-    public static function run(array $argv): int
+    public static function run(array $argv, ?Closure $processExecutor = null): int
     {
         $normalizedArgv = InstallerPath::normalizeCliArguments($argv);
         $command = $normalizedArgv[1] ?? 'help';
@@ -33,7 +41,7 @@ final class Installer
                 return 1;
             }
 
-            return self::install($options);
+            return self::install($options, $processExecutor);
         } catch (InstallerFailure $exception) {
             fwrite(STDERR, $exception->getMessage() . PHP_EOL);
 
@@ -104,7 +112,10 @@ final class Installer
         echo "  --dry-run               resolve-next: print the issue and the prompt without starting an agent run.\n";
     }
 
-    private static function install(InstallOptions $options): int
+    /**
+     * @param \Closure(list<string>, bool): \AgenticVibes\AgentSkills\CommandResult|null $processExecutor
+     */
+    private static function install(InstallOptions $options, ?Closure $processExecutor): int
     {
         if ($options->global && $options->pruneGlobal) {
             fwrite(STDERR, '--global and --prune-global are mutually exclusive: one installs the home skills copy, the other removes it.' . PHP_EOL);
@@ -123,6 +134,7 @@ final class Installer
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
         $networkBashDenied = InstallerClaudeSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
+        $bashBoundaryEnforced = InstallerHookSettings::applyAgentBashBoundaryIfRequested($options->enforceAgentBashBoundary, $root, $processExecutor);
 
         self::reportInstallSummary(new InstallSummary(
             copied: $copied,
@@ -133,7 +145,7 @@ final class Installer
             orphanedTargets: $syncCounts->orphanedTargets,
         ));
 
-        self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied);
+        self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied, $bashBoundaryEnforced);
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
@@ -141,13 +153,25 @@ final class Installer
     }
 
     /**
-     * Reports the two opt-in writes to the project's `.claude/settings.local.json`.
+     * Reports the three opt-in writes to the project's `.claude/settings.local.json`.
      * Each line is printed only when that write actually happened, never on the mere
      * presence of its flag: an installer that reports a permission change it did not
      * apply leaves the user believing in a restriction that does not exist.
      */
-    private static function reportProjectLocalSettings(bool $subagentWritesEnabled, bool $networkBashDenied): void
+    private static function reportProjectLocalSettings(bool $subagentWritesEnabled, bool $networkBashDenied, bool $bashBoundaryEnforced): void
     {
+        if ($bashBoundaryEnforced) {
+            // Hooks are read once, when a session starts. Without this instruction the user would
+            // watch the installer report a protection that does not take effect in the session
+            // they are sitting in — the exact gap the read-back verification exists to prevent.
+            echo sprintf(
+                'Registered the per-agent Bash boundary PreToolUse hook in .claude/settings.local.json.%s'
+                . 'Restart your Claude Code session for it to take effect.%s',
+                PHP_EOL,
+                PHP_EOL,
+            );
+        }
+
         if ($subagentWritesEnabled) {
             echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
         }

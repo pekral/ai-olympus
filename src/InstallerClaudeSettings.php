@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace AgenticVibes\AgentSkills;
 
-use JsonException;
 use stdClass;
 
 final class InstallerClaudeSettings
@@ -108,7 +107,7 @@ final class InstallerClaudeSettings
     public static function ensureCoAuthoredByDisabled(string $home): bool
     {
         $settingsPath = self::resolveSettingsPath($home);
-        $existing = self::readSettings($settingsPath);
+        $existing = InstallerSettingsFile::read($settingsPath);
 
         if (property_exists($existing, 'includeCoAuthoredBy')) {
             return false;
@@ -117,7 +116,7 @@ final class InstallerClaudeSettings
         $existing->includeCoAuthoredBy = false;
 
         InstallerPath::ensureDirectory(dirname($settingsPath));
-        self::writeSettings($settingsPath, $existing);
+        InstallerSettingsFile::write($settingsPath, $existing);
 
         return true;
     }
@@ -153,7 +152,7 @@ final class InstallerClaudeSettings
     public static function ensureSubagentWritesEnabled(string $projectRoot): bool
     {
         $settingsPath = self::resolveProjectLocalSettingsPath($projectRoot);
-        $existing = self::readSettings($settingsPath);
+        $existing = InstallerSettingsFile::read($settingsPath);
         $required = self::buildSubagentWritePermissions($projectRoot);
 
         if (!self::prependAllowEntries($existing, $required)) {
@@ -161,9 +160,9 @@ final class InstallerClaudeSettings
         }
 
         InstallerPath::ensureDirectory(dirname($settingsPath));
-        self::writeSettings($settingsPath, $existing);
+        InstallerSettingsFile::write($settingsPath, $existing);
 
-        self::validateSubagentWritePermissions(self::readSettings($settingsPath), $required, $settingsPath);
+        self::validateSubagentWritePermissions(InstallerSettingsFile::read($settingsPath), $required, $settingsPath);
 
         return true;
     }
@@ -220,7 +219,7 @@ final class InstallerClaudeSettings
     public static function ensureNetworkBashDenyPermissions(string $projectRoot): bool
     {
         $settingsPath = self::resolveProjectLocalSettingsPath($projectRoot);
-        $existing = self::readSettings($settingsPath);
+        $existing = InstallerSettingsFile::read($settingsPath);
         $required = self::getNetworkBashDenyPermissions();
 
         if (!self::appendDenyEntries($existing, $required)) {
@@ -228,9 +227,9 @@ final class InstallerClaudeSettings
         }
 
         InstallerPath::ensureDirectory(dirname($settingsPath));
-        self::writeSettings($settingsPath, $existing);
+        InstallerSettingsFile::write($settingsPath, $existing);
 
-        self::validateNetworkBashDenyPermissions(self::readSettings($settingsPath), $required, $settingsPath);
+        self::validateNetworkBashDenyPermissions(InstallerSettingsFile::read($settingsPath), $required, $settingsPath);
 
         return true;
     }
@@ -264,7 +263,7 @@ final class InstallerClaudeSettings
     {
         $settingsPath = self::resolveProjectLocalSettingsPath($projectRoot);
 
-        return self::extractPermissionList(self::readSettings($settingsPath), 'deny');
+        return self::extractPermissionList(InstallerSettingsFile::read($settingsPath), 'deny');
     }
 
     /**
@@ -277,7 +276,7 @@ final class InstallerClaudeSettings
     public static function loadAllowList(string $home): array
     {
         $settingsPath = self::resolveSettingsPath($home);
-        $data = self::readSettings($settingsPath);
+        $data = InstallerSettingsFile::read($settingsPath);
 
         return self::extractAllow($data);
     }
@@ -289,7 +288,7 @@ final class InstallerClaudeSettings
     public static function ensureBundledScriptPermissions(string $home): int
     {
         $settingsPath = self::resolveSettingsPath($home);
-        $existing = self::readSettings($settingsPath);
+        $existing = InstallerSettingsFile::read($settingsPath);
         $existingAllow = self::extractAllow($existing);
         $merged = self::mergePermissions($existing);
         $mergedAllow = self::extractAllow($merged);
@@ -301,7 +300,7 @@ final class InstallerClaudeSettings
         }
 
         InstallerPath::ensureDirectory(dirname($settingsPath));
-        self::writeSettings($settingsPath, $merged);
+        InstallerSettingsFile::write($settingsPath, $merged);
 
         return $added;
     }
@@ -384,38 +383,6 @@ final class InstallerClaudeSettings
         return [$permissions, array_values(array_filter($entries, static fn (mixed $entry): bool => is_string($entry)))];
     }
 
-    /**
-     * Decodes settings into a `stdClass` object (not an associative array) so that
-     * empty JSON objects (`{}`) elsewhere in the file survive the read/write round-trip.
-     * `json_decode(..., true)` would turn `{}` into `[]`, which `json_encode` then writes
-     * back as a JSON array — corrupting object-typed keys such as Claude Code's
-     * `attribution` and tripping `/doctor`'s schema validation.
-     */
-    private static function readSettings(string $path): stdClass
-    {
-        if (!is_file($path)) {
-            return new stdClass();
-        }
-
-        $contents = file_get_contents($path);
-
-        if ($contents === false || trim($contents) === '') {
-            return new stdClass();
-        }
-
-        try {
-            $data = json_decode($contents, associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw InstallerFailure::settingsJsonInvalid($path, $exception->getMessage());
-        }
-
-        if (!$data instanceof stdClass) {
-            throw InstallerFailure::settingsJsonInvalid($path, 'top-level value is not an object');
-        }
-
-        return $data;
-    }
-
     private static function mergePermissions(stdClass $existing): stdClass
     {
         [$permissions, $allow] = self::resolvePermissionList($existing, 'allow');
@@ -462,26 +429,6 @@ final class InstallerClaudeSettings
         }
 
         return array_values(array_filter($entries, static fn (mixed $entry): bool => is_string($entry)));
-    }
-
-    private static function writeSettings(string $path, stdClass $data): void
-    {
-        try {
-            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-            // @codeCoverageIgnoreStart
-        } catch (JsonException $exception) {
-            throw InstallerFailure::settingsJsonWriteFailed($path, $exception->getMessage());
-        }
-
-        // @codeCoverageIgnoreEnd
-
-        set_error_handler(static fn (): bool => true);
-        $written = file_put_contents($path, $json . "\n");
-        restore_error_handler();
-
-        if ($written === false) {
-            throw InstallerFailure::settingsJsonWriteFailed($path, 'file_put_contents returned false');
-        }
     }
 
 }
