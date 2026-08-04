@@ -1353,15 +1353,24 @@ test('no agent frontmatter declares memory: or permissionMode: (issue #160)', fu
         // `tools:` either.
         expect($frontmatter)->not->toMatch('/^permissionMode:/m');
 
-        // Deliberately NOT banned here: `hooks:`. Issue #185 may legitimately introduce it as the
-        // per-agent PreToolUse enforcement of the otherwise-advisory Bash capability boundary.
+        // `hooks:` was exempted here while issue #185 might still have used it for the per-agent
+        // PreToolUse enforcement. It did not: frontmatter hooks were reported not to execute for
+        // Task-launched subagents (anthropics/claude-code#18392), and agents/*.md is distributed
+        // unconditionally, so an entry here would install a runtime component into every consuming
+        // project regardless of any flag. #185 wires the hook through the project's own
+        // .claude/settings.local.json behind --enforce-agent-bash-boundary instead, which leaves
+        // this field with the same shape as the two above and no legitimate use in this roster.
+        expect($frontmatter)->not->toMatch('/^hooks:/m');
     }
 
     // The rule states why the ban is held by this test rather than by an assumption about
     // `disallowedTools:` precedence.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
     expect($rule)->toContain('not documented by the vendor');
-    expect($rule)->toContain('It deliberately does **not** ban `hooks:`');
+    expect($rule)->toContain('It bans `hooks:` for the same reason and on two further grounds of its own');
+    expect($rule)->toContain('anthropics/claude-code#18392');
+    expect($rule)->toContain('break the opt-in invariant the flag above exists to hold');
+    expect($rule)->not->toContain('deliberately does **not** ban `hooks:`');
 });
 
 test('SECURITY.md documents the agent capability model and its residual risk (issue #163)', function (): void {
