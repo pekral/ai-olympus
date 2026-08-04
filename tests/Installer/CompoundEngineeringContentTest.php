@@ -809,6 +809,11 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     expect($rule)->toContain('external-write|<target');
     expect($rule)->toContain('Moderate');
 
+    // A correction to an already-appended line is itself a new appended line, never an in-place
+    // edit — the grant every agent's Bash boundary carries against this file is `cat >>` only, so
+    // an edit-in-place is a write the boundary does not permit (issue #194 iteration-3 M8).
+    expect($rule)->toContain('never an edit to the original line');
+
     // Declared incompleteness must be literal, not implied — self-reported, and the Bash-via-curl
     // gap must be named rather than silently assumed covered.
     expect($rule)->toContain('self-reported');
@@ -831,6 +836,63 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     expect($resolveIssue)->toContain('**`## Audit`** — mandatory on every PR');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
+
+    // The standalone-run fallback must not assert a boundary restriction `talos` no longer has:
+    // since issue #194 granted the `.audit` append, `talos`'s Bash boundary no longer "forbids
+    // creating one itself" (`cat >>` creates the file when absent) — the fallback's stated reason
+    // must instead be that talos is not asked to bootstrap a ledger nothing else will read.
+    expect($resolveIssue)->not->toContain('talos`\'s own Bash boundary forbids creating one itself');
+    expect($resolveIssue)->toContain('not bootstrapping a run ledger nothing else will ever read');
+});
+
+test('an agent that carries the audit-trail append obligation also grants the append permission in its own Bash boundary (issue #194)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The "Who appends" clause now cross-references each specialist's own Bash boundary — the
+    // exact link issue #194 found missing (an obligation the agent's own boundary forbade).
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($rule)->toContain('The permission to make that write lives in the same agent');
+    expect($rule)->toContain('An obligation this bullet assigns that an agent');
+
+    // DERIVED, not hardcoded: the rule's "Who appends" clause says "every specialist" plus
+    // `daidalos`, so the checked set is the entire live roster — no exclusion. A future
+    // specialist dropped into agents/ with no `.audit` obligation must fail this loop, not be
+    // `continue`d out of it — that opt-in shape was the original #194 defect itself
+    // (`grep -n audit agents/talos.md` used to be 0 hits). Mirrors the same derivation already
+    // used for issue #166 above in this file (`array_diff($liveAgentRoles, ['daidalos'])` there
+    // is a different, legitimate exclusion for a different property — daidalos never inherits a
+    // per-dispatch memory slice — and does not apply to this test).
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    $liveAgentRoles = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
+    $checkedAgents = $liveAgentRoles;
+    expect($checkedAgents)->not->toBeEmpty();
+
+    foreach ($checkedAgents as $agent) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        $boundarySection = installerDocsSection($content, '## Bash boundary');
+
+        // Two legitimate spellings of the same grant: the literal path pattern every specialist
+        // (`talos`/`apollon`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
+        // expansion (`${BRIEF%.md}.audit`) — daidalos derives the path from `$BRIEF` rather than
+        // restating the literal, and already both grants and states the obligation (its "Audit
+        // trail ledger" section: "You append your own lines"), so it needs no exclusion, only
+        // the second spelling recognised.
+        $grantsLiteralPath = str_contains($boundarySection, '.claude/run/<source-slug>.audit');
+        $grantsShellExpansionPath = str_contains($boundarySection, '${BRIEF%.md}.audit');
+
+        expect($grantsLiteralPath || $grantsShellExpansionPath)->toBeTrue(
+            "agents/{$agent}.md's Bash boundary does not grant the .audit append permission",
+        );
+    }
+
+    // Pin the four agents this issue actually fixes, so a future roster change that drops the
+    // obligation from one of them without noticing does not silently pass an empty loop.
+    foreach (['talos', 'apollon', 'hermes', 'athena'] as $expected) {
+        expect($checkedAgents)->toContain($expected);
+    }
 });
 
 test('the audit ledger states its own line shape inline, distinct from the dispatch ledger (issue #160)', function (): void {
