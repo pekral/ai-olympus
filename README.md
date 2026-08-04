@@ -43,7 +43,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **50 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **51 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -201,7 +201,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ## Skill Catalog
 
-All 50 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 51 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -236,6 +236,7 @@ All 50 skills, grouped by what you reach for them for. Each description is the s
 | [`security-bounty-hunter`](skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
 | [`security-threat-analysis`](skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
 | [`laravel-security`](skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
+| [`machine-payments-protocol`](skills/machine-payments-protocol/) | Implementing, designing, or reviewing the Machine Payments Protocol (MPP) HTTP 402 payment flow in a Laravel/PHP application |
 
 ### Testing
 

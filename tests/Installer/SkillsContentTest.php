@@ -896,6 +896,32 @@ test('api-review skill is the read-only contract lens for the API rule (issue #5
     expect($content)->toContain('templates/review-output.md');
 });
 
+test('machine-payments-protocol skill is installed with sourced, not invented, protocol claims (issue #164)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/machine-payments-protocol/SKILL.md');
+
+    expect($content)->toContain('name: machine-payments-protocol');
+    expect($content)->toContain('description: "Use when');
+    expect($content)->toContain('draft-ryan-httpauth-payment-01');
+    expect($content)->toContain('Do not cite `https://www.machinepaymentsprotocol.org/`');
+    // The dead URL must appear only in the prohibition above — never as a citation elsewhere in the file.
+    expect(substr_count($content, 'machinepaymentsprotocol.org'))->toBe(1);
+    expect($content)->toContain('@rules/security/backend.md');
+    expect($content)->toContain('@skills/laravel-security/SKILL.md');
+    expect($content)->toContain('square1/laravel-mpp');
+    expect($content)->toContain('references/protocol-sourcing.md');
+    // Request binding is a spec SHOULD, not a MUST — must not be published at the wrong conformance level.
+    expect($content)->toContain('Request binding (SHOULD, not MUST)');
+    // A concrete 402 wire example must exist so an agent does not guess a JSON-valued WWW-Authenticate header.
+    expect($content)->toContain('WWW-Authenticate: Payment id="abc123"');
+
+    $referenceContent = (string) file_get_contents(
+        $packageDir . '/skills/machine-payments-protocol/references/protocol-sourcing.md',
+    );
+    expect($referenceContent)->toContain('draft-ryan-httpauth-payment-01');
+    expect($referenceContent)->toContain('Not shipped (contradicts primary spec)');
+});
+
 test('cleanup-local-branches skill prunes gone and stale local branches safely (issue #550)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/cleanup-local-branches/SKILL.md');
