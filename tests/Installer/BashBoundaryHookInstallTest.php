@@ -125,6 +125,40 @@ test('ensureAgentBashBoundaryHook is idempotent across two consecutive calls', f
     }
 });
 
+test('ensureAgentBashBoundaryHook does not mistake a same-command handler of another type for its own', function (): void {
+    $root = bashHookRoot();
+    installerWriteFile($root . '/.claude/settings.local.json', (string) json_encode([
+        'hooks' => ['PreToolUse' => [['matcher' => 'Bash', 'hooks' => [['type' => 'prompt', 'command' => '/opt/agent-skills bash-guard']]]]],
+    ]));
+
+    try {
+        // Keying idempotence on the command alone would treat this as "already registered" and
+        // return false — no write, no summary line, and no protection actually in place.
+        expect(InstallerHookSettings::ensureAgentBashBoundaryHook($root, '/opt/agent-skills bash-guard'))->toBeTrue();
+        expect(InstallerHookSettings::loadProjectLocalBashHookCommands($root))->toBe(['/opt/agent-skills bash-guard']);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
+test('ensureAgentBashBoundaryHook restores its own handler timeout instead of leaving the 600s default', function (): void {
+    $root = bashHookRoot();
+    installerWriteFile($root . '/.claude/settings.local.json', (string) json_encode([
+        'hooks' => ['PreToolUse' => [['matcher' => 'Bash', 'hooks' => [['type' => 'command', 'command' => '/opt/agent-skills bash-guard']]]]],
+    ]));
+
+    try {
+        expect(InstallerHookSettings::ensureAgentBashBoundaryHook($root, '/opt/agent-skills bash-guard'))->toBeTrue();
+
+        // Corrected in place rather than duplicated: it carries this package's own command.
+        expect(InstallerHookSettings::loadProjectLocalBashHookCommands($root))->toBe(['/opt/agent-skills bash-guard']);
+        expect((string) file_get_contents($root . '/.claude/settings.local.json'))
+            ->toContain('"timeout": ' . InstallerBashGuard::HOOK_TIMEOUT_SECONDS);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
 test('ensureAgentBashBoundaryHook recovers when the hooks key is the wrong shape', function (): void {
     $root = bashHookRoot();
     installerWriteFile($root . '/.claude/settings.local.json', (string) json_encode(['hooks' => 'not-an-object']));

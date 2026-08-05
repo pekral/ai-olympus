@@ -1430,6 +1430,10 @@ test('SECURITY.md documents the per-agent Bash boundary hook and every way it fa
     expect($section)->toContain('It **never** answers `allow`');
     expect($section)->toContain('fails loudly and writes no hook');
 
+    // The same honesty --deny-network-bash carries about restricting the human: the rules that
+    // apply to every agent apply to the human's own interactive Bash in that project too.
+    expect($section)->toContain('including your own interactive ones');
+
     // The residual-risk section must not go back to calling the per-agent mechanism deferred.
     $residual = installerDocsSection($content, '## Agent capability model & residual risk');
     expect($residual)->toContain('The mechanism that makes the boundary genuinely per-agent now exists too, also opt-in');

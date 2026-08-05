@@ -142,7 +142,16 @@ final class InstallerHookSettings
     /**
      * Appends this package's handler to the `Bash` matcher group, creating the group (and the
      * `hooks` / `hooks.PreToolUse` containers) when absent or of the wrong shape. Returns false —
-     * leaving the settings object untouched — when the identical command is already registered.
+     * leaving the settings object untouched — only when a handler equal to the one this package
+     * writes is already there, timeout included.
+     *
+     * "Already there" deliberately means all three of `type`, `command`, and `timeout`, not the
+     * command alone. Matching on the command alone would let a `{"type":"prompt","command":"…
+     * bash-guard"}` entry — or one whose timeout had been dropped, silently restoring the vendor
+     * default of 600 seconds — count as this package's own handler, and the installer would then
+     * report nothing while the protection was not actually registered. A handler that carries this
+     * package's command with the wrong timeout is its own entry, identified by that command, so its
+     * timeout is corrected in place rather than being duplicated.
      */
     private static function appendBashHookHandler(stdClass $existing, string $command): bool
     {
@@ -156,19 +165,37 @@ final class InstallerHookSettings
         }
 
         $handlers = self::objectItems($group->hooks ?? null);
+        $handler = self::findOwnHandler($handlers, $command);
 
-        foreach ($handlers as $handler) {
-            if (($handler->command ?? null) === $command) {
-                return false;
-            }
+        if ($handler !== null && ($handler->timeout ?? null) === InstallerBashGuard::HOOK_TIMEOUT_SECONDS) {
+            return false;
         }
 
-        $handlers[] = self::buildAgentBashBoundaryHookEntry($command);
+        if ($handler === null) {
+            $handlers[] = self::buildAgentBashBoundaryHookEntry($command);
+        } else {
+            $handler->timeout = InstallerBashGuard::HOOK_TIMEOUT_SECONDS;
+        }
+
         $group->hooks = $handlers;
         $hooks->PreToolUse = $groups;
         $existing->hooks = $hooks;
 
         return true;
+    }
+
+    /**
+     * @param array<int, \stdClass> $handlers
+     */
+    private static function findOwnHandler(array $handlers, string $command): ?stdClass
+    {
+        foreach ($handlers as $handler) {
+            if (($handler->type ?? null) === 'command' && ($handler->command ?? null) === $command) {
+                return $handler;
+            }
+        }
+
+        return null;
     }
 
     private static function buildAgentBashBoundaryHookEntry(string $command): stdClass
