@@ -117,10 +117,6 @@ final class AgentBashBoundaryPolicy
     public static function getAgentRules(): array
     {
         return [
-            'apollon' => [
-                self::agentRule('apollon', 'git', ['push'], BashBoundaryDecision::Deny, '`git push`'),
-                self::agentRule('apollon', 'gh', ['pr', 'merge'], BashBoundaryDecision::Deny, '`gh pr merge`'),
-            ],
             'athena' => self::readOnlyRules('athena', BashBoundaryDecision::Deny),
             'daidalos' => self::readOnlyRules('daidalos', BashBoundaryDecision::Ask),
             'hermes' => self::readOnlyRules('hermes', BashBoundaryDecision::Deny),
@@ -267,8 +263,7 @@ final class AgentBashBoundaryPolicy
      * and `/dev/null` never covers `/dev/nullify`. A fragment ending in `-` is a deliberate name
      * prefix, because `agent-cr-` has to cover `agent-cr-<slug>-athena`.
      *
-     * An agent absent from this map has no write restriction — `talos` and `apollon` legitimately
-     * write files.
+     * An agent absent from this map has no write restriction — `talos` legitimately writes files.
      *
      * @return array<string, list<string>>
      */

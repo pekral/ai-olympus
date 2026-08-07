@@ -667,11 +667,11 @@ test(
     
         $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
         expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
-        expect($codeReview)->toContain('reports the gate as `deferred to apollon` instead of the Critical finding the bullet above otherwise requires');
+        expect($codeReview)->toContain('reports the gate as `deferred to talos` instead of the Critical finding the bullet above otherwise requires');
     
         $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
         expect($codeTesting)->toContain('**Sanctioned exception:**');
-        expect($codeTesting)->toContain('reports `deferred to apollon` here instead of a Critical finding');
+        expect($codeTesting)->toContain('reports `deferred to talos` here instead of a Critical finding');
     
         $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
         expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
@@ -679,8 +679,8 @@ test(
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
         // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
         $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-        expect($github)->toContain('a savings-mode `deferred to apollon` verdict (non-Critical');
-        expect($github)->toContain('render `Coverage: deferred to apollon (isolated worktree, no vendor/)`');
+        expect($github)->toContain('a savings-mode `deferred to talos` verdict (non-Critical');
+        expect($github)->toContain('render `Coverage: deferred to talos (isolated worktree, no vendor/)`');
     },
 );
 

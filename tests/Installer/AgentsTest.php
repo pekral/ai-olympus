@@ -316,7 +316,7 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['talos', 'apollon', 'athena', 'hermes'] as $agent) {
+    foreach (['talos', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('Shared task brief');
         expect($content)->toContain('.claude/run/');
@@ -341,37 +341,31 @@ test('every agent definition declares a model in frontmatter', function (): void
 });
 
 test(
-    'every agent definition sets the model effort to high in frontmatter, except apollon which runs at the lowest effort (issue #179)',
+    'every agent definition sets the model effort to high in frontmatter (issue #179)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $globResult = glob($packageDir . '/agents/*.md');
         $agentFiles = $globResult !== false ? $globResult : [];
-    
+
         expect($agentFiles)->not->toBeEmpty();
-    
+
         foreach ($agentFiles as $agentFile) {
             // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
-            // cannot satisfy the assertion.
+            // cannot satisfy the assertion. Every agent runs at high reasoning depth — `max` was
+            // lowered to `high` in issue #179, superseding the issue #40 mandate. The single
+            // `low`-effort exception left the roster with `apollon` (docs/agents.md *Retired agents*).
             $content = (string) file_get_contents($agentFile);
-    
-            if (basename($agentFile) === 'apollon.md') {
-                // apollon runs fast, cheap validation on sonnet at the lowest effort.
-                expect($content)->toMatch('/^effort:\s*low$/m');
-            } else {
-                // Every other agent runs at high reasoning depth — `max` was lowered to `high`
-                // in issue #179, superseding the issue #40 mandate.
-                expect($content)->toMatch('/^effort:\s*high$/m');
-            }
-    
+
+            expect($content)->toMatch('/^effort:\s*high$/m');
+
             // `max` must not survive anywhere in frontmatter, on any agent.
             expect($content)->not->toMatch('/^effort:\s*max$/m');
         }
-    
+
         // The anatomy doc must document the same level it ships, example included.
         $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
         expect($docs)->toContain('effort: high');
         expect($docs)->toContain('set to `high` on every agent (issue #179)');
-        expect($docs)->toContain('The one exception is `apollon`, which stays at `low`');
         expect($docs)->not->toContain('set to `max` on every agent');
     },
 );
@@ -399,20 +393,39 @@ test('daidalos dispatches athena for a pre-implementation security-risk analysis
 });
 
 test(
-    'daidalos gates the pre-convergence apollon validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
+    'daidalos gates the pre-convergence scoped validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
         // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
-        expect($daidalos)->toContain('Only for a high-risk change dispatch `apollon` through the Task tool');
-        expect($daidalos)->toContain('the post-convergence `apollon` pass in step 6 stays mandatory for every run');
+        expect($daidalos)->toContain('Only for a high-risk change dispatch `talos` again through the Task tool');
+        expect($daidalos)->toContain('the post-convergence scoped pass in step 6 stays mandatory for every run');
 
-        // apollon documents the same conditionality in its scoped-mode contract.
-        $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
-        expect($apollon)->toContain('only when `daidalos` classified the change as high-risk');
+        // talos documents the same conditionality in its own scoped-mode contract.
+        $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+        expect($talos)->toContain('only when `daidalos` classified the change as high-risk');
     },
 );
+
+test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bare name', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // talos is dispatched more than once per run (implementation, then scoped validation before and
+    // after the CR). Keyed on the bare agent name, the second dispatch reads as a repeat of the
+    // first and the in-flight check suppresses it — so the mode has to be part of <role>.
+    expect($daidalos)->toContain('**`<role>` carries the dispatched mode, not just the agent name.**');
+    expect($daidalos)->toContain('`talos:impl`');
+    expect($daidalos)->toContain('`talos:scoped`');
+    expect($daidalos)->toContain('`hermes:reporting`');
+
+    // The steps that re-dispatch must name the moded role they write, or the convention above is
+    // documented in one place and ignored in the two places that actually append a ledger line.
+    expect($daidalos)->toContain('Record the dispatch in the ledger as `talos:scoped`, never bare `talos`');
+    expect($daidalos)->toContain('(ledger role `talos:scoped`)');
+    expect($daidalos)->toContain('v ledgeru role `hermes:reporting`');
+});
 
 test('daidalos processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -459,20 +472,37 @@ test('the read-only CR agent documents an optional review worktree it hands back
     expect($content)->toContain('git worktree remove');
 });
 
-test('agents directory ships the apollon test-engineer subagent with required frontmatter', function (): void {
+test('the retired apollon subagent is gone from the roster and its work is documented as talos\'s', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/apollon.md';
 
-    expect(is_file($agentPath))->toBeTrue();
+    // The agent file itself must not come back — the roster is what the installer registers.
+    expect(is_file($packageDir . '/agents/apollon.md'))->toBeFalse();
 
-    $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: apollon');
-    // Write-capable test engineer: authors PHPUnit/Pest tests, so the tools line grants Write and Edit.
-    expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
-    expect($content)->toContain('model: sonnet');
-    expect($content)->toContain('@skills/create-test/SKILL.md');
-    expect($content)->toContain('@skills/e2e-testing/SKILL.md');
-    expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
+    // The retired agent's two jobs were split along the roster's capability line, so every skill
+    // it orchestrated still has an owner rather than silently dropping off the roster.
+    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    expect($talos)->toContain('@skills/create-test/SKILL.md');
+    expect($talos)->toContain('@skills/create-missing-tests-in-pr/SKILL.md');
+    expect($talos)->toContain('@skills/e2e-testing/SKILL.md');
+
+    // Publishing stayed with hermes: the write-capable implementer must not gain the right to
+    // post on a tracker, so pr-summary is hermes's, never talos's. The capability table in
+    // docs/agents.md is checked too — it reads as the authority on what an agent may do, so a
+    // stale publish grant left there would contradict talos's own Bash boundary.
+    expect($talos)->not->toContain('@skills/pr-summary/SKILL.md');
+
+    $capabilityDocs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($capabilityDocs)->toContain('never a tracker publish (that is `hermes`\'s)');
+    expect($capabilityDocs)->not->toContain('`composer build`, publishing the post-convergence comment');
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->toContain('@skills/pr-summary/SKILL.md');
+    expect($hermes)->toContain('## Post-convergence reporting mode');
+    expect($hermes)->toContain('Reporting done');
+
+    // The retirement is recorded for a reader (agent or human) who finds a stale reference.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->toContain('## Retired agents');
+    expect($docs)->toContain('| `apollon` — test engineer & post-convergence reporter |');
 });
 
 test('agents directory ships the hermes release-announcer subagent with required frontmatter', function (): void {
@@ -514,7 +544,7 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daidalos', 'talos', 'athena', 'apollon', 'hermes'] as $agent) {
+    foreach (['daidalos', 'talos', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
@@ -537,14 +567,14 @@ test('daidalos decides the opt-in savings mode once during gather and never narr
     expect($daidalos)->toContain('## Context pack');
     expect($daidalos)->toContain('## Build gate cache');
 
-    // The cache is written by talos / apollon only — athena stays read-only and never runs a
+    // The cache is written by talos only — athena stays read-only and never runs a
     // full build, so it never writes this section (issue #119 CR fix for the cross-file contradiction
     // with the reviewer's "the only write you perform" clause).
     expect($daidalos)->toContain('`athena` never writes this section');
 });
 
 test(
-    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to apollon when savings mode is on (issue #119)',
+    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to talos when savings mode is on (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/athena.md');
@@ -552,7 +582,7 @@ test(
         expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
         expect($content)->toContain('read the brief\'s `## Context pack`');
         expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
-        expect($content)->toContain('otherwise report the coverage gate as deferred to `apollon`');
+        expect($content)->toContain('otherwise report the coverage gate as deferred to `talos`');
         // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
         // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
         expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
@@ -567,19 +597,19 @@ test(
     },
 );
 
-test('apollon owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
+test('talos owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
+    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
 
-    expect($apollon)->toContain('**Savings-mode build-gate cache (opt-in).**');
-    expect($apollon)->toContain('check the brief\'s `## Build gate cache`');
-    expect($apollon)->toContain('**Own the coverage verdict when savings mode is on.**');
-    expect($apollon)->toContain('you are the sole authoritative source for the executed coverage number in this run');
+    expect($talos)->toContain('**Savings-mode build-gate cache (opt-in).**');
+    expect($talos)->toContain('check the brief\'s `## Build gate cache`');
+    expect($talos)->toContain('**Own the coverage verdict when savings mode is on.**');
+    expect($talos)->toContain('you are the sole authoritative source for the executed coverage number in this run');
 
     // Coverage is a dedicated handoff field, and the scoped status definition states whether the
     // coverage gate is included (issue #119 CR fix — agent-new-mode-status-result-parity).
-    expect($apollon)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
-    expect($apollon)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
+    expect($talos)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
+    expect($talos)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
 
 test('daidalos sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
@@ -1301,7 +1331,6 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
         'hermes' => 'Write, Edit',
         'daidalos' => 'Write, Edit',
         'talos' => 'WebSearch, WebFetch',
-        'apollon' => 'WebSearch, WebFetch',
     ];
 
     foreach ($expectedDisallowed as $agent => $disallowed) {

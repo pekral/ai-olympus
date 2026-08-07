@@ -304,10 +304,6 @@ function installerRestoreEnvAndCleanup(string|false $homeBefore, string $origina
 function agentBashBoundaryProsePins(): array
 {
     return [
-        'apollon' => [
-            ['git', ['push'], 'deny', 'never push to a protected default branch'],
-            ['gh', ['pr', 'merge'], 'deny', 'never merge'],
-        ],
         'athena' => agentBashBoundaryReadOnlyPins('never run `git commit` / `git push` / `git merge`', 'deny'),
         // `ask`, not `deny`: the prose permits the merge through one skill only, a condition the
         // command string cannot carry, so the human decides instead of the validator.
@@ -723,9 +719,6 @@ function agentBashBoundaryUnreadTargetRows(): array
 function agentBashBoundaryWriterRows(): array
 {
     return [
-        ['apollon', 'git push', 'deny'],
-        ['apollon', 'gh pr merge 12', 'deny'],
-        ['apollon', 'git commit -m "tests"', 'defer'],
         ['talos', 'git push --force origin feature/x', 'deny'],
         ['talos', 'git push --force-with-lease origin feature/x', 'deny'],
         ['talos', 'git push origin master', 'deny'],

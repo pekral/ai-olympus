@@ -664,7 +664,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|apollon|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
     }
 });
 
@@ -686,7 +686,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         $agentFiles,
     );
 
-    // Dictionary: `- Role:    <daidalos | talos | athena | apollon | hermes | shared>` must
+    // Dictionary: `- Role:    <daidalos | talos | athena | hermes | shared>` must
     // enumerate exactly the live roster (plus `shared`, which the regex strips below).
     preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
     $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
@@ -875,7 +875,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
-        // (`talos`/`apollon`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
+        // (`talos`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
         // expansion (`${BRIEF%.md}.audit`) — daidalos derives the path from `$BRIEF` rather than
         // restating the literal, and already both grants and states the obligation (its "Audit
         // trail ledger" section: "You append your own lines"), so it needs no exclusion, only
@@ -888,9 +888,9 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         );
     }
 
-    // Pin the four agents this issue actually fixes, so a future roster change that drops the
+    // Pin the agents this issue actually fixes, so a future roster change that drops the
     // obligation from one of them without noticing does not silently pass an empty loop.
-    foreach (['talos', 'apollon', 'hermes', 'athena'] as $expected) {
+    foreach (['talos', 'hermes', 'athena'] as $expected) {
         expect($checkedAgents)->toContain($expected);
     }
 });
@@ -968,15 +968,15 @@ test('the externally-visible action inventory covers the whole live roster and c
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
 
     // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
-    // out of date before it was first used: `apollon` publishes the post-convergence comment to the
-    // source tracker and had no row at all.
+    // out of date before it was first used: the post-convergence comment published to the source
+    // tracker (`talos`'s reporting mode, `apollon`'s before it was retired) had no row at all.
     expect($rule)->toContain('**Keep this inventory complete.**');
     expect($rule)->toContain('assign **L2**');
 
     // DERIVED from the live roster, not a literal list: every agent shipped in agents/ must own at
     // least one TABLE ROW, so the next roster addition fails here rather than silently owning an
     // unlisted externally-visible action. Sliced to the rows only — the L1/L2/L3 vocabulary
-    // paragraphs above the table name four of the five agents in prose, so asserting against the
+    // paragraphs above the table name most of the roster in prose, so asserting against the
     // whole section would pass even with the table deleted outright, while the rule promises to
     // catch an agent with "no row at all".
     $inventory = installerDocsSection($rule, '## Externally-visible actions & consent levels');
@@ -992,10 +992,10 @@ test('the externally-visible action inventory covers the whole live roster and c
         expect($tableRows)->toContain('`' . basename($agentFile, '.md') . '`');
     }
 
-    // apollon's own file gains the additive consent token, the same way hermes/daidalos/athena
-    // already carry theirs — the surrounding sentence is untouched.
-    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
-    expect($apollon)->toContain('(L1, viz `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
+    // The reporting-mode publish carries the additive consent token in its owner's own file — hermes,
+    // the roster's only publishing agent — the surrounding sentence is untouched.
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
 });
 
 /**

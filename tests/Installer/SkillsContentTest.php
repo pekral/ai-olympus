@@ -1274,8 +1274,8 @@ test('savings-mode build-gate cache never skips the mandatory full run on the ex
     expect($merge)->toContain('the entry carries this-run provenance');
     expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
 
-    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
-    expect($apollon)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
+    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    expect($talos)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
 });
 
 test('compact-project-memory skill compacts only the entries a write touched, without ever losing a fact (issue #98)', function (): void {
