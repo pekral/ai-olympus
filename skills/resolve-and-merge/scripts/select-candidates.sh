@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# select-candidates.sh — draw the batch's candidate issues at random.
+# select-candidates.sh — take the batch's candidate issues highest-priority first.
 #
 # Why this exists
 #   Three filters have to hold at once — carries the label, does not carry the
@@ -12,18 +12,34 @@
 # Usage (executed by the agent, not read)
 #   scripts/select-candidates.sh [COUNT] [LABEL] [CLAIM_LABEL] [EXCLUDE]
 #
-#   COUNT        how many candidates to draw; default 5.
+#   COUNT        how many candidates to take; default 5.
 #   LABEL        auto-resolve label; default Resolve_by_AI.
 #   CLAIM_LABEL  in-progress claim label; default Resolve_by_AI:in-progress.
 #   EXCLUDE      comma-separated issue numbers already covered by an adopted
 #                PR (from inventory-open-prs.sh); default none.
 #
-# Selection is RANDOM, not oldest-first, drawn with `sort -R` — `shuf` is not
-# installed on macOS. Fewer eligible issues than COUNT yields a shorter list;
-# the pool is never widened to unlabeled issues to reach the number.
+# Selection is PRIORITY-DRIVEN and deterministic, not random: eligible issues
+# are ordered by their `priority:P0`…`priority:P3` label (P0 first), and issues
+# sharing a priority are ordered oldest `createdAt` first. The earlier random
+# draw (`sort -R`) is deliberately gone — a batch that samples the backlog
+# uniformly will start a P3 docs tidy-up while a P0 credential leak waits, which
+# is exactly what the priority labels exist to prevent.
 #
-# Prints a JSON array on stdout, one object per drawn candidate:
-#   [{"number":7,"url":"…","title":"…","createdAt":"…"}]
+# An issue carrying NO priority label sorts as P2, because `priority:P2` is the
+# declared default level. It therefore neither jumps ahead of triaged work nor
+# sinks below it — an untriaged issue stays reachable instead of starving behind
+# every labeled one, while never outranking an explicit P0/P1.
+#
+# Fewer eligible issues than COUNT yields a shorter list; the pool is never
+# widened to unlabeled issues to reach the number.
+#
+# Prints a JSON array on stdout, one object per selected candidate, already in
+# execution order:
+#   [{"number":7,"url":"…","title":"…","createdAt":"…","priority":"P0"}]
+#
+# `priority` is the resolved label ("P0".."P3") or null when the issue carries
+# none — reported so the batch plan can state why each task holds its position
+# rather than asserting an order the caller cannot verify.
 #
 # Read-only: one `gh issue list` read. See _lib.sh for the full safety
 # contract and the shared exit codes.
@@ -56,25 +72,40 @@ fi
 require_tools gh jq
 require_github_repo
 
-# 500 bounds the pool the draw samples from, matching inventory-open-prs.sh.
-# Beyond that the draw is over the 500 issues gh returned rather than the whole
-# backlog — still a valid random batch, just a narrower urn.
-ELIGIBLE="$(gh issue list --label "$LABEL" --state open --limit 500 \
-  --json number,url,title,createdAt,labels |
-  jq --arg claim "$CLAIM_LABEL" --argjson exclude "$EXCLUDE_JSON" "$JQ_CLEAN"'
-    ($claim | ascii_downcase) as $claimed
-    | [.[]
-        | select(any(.labels[]?; (.name // "" | ascii_downcase) == $claimed) | not)
-        | select(.number as $n | $exclude | index($n) | not)
-        | {number, url, title: (.title // "" | clean), createdAt}
-      ]')"
-
-# Shuffle over the compact one-line-per-issue form, then reassemble. Keeping
-# each object on its own line is what makes `sort -R` a line shuffle rather
-# than a corrupting sort of pretty-printed JSON.
+# 500 bounds the pool, matching inventory-open-prs.sh. Beyond that the ordering
+# is over the 500 issues gh returned rather than the whole backlog.
 #
-# The slice happens in jq, not in `head`: under `set -o pipefail`, a `head -n`
-# that closes the pipe early kills `sort` with SIGPIPE and the whole script
-# exits 141 — which fires precisely when there are MORE eligible issues than
-# slots, the common case.
-printf '%s' "$ELIGIBLE" | jq -c '.[]' | sort -R | jq -s --argjson n "$COUNT" '.[:$n]'
+# The priority rank is read from the FIRST `priority:p<n>` label found. Two
+# priority labels on one issue is a triage mistake, not a case worth encoding a
+# tie-break for; taking the first keeps the rank total and deterministic instead
+# of failing the whole run over one mislabeled issue.
+#
+# `sort_by` is a stable total order over [rank, createdAt], so the output is
+# fully deterministic — the same backlog yields the same batch every run, which
+# is what makes a deferred task predictably reachable on the next one.
+gh issue list --label "$LABEL" --state open --limit 500 \
+  --json number,url,title,createdAt,labels |
+  jq --arg claim "$CLAIM_LABEL" --argjson exclude "$EXCLUDE_JSON" --argjson n "$COUNT" "$JQ_CLEAN"'
+    def priority_label:
+      [ .labels[]?.name // ""
+        | ascii_downcase
+        | select(test("^priority:p[0-3]$"))
+      ] | first // null;
+
+    ($claim | ascii_downcase) as $claimed
+    | [ .[]
+        | select(any(.labels[]?; (.name // "" | ascii_downcase) == $claimed) | not)
+        | select(.number as $num | $exclude | index($num) | not)
+        | priority_label as $p
+        | {
+            number,
+            url,
+            title: (.title // "" | clean),
+            createdAt,
+            priority: (if $p == null then null else ($p | ltrimstr("priority:") | ascii_upcase) end),
+            rank: (if $p == null then 2 else ($p | ltrimstr("priority:p") | tonumber) end),
+          }
+      ]
+    | sort_by([.rank, .createdAt])
+    | .[:$n]
+    | map(del(.rank))'

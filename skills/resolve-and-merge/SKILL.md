@@ -1,6 +1,6 @@
 ---
 name: resolve-and-merge
-description: "Use when a batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run. Adopts eligible in-flight pull requests first, then randomly selects up to five dependency-free labeled issues, substituting the blocking parent whenever a candidate depends on another task, and processes the queue strictly sequentially on the shared working tree with no git worktrees. Every task gets its own branch, its own pull request, a converged code review, and a merge into the default branch; a silent orchestrator is nudged after twenty minutes of no progress, and a blocker is recorded instead of force-merged."
+description: "Use when a batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run. Adopts eligible in-flight pull requests first, then takes up to five dependency-free labeled issues highest-priority first (priority:P0 before P1 before P2 before P3, oldest first within a priority), substituting the blocking parent whenever a candidate depends on another task, and processes the queue strictly sequentially on the shared working tree with no git worktrees. Every task gets its own branch, its own pull request, a converged code review, and a merge into the default branch; a silent orchestrator is nudged after twenty minutes of no progress, and a blocker is recorded instead of force-merged."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -47,7 +47,7 @@ Use `@skills/resolve-issue/SKILL.md` instead when the target issue is already kn
 |--------|---------|------------------------|
 | `scripts/preflight.sh` | Session, repository slug, default branch, clean-tree check | `1` usage · `2` missing tool · `3` no authenticated GitHub repo · `4` dirty tree |
 | `scripts/inventory-open-prs.sh` | Classifies every open PR as adopt / ignore | `1` · `2` · `3` |
-| `scripts/select-candidates.sh` | Draws eligible issues at random, minus claimed and adopted ones | `1` · `2` · `3` |
+| `scripts/select-candidates.sh` | Takes eligible issues highest-priority first, minus claimed and adopted ones | `1` · `2` · `3` |
 
 `scripts/_lib.sh` carries the shared guards and the safety contract; it is sourced, never run.
 
@@ -85,7 +85,11 @@ Eligible = open, carries `$LABEL`, does not carry `$CLAIM_LABEL`, and is not alr
 scripts/select-candidates.sh "$REMAINING_SLOTS" "$LABEL" "$CLAIM_LABEL" 12,34
 ```
 
-The draw is random (`sort -R`, since `shuf` is absent on macOS). If fewer than `BATCH_SIZE` tasks are eligible, the script returns a shorter list — run **only** those, and never widen the selection to unlabeled issues to reach the number. If it returns an empty array and no PR was adopted, stop with `No eligible $LABEL issues and no adoptable open pull requests found`.
+Selection is **priority-driven and deterministic**, not random: the script orders eligible issues by their `priority:P0`…`priority:P3` label (P0 first) and, within one priority, oldest `createdAt` first. It returns them already in that order, each carrying its resolved `priority` field. An issue with **no** priority label sorts as P2 — the declared default level — so untriaged work stays reachable without ever outranking an explicit P0/P1.
+
+Take the returned order as given; do not re-shuffle it or second-guess a priority label. A label that looks wrong is a triage problem to raise with the user, not something to silently reorder around.
+
+If fewer than `BATCH_SIZE` tasks are eligible, the script returns a shorter list — run **only** those, and never widen the selection to unlabeled issues to reach the number. If it returns an empty array and no PR was adopted, stop with `No eligible $LABEL issues and no adoptable open pull requests found`.
 
 ### 4. Resolve dependencies before committing to the queue
 For each drawn candidate, read its body and its parent/sub-issue links, and look for an open blocker:
@@ -106,7 +110,10 @@ De-duplicate the queue: two candidates sharing one root blocker collapse into th
 ### 5. Order the queue
 1. Adopted pull requests (in-flight work finishes first)
 2. Blockers before the tasks that depend on them
-3. Otherwise oldest `createdAt` first
+3. Otherwise highest priority first (`priority:P0` → `P3`, an unlabeled issue sorting as P2)
+4. Within one priority, oldest `createdAt` first
+
+Rules 1 and 2 override priority deliberately: an adopted PR is work already half-done, and shipping a dependent task before its blocker is not possible at any priority. A **blocker substituted in at step 4 keeps its own priority**, not the priority of the candidate it replaced.
 
 State the resulting order before starting — it is the batch plan the rest of the run follows.
 
@@ -147,12 +154,12 @@ Stop the whole batch only when the repository state itself is unsafe to continue
 
 A single report:
 
-| # | Task | Type | PR | Review | Result |
-|---|------|------|----|--------|--------|
-| 1 | #<n> <title> | adopted PR / new issue | <url> | C/M/m counts | merged / blocked — <reason> / stalled |
+| # | Task | Priority | Type | PR | Review | Result |
+|---|------|----------|------|----|--------|--------|
+| 1 | #<n> <title> | P0–P3 (or `—` when unlabeled) | adopted PR / new issue | <url> | C/M/m counts | merged / blocked — <reason> / stalled |
 
 Plus:
-- the batch plan from step 5 and why each task holds its position (blocker, adopted, oldest)
+- the batch plan from step 5 and why each task holds its position (adopted, blocker, priority, oldest), stating each task's priority label explicitly
 - every issue **not** taken and why (`blocked by #<n> (not labeled)`, `deferred behind #<n>`, `not eligible`)
 - every open PR **ignored** in step 2 and why
 - every nudge sent, with the task and the interval it followed
