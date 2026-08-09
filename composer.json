@@ -157,9 +157,10 @@
       "composer audit --format=summary"
     ],
     "shell-self-tests": [
-      "echo '🧪 Running shared shell script self-tests...'",
+      "echo '🧪 Running shell script self-tests...'",
       "bash skills/_shared/assert-current-repo.sh --self-test",
-      "bash skills/_shared/scan-attachments.sh --self-test"
+      "bash skills/_shared/scan-attachments.sh --self-test",
+      "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test"
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
