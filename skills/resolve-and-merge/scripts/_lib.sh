@@ -13,6 +13,12 @@
 #   preflight are those parts; every write stays in the delegated skills that
 #   own it and can be reasoned about individually.
 #
+#   That contract binds every path the skill executes. A script's own
+#   `--self-test` flag is the one exception and is not such a path: it runs
+#   offline with `gh` stubbed, is invoked by `composer build` and never by the
+#   skill, and creates a private temporary directory (removed on exit) to hold
+#   that stub and its fixtures.
+#
 #   NO SHELL INTERPOLATION INTO A FILTER. Every caller-supplied value reaches
 #   `jq` through `--arg`, never through string concatenation into the filter
 #   body. A label is arbitrary user-authored text — it may contain quotes,

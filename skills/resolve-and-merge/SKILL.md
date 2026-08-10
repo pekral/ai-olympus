@@ -1,6 +1,6 @@
 ---
 name: resolve-and-merge
-description: "Use when a batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run. Adopts eligible in-flight pull requests first, then takes up to five dependency-free labeled issues highest-priority first (priority:P0 before P1 before P2 before P3, oldest first within a priority), substituting the blocking parent whenever a candidate depends on another task, and processes the queue strictly sequentially on the shared working tree with no git worktrees. Every task gets its own branch, its own pull request, a converged code review, and a merge into the default branch; a silent orchestrator is nudged after twenty minutes of no progress, and a blocker is recorded instead of force-merged."
+description: "Use when a batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run. Adopts eligible in-flight pull requests first, then takes up to five dependency-free labeled issues highest-priority first (priority: critical before high before medium before low, oldest first within a priority), substituting the blocking parent whenever a candidate depends on another task, and processes the queue strictly sequentially on the shared working tree with no git worktrees. Every task gets its own branch, its own pull request, a converged code review, and a merge into the default branch; a silent orchestrator is nudged after twenty minutes of no progress, and a blocker is recorded instead of force-merged."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -41,7 +41,7 @@ Use `@skills/resolve-issue/SKILL.md` instead when the target issue is already kn
 
 ## Scripts
 
-**Execute these, do not read them** — their output is the input to the step that follows. All three are **read-only**: `gh` and `git` reads only, no tracker write, no merge, no working-tree change, no temporary file. Every caller value reaches `jq` through `--arg`, never concatenated into a filter, and every issue / PR title is stripped of control, bidi, and zero-width characters before it is printed, so an author-controlled title cannot rewrite the report a human reads before merging.
+**Execute these, do not read them** — their output is the input to the step that follows. All three are **read-only** on every path this skill executes: `gh` and `git` reads only, no tracker write, no merge, no working-tree change, no temporary file. (A script's own `--self-test` flag runs offline under `composer build` and is never invoked here.) Every caller value reaches `jq` through `--arg`, never concatenated into a filter, and every issue / PR title is stripped of control, bidi, and zero-width characters before it is printed, so an author-controlled title cannot rewrite the report a human reads before merging.
 
 | Script | Purpose | Exit codes beyond `0` |
 |--------|---------|------------------------|
@@ -85,7 +85,7 @@ Eligible = open, carries `$LABEL`, does not carry `$CLAIM_LABEL`, and is not alr
 scripts/select-candidates.sh "$REMAINING_SLOTS" "$LABEL" "$CLAIM_LABEL" 12,34
 ```
 
-Selection is **priority-driven and deterministic**, not random: the script orders eligible issues by their `priority:P0`…`priority:P3` label (P0 first) and, within one priority, oldest `createdAt` first. It returns them already in that order, each carrying its resolved `priority` field. An issue with **no** priority label sorts as P2 — the declared default level — so untriaged work stays reachable without ever outranking an explicit P0/P1.
+Selection is **priority-driven and deterministic**, not random: the script orders eligible issues by their priority label — `priority: critical`, `priority: high`, `priority: medium`, `priority: low`, critical first — and, within one priority, oldest `createdAt` first. It returns them already in that order, each carrying its resolved `priority` field (`critical` … `low`, or `null` when the issue carries no priority label). Those four labels are the taxonomy `@skills/github-issue-triage/SKILL.md` seeds and maintains, and they are the only ones ranked here. An issue with **no** priority label sorts as `priority: medium` — the declared default level — so untriaged work stays reachable without ever outranking an explicit critical/high.
 
 Take the returned order as given; do not re-shuffle it or second-guess a priority label. A label that looks wrong is a triage problem to raise with the user, not something to silently reorder around.
 
@@ -110,7 +110,7 @@ De-duplicate the queue: two candidates sharing one root blocker collapse into th
 ### 5. Order the queue
 1. Adopted pull requests (in-flight work finishes first)
 2. Blockers before the tasks that depend on them
-3. Otherwise highest priority first (`priority:P0` → `P3`, an unlabeled issue sorting as P2)
+3. Otherwise highest priority first (`priority: critical` → `priority: low`, an unlabeled issue sorting as `priority: medium`)
 4. Within one priority, oldest `createdAt` first
 
 Rules 1 and 2 override priority deliberately: an adopted PR is work already half-done, and shipping a dependent task before its blocker is not possible at any priority. A **blocker substituted in at step 4 keeps its own priority**, not the priority of the candidate it replaced.
@@ -156,7 +156,7 @@ A single report:
 
 | # | Task | Priority | Type | PR | Review | Result |
 |---|------|----------|------|----|--------|--------|
-| 1 | #<n> <title> | P0–P3 (or `—` when unlabeled) | adopted PR / new issue | <url> | C/M/m counts | merged / blocked — <reason> / stalled |
+| 1 | #<n> <title> | critical / high / medium / low (or `—` when unlabeled) | adopted PR / new issue | <url> | C/M/m counts | merged / blocked — <reason> / stalled |
 
 Plus:
 - the batch plan from step 5 and why each task holds its position (adopted, blocker, priority, oldest), stating each task's priority label explicitly

@@ -160,7 +160,8 @@
       "echo '🧪 Running shell script self-tests...'",
       "bash skills/_shared/assert-current-repo.sh --self-test",
       "bash skills/_shared/scan-attachments.sh --self-test",
-      "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test"
+      "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test",
+      "bash skills/resolve-and-merge/scripts/select-candidates.sh --self-test"
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
