@@ -98,14 +98,14 @@ On completion — both on the final handoff and on a `Blocked` stop — every ag
 - **Shared task brief** (`.claude/run/<source-slug>.md`) — scratch memory for the run, not a kept artifact.
 - **Dispatch ledger and audit trail** (`.claude/run/<source-slug>.dispatches`, `.claude/run/<source-slug>.audit`) — scratch state for the run, exactly like the brief (see `agents/daidalos.md` *Dispatch ledger* and `@rules/compound-engineering/general.mdc` *Audit trail for memory reads, outbound requests, and external writes*).
 - **Per-brief append lock** (`$BRIEF.lock`) — must not outlive the run.
-- **Working-tree write-lock** (`.claude/run/.daidalos-write.lock`) — released by `daidalos` in step 7.
+- **Working-tree write-lock** (`.claude/run/.daidalos-write.lock`) — released by `daidalos` during *Run cleanup* (`agents/daidalos.md`), which runs on **every** terminating path the run can take — the full-delivery report, the analysis-only stop, and any `Blocked` stop — never only on the step that checklist is written under.
 - **Temporary `.md` preparation files** created during the run (aligns with `@rules/git/general.mdc` *Cleanup*).
 
 **Memory files are NEVER deleted** — `docs/memory/PROJECT_MEMORY.md` in the target project and any user-level memory files (`~/.claude/.../memory/*.md`) are durable, not temporary; they survive every run. The hand-maintained `CLAUDE.md` is also excluded from this cleanup.
 
 Scripts and shell steps that create temporary files must bind their cleanup to `trap … EXIT` (shell) or `finally` (other languages) so the cleanup runs even when the script exits with an error.
 
-`daidalos` step 7 is the **reference implementation** of this contract: it removes the shared brief (`rm -f "$BRIEF"`) and releases the write-lock (`rm -rf .claude/run/.daidalos-write.lock`) on both the final report and a `Blocked` stop.
+`daidalos`'s *Run cleanup* (`agents/daidalos.md`) is the **reference implementation** of this contract: it removes the shared brief (`rm -f "$BRIEF"`) and releases the write-lock (`rm -rf .claude/run/.daidalos-write.lock`) on **every** terminating path the run can take — the full-delivery report, the analysis-only stop, and any `Blocked` stop — applying each item only where the run has something to clean up (an analysis-only stop never acquired the write-lock, so it has none to release, but it still owes the brief).
 
 ## Claim a tracker issue before working on it
 

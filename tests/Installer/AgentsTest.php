@@ -1259,6 +1259,97 @@ test('daidalos gates CR worktree cleanup on the same confirmed-dead probe as the
     expect($content)->toContain('never remove on the absence of a liveness signal');
 });
 
+test('daidalos anchors run cleanup to every terminal path instead of the step-7 number (issue #200)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // The checklist carries a named, renumbering-proof anchor rather than living as "step 7's body".
+    expect($content)->toContain('*Run cleanup* — a property of every terminating path, not of step 7');
+
+    // It must name the paths that never reach step 7 at all, which is the gap issue #200 reported.
+    expect($content)->toContain('the analysis-only stop in step 3, and any `Blocked` stop in steps 4–6 or at the merge gate');
+
+    // Cross-references are told to use the name, never the number.
+    expect($content)->toContain('name it ***Run cleanup***, never "(step 7)"');
+
+    // Step 3 (analysis-only) cleans up before it stops.
+    expect($content)->toContain('run *Run cleanup* (the checklist written down in step 7, invoked here) and stop');
+    expect($content)->toContain('those three scratch files are the whole of what this stop owes');
+
+    // Step 5's two Blocked branches differ on the write-lock: a run that never acquired it must not
+    // release a live holder's lock, while the run that did acquire it must give it back.
+    expect($content)->toContain('the lock is **not** yours to release here, because this instance never acquired it');
+    expect($content)->toContain('this instance did acquire the lock earlier in this step, so it is the one that must give it back');
+
+    // Step 6's non-convergence hard stop cleans up too, CR worktree included.
+    expect($content)->toContain('Run *Run cleanup* before escalating');
+    expect($content)->toContain('any CR worktree `athena` recorded in its handoff');
+
+    // No remaining cross-reference binds cleanup to the step number as its only anchor.
+    expect($content)->not->toContain('removes it during cleanup (step 7)');
+    expect($content)->not->toContain('during cleanup in step 7');
+    expect($content)->not->toContain('that skipped cleanup (step 7)');
+    expect($content)->not->toContain('remove it during cleanup (step 7)');
+    expect($content)->not->toContain('mirroring step 7\'s CR-worktree cleanup');
+    expect($content)->not->toContain('the same confirmed-dead liveness probe step 7 requires');
+
+    // The *Shared task brief* Cleanup bullet defers to Run cleanup instead of competing with the
+    // rule for the "reference implementation" title, and names every terminal path, not just two.
+    expect($content)->toContain('This bullet is **one item of ***Run cleanup*****');
+    expect($content)->toContain('at the analysis-only stop in step 3, and at any `Blocked` stop in steps 4–6 or at the merge gate');
+    expect($content)->not->toContain('This is the reference implementation of `@rules/compound-engineering/general.mdc` *Temporary-file hygiene*');
+
+    // The dispatch ledger no longer claims the Cleanup bullet is the exhaustive path enumeration.
+    expect($content)->toContain('exactly the paths ***Run cleanup*** enumerates');
+    expect($content)->not->toContain('exactly the paths the brief\'s own *Cleanup* bullet already names');
+});
+
+test('daidalos gates scratch-file cleanup on brief ownership via the ## PID field (issue #200)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // The gate is stated once, inside the Run cleanup checklist.
+    expect($content)->toContain('the `## PID` ownership gate.');
+    expect($content)->toContain('only when that value equals this instance\'s `$PPID`');
+
+    // It reuses the startup sweep's fixed-position, format-validated parsing, not a content scan.
+    expect($content)->toContain('read `## PID` out of `"$BRIEF"` **by fixed position**');
+    expect($content)->toContain('the file\'s first 5 lines, first match wins');
+
+    // Fail-safe: anything that is not positive proof of ownership leaves the files alone.
+    expect($content)->toContain('means the brief is **not this run\'s**: leave all three in place and report it');
+    expect($content)->toContain('destroying a peer\'s `.dispatches` would take away exactly the idempotence guard');
+
+    // Every call site inherits the gate by name rather than restating (or silently assuming) it.
+    expect($content)->toContain('inherits this gate by naming *Run cleanup***');
+
+    // The inheritance claim is scoped to the sites it enumerates, and the merge gate's bare
+    // cleanup reminder — which names no anchor — is reconciled instead of silently contradicted.
+    expect($content)->toContain('carries no anchor of its own because it is a reminder, not a second procedure');
+    expect($content)->not->toContain('Every other cleanup call site in this file inherits this gate');
+
+    expect($content)->toContain('under *Run cleanup*\'s `## PID` ownership gate, never unconditionally');
+    expect($content)->toContain('still subject to its `## PID` ownership gate');
+    expect($content)->toContain('its `## PID` ownership gate is what clears them');
+    expect($content)->toContain('the three scratch files (under its `## PID` ownership gate)');
+});
+
+test('the Run cleanup anchor is cross-referenced by name from athena and the compound-engineering rule (issue #200)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    // The pinned handoff phrase stays; only the anchor it points at changes.
+    expect($athena)->toContain('Record the worktree path in your handoff');
+    expect($athena)->toContain('removes it during *Run cleanup*');
+    expect($athena)->not->toContain('during its cleanup (step 7 of `agents/daidalos.md`)');
+
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    expect($rule)->toContain('released by `daidalos` during *Run cleanup*');
+    expect($rule)->toContain('*Run cleanup* (`agents/daidalos.md`) is the **reference implementation**');
+    expect($rule)->not->toContain('released by `daidalos` in step 7.');
+    expect($rule)->not->toContain('`daidalos` step 7 is the **reference implementation**');
+});
+
 test('the reviewer delivers incrementally and treats the handoff as authoritative (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 

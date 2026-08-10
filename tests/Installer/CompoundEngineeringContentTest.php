@@ -298,8 +298,17 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     // The exception must state that memory files are never deleted.
     expect($content)->toContain('NEVER deleted');
 
-    // The rule must reference daidalos step 7 as the reference implementation.
-    expect($content)->toContain('daidalos');
+    // The rule must name daidalos's *Run cleanup* checklist as the reference implementation.
+    expect($content)->toContain('`daidalos`\'s *Run cleanup* (`agents/daidalos.md`) is the **reference implementation** of this contract');
+
+    // As the canonical wording of the contract, that sentence must enumerate all three terminal
+    // paths — the analysis-only stop included, since that is the path the brief used to survive on
+    // (issue #200) — matching the write-lock bullet above it instead of naming only two.
+    expect($content)->toContain('.daidalos-write.lock`) on **every** terminating path the run can take');
+    expect($content)->toContain(
+        'the full-delivery report, the analysis-only stop, and any `Blocked` stop — applying each item only where the run has something to clean up',
+    );
+    expect($content)->not->toContain('on both the final report and a `Blocked` stop.');
 });
 
 test('deferred points must be filed as follow-up tracker issues so they are not forgotten', function (): void {
