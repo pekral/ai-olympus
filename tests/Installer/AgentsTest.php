@@ -612,6 +612,47 @@ test('talos owns the executed coverage verdict and reuses the cached build gate 
     expect($talos)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
 
+test('talos checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+
+    expect($talos)->toContain('**Push-level gate dedup by head SHA (always on).**');
+    expect($talos)->toContain('consult the shared brief\'s `## Gate log`');
+    expect($talos)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|talos:scoped');
+    // Unconditional, and consulted before the opt-in tree-hash cache — the two are independent.
+    expect($talos)->toContain('it does not require `## Savings mode: on`');
+    expect($talos)->toContain('consulted **before** the opt-in tree-hash cache below');
+    // The Bash boundary must actually permit the Gate log append it is asked to perform.
+    expect($talos)->toContain('a `## Gate log` entry whenever you run a push-level full build');
+
+    // daidalos creates the section empty during gather, beside (not inside) the opt-in cache.
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    expect($daidalos)->toContain('## Gate log');
+    expect($daidalos)->toContain('**Gate log (always, not opt-in).**');
+    expect($daidalos)->toContain('independent of savings mode and of the opt-in `## Build gate cache` beside it');
+    // The writer is named exactly as the sibling Build-gate-cache bullet names it — not "every specialist".
+    expect($daidalos)->toContain('Whichever `talos` step runs a full build appends its own line under the per-brief append lock');
+    expect($daidalos)->not->toContain('Every specialist that runs a full build appends');
+});
+
+test('athena frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    expect($athena)->toContain('**Success criteria must be a machine-checkable acceptance checklist (issue #212).**');
+    expect($athena)->toContain('one `- [ ] ` item per criterion, never a prose paragraph');
+    expect($athena)->toContain('`- [ ] [Critical] …` / `- [ ] [Moderate] …` / `- [ ] [Minor] …`');
+    expect($athena)->toContain('never two joined by "and"');
+    // The generic analyze-problem format is deliberately left alone for every other caller.
+    expect($athena)->toContain('not a change to `@skills/analyze-problem/SKILL.md`\'s generic Success-criteria format');
+    // The checklist reaches the published issue in a state a following agent can parse.
+    expect($athena)->toContain('**verbatim, in GFM task-list syntax**');
+
+    // talos knows to hand the plan link to resolve-issue, whose gate blocks the PR.
+    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    expect($talos)->toContain('**blocks PR creation** until every `[Critical]` / `[Moderate]` item is ticked');
+});
+
 test('daidalos sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
