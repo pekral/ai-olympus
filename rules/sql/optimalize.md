@@ -129,6 +129,38 @@ foreach ($externalIds as $externalId) {
 }
 ```
 
+## Bounded reads over unbounded materialisation
+Batching the *writes* is only half the problem. A loop that batches perfectly still falls over if the collection it iterates was loaded whole: `Model::all()`, an unfiltered `->get()`, or a `->pluck()` over a table that grows with the business holds every row and every hydrated model in memory at once. It passes every test against a seeded fixture set and dies in production against real volume, which is why it survives review — the defect is invisible at the size the reviewer sees.
+
+- **A result set whose size grows with the data is read in chunks, never materialised whole.** Use `chunkById()` for a keyset walk, `lazyById()` / `cursor()` when the caller wants a single `foreach` over a lazy stream, and pass an explicit chunk size. A set with a hard, small upper bound the schema itself guarantees — a lookup table, an enum-backed list, a `LIMIT`ed top-N — is materialised whole without a finding.
+- **Prefer `chunkById()` / `lazyById()` over `chunk()` / `lazy()` when the loop writes to the same table it reads.** Offset-based `chunk()` re-runs the query per page, so a row the loop updates out of the filtered set shifts every later page and the walk **silently skips rows**. Keyset-based `chunkById()` walks `id > lastSeen` and cannot skip. This is a correctness bug, not only a performance one.
+- **`cursor()` bounds PHP memory, not the driver's.** It streams hydrated models one at a time, but the underlying PDO connection still buffers the whole result unless the driver is put into unbuffered mode. Reach for `chunkById()` when the set is large enough that the buffer itself is the problem.
+- **An `IN (…)` list is bounded too.** A `whereIn()` built from an unbounded caller-supplied array grows the statement until it hits `max_allowed_packet` or the placeholder limit. Chunk the list (`array_chunk($ids, 1000)`) and issue one query per chunk.
+- **Goal:** peak memory and statement size stay flat as the table grows, instead of tracking it.
+
+```php
+// Bad — the whole table is hydrated before the first iteration
+foreach (Order::all() as $order) {
+    $rows[] = ['id' => $order->id, 'total' => $order->recalculateTotal()];
+}
+
+// Bad — offset paging while writing to the same filtered set skips rows
+Order::query()->where('needs_recalc', true)->chunk(500, function (Collection $orders): void {
+    $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders), 'id');
+});
+
+// Good — keyset paging cannot skip, and peak memory is one chunk
+Order::query()->where('needs_recalc', true)->chunkById(500, function (Collection $orders): void {
+    $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders), 'id');
+});
+
+// Good — an unbounded id list is chunked instead of one oversized statement
+foreach (array_chunk($externalIds, 1_000) as $chunk) {
+    $contacts = $this->contactRepository->findByExternalIdIn($chunk);
+    // ...
+}
+```
+
 ## Transactions and Locking
 - Keep transactions short — no external calls or heavy logic inside.
 - Batch related writes in a single transaction.
