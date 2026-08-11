@@ -1298,6 +1298,32 @@ test('daidalos probes the same-slug brief before overwriting it, so a live peer 
     expect($content)->toContain('an audit trail that a concurrent run can silently reset is not an audit trail');
 });
 
+test('athena subjects the security plan publication to its own disclosure guard (issue #228)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    // Step 4 published the whole analysis while the disclosure rule sat in step 9, unreferenced.
+    expect($content)->toContain('Publishing the plan is itself a disclosure decision — subject it to step 9\'s guard');
+    expect($content)->toContain('this step publishes the **whole** analysis, so it is the larger disclosure');
+
+    // The #212 checklist format is what makes the leak precise, so the guard has to say so.
+    expect($content)->toContain('a precise, machine-readable statement that a named control is missing at a named place');
+
+    // Same visibility check as step 9 — a private tracker is not a disclosure surface. Three
+    // occurrences: step 9's rule, this step's, and the Bash boundary that permits the call.
+    expect(substr_count($content, 'gh repo view --json isPrivate'))->toBe(3);
+    expect($content)->toContain('On a **private** tracker nothing here applies — publish the plan as written');
+
+    // Three routes, and the honest limit on the cheapest one.
+    expect($content)->toContain('Phrase every item as the invariant that must hold');
+    expect($content)->toContain('not** sufficient on its own for a `Critical`');
+    expect($content)->toContain('Route the plan to the project\'s private security channel');
+    expect($content)->toContain('the project owner explicitly accepted that exposure');
+
+    // Withholding stays the fallback, and the human keeps the decision.
+    expect($content)->toContain('withhold the plan, carry it in your handoff instead');
+});
+
 test('the read-only CR agent carries the web tools the third-party documentation walk requires (issue #151)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
