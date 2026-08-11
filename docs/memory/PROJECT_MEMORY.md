@@ -35,11 +35,11 @@
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/646   Added: 2026-06-20   Updated: 2026-07-19 (PR #73)
 - Role:    hefaistos
 
-### agent-rename-sync-points — Renaming an agent must sync pinned InstallerTest phrases and reserved-name notes too
-- Trigger: an agent is renamed (e.g. `keryx` → `hermes`) and the author updates the obvious files (`agents/<name>.md`, `docs/agents.md`, `README.md`) but forgets a non-obvious sync point: pinned phrases in `tests/InstallerTest.php`, or a reserved-name note in `docs/agents.md`.
-- Rule:    Renaming touches more than 4 obvious files: (1) `git mv agents/<old>.md agents/<new>.md`, rewrite `name:`/prose/handoff phrases; (2) `tests/InstallerTest.php` pins agent prose verbatim — every phrase must stay byte-identical or `composer build` fails; (3) grep the repo for the old slug (all case variants), confirm 0 occurrences; (4) if `docs/agents.md` reserves the new name for a future agent, redirect that reservation to another free Greek name. Do it all in one commit, including the avatar swap at `assets/agents/<new>.png` (swapped in from `placeholder.svg`).
-- Example: PR #647 renamed `keryx` → `hermes`: pinned phrases in `tests/InstallerTest.php` rewritten in lockstep with `agents/hermes.md`, the `hermes` reservation (~`docs/agents.md:95`) redirected to `iris`. argos converged iteration 1 (0/0/0); `grep -ri keryx` returned 0 outside `.claude/`.
-- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/647   Added: 2026-06-20
+### agent-rename-sync-points — Renaming an agent must sync its pinned and derived points too
+- Trigger: an agent is renamed and the author updates the obvious files (`agents/<name>.md`, `docs/agents.md`, `README.md`) but forgets a pinned or derived sync point.
+- Rule:    (1) `git mv` `agents/<old>.md` + `assets/agents/<old>.png`, rewrite `name:`/prose/handoff; (2) `tests/InstallerTest.php` pins prose verbatim — byte-identical or the build fails; (3) grep all case variants, confirm 0; (4) redirect any `docs/agents.md` reservation of the new name. Three are **derived from `agents/*.md` at test time**, so a grep for the old name misses them: `assets/social-preview.svg` (a longer name needs a wider chip **and** the row re-centred on x=640, then `rsvg-convert -w 1280 -h 640` + both digests in `SocialPreviewAssetTest`); `.github/ISSUE_TEMPLATE/feature_request.yml`; and `src/AgentBashBoundaryPolicy.php` (parity binds policy keys to `agents/*.md`, so **no old-name alias is possible** and an un-pruned consumer loses its per-agent Bash rules — say so in the PR). Rewrite etymology by hand; a mechanical replace picks the wrong myth. `CHANGELOG.md` and dated `Example:` lines stay history; re-point only live `Trigger:`/`Rule:`/`Role:`.
+- Example: PR #647 `keryx` → `hermes`: pinned `tests/InstallerTest.php` phrases rewritten in lockstep with `agents/hermes.md`, the `hermes` reservation redirected to `iris`, 0/0/0. Recurrence PR #237 (#231) `talos` → `hefaistos`: the three derived points were the whole cost; 34 files, 0/0/0.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/647   Added: 2026-06-20   Updated: 2026-08-11 (PR #237)
 - Role:    hefaistos
 
 ### verify-agent-registration-premise — Verify an agent's registration status against the live roster before relying on a recorded premise about it
