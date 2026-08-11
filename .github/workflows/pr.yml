@@ -50,5 +50,8 @@ jobs:
       - name: "🔎 PHPStan Analysis"
         run: composer analyse
 
+      - name: "🐚 ShellCheck"
+        run: composer shellcheck
+
       - name: "📊 Coverage Tests"
         run: composer test:coverage

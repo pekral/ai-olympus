@@ -105,6 +105,7 @@
       "@analyse",
       "@security-audit",
       "@shell-self-tests",
+      "@shellcheck",
       "@test:coverage"
     ],
     "composer-normalize-check": [
@@ -162,6 +163,10 @@
       "bash skills/_shared/scan-attachments.sh --self-test",
       "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test",
       "bash skills/resolve-and-merge/scripts/select-candidates.sh --self-test"
+    ],
+    "shellcheck": [
+      "echo \"🐚 Running ShellCheck...\"",
+      "if ! command -v shellcheck > /dev/null 2>&1; then echo '⏭️  shellcheck is not installed locally — skipped here; the CI step enforces it.'; exit 0; fi; git ls-files -z '*.sh' | xargs -0 shellcheck -x -P SCRIPTDIR"
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
