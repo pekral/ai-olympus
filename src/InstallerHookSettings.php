@@ -11,12 +11,12 @@ use stdClass;
  * Writes the `hooks.PreToolUse` entry that turns the per-agent Bash boundary from documentation
  * into a decision the harness asks for before a Bash call runs (issue #185).
  *
- * It mirrors the shape of `InstallerClaudeSettings`'s opt-in writers method for method — an
- * idempotent, additive write followed by a read-back that validates what actually landed, because
- * a security control must never report success it did not apply — and shares that class's
- * settings round-trip through `InstallerSettingsFile` rather than copying it. It is a separate
- * class only because `InstallerClaudeSettings` already sits at the project's maximum class length;
- * splitting that class by concern is issue #202 and is not attempted here.
+ * It mirrors the shape of the installer's other opt-in writers method for method — an idempotent,
+ * additive write followed by a read-back that validates what actually landed, because a security
+ * control must never report success it did not apply — and shares their settings round-trip through
+ * `InstallerSettingsFile` rather than copying it. It writes the same project-local file as
+ * `InstallerProjectSettings` but stays a class of its own: that one owns the `permissions` lists,
+ * this one owns the `hooks` entry, and the two shapes have no field in common.
  */
 final class InstallerHookSettings
 {
@@ -77,7 +77,7 @@ final class InstallerHookSettings
      */
     public static function ensureAgentBashBoundaryHook(string $projectRoot, string $command): bool
     {
-        $settingsPath = InstallerClaudeSettings::resolveProjectLocalSettingsPath($projectRoot);
+        $settingsPath = InstallerProjectSettings::resolveProjectLocalSettingsPath($projectRoot);
         $existing = InstallerSettingsFile::read($settingsPath);
 
         if (!self::appendBashHookHandler($existing, $command)) {
@@ -125,7 +125,7 @@ final class InstallerHookSettings
      */
     public static function loadProjectLocalBashHookCommands(string $projectRoot): array
     {
-        $settingsPath = InstallerClaudeSettings::resolveProjectLocalSettingsPath($projectRoot);
+        $settingsPath = InstallerProjectSettings::resolveProjectLocalSettingsPath($projectRoot);
         $commands = [];
 
         foreach (self::extractBashHookHandlers(InstallerSettingsFile::read($settingsPath)) as $handler) {

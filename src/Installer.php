@@ -132,8 +132,8 @@ final class Installer
         );
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
-        $subagentWritesEnabled = InstallerClaudeSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
-        $networkBashDenied = InstallerClaudeSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
+        $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
+        $networkBashDenied = InstallerProjectSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
         $bashBoundaryEnforced = InstallerHookSettings::applyAgentBashBoundaryIfRequested($options->enforceAgentBashBoundary, $root, $processExecutor);
 
         self::reportInstallSummary(new InstallSummary(

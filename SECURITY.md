@@ -85,9 +85,9 @@ These entries pre-allow dispatched subagents (e.g. `hefaistos`) to write files i
 
 **Why `settings.local.json` and not `settings.json`.** The entries carry a machine-absolute path — they are personal and not portable. `settings.local.json` is git-ignored by Claude Code by default, so the absolute path never leaks into version control.
 
-**Safety guarantees.** The flag is idempotent: it only adds missing entries and never removes or modifies existing ones. After writing, the installer reads the file back and validates that every required entry is present (`InstallerClaudeSettings::validateSubagentWritePermissions()`), so a malformed file can never be produced. The package grants nothing by default — this flag is the explicit, human-owned opt-in.
+**Safety guarantees.** The flag is idempotent: it only adds missing entries and never removes or modifies existing ones. After writing, the installer reads the file back and validates that every required entry is present (`InstallerProjectSettings::validateSubagentWritePermissions()`), so a malformed file can never be produced. The package grants nothing by default — this flag is the explicit, human-owned opt-in.
 
-**Implementation reference.** `src/InstallerClaudeSettings.php` — `applySubagentWritesIfRequested()` → `ensureSubagentWritesEnabled()`.
+**Implementation reference.** `src/InstallerProjectSettings.php` — `applySubagentWritesIfRequested()` → `ensureSubagentWritesEnabled()`.
 
 See also: [docs/agents.md — Troubleshooting (subagent file writes blocked)](docs/agents.md#troubleshooting--subagent-file-writes-blocked) and [docs/plans/agent-sandbox-write-blocked.md](docs/plans/agent-sandbox-write-blocked.md).
 
@@ -116,11 +116,11 @@ Claude Code then **refuses** those commands before they run. This is the vendor'
 
 The tier that would actually close 1–4 is Claude Code **sandboxing**, an OS-level restriction on the Bash tool's filesystem and network access that also covers child processes. **This package does not configure sandboxing**, and this flag only approximates it for literal, first-order network commands. Treat the gain as *advisory instruction → harness-enforced refusal for the listed command strings*, not as containment against a determined agent.
 
-**Safety guarantees.** The flag is idempotent and additive: it only appends missing patterns, and existing `permissions.allow` entries and unrelated keys are preserved untouched, as is every string entry already in `permissions.deny` (nothing is reordered). One precise exception, stated rather than glossed over: a **non-string** item inside `permissions.deny` — a number, `null`, an object — is dropped when that list is rewritten, because the installer sanitises the list to strings and such an item is not a rule Claude Code could enforce in the first place. After writing, the installer reads the file back and validates that every pattern is present (`InstallerClaudeSettings::validateNetworkBashDenyPermissions()`) — so the installer never reports the restriction as applied when it was not actually written. Unlike `--allow-bundled-scripts`, it has no `HOME` precondition that could turn it into a silent no-op.
+**Safety guarantees.** The flag is idempotent and additive: it only appends missing patterns, and existing `permissions.allow` entries and unrelated keys are preserved untouched, as is every string entry already in `permissions.deny` (nothing is reordered). One precise exception, stated rather than glossed over: a **non-string** item inside `permissions.deny` — a number, `null`, an object — is dropped when that list is rewritten, because the installer sanitises the list to strings and such an item is not a rule Claude Code could enforce in the first place. After writing, the installer reads the file back and validates that every pattern is present (`InstallerProjectSettings::validateNetworkBashDenyPermissions()`) — so the installer never reports the restriction as applied when it was not actually written. Unlike `--allow-bundled-scripts`, it has no `HOME` precondition that could turn it into a silent no-op.
 
 **How to undo it.** There is no inverse flag. Open `.claude/settings.local.json` in the project, delete the ten `Bash(...)` strings above from the `permissions.deny` array (leaving any entry you added yourself), and save. Removing the whole `deny` key is also safe if it holds nothing else.
 
-**Implementation reference.** `src/InstallerClaudeSettings.php` — `applyNetworkBashDenyIfRequested()` → `ensureNetworkBashDenyPermissions()`, patterns in `getNetworkBashDenyPermissions()`.
+**Implementation reference.** `src/InstallerProjectSettings.php` — `applyNetworkBashDenyIfRequested()` → `ensureNetworkBashDenyPermissions()`, patterns in `getNetworkBashDenyPermissions()`.
 
 ### `--enforce-agent-bash-boundary`
 

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 use AgenticVibes\AgentSkills\Installer;
 use AgenticVibes\AgentSkills\InstallerClaudeSettings;
 use AgenticVibes\AgentSkills\InstallerFailure;
+use AgenticVibes\AgentSkills\InstallerProjectSettings;
 
 test('InstallerClaudeSettings exposes the two bundled-script permission patterns', function (): void {
     $patterns = InstallerClaudeSettings::getBundledScriptPermissions();
@@ -15,8 +16,8 @@ test('InstallerClaudeSettings exposes the two bundled-script permission patterns
     ]);
 });
 
-test('InstallerClaudeSettings exposes exactly the ten network-Bash deny patterns', function (): void {
-    expect(InstallerClaudeSettings::getNetworkBashDenyPermissions())->toBe([
+test('InstallerProjectSettings exposes exactly the ten network-Bash deny patterns', function (): void {
+    expect(InstallerProjectSettings::getNetworkBashDenyPermissions())->toBe([
         'Bash(curl:*)',
         'Bash(wget:*)',
         'Bash(nc:*)',
@@ -31,7 +32,7 @@ test('InstallerClaudeSettings exposes exactly the ten network-Bash deny patterns
 });
 
 test('every network-Bash deny pattern uses the :* trailing-wildcard form and openssl is never denied wholesale', function (): void {
-    $patterns = InstallerClaudeSettings::getNetworkBashDenyPermissions();
+    $patterns = InstallerProjectSettings::getNetworkBashDenyPermissions();
 
     foreach ($patterns as $pattern) {
         // The `:*` suffix is only recognised at the end of a pattern, and it is the form
@@ -240,14 +241,14 @@ test('ensureBundledScriptPermissions raises InstallerFailure when ~/.claude path
 });
 
 test('resolveProjectLocalSettingsPath joins the project root with /.claude/settings.local.json', function (): void {
-    expect(InstallerClaudeSettings::resolveProjectLocalSettingsPath('/tmp/project'))->toBe('/tmp/project/.claude/settings.local.json');
+    expect(InstallerProjectSettings::resolveProjectLocalSettingsPath('/tmp/project'))->toBe('/tmp/project/.claude/settings.local.json');
 });
 
 test('ensureSubagentWritesEnabled writes scoped Edit/Write entries into a fresh settings.local.json', function (): void {
     $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
 
     try {
-        $written = InstallerClaudeSettings::ensureSubagentWritesEnabled($root);
+        $written = InstallerProjectSettings::ensureSubagentWritesEnabled($root);
 
         expect($written)->toBeTrue();
 
@@ -276,7 +277,7 @@ test('ensureSubagentWritesEnabled prepends to existing allow without dropping un
     ], JSON_PRETTY_PRINT));
 
     try {
-        $written = InstallerClaudeSettings::ensureSubagentWritesEnabled($root);
+        $written = InstallerProjectSettings::ensureSubagentWritesEnabled($root);
 
         expect($written)->toBeTrue();
 
@@ -309,7 +310,7 @@ test('ensureSubagentWritesEnabled is idempotent when both entries are already pr
     ], JSON_PRETTY_PRINT));
 
     try {
-        expect(InstallerClaudeSettings::ensureSubagentWritesEnabled($root))->toBeFalse();
+        expect(InstallerProjectSettings::ensureSubagentWritesEnabled($root))->toBeFalse();
     } finally {
         installerRemoveDirectory($root);
     }
@@ -323,7 +324,7 @@ test('ensureSubagentWritesEnabled adds only the missing entry when one is alread
     ], JSON_PRETTY_PRINT));
 
     try {
-        expect(InstallerClaudeSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
 
         $data = json_decode((string) file_get_contents($settingsPath), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
         assert(is_array($data));
@@ -346,7 +347,7 @@ test('ensureSubagentWritesEnabled recovers when permissions.allow is the wrong s
     ]));
 
     try {
-        expect(InstallerClaudeSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
 
         $data = json_decode((string) file_get_contents($settingsPath), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
         assert(is_array($data));
@@ -368,7 +369,7 @@ test('ensureSubagentWritesEnabled recovers when permissions key is the wrong sha
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => 'not-an-object']));
 
     try {
-        expect(InstallerClaudeSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureSubagentWritesEnabled($root))->toBeTrue();
 
         $data = json_decode((string) file_get_contents($settingsPath), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
         assert(is_array($data));
@@ -386,7 +387,7 @@ test('ensureSubagentWritesEnabled recovers when permissions key is the wrong sha
 test('applySubagentWritesIfRequested returns false when the flag is not set', function (): void {
     $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
 
-    expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: false, projectRoot: $root))->toBeFalse();
+    expect(InstallerProjectSettings::applySubagentWritesIfRequested(allowSubagentWrites: false, projectRoot: $root))->toBeFalse();
     expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
 });
 
@@ -394,7 +395,7 @@ test('applySubagentWritesIfRequested writes the allow entries when requested', f
     $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
 
     try {
-        expect(InstallerClaudeSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, projectRoot: $root))->toBeTrue();
+        expect(InstallerProjectSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, projectRoot: $root))->toBeTrue();
         expect(is_file($root . '/.claude/settings.local.json'))->toBeTrue();
     } finally {
         installerRemoveDirectory($root);
@@ -404,7 +405,7 @@ test('applySubagentWritesIfRequested writes the allow entries when requested', f
 test('validateSubagentWritePermissions passes when every required entry is present', function (): void {
     $data = json_decode('{"permissions":{"allow":["Edit(//tmp/p/**)","Write(//tmp/p/**)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    InstallerClaudeSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
+    InstallerProjectSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
 
     expect(value: true)->toBeTrue();
 });
@@ -413,7 +414,7 @@ test('validateSubagentWritePermissions throws when a required entry is missing',
     $data = json_decode('{"permissions":{"allow":["Edit(//tmp/p/**)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
     expect(static function () use ($data): void {
-        InstallerClaudeSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
+        InstallerProjectSettings::validateSubagentWritePermissions($data, ['Edit(//tmp/p/**)', 'Write(//tmp/p/**)'], '/tmp/x');
     })->toThrow(InstallerFailure::class);
 });
 
@@ -421,12 +422,12 @@ test('ensureNetworkBashDenyPermissions writes every pattern into a fresh setting
     $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
 
         $settingsPath = $root . '/.claude/settings.local.json';
         expect(is_file($settingsPath))->toBeTrue();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -444,11 +445,11 @@ test('ensureNetworkBashDenyPermissions preserves existing allow entries and fore
     ], JSON_PRETTY_PRINT));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
 
         // The foreign deny entry keeps its position; the package's patterns are appended after it.
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(['Bash(rm -rf:*)', ...InstallerClaudeSettings::getNetworkBashDenyPermissions()]);
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(['Bash(rm -rf:*)', ...InstallerProjectSettings::getNetworkBashDenyPermissions()]);
 
         $data = json_decode((string) file_get_contents($settingsPath), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
         assert(is_array($data));
@@ -467,10 +468,10 @@ test('ensureNetworkBashDenyPermissions is idempotent across two consecutive call
     $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeFalse();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeFalse();
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -484,9 +485,9 @@ test('ensureNetworkBashDenyPermissions adds only the missing patterns and drops 
     ]));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -498,9 +499,9 @@ test('ensureNetworkBashDenyPermissions recovers when permissions.deny is the wro
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => ['deny' => 'string-not-array']]));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -512,9 +513,9 @@ test('ensureNetworkBashDenyPermissions recovers when the permissions key is the 
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => 'not-an-object']));
 
     try {
-        expect(InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -525,7 +526,7 @@ test('ensureNetworkBashDenyPermissions raises InstallerFailure when settings.loc
     installerWriteFile($root . '/.claude/settings.local.json', '{not-valid-json');
 
     try {
-        expect(static fn (): bool => InstallerClaudeSettings::ensureNetworkBashDenyPermissions($root))
+        expect(static fn (): bool => InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))
             ->toThrow(InstallerFailure::class);
     } finally {
         installerRemoveDirectory($root);
@@ -533,13 +534,13 @@ test('ensureNetworkBashDenyPermissions raises InstallerFailure when settings.loc
 });
 
 test('loadProjectLocalDenyList returns an empty list when no settings.local.json exists', function (): void {
-    expect(InstallerClaudeSettings::loadProjectLocalDenyList(sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4))))->toBe([]);
+    expect(InstallerProjectSettings::loadProjectLocalDenyList(sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4))))->toBe([]);
 });
 
 test('applyNetworkBashDenyIfRequested returns false and writes nothing when the flag is not set', function (): void {
     $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
 
-    expect(InstallerClaudeSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: false, projectRoot: $root))->toBeFalse();
+    expect(InstallerProjectSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: false, projectRoot: $root))->toBeFalse();
     expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
 });
 
@@ -547,9 +548,9 @@ test('applyNetworkBashDenyIfRequested writes the deny entries when requested', f
     $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
 
     try {
-        expect(InstallerClaudeSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: true, projectRoot: $root))->toBeTrue();
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: true, projectRoot: $root))->toBeTrue();
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRemoveDirectory($root);
     }
@@ -558,7 +559,7 @@ test('applyNetworkBashDenyIfRequested writes the deny entries when requested', f
 test('validateNetworkBashDenyPermissions passes when every required entry is present', function (): void {
     $data = json_decode('{"permissions":{"deny":["Bash(curl:*)","Bash(wget:*)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    InstallerClaudeSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)', 'Bash(wget:*)'], '/tmp/x');
+    InstallerProjectSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)', 'Bash(wget:*)'], '/tmp/x');
 
     expect(value: true)->toBeTrue();
 });
@@ -567,7 +568,7 @@ test('validateNetworkBashDenyPermissions throws when a required entry is missing
     $data = json_decode('{"permissions":{"deny":["Bash(curl:*)"]}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
     expect(static function () use ($data): void {
-        InstallerClaudeSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)', 'Bash(wget:*)'], '/tmp/x');
+        InstallerProjectSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)', 'Bash(wget:*)'], '/tmp/x');
     })->toThrow(InstallerFailure::class);
 });
 
@@ -575,7 +576,7 @@ test('validateNetworkBashDenyPermissions throws when the permissions key is not 
     $data = json_decode('{"permissions":"not-an-object"}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
     expect(static function () use ($data): void {
-        InstallerClaudeSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)'], '/tmp/x');
+        InstallerProjectSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)'], '/tmp/x');
     })->toThrow(InstallerFailure::class);
 });
 
@@ -583,7 +584,7 @@ test('validateNetworkBashDenyPermissions throws when permissions.deny is not an 
     $data = json_decode('{"permissions":{"deny":"not-an-array"}}', associative: false, depth: 512, flags: JSON_THROW_ON_ERROR);
 
     expect(static function () use ($data): void {
-        InstallerClaudeSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)'], '/tmp/x');
+        InstallerProjectSettings::validateNetworkBashDenyPermissions($data, ['Bash(curl:*)'], '/tmp/x');
     })->toThrow(InstallerFailure::class);
 });
 
@@ -608,8 +609,8 @@ test('install --deny-network-bash writes the deny entries and reports it', funct
 
         expect($output)->toContain('Denied outbound-network Bash commands');
         expect($output)->toContain('session-wide in .claude/settings.local.json.');
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
@@ -635,7 +636,7 @@ test('install without --deny-network-bash writes no deny entry at all', function
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Denied outbound-network Bash commands');
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))->toBe([]);
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))->toBe([]);
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
@@ -665,8 +666,8 @@ test('install --deny-network-bash is idempotent and reports nothing on the secon
         $secondOutput = ob_get_clean();
 
         expect($secondOutput)->not->toContain('Denied outbound-network Bash commands');
-        expect(InstallerClaudeSettings::loadProjectLocalDenyList($root))
-            ->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect(InstallerProjectSettings::loadProjectLocalDenyList($root))
+            ->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
@@ -698,7 +699,7 @@ test('install --deny-network-bash and --allow-subagent-writes coexist in one set
         $allow = $permissions['allow'];
         assert(is_array($allow));
         expect($allow[0])->toStartWith('Edit(/');
-        expect($permissions['deny'])->toBe(InstallerClaudeSettings::getNetworkBashDenyPermissions());
+        expect($permissions['deny'])->toBe(InstallerProjectSettings::getNetworkBashDenyPermissions());
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }

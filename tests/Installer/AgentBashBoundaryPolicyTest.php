@@ -9,7 +9,7 @@ use AgenticVibes\AgentSkills\BashBoundaryRule;
 use AgenticVibes\AgentSkills\BashCommandInspector;
 use AgenticVibes\AgentSkills\BashCommandInvocation;
 use AgenticVibes\AgentSkills\BashCommandTokenizer;
-use AgenticVibes\AgentSkills\InstallerClaudeSettings;
+use AgenticVibes\AgentSkills\InstallerProjectSettings;
 
 test('the decision corpus resolves exactly as the policy declares, in both directions', function (): void {
     $unexpected = [];
@@ -113,7 +113,7 @@ test('the global policy is at least as strict as the session-wide --deny-network
         $programs[] = $rule->program;
     }
 
-    $denied = InstallerClaudeSettings::getNetworkBashDenyPermissions();
+    $denied = InstallerProjectSettings::getNetworkBashDenyPermissions();
     $sessionWide = [];
 
     foreach ($denied as $pattern) {

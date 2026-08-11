@@ -41,7 +41,7 @@ final class AgentBashBoundaryPolicy
 
     /**
      * The *No outbound network request of any kind* bullet, one program per token. It is a
-     * superset of `InstallerClaudeSettings::getNetworkBashDenyPermissions()`: `socat`, `aria2c`,
+     * superset of `InstallerProjectSettings::getNetworkBashDenyPermissions()`: `socat`, `aria2c`,
      * `ftp`, and `httpie` are the "unlisted tools" that flag's own bypass list names as open.
      */
     private const array NETWORK_PROGRAMS = [

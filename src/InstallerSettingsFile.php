@@ -8,14 +8,17 @@ use JsonException;
 use stdClass;
 
 /**
- * The read/write round-trip for a Claude Code settings file.
+ * The read/write round-trip for a Claude Code settings file, plus the `permissions` list handling
+ * every writer of one needs.
  *
  * Extracted from `InstallerClaudeSettings` unchanged so a second writer — the `PreToolUse` hook
  * entry `--enforce-agent-bash-boundary` registers — can reuse it instead of duplicating it. That
  * matters more here than anywhere else in the installer: both writers touch security-relevant
  * configuration, and a second copy of the `stdClass` handling below is exactly the kind of drift
- * that silently corrupts a settings file on one path and not the other. Splitting the remaining
- * concerns of `InstallerClaudeSettings` is issue #202 and is not attempted here.
+ * that silently corrupts a settings file on one path and not the other. The same reasoning brought
+ * the two permission-list readers here when issue #202 split the home-level writers
+ * (`InstallerClaudeSettings`) from the project-local ones (`InstallerProjectSettings`): both halves
+ * read the same `permissions` shape, so it has exactly one implementation.
  */
 final class InstallerSettingsFile
 {
@@ -70,6 +73,62 @@ final class InstallerSettingsFile
         if ($written === false) {
             throw InstallerFailure::settingsJsonWriteFailed($path, 'file_put_contents returned false');
         }
+    }
+
+    /**
+     * Resolves the settings object's `permissions` container (creating it when absent
+     * or the wrong shape) and one of its lists (`allow` / `deny`) sanitised to strings only.
+     *
+     * @return array{0: \stdClass, 1: array<int, string>}
+     */
+    public static function resolvePermissionList(stdClass $existing, string $key): array
+    {
+        $permissions = $existing->permissions ?? null;
+
+        if (!$permissions instanceof stdClass) {
+            $permissions = new stdClass();
+        }
+
+        $entries = $permissions->{$key} ?? null;
+
+        if (!is_array($entries)) {
+            $entries = [];
+        }
+
+        return [$permissions, self::toStringList($entries)];
+    }
+
+    /**
+     * Reads one `permissions` list (`allow` / `deny`) off an already-decoded settings object,
+     * sanitised to strings only. Unlike `resolvePermissionList()` this never creates the
+     * container — it is the read-only projection used by the load and validate paths.
+     *
+     * @return array<int, string>
+     */
+    public static function extractPermissionList(stdClass $data, string $key): array
+    {
+        $permissions = $data->permissions ?? null;
+
+        if (!$permissions instanceof stdClass) {
+            return [];
+        }
+
+        $entries = $permissions->{$key} ?? null;
+
+        if (!is_array($entries)) {
+            return [];
+        }
+
+        return self::toStringList($entries);
+    }
+
+    /**
+     * @param array<array-key, mixed> $entries
+     * @return array<int, string>
+     */
+    private static function toStringList(array $entries): array
+    {
+        return array_values(array_filter($entries, static fn (mixed $entry): bool => is_string($entry)));
     }
 
 }
