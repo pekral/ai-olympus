@@ -100,6 +100,38 @@ test('a concatenated --deny-network-bash actually reaches InstallOptions (a secu
     expect(InstallOptions::fromArgv($normalized)->allowSubagentWrites)->toBeTrue();
 });
 
+test('help text documents the --enforce-agent-bash-boundary flag and the session restart it needs', function (): void {
+    ob_start();
+    $exitCode = Installer::run(['agent-skills']);
+    $output = ob_get_clean();
+
+    expect($exitCode)->toBe(0);
+    expect($output)->toContain('--enforce-agent-bash-boundary');
+    expect($output)->toContain('PreToolUse hook in .claude/settings.local.json');
+    // Hooks are snapshotted at session start, so an installer that stays silent about the restart
+    // leaves the user believing in a restriction that will not take effect until they happen to
+    // restart for some other reason.
+    expect($output)->toContain('Restart your');
+    expect($output)->toContain('Fails open');
+});
+
+test('normalizeCliArguments splits --enforce-agent-bash-boundary from a concatenated argv blob', function (): void {
+    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--editor=claude--enforce-agent-bash-boundary']);
+
+    expect($normalized)->toContain('--editor=claude');
+    expect($normalized)->toContain('--enforce-agent-bash-boundary');
+});
+
+test('a concatenated --enforce-agent-bash-boundary actually reaches InstallOptions (a security flag must never silently no-op)', function (): void {
+    // The assertion that matters is on InstallOptions, not on the split: a flag missing from the
+    // hardcoded alternation in normalizeCliArguments() splits into nothing and fromArgv() then
+    // never sees it, so the flag would report success while doing nothing at all.
+    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--deny-network-bash--enforce-agent-bash-boundary']);
+
+    expect(InstallOptions::fromArgv($normalized)->enforceAgentBashBoundary)->toBeTrue();
+    expect(InstallOptions::fromArgv($normalized)->denyNetworkBash)->toBeTrue();
+});
+
 test('installation docs document every InstallOptions flag in both the command list and the CLI switches table (issue #102)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     // Issue #105 moved the operational installer reference out of README.md; the
