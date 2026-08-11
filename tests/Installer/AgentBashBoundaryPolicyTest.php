@@ -206,6 +206,37 @@ test('every sensitive path the prose forbids reading is matched by a pattern, an
     expect(array_values(array_diff(array_values($patterns), $used)))->toBe([]);
 });
 
+test('every writable-path fragment is granted by the prose or recorded as an addition with its reason', function (): void {
+    // A prose grant names a family (`.claude/run/*`); the fragment is that family up to its glob.
+    $granted = [];
+
+    foreach (installerBoundaryBulletLiterals('Read-only agents') as $literal) {
+        if (str_contains($literal, '/')) {
+            $granted[] = strtok($literal, '*');
+        }
+    }
+
+    $fragments = array_values(array_unique(array_merge(...array_values(AgentBashBoundaryPolicy::getWritablePathFragments()))));
+    $ungranted = AgentBashBoundaryPolicy::getUngrantedWritableFragments();
+
+    expect($granted)->not->toBe([]);
+    expect($fragments)->not->toBe([]);
+
+    // Policy → prose: a fragment the prose does not grant must carry a recorded reason, so
+    // `/dev/null` is a decision on the record instead of an undocumented widening.
+    expect(array_values(array_diff($fragments, $granted, array_keys($ungranted))))->toBe([]);
+
+    // Prose → policy: a path the rule file grants that no agent can actually write is a grant
+    // the validator silently refuses.
+    expect(array_values(array_diff($granted, $fragments)))->toBe([]);
+
+    // A record whose fragment the prose has since adopted is stale, and an empty reason records nothing.
+    foreach ($ungranted as $fragment => $reason) {
+        expect($granted)->not->toContain($fragment);
+        expect($reason)->not->toBe('');
+    }
+});
+
 test('an unknown or absent agent_type falls back to the global rules and is never treated as trusted', function (): void {
     expect(AgentBashBoundaryPolicy::rulesFor(agentType: null))->toBe([]);
     expect(AgentBashBoundaryPolicy::rulesFor('not-an-agent'))->toBe([]);

@@ -255,8 +255,9 @@ final class AgentBashBoundaryPolicy
 
     /**
      * Path fragments a write-restricted agent may still redirect output into, or hand to one of
-     * the file-mutating programs above. `/dev/null` is listed because discarding output is not a
-     * write in any meaningful sense, and refusing it would break ordinary read-only command lines.
+     * the file-mutating programs above. A fragment the normative prose does not itself grant is
+     * recorded in `getUngrantedWritableFragments()` with its reason, so a widening of this
+     * allow-list is a decision on the record rather than an unexplained entry.
      *
      * A fragment is a **path prefix matched at a segment boundary**, never a substring: `.claude/run/`
      * covers `.claude/run/gh-1.md` and any absolute path ending in it, but never `foo.claude/run/bar`,
@@ -273,6 +274,24 @@ final class AgentBashBoundaryPolicy
             'athena' => ['/dev/null', '.claude/run/', '.claude/worktrees/agent-cr-'],
             'daidalos' => ['/dev/null', '.claude/run/'],
             'hermes' => ['/dev/null', '.claude/run/'],
+        ];
+    }
+
+    /**
+     * Writable-path fragments this policy grants that the normative prose does **not** name, each
+     * with the reason — the same on-the-record shape `getUncodifiedObligations()` gives the
+     * network bullet, applied to the opposite direction: there the policy is narrower than the
+     * prose, here it is wider.
+     *
+     * The parity test reads this map: a fragment recorded here must still be absent from the prose
+     * grant, so a fragment the rule file later adopts cannot go on being excused as an addition.
+     *
+     * @return array<string, string> the granted fragment => why the prose does not name it
+     */
+    public static function getUngrantedWritableFragments(): array
+    {
+        return [
+            '/dev/null' => 'discarding output is not a write in any meaningful sense, and refusing it would break ordinary read-only command lines.',
         ];
     }
 
