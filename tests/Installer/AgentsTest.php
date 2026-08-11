@@ -119,6 +119,26 @@ test('the roster ships no general problem-analysis subagent and daidalos routes 
     expect(is_file($packageDir . '/agents/metis.md'))->toBeFalse();
     expect(is_file($packageDir . '/assets/agents/metis.png'))->toBeFalse();
 
+    // Deleting the file was never enough: the removed name survived in live prose that still
+    // offered it as a plan source, so an agent reading it could route work to a subagent the
+    // roster cannot dispatch. No shipped agent, rule or skill may name it any more (issue #231).
+    // Two files quote the name in order to record or forbid it: the changelog is the history of
+    // the removal, and this test is the guard itself.
+    $quotesToForbid = ['CHANGELOG.md', 'tests/Installer/AgentsTest.php'];
+    $survivors = [];
+
+    foreach (packageTextFiles() as $relativePath => $contents) {
+        if (in_array($relativePath, $quotesToForbid, strict: true)) {
+            continue;
+        }
+
+        if (str_contains($contents, 'metis')) {
+            $survivors[] = $relativePath;
+        }
+    }
+
+    expect($survivors)->toBe([]);
+
     // Only the security-focused analysis has a specialist (athena); a general analysis request stops.
     expect($daidalos)->toContain('There is no general (non-security) analysis agent in the roster');
     expect($daidalos)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
