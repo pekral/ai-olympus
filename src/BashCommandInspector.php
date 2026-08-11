@@ -136,7 +136,7 @@ final class BashCommandInspector
 
             // The operators themselves are dropped here: they are punctuation, never a program.
             // Their targets stay, so `cat <.env` still exposes `.env` as an argument.
-            $words = $this->plainWords($segment);
+            $words = $this->plainWords($this->moveLeadingRedirectionsBehindProgram($segment));
 
             $this->collectRawSocket($words);
             $this->consumeSegment($words, $depth);
@@ -255,6 +255,53 @@ final class BashCommandInspector
     }
 
     /**
+     * Bash lets a segment open with its redirections — `< in.txt curl …` runs `curl`, and so does
+     * `<<EOF curl …`. A target is an ordinary word, so left in place it becomes the first plain
+     * word and the real program hides behind it: every rule bound to a program token stops firing,
+     * and a sensitive path opened this way (`< .env cat`) stops matching too.
+     *
+     * A path target is moved behind the program rather than dropped, so a sensitive path opened
+     * this way still reaches the argument list exactly as the trailing spelling already puts it
+     * there. A descriptor duplication carries no path, so it is dropped instead — moving it would
+     * hand the write rules a bare `1` to judge as a destination.
+     *
+     * @param list<\AgenticVibes\AgentSkills\BashCommandWord> $words
+     * @return list<\AgenticVibes\AgentSkills\BashCommandWord>
+     */
+    private function moveLeadingRedirectionsBehindProgram(array $words): array
+    {
+        $index = 0;
+        $count = count($words);
+        $targets = [];
+
+        while ($index < $count && $words[$index]->isRedirection) {
+            $operator = $words[$index];
+            $target = $words[$index + 1] ?? null;
+            $index++;
+
+            if ($target === null || $target->isRedirection) {
+                continue;
+            }
+
+            $index++;
+
+            if (!$this->duplicatesDescriptor($operator, $target)) {
+                $targets[] = $target;
+            }
+        }
+
+        return $index === 0 ? $words : [...array_slice($words, $index), ...$targets];
+    }
+
+    /**
+     * `2>&1` and `2>&-` address a file descriptor; only a non-numeric word after `>&` is a path.
+     */
+    private function duplicatesDescriptor(BashCommandWord $operator, BashCommandWord $target): bool
+    {
+        return str_ends_with($operator->text, '&') && preg_match('/^(\d+|-)$/', $target->text) === 1;
+    }
+
+    /**
      * @param list<\AgenticVibes\AgentSkills\BashCommandWord> $words
      * @return list<string>
      */
@@ -307,8 +354,7 @@ final class BashCommandInspector
             return null;
         }
 
-        // `2>&1` and `2>&-` address a file descriptor; only a non-numeric word after `>&` is a path.
-        if (str_ends_with($word->text, '&') && preg_match('/^(\d+|-)$/', $target->text) === 1) {
+        if ($this->duplicatesDescriptor($word, $target)) {
             return null;
         }
 

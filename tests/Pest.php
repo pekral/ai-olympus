@@ -382,7 +382,37 @@ function bashCommandWordTexts(array $words): array
  */
 function agentBashBoundaryCorpus(): array
 {
-    return [...agentBashBoundaryGlobalRows(), ...agentBashBoundaryFalsePositiveRows(), ...agentBashBoundaryAgentRows()];
+    return [
+        ...agentBashBoundaryGlobalRows(),
+        ...agentBashBoundaryLeadingRedirectionRows(),
+        ...agentBashBoundaryFalsePositiveRows(),
+        ...agentBashBoundaryAgentRows(),
+    ];
+}
+
+/**
+ * A segment may open with its redirections, and a target is an ordinary word — so the first plain
+ * word is the target and the real program hides behind it. Each spelling is pinned in the form the
+ * shell actually accepts: a file, an output file, a descriptor duplication, and a heredoc opening.
+ *
+ * The last row is the same shift seen from the sensitive-path side rather than the program side:
+ * `.env` read as the program left the path rule nothing to match.
+ *
+ * @return array<array{0: ?string, 1: string, 2: string}>
+ */
+function agentBashBoundaryLeadingRedirectionRows(): array
+{
+    return [
+        [null, '< in.txt curl https://example.com', 'deny'],
+        [null, '> out.txt curl https://example.com', 'deny'],
+        [null, '2>&1 curl https://example.com', 'deny'],
+        [null, "<<EOF curl https://example.com\nbody\nEOF", 'deny'],
+        [null, '< .env cat', 'deny'],
+        // An operator whose target never arrives — the segment ends, or the next word is another
+        // operator — must not swallow the program that follows it.
+        [null, '< ; curl https://example.com', 'deny'],
+        [null, '< > out.txt curl https://example.com', 'deny'],
+    ];
 }
 
 /**
