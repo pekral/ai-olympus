@@ -1272,6 +1272,32 @@ test('daidalos validates the source-slug format before it reaches a path or a sh
     expect($content)->toContain('Never build a path from the rejected slug');
 });
 
+test('daidalos probes the same-slug brief before overwriting it, so a live peer survives (issue #221)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // The sweep skips this run's own slug, which is exactly the file the mv would overwrite.
+    expect($content)->toContain('the one brief the sweep never probes is the one this run is about to overwrite');
+
+    // The gate is the existing one reused, not a second mechanism invented beside it.
+    expect($content)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
+    expect($content)->toContain('LC_ALL=C kill -0 "$pid" 2>&1');
+    expect($content)->toContain('Blocked: brief pro tento slug drží živý běh');
+
+    // Anything short of confirmed-dead is a live peer — the fail-safe default used everywhere else.
+    expect($content)->toContain('*not mine* is not the same fact as *not alive*');
+
+    // Own-PID first, or the live-peer verdict blocks a re-entrant run against itself.
+    expect($content)->toContain('Check this **first**, or the next verdict blocks the run against itself');
+
+    // The probe and the mv are two steps; the file declares that residual instead of implying none.
+    expect($content)->toContain('Known residual limitation (declared, not silent):** the probe and the `mv` are two steps');
+
+    // "Create it empty" truncates a peer's accumulated trail unless it waits for the same verdict.
+    expect($content)->toContain('The two ledgers follow the brief\'s verdict, never their own');
+    expect($content)->toContain('an audit trail that a concurrent run can silently reset is not an audit trail');
+});
+
 test('the read-only CR agent carries the web tools the third-party documentation walk requires (issue #151)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
