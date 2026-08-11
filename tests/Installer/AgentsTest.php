@@ -1250,6 +1250,28 @@ test(
     },
 );
 
+test('daidalos validates the source-slug format before it reaches a path or a shell command (issue #220)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    // Same guard athena already applies to its own slug — pinned there by the worktree test above.
+    expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
+    expect($content)->toContain('before it reaches a path or a shell command');
+
+    // One check at the derivation site, not one per call site — every later path is built from it.
+    expect($content)->toContain('Never repeat the check at those call sites');
+
+    // The failure mode is the half a sanitizing implementation would silently get wrong.
+    expect($content)->toContain('hard stop, never a sanitized fallback');
+    expect($content)->toContain('Blocked: neplatný formát source-slugu');
+    expect($content)->not->toContain('strip the offending characters and continue');
+
+    // Run cleanup is owed by every terminating path, and building those paths needs the very slug
+    // just rejected — so this stop must name itself the exception before someone reconstructs it.
+    expect($content)->toContain('the one terminating path that owes ***Run cleanup*** nothing');
+    expect($content)->toContain('Never build a path from the rejected slug');
+});
+
 test('the read-only CR agent carries the web tools the third-party documentation walk requires (issue #151)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
