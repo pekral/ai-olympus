@@ -207,7 +207,9 @@ test('athena scopes every review pass to the current diff only (issue #179)', fu
     expect($content)->toContain('it runs only when the caller explicitly asks for one');
 
     // A real problem outside the diff is filed as its own issue, not silently dropped.
-    expect($content)->toContain('**Something real but out of scope is not dropped, it is filed.**');
+    // Since #225 the item is always recorded in the review; it becomes an issue only above the
+    // filing bar. What must not regress is that it is never silently dropped.
+    expect($content)->toContain('**Something real but out of scope is not dropped, it is recorded — and filed only when it clears the bar.**');
 
     // The cap of three iterations is only affordable because each round re-reads a diff.
     expect($content)->toContain('each round re-reads a diff, not a repository');
@@ -217,7 +219,7 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-    expect($content)->toContain('9. **File the out-of-scope findings as tracker issues.**');
+    expect($content)->toContain('9. **File the out-of-scope findings that must be worked on as tracker issues.**');
     // Reuse the existing skill rather than re-implementing issue formatting / labelling.
     expect($content)->toContain('@skills/create-issue/SKILL.md');
 

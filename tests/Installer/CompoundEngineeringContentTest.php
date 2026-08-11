@@ -1044,3 +1044,44 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     // entry named only "the deterministic loader" with no token left to resolve which script that is.
     expect($memory)->toContain('load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`)');
 });
+
+test('the filing bar keeps agent-noticed items out of the tracker unless they must be worked on (issue #225)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    expect($rule)->toContain('**The filing bar — an agent files only work that must actually be done.**');
+
+    // The three ways in. Dropping any one of them turns the bar into a blanket ban on filing.
+    expect($rule)->toContain('It blocks or materially complicates a planned capability.');
+    expect($rule)->toContain('It is a bug of Critical or High severity, or a security shortcoming');
+    expect($rule)->toContain('It is technical debt with a **named, concrete consequence**');
+
+    // The named categories the issue asked to stop filing, mirror issues included.
+    expect($rule)->toContain('**Never file:**');
+    expect($rule)->toContain('nice-to-have work');
+    expect($rule)->toContain('**mirror issue**');
+    expect($rule)->toContain('**When in doubt, do not file**');
+
+    // The bar must never become an excuse for a silent scope cut: a promise the run made is
+    // still filed unconditionally, and a withheld item is still visible somewhere.
+    expect($rule)->toContain('That obligation is unconditional and this bar never weakens it.');
+    expect($rule)->toContain('**Not filing is not dropping.**');
+});
+
+test('athena and the deferred-follow-up procedure both route filing through the bar (issue #225)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $deferred = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
+
+    // athena's step 9 was the package's main producer of low-value issues: it filed every
+    // Refactoring Proposals entry unconditionally.
+    expect($athena)->toContain('**What gets filed — only what clears the filing bar.**');
+    expect($athena)->toContain('only when it clears the filing bar');
+    expect($athena)->toContain('**When in doubt, do not file.**');
+    expect($athena)->toContain('withheld below the filing bar:');
+    expect($athena)->not->toContain('Every out-of-scope item the review produced therefore also becomes an issue');
+
+    // The resolve-issue side applies the bar only to what the run noticed on its own.
+    expect($deferred)->toContain('Apply the filing bar to anything the run was not asked for.');
+    expect($deferred)->toContain('is filed unconditionally');
+});
