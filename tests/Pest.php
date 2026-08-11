@@ -272,6 +272,78 @@ function installerDocsSection(string $document, string $heading): string
     return $end === false ? substr($document, $start) : substr($document, $start, $end - $start);
 }
 
+/**
+ * The backticked literals of one bullet of the normative *Bash capability boundary* section,
+ * located by a phrase that bullet carries.
+ *
+ * The path-parity tests read their expectations out of the prose this way instead of restating
+ * them, so adding a path to the rule file fails a test until the policy covers it — which is the
+ * whole point of binding a security decision to the document that declares it.
+ *
+ * @return list<string>
+ */
+function installerBoundaryBulletLiterals(string $anchor): array
+{
+    $rule = (string) file_get_contents(__DIR__ . '/../rules/compound-engineering/general.md');
+    $boundary = installerDocsSection($rule, '## Bash capability boundary');
+    $start = strpos($boundary, $anchor);
+    assert($start !== false);
+
+    $bullet = substr($boundary, $start);
+    $end = strpos($bullet, "\n");
+    preg_match_all('/`([^`]+)`/', $end === false ? $bullet : substr($bullet, 0, $end), $matches);
+
+    return $matches[1];
+}
+
+/**
+ * Turns a backticked path literal from the normative prose into the concrete paths a policy
+ * pattern can be matched against.
+ *
+ * A trailing `*` names a family, and the policy narrows such a family deliberately — `.env*` is
+ * covered through `.env` and `.env.local`, never through `.envrc` — so both the bare form and a
+ * suffixed one are offered and covering either is the honest bar.
+ *
+ * @return list<string>
+ */
+function installerNormativePathProbes(string $literal): array
+{
+    $path = str_replace('~/', '/home/agent/', $literal);
+
+    if (!str_ends_with($path, '*')) {
+        return [$path];
+    }
+
+    $bare = rtrim($path, '*');
+
+    return [$bare, $bare . 'probe'];
+}
+
+/**
+ * The sensitive-path patterns that match any probe derived from one normative literal.
+ *
+ * Returning the matching patterns rather than a bool is what lets the caller check both
+ * directions from one walk: an empty result means the prose names a path the policy does not
+ * cover, and a pattern no literal ever returns is a rule the prose no longer declares.
+ *
+ * @param array<string, string> $patterns
+ * @return list<string>
+ */
+function installerPatternsMatchingLiteral(array $patterns, string $literal): array
+{
+    $matched = [];
+
+    foreach (installerNormativePathProbes($literal) as $probe) {
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $probe) === 1) {
+                $matched[] = $pattern;
+            }
+        }
+    }
+
+    return array_values(array_unique($matched));
+}
+
 function installerRestoreEnvAndCleanup(string|false $homeBefore, string $originalCwd, string $root): void
 {
     if ($homeBefore !== false && $homeBefore !== '') {

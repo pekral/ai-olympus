@@ -182,6 +182,30 @@ test('the policy covers the normative Forbidden through Bash enumeration, or rec
     expect(AgentBashBoundaryPolicy::RULE_SOURCE)->toContain('rules/compound-engineering/general.md');
 });
 
+test('every sensitive path the prose forbids reading is matched by a pattern, and every pattern still has prose', function (): void {
+    $literals = installerBoundaryBulletLiterals('no read of');
+    expect($literals)->not->toBe([]);
+
+    $patterns = AgentBashBoundaryPolicy::getSensitivePathPatterns();
+    $uncovered = [];
+    $used = [];
+
+    foreach ($literals as $literal) {
+        $matched = installerPatternsMatchingLiteral($patterns, $literal);
+        $used = [...$used, ...$matched];
+
+        if ($matched === []) {
+            $uncovered[] = $literal;
+        }
+    }
+
+    // Prose → policy: adding `~/.aws/credentials` to the bullet fails here until a pattern covers it.
+    expect($uncovered)->toBe([]);
+
+    // Policy → prose: a pattern no literal reaches any more is a rule nobody declared.
+    expect(array_values(array_diff(array_values($patterns), $used)))->toBe([]);
+});
+
 test('an unknown or absent agent_type falls back to the global rules and is never treated as trusted', function (): void {
     expect(AgentBashBoundaryPolicy::rulesFor(agentType: null))->toBe([]);
     expect(AgentBashBoundaryPolicy::rulesFor('not-an-agent'))->toBe([]);
