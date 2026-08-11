@@ -1,14 +1,14 @@
 # Project memory — laravel-agent-skills
 
 ### auto-mode-external-write-blocked — Publish/comment writes can be silently blocked in auto-mode environments
-- Trigger: an agent (`argos`/`apollon`) publishes a comment (`pr-summary`, `upsert-comment.sh`, or a technical CR comment) to a GitHub/JIRA issue or PR under auto-mode write classification.
+- Trigger: an agent (`talos`/`athena`) publishes a comment (`pr-summary`, `upsert-comment.sh`, or a technical CR comment) to a GitHub/JIRA issue or PR under auto-mode write classification.
 - Rule:    In auto-mode, the external-write classifier can silently block a comment/publish write — no error, the comment never appears. Non-deterministic and target-dependent: a state-transition write (`gh pr ready`) can succeed while a comment POST is denied in the same run; the same write can be denied on one target but succeed on another; a plain retry can succeed later. Always verify the publish landed via the deterministic loader (the tracker URL, not the handoff/exit code). Retry once before dispatching a downstream step with a hard gate on it (e.g. `merge-github-pr`'s PR-comment gate). Document as `Blocked: external-write blocked by auto-mode classifier`.
 - Example: Issue #629: `pr-summary` mirror blocked, posted manually. Recurrence PR #47/issue #41: CR comment POST denied while `gh pr ready` and `apollon`'s mirror to #41 succeeded; `merge-github-pr` correctly Blocked; a bare retry of the POST then succeeded (0→1).
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/636   Added: 2026-06-20   Updated: 2026-07-13 (PR #47)
 - Role:    shared
 
 ### agent-file-vs-registration — Adding agents/<name>.md does not make the agent dispatchable
-- Trigger: daidalos tries to dispatch a newly documented agent (e.g. `apollon`) via the Task tool, assuming a new `agents/<name>.md` file is immediately executable.
+- Trigger: daidalos tries to dispatch a newly documented agent via the Task tool, assuming a new `agents/<name>.md` file is immediately executable.
 - Rule:    `agents/<name>.md` is documentation only — the agent type must also be installed/registered (installer syncs into `.claude/`) before it is dispatchable. Until then, fall back to registered agents or treat the step as blocked. Document the dependency in the agent's own file and the introducing issue.
 - Example: `agents/apollon.md` added in #628, daidalos correctly deferred to `talos`/`argos`. Update #654: `apollon` now registered — point-in-time, see [[verify-agent-registration-premise]].
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/633   Added: 2026-06-20
@@ -99,8 +99,8 @@
 - Role:    talos
 
 ### post-convergence-comment-publish-needs-explicit-scope — Posting the feedback comment to the source tracker is blocked when the user only asked to "report back"
-- Trigger: a full-delivery run reaches post-convergence reporting (step 6a) and dispatches `apollon`/`pr-summary` to publish a "Hotovo" comment on the source issue/PR.
-- Rule:    Publishing an external comment under the user's identity is a separate consent surface from resolving+merging. When the request says only "report back" (to the user) without asking to post on the tracker, the auto-mode classifier denies the publish. Fall back to the in-chat summary and re-dispatch `apollon` for the final scoped validation only, carrying the How-to-test summary into the final report yourself. Don't retry the publish.
+- Trigger: a full-delivery run reaches post-convergence reporting (step 6a) and dispatches `talos` in reporting mode (`pr-summary`) to publish a "Hotovo" comment on the source issue/PR.
+- Rule:    Publishing an external comment under the user's identity is a separate consent surface from resolving+merging. When the request says only "report back" (to the user) without asking to post on the tracker, the auto-mode classifier denies the publish. Fall back to the in-chat summary and re-dispatch `talos` for the final scoped validation only, carrying the How-to-test summary into the final report yourself. Don't retry the publish.
 - Example: gh-699 run; `apollon` dispatch denied: "[External System Writes] ... user only asked to report back ... not to post on the issue".
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/702   Added: 2026-06-23
 - Role:    daidalos
@@ -234,7 +234,7 @@
 - Rule:    Pest/PHPUnit's test-file namespace inference treats path segments as candidate namespace components; a digit-leading segment isn't a valid PHP identifier and produces a namespace-inference error unrelated to the code under test. Nest the worktree one level deeper under an alphabetic-prefixed subdirectory first (`mkdir -p "$SCRATCHPAD/wt" && git worktree add "$SCRATCHPAD/wt/<name>" ...`) rather than at the scratchpad root.
 - Example: `apollon`'s mutation-test worktree for PR #47 (issue #41), created directly under a UUID-leading scratchpad path, failed with a namespace-inference error unrelated to the lock-in test; worked around by confirming meaningfulness statically instead (a `toContain()` substring assertion), worktree removed (`git worktree remove --force`).
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/47   Added: 2026-07-13
-- Role:    apollon
+- Role:    talos
 
 ### load-issue-top-level-comment-updated-at-always-null — `load-issue.sh` never returns `updatedAt` for a PR's top-level comments; use an equivalent staleness check
 - Trigger: a staleness check (`@skills/merge-github-pr/SKILL.md` step 2, or `@skills/code-review-github/SKILL.md`'s upsert-in-place convergence check) needs a PR-level top-level comment's `updatedAt`.
@@ -329,7 +329,7 @@
 
 ### daidalos-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — daidalos executes merge-github-pr itself
 - Trigger: a daidalos run reaches convergence on a PR and needs to perform the actual merge into the base branch.
-- Rule:    `talos` explicitly never merges; `argos`/`athena`/`apollon` are read-only reviewers/validators with no merge capability either (though `argos` may flip `gh pr ready` as part of consolidating a barrier-gated review — not the same operation as the merge). No agent performs `gh pr merge`. daidalos reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
+- Rule:    `talos` explicitly never merges; `athena` is a read-only reviewer with no merge capability either (though `argos` may flip `gh pr ready` as part of consolidating a barrier-gated review — not the same operation as the merge). No agent performs `gh pr merge`. daidalos reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
 - Example: PR #76 (issue #60) — after convergence (argos 0/0/0/0 + athena 0/0/0), daidalos independently verified all 6 pre-checks and ran `gh pr merge --squash --delete-branch` directly — no specialist dispatched for the merge.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/76   Added: 2026-07-19
 - Role:    daidalos

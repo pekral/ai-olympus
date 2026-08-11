@@ -298,8 +298,17 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     // The exception must state that memory files are never deleted.
     expect($content)->toContain('NEVER deleted');
 
-    // The rule must reference daidalos step 7 as the reference implementation.
-    expect($content)->toContain('daidalos');
+    // The rule must name daidalos's *Run cleanup* checklist as the reference implementation.
+    expect($content)->toContain('`daidalos`\'s *Run cleanup* (`agents/daidalos.md`) is the **reference implementation** of this contract');
+
+    // As the canonical wording of the contract, that sentence must enumerate all three terminal
+    // paths — the analysis-only stop included, since that is the path the brief used to survive on
+    // (issue #200) — matching the write-lock bullet above it instead of naming only two.
+    expect($content)->toContain('.daidalos-write.lock`) on **every** terminating path the run can take');
+    expect($content)->toContain(
+        'the full-delivery report, the analysis-only stop, and any `Blocked` stop — applying each item only where the run has something to clean up',
+    );
+    expect($content)->not->toContain('on both the final report and a `Blocked` stop.');
 });
 
 test('deferred points must be filed as follow-up tracker issues so they are not forgotten', function (): void {
@@ -664,7 +673,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|apollon|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
     }
 });
 
@@ -686,7 +695,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         $agentFiles,
     );
 
-    // Dictionary: `- Role:    <daidalos | talos | athena | apollon | hermes | shared>` must
+    // Dictionary: `- Role:    <daidalos | talos | athena | hermes | shared>` must
     // enumerate exactly the live roster (plus `shared`, which the regex strips below).
     preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
     $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
@@ -875,7 +884,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
-        // (`talos`/`apollon`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
+        // (`talos`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
         // expansion (`${BRIEF%.md}.audit`) — daidalos derives the path from `$BRIEF` rather than
         // restating the literal, and already both grants and states the obligation (its "Audit
         // trail ledger" section: "You append your own lines"), so it needs no exclusion, only
@@ -888,9 +897,9 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         );
     }
 
-    // Pin the four agents this issue actually fixes, so a future roster change that drops the
+    // Pin the agents this issue actually fixes, so a future roster change that drops the
     // obligation from one of them without noticing does not silently pass an empty loop.
-    foreach (['talos', 'apollon', 'hermes', 'athena'] as $expected) {
+    foreach (['talos', 'hermes', 'athena'] as $expected) {
         expect($checkedAgents)->toContain($expected);
     }
 });
@@ -968,15 +977,15 @@ test('the externally-visible action inventory covers the whole live roster and c
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
 
     // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
-    // out of date before it was first used: `apollon` publishes the post-convergence comment to the
-    // source tracker and had no row at all.
+    // out of date before it was first used: the post-convergence comment published to the source
+    // tracker (`talos`'s reporting mode, `apollon`'s before it was retired) had no row at all.
     expect($rule)->toContain('**Keep this inventory complete.**');
     expect($rule)->toContain('assign **L2**');
 
     // DERIVED from the live roster, not a literal list: every agent shipped in agents/ must own at
     // least one TABLE ROW, so the next roster addition fails here rather than silently owning an
     // unlisted externally-visible action. Sliced to the rows only — the L1/L2/L3 vocabulary
-    // paragraphs above the table name four of the five agents in prose, so asserting against the
+    // paragraphs above the table name most of the roster in prose, so asserting against the
     // whole section would pass even with the table deleted outright, while the rule promises to
     // catch an agent with "no row at all".
     $inventory = installerDocsSection($rule, '## Externally-visible actions & consent levels');
@@ -992,10 +1001,10 @@ test('the externally-visible action inventory covers the whole live roster and c
         expect($tableRows)->toContain('`' . basename($agentFile, '.md') . '`');
     }
 
-    // apollon's own file gains the additive consent token, the same way hermes/daidalos/athena
-    // already carry theirs — the surrounding sentence is untouched.
-    $apollon = (string) file_get_contents($packageDir . '/agents/apollon.md');
-    expect($apollon)->toContain('(L1, viz `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
+    // The reporting-mode publish carries the additive consent token in its owner's own file — hermes,
+    // the roster's only publishing agent — the surrounding sentence is untouched.
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
 });
 
 /**
@@ -1034,4 +1043,45 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     // PR #150 run-3 CR fix: this pointer was still dropped after the second restoration round — the
     // entry named only "the deterministic loader" with no token left to resolve which script that is.
     expect($memory)->toContain('load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`)');
+});
+
+test('the filing bar keeps agent-noticed items out of the tracker unless they must be worked on (issue #225)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+
+    expect($rule)->toContain('**The filing bar — an agent files only work that must actually be done.**');
+
+    // The three ways in. Dropping any one of them turns the bar into a blanket ban on filing.
+    expect($rule)->toContain('It blocks or materially complicates a planned capability.');
+    expect($rule)->toContain('It is a bug of Critical or High severity, or a security shortcoming');
+    expect($rule)->toContain('It is technical debt with a **named, concrete consequence**');
+
+    // The named categories the issue asked to stop filing, mirror issues included.
+    expect($rule)->toContain('**Never file:**');
+    expect($rule)->toContain('nice-to-have work');
+    expect($rule)->toContain('**mirror issue**');
+    expect($rule)->toContain('**When in doubt, do not file**');
+
+    // The bar must never become an excuse for a silent scope cut: a promise the run made is
+    // still filed unconditionally, and a withheld item is still visible somewhere.
+    expect($rule)->toContain('That obligation is unconditional and this bar never weakens it.');
+    expect($rule)->toContain('**Not filing is not dropping.**');
+});
+
+test('athena and the deferred-follow-up procedure both route filing through the bar (issue #225)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $deferred = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
+
+    // athena's step 9 was the package's main producer of low-value issues: it filed every
+    // Refactoring Proposals entry unconditionally.
+    expect($athena)->toContain('**What gets filed — only what clears the filing bar.**');
+    expect($athena)->toContain('only when it clears the filing bar');
+    expect($athena)->toContain('**When in doubt, do not file.**');
+    expect($athena)->toContain('withheld below the filing bar:');
+    expect($athena)->not->toContain('Every out-of-scope item the review produced therefore also becomes an issue');
+
+    // The resolve-issue side applies the bar only to what the run noticed on its own.
+    expect($deferred)->toContain('Apply the filing bar to anything the run was not asked for.');
+    expect($deferred)->toContain('is filed unconditionally');
 });

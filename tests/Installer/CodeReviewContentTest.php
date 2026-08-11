@@ -218,6 +218,35 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
     expect($template)->toContain('h2. Clarifying questions');
 });
 
+test('clarifying questions are gated by severity and never re-ask what the tracker already answered (issue #208)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+
+    // Both gates must be named where the block is assembled, and in this order — a question is
+    // classified first and only then checked against the tracker, so a Minor one is never walked.
+    expect($skill)->toContain('put every candidate through the **severity gate** and the **already-answered walk** below, in that order');
+
+    // Severity gate: only the two top classes reach a ticket a non-developer reads.
+    expect($skill)->toContain('Severity gate — Critical and Moderate questions only (issue #208)');
+    expect($skill)->toContain('**Minor — dropped, never asked.**');
+    expect($skill)->toContain('without the answer the change cannot be accepted at all');
+    expect($skill)->toContain('the answer decides whether the behaviour it already implements is the intended one');
+    // The severity is a routing decision, never output — JIRA carries no severity vocabulary.
+    expect($skill)->toContain('it is never rendered');
+
+    // Already-answered walk: the reason it exists, the sources, and the two-part drop condition.
+    expect($skill)->toContain('Already-answered walk — never re-ask a question the tracker already answered (issue #208)');
+    expect($skill)->toContain('walk **every comment already loaded by step 1**');
+    expect($skill)->toContain('it never issues a second fetch');
+    expect($skill)->toContain('**Drop only on both halves.**');
+    // (b) is verified against the code, never against a comment claiming the work was done.
+    expect($skill)->toContain('Verify (b) against the code, never against the comment\'s own claim that it was done');
+    // Answered-but-diverging is a finding, not a repeated question.
+    expect($skill)->toContain('Answered but not implemented → not a question any more');
+    // An unclear reply keeps the question — the asymmetry of the two mistakes is stated.
+    expect($skill)->toContain('Ambiguous answers stay questions');
+});
+
 test('pr-summary output style is terse — caveman-style prose compression (issue #51)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
@@ -638,11 +667,11 @@ test(
     
         $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
         expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
-        expect($codeReview)->toContain('reports the gate as `deferred to apollon` instead of the Critical finding the bullet above otherwise requires');
+        expect($codeReview)->toContain('reports the gate as `deferred to talos` instead of the Critical finding the bullet above otherwise requires');
     
         $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
         expect($codeTesting)->toContain('**Sanctioned exception:**');
-        expect($codeTesting)->toContain('reports `deferred to apollon` here instead of a Critical finding');
+        expect($codeTesting)->toContain('reports `deferred to talos` here instead of a Critical finding');
     
         $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
         expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
@@ -650,8 +679,8 @@ test(
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
         // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
         $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-        expect($github)->toContain('a savings-mode `deferred to apollon` verdict (non-Critical');
-        expect($github)->toContain('render `Coverage: deferred to apollon (isolated worktree, no vendor/)`');
+        expect($github)->toContain('a savings-mode `deferred to talos` verdict (non-Critical');
+        expect($github)->toContain('render `Coverage: deferred to talos (isolated worktree, no vendor/)`');
     },
 );
 

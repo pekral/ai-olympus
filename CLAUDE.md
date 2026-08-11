@@ -65,6 +65,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 **Before push changes into repository run `composer build` and fix all errors, never ignore errors!**
 
+- This project supports git worktrees. Isolating a work unit in its own worktree (`git worktree add`) is a supported way of working here. The default stays unchanged: per `@rules/git/general.mdc` an agent works in the current tree and creates a worktree only when the user explicitly asks for one, then removes it once the work unit's PR is merged.
 - Files in the .claude/ and .cursor/ directories are not tracked by Git (they are likely listed in .gitignore). You only need to commit changes in the skills/ directory.
 - See `docs/memory/PROJECT_MEMORY.md` for durable, project-specific lessons from past work — read the entries relevant to your role before starting a new task.
   

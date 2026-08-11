@@ -44,6 +44,7 @@ The exception does **not** extend to:
 3. When no signal is available, default to English and state the assumption in the published report's footer.
 
 ### Scope clarifications
+- **This rule picks the language; `@rules/writing/general.mdc` shapes the sentences.** Once the language is settled here, the report is written in the simplified technical style that rule mandates — one idea per sentence, active voice, one term per concept — in that language, never only in English. The two rules never override each other: raise one finding per violation, and never a second finding on the same line for the sibling rule.
 - **Code identifiers stay verbatim.** Class names, file paths, function names, error codes, enum cases, configuration keys, route paths, and similar machine-readable tokens keep their original form regardless of the surrounding prose language. Do not translate `App\Actions\ProcessPayment` into the assignment language. Quoting a code identifier inside an assignment-language sentence is not "mixing" — code is not a natural language.
 - **PR titles and commit messages stay in English** per `@rules/git/general.mdc`. The language-matching rule applies to report bodies posted as comments / descriptions, not to git metadata.
 - **In-conversation status, terminal output, and debug logs may stay in English.** Only tracker-facing reports follow the assignment language.

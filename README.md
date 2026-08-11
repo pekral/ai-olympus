@@ -12,7 +12,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, and write Pest tests. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — four specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 ## Quickstart
 
@@ -43,7 +43,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **52 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **53 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -51,7 +51,7 @@ Then point the front-door agent at real work, inside Claude Code:
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the five subagents)
+- `.claude/agents` (the four subagents)
 - `CLAUDE.md` in the project root
 
 Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -82,9 +82,9 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 **`talos` — code-writing implementer**
 
-Implements an issue from context or a tracker link, runs local checks (`composer build`) and fixes their errors, then opens a PR. Stops at the PR — it never reviews its own work or merges.
+Implements an issue from context or a tracker link, authors its test coverage, runs local checks (`composer build`) and fixes their errors, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
 
-**Orchestrates:** `resolve-issue`
+**Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
 
 </td>
 </tr>
@@ -94,21 +94,9 @@ Implements an issue from context or a tracker link, runs local checks (`composer
 
 **`daidalos` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation), `apollon` (scoped validation) and `athena` (the single CR pass) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
+The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
-**Orchestrates:** `talos`, `apollon`, `athena` (dispatched)
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><img src="assets/agents/apollon.png" alt="apollon avatar" width="80"></td>
-<td valign="top">
-
-**`apollon` — test engineer & post-convergence reporter**
-
-Designs test scenarios and writes PHPUnit/Pest tests, runs a fast scoped validation gate after landing steps (after PR-open for high-risk changes, always after convergence), and after the CR converges publishes a non-technical summary (what changed + how to test) to the source tracker. Write-capable for test code only.
-
-**Orchestrates:** `create-test`, `create-missing-tests-in-pr`, `e2e-testing`, `pr-summary`
+**Orchestrates:** `talos`, `athena`, `hermes` (dispatched)
 
 </td>
 </tr>
@@ -128,11 +116,11 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 <td width="96" valign="top"><img src="assets/agents/hermes.png" alt="hermes avatar" width="80"></td>
 <td valign="top">
 
-**`hermes` — release announcer** · read-only
+**`hermes` — release announcer & reporter** · read-only
 
-Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. Runs post-delivery and publishes only when explicitly asked.
+The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daidalos` run, composed from the shared brief and `talos`'s validation handoff.
 
-**Orchestrates:** `resolve-issue/references/source-detection`
+**Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
 </td>
 </tr>
@@ -203,7 +191,7 @@ Turns a merged change or release into announcement content: a Twitter/X tweet (�
 
 ## Skill Catalog
 
-All 52 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 53 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -218,6 +206,7 @@ All 52 skills, grouped by what you reach for them for. Each description is the s
 | [`pr-deploy-planner`](skills/pr-deploy-planner/) | A pull request's commits should ship in smaller, safer increments instead of one big deploy |
 | [`create-issue`](skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
+| [`github-issue-triage`](skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type |
 
 ### Code review
 
@@ -361,6 +350,7 @@ Rules included in this package:
 | `refactoring/general.mdc`     | Shared refactoring definition (legacy → modern, incremental migration) | Refactor |
 | `jira/general.mdc`            | JIRA CLI usage and formatting rules                        | JIRA     |
 | `reports/general.mdc`         | Language rule for reports published to issue trackers (assignment language) | Always   |
+| `writing/general.mdc`         | Simplified technical writing (ASD-STE100 principles) for every agent response | Always   |
 | `laravel/architecture.mdc`    | Laravel architecture and conventions                       | Laravel  |
 | `laravel/laravel.mdc`         | Laravel-specific rules and patterns                        | Laravel  |
 | `laravel/filament.mdc`        | Filament v4 specific rules                                 | Filament |
