@@ -786,13 +786,15 @@ function ruleExtensionFrontmatter(string $path): string
 }
 
 /**
- * Every text file in the package a reader could follow a rule path out of, keyed by its
- * package-relative path. Walked from disk rather than asked of `git ls-files`, because
- * `@rules/code-testing/general.md` forbids a test from spawning a real system process.
+ * Every text file the package ships, keyed by its package-relative path. Shared by the content
+ * guards that have to prove a pattern appears nowhere in the tree — a retired rule path (issue
+ * #187), a forbidden test assertion (issue #181). Walked from disk rather than asked of
+ * `git ls-files`, because `@rules/code-testing/general.mdc` forbids a test from spawning a real
+ * system process.
  *
  * @return array<string, string>
  */
-function ruleExtensionPackageTextFiles(): array
+function packageTextFiles(): array
 {
     $packageDir = dirname(__DIR__);
     $skipped = ['vendor', 'node_modules', '.git', '.claude', '.idea'];

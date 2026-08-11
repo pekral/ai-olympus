@@ -44,6 +44,10 @@ A flaky test fails inconsistently, is hard to reproduce, and is often "fixed" by
 
 ## Jobs
 - Dispatch jobs using `JobClass::dispatch(...)` only.
+- **Assert the dispatch, never the payload — `Queue::assertPushed()` takes the job class and nothing else.** Write `Queue::assertPushed(ProcessPayment::class);`. Never pass a closure: `Queue::assertPushed(ProcessPayment::class, fn (ProcessPayment $job): bool => $job->orderId === $order->id)` is a payload assertion wearing a dispatch assertion's clothes. It reads the job's own properties from the caller's test, so renaming a property or reshaping a constructor inside the job breaks a test that was never about the job's internals — and a closure that matches nothing fails with *"the expected job was not pushed"*, pointing the reader at the dispatch that did happen instead of at the predicate that did not match. A dispatch test owns exactly one fact: **the caller dispatched the job**. What the job carries, and what it does with it, belongs in the job's own test, which constructs it with known inputs and asserts `handle()`.
+    - The same sentence covers the sibling assertions that accept the same closure — `Queue::assertNotPushed()`, `Queue::assertPushedOn()`, `Bus::assertDispatched()`, `Bus::assertNotDispatched()`, `Bus::assertDispatchedSync()` — because the rule is about *where* a payload is asserted, not about which facade spells the assertion.
+    - A second argument that is an **integer count** (`Queue::assertPushed(ProcessPayment::class, 2)`) is not a payload assertion and stays allowed: it is still a fact about the dispatch, not about the job's contents.
+    - When a test genuinely needs to prove *which* record the job was dispatched for, that is a signal the assertion is at the wrong level — assert the observable outcome the job produces, or move the check into the job's own test. Do not reintroduce the closure to get the fidelity back.
 
 ## External Calls
 - Tests must not call external services.

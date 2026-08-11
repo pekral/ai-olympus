@@ -69,7 +69,7 @@ test('nothing outside the historical record still points at a retired .mdc rule 
     );
 
     $stale = [];
-    $walked = ruleExtensionPackageTextFiles();
+    $walked = packageTextFiles();
 
     // Without this the test passes vacuously the moment the walk stops finding anything — the
     // one failure mode a "nothing matched" assertion cannot tell apart from success.
