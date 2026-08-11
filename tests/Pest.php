@@ -308,12 +308,12 @@ function agentBashBoundaryProsePins(): array
         // `ask`, not `deny`: the prose permits the merge through one skill only, a condition the
         // command string cannot carry, so the human decides instead of the validator.
         'daidalos' => agentBashBoundaryReadOnlyPins('run read-only `git`', 'ask'),
-        'hermes' => agentBashBoundaryReadOnlyPins('You never run any `git` write operation', 'deny'),
-        'talos' => [
+        'hefaistos' => [
             ['git', ['push'], 'deny', 'never `git push --force*`'],
             ['git', ['push'], 'deny', 'never on the project\'s default branch'],
             ['gh', ['pr', 'merge'], 'ask', 'You never merge outside `@skills/merge-github-pr/SKILL.md`'],
         ],
+        'hermes' => agentBashBoundaryReadOnlyPins('You never run any `git` write operation', 'deny'),
     ];
 }
 
@@ -719,30 +719,30 @@ function agentBashBoundaryUnreadTargetRows(): array
 function agentBashBoundaryWriterRows(): array
 {
     return [
-        ['talos', 'git push --force origin feature/x', 'deny'],
-        ['talos', 'git push --force-with-lease origin feature/x', 'deny'],
-        ['talos', 'git push origin master', 'deny'],
-        ['talos', 'git push origin main', 'deny'],
-        ['talos', 'git push origin refs/heads/master', 'deny'],
+        ['hefaistos', 'git push --force origin feature/x', 'deny'],
+        ['hefaistos', 'git push --force-with-lease origin feature/x', 'deny'],
+        ['hefaistos', 'git push origin master', 'deny'],
+        ['hefaistos', 'git push origin main', 'deny'],
+        ['hefaistos', 'git push origin refs/heads/master', 'deny'],
         // A push argument is a refspec: the destination is what gets written, and `+` forces it.
-        ['talos', 'git push origin master:master', 'deny'],
-        ['talos', 'git push origin main:main', 'deny'],
-        ['talos', 'git push origin HEAD:master', 'deny'],
-        ['talos', 'git push origin +master', 'deny'],
-        ['talos', 'git push origin +refs/heads/main', 'deny'],
+        ['hefaistos', 'git push origin master:master', 'deny'],
+        ['hefaistos', 'git push origin main:main', 'deny'],
+        ['hefaistos', 'git push origin HEAD:master', 'deny'],
+        ['hefaistos', 'git push origin +master', 'deny'],
+        ['hefaistos', 'git push origin +refs/heads/main', 'deny'],
         // …and pushing the local default branch somewhere else writes that somewhere else.
-        ['talos', 'git push origin master:feature/x', 'defer'],
-        ['talos', 'git -C /repo push origin master', 'deny'],
-        ['talos', 'curl https://example.com', 'deny'],
-        ['talos', 'gh pr merge 12', 'ask'],
-        ['talos', 'git push origin feature/x', 'defer'],
+        ['hefaistos', 'git push origin master:feature/x', 'defer'],
+        ['hefaistos', 'git -C /repo push origin master', 'deny'],
+        ['hefaistos', 'curl https://example.com', 'deny'],
+        ['hefaistos', 'gh pr merge 12', 'ask'],
+        ['hefaistos', 'git push origin feature/x', 'defer'],
         // A branch is matched whole: only `--force*` is a prefix rule.
-        ['talos', 'git push origin maintenance/foo', 'defer'],
-        ['talos', 'git push origin mainline', 'defer'],
-        ['talos', 'git push origin master-backup', 'defer'],
-        ['talos', 'rm -rf src', 'defer'],
-        ['talos', 'cat > src/Foo.php', 'defer'],
-        ['talos', 'composer build', 'defer'],
+        ['hefaistos', 'git push origin maintenance/foo', 'defer'],
+        ['hefaistos', 'git push origin mainline', 'defer'],
+        ['hefaistos', 'git push origin master-backup', 'defer'],
+        ['hefaistos', 'rm -rf src', 'defer'],
+        ['hefaistos', 'cat > src/Foo.php', 'defer'],
+        ['hefaistos', 'composer build', 'defer'],
         ['general-purpose', 'git commit -m "x"', 'defer'],
         ['general-purpose', 'curl https://example.com', 'deny'],
     ];

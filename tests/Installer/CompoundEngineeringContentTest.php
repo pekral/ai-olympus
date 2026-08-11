@@ -204,12 +204,12 @@ test('compound-engineering rule provides the Blocked delegation hard-stop sectio
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
 
     expect($rule)->toContain('## Blocked delegation is a hard stop');
     expect(substr_count($rule, '## Blocked delegation is a hard stop'))->toBe(1);
     expect($daidalos)->toContain('*Blocked delegation is a hard stop*');
-    expect($talos)->toContain('*Blocked delegation is a hard stop*');
+    expect($hefaistos)->toContain('*Blocked delegation is a hard stop*');
 });
 
 test('compound memory reads are hooked into the context phases (issue #626)', function (): void {
@@ -595,7 +595,7 @@ test('per-role read filter extracts entries whose Role: line sits past a fixed g
 
     ### shallow-match — Role sits immediately after Trigger
     - Trigger: something happens.
-    - Role:    talos
+    - Role:    hefaistos
 
     ### deep-match — Role sits past a fixed 5-line offset
     - Trigger: something else happens.
@@ -615,7 +615,7 @@ test('per-role read filter extracts entries whose Role: line sits past a fixed g
     - Trigger: unrelated.
     MEMORY;
 
-    $matches = compoundMemoryFilterRoleBlocks($fixture, 'talos');
+    $matches = compoundMemoryFilterRoleBlocks($fixture, 'hefaistos');
 
     expect($matches)->toHaveCount(2);
     expect($matches[0])->toContain('shallow-match');
@@ -675,7 +675,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daidalos|talos|athena|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch('/^- Role:\s+(daidalos|hefaistos|athena|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
     }
 });
 
@@ -697,13 +697,13 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         $agentFiles,
     );
 
-    // Dictionary: `- Role:    <daidalos | talos | athena | hermes | shared>` must
+    // Dictionary: `- Role:    <daidalos | hefaistos | athena | hermes | shared>` must
     // enumerate exactly the live roster (plus `shared`, which the regex strips below).
     preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
     $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
     expect(array_values(array_diff($dictionaryRoles, ['shared'])))->toEqualCanonicalizing($liveAgentRoles);
 
-    // Per-role read filter: `Each **specialist agent** (\`talos\`, ...) reads only the entries`
+    // Per-role read filter: `Each **specialist agent** (\`hefaistos\`, ...) reads only the entries`
     // must enumerate the live roster minus `daidalos` (the orchestrator reads the full file,
     // never the filtered subset) — the exact parity issue #166 asked for.
     preg_match('/Each \*\*specialist agent\*\* \(([^)]+)\) reads only the entries/', $rule, $filterMatch);
@@ -848,11 +848,11 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     expect($resolveIssue)->toContain('**`## Audit`** — mandatory on every PR');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
 
-    // The standalone-run fallback must not assert a boundary restriction `talos` no longer has:
-    // since issue #194 granted the `.audit` append, `talos`'s Bash boundary no longer "forbids
+    // The standalone-run fallback must not assert a boundary restriction `hefaistos` no longer has:
+    // since issue #194 granted the `.audit` append, `hefaistos`'s Bash boundary no longer "forbids
     // creating one itself" (`cat >>` creates the file when absent) — the fallback's stated reason
-    // must instead be that talos is not asked to bootstrap a ledger nothing else will read.
-    expect($resolveIssue)->not->toContain('talos`\'s own Bash boundary forbids creating one itself');
+    // must instead be that hefaistos is not asked to bootstrap a ledger nothing else will read.
+    expect($resolveIssue)->not->toContain('hefaistos`\'s own Bash boundary forbids creating one itself');
     expect($resolveIssue)->toContain('not bootstrapping a run ledger nothing else will ever read');
 });
 
@@ -869,7 +869,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
     // `daidalos`, so the checked set is the entire live roster — no exclusion. A future
     // specialist dropped into agents/ with no `.audit` obligation must fail this loop, not be
     // `continue`d out of it — that opt-in shape was the original #194 defect itself
-    // (`grep -n audit agents/talos.md` used to be 0 hits). Mirrors the same derivation already
+    // (`grep -n audit agents/hefaistos.md` used to be 0 hits). Mirrors the same derivation already
     // used for issue #166 above in this file (`array_diff($liveAgentRoles, ['daidalos'])` there
     // is a different, legitimate exclusion for a different property — daidalos never inherits a
     // per-dispatch memory slice — and does not apply to this test).
@@ -886,7 +886,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
-        // (`talos`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
+        // (`hefaistos`/`hermes`/`athena`) uses, and `daidalos`'s own shell parameter
         // expansion (`${BRIEF%.md}.audit`) — daidalos derives the path from `$BRIEF` rather than
         // restating the literal, and already both grants and states the obligation (its "Audit
         // trail ledger" section: "You append your own lines"), so it needs no exclusion, only
@@ -901,7 +901,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 
     // Pin the agents this issue actually fixes, so a future roster change that drops the
     // obligation from one of them without noticing does not silently pass an empty loop.
-    foreach (['talos', 'hermes', 'athena'] as $expected) {
+    foreach (['hefaistos', 'hermes', 'athena'] as $expected) {
         expect($checkedAgents)->toContain($expected);
     }
 });
@@ -980,7 +980,7 @@ test('the externally-visible action inventory covers the whole live roster and c
 
     // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
     // out of date before it was first used: the post-convergence comment published to the source
-    // tracker (`talos`'s reporting mode, `apollon`'s before it was retired) had no row at all.
+    // tracker (`hefaistos`'s reporting mode, `apollon`'s before it was retired) had no row at all.
     expect($rule)->toContain('**Keep this inventory complete.**');
     expect($rule)->toContain('assign **L2**');
 

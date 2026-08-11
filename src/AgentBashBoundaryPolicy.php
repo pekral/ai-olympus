@@ -119,19 +119,19 @@ final class AgentBashBoundaryPolicy
         return [
             'athena' => self::readOnlyRules('athena', BashBoundaryDecision::Deny),
             'daidalos' => self::readOnlyRules('daidalos', BashBoundaryDecision::Ask),
-            'hermes' => self::readOnlyRules('hermes', BashBoundaryDecision::Deny),
-            'talos' => [
-                self::agentRule('talos', 'git', ['push'], BashBoundaryDecision::Deny, '`git push --force*`', ['--force*', '-f']),
+            'hefaistos' => [
+                self::agentRule('hefaistos', 'git', ['push'], BashBoundaryDecision::Deny, '`git push --force*`', ['--force*', '-f']),
                 self::agentRule(
-                    'talos',
+                    'hefaistos',
                     'git',
                     ['push'],
                     BashBoundaryDecision::Deny,
                     'a push to the default branch',
                     ['main', 'master', 'refs/heads/main', 'refs/heads/master'],
                 ),
-                self::agentRule('talos', 'gh', ['pr', 'merge'], BashBoundaryDecision::Ask, '`gh pr merge` outside `@skills/merge-github-pr/SKILL.md`'),
+                self::agentRule('hefaistos', 'gh', ['pr', 'merge'], BashBoundaryDecision::Ask, '`gh pr merge` outside `@skills/merge-github-pr/SKILL.md`'),
             ],
+            'hermes' => self::readOnlyRules('hermes', BashBoundaryDecision::Deny),
         ];
     }
 
@@ -263,7 +263,7 @@ final class AgentBashBoundaryPolicy
      * and `/dev/null` never covers `/dev/nullify`. A fragment ending in `-` is a deliberate name
      * prefix, because `agent-cr-` has to cover `agent-cr-<slug>-athena`.
      *
-     * An agent absent from this map has no write restriction — `talos` legitimately writes files.
+     * An agent absent from this map has no write restriction — `hefaistos` legitimately writes files.
      *
      * @return array<string, list<string>>
      */

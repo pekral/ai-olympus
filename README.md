@@ -27,7 +27,7 @@ Then point the front-door agent at real work, inside Claude Code:
 @daidalos resolve https://github.com/owner/repo/issues/123
 ```
 
-`daidalos` picks the route, `talos` implements it, `athena` reviews it to convergence, and you get a pull request back.
+`daidalos` picks the route, `hefaistos` implements it, `athena` reviews it to convergence, and you get a pull request back.
 
 ## What You Get
 
@@ -77,10 +77,10 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 <table>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/talos.png" alt="talos avatar" width="80"></td>
+<td width="96" valign="top"><img src="assets/agents/hefaistos.png" alt="hefaistos avatar" width="80"></td>
 <td valign="top">
 
-**`talos` — code-writing implementer**
+**`hefaistos` — code-writing implementer**
 
 Implements an issue from context or a tracker link, authors its test coverage, runs local checks (`composer build`) and fixes their errors, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
 
@@ -94,9 +94,9 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 
 **`daidalos` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `talos` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
+The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `hefaistos` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
-**Orchestrates:** `talos`, `athena`, `hermes` (dispatched)
+**Orchestrates:** `hefaistos`, `athena`, `hermes` (dispatched)
 
 </td>
 </tr>
@@ -106,7 +106,7 @@ The entry point for a free-form request. Resolves a concrete source, then dispat
 
 **`athena` — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `talos` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `talos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `hefaistos` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hefaistos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
@@ -118,7 +118,7 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 
 **`hermes` — release announcer & reporter** · read-only
 
-The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daidalos` run, composed from the shared brief and `talos`'s validation handoff.
+The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daidalos` run, composed from the shared brief and `hefaistos`'s validation handoff.
 
 **Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
@@ -148,24 +148,24 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 `athena` is **read-only** — it never applies fixes, commits, pushes, or merges. Those belong to separate agents.
 
-### How to use `talos` in practice
+### How to use `hefaistos` in practice
 
 1. Install for Claude Code, exactly as for `athena` — agents land in `.claude/agents/`.
 
 2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
 
    ```text
-   @talos implement #123
-   @talos implement https://your.atlassian.net/browse/PROJ-42
-   @talos implement the failing upload validation
+   @hefaistos implement #123
+   @hefaistos implement https://your.atlassian.net/browse/PROJ-42
+   @hefaistos implement the failing upload validation
    ```
 
-3. `talos` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
+3. `hefaistos` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
 
-`talos` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
+`hefaistos` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
 
 > [!NOTE]
-> **If `talos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
+> **If `hefaistos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
 
 ### How to use `daidalos` in practice
 
@@ -181,7 +181,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
    @daidalos implement a dark-mode toggle for the settings page
    ```
 
-3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `talos`; everything else → `talos` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
+3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hefaistos`; everything else → `hefaistos` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
    Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation and fewer repeated build runs. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
 

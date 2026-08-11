@@ -12,7 +12,7 @@ use AgenticVibes\AgentSkills\CommandResult;
 function bashGuardPayload(string $command, array $overrides = []): string
 {
     $payload = [
-        'agent_type' => 'talos',
+        'agent_type' => 'hefaistos',
         'cwd' => '/tmp/project',
         'hook_event_name' => 'PreToolUse',
         'permission_mode' => 'default',

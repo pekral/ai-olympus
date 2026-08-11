@@ -1,7 +1,7 @@
 # Project memory — laravel-agent-skills
 
 ### auto-mode-external-write-blocked — Publish/comment writes can be silently blocked in auto-mode environments
-- Trigger: an agent (`talos`/`athena`) publishes a comment (`pr-summary`, `upsert-comment.sh`, or a technical CR comment) to a GitHub/JIRA issue or PR under auto-mode write classification.
+- Trigger: an agent (`hefaistos`/`athena`) publishes a comment (`pr-summary`, `upsert-comment.sh`, or a technical CR comment) to a GitHub/JIRA issue or PR under auto-mode write classification.
 - Rule:    In auto-mode, the external-write classifier can silently block a comment/publish write — no error, the comment never appears. Non-deterministic and target-dependent: a state-transition write (`gh pr ready`) can succeed while a comment POST is denied in the same run; the same write can be denied on one target but succeed on another; a plain retry can succeed later. Always verify the publish landed via the deterministic loader (the tracker URL, not the handoff/exit code). Retry once before dispatching a downstream step with a hard gate on it (e.g. `merge-github-pr`'s PR-comment gate). Document as `Blocked: external-write blocked by auto-mode classifier`.
 - Example: Issue #629: `pr-summary` mirror blocked, posted manually. Recurrence PR #47/issue #41: CR comment POST denied while `gh pr ready` and `apollon`'s mirror to #41 succeeded; `merge-github-pr` correctly Blocked; a bare retry of the POST then succeeded (0→1).
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/636   Added: 2026-06-20   Updated: 2026-07-13 (PR #47)
@@ -23,24 +23,24 @@
 
 ### agent-new-mode-status-result-parity — A new agent run-mode needs both Status and Result updated in the handoff section
 - Trigger: a new run-mode/output branch is added to an agent (e.g. a `Decomposition done` path); `Result:` is updated but `Status:` is left unchanged.
-- Rule:    Every new run-mode must appear in both `Status:` and `Result:` in the agent's *Output — handoff* section, consistent with every cross-file peer (e.g. `daidalos.md` ↔ `talos.md`); update all affected files atomically. A missing `Status` value is an incomplete contract the CR loop flags as Moderate. Same parity for rule ↔ skill: when a skill defines a sanctioned exception to a `rules/**` mandate, the rule must name that exception inline (the "Bugsnag has no auto-claim" precedent) — an unqualified absolute the skill legitimately violates is the same Moderate inconsistency.
+- Rule:    Every new run-mode must appear in both `Status:` and `Result:` in the agent's *Output — handoff* section, consistent with every cross-file peer (e.g. `daidalos.md` ↔ `hefaistos.md`); update all affected files atomically. A missing `Status` value is an incomplete contract the CR loop flags as Moderate. Same parity for rule ↔ skill: when a skill defines a sanctioned exception to a `rules/**` mandate, the rule must name that exception inline (the "Bugsnag has no auto-claim" precedent) — an unqualified absolute the skill legitimately violates is the same Moderate inconsistency.
 - Example: `agents/daidalos.md` *Output — handoff* omitted `Decomposition done` vs the peer analysis-agent + issue #639 step 4; argos caught Moderate in PR #640 iteration 1 (`392203d`). Recurrence PR #23: *File deferred points…* rule demanded filing with no exception vs `resolve-issue`'s PR opt-out; fixed by naming the exception (`57bb49c`).
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/640   Added: 2026-06-20   Updated: 2026-07-11 (PR #23)
-- Role:    talos
+- Role:    hefaistos
 
 ### cr-rule-severity-collision — A new CR rule for an antipattern an existing rule already covers at a different severity needs gating
 - Trigger: a PR adds a new detection bullet (e.g. Moderate) for an antipattern an existing bullet already covers at a different severity, with no dedup/gating clause.
 - Rule:    Apply the dedup pattern from `skills/code-review/SKILL.md` "Inline validation guards" — one finding per violation, never both. Gate the two bullets with mutually exclusive conditions in every file carrying either half. They collide only when they can fire on the *same* line — mentally place one code line under both; if it doesn't match both, no collision. Extends to 3-way: an explicit "never raise two of these three on the same line" clause keeps three mutually exclusive.
 - Example: PR #646 added ungated Moderate bullets (`skills/code-review/SKILL.md`~115, `rules/laravel/architecture.mdc`~279) duplicating Critical bullets; fixed `2b1ebe4` with symmetric gating. Counter-example: PR #703's `SomeData::from($request)` bullet vs an existing Critical "Inline data mapping" bullet — no collision, 0 findings. 3-way: issue #55/PR #73 added a third storage bullet beside an existing gated pair (issue #38); same test + clause, argos+athena converged 0/0.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/646   Added: 2026-06-20   Updated: 2026-07-19 (PR #73)
-- Role:    talos
+- Role:    hefaistos
 
 ### agent-rename-sync-points — Renaming an agent must sync pinned InstallerTest phrases and reserved-name notes too
 - Trigger: an agent is renamed (e.g. `keryx` → `hermes`) and the author updates the obvious files (`agents/<name>.md`, `docs/agents.md`, `README.md`) but forgets a non-obvious sync point: pinned phrases in `tests/InstallerTest.php`, or a reserved-name note in `docs/agents.md`.
 - Rule:    Renaming touches more than 4 obvious files: (1) `git mv agents/<old>.md agents/<new>.md`, rewrite `name:`/prose/handoff phrases; (2) `tests/InstallerTest.php` pins agent prose verbatim — every phrase must stay byte-identical or `composer build` fails; (3) grep the repo for the old slug (all case variants), confirm 0 occurrences; (4) if `docs/agents.md` reserves the new name for a future agent, redirect that reservation to another free Greek name. Do it all in one commit, including the avatar swap at `assets/agents/<new>.png` (swapped in from `placeholder.svg`).
 - Example: PR #647 renamed `keryx` → `hermes`: pinned phrases in `tests/InstallerTest.php` rewritten in lockstep with `agents/hermes.md`, the `hermes` reservation (~`docs/agents.md:95`) redirected to `iris`. argos converged iteration 1 (0/0/0); `grep -ri keryx` returned 0 outside `.claude/`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/647   Added: 2026-06-20
-- Role:    talos
+- Role:    hefaistos
 
 ### verify-agent-registration-premise — Verify an agent's registration status against the live roster before relying on a recorded premise about it
 - Trigger: a task generalizes across "all agents" (per-role parity, a push-level gate, a dispatch decision) and leans on a recorded premise about whether a specific agent is registered/dispatchable.
@@ -68,7 +68,7 @@
 - Rule:    Do not rewrite `PHP_OS`, inject a fake OS parameter, or use runkit/uopz. Instead: (1) leave the branch `@codeCoverageIgnore`; (2) test the public API (`Installer::run`) for observable behaviour; (3) use `installerSymlinkUnsupported()` (`tests/Pest.php:65`) as a gate — assert copy-fallback (`is_link === false`) on Windows-like hosts, real symlink (`is_link === true`) elsewhere. Never leave a branch-conditional test with an empty assertion.
 - Example: `tests/InstallerTest.php` "install creates regular files... when symlinks are unsupported" (#665); `tests/Pest.php:65` helper; `src/Installer.php:351-360` `canSymlink()` Windows branch.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/673   Added: 2026-06-22
-- Role:    talos
+- Role:    hefaistos
 
 ### cross-cutting-rule-belongs-in-compound-engineering — A cross-cutting contract for all agents and skills belongs in rules/compound-engineering/general.mdc, not in skills/ or per-agent copy-paste
 - Trigger: a new rule/contract must apply to every agent and skill uniformly, and the implementer considers a new file under `skills/`, copy-pasting into each `agents/*.md`, or a new standalone rule file.
@@ -82,25 +82,25 @@
 - Rule:    Before editing an `agents/*.md` section, grep `tests/Installer/AgentsTest.php` and `CompoundEngineeringContentTest.php` for the heading and surrounding prose to find pinned phrases. Append new sentences at the end (or an unpinned position); never reorder, split pinned paragraphs, or reword pinned lines. Run `composer build` after — a `toContain` failure pinpoints the broken phrase.
 - Example: PR #697 added a one-sentence hygiene reference to 7 agent files; `composer build` passed (295/295, 100%) because each sentence was appended without reordering.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/697   Added: 2026-06-23
-- Role:    talos
+- Role:    hefaistos
 
 ### skills-tree-convention-removal-grep-full-tree — Removing a shared convention across skills/ needs a full-tree grep, not just named files
 - Trigger: a task removes/renames a shared convention (marker text, function name, section title, anchor pattern) referenced across `skills/`, and the implementer updates only the explicitly named files.
-- Rule:    Before opening the PR, `grep -r '<pattern>' skills/` across the whole tree — including verbatim-distributed templates (`skills/code-review/templates/`), cross-skill SKILL.md files, helper scripts. A file still mentioning it is a live artifact `src/Installer.php` ships — likely Moderate. Pin the absence with `not->toContain(...)` in the relevant installer content test. When the removed skill is a delegation target, inline its contract into the agent file in the same commit, not just delete the pointer.
+- Rule:    Before the PR, `grep -r '<pattern>' skills/` across the whole tree — including verbatim-distributed templates (`skills/code-review/templates/`), cross-skill SKILL.md files, helper scripts. A file still mentioning it is a live artifact `src/Installer.php` ships — likely Moderate. Pin the absence with `not->toContain(...)` in the relevant installer content test. When the removed skill is a delegation target, inline its contract into the agent file in the same commit, not just delete the pointer.
 - Example: PR #700 removed `{anchor:cr-comment-actor-<slug>}` from 3 SKILL.md files but missed 2 refs (`skills/code-review/templates/review-output.md`, `skills/process-code-review/SKILL.md`) — 2 Moderate, fixed `197a442`, pinned in `tests/Installer/CodeReviewContentTest.php`. PR #7 (issue #6, 13 skills removed) reconfirmed: full-tree grep found 3 more refs (`skills/product-capability/SKILL.md`, `skills/resolve-issue/SKILL.md`, `skills/skill-creator/SKILL.md`); 3 agents (`agents/hermes.md`→`article-writing`, `agents/apollon.md`→`test-like-human`, `agents/daidalos.md`→`autoresolve-oldest-github-issue`) needed inlined behavior, pinned via `not->toContain('test-like-human')`.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/700   Added: 2026-06-23   Updated: 2026-07-01 (PR #7)
-- Role:    talos
+- Role:    hefaistos
 
 ### laravel-rules-tracked-source — The canonical tracked source of Laravel rules is rules/laravel/architecture.mdc at the repo root, not .claude/rules/
 - Trigger: a task adds/modifies a Laravel CR rule (detection bullet, severity, convention text) and the implementer looks for the file to edit.
 - Rule:    Canonical, git-tracked source is `rules/laravel/architecture.mdc` (repo root). `.claude/rules/laravel/architecture.mdc` is git-ignored, installer-generated — editing it changes nothing. Always edit the root file. Any new phrase must be byte-identically pinned (via `toContain()`) in `tests/Installer/LaravelRulesContentTest.php`; a companion `skills/code-review/SKILL.md` bullet is pinned in `tests/Installer/CodeReviewContentTest.php`. Run `composer build` before opening the PR.
 - Example: PR #703 (issue #698) — gather step confirmed the tracked file since both paths had identical content. 4 byte-identical phrases pinned in each test file; all passed the first `composer build` run.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/703   Added: 2026-06-23
-- Role:    talos
+- Role:    hefaistos
 
 ### post-convergence-comment-publish-needs-explicit-scope — Posting the feedback comment to the source tracker is blocked when the user only asked to "report back"
-- Trigger: a full-delivery run reaches post-convergence reporting (step 6a) and dispatches `talos` in reporting mode (`pr-summary`) to publish a "Hotovo" comment on the source issue/PR.
-- Rule:    Publishing an external comment under the user's identity is a separate consent surface from resolving+merging. When the request says only "report back" (to the user) without asking to post on the tracker, the auto-mode classifier denies the publish. Fall back to the in-chat summary and re-dispatch `talos` for the final scoped validation only, carrying the How-to-test summary into the final report yourself. Don't retry the publish.
+- Trigger: a full-delivery run reaches post-convergence reporting (step 6a) and dispatches `hefaistos` in reporting mode (`pr-summary`) to publish a "Hotovo" comment on the source issue/PR.
+- Rule:    Publishing an external comment under the user's identity is a separate consent surface from resolving+merging. When the request says only "report back" (to the user) without asking to post on the tracker, the auto-mode classifier denies the publish. Fall back to the in-chat summary and re-dispatch `hefaistos` for the final scoped validation only, carrying the How-to-test summary into the final report yourself. Don't retry the publish.
 - Example: gh-699 run; `apollon` dispatch denied: "[External System Writes] ... user only asked to report back ... not to post on the issue".
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/702   Added: 2026-06-23
 - Role:    daidalos
@@ -116,7 +116,7 @@
 - Trigger: adding a second auto-allowed JIRA status transition (e.g. an "In Progress" claim alongside "Code Review"), tempted to extract shared logic into a sourced `lib.sh`.
 - Rule:    Keep each transition helper self-contained, mirroring `transition-to-code-review.sh` (anchored KEY regex, name guard, idempotent no-op, acli false-positive re-verify). Do NOT extract a sourced `lib.sh` — `src/Installer.php` distributes `skills/` verbatim ([[skills-tree-verbatim-distribution]]), breaking the self-contained convention. Update `rules/jira/general.mdc` to enumerate BOTH sanctioned transitions ("two exceptions") — the old "single sanctioned transition" wording is now wrong.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/706   Added: 2026-06-23
-- Role:    talos
+- Role:    hefaistos
 
 ### claim-mechanism-converges-clean-when-it-mirrors-an-existing-pattern — daidalos: a feature that mirrors an already-reviewed sibling pattern converges in one CR iteration
 - Trigger: orchestrating a feature whose core artifact is structurally near-identical to an existing, already-reviewed artifact (a new JIRA transition helper cloning an existing one; a claim label mirroring `ready for review`).
@@ -136,7 +136,7 @@
 - Rule:    Two gotchas: (1) the README skill-count test in `tests/Installer/SkillsContentTest.php` (`readme reports the current skill count …`) counted every dir under `skills/`, inflating the count on a non-skill helper dir — fix it to count only dirs with a `SKILL.md` (matches `skill-check`'s own definition). (2) Cross-skill sourcing via `${SCRIPT_DIR}/../../_shared/lib.sh` resolves fine in consumer trees too, since `src/Installer.php` copies the whole `skills/` tree verbatim (see [[skills-tree-verbatim-distribution]]) — a shared `_shared/` lib is compatible with verbatim distribution; the self-contained convention only applies to the JIRA transition-helper siblings.
 - Example: issue #725/PR #726 — `skills/_shared/attachments.sh` (sourced) + `skills/_shared/scan-attachments.sh` (standalone gate) reused by 3 `download-attachments.sh` wrappers; auth token kept out of argv via a 0600 curl `--config` file, TLS pinned (`--proto`/`--proto-redir '=https'`). No exec tests (test-isolation rule) — proof lives in `scan-attachments.sh --self-test`, content-pinned in Pest.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/726   Added: 2026-06-29
-- Role:    talos
+- Role:    hefaistos
 
 ### attachment-download-urls-need-an-ssrf-host-guard — fetching tracker-supplied URLs must block non-public hosts before the request
 - Trigger: writing/reviewing a skill/script that downloads a tracker-supplied URL (attachment `contentUrl`, a scraped comment/body URL, a webhook payload), especially when user-controllable (Bugsnag comment, GitHub issue body).
@@ -164,7 +164,7 @@
 - Rule:    Three coupled places, same commit: (1) `tests/Installer/SkillsContentTest.php` pins README strings verbatim — see [[shared-skills-helper-dir-and-readme-skill-count]]; (2) `skills/skill-creator/SKILL.md` *Repository updates* names README sections by title in its how-to; (3) `docs/agents.md` *Adding a new agent* step 3 names the Subagents table. Grep the repo for the section title (not just skill slugs) before deleting; update instruction files + test in lockstep. Complements [[skills-tree-convention-removal-grep-full-tree]].
 - Example: issue #10/PR #13 — removed `Skills Overview`, rewrote Subagents table into avatar cards; updated `SkillsContentTest.php`, `skill-creator/SKILL.md`, `docs/agents.md` in the same commit. `composer build` green (320 tests, 100%); avatars in `assets/agents/` downscaled 1254px→256px.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/13   Added: 2026-07-01
-- Role:    talos
+- Role:    hefaistos
 
 ### github-user-attachments-need-auth-to-download — GitHub issue image attachments (user-attachments/assets/<uuid>) 404 unauthenticated
 - Trigger: a resolve-issue/analyze task must fetch an image/file pasted into a GitHub issue (`https://github.com/user-attachments/assets/<uuid>`, the inline-paste form).
@@ -192,7 +192,7 @@
 - Rule:    Neither REST `PATCH /repos/{owner}/{repo}` nor GraphQL `UpdateRepositoryInput` expose this field — the upload is reachable only via the web UI (Settings → General → Social preview). Commit the generated asset (SVG source + rendered PNG at exactly 1280×640, verified with `sips`/`file`) and document the web-UI upload as a manual step the repo owner must complete after merge — do not report the sub-task done while `usesCustomOpenGraphImage` is still `false` (`gh repo view --json usesCustomOpenGraphImage`).
 - Example: issue #9/PR #31 — `assets/social-preview.svg` + `assets/social-preview.png` committed; PR description + reporting comment on #9 both flagged the Settings upload as an open manual step for the owner.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/31   Added: 2026-07-12
-- Role:    talos
+- Role:    hefaistos
 
 ### background-cr-dispatch-can-silently-lose-output — A background CR review reporting "completed" is not proof it actually published
 - Trigger: daidalos dispatches argos/athena in parallel with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed.
@@ -213,7 +213,7 @@
 - Rule:    A completeness grep for the removed token (case-insensitive, whole-word) must run over the **entire** tree, not just `src/`/`tests/`. In this repo that meant `README.md`, `SECURITY.md`, `docs/agents.md`, `rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md` (`.cursor/rules/project.mdc` mentions), `agents/athena.md`/`agents/hermes.md`, and even a binary/SVG asset (`assets/social-preview.svg`/`.png`) needing a re-render. Grep alone isn't exhaustive — cross-check every file category (docs, rules, skills, agents, assets) and re-render any generated asset the text change invalidates.
 - Example: issue #16/PR #33 — the initial grep list missed 5 files (`rules/compound-engineering/general.mdc`, `skills/record-project-memory/SKILL.md`, `skills/refactor-entry-point-to-action/SKILL.md`, `agents/athena.md`, `agents/hermes.md`) caught only by a final full-tree grep, plus the social-preview asset re-render.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/33   Added: 2026-07-12
-- Role:    talos
+- Role:    hefaistos
 
 ### pr-body-closing-keyword-must-be-literal-english — A translated GitHub closing keyword in a PR body leaves the issue unlinked pre-merge
 - Trigger: resolve-issue/process-code-review opens a PR whose description is in the assignment language (Czech per `@rules/reports/general.mdc`), and the PR must close its issue on merge.
@@ -234,7 +234,7 @@
 - Rule:    Pest/PHPUnit's test-file namespace inference treats path segments as candidate namespace components; a digit-leading segment isn't a valid PHP identifier and produces a namespace-inference error unrelated to the code under test. Nest the worktree one level deeper under an alphabetic-prefixed subdirectory first (`mkdir -p "$SCRATCHPAD/wt" && git worktree add "$SCRATCHPAD/wt/<name>" ...`) rather than at the scratchpad root.
 - Example: `apollon`'s mutation-test worktree for PR #47 (issue #41), created directly under a UUID-leading scratchpad path, failed with a namespace-inference error unrelated to the lock-in test; worked around by confirming meaningfulness statically instead (a `toContain()` substring assertion), worktree removed (`git worktree remove --force`).
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/47   Added: 2026-07-13
-- Role:    talos
+- Role:    hefaistos
 
 ### load-issue-top-level-comment-updated-at-always-null — `load-issue.sh` never returns `updatedAt` for a PR's top-level comments; use an equivalent staleness check
 - Trigger: a staleness check (`@skills/merge-github-pr/SKILL.md` step 2, or `@skills/code-review-github/SKILL.md`'s upsert-in-place convergence check) needs a PR-level top-level comment's `updatedAt`.
@@ -248,14 +248,14 @@
 - Rule:    This repo has no branch protection requiring a native review approval, so an empty `reviewDecision` is a known non-blocking state — but confirm per merge, not by hardcoding: check a recently, successfully merged PR for the identical pattern via the deterministic loader. `@rules/git/general.mdc` *Merging* only states an "Approved" `reviewDecision` alone is insufficient without a converged review — it does not say the reverse, so this repo-specific fact needs its own verification each time.
 - Example: PR #47 (issue #41) — `reviewDecision: ""`, `reviewsCount: 0`; verified against precedent PR #44 (same pattern, `state: MERGED`) before proceeding, re-confirmed independently right before running the merge command.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/47   Added: 2026-07-13
-- Role:    talos
+- Role:    hefaistos
 
 ### merge-delete-branch-repo-flag-skips-local-branch — `gh pr merge --repo ... --delete-branch` deletes only the remote branch, not local
 - Trigger: running `gh pr merge <n> --repo <owner/repo> ... --delete-branch` (the explicit `--repo` form) as the merge step of `@skills/merge-github-pr/SKILL.md` or any manual merge.
 - Rule:    `--delete-branch` reliably deletes the **remote** branch (verify via `git fetch --prune`/`git ls-remote --heads origin`) but does **not** touch the **local** branch when `--repo` is passed explicitly. After merging, verify the local branch was removed (`git branch -a`); if not, confirm it's safe (no worktree holds it, `git diff <base> <branch>` empty) and remove manually (`git branch -D` if `-d` refuses — expected for rebase-merge **or** squash-merge, since git's ancestry check doesn't recognize either as fast-forward-reachable).
 - Example: PR #47 (issue #41) — rebase-merge deleted the remote branch but left the local one; `git branch -d` refused ("not fully merged"), empty diff confirmed, `git branch -D` removed it. Recurrence PR #49/issue #39 — same refusal with **squash-merge** (single-parent merge commit `4054b42` confirmed via `git log -1 --format=%P`), same resolution — confirming the refusal is a general history-rewriting-merge mechanic, not rebase-specific.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/47   Added: 2026-07-13   Updated: 2026-07-15 (PR #49)
-- Role:    talos
+- Role:    hefaistos
 
 ### embedded-issue-number-may-be-foreign-legacy-reference — An "(issue #NNN)" heading from a file's earliest commit may be a foreign/legacy reference
 - Trigger: a skill/rule file carries an "(issue #NNN)" heading, and the current task references a different, seemingly-related issue number — tempting to treat the embedded number as a live cross-reference.
@@ -300,22 +300,22 @@
 - Role:    daidalos
 
 ### process-code-review-completion-skips-duplicate-cr-comment-after-upstream-publish — When argos/athena already published the CR comment, Completion publishes only `cr-status`
-- Trigger: `process-code-review` runs (typically as `talos`) on a PR where `argos` (optionally consolidating `athena`) already published the single technical `cr-comment` upstream of this skill's own Review loop.
+- Trigger: `process-code-review` runs (typically as `hefaistos`) on a PR where `argos` (optionally consolidating `athena`) already published the single technical `cr-comment` upstream of this skill's own Review loop.
 - Rule:    Taken literally, `@skills/process-code-review/SKILL.md` Completion re-triggers a second technical-review publish, duplicating the `cr-comment` thread. When the upstream review already exists and the diff is unchanged or only gained a trivial, re-verified-safe fix commit, treat that comment as satisfying the review and publish only the distinct `cr-status` comment, then promote out of Draft. Do not also publish the linked-issue mirror if another pipeline step already owns that duty.
 - Example: issue #55/PR #73 — `argos` published the consolidated `cr-comment` (0/0/2 Minor) before `process-code-review` started; `talos` added one trivial CHANGELOG commit, re-verified `composer build` green, published only `cr-status`, promoted out of Draft — the linked-issue summary left to `apollon`'s dedicated reporting step.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/73   Added: 2026-07-19
-- Role:    talos
+- Role:    hefaistos
 
 ### plan-tracking-issue-may-outlive-its-own-implementation-merge — A "Plan (issue #N)" tracking issue can stay OPEN after merge, since `Closes #N` targets the source issue
-- Trigger: daidalos resolves a GitHub issue that is a published plan artifact (title names another issue as its target, phrasing varies) rather than an original source issue — check whether the plan's content has already shipped before dispatching `talos`.
-- Rule:    A plan issue and its source issue are distinct tracker items; `Closes #N` in the implementing commit names the source, leaving the plan issue OPEN even when realized. Verify: (1) source issue CLOSED; (2) a merged PR references this plan issue; (3) plan's named files match the PR's changed-file list; (4) fresh local `composer build` passes. If all four hold, it's reconciliation, not implementation — post an explanatory comment + `gh issue close`, no `talos` dispatch, no new PR.
+- Trigger: daidalos resolves a GitHub issue that is a published plan artifact (title names another issue as its target, phrasing varies) rather than an original source issue — check whether the plan's content has already shipped before dispatching `hefaistos`.
+- Rule:    A plan issue and its source issue are distinct tracker items; `Closes #N` in the implementing commit names the source, leaving the plan issue OPEN even when realized. Verify: (1) source issue CLOSED; (2) a merged PR references this plan issue; (3) plan's named files match the PR's changed-file list; (4) fresh local `composer build` passes. If all four hold, it's reconciliation, not implementation — post an explanatory comment + `gh issue close`, no `hefaistos` dispatch, no new PR.
 - Example: Issue #71 ("Plan (issue #51)") stayed OPEN after PR #72 implemented it via `Closes #51` in commit `250c943`; verified + closed. Recurred: issue #69/PR #70 (issue #52), issue #57/PR #58 (issue #54) — differently-punctuated titles, same pattern.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/72   Added: 2026-07-19   Updated: 2026-07-19 (issue #69 / PR #70)
 - Role:    daidalos
 
 ### cleanup-must-verify-lock-ownership-before-unconditional-release — daidalos step-7 cleanup must confirm this run acquired the write-lock before removing it
-- Trigger: daidalos reaches step-7 cleanup and runs `rm -rf .claude/run/.daidalos-write.lock` mechanically, without checking whether *this* run's own step 5 ever created that lock — especially on a non-standard path (already-resolved issue, analysis-only) that never dispatched `talos`.
-- Rule:    The cleanup is conditional on step 5 having acquired the lock *in this run* — not an unconditional habit. `ls -la .claude/run/` first: if briefs/the lock predate this run's step 5, or `talos` was never dispatched, do not touch it — it may belong to another active daidalos instance. If removed by mistake, recreate a placeholder with a transparent incident note and disclose it in the final report — never silently continue, never fabricate the holder's PID.
+- Trigger: daidalos reaches step-7 cleanup and runs `rm -rf .claude/run/.daidalos-write.lock` mechanically, without checking whether *this* run's own step 5 ever created that lock — especially on a non-standard path (already-resolved issue, analysis-only) that never dispatched `hefaistos`.
+- Rule:    The cleanup is conditional on step 5 having acquired the lock *in this run* — not an unconditional habit. `ls -la .claude/run/` first: if briefs/the lock predate this run's step 5, or `hefaistos` was never dispatched, do not touch it — it may belong to another active daidalos instance. If removed by mistake, recreate a placeholder with a transparent incident note and disclose it in the final report — never silently continue, never fabricate the holder's PID.
 - Example: The `gh-71` run (issue #71, already shipped via merged PR #72, see [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]) ran `rm -rf .daidalos-write.lock` unconditionally, deleting `gh-60`'s live lock (confirmed via its `Resolve_by_AI:in-progress` label + mtime); no actual collision occurred, so the lock was recreated with an incident note disclosed to the user.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/issues/71   Added: 2026-07-19
 - Role:    daidalos
@@ -329,13 +329,13 @@
 
 ### daidalos-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — daidalos executes merge-github-pr itself
 - Trigger: a daidalos run reaches convergence on a PR and needs to perform the actual merge into the base branch.
-- Rule:    `talos` explicitly never merges; `athena` is a read-only reviewer with no merge capability either (though `argos` may flip `gh pr ready` as part of consolidating a barrier-gated review — not the same operation as the merge). No agent performs `gh pr merge`. daidalos reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
+- Rule:    `hefaistos` explicitly never merges; `athena` is a read-only reviewer with no merge capability either (though `argos` may flip `gh pr ready` as part of consolidating a barrier-gated review — not the same operation as the merge). No agent performs `gh pr merge`. daidalos reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
 - Example: PR #76 (issue #60) — after convergence (argos 0/0/0/0 + athena 0/0/0), daidalos independently verified all 6 pre-checks and ran `gh pr merge --squash --delete-branch` directly — no specialist dispatched for the merge.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/76   Added: 2026-07-19
 - Role:    daidalos
 
 ### memory-file-append-has-no-lock-anchor-substring-replace-mitigates — Concurrent memory-file writes aren't lock-protected — anchor-based substring edits keep them safe
-- Trigger: two or more daidalos runs reach step 7 (record durable lessons) close together and both edit the same `docs/memory/PROJECT_MEMORY.md` entry — most likely both reconciliation-only runs, since neither ever acquired `.claude/run/.daidalos-write.lock` (scoped to the full-delivery/`talos`-dispatch path only).
+- Trigger: two or more daidalos runs reach step 7 (record durable lessons) close together and both edit the same `docs/memory/PROJECT_MEMORY.md` entry — most likely both reconciliation-only runs, since neither ever acquired `.claude/run/.daidalos-write.lock` (scoped to the full-delivery/`hefaistos`-dispatch path only).
 - Rule:    Never edit `PROJECT_MEMORY.md` (or any unlocked, concurrently-touchable file) via captured line numbers (`sed -i '350s/.../'`) — line numbers go stale the instant a concurrent edit lands between your read and write. Instead: read the whole file fresh, locate the edit point by matching a unique, sufficiently long existing substring (e.g. `str.replace(exact_old_text, exact_old_text + addition, 1)`), write, then immediately re-read and eyeball the merged result (`grep -c '^### '` heading count, no duplicated/truncated text).
 - Example: the `gh-69` run (issue #69) and concurrent `gh-57` run (issue #57) both appended a recurrence sentence to [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]'s Example field within ~1 minute of each other; anchor-based `str.replace` let both compose correctly with zero corruption, confirmed via `git status` + unchanged `grep -c '^### '` count.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/issues/69   Added: 2026-07-19

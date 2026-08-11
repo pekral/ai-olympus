@@ -1274,8 +1274,8 @@ test('savings-mode build-gate cache never skips the mandatory full run on the ex
     expect($merge)->toContain('the entry carries this-run provenance');
     expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
 
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
-    expect($talos)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+    expect($hefaistos)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
 });
 
 test('push-level full-build gates dedup by head SHA unconditionally, without weakening the pre-merge run (issue #212)', function (): void {
@@ -1328,7 +1328,7 @@ test('push-level full-build gates dedup by head SHA unconditionally, without wea
 
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     expect($resolveIssue)->toContain('Push-level gate dedup by head SHA (always on, issue #212)');
-    expect($resolveIssue)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|talos:impl');
+    expect($resolveIssue)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hefaistos:impl');
 
     // merge-github-pr is deliberately NOT wired into the dedup — its build always runs.
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');

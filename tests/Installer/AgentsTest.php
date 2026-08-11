@@ -36,7 +36,7 @@ test('install copies the athena agent to .claude/agents', function (): void {
         ob_end_clean();
 
         expect(is_file($root . '/.claude/agents/athena.md'))->toBeTrue();
-        expect(is_file($root . '/.claude/agents/talos.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/agents/hefaistos.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
         expect(is_dir($root . '/.codex/agents'))->toBeFalse();
     } finally {
@@ -95,14 +95,14 @@ test('athena owns every code-review wrapper and the no-source fallback (issue #1
     expect($content)->toContain('**Architecture agenda:**');
 });
 
-test('agents directory ships the talos code-writing subagent with required frontmatter', function (): void {
+test('agents directory ships the hefaistos code-writing subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/talos.md';
+    $agentPath = $packageDir . '/agents/hefaistos.md';
 
     expect(is_file($agentPath))->toBeTrue();
 
     $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: talos');
+    expect($content)->toContain('name: hefaistos');
     expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
     // The implementer carries the whole change end to end and fixes what `composer build` reports,
     // so it runs on the strongest model rather than the cheaper one it started on.
@@ -275,14 +275,14 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
     expect($content)->toContain('- **Out-of-scope issues filed:**');
 });
 
-test('athena also runs a pre-implementation security-analysis mode that feeds talos', function (): void {
+test('athena also runs a pre-implementation security-analysis mode that feeds hefaistos', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
     // Dual-mode contract: security analysis (pre-implementation) plus the full code review (post-implementation).
     expect($content)->toContain('Security analysis mode (pre-implementation)');
     expect($content)->toContain('Code review mode (post-implementation)');
-    // Analysis mode frames the remediation through analyze-problem so talos can implement it.
+    // Analysis mode frames the remediation through analyze-problem so hefaistos can implement it.
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
     // Both handoff statuses exist so the caller can route the result.
     expect($content)->toContain('Security analysis done');
@@ -338,7 +338,7 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['talos', 'athena', 'hermes'] as $agent) {
+    foreach (['hefaistos', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('Shared task brief');
         expect($content)->toContain('.claude/run/');
@@ -392,23 +392,23 @@ test(
     },
 );
 
-test('daidalos delegates the end-to-end run by dispatching talos and athena to convergence', function (): void {
+test('daidalos delegates the end-to-end run by dispatching hefaistos and athena to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
-    expect($content)->toContain('Dispatch `talos` through the Task tool');
+    expect($content)->toContain('Dispatch `hefaistos` through the Task tool');
     expect($content)->toContain('Dispatch `athena` through the Task tool');
-    // The implementation step still routes through resolve-issue (owned by talos), and the convergence gate is named.
+    // The implementation step still routes through resolve-issue (owned by hefaistos), and the convergence gate is named.
     expect($content)->toContain('@skills/resolve-issue');
     expect($content)->toContain('0 Critical');
 });
 
-test('daidalos dispatches athena for a pre-implementation security-risk analysis that feeds talos', function (): void {
+test('daidalos dispatches athena for a pre-implementation security-risk analysis that feeds hefaistos', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    // Security-focused tasks are analysed by athena before talos implements them.
+    // Security-focused tasks are analysed by athena before hefaistos implements them.
     expect($content)->toContain('dispatch `athena` through the Task tool');
     expect($content)->toContain('security analysis mode');
     expect($content)->toContain('Security analysis done');
@@ -421,12 +421,12 @@ test(
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
         // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
-        expect($daidalos)->toContain('Only for a high-risk change dispatch `talos` again through the Task tool');
+        expect($daidalos)->toContain('Only for a high-risk change dispatch `hefaistos` again through the Task tool');
         expect($daidalos)->toContain('the post-convergence scoped pass in step 6 stays mandatory for every run');
 
-        // talos documents the same conditionality in its own scoped-mode contract.
-        $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
-        expect($talos)->toContain('only when `daidalos` classified the change as high-risk');
+        // hefaistos documents the same conditionality in its own scoped-mode contract.
+        $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+        expect($hefaistos)->toContain('only when `daidalos` classified the change as high-risk');
     },
 );
 
@@ -434,18 +434,18 @@ test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bar
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    // talos is dispatched more than once per run (implementation, then scoped validation before and
+    // hefaistos is dispatched more than once per run (implementation, then scoped validation before and
     // after the CR). Keyed on the bare agent name, the second dispatch reads as a repeat of the
     // first and the in-flight check suppresses it — so the mode has to be part of <role>.
     expect($daidalos)->toContain('**`<role>` carries the dispatched mode, not just the agent name.**');
-    expect($daidalos)->toContain('`talos:impl`');
-    expect($daidalos)->toContain('`talos:scoped`');
+    expect($daidalos)->toContain('`hefaistos:impl`');
+    expect($daidalos)->toContain('`hefaistos:scoped`');
     expect($daidalos)->toContain('`hermes:reporting`');
 
     // The steps that re-dispatch must name the moded role they write, or the convention above is
     // documented in one place and ignored in the two places that actually append a ledger line.
-    expect($daidalos)->toContain('Record the dispatch in the ledger as `talos:scoped`, never bare `talos`');
-    expect($daidalos)->toContain('(ledger role `talos:scoped`)');
+    expect($daidalos)->toContain('Record the dispatch in the ledger as `hefaistos:scoped`, never bare `hefaistos`');
+    expect($daidalos)->toContain('(ledger role `hefaistos:scoped`)');
     expect($daidalos)->toContain('v ledgeru role `hermes:reporting`');
 });
 
@@ -470,7 +470,7 @@ test('daidalos keeps the writing path on the shared tree but lets read-only CR a
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
-    // The writing path (talos) still never uses worktrees — concurrent writers serialise on the shared tree.
+    // The writing path (hefaistos) still never uses worktrees — concurrent writers serialise on the shared tree.
     expect($content)->toContain('The writing path never uses git worktrees');
     expect($content)->toContain('single shared git working tree');
     expect($content)->toContain('there is no isolated-worktree escape for the writing path');
@@ -494,7 +494,7 @@ test('the read-only CR agent documents an optional review worktree it hands back
     expect($content)->toContain('git worktree remove');
 });
 
-test('the retired apollon subagent is gone from the roster and its work is documented as talos\'s', function (): void {
+test('the retired apollon subagent is gone from the roster and its work is documented as hefaistos\'s', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // The agent file itself must not come back — the roster is what the installer registers.
@@ -502,16 +502,16 @@ test('the retired apollon subagent is gone from the roster and its work is docum
 
     // The retired agent's two jobs were split along the roster's capability line, so every skill
     // it orchestrated still has an owner rather than silently dropping off the roster.
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
-    expect($talos)->toContain('@skills/create-test/SKILL.md');
-    expect($talos)->toContain('@skills/create-missing-tests-in-pr/SKILL.md');
-    expect($talos)->toContain('@skills/e2e-testing/SKILL.md');
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+    expect($hefaistos)->toContain('@skills/create-test/SKILL.md');
+    expect($hefaistos)->toContain('@skills/create-missing-tests-in-pr/SKILL.md');
+    expect($hefaistos)->toContain('@skills/e2e-testing/SKILL.md');
 
     // Publishing stayed with hermes: the write-capable implementer must not gain the right to
-    // post on a tracker, so pr-summary is hermes's, never talos's. The capability table in
+    // post on a tracker, so pr-summary is hermes's, never hefaistos's. The capability table in
     // docs/agents.md is checked too — it reads as the authority on what an agent may do, so a
-    // stale publish grant left there would contradict talos's own Bash boundary.
-    expect($talos)->not->toContain('@skills/pr-summary/SKILL.md');
+    // stale publish grant left there would contradict hefaistos's own Bash boundary.
+    expect($hefaistos)->not->toContain('@skills/pr-summary/SKILL.md');
 
     $capabilityDocs = (string) file_get_contents($packageDir . '/docs/agents.md');
     expect($capabilityDocs)->toContain('never a tracker publish (that is `hermes`\'s)');
@@ -566,7 +566,7 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daidalos', 'talos', 'athena', 'hermes'] as $agent) {
+    foreach (['daidalos', 'hefaistos', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
@@ -589,14 +589,14 @@ test('daidalos decides the opt-in savings mode once during gather and never narr
     expect($daidalos)->toContain('## Context pack');
     expect($daidalos)->toContain('## Build gate cache');
 
-    // The cache is written by talos only — athena stays read-only and never runs a
+    // The cache is written by hefaistos only — athena stays read-only and never runs a
     // full build, so it never writes this section (issue #119 CR fix for the cross-file contradiction
     // with the reviewer's "the only write you perform" clause).
     expect($daidalos)->toContain('`athena` never writes this section');
 });
 
 test(
-    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to talos when savings mode is on (issue #119)',
+    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to hefaistos when savings mode is on (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/athena.md');
@@ -604,7 +604,7 @@ test(
         expect($content)->toContain('@rules/compound-engineering/general.md` *Savings mode*');
         expect($content)->toContain('read the brief\'s `## Context pack`');
         expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
-        expect($content)->toContain('otherwise report the coverage gate as deferred to `talos`');
+        expect($content)->toContain('otherwise report the coverage gate as deferred to `hefaistos`');
         // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
         // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
         expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
@@ -619,33 +619,33 @@ test(
     },
 );
 
-test('talos owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
+test('hefaistos owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
 
-    expect($talos)->toContain('**Savings-mode build-gate cache (opt-in).**');
-    expect($talos)->toContain('check the brief\'s `## Build gate cache`');
-    expect($talos)->toContain('**Own the coverage verdict when savings mode is on.**');
-    expect($talos)->toContain('you are the sole authoritative source for the executed coverage number in this run');
+    expect($hefaistos)->toContain('**Savings-mode build-gate cache (opt-in).**');
+    expect($hefaistos)->toContain('check the brief\'s `## Build gate cache`');
+    expect($hefaistos)->toContain('**Own the coverage verdict when savings mode is on.**');
+    expect($hefaistos)->toContain('you are the sole authoritative source for the executed coverage number in this run');
 
     // Coverage is a dedicated handoff field, and the scoped status definition states whether the
     // coverage gate is included (issue #119 CR fix — agent-new-mode-status-result-parity).
-    expect($talos)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
-    expect($talos)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
+    expect($hefaistos)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
+    expect($hefaistos)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
 
-test('talos checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
+test('hefaistos checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
 
-    expect($talos)->toContain('**Push-level gate dedup by head SHA (always on).**');
-    expect($talos)->toContain('consult the shared brief\'s `## Gate log`');
-    expect($talos)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|talos:scoped');
+    expect($hefaistos)->toContain('**Push-level gate dedup by head SHA (always on).**');
+    expect($hefaistos)->toContain('consult the shared brief\'s `## Gate log`');
+    expect($hefaistos)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hefaistos:scoped');
     // Unconditional, and consulted before the opt-in tree-hash cache — the two are independent.
-    expect($talos)->toContain('it does not require `## Savings mode: on`');
-    expect($talos)->toContain('consulted **before** the opt-in tree-hash cache below');
+    expect($hefaistos)->toContain('it does not require `## Savings mode: on`');
+    expect($hefaistos)->toContain('consulted **before** the opt-in tree-hash cache below');
     // The Bash boundary must actually permit the Gate log append it is asked to perform.
-    expect($talos)->toContain('a `## Gate log` entry whenever you run a push-level full build');
+    expect($hefaistos)->toContain('a `## Gate log` entry whenever you run a push-level full build');
 
     // daidalos creates the section empty during gather, beside (not inside) the opt-in cache.
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
@@ -653,7 +653,7 @@ test('talos checks the always-on head-SHA gate log before a full build, ahead of
     expect($daidalos)->toContain('**Gate log (always, not opt-in).**');
     expect($daidalos)->toContain('independent of savings mode and of the opt-in `## Build gate cache` beside it');
     // The writer is named exactly as the sibling Build-gate-cache bullet names it — not "every specialist".
-    expect($daidalos)->toContain('Whichever `talos` step runs a full build appends its own line under the per-brief append lock');
+    expect($daidalos)->toContain('Whichever `hefaistos` step runs a full build appends its own line under the per-brief append lock');
     expect($daidalos)->not->toContain('Every specialist that runs a full build appends');
 });
 
@@ -670,9 +670,9 @@ test('athena frames a security remediation plan as a severity-prefixed GFM task 
     // The checklist reaches the published issue in a state a following agent can parse.
     expect($athena)->toContain('**verbatim, in GFM task-list syntax**');
 
-    // talos knows to hand the plan link to resolve-issue, whose gate blocks the PR.
-    $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
-    expect($talos)->toContain('**blocks PR creation** until every `[Critical]` / `[Moderate]` item is ticked');
+    // hefaistos knows to hand the plan link to resolve-issue, whose gate blocks the PR.
+    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+    expect($hefaistos)->toContain('**blocks PR creation** until every `[Critical]` / `[Moderate]` item is ticked');
 });
 
 test('daidalos sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
@@ -1116,21 +1116,21 @@ test(
 
         $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-dead' . "\n"
             . 'HEAD 1111111111111111111111111111111111111111' . "\n"
-            . 'branch refs/heads/talos/gh-1' . "\n"
+            . 'branch refs/heads/hefaistos/gh-1' . "\n"
             . 'locked pid 9999999 slug gh-1' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-live' . "\n"
             . 'HEAD 2222222222222222222222222222222222222222' . "\n"
-            . 'branch refs/heads/talos/gh-2' . "\n"
+            . 'branch refs/heads/hefaistos/gh-2' . "\n"
             . 'locked pid ' . $livePid . ' slug gh-2' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-unlocked' . "\n"
             . 'HEAD 3333333333333333333333333333333333333333' . "\n"
-            . 'branch refs/heads/talos/gh-3' . "\n"
+            . 'branch refs/heads/hefaistos/gh-3' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-no-pid-token' . "\n"
             . 'HEAD 4444444444444444444444444444444444444444' . "\n"
-            . 'branch refs/heads/talos/gh-4' . "\n"
+            . 'branch refs/heads/hefaistos/gh-4' . "\n"
             . 'locked keep — manual bisect in progress' . "\n";
 
         $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
@@ -1150,7 +1150,7 @@ test('daidalos startup-sweep worktree algorithm treats a locked EPERM pid as ali
 
     $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-eperm' . "\n"
         . 'HEAD 5555555555555555555555555555555555555555' . "\n"
-        . 'branch refs/heads/talos/gh-5' . "\n"
+        . 'branch refs/heads/hefaistos/gh-5' . "\n"
         . 'locked pid 1 slug gh-5' . "\n";
 
     $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
@@ -1494,7 +1494,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
         'athena' => 'Write, Edit',
         'hermes' => 'Write, Edit',
         'daidalos' => 'Write, Edit',
-        'talos' => 'WebSearch, WebFetch',
+        'hefaistos' => 'WebSearch, WebFetch',
     ];
 
     foreach ($expectedDisallowed as $agent => $disallowed) {

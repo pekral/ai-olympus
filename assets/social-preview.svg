@@ -20,20 +20,20 @@
   <!-- agent chips -->
   <g font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#e0e7ff">
     <g>
-      <rect x="337" y="360" width="150" height="52" rx="26" fill="#312e81"/>
-      <text x="412" y="393" text-anchor="middle">daidalos</text>
+      <rect x="322" y="360" width="150" height="52" rx="26" fill="#312e81"/>
+      <text x="397" y="393" text-anchor="middle">daidalos</text>
     </g>
     <g>
-      <rect x="502" y="360" width="130" height="52" rx="26" fill="#312e81"/>
-      <text x="567" y="393" text-anchor="middle">talos</text>
+      <rect x="487" y="360" width="160" height="52" rx="26" fill="#312e81"/>
+      <text x="567" y="393" text-anchor="middle">hefaistos</text>
     </g>
     <g>
-      <rect x="647" y="360" width="140" height="52" rx="26" fill="#312e81"/>
-      <text x="717" y="393" text-anchor="middle">hermes</text>
+      <rect x="662" y="360" width="140" height="52" rx="26" fill="#312e81"/>
+      <text x="732" y="393" text-anchor="middle">hermes</text>
     </g>
     <g>
-      <rect x="802" y="360" width="140" height="52" rx="26" fill="#312e81"/>
-      <text x="872" y="393" text-anchor="middle">athena</text>
+      <rect x="817" y="360" width="140" height="52" rx="26" fill="#312e81"/>
+      <text x="887" y="393" text-anchor="middle">athena</text>
     </g>
   </g>
 
