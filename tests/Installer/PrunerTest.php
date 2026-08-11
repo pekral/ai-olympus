@@ -108,7 +108,7 @@ test('install with prune also removes rules that no longer exist in source', fun
         Installer::run(['agent-skills', 'install', '--prune']);
         ob_end_clean();
 
-        expect(is_file($root . '/.claude/rules/php/core-standards.mdc'))->toBeTrue();
+        expect(is_file($root . '/.claude/rules/php/core-standards.md'))->toBeTrue();
         expect(is_file($root . '/.claude/rules/removed.mdc'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {

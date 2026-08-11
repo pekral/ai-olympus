@@ -1,7 +1,5 @@
 ---
 description: SQL query optimization, index design, schema standards, and advanced SQL patterns for MySQL/MariaDB.
-alwaysApply: true
-globs: ["*"]
 ---
 
 ## General

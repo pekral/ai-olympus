@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 test('laravel rules prefer filled()/blank() helpers over strict empty-string comparisons', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('## String Emptiness Checks');
     expect($content)->toContain('`filled()`');
@@ -15,7 +15,7 @@ test('laravel rules prefer filled()/blank() helpers over strict empty-string com
 
 test('laravel rules extend Database and Eloquent with index and EXPLAIN guidance (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('verify indexes for every high-cardinality');
     expect($content)->toContain('check `EXPLAIN` before shipping');
@@ -25,7 +25,7 @@ test('laravel rules extend Database and Eloquent with index and EXPLAIN guidance
 
 test('laravel rules forbid dispatching full Eloquent models to queued jobs (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Do not dispatch full Eloquent models to queued jobs');
     expect($content)->toContain('Fetch fresh models inside `handle()`');
@@ -35,7 +35,7 @@ test('laravel rules forbid dispatching full Eloquent models to queued jobs (issu
 
 test('laravel rules tighten Dependency Injection with hot-path and lazy resolution guidance (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Do not call `app()`, `resolve()`, or `$container->make()` inside loops or hot paths');
     expect($content)->toContain('Bind stateless expensive services as singletons');
@@ -45,7 +45,7 @@ test('laravel rules tighten Dependency Injection with hot-path and lazy resoluti
 
 test('laravel rules require selective and lightweight middleware (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Apply middleware selectively');
     expect($content)->toContain('Put cheap fast-failing middleware before expensive middleware');
@@ -54,7 +54,7 @@ test('laravel rules require selective and lightweight middleware (issue #525)', 
 
 test('laravel rules add Stateless Runtime, Caching, and Long-Running Runtime Safety sections (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('## Stateless Runtime');
     expect($content)->toContain('Production application servers must be disposable');
@@ -73,7 +73,7 @@ test('laravel rules add Stateless Runtime, Caching, and Long-Running Runtime Saf
 
 test('laravel rules document Laravel 13 Bus::bulk, scheduler metadata, and Schema::hasForeignKey (issue #551)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Use `Bus::bulk()` to dispatch many jobs onto the queue in a single call');
     expect($content)->toContain('Reserve `Bus::batch()` for cases that genuinely need progress tracking');
@@ -87,7 +87,7 @@ test('laravel rules document Laravel 13 Bus::bulk, scheduler metadata, and Schem
 
 test('laravel rules require user-facing UI, console, and API strings to be translatable (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('## Localization and Translatable Strings');
     expect($content)->toContain('Every string a user can see must go through Laravel\'s translation layer');
@@ -101,7 +101,7 @@ test('laravel rules require user-facing UI, console, and API strings to be trans
 
 test('laravel rules forbid real HTTP and real system processes in tests (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Never allow real external HTTP calls in tests.');
     expect($content)->toContain('Never let tests run real system processes outside the application.');
@@ -130,7 +130,7 @@ test('architecture rules enumerate the seven allowed business logic layers inclu
 
 test('laravel rules permit simple self-contained logic on Eloquent models', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('Simple, self-contained domain logic may live as methods on the model.');
     expect($content)->toContain('$user->isActive()');
@@ -211,7 +211,7 @@ test('architecture CR Severity Rules cover app/Concerns misuse in both direction
 
 test('laravel rules carry the parallel Shared Concerns section and Layer Responsibilities bullet (issue #531)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('## Shared Concerns');
     expect($content)->toContain('Shared Concerns (`app/Concerns/`): globally shared and reusable logic');
@@ -284,7 +284,7 @@ test(
 
 test('laravel rules mandate the native Image facade over Intervention Image/GD/Imagick for image processing (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
 
     expect($content)->toContain('## Image Processing');
     expect($content)->toContain('Illuminate\Support\Facades\Image');

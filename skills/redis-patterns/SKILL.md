@@ -9,9 +9,9 @@ metadata:
 # Redis Patterns
 
 ## Constraints
-- Apply `@rules/laravel/laravel.mdc` — use the framework's facades (`Cache`, `RateLimiter`, `Redis`), not a raw client.
+- Apply `@rules/laravel/laravel.md` — use the framework's facades (`Cache`, `RateLimiter`, `Redis`), not a raw client.
 - Apply `@rules/laravel/queue-debouncing.mdc` for queue/job coalescing concerns when Redis backs the queue.
-- Cross-link `@rules/sql/optimalize.mdc` (DB-level caching) — Redis caching sits in front of the query tuning that rule owns; cache the result, do not paper over an unindexed query.
+- Cross-link `@rules/sql/optimalize.md` (DB-level caching) — Redis caching sits in front of the query tuning that rule owns; cache the result, do not paper over an unindexed query.
 - `final` classes, `declare(strict_types=1)`, Pest tests (use the `array` cache driver in tests unless asserting Redis-specific behavior).
 - Always set a TTL. Keys without expiry accumulate and cause memory pressure.
 

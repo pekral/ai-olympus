@@ -11,10 +11,10 @@ metadata:
 ---
 
 **Constraint:**
--   Apply @rules/php/core-standards.mdc
--   Apply @rules/git/general.mdc
+-   Apply @rules/php/core-standards.md
+-   Apply @rules/git/general.md
 -   Apply @rules/code-testing/general.mdc
--   If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+-   If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 -   If you are not on the main git branch in the project, switch to it.
 -   This task is based on the existing pull request review.
 -   First read your existing code review for the current pull request
@@ -72,7 +72,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
     do not duplicate test coverage.
 -   **Place new test files per `@rules/code-testing/general.mdc` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
 -   **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions, so the code-review test-organization gate passes when the PR is re-reviewed.
--   **Structure every test body arrange-act-assert per `@rules/php/core-standards.mdc` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
+-   **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
 
 **Deliver:**
 
@@ -98,13 +98,13 @@ Rules:
 1.  **Do not silently ignore** a pre-existing issue you encountered in code you had to read or exercise while writing the missing tests.
 2.  **Do not expand scope** by actively scanning unrelated files for additional pre-existing issues. Limit attention to files already touched or exercised by the current PR's changes.
 3.  Land each pre-existing fix (and its regression test) in its **own separate commit** inside the same PR, distinct from the missing-tests commit:
-    -   Use a Conventional Commits subject per `@rules/git/general.mdc`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
+    -   Use a Conventional Commits subject per `@rules/git/general.md`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
     -   The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance.
     -   **Test coverage workflow depends on the commit type:**
         -   `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.
         -   `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
 4.  The "Production code may only be changed if it is strictly required" constraint above is **overridden** for these fixes — the production-code change is the fix itself, and it lives in its own commit.
-5.  If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the delivered markdown summary as a deferred follow-up with the reason, and file it as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); include the created issue URL in the summary.
+5.  If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the delivered markdown summary as a deferred follow-up with the reason, and file it as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); include the created issue URL in the summary.
 
 **After completing the tasks**
 

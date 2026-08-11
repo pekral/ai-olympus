@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Commit, PR, and merge conventions live in `@rules/git/general.mdc` — English `type(scope)` commits, lowercase, no trailing period, no push to `main`, small focused commits, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
+- Commit, PR, and merge conventions live in `@rules/git/general.md` — English `type(scope)` commits, lowercase, no trailing period, no push to `main`, small focused commits, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
 - Branch cleanup is owned by `@skills/cleanup-local-branches/SKILL.md`. Defer to it; do not duplicate.
 - PR merging is owned by `@skills/merge-github-pr/SKILL.md`. Defer to it; do not duplicate.
 - This skill covers only the complementary gaps below.
@@ -37,7 +37,7 @@ Everyone integrates into `main` via very short-lived branches (1–2 days). Inco
 | Trunk-based | 5+ experienced | multiple/day | high-velocity teams using feature flags |
 | GitFlow | 10+ | scheduled | enterprise, regulated industries |
 
-Default to GitHub Flow unless the team has a concrete reason for another model. It aligns with the rebase-and-merge + short-focused-branches conventions in `@rules/git/general.mdc`.
+Default to GitHub Flow unless the team has a concrete reason for another model. It aligns with the rebase-and-merge + short-focused-branches conventions in `@rules/git/general.md`.
 
 ## Merge vs rebase mechanics
 
@@ -63,7 +63,7 @@ git push --force-with-lease origin feature/user-auth
 Always `--force-with-lease`, never plain `--force`.
 
 ### Pull policy: sync a side branch before pulling it
-`@rules/git/general.mdc` *Pull Policy* requires every non-default branch to be rebased onto the latest default branch so it always carries the newest default-branch history. The default branch is `main` on some repos and `master` on others — resolve it instead of hardcoding `origin/main` (which does not exist on a `master`-default repo and makes the command fail). Order matters: take the branch's own remote **first**, then rebase the default branch in, then force-push — do not pull again afterwards.
+`@rules/git/general.md` *Pull Policy* requires every non-default branch to be rebased onto the latest default branch so it always carries the newest default-branch history. The default branch is `main` on some repos and `master` on others — resolve it instead of hardcoding `origin/main` (which does not exist on a `master`-default repo and makes the command fail). Order matters: take the branch's own remote **first**, then rebase the default branch in, then force-push — do not pull again afterwards.
 ```bash
 DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"
 git checkout feature/user-auth
@@ -166,7 +166,7 @@ git tag -d v1.2.0 && git push origin --delete v1.2.0   # remove a tag
 # Draft release notes from the commit range
 git log v1.1.0..v1.2.0 --oneline --no-merges
 ```
-Conventional `type(scope)` subjects from `@rules/git/general.mdc` make this changelog range readable.
+Conventional `type(scope)` subjects from `@rules/git/general.md` make this changelog range readable.
 
 ## Laravel .gitignore essentials
 ```gitignore
@@ -185,7 +185,7 @@ Never commit `.env`, the `vendor/` or `node_modules/` trees, the Vite build outp
 If you wire a pre-commit or pre-push hook, run the project's own checks (the `composer build` / Composer scripts and the Pest suite), not ad-hoc tooling. The hook should fail the commit on any error, mirroring CI.
 
 ## Defer to
-- `@rules/git/general.mdc` — commit, PR, and merge conventions.
+- `@rules/git/general.md` — commit, PR, and merge conventions.
 - `@skills/cleanup-local-branches/SKILL.md` — deleting stale local branches.
 - `@skills/merge-github-pr/SKILL.md` — merging a ready PR.
 

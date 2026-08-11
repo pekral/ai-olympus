@@ -8,7 +8,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/laravel/architecture.mdc` — actors, surfaces, states, and data model must fit the existing layers (Action → ModelService → Repository / ModelManager), not invent new abstractions.
-- Apply `@rules/compound-engineering/general.mdc` — the plan is a durable artifact the next agent reuses, not throwaway prose.
+- Apply `@rules/compound-engineering/general.md` — the plan is a durable artifact the next agent reuses, not throwaway prose.
 - Do not invent product truth. Every unknown is an explicit open question, never a silent assumption.
 - Separate user-visible promises from implementation detail. Keep them in distinct sections.
 - Mark each constraint as **fixed policy**, **architectural preference**, or **open question** — never blur the three.
@@ -53,7 +53,7 @@ Walk these four steps in order. Each feeds the next.
 
 ## Output
 
-Write the plan to a durable file (`PRODUCT.md` at the repo root, or a `docs/` capability doc) so the next agent picks it up — per `@rules/compound-engineering/general.mdc`. State the file path in your reply. Use exactly these sections:
+Write the plan to a durable file (`PRODUCT.md` at the repo root, or a `docs/` capability doc) so the next agent picks it up — per `@rules/compound-engineering/general.md`. State the file path in your reply. Use exactly these sections:
 
 1. **Capability restatement** — user, new ability, outcome change (one paragraph).
 2. **User-visible promises** — what the user is guaranteed to experience. No implementation here.

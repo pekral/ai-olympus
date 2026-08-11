@@ -14,9 +14,9 @@ HMR in development, env vars, aliases, manifests, production builds, code
 splitting, and bundling for Livewire / Filament / Alpine.
 
 ## Constraints
-- Apply `@rules/laravel/laravel.mdc`
+- Apply `@rules/laravel/laravel.md`
 - Apply `@rules/laravel/livewire.mdc` and `@rules/laravel/filament.mdc` when bundling assets for those layers
-- Apply `@rules/php/core-standards.mdc` for any PHP touched (Blade config exposure, service providers)
+- Apply `@rules/php/core-standards.md` for any PHP touched (Blade config exposure, service providers)
 - This stack uses `laravel-vite-plugin` only. Never introduce React/Vue plugins, SSR frameworks, library mode, Bun, or Next.js.
 - Secrets never go into `VITE_`-prefixed vars — those are inlined into the public bundle.
 - Keep examples to `npm`, `php artisan serve`, and `npm run dev` / `npm run build`.

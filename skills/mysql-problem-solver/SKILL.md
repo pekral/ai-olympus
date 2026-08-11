@@ -20,12 +20,12 @@ Focus on:
 
 ## Constraints
 - Apply @rules/sql.mdc
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - Be practical and direct
 - Prefer investigation over assumptions
 - Do not invent schema, indexes, or runtime behavior
 - Do not recommend index changes without explaining why they help
-- Apply `@rules/sql/optimalize.mdc` "Performance Non-Regression on Query Changes" — every proposed query rewrite must be at least as fast as the original (ideally faster); a proposal that is slower must carry the documented reason and the remaining optimization options
+- Apply `@rules/sql/optimalize.md` "Performance Non-Regression on Query Changes" — every proposed query rewrite must be at least as fast as the original (ideally faster); a proposal that is slower must carry the documented reason and the remaining optimization options
 - If DB access is unavailable, continue with static analysis and state the limitation clearly
 
 ## Execution
@@ -56,7 +56,7 @@ Focus on:
 Look for:
 - full scans
 - weak join strategy
-- existing index bypassed — query could hit a covering index already in the schema but the column order, a wrapping function, or extra projected columns prevent it. Preferred fix is a query rewrite (column re-ordering, SARGable rewrite, covering projection), not a new index (see `@rules/sql/optimalize.mdc` "Reuse existing indexes first").
+- existing index bypassed — query could hit a covering index already in the schema but the column order, a wrapping function, or extra projected columns prevent it. Preferred fix is a query rewrite (column re-ordering, SARGable rewrite, covering projection), not a new index (see `@rules/sql/optimalize.md` "Reuse existing indexes first").
 - missing or ineffective indexes
 - non-SARGable filters
 - poor sort/group plans
@@ -67,7 +67,7 @@ Look for:
 
 ### 5. Propose Optimizations
 
-Before recommending any rewrite, capture the **baseline** of the original query (`EXPLAIN` / `EXPLAIN ANALYZE` — `type`, `key`, `rows`, `filtered`, `Extra`, measured latency when DB access is available). Every proposal must then be held against that baseline per `@rules/sql/optimalize.mdc` "Performance Non-Regression on Query Changes":
+Before recommending any rewrite, capture the **baseline** of the original query (`EXPLAIN` / `EXPLAIN ANALYZE` — `type`, `key`, `rows`, `filtered`, `Extra`, measured latency when DB access is available). Every proposal must then be held against that baseline per `@rules/sql/optimalize.md` "Performance Non-Regression on Query Changes":
 
 - The rewritten query must be **equal or better** on rows examined, access `type`, index usage, `filesort` / `temporary` avoidance, and latency.
 - If a proposal is unavoidably **slower** than the original (e.g. a correctness fix that widens the row set), do not present it as a clean win — state **why it is slower**, list the **remaining optimization options** (or state that none exist and why), and the **trade-off that justifies it**.
@@ -78,7 +78,7 @@ Recommend only justified changes, such as:
 - Eloquent/query builder rewrite
 - eager loading change
 - pagination change
-- batching per-row loops into a single bulk operation — ModelManager batch methods (`batchUpdate`, `batchInsert`), `whereIn(...)->delete()` for deletes, or one bulk read keyed in memory for lookups (see `@rules/sql/optimalize.mdc` "Batch over per-row operations")
+- batching per-row loops into a single bulk operation — ModelManager batch methods (`batchUpdate`, `batchInsert`), `whereIn(...)->delete()` for deletes, or one bulk read keyed in memory for lookups (see `@rules/sql/optimalize.md` "Batch over per-row operations")
 - index addition or replacement (only when the existing schema cannot cover the query and EXPLAIN confirms the gap after the rewrite alternative has been ruled out)
 - redundant index removal
 - splitting one query into smaller ones

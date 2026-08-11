@@ -1,7 +1,5 @@
 ---
 description: Project context, AI behavior, and unified coding standards for PHP/Laravel projects
-alwaysApply: true
-globs: ["*"]
 ---
 
 ## Project Context

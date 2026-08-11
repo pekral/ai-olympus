@@ -588,7 +588,7 @@ test('code-testing rule short-circuits coverage reporting when changed files are
 
 test('core-standards Testing bullet short-circuits coverage reporting when 100% (issue #528 follow-up)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
     expect($content)->toContain('Report the coverage result short by default');
     expect($content)->toContain('omit the `## Coverage` section, the `Coverage:` header line, and the `coverage …` slot from the summary line');
@@ -673,7 +673,7 @@ test(
         expect($codeTesting)->toContain('**Sanctioned exception:**');
         expect($codeTesting)->toContain('reports `deferred to talos` here instead of a Critical finding');
     
-        $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+        $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
         expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
     
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
@@ -705,7 +705,7 @@ test('code review rule flags extensive PHPDoc / inline commentary as a readabili
     expect($rule)->toContain('are required, and are never findings');
 
     // The canonical standard states the preference; the CR bullet defers to it.
-    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     expect($standards)->toContain('**Write the code so that extensive PHPDoc and inline commentary are not needed.**');
     expect($standards)->toContain('a comment block that is growing is a signal to restructure the code');
     // Documenting real constraints stays required -- only its length is bounded.
@@ -857,7 +857,7 @@ test('code review enforces translatable UI, console, and API strings (issue #553
     );
 
     expect($content)->toContain('Translation completeness (mandatory when the project ships translations)');
-    expect($content)->toContain('@rules/laravel/laravel.mdc` **Localization and Translatable Strings**');
+    expect($content)->toContain('@rules/laravel/laravel.md` **Localization and Translatable Strings**');
     expect($content)->toContain('**Console** (human-readable Artisan command output');
     expect($content)->toContain('**API** (JSON `message` fields');
 });
@@ -937,9 +937,9 @@ test('code-review wires the API rule and api-review skill into every CR run (iss
         $packageDir . '/rules/code-review/general.mdc',
     );
 
-    expect($content)->toContain('- Apply @rules/api/general.mdc');
+    expect($content)->toContain('- Apply @rules/api/general.md');
     expect($content)->toContain('@skills/api-review/SKILL.md');
-    expect($content)->toContain('`@rules/php/core-standards.mdc`, `@rules/api/general.mdc`, `@rules/code-review/general.mdc`');
+    expect($content)->toContain('`@rules/php/core-standards.md`, `@rules/api/general.md`, `@rules/code-review/general.mdc`');
 });
 
 test('code-review skill flags request->DTO transformation called directly in the controller body (issue #698)', function (): void {
@@ -1126,12 +1126,12 @@ test('code-review skill flags enum-mode match() in Data Validator bullet and New
     expect($content)->toContain('**New storage reuse analysis**');
     expect($content)->toContain('Schema::create(...)');
     expect($content)->toContain('Can this data be stored in an existing storage without a drastic impact on performance?');
-    expect($content)->toContain('Severity: **Moderate** (see `@rules/sql/optimalize.mdc` *New storage reuse analysis*)');
+    expect($content)->toContain('Severity: **Moderate** (see `@rules/sql/optimalize.md` *New storage reuse analysis*)');
 });
 
 test('core-standards Testing bullet mandates arrange-act-assert structure with exceptions (issue #25)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
     expect($content)->toContain('Structure every test body arrange-act-assert (AAA), in that order');
     expect($content)->toContain('phases separated by a blank line when the body has more than one multi-statement phase');
@@ -1149,7 +1149,7 @@ test('code-testing rules reference the canonical mandatory AAA rule (issue #25)'
     $content = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
 
     expect($content)->toContain(
-        'Structure every test body arrange-act-assert per @rules/php/core-standards.mdc Testing (phases in order, '
+        'Structure every test body arrange-act-assert per @rules/php/core-standards.md Testing (phases in order, '
         . 'comments optional — see the canonical rule for the exception list).',
     );
 });
@@ -1159,7 +1159,7 @@ test('code-review Test Organization gate and Core Analysis bullet enforce AAA st
     $content = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
 
     expect($content)->toContain(
-        'AAA phase order per `@rules/code-testing/general.mdc` / `@rules/php/core-standards.mdc` Testing — setup, '
+        'AAA phase order per `@rules/code-testing/general.mdc` / `@rules/php/core-standards.md` Testing — setup, '
         . 'then action, then assertions, each phase contiguous.',
     );
     expect($content)->toContain('verify four things per `@rules/code-testing/general.mdc` *Test Organization*');
@@ -1178,7 +1178,7 @@ test('create-test and create-missing-tests-in-pr skills require mandatory AAA st
 
     foreach ([$createTest, $createMissing] as $content) {
         expect($content)->toContain(
-            'Structure every test body arrange-act-assert per `@rules/php/core-standards.mdc` Testing',
+            'Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing',
         );
         expect($content)->toContain('phases in order (setup → action → assertions), comments optional');
     }
@@ -1190,7 +1190,7 @@ test('rewrite-tests-pest skill requires mandatory AAA flow, not merely preferred
 
     expect($content)->toContain(
         'Keep tests structured and easy to read, with arrange / act / assert flow per '
-        . '`@rules/php/core-standards.mdc` Testing (mandatory; see the canonical rule for the exception list).',
+        . '`@rules/php/core-standards.md` Testing (mandatory; see the canonical rule for the exception list).',
     );
     expect($content)->not->toContain('preferably with clear arrange / act / assert flow.');
 });
@@ -1228,7 +1228,7 @@ test('code-review rule and skill enforce storage relocation / migration complete
 
 test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issue #41)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
@@ -1242,7 +1242,7 @@ test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issu
     expect($phpRule)->toContain('**Do not introduce new static-analysis / linter suppressions.**');
     expect($phpRule)->toContain('CR severity for an unjustified new suppression: **Moderate**.');
     expect($crRule)->toContain('**New static-analysis / linter suppression introduced:**');
-    expect($crRule)->toContain('Severity: **Moderate** (declared in `@rules/php/core-standards.mdc` PHP Practices)');
+    expect($crRule)->toContain('Severity: **Moderate** (declared in `@rules/php/core-standards.md` PHP Practices)');
 
     // The code-review skill enumerates the concern so every CR wrapper inherits it.
     expect($skill)->toContain('new static-analysis / linter suppression');
@@ -1409,7 +1409,7 @@ test('code-review rule requires a concrete SQL rewrite in Database Analysis, not
 
     expect($rule)->toContain(
         'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
-        . 'snippet implementing that fix per `@rules/sql/optimalize.mdc` (issue #132) — a category label alone '
+        . 'snippet implementing that fix per `@rules/sql/optimalize.md` (issue #132) — a category label alone '
         . '(e.g. "query rewrite to reuse an existing index") is never sufficient by itself.',
     );
 });
@@ -1422,7 +1422,7 @@ test('code-review-github and code-review-jira Output Rules require the same conc
     foreach ([$github, $jira] as $content) {
         expect($content)->toContain(
             'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
-            . 'snippet implementing that fix per `@rules/sql/optimalize.mdc` (issue #132) — never a category label alone.',
+            . 'snippet implementing that fix per `@rules/sql/optimalize.md` (issue #132) — never a category label alone.',
         );
     }
 });
@@ -1489,7 +1489,7 @@ test(
     'core-standards Naming section flags a misleading name as Moderate, gated against the naming-nit Minor bucket (issue #123)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+        $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
         $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
         $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
@@ -1565,7 +1565,7 @@ test(
         expect($crRule)->toContain('**Expected Behavior:**');
         expect($crRule)->toContain('**Test Hint:**');
         expect($crRule)->toContain(
-            'Severity: **Moderate** (declared in `@rules/php/core-standards.mdc` CR Severity Rules — a real '
+            'Severity: **Moderate** (declared in `@rules/php/core-standards.md` CR Severity Rules — a real '
             . 'maintainability defect a fixer cannot catch, not an architectural violation).',
         );
 
@@ -1633,7 +1633,7 @@ test(
         $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
         // rules/code-review/general.mdc Coverage gate now carries the same hardened wording already
-        // established in rules/compound-engineering/general.mdc and agents/athena.md —
+        // established in rules/compound-engineering/general.md and agents/athena.md —
         // this was the weakest of the four restatements before issue #137's fix.
         expect($crRule)->toContain(
             '**Staleness guard:** CI results are valid only when that run\'s actually-checked-out SHA '
@@ -1858,7 +1858,7 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     expect($content)->toContain('An absent verdict falls back to the non-owner, it never silently disappears.');
 
     // Savings-mode mechanism 1 splits invariants and is opt-in; this rule is always on. Cross-linked so they cannot drift.
-    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($savings)->toContain('is assigned to a single reviewer **always**, savings mode or not');
     expect($savings)->toContain('the two assignments are complementary');
 });

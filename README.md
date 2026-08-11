@@ -339,30 +339,30 @@ Rules included in this package:
 
 | File                          | Description                                                | Scope    |
 |-------------------------------|------------------------------------------------------------|----------|
-| `php/core-standards.mdc`      | Project context, AI behavior, and unified PHP/Laravel coding standards | Always   |
+| `php/core-standards.md`      | Project context, AI behavior, and unified PHP/Laravel coding standards | Always   |
 | `php/examples/named-arguments.md` | Named-arguments usage examples (good/avoid) supporting the PHP core standards | Always   |
 | `php/dependency-selection.mdc` | Composer dependency selection — activity and compatibility gates before adopting a new package | Dependencies |
-| `compound-engineering/general.mdc` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
-| `git/general.mdc`             | Unified git workflow, commits, and pull request rules       | Always   |
+| `compound-engineering/general.md` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
+| `git/general.md`             | Unified git workflow, commits, and pull request rules       | Always   |
 | `code-review/general.mdc`     | Code review conventions and output rules                   | Always   |
 | `code-testing/general.mdc`    | Testing conventions and quality standards                  | Always   |
-| `api/general.mdc`             | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency | API      |
+| `api/general.md`             | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency | API      |
 | `refactoring/general.mdc`     | Shared refactoring definition (legacy → modern, incremental migration) | Refactor |
 | `jira/general.mdc`            | JIRA CLI usage and formatting rules                        | JIRA     |
 | `reports/general.mdc`         | Language rule for reports published to issue trackers (assignment language) | Always   |
-| `writing/general.mdc`         | Simplified technical writing (ASD-STE100 principles) for every agent response | Always   |
+| `writing/general.md`         | Simplified technical writing (ASD-STE100 principles) for every agent response | Always   |
 | `laravel/architecture.mdc`    | Laravel architecture and conventions                       | Laravel  |
-| `laravel/laravel.mdc`         | Laravel-specific rules and patterns                        | Laravel  |
+| `laravel/laravel.md`         | Laravel-specific rules and patterns                        | Laravel  |
 | `laravel/filament.mdc`        | Filament v4 specific rules                                 | Filament |
 | `laravel/livewire.mdc`        | Livewire component rules and conventions                   | Livewire |
 | `laravel/queue-debouncing.mdc`| Safe Laravel queue debouncing, urgency separation, and replaceable work | Laravel  |
 | `laravel/dynamodb.mdc`        | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug | Laravel  |
-| `sql/optimalize.mdc`          | SQL query optimization, index design, schema standards     | Always   |
+| `sql/optimalize.md`          | SQL query optimization, index design, schema standards     | Always   |
 | `security/backend.md`         | Backend security rules and OWASP Top 10 checks             | Always   |
 | `security/frontend.md`        | Frontend security rules (XSS, CSRF, CSP)                  | Frontend |
 | `security/mobile.md`          | Mobile-specific security rules and WebView checks          | Mobile   |
 
-All `.mdc` and `.md` files are ready for automatic injection by Claude Code so every PHP and Laravel edit stays aligned with the enforced standards.
+**The extension decides who reads the file.** Claude Code loads only `.md` rules from `.claude/rules/`, and it loads them unconditionally unless the frontmatter carries a `paths` list that scopes them. A `.mdc` file is Cursor's format: Claude Code never injects it, so those rules reach an agent only when a skill, an agent file, or `CLAUDE.md` references them by path and the agent reads them on demand. Both kinds are installed; only the `.md` ones are automatic (issue #187). Seven rules moved from `.mdc` to `.md` in that fix — the installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/agent-skills install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
 
 ## Development & Testing
 

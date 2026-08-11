@@ -7,8 +7,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc`
-- Apply `@rules/git/general.mdc`
+- Apply `@rules/php/core-standards.md`
+- Apply `@rules/git/general.md`
 - Apply `@rules/jira/general.mdc` — JIRA comments must be in Wiki Markup, never Markdown
 - Apply `@rules/reports/general.mdc` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
 - Read-only relative to the codebase. The skill never modifies code; it only publishes a JIRA comment.

@@ -7,7 +7,7 @@ namespace AgenticVibes\AgentSkills;
 /**
  * The machine-readable form of the Bash capability boundary.
  *
- * The prose in `rules/compound-engineering/general.mdc` *Bash capability boundary* and in each
+ * The prose in `rules/compound-engineering/general.md` *Bash capability boundary* and in each
  * `agents/<name>.md` *Bash boundary* block stays the human-readable, advisory contract; this class
  * carries part of the same enumeration in a form a program can evaluate. Nothing here is a new
  * rule, and nothing here is the whole rule either: the global set is the **program-level subset**
@@ -37,7 +37,7 @@ final class AgentBashBoundaryPolicy
     /**
      * The normative document this policy codifies; every global reason cites it.
      */
-    public const string RULE_SOURCE = 'rules/compound-engineering/general.mdc § Bash capability boundary';
+    public const string RULE_SOURCE = 'rules/compound-engineering/general.md § Bash capability boundary';
 
     /**
      * The *No outbound network request of any kind* bullet, one program per token. It is a

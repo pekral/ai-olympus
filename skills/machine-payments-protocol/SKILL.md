@@ -9,8 +9,8 @@ metadata:
 # Machine Payments Protocol (MPP)
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc` when generated code is PHP — `final` classes, `declare(strict_types=1)`, typed signatures.
-- If the project uses Laravel, also apply `@rules/laravel/laravel.mdc` and `@rules/laravel/architecture.mdc` — payment verification is a service, not controller logic.
+- Apply `@rules/php/core-standards.md` when generated code is PHP — `final` classes, `declare(strict_types=1)`, typed signatures.
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc` — payment verification is a service, not controller logic.
 - Defer to, never restate, `rules/security/backend.md` and `@skills/laravel-security/SKILL.md` for generic secure coding, secret handling, rate limiting, and error-message hygiene; this skill states only the MPP-specific additions.
 - Never invent a protocol detail. Every concrete claim below is labeled **Spec** (cited, with retrieval date), **Package** (a real third-party Laravel package, not the spec), or **Illustrative** (this skill's / the requesting issue's own example naming — never protocol vocabulary). Full source table: `references/protocol-sourcing.md`.
 - The spec is an individual IETF Internet-Draft (`draft-ryan-httpauth-payment-01`), not a ratified standard — no working-group adoption, expires 2026-09-19. Treat every **Spec** claim as a moving target and re-verify before relying on it long-term.

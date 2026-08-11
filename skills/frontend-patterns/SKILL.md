@@ -10,7 +10,7 @@ metadata:
 - Apply `@rules/laravel/livewire.mdc` — class in `app/Livewire`, view in `resources/views/livewire`, extend `Livewire\Component`; components are slim entry points; delegate business logic to Actions/Services; inject dependencies via `boot()`, never as method params; Blade stays presentation-only.
 - Apply `@rules/laravel/filament.mdc` — prefer Filament form/table components for admin UIs; custom Blade+Tailwind needs a registered theme.
 - Apply `@rules/laravel/architecture.mdc` — keep query/business logic out of views and components.
-- Apply `@rules/sql/optimalize.mdc` — eager-load to avoid N+1 in loops rendered by Blade.
+- Apply `@rules/sql/optimalize.md` — eager-load to avoid N+1 in loops rendered by Blade.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next — never output `useState`/`useEffect`/`useMemo`/JSX/Framer Motion/React Query.
 
 ## Use when
@@ -100,7 +100,7 @@ Rule of thumb: if toggling it should hit the database or affect validation, it i
 
 - **Lazy / deferred loading** — render expensive components after first paint with `<livewire:report lazy />`, or `#[Lazy]` on the class, to keep the initial response fast.
 - **Pagination** — use `WithPagination`; never load full tables into a property.
-- **Avoid N+1 in views** — eager-load relations in the query before passing to Blade; cross-reference `@rules/sql/optimalize.mdc`. A relation accessed inside a `@foreach` without eager loading fires one query per row.
+- **Avoid N+1 in views** — eager-load relations in the query before passing to Blade; cross-reference `@rules/sql/optimalize.md`. A relation accessed inside a `@foreach` without eager loading fires one query per row.
 
 ```php
 $this->orders = Order::with('customer')->latest()->paginate(20);

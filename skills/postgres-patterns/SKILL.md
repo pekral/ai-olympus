@@ -9,10 +9,10 @@ metadata:
 # PostgreSQL Patterns
 
 ## Constraints
-- Apply `@rules/sql/optimalize.mdc` — it already owns indexing fundamentals, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, and batch-over-per-row. Do not re-explain those; defer to it. Note it is written for MySQL — translate engine-specific syntax (`EXPLAIN ANALYZE`, plan flags) to Postgres equivalents here.
+- Apply `@rules/sql/optimalize.md` — it already owns indexing fundamentals, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, and batch-over-per-row. Do not re-explain those; defer to it. Note it is written for MySQL — translate engine-specific syntax (`EXPLAIN ANALYZE`, plan flags) to Postgres equivalents here.
 - **Its schema-design block is MySQL-only — do not defer to it on Postgres.** Everything in that rule from `## Schema Design` through `## When to Break These Rules` is scoped to MySQL 8.0.16+ on InnoDB, and several of its mandates are not a syntax translation but the opposite advice on Postgres: `TIMESTAMP` is banned there (a 32-bit type with a 2038 limit) while both Postgres timestamp types are 64-bit and carry no such limit — so the MySQL prohibition does not transfer, and the type to reach for here is `timestamptz` per **Data Type Discipline** below, never plain `timestamp`. `UNSIGNED` does not exist at all, and neither does `utf8mb4` or its collation family. The engine-neutral half — naming discipline, nullability semantics, `CHECK` as invariant-not-policy, foreign-key actions, explicit constraint names, `numeric` over float for money — still applies; take that, and use **Data Type Discipline** below plus the sections in this skill for the rest.
 - This skill is the Postgres counterpart to `@skills/mysql-patterns/SKILL.md`. It is for *designing* features. For diagnosing an existing slow query, the closest fit is `@skills/mysql-problem-solver/SKILL.md` (apply its method; substitute Postgres EXPLAIN/`pg_stat_statements`).
-- If the project uses Laravel, also apply `@rules/laravel/laravel.mdc` and `@rules/laravel/architecture.mdc`.
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc`.
 - Apply `@rules/security/backend.md` — parameterized queries / Eloquent only, least-privilege DB users, never hardcode credentials.
 - `final` classes, `declare(strict_types=1)`, Pest tests for any data-access code added.
 - Confirm the major version (`SELECT version();`) before using version-specific features — `MERGE` (15+), covering `INCLUDE` indexes (11+), and `NULLS NOT DISTINCT` (15+) are not in older servers.
@@ -147,7 +147,7 @@ SELECT * FROM orders WHERE id > :last_id ORDER BY id LIMIT 20;
 ```
 
 - The cursor columns must match the `ORDER BY` and be backed by an index (composite for multi-column sorts, including a unique tiebreaker).
-- See seek-pagination guidance in `@rules/sql/optimalize.mdc`; this is its Postgres-native form.
+- See seek-pagination guidance in `@rules/sql/optimalize.md`; this is its Postgres-native form.
 
 ## Row-Level Security (multi-tenancy)
 

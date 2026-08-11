@@ -1,7 +1,5 @@
 ---
 description: Unified Git workflow, commits and pull request rules
-alwaysApply: true
-globs: ["*"]
 ---
 
 ## Branch Context

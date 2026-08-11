@@ -1,12 +1,5 @@
 ---
 description: Core Laravel architecture and coding conventions
-alwaysApply: true
-globs:
-  - app/**/*.php
-  - bootstrap/**/*.php
-  - routes/**/*.php
-  - database/migrations/**/*.php
-  - resources/views/**/*.blade.php
 ---
 
 ## Architecture

@@ -10,8 +10,8 @@ metadata:
 
 ## Constraints
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
-- Apply `@rules/php/core-standards.mdc` — `final` classes, `declare(strict_types=1)`, typed signatures
-- If the project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, `@rules/laravel/livewire.mdc`
+- Apply `@rules/php/core-standards.md` — `final` classes, `declare(strict_types=1)`, typed signatures
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, `@rules/laravel/livewire.mdc`
 - Stack: Laravel 11 / PHP 8.3, Filament, Livewire, Alpine.js, Blade, Tailwind, Pest, Vite, MySQL, Redis
 - Never hardcode secrets; never reveal them in output
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens

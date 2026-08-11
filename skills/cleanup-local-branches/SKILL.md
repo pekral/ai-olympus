@@ -18,7 +18,7 @@ Two deletion categories:
 ---
 
 ## Constraints
-- Apply `@rules/git/general.mdc`
+- Apply `@rules/git/general.md`
 - Output must be in English
 - This skill deletes **local** refs only — it never deletes, force-pushes, or modifies any branch on origin
 - Never delete the currently checked-out branch

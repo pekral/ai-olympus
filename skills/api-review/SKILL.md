@@ -7,10 +7,10 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/api/general.mdc` — this skill is the focused review lens for that rule.
-- Apply `@rules/php/core-standards.mdc`
+- Apply `@rules/api/general.md` — this skill is the focused review lens for that rule.
+- Apply `@rules/php/core-standards.md`
 - Apply `@rules/security/backend.md` — for the error-text and authorization-leak surface of API responses (401/403/404 wording, no internal-detail leak).
-- If the current project uses Laravel, also apply `@rules/laravel/architecture.mdc` and `@rules/laravel/laravel.mdc` — validation belongs in FormRequest / Data Validator, controllers stay slim.
+- If the current project uses Laravel, also apply `@rules/laravel/architecture.mdc` and `@rules/laravel/laravel.md` — validation belongs in FormRequest / Data Validator, controllers stay slim.
 - Apply `@rules/reports/general.mdc` — when the findings are folded into the **GitHub PR comment** by a CR wrapper they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*; a non-technical mirror on a linked issue / JIRA ticket follows the language of the source assignment. HTTP verbs, status codes, header names, and code identifiers stay verbatim regardless of the surrounding prose language.
 - Output findings only — no praise, no summary of what was checked.
 - **Read-only skill** — never modify code, never stage / commit / push, and never run any git write operation. Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing is not.
@@ -24,7 +24,7 @@ metadata:
 Review only the API surface on the **diff** — never untouched endpoints. Detect the surface from any of: route definitions, controller/`__invoke` request handlers, API Resources / DTOs serialized into responses, FormRequests, `response()` / `abort()` / status-code calls, and `Idempotency-Key` handling. If the diff touches no API surface, return no findings.
 
 ## Core Checks
-Walk the diff against each pillar of `@rules/api/general.mdc` and raise one finding per match.
+Walk the diff against each pillar of `@rules/api/general.md` and raise one finding per match.
 
 ### 1. Contract & consumer orientation
 - Response leaks internal DB structure — raw column names, surrogate/internal keys, join tables, enum integers, or storage-only fields serialized without a DTO / API Resource boundary.
@@ -55,7 +55,7 @@ Walk the diff against each pillar of `@rules/api/general.mdc` and raise one find
 ## Prioritization
 - Focus on contract defects a consumer would feel: double-charges, wrong status branching, breaking payload shapes, bypassed validation.
 - Deprioritize purely cosmetic naming nits — keep them as **Minor**.
-- Do not propose API features the current scope does not require (YAGNI per `@rules/php/core-standards.mdc`).
+- Do not propose API features the current scope does not require (YAGNI per `@rules/php/core-standards.md`).
 
 ## Report
 
@@ -66,19 +66,19 @@ Findings from this skill fold into the core CR's severity buckets; the Assignmen
 
 Use the severity scale of `@skills/code-review/SKILL.md` so findings fold cleanly into the code review:
 
-- **Critical** / **Moderate** / **Minor** — apply the severity declared in `@rules/api/general.mdc` *CR Severity Rules*.
+- **Critical** / **Moderate** / **Minor** — apply the severity declared in `@rules/api/general.md` *CR Severity Rules*.
 
 Each finding includes:
 - location (`file:line`)
 - risk/impact (the consumer-facing consequence)
-- the cited rule reference (e.g. `@rules/api/general.mdc#Resource-Oriented REST`)
+- the cited rule reference (e.g. `@rules/api/general.md#Resource-Oriented REST`)
 - concrete fix
 
 Each **Critical** and **Moderate** finding additionally includes:
 - **Faulty Example** — minimal endpoint / route / payload snippet that reproduces the issue (redact secrets/PII)
 - **Expected Behavior** — single assertable statement (status code, response shape, idempotent outcome, rejection before side effect)
 - **Test Hint** — one sentence pointing at the test layer (feature/HTTP, integration) and the entry point
-- **Suggested Fix** — minimal corrected snippet that complies with `@rules/api/general.mdc`, `@rules/php/core-standards.mdc`, and on Laravel projects `@rules/laravel/architecture.mdc`. Use `n/a — <reason>` only when a snippet adds nothing over the one-line fix.
+- **Suggested Fix** — minimal corrected snippet that complies with `@rules/api/general.md`, `@rules/php/core-standards.md`, and on Laravel projects `@rules/laravel/architecture.mdc`. Use `n/a — <reason>` only when a snippet adds nothing over the one-line fix.
 
 Minor findings may omit these fields when no behavior change is implied.
 

@@ -14,10 +14,10 @@ De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-l
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc`
-- Apply `@rules/git/general.mdc`
+- Apply `@rules/php/core-standards.md`
+- Apply `@rules/git/general.md`
 - Apply `@rules/jira/general.mdc` when the assignment lives in JIRA
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - **Read-only for production code.** This skill never modifies production source files. It is allowed to: create temporary seeders / factories / Tinker scripts under `database/seeders/`, `database/factories/`, or a scratch directory; insert rows into the **development** database; create scratch Pest tests that reproduce the bug. It is **never** allowed to mutate the production database, run destructive migrations, drop tables, push to the remote, or modify code in `src/` / `app/` outside of seed-only fixtures.
 - Never invent values that are not derivable from the assignment, the codebase, or the existing dev database. When a required value (account ID, contact phone, enum case, config key) cannot be resolved, list it as a gap — do not guess.
 - Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420600000000`-style sentinels, `qa-*` aliases) explicitly tagged as such.
@@ -49,7 +49,7 @@ Do **not** run this skill for tasks that are obviously stateless (formatting, de
 - Load the issue via the deterministic loader — `skills/code-review-github/scripts/load-issue.sh` or `skills/code-review-jira/scripts/load-issue.sh`. To pull the whole context in one pass, prefer the matching `gather-issue-context.sh` (issue + comments + attachments + recursively-loaded linked issues/PRs + an inventory of external URLs): `skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>` for JIRA, `skills/code-review-github/scripts/gather-issue-context.sh <URL>` for GitHub. The GitHub scripts always take the full GitHub URL — never a bare number or `#123`; the loader rejects bare numbers. Never call `gh`, `acli`, or REST endpoints directly.
 - Read the full `body` / `descriptionText`, every entry in `comments[]`, every attachment URL, and the linked PRs.
 - Group comments by thread per `@skills/resolve-issue/SKILL.md` *Comment analysis* — keep only the **current** requirements.
-- **Consult the per-project compound memory** (`docs/memory/PROJECT_MEMORY.md` per `@rules/compound-engineering/general.mdc` *Compound Memory (per project)*) before mapping scenarios to code in step 3: read it when present and reuse any entry whose `Trigger:` matches this assignment so the mapping builds on recorded lessons instead of re-deriving them. Apply the per-role read filter from `@rules/compound-engineering/general.mdc` *Read protocol* — load only entries where `Role: talos` or `Role: shared` (this skill runs in `talos` and `athena` contexts; when running under `athena`, also include `Role: athena`).
+- **Consult the per-project compound memory** (`docs/memory/PROJECT_MEMORY.md` per `@rules/compound-engineering/general.md` *Compound Memory (per project)*) before mapping scenarios to code in step 3: read it when present and reuse any entry whose `Trigger:` matches this assignment so the mapping builds on recorded lessons instead of re-deriving them. Apply the per-role read filter from `@rules/compound-engineering/general.md` *Read protocol* — load only entries where `Role: talos` or `Role: shared` (this skill runs in `talos` and `athena` contexts; when running under `athena`, also include `Role: athena`).
 
 ### 2. Extract concrete scenarios
 For every numbered step, bullet, or paragraph in the *Jak otestovat* / *How to test* / acceptance-criteria section of the assignment, record one scenario:

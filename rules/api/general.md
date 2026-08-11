@@ -1,7 +1,5 @@
 ---
 description: API design standards — treat the API as a consumer-facing contract. Apply when designing, reviewing, or changing HTTP endpoints, routes, controllers, request/response payloads, and API resources.
-alwaysApply: true
-globs: ["*"]
 ---
 
 ## API as a Contract

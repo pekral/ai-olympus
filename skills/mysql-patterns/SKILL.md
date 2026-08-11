@@ -9,9 +9,9 @@ metadata:
 # MySQL Patterns
 
 ## Constraints
-- Apply `@rules/sql/optimalize.mdc` — it already owns indexing, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, batch-over-per-row, CTE/window/recursive queries, schema basics, DB-level caching, and the **Performance Non-Regression on Query Changes** gate. Do not re-explain those here; defer to it. When a pattern in this skill *changes an existing query* (e.g. swapping `LIKE` for a FULLTEXT match, moving a filter onto a generated column, introducing partition pruning), capture the original query's baseline and confirm the new shape is equal or faster — if it is slower, document the reason and the remaining optimization options per that gate.
+- Apply `@rules/sql/optimalize.md` — it already owns indexing, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, batch-over-per-row, CTE/window/recursive queries, schema basics, DB-level caching, and the **Performance Non-Regression on Query Changes** gate. Do not re-explain those here; defer to it. When a pattern in this skill *changes an existing query* (e.g. swapping `LIKE` for a FULLTEXT match, moving a filter onto a generated column, introducing partition pruning), capture the original query's baseline and confirm the new shape is equal or faster — if it is slower, document the reason and the remaining optimization options per that gate.
 - For diagnosing an existing slow query, use `@skills/mysql-problem-solver/SKILL.md`. This skill is for *designing* features, not investigating regressions.
-- If the project uses Laravel, also apply `@rules/laravel/laravel.mdc` and `@rules/laravel/architecture.mdc`.
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc`.
 - Apply `@rules/security/backend.md` — parameterized queries / ORM only, least-privilege DB users, never hardcode credentials.
 - `final` classes, `declare(strict_types=1)`, Pest tests for any data-access code added.
 - Verify the engine/version before using a version-specific feature (`SELECT VERSION();`). MySQL 8 and MariaDB diverge on JSON, `ON DUPLICATE KEY` aliases, and `SKIP LOCKED`.
@@ -73,7 +73,7 @@ Product::whereJsonContains('attributes->tags', 'sale')->get();
 
 ## Full-Text Search
 
-For natural-language search on TEXT columns, a `FULLTEXT` index beats `LIKE '%term%'` (which is non-SARGable, see `@rules/sql/optimalize.mdc`).
+For natural-language search on TEXT columns, a `FULLTEXT` index beats `LIKE '%term%'` (which is non-SARGable, see `@rules/sql/optimalize.md`).
 
 ```php
 Schema::table('articles', function (Blueprint $table): void {
@@ -161,7 +161,7 @@ DB::transaction(function (): void {
 
 - Keep transactions short, lock rows in a consistent order across code paths, and touch the fewest rows possible.
 - Idempotency matters: the closure runs up to N times, so it must be safe to re-run.
-- See `@rules/sql/optimalize.mdc` for the transaction/locking fundamentals this builds on.
+- See `@rules/sql/optimalize.md` for the transaction/locking fundamentals this builds on.
 
 ## Connection Config & Timeouts
 
@@ -188,8 +188,8 @@ SELECT table_name, data_length, index_length
 
 ## Done when
 - The chosen feature is verified against the actual engine/version.
-- Any pattern that changed an existing query was benchmarked against its baseline and is equal or faster; a slower result carries the documented reason and remaining optimization options (`@rules/sql/optimalize.mdc` "Performance Non-Regression on Query Changes").
+- Any pattern that changed an existing query was benchmarked against its baseline and is equal or faster; a slower result carries the documented reason and remaining optimization options (`@rules/sql/optimalize.md` "Performance Non-Regression on Query Changes").
 - Upserts run as single statements with a backing unique index; concurrent ones are deadlock-retried.
-- JSON / FULLTEXT / partition queries are confirmed to hit the intended index (EXPLAIN — see `@rules/sql/optimalize.mdc`).
+- JSON / FULLTEXT / partition queries are confirmed to hit the intended index (EXPLAIN — see `@rules/sql/optimalize.md`).
 - Read/write splitting keeps `sticky` on for read-after-write paths.
 - Pest tests cover the new data-access paths; no secrets are hardcoded.

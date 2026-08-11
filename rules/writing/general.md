@@ -1,7 +1,5 @@
 ---
 description: Simplified technical writing — every agent response and published report follows the ASD-STE100 style principles, in whatever language the assignment is written in.
-alwaysApply: true
-globs: ["*"]
 ---
 
 ## Simplified Technical Writing (ASD-STE100)

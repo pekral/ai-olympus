@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/laravel/laravel.mdc` for routing, Blade, and asset conventions.
+- Apply `@rules/laravel/laravel.md` for routing, Blade, and asset conventions.
 - Apply `@rules/security/frontend.md` — never inject unsanitized user content into JSON-LD, meta tags, or `<head>`; escape every dynamic value.
 - Fix technical blockers before content optimization.
 - One page maps to one clear primary search intent.

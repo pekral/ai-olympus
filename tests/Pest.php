@@ -747,3 +747,73 @@ function agentBashBoundaryWriterRows(): array
         ['general-purpose', 'curl https://example.com', 'deny'],
     ];
 }
+
+/**
+ * The rules whose author intent is "load into every session" (issue #187). Listed literally
+ * rather than derived from the frontmatter, because the frontmatter key that used to carry that
+ * intent is exactly what the fix removed — deriving the expectation from the file would make the
+ * test agree with whatever the file happens to say.
+ *
+ * @return array<int, string>
+ */
+function ruleExtensionAlwaysOnFiles(): array
+{
+    return [
+        'rules/api/general.md',
+        'rules/compound-engineering/general.md',
+        'rules/git/general.md',
+        'rules/laravel/laravel.md',
+        'rules/php/core-standards.md',
+        'rules/sql/optimalize.md',
+        'rules/writing/general.md',
+    ];
+}
+
+/**
+ * Returns a rule file's YAML frontmatter, or an empty string when it carries none.
+ */
+function ruleExtensionFrontmatter(string $path): string
+{
+    $lines = explode("\n", (string) file_get_contents($path));
+
+    if (($lines[0] ?? null) !== '---') {
+        return '';
+    }
+
+    $closing = array_search('---', array_slice($lines, 1), strict: true);
+
+    return $closing === false ? '' : implode("\n", array_slice($lines, 1, (int) $closing));
+}
+
+/**
+ * Every text file in the package a reader could follow a rule path out of, keyed by its
+ * package-relative path. Walked from disk rather than asked of `git ls-files`, because
+ * `@rules/code-testing/general.md` forbids a test from spawning a real system process.
+ *
+ * @return array<string, string>
+ */
+function ruleExtensionPackageTextFiles(): array
+{
+    $packageDir = dirname(__DIR__);
+    $skipped = ['vendor', 'node_modules', '.git', '.claude', '.idea'];
+    $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml'];
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
+            static fn (SplFileInfo $file): bool => !in_array($file->getFilename(), $skipped, strict: true),
+        ),
+    );
+
+    $files = [];
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || !in_array($file->getExtension(), $extensions, strict: true)) {
+            continue;
+        }
+
+        $files[ltrim(substr($file->getPathname(), strlen($packageDir)), '/')] = (string) file_get_contents($file->getPathname());
+    }
+
+    return $files;
+}

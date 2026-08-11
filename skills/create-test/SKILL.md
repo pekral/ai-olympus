@@ -15,7 +15,7 @@ Create or update tests to cover current changes according to project conventions
 
 ## Constraints
 - Apply @rules/code-testing/general.mdc
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - Do not modify production code unless strictly required — the only exception is the **Pre-existing issue handling** workflow below, which lands its production-code fixes in their own separate commits
 
 ---
@@ -44,7 +44,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - Follow project conventions and helpers
 - **Place new test files per `@rules/code-testing/general.mdc` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
 - **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions. When changing what a test asserts, rename the description in the same change so the code-review test-organization gate passes downstream.
-- **Structure every test body arrange-act-assert per `@rules/php/core-standards.mdc` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
+- **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
 
 ### 3. Ensure Coverage
 - Cover all changed code paths
@@ -84,7 +84,7 @@ Rules:
 1. **Do not silently ignore** a pre-existing issue you encountered in code you had to read or exercise to write the tests for the current change.
 2. **Do not expand scope** by actively scanning unrelated files for pre-existing issues. Limit attention to files already touched or exercised by the current change.
 3. Land each pre-existing fix (and its regression test) in its **own separate commit**, distinct from the test-coverage commit for the current change:
-   - Use a Conventional Commits subject per `@rules/git/general.mdc`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
+   - Use a Conventional Commits subject per `@rules/git/general.md`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
    - The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance.
    - **Test coverage workflow depends on the commit type:**
      - `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.

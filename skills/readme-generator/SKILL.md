@@ -7,8 +7,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc` **only once it is established that the project is a PHP project (PHP stack in `composer.json`) and the generated docs reference PHP code / commands** — skip it for a non-PHP repository; do not load the PHP standards for a README that does not document PHP.
-- Apply `@rules/git/general.mdc` — only when the user explicitly asks to commit or push the generated docs
+- Apply `@rules/php/core-standards.md` **only once it is established that the project is a PHP project (PHP stack in `composer.json`) and the generated docs reference PHP code / commands** — skip it for a non-PHP repository; do not load the PHP standards for a README that does not document PHP.
+- Apply `@rules/git/general.md` — only when the user explicitly asks to commit or push the generated docs
 - Output must be in English unless the existing README is written in another language; then match it
 - **Zero hallucination** — never invent an install command, CLI flag, environment variable, config key, script name, badge, or setup step. Every concrete claim must be traceable to a file you read or a command whose output you captured
 - Do not modify production code, tests, or configuration — this skill writes documentation only
@@ -41,7 +41,7 @@ metadata:
    - `https://raw.githubusercontent.com/sinedied/run-on-output/refs/heads/main/README.md`
    - `https://raw.githubusercontent.com/sinedied/smoke/refs/heads/main/README.md`
 7. **Validate before delivery.** Confirm every command, path, badge target, and link resolves to something real in the repository or an authoritative source. Re-read the draft for skimmability and remove filler.
-8. **Stage / commit only on request.** Write the file(s). Stage, commit, or push **only** when the user explicitly authorizes it, following `@rules/git/general.mdc` for branch and commit-message conventions; otherwise leave the working tree for the user to review.
+8. **Stage / commit only on request.** Write the file(s). Stage, commit, or push **only** when the user explicitly authorizes it, following `@rules/git/general.md` for branch and commit-message conventions; otherwise leave the working tree for the user to review.
 
 ## Output
 - New or rewritten `README.md` (and any explicitly requested sibling root doc) reflecting verified repository reality

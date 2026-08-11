@@ -2,7 +2,7 @@
 
 Referenced from `skills/resolve-issue/SKILL.md` *Commit planning (one point = one commit)*. Extracted to keep the skill body under the skill-check token limit (issue #59).
 
-Before writing any code, decide how the in-scope work will be split into commits within the PR, applying the **one phase = one commit** rule and its **one assignment point = one commit** clause from `@rules/git/general.mdc` *Git Rules*. The commit list is what a reviewer reads as the list of resolved points, so it is planned up front — never discovered while committing.
+Before writing any code, decide how the in-scope work will be split into commits within the PR, applying the **one phase = one commit** rule and its **one assignment point = one commit** clause from `@rules/git/general.md` *Git Rules*. The commit list is what a reviewer reads as the list of resolved points, so it is planned up front — never discovered while committing.
 
 ## 1. Inventory the points the assignment enumerates
 
@@ -25,7 +25,7 @@ Rules for the inventory:
 
 - Each inventoried in-scope point is **exactly one commit**, in the assignment's original order. Never merge two points into one commit, never split one point across two, never re-scope or reorder them.
 - Each commit is **complete on its own**: the production change for its point, the tests covering it (for a bug, the TDD failing test written first), and any doc or locale update the point requires — so the point is verifiable at that commit and nothing is left to a later fixup.
-- Every commit subject is `type(scope): description` per `@rules/git/general.mdc`, in English, and names the point it resolves rather than the mechanics of the edit.
+- Every commit subject is `type(scope): description` per `@rules/git/general.md`, in English, and names the point it resolves rather than the mechanics of the edit.
 
 ## 3. Order for independence (cherry-pick friendly — preferred, not required)
 
@@ -70,7 +70,7 @@ If implementation proves the plan wrong (a point turns out to need two commits, 
 
 ## 6. Keep every later change in a logical commit
 
-Work that arrives after the plan — a finding from the pre-PR review loop, a correction to a commit you already made, a follow-through the first pass missed, the CHANGELOG entry — still lands in a logical commit, per `@rules/git/general.mdc` *Every change on the branch belongs to a logical commit*. For each such change decide **amend or new** before committing it:
+Work that arrives after the plan — a finding from the pre-PR review loop, a correction to a commit you already made, a follow-through the first pass missed, the CHANGELOG entry — still lands in a logical commit, per `@rules/git/general.md` *Every change on the branch belongs to a logical commit*. For each such change decide **amend or new** before committing it:
 
 | The change… | Do this |
 |---|---|

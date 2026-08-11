@@ -581,7 +581,7 @@ test(
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-        expect($content)->toContain('@rules/compound-engineering/general.mdc` *Savings mode*');
+        expect($content)->toContain('@rules/compound-engineering/general.md` *Savings mode*');
         expect($content)->toContain('read the brief\'s `## Context pack`');
         expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
         expect($content)->toContain('otherwise report the coverage gate as deferred to `talos`');
@@ -1340,7 +1340,7 @@ test('daidalos anchors run cleanup to every terminal path instead of the step-7 
     // rule for the "reference implementation" title, and names every terminal path, not just two.
     expect($content)->toContain('This bullet is **one item of ***Run cleanup*****');
     expect($content)->toContain('at the analysis-only stop in step 3, and at any `Blocked` stop in steps 4–6 or at the merge gate');
-    expect($content)->not->toContain('This is the reference implementation of `@rules/compound-engineering/general.mdc` *Temporary-file hygiene*');
+    expect($content)->not->toContain('This is the reference implementation of `@rules/compound-engineering/general.md` *Temporary-file hygiene*');
 
     // The dispatch ledger no longer claims the Cleanup bullet is the exhaustive path enumeration.
     expect($content)->toContain('exactly the paths ***Run cleanup*** enumerates');
@@ -1386,7 +1386,7 @@ test('the Run cleanup anchor is cross-referenced by name from athena and the com
     expect($athena)->toContain('removes it during *Run cleanup*');
     expect($athena)->not->toContain('during its cleanup (step 7 of `agents/daidalos.md`)');
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($rule)->toContain('released by `daidalos` during *Run cleanup*');
     expect($rule)->toContain('*Run cleanup* (`agents/daidalos.md`) is the **reference implementation**');
     expect($rule)->not->toContain('released by `daidalos` in step 7.');
@@ -1432,7 +1432,7 @@ test('the remediation-conformance verdict is derived once, by the single reviewe
 test('every agent declares a per-agent Bash boundary and the harness-enforced disallowedTools it actually gets (issue #163)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($rule)->toContain('## Bash capability boundary (advisory, not harness-enforced)');
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
@@ -1528,7 +1528,7 @@ test('no agent frontmatter declares memory: or permissionMode: (issue #160)', fu
 
     // The rule states why the ban is held by this test rather than by an assumption about
     // `disallowedTools:` precedence.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($rule)->toContain('not documented by the vendor');
     expect($rule)->toContain('It bans `hooks:` for the same reason and on two further grounds of its own');
     expect($rule)->toContain('anthropics/claude-code#18392');
@@ -1643,6 +1643,6 @@ test('docs/agents.md states the architecture constraint and scopes the one runti
     expect($shortcut)->toContain('All of those fail **open**');
 
     // The rule file's own reference to this section stays resolvable.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($rule)->toContain('`docs/agents.md` *Architecture constraint*');
 });

@@ -24,8 +24,8 @@ its merged middleware. If you cannot point to both a real route **and** a cited
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc`
-- Apply `@rules/laravel/laravel.mdc` and `@rules/laravel/architecture.mdc`
+- Apply `@rules/php/core-standards.md`
+- Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc`
 - Apply `@rules/security/backend.md` — *Database* (authentication & authorization, least privilege) and *Safe Validation & Error Messages* (a 403-vs-404 distinction that confirms a resource exists is itself an authorization-granularity leak)
 - Apply `@rules/code-review/general.mdc` — map every finding onto the CR severity scale (Critical / Moderate / Minor) so this skill plugs into a Laravel CR run
 - **Advise-only.** Reads files and runs one read-only command (`php artisan route:list --json`). Never edits routes, controllers, policies, or any source; emits a report plus fix sketches for a human to apply.

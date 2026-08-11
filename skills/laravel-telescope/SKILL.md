@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 
 ---
 
@@ -120,7 +120,7 @@ For every recommendation include:
 - implementation risk or side effects
 - verification plan (how to measure after change)
 
-When a recommendation **changes or refactors a query**, apply `@rules/sql/optimalize.mdc` "Performance Non-Regression on Query Changes": capture the query's current cost from the Telescope evidence (duration, rows, repeated executions) as the baseline, and require the changed query to be equal or faster. If the proposed change would be slower than the observed original, do not present it as an improvement — state why it is slower, list the remaining optimization options (or that none exist and why), and the trade-off that justifies it.
+When a recommendation **changes or refactors a query**, apply `@rules/sql/optimalize.md` "Performance Non-Regression on Query Changes": capture the query's current cost from the Telescope evidence (duration, rows, repeated executions) as the baseline, and require the changed query to be equal or faster. If the proposed change would be slower than the observed original, do not present it as an improvement — state why it is slower, list the remaining optimization options (or that none exist and why), and the trade-off that justifies it.
 
 Keep suggestions scoped to observed telemetry, not hypothetical architecture rewrites.
 

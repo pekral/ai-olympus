@@ -1,5 +1,5 @@
 ---
-description: Named-argument usage examples for PHP, referenced from rules/php/core-standards.mdc.
+description: Named-argument usage examples for PHP, referenced from rules/php/core-standards.md.
 paths:
   - "**/*.php"
 ---

@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 test('sql optimalize rule carries the New storage reuse analysis section (issue #708)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## New storage reuse analysis');
     expect($content)->toContain('Can this data be stored in an existing storage without a drastic impact on performance?');
@@ -15,7 +15,7 @@ test('sql optimalize rule carries the New storage reuse analysis section (issue 
 
 test('sql optimalize schema design recommends DATETIME instead of TIMESTAMP', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `DATETIME`.');
     expect($content)->not->toContain('Fitting data types: `INT`, `DECIMAL`, `VARCHAR(n)`, `TIMESTAMP`.');
@@ -23,7 +23,7 @@ test('sql optimalize schema design recommends DATETIME instead of TIMESTAMP', fu
 
 test('sql optimalize states the schema block version scope under Schema Design, not under Strict SQL Mode (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
     expect($content)->not->toContain('The schema-design guidance below (through **When to Break These Rules**) assumes MySQL 8.0.16+');
@@ -38,7 +38,7 @@ test('sql optimalize states the schema block version scope under Schema Design, 
 
 test('sql optimalize schema design scope narrows the block to MySQL and hands PostgreSQL to its own skill (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain(
         'its timestamp types are 64-bit so the `TIMESTAMP` prohibition below does not transfer, `UNSIGNED` does not exist, and neither does `utf8mb4`',
@@ -48,7 +48,7 @@ test('sql optimalize schema design scope narrows the block to MySQL and hands Po
 
 test('sql optimalize schema design type list points at the type sections instead of reading as exhaustive (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('Read that as a starting point, not as the permitted set');
     expect($content)->toContain('`DATE`, `BIGINT`, `TEXT` / `MEDIUMTEXT`, `ENUM`, and `CHAR(n)` are each mandated by a type section below');
@@ -57,7 +57,7 @@ test('sql optimalize schema design type list points at the type sections instead
 
 test('sql optimalize rule carries the Strict SQL Mode section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Strict SQL Mode');
     expect($content)->toContain('STRICT_TRANS_TABLES,ONLY_FULL_GROUP_BY,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION');
@@ -67,7 +67,7 @@ test('sql optimalize rule carries the Strict SQL Mode section', function (): voi
 
 test('sql optimalize rule carries the Naming Conventions section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Naming Conventions');
     expect($content)->toContain('Singular table names** (`post`, not `posts`)');
@@ -79,7 +79,7 @@ test('sql optimalize rule carries the Naming Conventions section', function (): 
 
 test('sql optimalize naming conventions section maps singular table names onto an explicit Eloquent $table override', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('Eloquent derives a model\'s table name as the plural of the class name');
     expect($content)->toContain('protected $table = \'post\';');
@@ -87,7 +87,7 @@ test('sql optimalize naming conventions section maps singular table names onto a
 
 test('sql optimalize rule carries the Nullability and Defaults section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Nullability and Defaults');
     expect($content)->toContain('`meta_title` varchar(160) NOT NULL DEFAULT \'\',');
@@ -97,7 +97,7 @@ test('sql optimalize rule carries the Nullability and Defaults section', functio
 
 test('sql optimalize rule carries the Date and Time Column Types section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Date and Time Column Types');
     expect($content)->toContain('`_at` suffix = a point in time');
@@ -109,7 +109,7 @@ test('sql optimalize rule carries the Date and Time Column Types section', funct
 
 test('sql optimalize date and time column types section maps the TIMESTAMP prohibition onto Laravel\'s timestamps() helper', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('`$table->timestamps()` emits `TIMESTAMP` columns');
     expect($content)->toContain('`$table->datetimes()` (Laravel 10.0+)');
@@ -117,7 +117,7 @@ test('sql optimalize date and time column types section maps the TIMESTAMP prohi
 
 test('sql optimalize rule carries the modified_at vs updated_at section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## modified_at vs updated_at');
     expect($content)->toContain('TRIGGER `page_before_update_touch_modified_at`');
@@ -128,7 +128,7 @@ test('sql optimalize rule carries the modified_at vs updated_at section', functi
 
 test('sql optimalize rule carries the Boolean Columns section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Boolean Columns');
     expect($content)->toContain('Verify it should be boolean at all');
@@ -140,7 +140,7 @@ test('sql optimalize rule carries the Boolean Columns section', function (): voi
 
 test('sql optimalize trigger example sets DEFINER explicitly and states the privilege it needs (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     // Verified on MySQL 8.4.6: `SQL SECURITY INVOKER` on CREATE TRIGGER is ERROR 1064; an omitted
     // DEFINER records the migration's user; revoking TRIGGER from the definer makes every UPDATE
@@ -159,7 +159,7 @@ test('sql optimalize trigger example sets DEFINER explicitly and states the priv
 
 test('sql optimalize boolean defaults require the restrictive state for permission flags (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain(
         '(`can_*`, `is_admin`, `*_verified`, `two_factor_enabled`) the safe state is the **restrictive** one, so it is always `DEFAULT 0`',
@@ -169,7 +169,7 @@ test('sql optimalize boolean defaults require the restrictive state for permissi
 
 test('sql optimalize primary key sizing denies that an unguessable key is a control (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('**A sequential key is enumerable, and its unguessability is never a security control.**');
     expect($content)->toContain('@skills/laravel-authorization-review/SKILL.md');
@@ -178,7 +178,7 @@ test('sql optimalize primary key sizing denies that an unguessable key is a cont
 
 test('sql optimalize rule carries the String, Text, and ENUM Types section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## String, Text, and ENUM Types');
     expect($content)->toContain('`VARCHAR(255)` is a cargo-cult default');
@@ -189,7 +189,7 @@ test('sql optimalize rule carries the String, Text, and ENUM Types section', fun
 
 test('sql optimalize rule carries the Money and Decimal Types section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Money and Decimal Types');
     expect($content)->toContain('`FLOAT` / `DOUBLE` are banned for anything computed or compared for equality');
@@ -200,7 +200,7 @@ test('sql optimalize rule carries the Money and Decimal Types section', function
 
 test('sql optimalize rule carries the Foreign Key Actions section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Foreign Key Actions (ON DELETE / ON UPDATE)');
     expect($content)->toContain('`ON UPDATE CASCADE` as the default');
@@ -211,7 +211,7 @@ test('sql optimalize rule carries the Foreign Key Actions section', function ():
 
 test('sql optimalize rule carries the CHECK Constraints section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## CHECK Constraints');
     expect($content)->toContain('CONSTRAINT `chk_order_shipped_needs_date`');
@@ -222,7 +222,7 @@ test('sql optimalize rule carries the CHECK Constraints section', function (): v
 
 test('every sql example in the optimalize rule is a complete statement, not a fragment (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     preg_match_all('/^```sql\n(.*?)^```$/ms', $content, $matches);
     expect($matches[1])->not->toBeEmpty();
@@ -247,7 +247,7 @@ test('every sql example in the optimalize rule is a complete statement, not a fr
 
 test('sql optimalize wraps the three schema examples added by #149 in complete DDL (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     // Verified on MySQL 8.4.6: all three statements execute, and the order CHECK is enforced (ERROR 3819).
     expect($content)->toContain('CREATE TABLE `post` (');
@@ -257,7 +257,7 @@ test('sql optimalize wraps the three schema examples added by #149 in complete D
 
 test('sql optimalize rule carries the Collation section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Collation');
     expect($content)->toContain('`utf8mb4_0900_*` family');
@@ -268,7 +268,7 @@ test('sql optimalize rule carries the Collation section', function (): void {
 
 test('sql optimalize collation section scopes the case-insensitive REGEXP trap to case only, not to length', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     // Verified on MySQL 8.4.6: 'CS' COLLATE utf8mb4_0900_ai_ci REGEXP '^[a-z]{2}$' returns 1,
     // 'cs_CZ' returns 0 -- collation drives case folding, never anchors or quantifiers.
@@ -278,7 +278,7 @@ test('sql optimalize collation section scopes the case-insensitive REGEXP trap t
 
 test('sql optimalize rule carries the Charset Choice for Externally-Queried Columns section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Charset Choice for Externally-Queried Columns');
     expect($content)->toContain('ERROR 1267 Illegal mix of collations');
@@ -289,7 +289,7 @@ test('sql optimalize rule carries the Charset Choice for Externally-Queried Colu
 
 test('sql optimalize charset section names the two facts that make the ascii trap recognisable (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     // Verified on MySQL 8.4.6 against an `ascii` column on an EMPTY table, connection utf8mb4:
     // =, <>, >, LIKE, IN, REGEXP, CONCAT, GREATEST -> ERROR 1267; LOCATE, REPLACE -> ERROR 3854.
@@ -307,7 +307,7 @@ test('sql optimalize charset section names the two facts that make the ascii tra
 
 test('sql optimalize charset section presents CONVERT(? USING ascii) only as a limitation, never as the fix (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('It is named here only to close the question, never as the fix');
     expect($content)->toContain('has to be remembered at **every** call site that touches the column');
@@ -316,7 +316,7 @@ test('sql optimalize charset section presents CONVERT(? USING ascii) only as a l
 
 test('sql optimalize rule carries the Primary Key Sizing section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Primary Key Sizing');
     expect($content)->toContain('`INT UNSIGNED AUTO_INCREMENT` as the default primary key');
@@ -327,7 +327,7 @@ test('sql optimalize rule carries the Primary Key Sizing section', function (): 
 
 test('sql optimalize rule carries the Index and Constraint Naming section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## Index and Constraint Naming');
     expect($content)->toContain('Always name indexes and constraints explicitly');
@@ -337,7 +337,7 @@ test('sql optimalize rule carries the Index and Constraint Naming section', func
 
 test('sql optimalize rule carries the When to Break These Rules section', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
     expect($content)->toContain('## When to Break These Rules');
     expect($content)->toContain('this table has 500 million rows and cannot survive a rebuild');

@@ -14,7 +14,7 @@ test('reports/general.mdc rule ships in the package and declares the canonical l
     expect($content)->toContain('same language as the source assignment');
     expect($content)->toContain('Czech');
     expect($content)->toContain('Code identifiers stay verbatim');
-    expect($content)->toContain('@rules/git/general.mdc');
+    expect($content)->toContain('@rules/git/general.md');
 });
 
 test('every tracker-publishing skill references @rules/reports/general.mdc', function (): void {

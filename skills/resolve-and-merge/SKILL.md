@@ -7,16 +7,16 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/git/general.mdc`
+- Apply `@rules/git/general.md`
 - Apply `@rules/reports/general.mdc`
-- Apply `@rules/compound-engineering/general.mdc`
+- Apply `@rules/compound-engineering/general.md`
 - Operate on the current Git repository's GitHub remote only — refuse if the remote is not GitHub
 - **Strictly sequential.** Process one task at a time, start to finish, before touching the next. Never fan work out across tasks in parallel, and never split the batch across several dispatches in one message
 - **Never use a git worktree for the writing path.** Every task runs on the single shared working tree (`agents/daidalos.md` *Worktrees — writing path stays on the shared tree*). A read-only code-review worktree stays the CR agent's own opt-in and is never requested by this skill
 - **One task = one branch = one pull request.** Never bundle two issues into one PR, and never reuse a branch across tasks
-- **Code review is a hard merge gate** (`@rules/git/general.mdc` *Merging*): a PR is merged only after the review has run on its final diff and converged to **0 Critical + 0 Moderate**. Never force-merge, never merge past a failing check, a merge conflict, or a Draft PR
+- **Code review is a hard merge gate** (`@rules/git/general.md` *Merging*): a PR is merged only after the review has run on its final diff and converged to **0 Critical + 0 Moderate**. Never force-merge, never merge past a failing check, a merge conflict, or a Draft PR
 - **Scope discipline.** Implement and review only what the assignment defines. The checks the delegated skills already run are the whole check set — never add an extra audit, an unrequested refactor, or a repository-wide sweep on top of them
-- Never alter an issue's body, labels, or assignees beyond the claim label the delegated skills own (`@rules/compound-engineering/general.mdc` *Claim a tracker issue before working on it*)
+- Never alter an issue's body, labels, or assignees beyond the claim label the delegated skills own (`@rules/compound-engineering/general.md` *Claim a tracker issue before working on it*)
 - Never close, comment on, rebase, or otherwise touch an open pull request that is not linked to a labeled issue — such a PR is left exactly as found
 - Do not expose sensitive or internal details in user-facing messages
 
@@ -145,8 +145,8 @@ A task that cannot reach a merge — merge conflict, failing CI, unconverged rev
 Stop the whole batch only when the repository state itself is unsafe to continue on: a dirty shared working tree left behind, a lost `gh` session, or `$BASE` no longer merge-able.
 
 ### 10. Close out
-- Confirm the working tree is back on `$BASE`, clean, with no leftover task branch and no scratch file (`@rules/compound-engineering/general.mdc` *Temporary-file hygiene*).
-- Confirm the claim label was released on every task that stopped **before its pull request opened**, and left in place on every task that opened one — a claim is never released once a PR exists, merged or not (`@rules/compound-engineering/general.mdc` *Claim a tracker issue before working on it*). Releasing it there would make the issue pickable again while its PR is still open, which is the collision the claim exists to prevent.
+- Confirm the working tree is back on `$BASE`, clean, with no leftover task branch and no scratch file (`@rules/compound-engineering/general.md` *Temporary-file hygiene*).
+- Confirm the claim label was released on every task that stopped **before its pull request opened**, and left in place on every task that opened one — a claim is never released once a PR exists, merged or not (`@rules/compound-engineering/general.md` *Claim a tracker issue before working on it*). Releasing it there would make the issue pickable again while its PR is still open, which is the collision the claim exists to prevent.
 
 ---
 

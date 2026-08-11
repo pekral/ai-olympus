@@ -7,7 +7,7 @@ namespace AgenticVibes\AgentSkills;
 /**
  * The install run's outcome counters, reported to the user at the end of `install()`.
  * Replaces the 5-parameter, 4-consecutive-`int` signature previously declared by
- * `Installer::reportInstallSummary()`, which crossed the `@rules/php/core-standards.mdc`
+ * `Installer::reportInstallSummary()`, which crossed the `@rules/php/core-standards.md`
  * "more than 4 parameters" threshold and made a positional argument swap undetectable.
  */
 final readonly class InstallSummary

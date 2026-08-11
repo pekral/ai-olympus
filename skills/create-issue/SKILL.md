@@ -35,7 +35,7 @@ Create a well-formatted issue while preserving the original content exactly.
 - Use available CLI tool
 - Set title and formatted description
 - Assign to current user
-- Select and apply the single most relevant existing label per `@rules/compound-engineering/general.mdc` *Label newly created tracker issues* (never create a new label; leave the issue unlabeled when none fits)
+- Select and apply the single most relevant existing label per `@rules/compound-engineering/general.md` *Label newly created tracker issues* (never create a new label; leave the issue unlabeled when none fits)
 
 ### 4. Output
 - Return direct link to created issue

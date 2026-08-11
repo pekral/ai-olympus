@@ -2,7 +2,7 @@
 
 ## Critical
 1. [file:line] Description
-   Rule: @rules/api/general.mdc#<section>
+   Rule: @rules/api/general.md#<section>
    Risk/Impact: consumer-facing consequence (double-charge, wrong status branch, broken payload shape, bypassed validation).
    Faulty Example:
    ```php
@@ -12,7 +12,7 @@
    Test Hint: one sentence — test layer (feature/HTTP, integration) and entry point.
    Suggested Fix:
    ```php
-   // minimal corrected snippet; complies with @rules/api/general.mdc, @rules/php/core-standards.mdc,
+   // minimal corrected snippet; complies with @rules/api/general.md, @rules/php/core-standards.md,
    // and @rules/laravel/architecture.mdc on Laravel projects
    ```
 
@@ -20,6 +20,6 @@
 - ... (same fields as Critical)
 
 ## Minor
-- [file:line] Description — Rule: @rules/api/general.mdc#<section> — concrete fix.
+- [file:line] Description — Rule: @rules/api/general.md#<section> — concrete fix.
 
 > Omit any section that has no findings. Faulty Example, Expected Behavior, Test Hint, and Suggested Fix are mandatory for every Critical and Moderate finding so `@skills/process-code-review/SKILL.md` can turn each into a reproducer test and apply the fix. Minor findings may omit them when no behavior change is implied.

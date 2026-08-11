@@ -7,11 +7,11 @@ metadata:
 ---
 
 **Constraint:**
-- Apply @rules/php/core-standards.mdc
-- Apply @rules/git/general.mdc
+- Apply @rules/php/core-standards.md
+- Apply @rules/git/general.md
 - Apply @rules/jira/general.mdc
 - Apply @rules/reports/general.mdc. **CR reply comments and resolved-items updates posted on the GitHub PR** stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* (they extend the technical CR thread). The **mirrored non-technical summary** delegated to `@skills/pr-summary/SKILL.md` on the linked issue / JIRA ticket follows the language of the source assignment. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - Never mix two natural languages inside a single CR comment. The English exception applies to entire comments — not to inline parenthetical glosses.
 - Never push direct changes to the main branch
 - If the pull request has merge conflicts with the base branch, stop and report it
@@ -25,7 +25,7 @@ metadata:
 - **Repository ownership (hard gate, runs first).** Confirm the reference belongs to the current checkout by running `skills/_shared/assert-current-repo.sh <URL>` before searching for pull requests. Exit code `4` means it lives in a different repository: **stop** and report the mismatch — this skill writes code and pushes, so acting on a foreign reference would commit another project's fixes into this tree. Exit code `5` means ownership could not be proven (not a git checkout, or no github.com remote on any of them): stop and tell the caller to run from inside the target checkout. Only a zero exit permits the flow to continue — every non-zero exit is a hard stop, and the deterministic loader's "exit 2/3 → fall back to the MCP server" convention never applies to this guard: there is no fallback for an ownership verdict.
 - Find all open pull requests for the task
   - If multiple PRs exist, process each independently
-- Before processing a PR, switch to the PR branch and pull latest changes following `@rules/git/general.mdc` *Pull Policy*, in order: resolve the default branch (`DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"` — never hardcode `origin/main`), `git fetch origin`, `git pull --rebase` to take the PR branch's own remote first, then `git rebase "origin/$DEFAULT_BRANCH"` to bring the default branch in, resolve any conflicts, and `git push --force-with-lease`. Do not `git pull` again after the rebase — it would undo the sync. If the rebase changed `composer.lock`, run `composer install` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
+- Before processing a PR, switch to the PR branch and pull latest changes following `@rules/git/general.md` *Pull Policy*, in order: resolve the default branch (`DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"` — never hardcode `origin/main`), `git fetch origin`, `git pull --rebase` to take the PR branch's own remote first, then `git rebase "origin/$DEFAULT_BRANCH"` to bring the default branch in, resolve any conflicts, and `git push --force-with-lease`. Do not `git pull` again after the rebase — it would undo the sync. If the rebase changed `composer.lock`, run `composer install` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
 
 ### For each PR:
 
@@ -75,7 +75,7 @@ Use these to write a failing test **before** applying the fix:
 
 If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing — the CR skills are responsible for providing them. Suggested Fix may legitimately be `n/a` per the CR rules.
 
-**Free-form reviewer threads are exempt from the reproducer requirement.** Unresolved threads written by human reviewers will not carry the four structured fields. Do **not** request a CR rerun for them and do **not** block. Instead, derive the intent from the comment text, apply the minimal best-effort fix that satisfies it, and add or adjust a test at your discretion (a regression test when the comment describes a behavior bug; none when it is a naming / readability / dead-code remark). Keep the change scoped strictly to what the reviewer asked for. The exemption removes only the mandatory reproducer workflow — a behavior-changing best-effort fix still has to satisfy the diff-scoped coverage gate enforced by the **Review loop** below (`@rules/php/core-standards.mdc` Testing).
+**Free-form reviewer threads are exempt from the reproducer requirement.** Unresolved threads written by human reviewers will not carry the four structured fields. Do **not** request a CR rerun for them and do **not** block. Instead, derive the intent from the comment text, apply the minimal best-effort fix that satisfies it, and add or adjust a test at your discretion (a regression test when the comment describes a behavior bug; none when it is a naming / readability / dead-code remark). Keep the change scoped strictly to what the reviewer asked for. The exemption removes only the mandatory reproducer workflow — a behavior-changing best-effort fix still has to satisfy the diff-scoped coverage gate enforced by the **Review loop** below (`@rules/php/core-standards.md` Testing).
 
 ---
 
@@ -84,7 +84,7 @@ If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint,
 While reading the affected files in preparation for the CR fixes, you may encounter problems that are **unrelated to the reviewer feedback** but were already present in those files. The following categories qualify:
 
 - **Bugs** — incorrect logic, broken edge cases, null-dereference risks, race conditions, or runtime errors that exist before this CR.
-- **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraints* block (`@rules/php/core-standards.mdc`, `@rules/git/general.mdc`, `@rules/laravel/*`, …) or any other rule under `.claude/rules/`.
+- **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraints* block (`@rules/php/core-standards.md`, `@rules/git/general.md`, `@rules/laravel/*`, …) or any other rule under `.claude/rules/`.
 - **Security vulnerabilities** — anything `@rules/security/backend.md`, `@rules/security/frontend.md`, or `@rules/security/mobile.md` would flag (injection, missing authn/authz, unsafe deserialization, sensitive-data exposure, …).
 
 Rules:
@@ -92,14 +92,14 @@ Rules:
 1. **Do not silently ignore** a pre-existing issue you encountered in a file you had to read for the CR fixes — fix it in this PR.
 2. **Do not expand scope** by actively scanning unrelated files for additional pre-existing issues. Limit attention to files already touched by the CR fixes.
 3. Land each pre-existing fix in its **own separate commit**, ordered **before** the CR-fix commits:
-   - Use a Conventional Commits subject per `@rules/git/general.mdc`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
+   - Use a Conventional Commits subject per `@rules/git/general.md`: `fix(<scope>): pre-existing — <description>` for bugs and security, `refactor(<scope>): pre-existing — <description>` for rule violations without behavior change.
    - The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance.
    - **Test coverage workflow depends on the commit type:**
      - `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.
      - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
    - Either way, pre-existing fixes follow the same diff-scoped 100% coverage rule as CR fixes.
 4. In the `cr-status` PR comment posted during **PR update**, list every pre-existing fix under a `## Pre-existing fixes` heading with a one-line rationale, so reviewers can review them independently of the CR thread.
-5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the `cr-status` comment as a deferred follow-up with the reason, **and file it yourself as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*) — do not leave the filing to the reviewer. The `cr-status` entry carries the created issue URL.
+5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the `cr-status` comment as a deferred follow-up with the reason, **and file it yourself as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*) — do not leave the filing to the reviewer. The `cr-status` entry carries the created issue URL.
 
 ---
 
@@ -165,8 +165,8 @@ This runs **inside the review loop**, once per iteration, so it uses the cheap *
 
 - **Final gate — run the full build once before pushing** (`@skills/resolve-issue/references/quality-gates.md` *Loop gate vs. final gate*): the loop iterations used diff-scoped checks, so run the project's full `composer build` (install + fixers + full-suite `--min=100`) here, as the last step before push. This is the boundary gate that guarantees the merge never lands with a broken project (issue #75). When a shared brief is present and records `## Savings mode: on`, this gate may reuse a cached passing result from the brief's `## Build gate cache` for an unchanged tree hash instead of re-running (`@skills/resolve-issue/references/quality-gates.md` *Savings-mode build-gate cache*) — this Finalization run is still an intermediate step relative to the mandatory full run on the exact head SHA immediately before merge, so a cache hit here never substitutes for that final check. **Check the head-SHA gate dedup first, unconditionally:** before running the build, consult the shared brief's `## Gate log` per `@skills/resolve-issue/references/quality-gates.md` *Push-level gate dedup by head SHA (always on, issue #212)* — a `pass` entry for the current key — the head SHA (`git rev-parse HEAD`) **and** the build-inputs hash that subsection defines — on a clean tree means this exact commit was already built green against these exact dependencies under this brief, so skip the build (except `security-audit`, which that subsection always runs fresh) and cite that entry; on a miss run it and append the outcome under the per-brief append lock. That check needs no savings mode, is consulted before the opt-in tree-hash cache, and — like the cache — never substitutes for the mandatory pre-merge run.
 - Commit and push changes
-- If PR does not exist, create it according to @rules/git/general.mdc — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
-  - Title in English (per `@rules/git/general.mdc`)
+- If PR does not exist, create it according to @rules/git/general.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
+  - Title in English (per `@rules/git/general.md`)
   - Body in the assignment language (per `@rules/reports/general.mdc`)
 
 ---
@@ -190,13 +190,13 @@ After the fixes are committed and pushed (Finalization above), mark every review
 gh api graphql -f query='mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread{ isResolved } } }' -F threadId=<thread-id>
 ```
 
-- Resolve **only** threads that were fixed. Leave a thread unresolved when its point was rejected or deferred, and record the rejection reason in the `cr-status` report instead of resolving it. A **deferred** (not rejected) point must additionally be filed as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.mdc` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); the `cr-status` entry carries the created issue URL — rejection is a decision, deferral is a promise.
+- Resolve **only** threads that were fixed. Leave a thread unresolved when its point was rejected or deferred, and record the rejection reason in the `cr-status` report instead of resolving it. A **deferred** (not rejected) point must additionally be filed as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); the `cr-status` entry carries the created issue URL — rejection is a decision, deferral is a promise.
 - If `gh api graphql` is unavailable, fall back to the GitHub MCP server's resolve-review-thread operation.
 - Resolving a thread is a GitHub PR state change, not a code change — it stays within the read-fixes-push-resolve flow this skill already owns and never touches the protected main branch.
 
 #### Promote the PR out of Draft (GitHub)
 
-Convergence is exactly the moment the PR becomes ready to merge, so this skill owns the Draft → ready transition per `@rules/git/general.mdc` *Draft pull requests*:
+Convergence is exactly the moment the PR becomes ready to merge, so this skill owns the Draft → ready transition per `@rules/git/general.md` *Draft pull requests*:
 
 - Because this step runs only after the **Review loop converged** (`criticalCount + moderateCount == 0`), mark the PR ready for review now: `gh pr ready <PR-NUMBER|URL>`. This is the same class of GitHub PR state change as resolving a review thread, not a code change.
 - Do **this only on a converged loop.** If the loop hit `maxIterations` without converging, the PR stays a Draft — never promote a PR that still carries Critical / Moderate findings.

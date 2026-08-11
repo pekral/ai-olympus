@@ -45,7 +45,7 @@ Contributions target `skills/`, `rules/`, `agents/`, `src/`, `tests/`, `docs/`, 
 
 ## Commits and pull requests
 
-Follow `rules/git/general.mdc`:
+Follow `rules/git/general.md`:
 
 - Commit format: `type(scope): description` (`feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`), lowercase `type`/`scope`, no trailing period.
 - Commit messages and PR titles are always in **English**, regardless of the language the issue or PR description is written in.

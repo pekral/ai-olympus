@@ -21,8 +21,8 @@ Focus on:
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc` **only once it is established that the project is a PHP project (PHP stack in `composer.json`) and the analyzed change touches PHP code** — skip it for a non-PHP problem (docs, tooling, infra, markdown, config); do not load the PHP standards for an analysis that does not touch PHP.
-- Apply @rules/compound-engineering/general.mdc — the pre-implementation research and the plan artifact below exist so the analysis compounds: it grounds the work in what already exists and leaves a reusable plan behind.
+- Apply `@rules/php/core-standards.md` **only once it is established that the project is a PHP project (PHP stack in `composer.json`) and the analyzed change touches PHP code** — skip it for a non-PHP problem (docs, tooling, infra, markdown, config); do not load the PHP standards for an analysis that does not touch PHP.
+- Apply @rules/compound-engineering/general.md — the pre-implementation research and the plan artifact below exist so the analysis compounds: it grounds the work in what already exists and leaves a reusable plan behind.
 - Never modify code
 - Output Markdown only
 - Use one language only
@@ -69,7 +69,7 @@ Then continue with the analysis:
 
 Apply these 10 steps in order. Each step feeds the next — never jump ahead to a solution before evidence and root cause are settled.
 
-1. **Context extraction** — what we actually know from the assignment, comments, linked / sub-issues, attachments, and surrounding code (all loaded via the *Issue-tracker context* mandatory pre-flight above). First **consult the per-project compound memory** (`docs/memory/PROJECT_MEMORY.md` per `@rules/compound-engineering/general.mdc` *Compound Memory (per project)*): read it when present and reuse any entry whose `Trigger:` matches this problem instead of re-deriving a lesson the project already recorded. Apply the per-role read filter from `@rules/compound-engineering/general.mdc` *Read protocol* — load only entries where `Role:` matches the calling agent's own role or `Role: shared`; skip entries tagged for other roles.
+1. **Context extraction** — what we actually know from the assignment, comments, linked / sub-issues, attachments, and surrounding code (all loaded via the *Issue-tracker context* mandatory pre-flight above). First **consult the per-project compound memory** (`docs/memory/PROJECT_MEMORY.md` per `@rules/compound-engineering/general.md` *Compound Memory (per project)*): read it when present and reuse any entry whose `Trigger:` matches this problem instead of re-deriving a lesson the project already recorded. Apply the per-role read filter from `@rules/compound-engineering/general.md` *Read protocol* — load only entries where `Role:` matches the calling agent's own role or `Role: shared`; skip entries tagged for other roles.
 2. **Task-type classification & problem statement** — first classify the task from the context (feature, bug, regression, performance, data issue, security, UX, refactor, tooling, unclear requirement, or other) and state that type explicitly at the top of the Summary so a reader sees it immediately; then write one precise sentence describing the real problem — for a feature, the target behavior to build rather than a malfunction.
 3. **Expected vs actual behavior** — what should happen, and what is happening instead.
 4. **Evidence** — logs, screenshots, issue comments, files, reproduction steps. Verified facts only.
@@ -88,7 +88,7 @@ Before proposing or implementing anything, do the research that grounds the anal
 
 ### Research (do all three before planning)
 
-1. **Codebase** — read the actual files, layers, and conventions the change will touch. Find the existing part of the system the work belongs to; per `@rules/compound-engineering/general.mdc`, reach for an existing home before inventing a new abstraction.
+1. **Codebase** — read the actual files, layers, and conventions the change will touch. Find the existing part of the system the work belongs to; per `@rules/compound-engineering/general.md`, reach for an existing home before inventing a new abstraction.
 2. **Commit history** — walk `git log` / `git blame` for the affected area to learn how it evolved, which past changes touched it, and which approaches were already tried or reverted. Past decisions are context you must not re-derive blindly.
 3. **Internet best practices (when relevant)** — for an unfamiliar pattern, library, protocol, or security-sensitive surface, consult current authoritative references. Cite every source you rely on; skip this step for routine, well-understood changes.
 
@@ -102,7 +102,7 @@ Capture the result as a **written plan** — a text file in the repo (e.g. under
 - **Sources** — links to the codebase locations, commits, and any external references the plan relies on.
 - **Success criteria** — observable, verifiable conditions (tests, behavior, metrics) that prove the work is complete and correct.
 
-State where the plan artifact was written (file path or issue URL) in the analysis output so the next agent can pick it up. A durable plan that the next agent reuses is the compounding payoff — see `@rules/compound-engineering/general.mdc`.
+State where the plan artifact was written (file path or issue URL) in the analysis output so the next agent can pick it up. A durable plan that the next agent reuses is the compounding payoff — see `@rules/compound-engineering/general.md`.
 
 ---
 
@@ -145,7 +145,7 @@ Apply this lens **only when the analyzed problem is a UI / UX redesign or a new 
 
 When it fires, the lens fixes the design direction of the **Recommended Solution** (step 7 of the framework) and the wording of the **Non-Technical Explanation** (step 10) so the analysis cannot drift into a complex, multi-screen, jargon-heavy design without an explicit reason:
 
-- **Simple** — the screen carries the minimum surface that solves the user's job. Every input, button, copy block, illustration, and toggle on the proposed design must trace to a concrete user need stated in the assignment. Speculative knobs, "in case" filters, and decorative chrome are rejected the same way speculative code is rejected by `@rules/php/core-standards.mdc` *Design Principles*.
+- **Simple** — the screen carries the minimum surface that solves the user's job. Every input, button, copy block, illustration, and toggle on the proposed design must trace to a concrete user need stated in the assignment. Speculative knobs, "in case" filters, and decorative chrome are rejected the same way speculative code is rejected by `@rules/php/core-standards.md` *Design Principles*.
 - **Intuitive** — the user reaches the goal without reading documentation. Primary action is unambiguous and placed where the user already looks; affordances match platform conventions (web / mobile / desktop) the user has internalised; nothing relies on a hidden gesture or an undocumented shortcut.
 - **Readable for humans** — the layout follows a clear visual hierarchy (one primary call-to-action per view, secondary actions visibly demoted, supporting copy in plain language at the user's reading level), respects a comfortable line length and information density, and meets the project's accessibility baseline (WCAG AA contrast, keyboard focus order, screen-reader labels, no colour-only signal) unless the assignment explicitly de-scopes accessibility.
 - **Modern** — the design follows current UI conventions of the framework / design system the project already uses (Tailwind UI, Filament, Material, Apple HIG, the project's in-house design tokens). Do not reintroduce patterns the platform has retired (1990s-style modal stacks, full-page reloads on every interaction, dense data tables with no progressive disclosure on mobile widths).

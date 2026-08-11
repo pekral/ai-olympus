@@ -15,7 +15,7 @@ test('php/examples/named-arguments.md gains scoping frontmatter and stays reacha
     expect($content)->not->toContain('globs:');
     expect($content)->not->toContain('alwaysApply:');
 
-    $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.mdc');
+    $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
     expect($coreStandards)->toContain('See `rules/php/examples/named-arguments.md` for usage examples.');
 });

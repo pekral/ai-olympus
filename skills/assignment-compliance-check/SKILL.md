@@ -7,8 +7,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc`
-- Apply `@rules/git/general.mdc`
+- Apply `@rules/php/core-standards.md`
+- Apply `@rules/git/general.md`
 - Apply `@rules/jira/general.mdc`
 - Apply `@rules/reports/general.mdc` — the **Assignment Compliance** markdown block this skill returns to the caller must be written in the language of the linked assignment (Czech issue / JIRA description → Czech block; English → English). Linked-task / PR URLs, author handles, and severity labels follow the rule's *Scope clarifications*.
 - The skill **must not** write any output to disk. It also **must not** publish anywhere itself — no `gh issue comment`, no `acli`, no JIRA / GitHub MCP write call. The skill returns either the assembled markdown block (when at least one Critical gap exists) or a skip status (when no Critical gaps exist, or when no linked tracker is detected) to the calling CR wrapper. The wrapper embeds the block into the **single consolidated linked-tracker comment** authored by `@skills/pr-summary/SKILL.md` (one comment per linked issue / JIRA ticket per CR run — see issue #498) **only when a block is returned**; on a skip status the wrapper embeds nothing and surfaces the status only on the PR comment summary line.

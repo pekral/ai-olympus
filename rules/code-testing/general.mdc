@@ -7,7 +7,7 @@ globs: []
 ## Testing Rules
 
 - Follow test conventions from:
-    - @rules/php/core-standards.mdc
+    - @rules/php/core-standards.md
     - @rules/laravel/architecture.mdc (for Laravel projects)
 
 - Write all new tests using Pest syntax (`it()` / `test()` functional blocks). Do not introduce PHPUnit-style class-based tests for new test files.
@@ -74,7 +74,7 @@ A flaky test fails inconsistently, is hard to reproduce, and is often "fixed" by
 - Prefer simple, readable tests over complex setups.
 - Use data providers (datasets) where they improve readability and reduce duplication across similar test cases.
 - Tests must not contain conditions (e.g., `if`, `switch`); split conditional logic into separate test cases or data providers instead.
-- Structure every test body arrange-act-assert per @rules/php/core-standards.mdc Testing (phases in order, comments optional — see the canonical rule for the exception list).
+- Structure every test body arrange-act-assert per @rules/php/core-standards.md Testing (phases in order, comments optional — see the canonical rule for the exception list).
 
 ## No Tautological Assertions
 A tautology — an assertion that holds no matter what the code under test does — states nothing about that code, yet it counts toward coverage and reads as verified behaviour. That makes it worse than a missing test: a gap is visible, a tautology is camouflage. **No tautological assertion belongs in the codebase.** Delete it, or rewrite it into a claim the production code is able to break.

@@ -4,14 +4,16 @@ declare(strict_types = 1);
 
 test('compound-engineering rule codifies easier-future-work and per-project compound memory (issue #564)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rulePath = $packageDir . '/rules/compound-engineering/general.mdc';
+    $rulePath = $packageDir . '/rules/compound-engineering/general.md';
 
     expect(is_file($rulePath))->toBeTrue();
 
     $content = (string) file_get_contents($rulePath);
 
-    // Frontmatter: always-applied cross-cutting rule.
-    expect($content)->toContain('alwaysApply: true');
+    // Frontmatter: always-applied cross-cutting rule. Claude Code expresses that as the
+    // absence of a `paths` key, never as the Cursor-only `alwaysApply` this used to pin
+    // (issue #187).
+    expect($content)->not->toContain('paths:');
 
     // Pillar 1 — every change must make future work easier, and lessons are recorded.
     expect($content)->toContain('## Compound Engineering');
@@ -23,14 +25,14 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
 
     // The rule is listed in the README Rules Overview table.
     $readme = (string) file_get_contents($packageDir . '/README.md');
-    expect($readme)->toContain('`compound-engineering/general.mdc`');
+    expect($readme)->toContain('`compound-engineering/general.md`');
 });
 
 test('analyze-problem skill requires pre-implementation research and a plan artifact (issue #564)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
 
-    expect($content)->toContain('@rules/compound-engineering/general.mdc');
+    expect($content)->toContain('@rules/compound-engineering/general.md');
     expect($content)->toContain('## Pre-Implementation Research & Plan');
 
     // The three research inputs.
@@ -50,9 +52,9 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
     expect($content)->toContain('**Success criteria**');
 });
 
-test('git/general.mdc mandates English branch names regardless of assignment language', function (): void {
+test('git/general.md mandates English branch names regardless of assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
     expect($content)->toContain('always written in English regardless of the assignment language');
 });
@@ -64,17 +66,17 @@ test('resolve-issue skill requires the created branch name to be in English', fu
     expect($content)->toContain('name always in English, regardless of the assignment language');
 });
 
-test('git/general.mdc mandates one commit per phase for phased issues', function (): void {
+test('git/general.md mandates one commit per phase for phased issues', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
     expect($content)->toContain('One phase = one commit.');
     expect($content)->toContain('exactly one commit');
 });
 
-test('git/general.mdc mandates one commit per enumerated assignment point', function (): void {
+test('git/general.md mandates one commit per enumerated assignment point', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
     // The point-level mapping and the cherry-pick ordering preference are two separate
     // mandates — a rule carrying only the first lets a run produce dependent commits
@@ -88,9 +90,9 @@ test('git/general.mdc mandates one commit per enumerated assignment point', func
     expect($content)->toContain('Independence is a **preference**');
 });
 
-test('git/general.mdc routes every post-plan change into a logical commit, amend or new (issue #179)', function (): void {
+test('git/general.md routes every post-plan change into a logical commit, amend or new (issue #179)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
     // The point/phase rules map only the PLANNED work; this one covers what arrives after it.
     expect($content)->toContain(
@@ -125,7 +127,7 @@ test('resolve-issue commit planning carries the amend-or-new decision table (iss
     // No commit on the branch is unaccounted for, even the ones outside the `## Changes` table.
     expect($content)->toContain('so no commit on the branch is unaccounted for');
     // It defers to the rule instead of restating it.
-    expect($content)->toContain('@rules/git/general.mdc` *Every change on the branch belongs to a logical commit*');
+    expect($content)->toContain('@rules/git/general.md` *Every change on the branch belongs to a logical commit*');
 });
 
 test('resolve-issue skill anchors phase planning on the one-phase-one-commit git rule', function (): void {
@@ -133,7 +135,7 @@ test('resolve-issue skill anchors phase planning on the one-phase-one-commit git
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
     expect($content)->toContain('one phase = one commit');
-    expect($content)->toContain('@rules/git/general.mdc');
+    expect($content)->toContain('@rules/git/general.md');
 });
 
 test('resolve-issue plans one commit per point the assignment enumerates', function (): void {
@@ -192,7 +194,7 @@ test('resolve-issue skill refuses to resolve a closed / inactive task', function
 
 test('compound-engineering rule defines the per-project memory file convention (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($content)->toContain('### Read protocol');
@@ -200,7 +202,7 @@ test('compound-engineering rule defines the per-project memory file convention (
 
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
     $talos = (string) file_get_contents($packageDir . '/agents/talos.md');
 
@@ -225,7 +227,7 @@ test('compound memory reads are hooked into the context phases (issue #626)', fu
 test('CLAUDE.md points to the per-project memory file so it stays discoverable (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $claudeMd = (string) file_get_contents($packageDir . '/CLAUDE.md');
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // general.mdc already mandates the pointer; CLAUDE.md (root, and the shipped template
     // installed into consumer projects) must actually carry it.
@@ -240,7 +242,7 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     expect(is_dir($packageDir . '/skills/record-project-memory'))->toBeFalse();
 
     // No former write hook still references the removed skill.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
@@ -265,7 +267,7 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
 
 test('compound-engineering rule mandates early idempotent claim before work starts (issue #704)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The section heading must exist.
     expect($content)->toContain('## Claim a tracker issue before working on it');
@@ -287,7 +289,7 @@ test('compound-engineering rule mandates early idempotent claim before work star
 
 test('compound-engineering rule mandates temporary-file hygiene with a hard memory-files exception (issue #694)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The section heading must exist.
     expect($content)->toContain('## Temporary-file hygiene');
@@ -314,7 +316,7 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
 test('deferred points must be filed as follow-up tracker issues so they are not forgotten', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The section heading must exist and own the principle.
     expect($rule)->toContain('## File deferred points as follow-up tracker issues');
@@ -349,7 +351,7 @@ test('deferred points must be filed as follow-up tracker issues so they are not 
 test('newly created tracker issues get the single most relevant existing label (issue #54)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The section heading must exist; unlike the two sections above it owns both
     // the principle and the per-tracker mechanics (four executors, not one).
@@ -398,7 +400,7 @@ test(
     'compound-engineering rule requires every orchestrator turn to end in a result or a hard blocker, never a narrated plan (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
         // The section heading must exist and state the binary stopping condition.
@@ -420,7 +422,7 @@ test(
 
 test('compound-engineering rule defines an opt-in savings mode that never reduces review depth or process (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The section heading and the opt-in toggle contract.
     expect($rule)->toContain('## Savings mode (opt-in, token-efficient orchestration)');
@@ -476,7 +478,7 @@ test(
     'compound-engineering rule adds a narrower compaction-only Write protocol sibling to Read protocol (issue #98)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
         // The new section is a sibling of Read protocol, under the same Compound Memory heading.
         expect($rule)->toContain('### Write protocol (compact after every write)');
@@ -570,7 +572,7 @@ function compoundMemoryFilterRoleBlocks(string $content, string $role): array
 
 test('per-role read filter extracts entries whose Role: line sits past a fixed grep -A5 window (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The old fixed-offset idiom is gone; the corrected filter is a whole-block awk extraction.
     expect($rule)->not->toContain('grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"');
@@ -679,7 +681,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
 
 test('Role dictionary and per-role read filter cover the full live agent roster (issue #166)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The live roster (excluding `shared`, which is not an agent) is derived from agents/*.md
     // rather than pinned as a literal — a new agent dropped into agents/ without a matching
@@ -733,7 +735,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
 
 test('compound memory is filtered per dispatch target, not folded unfiltered into the shared brief (issue #165)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // The rule names the new mechanism and where the slice travels.
@@ -771,7 +773,7 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
 
 test('the per-dispatch memory slice is authoritative only in its own structural position (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // Issue #160 finding: the slice moved to the dispatch prompt (issue #165), a channel no rule
     // declared inert — while the slice itself is declared authoritative AND forbids re-reading the
@@ -806,7 +808,7 @@ test('the per-dispatch memory slice is authoritative only in its own structural 
 
 test('an audit trail obligation exists for memory reads, outbound requests, and external writes (issue #167)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // The section this package's own dangling cross-reference (Bash capability boundary) already
@@ -859,7 +861,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 
     // The "Who appends" clause now cross-references each specialist's own Bash boundary — the
     // exact link issue #194 found missing (an obligation the agent's own boundary forbade).
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     expect($rule)->toContain('The permission to make that write lives in the same agent');
     expect($rule)->toContain('An obligation this bullet assigns that an agent');
 
@@ -907,7 +909,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 test('the audit ledger states its own line shape inline, distinct from the dispatch ledger (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // Empirical defect: a real run's `.audit` carried `daidalos|-|gather|delivered|<ts>` — the shape
     // of the *dispatch* ledger, the nearest template visible in the adjacent subsection — and no
@@ -924,7 +926,7 @@ test('the audit ledger states its own line shape inline, distinct from the dispa
 
 test('the audit trail has a durable copy on a run that opens no PR (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // Issue #160 finding: the PR body was the only durable copy the rule named, so an analysis-only
     // run, an announce-only run, and a `Blocked` stop all deleted the ledger leaving no record.
@@ -947,7 +949,7 @@ test('the audit trail has a durable copy on a run that opens no PR (issue #160)'
 
 test('an inventory of externally-visible actions and consent levels exists (issue #168)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     expect($rule)->toContain('## Externally-visible actions & consent levels');
     expect($rule)->toContain('**L1 — pre-approved by invocation.**');
@@ -974,7 +976,7 @@ test('an inventory of externally-visible actions and consent levels exists (issu
 
 test('the externally-visible action inventory covers the whole live roster and carries a maintenance rule (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
     // out of date before it was first used: the post-convergence comment published to the source
@@ -1004,7 +1006,7 @@ test('the externally-visible action inventory covers the whole live roster and c
     // The reporting-mode publish carries the additive consent token in its owner's own file — hermes,
     // the roster's only publishing agent — the surrounding sentence is untouched.
     $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/general.mdc` *Externally-visible actions & consent levels*)');
+    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/general.md` *Externally-visible actions & consent levels*)');
 });
 
 /**
@@ -1047,7 +1049,7 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
 
 test('the filing bar keeps agent-noticed items out of the tracker unless they must be worked on (issue #225)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
     expect($rule)->toContain('**The filing bar — an agent files only work that must actually be done.**');
 

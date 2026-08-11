@@ -14,8 +14,8 @@ latency and freshness matter. This skill is engineering-focused; it does not
 authorize live trading or financial advice.
 
 ## Constraints
-- Apply `@rules/sql/optimalize.mdc` for every query on the hot path (N+1, eager loading, index usage, batching)
-- Apply `@rules/laravel/laravel.mdc` for framework-level structure and caching choices
+- Apply `@rules/sql/optimalize.md` for every query on the hot path (N+1, eager loading, index usage, batching)
+- Apply `@rules/laravel/laravel.md` for framework-level structure and caching choices
 - Apply `@rules/laravel/queue-debouncing.mdc` when smoothing bursty queue work
 - Measure, do not guess — every claim about latency must come from a real readback.
 - Never trade correctness for speed (see Guardrails).
@@ -61,7 +61,7 @@ not the whole chain — instrument before optimizing.
 Apply in this order; stop when the target is met.
 
 1. **Remove unnecessary round trips.** Collapse repeated queries; resolve N+1
-   with eager loading (`with(...)`, `withCount(...)`) per `@rules/sql/optimalize.mdc`.
+   with eager loading (`with(...)`, `withCount(...)`) per `@rules/sql/optimalize.md`.
    N+1 on a hot path is the single most common latency killer.
 2. **Cache stable reads with freshness metadata.** Use `Cache::remember()` /
    `Cache::flexible()` against Redis for reads that tolerate a known staleness
@@ -78,7 +78,7 @@ Apply in this order; stop when the target is met.
    bursty event streams, debounce/coalesce queued work per
    `@rules/laravel/queue-debouncing.mdc` so one job processes a window of events.
 4. **Move compute closer to the data or user.** Push aggregation into SQL
-   (`@rules/sql/optimalize.mdc`) instead of hydrating models in PHP; serve reads
+   (`@rules/sql/optimalize.md`) instead of hydrating models in PHP; serve reads
    from a DB read replica where the connection supports it.
 5. **Split hot and cold paths.** Keep the request fast: do the minimum
    synchronously, dispatch the rest to a queue. Run hot routes under **Laravel
@@ -101,7 +101,7 @@ Never claim a latency win from a label; read it back from the running system:
   freshness timestamp stored with cached values.
 - **Queue state** — check Horizon for wait time, depth, and failed jobs; confirm
   the hot path is not blocked behind a slow queue.
-- **Query plans** — run `EXPLAIN` on the hot query (see `@rules/sql/optimalize.mdc`)
+- **Query plans** — run `EXPLAIN` on the hot query (see `@rules/sql/optimalize.md`)
   to confirm index usage after a rewrite.
 - **Freshness** — read the provider/source timestamp and the displayed value;
   confirm the gap is within the agreed staleness window.

@@ -35,7 +35,7 @@
 - **Test hint:** test layer (unit / integration / feature) + entry point, in one sentence.
 - **Suggested fix:**
   ```php
-  // minimal corrected snippet — must comply with @rules/php/core-standards.mdc (and @rules/laravel/architecture.mdc on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
+  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.mdc on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
   ```
 
 ### 🟠 Moderate 1. <short title>
@@ -103,7 +103,7 @@
 
 - **Findings:**
   1. **{Critical / Moderate / Minor}** — `file:line` — one-sentence problem
-     **Suggested Fix:** {one-sentence fix category — query rewrite to reuse an existing index per `@rules/sql/optimalize.mdc`, batch operation per "Batch over per-row operations", or new-index proposal justified by EXPLAIN when no existing index covers the query}
+     **Suggested Fix:** {one-sentence fix category — query rewrite to reuse an existing index per `@rules/sql/optimalize.md`, batch operation per "Batch over per-row operations", or new-index proposal justified by EXPLAIN when no existing index covers the query}
      ```sql
      -- concrete rewritten query, index DDL, or batch-operation replacement implementing the fix above (issue #132) — never a category label alone
      ```

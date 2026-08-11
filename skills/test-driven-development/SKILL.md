@@ -7,9 +7,9 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/php/core-standards.mdc`
+- Apply `@rules/php/core-standards.md`
 - Apply `@rules/code-testing/general.mdc`
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.mdc`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
 - Follow test conventions from `@skills/create-test/SKILL.md`
 
 ## Core principle

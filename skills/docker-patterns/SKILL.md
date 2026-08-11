@@ -10,7 +10,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/security/backend.md` — never bake secrets into image layers, inject them at runtime; apply least privilege (non-root user, dropped capabilities, least-privileged DB user).
-- Apply `@rules/laravel/laravel.mdc` — respect Laravel's directory layout, artisan commands, and config caching.
+- Apply `@rules/laravel/laravel.md` — respect Laravel's directory layout, artisan commands, and config caching.
 - Pin every base image to a specific tag (never `:latest`) for reproducible builds.
 - One process per container: PHP-FPM, queue worker, and scheduler are separate containers sharing the same image.
 - `.env` and secrets stay out of images and out of git.

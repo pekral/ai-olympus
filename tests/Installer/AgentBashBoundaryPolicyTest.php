@@ -131,7 +131,7 @@ test('the global policy is at least as strict as the session-wide --deny-network
 
 test('the policy covers the normative Forbidden through Bash enumeration, or records what it deliberately does not', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $boundary = installerDocsSection($rule, '## Bash capability boundary');
     $programs = [];
 
@@ -179,7 +179,7 @@ test('the policy covers the normative Forbidden through Bash enumeration, or rec
     expect($boundary)->toContain('No `sudo`');
     expect($programs)->toContain('sudo');
 
-    expect(AgentBashBoundaryPolicy::RULE_SOURCE)->toContain('rules/compound-engineering/general.mdc');
+    expect(AgentBashBoundaryPolicy::RULE_SOURCE)->toContain('rules/compound-engineering/general.md');
 });
 
 test('an unknown or absent agent_type falls back to the global rules and is never treated as trusted', function (): void {

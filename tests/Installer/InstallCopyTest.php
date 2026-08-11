@@ -90,7 +90,7 @@ test('install copies rules from package when no development directory', function
 
 test('install respects force flag', function (): void {
     $root = installerCreateProjectRoot();
-    $installedFile = $root . '/.claude/rules/php/core-standards.mdc';
+    $installedFile = $root . '/.claude/rules/php/core-standards.md';
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
@@ -169,7 +169,7 @@ test('install creates symlinks when requested', function (): void {
         Installer::run(['agent-skills', 'install', '--symlink']);
         ob_end_clean();
 
-        $target = $root . '/.claude/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.md';
 
         expect(is_link($target))->toBeTrue();
         expect(file_get_contents($target))->not->toBeEmpty();
@@ -193,8 +193,8 @@ test('install without --symlink installs regular files via copy fallback, not sy
         Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $target = $root . '/.claude/rules/php/core-standards.mdc';
-        $packageSource = dirname(__DIR__, 2) . '/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.md';
+        $packageSource = dirname(__DIR__, 2) . '/rules/php/core-standards.md';
 
         expect(is_file($target))->toBeTrue();
         expect(is_link($target))->toBeFalse();
@@ -224,7 +224,7 @@ test('install creates regular files (copy fallback), never symlinks, when symlin
         Installer::run(['agent-skills', 'install', '--symlink']);
         ob_end_clean();
 
-        $target = $root . '/.claude/rules/php/core-standards.mdc';
+        $target = $root . '/.claude/rules/php/core-standards.md';
 
         expect(is_file($target))->toBeTrue();
         expect(file_get_contents($target))->not->toBeEmpty();
@@ -278,7 +278,7 @@ test('install never creates .cursor or .codex directories', function (): void {
         Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        expect(is_file($root . '/.claude/rules/php/core-standards.mdc'))->toBeTrue();
+        expect(is_file($root . '/.claude/rules/php/core-standards.md'))->toBeTrue();
         expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor'))->toBeFalse();
         expect(is_dir($root . '/.codex'))->toBeFalse();
@@ -453,7 +453,7 @@ test('install fails when target path is a file instead of directory', function (
 
 test('install fails when destination is directory that cannot be removed', function (): void {
     $root = installerCreateProjectRoot();
-    $targetDir = $root . '/.claude/rules/php/core-standards.mdc';
+    $targetDir = $root . '/.claude/rules/php/core-standards.md';
     installerEnsureDirectory($targetDir);
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -541,7 +541,7 @@ test('install always force-copies security rules even without force flag', funct
         ob_end_clean();
 
         $securityFile = $root . '/.claude/rules/security/backend.md';
-        $regularFile = $root . '/.claude/rules/php/core-standards.mdc';
+        $regularFile = $root . '/.claude/rules/php/core-standards.md';
 
         file_put_contents($securityFile, 'old security content');
         file_put_contents($regularFile, 'old rules content');
