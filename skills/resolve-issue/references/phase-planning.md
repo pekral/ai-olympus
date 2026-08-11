@@ -24,17 +24,18 @@ Rules for the inventory:
 ## 2. Map one point to one commit
 
 - Each inventoried in-scope point is **exactly one commit**, in the assignment's original order. Never merge two points into one commit, never split one point across two, never re-scope or reorder them.
-- Each commit is **complete on its own**: the production change for its point, the tests covering it (for a bug, the TDD failing test written first), and any doc or locale update the point requires — so the point is verifiable at that commit and nothing is left to a later fixup.
+- Each commit is **complete on its own**: the production change for its point, the tests covering it, and any doc or locale update the point requires — so the point is verifiable at that commit and nothing is left to a later fixup. For a bug, the TDD failing test is written **first in the working tree** and committed **together with the fix that makes it pass** — the RED state is never a commit of its own (`@rules/git/general.md` *Every commit is green*).
+- Each commit is **green on its own**: it passes the project's own gate (`composer build` / the Phing target / the CI workflow), not a subset. A commit that only builds is not enough — see *Every commit is green* in `@rules/git/general.md` for the full contract and its review severities.
 - Every commit subject is `type(scope): description` per `@rules/git/general.md`, in English, and names the point it resolves rather than the mechanics of the edit.
 
 ## 3. Order for independence (cherry-pick friendly — preferred, not required)
 
-Aim for a history where each commit can be cherry-picked onto the default branch on its own and still build:
+Aim for a history where each commit can be cherry-picked onto the default branch on its own and still pass the project's gate:
 
 - Prefer a grouping whose commits touch **disjoint** files and symbols. The case to avoid is two commits editing the same lines — not two points living in the same directory.
 - Put shared groundwork a later point needs (a new helper, a signature change, a migration) in the commit of the point that **introduces** it, ordered before the points that consume it. Never leave a commit referencing code only a later commit adds.
 - When two points genuinely cannot be separated, keep them as two commits, order the dependent one after its prerequisite, and record the dependency in the plan as `depends on #N`.
-- Independence is a **preference**. Never merge two points into one commit, invent an artificial split, or reorder points whose order is meaningful (a phased assignment, or a fix that must land before the test proving it) just to flatten the dependency graph.
+- Independence is a **preference**. Never merge two points into one commit, invent an artificial split, or reorder points whose order is meaningful (a phased assignment, or groundwork a later point consumes) just to flatten the dependency graph.
 
 ## 4. Record the commit plan before implementing
 
@@ -79,5 +80,7 @@ Work that arrives after the plan — a finding from the pre-PR review loop, a co
 | corrects a commit that is already pushed **and under review** | new commit naming what it corrects — never a force-push that detaches review anchors and invalidates SHAs already cited |
 
 Then reconcile: run `git log <base>..HEAD` against the recorded plan table and confirm every commit is one logical change and every logical change is one commit. Split a commit that turned out to bundle two; fold two that turned out to be one. Do this **before** opening the PR, while the branch is still yours to rewrite — and re-derive every short SHA the plan table and the PR description cite, since a rewrite moves all of them.
+
+Any rewrite here — an `--autosquash`, a split, a fold, a reorder — changes the tree of every commit after the edit point, so the gate each of those commits passed before the rewrite proves nothing about the history that came out of it. Replay the whole range before pushing: `git rebase --exec '<the project gate>' <base>` stops on the first commit that fails. This is the enforcement half of `@rules/git/general.md` *Every commit is green*.
 
 Review-loop and CHANGELOG commits stay **out** of the PR's `## Changes` checklist (that table maps assignment points), but they are still named in the PR description so no commit on the branch is unaccounted for.

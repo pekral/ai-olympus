@@ -54,6 +54,8 @@ Run the test and confirm:
 
 If the test passes immediately, it does not prove the new behavior.
 
+**RED is a state of the working tree, never a commit.** Watch the test fail, then go to GREEN and commit the failing test together with the change that makes it pass. Committing the RED state — or a test written to fail so a later commit can "fix" it — leaves a commit that no one can cherry-pick or deploy, which `@rules/git/general.md` *Every commit is green* forbids at **Critical** severity. The cycle below is unchanged; only the commit boundary is.
+
 ### 3. GREEN
 Write the smallest production change needed to make the test pass.
 - Do not add extra features

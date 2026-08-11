@@ -46,6 +46,65 @@ test('the green-commit rule declares its own review severity (issue #233)', func
     expect($rule)->toContain('pushed without the `git rebase --exec` replay is **Moderate**');
 });
 
+test('every skill that authors or reshapes branch history cites the green-commit rule (issue #233)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // A rule nothing applies is documentation. These five are the surfaces that actually create a
+    // commit or move one: the two that plan the history, the cycle that produces the RED state, and
+    // the two that rebase a branch and push it.
+    $mustCite = [
+        'skills/resolve-issue/SKILL.md',
+        'skills/resolve-issue/references/phase-planning.md',
+        'skills/test-driven-development/SKILL.md',
+        'skills/git-workflow/SKILL.md',
+        'skills/process-code-review/SKILL.md',
+    ];
+
+    $missing = [];
+
+    foreach ($mustCite as $relativePath) {
+        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), 'Every commit is green')) {
+            $missing[] = $relativePath;
+        }
+    }
+
+    expect($missing)->toBe([]);
+});
+
+test('every skill that rebases a branch replays the range before pushing (issue #233)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The rebase case is the one the issue names. A skill that rebases and pushes without the
+    // replay publishes a history whose commits were gated against a base they no longer sit on.
+    $mustReplay = [
+        'skills/resolve-issue/SKILL.md',
+        'skills/resolve-issue/references/phase-planning.md',
+        'skills/git-workflow/SKILL.md',
+        'skills/process-code-review/SKILL.md',
+    ];
+
+    $missing = [];
+
+    foreach ($mustReplay as $relativePath) {
+        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), 'git rebase --exec')) {
+            $missing[] = $relativePath;
+        }
+    }
+
+    expect($missing)->toBe([]);
+});
+
+test('the TDD cycle keeps RED out of the commit history (issue #233)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $tdd = (string) file_get_contents($packageDir . '/skills/test-driven-development/SKILL.md');
+
+    // The RED step stays mandatory — only the commit boundary moves. A reader who loses that
+    // distinction either commits the red state or stops writing the failing test first.
+    expect($tdd)->toContain('**RED is a state of the working tree, never a commit.**');
+    expect($tdd)->toContain('commit the failing test together with the change that makes it pass');
+    expect($tdd)->toContain('The cycle below is unchanged; only the commit boundary is.');
+});
+
 test('cherry-pick independence is measured by the gate, not by compilation (issue #233)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');

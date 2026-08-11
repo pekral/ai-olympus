@@ -71,8 +71,11 @@ git fetch origin
 git pull --rebase                     # 1) take the branch's own remote first
 git rebase "origin/$DEFAULT_BRANCH"   # 2) bring the latest default branch in
 # resolve conflicts if any, then: git rebase --continue
-git push --force-with-lease           # 3) publish; do NOT git pull again — it would undo the rebase
+git rebase --exec 'composer build' \
+  "origin/$DEFAULT_BRANCH"            # 3) replay the range; stops on the first commit that fails
+git push --force-with-lease           # 4) publish; do NOT git pull again — it would undo the rebase
 ```
+Step 3 is not optional. The rebase in step 2 replayed every commit onto a different base, so each one now has a tree it was never gated against — a branch that was green before the rebase can carry a commit that fails after it, and nothing between step 2 and the push would notice. `@rules/git/general.md` *Every commit is green* requires the replay before a reshaped branch is pushed; substitute the project's own gate for `composer build` where it differs.
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
 composer install                      # run only when composer.lock actually changed
