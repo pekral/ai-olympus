@@ -232,6 +232,85 @@ test('a quoted or escaped redirection character stays a literal word', function 
     expect($escaped['segments'][0][1]->isRedirection)->toBeFalse();
 });
 
+test('a heredoc body is skipped as data instead of being tokenized as command text', function (): void {
+    // `<<` used to match the redirection pattern as two separate `<` operators, which left the body
+    // to be scanned as ordinary command text — so a PHP object operator inside it became an output
+    // redirect and the delimiter became its target.
+    $result = BashCommandTokenizer::tokenize("cat <<'XEOF'\n" . 'a->b' . "\nXEOF\n");
+
+    expect($result['ambiguous'])->toBeFalse();
+    expect(bashCommandWordTexts($result['segments'][0]))->toBe(['cat', '<<', 'XEOF']);
+    expect($result['segments'][0][1]->isRedirection)->toBeTrue();
+
+    // Every spelling of the delimiter reaches the same body-skipping path.
+    foreach (['cat <<XEOF', 'cat << XEOF', 'cat <<"XEOF"', 'cat <<\'XEOF\''] as $opening) {
+        expect(bashCommandWordTexts(BashCommandTokenizer::tokenize($opening . "\n" . 'a->b' . "\nXEOF\n")['segments'][0]))
+            ->toBe(['cat', '<<', 'XEOF']);
+    }
+
+    // `<<-` strips leading tabs from the terminator, so an indented delimiter still closes the body.
+    $dashed = BashCommandTokenizer::tokenize("cat <<-XEOF\n\t" . 'a->b' . "\n\tXEOF\n");
+
+    expect(bashCommandWordTexts($dashed['segments'][0]))->toBe(['cat', '<<-', 'XEOF']);
+
+    // A here-string takes its word on the same line and has no body, so it must not be read as a
+    // heredoc — doing so would swallow the rest of the command looking for a terminator.
+    expect(bashCommandWordTexts(BashCommandTokenizer::tokenize('cat <<< word')['segments'][0]))->toBe(['cat', '<<<', 'word']);
+
+    // A command after the terminator is command text again, so a real redirection still registers.
+    expect(bashCommandWordTexts(BashCommandTokenizer::tokenize("cat <<'XEOF'\nbody\nXEOF\necho hi > out.txt")['segments'][1]))
+        ->toBe(['echo', 'hi', '>', 'out.txt']);
+
+    // Only the body is data. The rest of the opening line is still command text, so a quoted `<<`
+    // stays a literal word and never opens a heredoc at all.
+    expect(bashCommandWordTexts(BashCommandTokenizer::tokenize('echo "<<XEOF"')['segments'][0]))->toBe(['echo', '<<XEOF']);
+});
+
+test('skipping a heredoc body hides no write the shell would still perform', function (): void {
+    // The body stops being scanned, and nothing else does — a real redirection on the opening line,
+    // on either side of the opening, or after the terminator must still reach the write rule.
+    $writes = [
+        "cat <<'XEOF' > src/Foo.php\nbody\nXEOF\n",
+        "cat > src/Foo.php <<'XEOF'\nbody\nXEOF\n",
+        "cat <<'XEOF'\nbody\nXEOF\necho x > src/Foo.php\n",
+    ];
+
+    foreach ($writes as $command) {
+        expect(AgentBashBoundaryGuard::evaluate('athena', $command)->decision)->toBe(BashBoundaryDecision::Deny);
+    }
+
+    // A body that never meets its delimiter swallows whatever follows it, so the verdict is `ask`
+    // rather than the silent pass that skipping to the end of the command would produce.
+    expect(AgentBashBoundaryGuard::evaluate('athena', "cat <<'XEOF'\nbody\necho x > src/Foo.php\n")->decision)
+        ->toBe(BashBoundaryDecision::Ask);
+});
+
+test('an unterminated heredoc is reported as ambiguous instead of being guessed at', function (): void {
+    expect(BashCommandTokenizer::tokenize("cat <<'XEOF'\nbody never closed\n")['ambiguous'])->toBeTrue();
+    expect(BashCommandTokenizer::tokenize('cat <<XEOF')['ambiguous'])->toBeTrue();
+    expect(BashCommandTokenizer::tokenize("cat <<'XEOF'\nbody\nXEOF\n")['ambiguous'])->toBeFalse();
+});
+
+test('neither heredoc nor quoted content can change the boundary verdict', function (): void {
+    // Issue #222: `athena` could not publish any review comment quoting PHP, because the object
+    // operator in the heredoc body was read as a write outside its permitted paths. The invariant
+    // is that payload text — heredoc body or quoted argument — never moves the verdict.
+    $payload = 'expect($content)->not->toContain(\'x\');';
+
+    $cases = [
+        ["skills/code-review-github/scripts/upsert-comment.sh 219 - <<'XEOF'\n%s\nXEOF\n", 'plain body'],
+        ['skills/code-review-github/scripts/upsert-comment.sh 219 --body "%s"', 'plain body'],
+    ];
+
+    foreach ($cases as [$template, $inert]) {
+        $withPayload = AgentBashBoundaryGuard::evaluate('athena', sprintf($template, $payload));
+        $withoutPayload = AgentBashBoundaryGuard::evaluate('athena', sprintf($template, $inert));
+
+        expect($withPayload->decision)->toBe($withoutPayload->decision);
+        expect($withPayload->decision)->not->toBe(BashBoundaryDecision::Deny);
+    }
+});
+
 test('a backslash escape keeps the escaped character inside the token', function (): void {
     $result = BashCommandTokenizer::tokenize('echo a\\ b');
 

@@ -32,6 +32,10 @@ namespace AgenticVibes\AgentSkills;
  * - A process substitution (`<(…)`, `>(…)`) sets `ambiguous` too, because the parenthesis splits
  *   the segment and detaches every following word from its program. Saying "unsure" costs an
  *   `ask`; parsing it would mean re-attaching those words to the outer command.
+ * - A heredoc body is skipped as data rather than scanned, and an unterminated one sets
+ *   `ambiguous`. The body is a payload the command reads on stdin, not command text: scanning it
+ *   lets any `>` inside it invent a redirection the shell would never perform, which the caller
+ *   then attributes to the command as a write.
  *
  * What it cannot see, by construction: a program name assembled at runtime (`c=curl; $c …`), the
  * contents of a script file passed to an interpreter, and anything a child process does.
@@ -58,7 +62,15 @@ final class BashCommandTokenizer
      * `2` in `2>err.log`) is taken from the word being built rather than from this pattern, so
      * `a2>b` still yields the program `a2`. `A` anchors the match at the scan position.
      */
-    private const string REDIRECTION_PATTERN = '/&>>|&>|>>|>\||>&|>|<>|<&|</A';
+    private const string REDIRECTION_PATTERN = '/&>>|&>|>>|>\||>&|>|<<<|<>|<&|</A';
+
+    /**
+     * A heredoc opening: `<<WORD`, `<<'WORD'`, `<<"WORD"`, `<<-WORD`, and the same with whitespace
+     * after the operator. `(?!<)` keeps `<<<` out — a here-string takes its word on the same line
+     * and has no body, so reading it as a heredoc would swallow the rest of the command hunting for
+     * a terminator that never comes.
+     */
+    private const string HEREDOC_PATTERN = '/<<(?!<)(?<dash>-?)[ \t]*(?:(?<quote>[\'"])(?<quoted>[^\'"\n]*)\k<quote>|(?<bare>[^\s;|&<>()\'"`]+))/A';
 
     private const string REDIRECTION_STARTS = '<>&';
 
@@ -79,6 +91,11 @@ final class BashCommandTokenizer
      * @var list<list<\AgenticVibes\AgentSkills\BashCommandWord>>
      */
     private array $segments = [];
+
+    /**
+     * @var list<\AgenticVibes\AgentSkills\BashHeredoc>
+     */
+    private array $pendingHeredocs = [];
 
     /**
      * @param list<string> $substitutions
@@ -116,7 +133,11 @@ final class BashCommandTokenizer
 
         $this->flushSegment();
 
-        return ['ambiguous' => $this->ambiguous, 'segments' => $this->segments, 'substitutions' => $this->substitutions];
+        // An opening whose body never started — the command ends on the same line it was declared
+        // on — leaves the payload unaccounted for, which is the one direction to fail toward `ask`.
+        $ambiguous = $this->ambiguous || $this->pendingHeredocs !== [];
+
+        return ['ambiguous' => $ambiguous, 'segments' => $this->segments, 'substitutions' => $this->substitutions];
     }
 
     private function consumeCharacter(): void
@@ -128,6 +149,10 @@ final class BashCommandTokenizer
         }
 
         $this->markProcessSubstitution($char);
+
+        if ($this->consumeHeredoc($char)) {
+            return;
+        }
 
         if ($this->consumeRedirection($char)) {
             return;
@@ -143,6 +168,10 @@ final class BashCommandTokenizer
         if (str_contains(self::SEPARATORS, $char)) {
             $this->flushSegment();
             $this->position++;
+
+            if ($char === "\n") {
+                $this->skipPendingHeredocBodies();
+            }
 
             return;
         }
@@ -191,6 +220,76 @@ final class BashCommandTokenizer
         $this->position += 2;
 
         return true;
+    }
+
+    /**
+     * Records the heredoc and consumes only its opening — the body starts after the current line
+     * ends, so `skipPendingHeredocBodies()` finishes the job at the next newline.
+     *
+     * Without this, `<<` matched the redirection pattern as two `<` operators and the body was left
+     * to the ordinary scan: a PHP object operator inside it became an output redirect, and a review
+     * comment quoting PHP read as a write to whatever word followed it.
+     *
+     * It runs after `consumeStructure()`, so a quoted or escaped `<<` stays a literal word.
+     */
+    private function consumeHeredoc(string $char): bool
+    {
+        if ($char !== '<' || preg_match(self::HEREDOC_PATTERN, $this->command, $match, 0, $this->position) !== 1) {
+            return false;
+        }
+
+        // A quoted delimiter leaves `bare` unset and vice versa, so neither group can be read alone.
+        $bare = $match['bare'] ?? '';
+        $delimiter = $bare === '' ? ($match['quoted'] ?? '') : $bare;
+        $stripsTabs = $match['dash'] === '-';
+
+        $this->flushToken();
+        $this->words[] = new BashCommandWord('<<' . $match['dash'], isRedirection: true);
+        $this->words[] = new BashCommandWord($delimiter, isRedirection: false);
+        $this->pendingHeredocs[] = new BashHeredoc($delimiter, $stripsTabs);
+        $this->position += strlen($match[0]);
+
+        return true;
+    }
+
+    /**
+     * Bodies follow the line that opened them, in the order the openings appeared — which is why
+     * `cat <<A <<B` reads A's body first. A body that never meets its delimiter is ambiguous rather
+     * than assumed to run to the end of the command.
+     */
+    private function skipPendingHeredocBodies(): void
+    {
+        while ($this->pendingHeredocs !== []) {
+            if (!$this->skipToHeredocTerminator(array_shift($this->pendingHeredocs))) {
+                $this->ambiguous = true;
+            }
+        }
+    }
+
+    /**
+     * Advances the scan past the body and reports whether the delimiter was actually reached.
+     */
+    private function skipToHeredocTerminator(BashHeredoc $heredoc): bool
+    {
+        $length = strlen($this->command);
+
+        while ($this->position < $length) {
+            $break = strpos($this->command, "\n", $this->position);
+            $lineEnd = $break === false ? $length : $break;
+            $line = substr($this->command, $this->position, $lineEnd - $this->position);
+            $this->position = $lineEnd + 1;
+
+            if ($this->terminatesHeredoc($line, $heredoc)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function terminatesHeredoc(string $line, BashHeredoc $heredoc): bool
+    {
+        return ($heredoc->stripsTabs ? ltrim($line, "\t") : $line) === $heredoc->delimiter;
     }
 
     /**
