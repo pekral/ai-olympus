@@ -325,6 +325,10 @@ current_repo_nwos() {
 # Global, not local: the EXIT trap fires after the function's locals are gone,
 # and reading an unset local under `set -u` would abort the cleanup.
 SELF_TEST_TMP=""
+# Reached only through `trap cleanup_self_test EXIT` below. ShellCheck's reachability pass does
+# not credit a trap as an invocation, which is the case SC2317 itself names ("or ignore if
+# invoked indirectly"); there is nothing to fix at the source.
+# shellcheck disable=SC2317
 cleanup_self_test() {
   [[ -n "$SELF_TEST_TMP" ]] && rm -rf "$SELF_TEST_TMP"
   return 0

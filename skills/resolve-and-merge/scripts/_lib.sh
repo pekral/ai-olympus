@@ -80,6 +80,9 @@ assert_count() {
 # was stripped out of the titles. `explode` works on codepoints directly, so
 # each boundary below means exactly what it says and accented characters
 # (U+00E8 and up) are never in range.
+# Consumed by the scripts that source this library (`inventory-open-prs.sh`, `select-candidates.sh`),
+# which ShellCheck cannot see from the defining file — a library variable is never "unused" here.
+# shellcheck disable=SC2034
 JQ_CLEAN='def clean: explode | map(select(
     . > 31                          # C0 controls
     and . != 127                    # DEL

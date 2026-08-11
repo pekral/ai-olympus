@@ -188,6 +188,9 @@ fi
 # never breaks on a repo without the feature enabled.
 SUBISSUES_JSON='[]'
 if [[ "$KIND" == "issue" ]]; then
+  # `$owner` / `$repo` / `$n` are GraphQL variables bound by the `-F` flags below, not shell ones.
+  # The single quotes are what keeps the shell out of them, so expanding here would break the query.
+  # shellcheck disable=SC2016
   SUBISSUES_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){subIssues(first:50){nodes{number title url state body createdAt updatedAt closedAt author{login} labels(first:50){nodes{name}} comments(first:100){nodes{author{login} body createdAt updatedAt url}}}}}}}'
   if RAW_SUBISSUES="$(gh api graphql -f query="$SUBISSUES_QUERY" -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" && [[ -n "$RAW_SUBISSUES" ]]; then
     SUBISSUES_JSON="$(printf '%s' "$RAW_SUBISSUES" | jq -c '

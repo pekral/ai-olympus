@@ -84,7 +84,7 @@ att_safe_name() {
 # internal-hostname checks cover the realistic attacker-supplied-URL case here.
 att_host_block_reason() {
   local url="$1" host
-  host="$(printf '%s' "$url" | sed -nE 's#^https://([^/:]+).*#\1#p' | LC_ALL=C tr 'A-Z' 'a-z')"
+  host="$(printf '%s' "$url" | sed -nE 's#^https://([^/:]+).*#\1#p' | LC_ALL=C tr '[:upper:]' '[:lower:]')"
   if [[ -z "$host" ]]; then
     printf 'non-https or unparseable URL'
     return
@@ -135,10 +135,9 @@ att_run() {
   count="$(printf '%s' "$inventory" | jq 'length')"
 
   local entries='[]'
-  local i name declared url out localPath size sha status reason
+  local i name url out localPath size sha status reason
   for (( i = 0; i < count; i++ )); do
     name="$(printf '%s' "$inventory" | jq -r ".[$i].name // \"attachment\"")"
-    declared="$(printf '%s' "$inventory" | jq -r ".[$i].declaredMime // \"\"")"
     url="$(printf '%s' "$inventory" | jq -r ".[$i].contentUrl // \"\"")"
 
     status="downloaded"; reason=""; localPath=""; size=0; sha=""

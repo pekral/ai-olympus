@@ -147,7 +147,7 @@ fi
 # treat it as claimed-by-another-run so the caller can abort rather than re-transition.
 current_lower="$(printf '%s' "${CURRENT_STATUS:-}" | tr '[:upper:]' '[:lower:]')"
 is_past=false
-for keyword in review done closed resolved cancelled; do
+for keyword in review 'done' closed resolved cancelled; do
   if [[ "$current_lower" == *"$keyword"* ]]; then
     is_past=true
     break
