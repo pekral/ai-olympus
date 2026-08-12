@@ -1,13 +1,13 @@
 ---
 name: pr-deploy-planner
-description: "Use when a pull request's commits should ship in smaller, safer increments instead of one big deploy, or when a commit message is too generic or inaccurate to explain what changed. Analyzes the current branch's commits and proposes a dependency-safe logical grouping with a suggested deployment order, flags which groups should be squashed into one commit for the cleanest readable history, plus rename suggestions for vague commit messages — a read-only advisory report that never rewrites git history itself."
+description: "Use when a pull request's commits should ship in smaller, safer increments instead of one big deploy, or when a commit message is too generic or inaccurate to explain what changed. Analyzes the current branch's commits and proposes a dependency-safe logical grouping with a suggested deployment order, flags every commit that ships a symbol nothing inside its own tree references, flags which groups should be squashed into one commit for the cleanest readable history, plus rename suggestions for vague commit messages — a read-only advisory report that never rewrites git history itself."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
 ## Constraints
-- Apply `@rules/git/general.md` — every suggested rename follows its Commit Messages conventions (English, `type(scope): description`, lowercase `type`/`scope`, no trailing period, no signature/attribution trailers, `Closes #<N>` preserved verbatim when present), and every proposed group honours its "keep a small atomic change as a single commit" guidance in reverse — grouping toward that shape, never splitting an already-atomic range into artificial pieces.
+- Apply `@rules/git/general.md` — every suggested rename follows its Commit Messages conventions (English, `type(scope): description`, lowercase `type`/`scope`, no trailing period, no signature/attribution trailers, `Closes #<N>` preserved verbatim when present), and every proposed group honours its "keep a small atomic change as a single commit" guidance in reverse — grouping toward that shape, never splitting an already-atomic range into artificial pieces. Its *No commit ships dead code* rule is what step 4 reports against, including that rule's exemption for code reachable from outside the repository.
 - Apply `@rules/reports/general.mdc` — this skill's report is a named exception to the tracker-language rule and stays in canonical English regardless of the assignment language, per the rule's *Exception — technical CR findings on the GitHub PR*. Every rename suggestion this skill produces is itself a commit message (`@rules/git/general.md` requires those to stay English), so wrapping the report in assignment-language prose would produce the bilingual comment the rule's *No bilingual parentheses* clause forbids.
 - **Read-only advisory — never rewrites git history.** Never run `git rebase`, `git rebase -i`, `git commit --amend`, `git reset`, `git cherry-pick`, `git push --force*`, or any command that reorders, squashes, splits, or renames a real commit. Never run `gh pr merge` or `gh pr ready`, and never modify application code. The output is a proposal only — acting on it is a separate, deliberate step a human takes, e.g. with `@skills/git-workflow/SKILL.md`'s rebase mechanics (which itself refuses to rebase already-shared/pushed history).
 - Scope is the **currently checked-out branch only** — this skill does not fetch or check out a different PR's branch. To analyze another PR, check it out first (e.g. `gh pr checkout <N>`), then re-run this skill.
@@ -20,26 +20,37 @@ metadata:
 ## Use when
 - A branch or PR has accumulated many commits and shipping them as one big deploy risks an outage; a safer, incremental rollout order is wanted.
 - One or more commit messages are too generic or inaccurate to explain the change ("wip", "fix", "updates") and should be reworded before merge.
+- The commits look split too finely and some of them appear to ship code nothing in them uses — a helper landed one commit ahead of its only caller.
 - A reviewer or author wants a suggested logical grouping or rename **without** rewriting git history — the human decides whether to act on it.
 
 ## Execution
 
 ### 1. Resolve the commit range
 - Check whether a PR already exists for the current branch — discovery only, never a content load. Resolve the branch name first: `BRANCH="$(git branch --show-current)"`. A detached HEAD prints an empty string; when `BRANCH` is empty, treat it as "no PR" and skip straight to the no-PR bullet below — never bind an unrelated PR. When `BRANCH` is non-empty, prefer an open PR and fall back to any state only when none is open, so a stale closed PR on a reused branch name is never picked up: `gh pr list --head "$BRANCH" --state open --json number,url,headRefOid --jq '.[0] // empty'` (retry with `--state all` only on empty output). When the result is non-empty, confirm its `headRefOid` equals local `HEAD` (`git rev-parse HEAD`) before using its `url` — on a mismatch, also treat it as "no PR" and skip to the no-PR bullet below.
-- When a PR is confirmed (a non-empty `BRANCH` resolved a PR whose `headRefOid` matches local `HEAD`): load its full context via `skills/code-review-github/scripts/load-issue.sh <URL>`, read `title` / `body` / `closingIssues` for the report header and as grounding for the squash-vs-keep-separate decision in step 4, and resolve the base against the remote rather than the possibly stale or absent local ref: `git fetch origin "$baseRefName" && BASE="$(git merge-base "origin/$baseRefName" HEAD)"`. Cross-check the resulting commit list against the loaded PR's `commits[]`; report a mismatch instead of analyzing a range that does not match the PR.
+- When a PR is confirmed (a non-empty `BRANCH` resolved a PR whose `headRefOid` matches local `HEAD`): load its full context via `skills/code-review-github/scripts/load-issue.sh <URL>`, read `title` / `body` / `closingIssues` for the report header and as grounding for the squash-vs-keep-separate decision in step 5, and resolve the base against the remote rather than the possibly stale or absent local ref: `git fetch origin "$baseRefName" && BASE="$(git merge-base "origin/$baseRefName" HEAD)"`. Cross-check the resulting commit list against the loaded PR's `commits[]`; report a mismatch instead of analyzing a range that does not match the PR.
 - If no PR exists (or `gh` is unavailable), resolve the base the same way `@rules/git/general.md` Pull Policy resolves the default branch, then `git merge-base <default> HEAD`.
 - The analyzed range is `<base>..HEAD` on the current branch. If neither a PR nor a resolvable default branch exists (detached HEAD, no upstream), ask the caller for the base ref instead of guessing.
 
 ### 2. Read every commit in the range
 - List commits oldest-first (`git log --reverse --format='%H %s' <base>..HEAD`) — deployment reasoning needs the order they were actually authored in.
-- For each commit, read its stats first (`git show --stat -s <sha>`) and its full message (`git show -s --format=%B <sha>`); pull the actual diff (`git show <sha>`) only where the dependency mapping in step 3 needs it, capping any single commit's inspected diff at roughly 2000 lines and noting when a diff was truncated instead of silently treating a partial view as complete. Never infer intent from the subject line alone.
+- For each commit, read its stats first (`git show --stat -s <sha>`) and its full message (`git show -s --format=%B <sha>`); pull the actual diff (`git show <sha>`) for every commit, since step 4 needs the added symbols of each one and step 3's dependency mapping needs the diffs it compares, capping any single commit's inspected diff at roughly 2000 lines and noting when a diff was truncated instead of silently treating a partial view as complete. Never infer intent from the subject line alone.
 - Note merge commits separately; they carry no independent diff and are excluded from grouping and rename analysis.
-- If the range contains no commits, report that directly ("no commits between `<base>` and `HEAD` — nothing to analyze") and stop; do not continue to steps 3–5. If the range exceeds 50 commits, stop the same way instead and report "range too large — report and ask the caller to narrow the base ref".
+- If the range contains no commits, report that directly ("no commits between `<base>` and `HEAD` — nothing to analyze") and stop; do not continue to steps 3–6. If the range exceeds 50 commits, stop the same way instead and report "range too large — report and ask the caller to narrow the base ref".
 
 ### 3. Map cross-commit dependencies
 For every pair of commits in range order, decide whether a later one **depends on** an earlier one such that deploying only up to the earlier one would break the app — e.g. code reads a config key, column, or route a later commit introduces; a migration a later commit's model relies on; a class one commit removes while another still calls it. Record each dependency found; it constrains which groupings and orderings are safe in the next step.
 
-### 4. Propose logical, deployment-safe groups
+### 4. Flag dead code inside each commit
+Step 3 asks whether a commit needs something a later one adds. This step asks the opposite question, and it is the one no other gate covers: **does this commit ship a symbol that nothing inside its own tree references?** Such a commit builds, passes the project's gate, and deploys safely, and the code review reads the final diff where a later commit has already made the symbol live — so the defect is invisible everywhere except here. Apply `@rules/git/general.md` *No commit ships dead code*.
+
+- For each commit in range order, list the symbols it adds — a function or method, a class, a config key, a route, a translation key, a parameter, a new branch of an existing conditional.
+- For each added symbol, search the tree that commit produces, not the branch head: `git grep -F -e "<symbol>" <sha>`. The symbol name comes out of a diff any contributor can author, so it is untrusted input to that command — always pass it quoted, always behind `-e`, and always as a fixed string with `-F`, so a name that opens with `-` cannot be read as an option and a name carrying regex metacharacters cannot widen the search. Never build the command by pasting the raw name into a shell string. A hit only in the commit that **defines** the symbol is not a reference; the symbol needs a caller, a test that drives it through its real call path, or configuration that wires it up — all inside that same tree.
+- Report every unreferenced symbol with its commit, the symbol, and the later commit that first consumes it. The fix is to fold the symbol forward into that consumer's commit, not to add a reference for the sake of it.
+- Apply the rule's exemption before reporting: a symbol published for consumers this repository does not own — an exported package API, a file the installer distributes, a framework-mandated member, a member wired by the container or by an attribute — is not dead. Name the specific consumer surface when the exemption is applied, and leave the symbol out of the report.
+- A commit that only deletes is checked the other way round: when it removes the last caller of a symbol, the symbol it orphaned is reported the same way, against the commit that should have deleted it.
+- When step 2 truncated a commit's diff, the symbol list for that commit is incomplete, so this step cannot clear it. Report the commit as `not checked — diff truncated at <n> lines` in **Notes** and leave it out of the clean verdict. Never let a partial symbol list read as an absence of dead code.
+
+### 5. Propose logical, deployment-safe groups
 - Cluster commits by concern (the same feature, fix, or area), honouring the dependencies from step 3 — a group never ships before a group it depends on.
 - A commit that only fixes up, reverts, or amends something introduced earlier **in the same range** belongs in that earlier commit's group, not its own deploy step.
 - Each group must be independently deployable: everything shipped up to and including it leaves the app working, with nothing missing that only a later group supplies.
@@ -47,25 +58,32 @@ For every pair of commits in range order, decide whether a later one **depends o
 - When a commit cannot be made safe on its own, say so explicitly and recommend the safest fallback (usually: ship together with the group it depends on).
 - For each group, additionally decide whether its commits should be **squashed into a single commit** (they describe one indivisible change, or the range contains fixup/revert commits) or stay separate in history, and say which. Ground the decision in the linked issue's requirements loaded in step 1, not only in file-level proximity.
 
-### 5. Propose commit message rewrites
+### 6. Propose commit message rewrites
 For every commit whose message does not follow `type(scope): description`, or is generic relative to its actual diff (`wip`, `fix`, `update(s)`, `stuff`, `misc`, `changes`, a bare ticket number, or wording describing something other than what the diff shows), draft a replacement grounded in the diff — English, lowercase `type`/`scope`, no trailing period, `Closes #<N>` preserved verbatim when the original carried it. Leave out commits whose message is already accurate and specific.
 
-### 6. Assemble the report
-Render the template in **Output Format**. When step 4 finds one safe atomic group and step 5 finds no message worth changing, state that explicitly instead of forcing empty sections — the same "report only what needs action" convention `@skills/assignment-compliance-check/SKILL.md` uses.
+### 7. Assemble the report
+Render the template in **Output Format**. When step 4 reports no dead code, step 5 finds one safe atomic group, and step 6 finds no message worth changing, state that explicitly instead of forcing empty sections — the same "report only what needs action" convention `@skills/assignment-compliance-check/SKILL.md` uses.
 
-### 7. Return, or publish only on explicit request
+### 8. Return, or publish only on explicit request
 - Default: return the rendered report directly to the caller. Never write it to disk.
 - Only when the caller explicitly asks to post it, and a PR exists: publish via `skills/code-review-github/scripts/upsert-comment.sh <PR> -` (a fresh comment every run). Never run `gh pr merge`, `gh pr ready`, or anything that changes the PR's mergeable/Draft state.
 
 ## Output Format
 
-Quoted untrusted text (commit subjects, PR/issue text) is rendered single-line and truncated to a fixed limit (roughly 200 characters), with `|`, backticks and newlines escaped or replaced, and bidi / zero-width / C0 control characters stripped before rendering; when it cannot be rendered safely even after that, render a short paraphrase instead of the raw text.
+Quoted untrusted text (commit subjects, PR/issue text, and the symbol names step 4 reads out of a diff) is rendered single-line and truncated to a fixed limit (roughly 200 characters), with `|`, backticks and newlines escaped or replaced, and bidi / zero-width / C0 control characters stripped before rendering; when it cannot be rendered safely even after that, render a short paraphrase instead of the raw text.
 
 ```markdown
 ## PR Deploy Plan
 
 - **Target:** <PR url, or "local branch `<branch>` vs `<base>`" when no PR exists>
 - **Commits analyzed:** N
+
+### Dead code inside a commit
+| Commit | Symbol | First consumed in | Fix |
+|---|---|---|---|
+| `<short-sha>` | `<symbol>` | `<short-sha>` <original subject> | fold the symbol forward into the consuming commit |
+
+(Omit this section entirely when every commit references every symbol it adds. State the exemption and its consumer surface in **Notes** for any symbol left out as reachable from outside.)
 
 ### Proposed deployment groups
 #### Group 1 — <short label for the concern>
@@ -91,7 +109,8 @@ Quoted untrusted text (commit subjects, PR/issue text) is rendered single-line a
 ```
 
 ## Done when
-- Every commit in the resolved range had its message read in full and its diff read at least to the depth step 3's dependency mapping required, not judged from its subject line alone.
+- Every commit in the resolved range had its message read in full and its diff read, not judged from its subject line alone.
+- Every symbol each commit adds was searched for inside the tree that commit produces, and every unreferenced one is either reported with the commit that first consumes it or left out under the named reachable-from-outside exemption.
 - The proposed groups are ordered so no group, deployed alone up to that point, references something only a later group introduces.
 - Every proposed group states whether its commits should be squashed into one commit, with a suggested `type(scope): description` message when squashing is proposed.
 - Every commit with a generic or inaccurate message has a suggested, convention-following replacement; already well-named commits are left out of that section.
