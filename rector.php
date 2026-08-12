@@ -7,7 +7,6 @@ use Rector\CodeQuality\Rector\Foreach_\UnusedForeachValueToArrayKeysRector;
 use Rector\CodeQuality\Rector\Switch_\SwitchTrueToIfRector;
 use Rector\CodingStyle\Rector\FuncCall\ArraySpreadInsteadOfArrayMergeRector;
 use Rector\Config\RectorConfig;
-use Rector\Php81\Rector\ClassMethod\NewInInitializerRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\StrictStringParamConcatRector;
 use Rector\TypeDeclarationDocblocks\Rector\Class_\AddReturnDocblockDataProviderRector;
 use Rector\TypeDeclarationDocblocks\Rector\ClassMethod\AddParamArrayDocblockFromDataProviderRector;
@@ -22,7 +21,6 @@ return static function (RectorConfig $rectorConfig): void {
     $rectorConfig->skip([
         __DIR__ . '/vendor',
         __DIR__ . '/src/ComposerPlugin.php',
-        NewInInitializerRector::class,
         StrictStringParamConcatRector::class,
         JoinStringConcatRector::class,
         SwitchTrueToIfRector::class,
