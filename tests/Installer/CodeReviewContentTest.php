@@ -1951,3 +1951,32 @@ test('process-code-review passes the iteration number to every CR wrapper invoca
     expect($process)->toContain('The narrowing never changes what the review **detects** — only what it renders.');
     expect($process)->toContain('plus the report scope the final publish used');
 });
+
+test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose (issue #254)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    // The reader learns both output shapes before reading a single constraint.
+    expect($prSummary)->toContain('## TL;DR');
+    expect($prSummary)->toContain('Read the branch\'s commits and its linked tracker. Write one non-technical comment. Publish it.');
+    expect($prSummary)->toContain('**GitHub target** → `Authors`, conditional `Available behind`, `Summary of changes`, `How to test`.');
+    expect($prSummary)->toContain('**JIRA target** → `How to test` only, in Wiki Markup.');
+
+    // Every normative block is its own heading, so a reader can jump to the one they need.
+    foreach ([
+        '### Terse output style (issue #51)',
+        '### Authors — GitHub target only',
+        '### Available behind — flag test / opt-in gated changes',
+        '### Output shape per target',
+        '### No leaked markup on JIRA',
+        '### Embedded blocks (consolidation contract — issue #498)',
+        '### Assignment non-compliance verdict (top banner)',
+    ] as $heading) {
+        expect($prSummary)->toContain($heading);
+    }
+
+    // The defect this rewrite fixes: single bullets of 2157 / 943 / 901 characters. Nothing
+    // is deleted, so the word count barely moves — the bound is what keeps the prose scannable.
+    $longestLine = max(array_map('mb_strlen', explode("\n", $prSummary)));
+    expect($longestLine)->toBeLessThan(800);
+});
