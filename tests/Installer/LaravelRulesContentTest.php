@@ -297,3 +297,26 @@ test('laravel rules mandate the native Image facade over Intervention Image/GD/I
     expect($content)->toContain('Reserve `resize($width, $height)` for a call site that intentionally accepts distortion.');
     expect($content)->toContain('An `Image` instance cannot be serialized and throws `ImageException` when passed into a queued job.');
 });
+
+test('architecture rules forbid introducing a new project-owned Facade as a home for business logic (issue #254)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+
+    expect($content)->toContain('**Never introduce a new project-owned Facade.**');
+    expect($content)->toContain('A Laravel Facade is a static proxy to a container binding, not a home for logic');
+    expect($content)->toContain(
+        'a class extending `Illuminate\Support\Facades\Facade`, a `*Facade`-suffixed class under `App\`, or a new `App\Facades\…` entry',
+    );
+    expect($content)->toContain('The correct home is the **base service**');
+    expect($content)->toContain('Pekral\Arch\Service\BaseModelService');
+
+    // The legacy carve-out keeps the pre-existing Facade enumerations from reading as permission.
+    expect($content)->toContain('describe **legacy** code the project still carries, never a shape a new design may reach for');
+
+    // Consuming a vendor facade stays allowed — the rule governs declared facades only.
+    expect($content)->toContain('this rule governs the facades a project *declares*, never the ones it *uses*');
+
+    // Critical severity, and it fires only on a facade the diff adds.
+    expect($content)->toContain('a new project-owned Facade added as a home for business logic, or as a static entry point to it');
+    expect($content)->toContain('the rule fires only on a facade the change **adds**');
+});
