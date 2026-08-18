@@ -21,6 +21,8 @@ composer require agentic-vibes/laravel-agent-skills --dev
 vendor/bin/agent-skills install --force
 ```
 
+No Composer in the project? Add it as a Claude Code plugin instead — see [Installation](#installation).
+
 Then point the front-door agent at real work, inside Claude Code:
 
 ```text
@@ -47,6 +49,35 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
+
+There are two ways in. **Composer** is the complete one and stays the recommendation for a PHP project. The **plugin marketplace** exists for everyone else — most of this package is stack-agnostic, and a project without Composer had no way to reach it at all.
+
+| | Composer | Plugin marketplace |
+|---|---|---|
+| Requires | PHP + Composer | Claude Code only |
+| Skills, agents | ✅ installed into `.claude/` | ✅ loaded from the plugin |
+| Rules, `CLAUDE.md` | ✅ installed into the project | ⚠️ one extra command — see below |
+| `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
+| Unattended runs (`agent-skills resolve-next`) | ✅ | ❌ Composer only |
+
+### Via the plugin marketplace (no Composer)
+
+```text
+/plugin marketplace add agentic-vibes/laravel-agent-skills
+/plugin install laravel-agent-skills@laravel-agent-skills
+```
+
+That loads all 54 skills and the four agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+
+```text
+/laravel-agent-skills:install-rules
+```
+
+It writes `.claude/rules/` and, when the project has none, a `CLAUDE.md` — it never overwrites one you already have. Restart the session afterwards; rules are read at session start.
+
+The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
+
+### Via Composer
 
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 

@@ -2,6 +2,8 @@
 
 Operational reference for the `agent-skills` installer. The two commands you need to get started are in the [Quickstart](../README.md#quickstart) — this page covers everything beyond them: how the installer finds your project, what it writes, how to automate it, and every CLI switch.
 
+Everything on this page describes the **Composer** path. A project without Composer installs through the [plugin marketplace](#installing-without-composer-plugin-marketplace) instead, which is deliberately narrower.
+
 ## How the Installer Works
 
 The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It then mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, copying every file into the target project — or symlinking it when you pass `--symlink` and the operating system permits it.
@@ -87,3 +89,41 @@ It removes only the skill directories this package ships and leaves everything e
 
 > [!WARNING]
 > The match is by skill **name**, and the removal is immediate and irreversible — there is no dry run and no backup. If you hand-edited a home skill that shares a name with one this package ships, `--prune-global` deletes your edited copy too, because a customised copy and a stale one are indistinguishable from the outside. Move such a skill to a name this package does not use before running the flag.
+
+## Installing without Composer (plugin marketplace)
+
+The package is a Claude Code plugin as well as a Composer plugin. Most of what it ships — the git, code-review, compound-engineering, writing, and security rules, and every skill that is not PHP-specific — needs no PHP at all, and a project without Composer had no way to reach any of it.
+
+```text
+/plugin marketplace add agentic-vibes/laravel-agent-skills
+/plugin install laravel-agent-skills@laravel-agent-skills
+```
+
+The plugin lives at the repository root (`.claude-plugin/marketplace.json` points at `./`), so there is no second copy of anything and no second version to keep in step: the plugin ships whatever the git checkout holds.
+
+### What the plugin loads, and what it cannot
+
+Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **neither `rules/` nor a `CLAUDE.md`** — there is no plugin mechanism for a project-scoped always-on instruction file. So the split is:
+
+| | Loaded by the plugin |
+|---|---|
+| 54 skills (`skills/*/SKILL.md`) | ✅ automatically |
+| 4 agents (`agents/*.md`) | ✅ automatically |
+| Rules (`rules/**`) | ❌ — `/laravel-agent-skills:install-rules` copies them |
+| `CLAUDE.md` | ❌ — same command, and only when the project has none |
+| `.claude/settings.local.json` switches (`--deny-network-bash`, …) | ❌ Composer only |
+| `agent-skills resolve-next` | ❌ Composer only |
+
+```text
+/laravel-agent-skills:install-rules
+```
+
+The command copies `rules/` from the plugin directory into the project's `.claude/rules/`, overwriting what is there — they are package files, and a stale copy is exactly the drift the command prevents. It copies `CLAUDE.md` only when the project has none, the same guarantee the Composer installer carries. Rules are read at session start, so restart the session afterwards.
+
+Re-run it after `/plugin update` to pick up rule changes; the skills and agents update on their own.
+
+### Which path to choose
+
+Take **Composer** on any PHP project. It installs the rules without a second step, it carries the opt-in security switches, and it pins the whole package to that project's `composer.lock` — so two checkouts cannot silently drift onto different versions.
+
+Take the **plugin marketplace** when the project has no `composer.json` to install into, or when you want the skills and agents available without adding a dev dependency.

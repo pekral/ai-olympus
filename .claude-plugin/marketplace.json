@@ -1,0 +1,23 @@
+{
+  "name": "laravel-agent-skills",
+  "description": "Laravel Agent Skills — Claude Code skills, agents, and PHP/Laravel standards, installable without Composer",
+  "owner": {
+    "name": "Petr Král",
+    "email": "kral.petr.88@gmail.com",
+    "url": "https://pekral.cz"
+  },
+  "plugins": [
+    {
+      "name": "laravel-agent-skills",
+      "source": "./",
+      "category": "development",
+      "tags": [
+        "php",
+        "laravel",
+        "code-review",
+        "coding-standards",
+        "agents"
+      ]
+    }
+  ]
+}
