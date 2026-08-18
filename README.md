@@ -382,7 +382,7 @@ composer security-audit     # run security audit of dependencies
 ### Individual Commands
 
 ```bash
-composer skill-check                # SKILL.md linter (validation + scoring across every skill)
+composer skill-check                # SKILL.md linter (diagnostics only — silent when every skill passes)
 composer skill-check-fix            # SKILL.md linter with auto-fix
 composer composer-normalize-check   # validate composer.json normalization (dry-run)
 composer composer-normalize-fix     # apply composer.json normalization

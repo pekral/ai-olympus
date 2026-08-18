@@ -170,11 +170,11 @@
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
-      "npx skill-check check skills --no-security-scan"
+      "npx skill-check check skills --no-security-scan --format github"
     ],
     "skill-check-fix": [
       "echo \"📋 Running skill-check auto-fix...\"",
-      "npx skill-check check skills --fix --no-security-scan"
+      "npx skill-check check skills --fix --no-security-scan --format github"
     ],
     "test:coverage": [
       "echo \"📊 Running coverage tests with PCOV...\"",
