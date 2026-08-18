@@ -13,7 +13,7 @@ metadata:
 - Apply `@rules/security/backend.mdc`
 - Apply `@rules/code-review/frontend.mdc`
 - Apply `@rules/code-review/mobile.mdc`
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Apply @rules/reports/general.mdc. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
 - Focus on realistic, exploitable issues
 - Never reveal secrets
@@ -188,7 +188,7 @@ Findings from this skill are **never** eligible for the Assignment-Declared Test
 - **Faulty Example** — minimal code snippet or attacker payload that reproduces the vulnerability (redact secrets, tokens, and PII)
 - **Expected Behavior** — single assertable security guarantee (rejection, authorization denial, escaped output, no side effect)
 - **Test Hint** — one sentence pointing at the test layer (unit, feature, HTTP) and entry point
-- **Suggested Fix** — minimal corrected code snippet that closes the vulnerability (parameterized query, authorization check, output escaping, signature verification, safer SDK call, etc.). Must comply with `@rules/php/core-standards.md`, `@rules/security/backend.mdc`, and, for Laravel projects, `@rules/laravel/architecture.mdc`. Use `n/a — <reason>` only when the fix is purely configurational (env var, web-server header) and is described in the Recommended Fix narrative.
+- **Suggested Fix** — minimal corrected code snippet that closes the vulnerability (parameterized query, authorization check, output escaping, signature verification, safer SDK call, etc.). Must comply with `@rules/php/core-standards.md`, `@rules/security/backend.mdc`, and, for Laravel projects, `@rules/laravel/architecture.md`. Use `n/a — <reason>` only when the fix is purely configurational (env var, web-server header) and is described in the Recommended Fix narrative.
 
 These fields exist so `@skills/process-code-review/SKILL.md` can turn each finding into a regression test and apply the fix without re-deriving the attack vector. Medium and Low findings may omit them when no behavior change is implied.
 

@@ -1,10 +1,9 @@
 ---
 description: Laravel DynamoDB query safety — scan prevention and Tinker-based verification
-globs:
-  - app/**/*.php
-  - config/dynamodb.php
-  - tests/**/*.php
-alwaysApply: false
+paths:
+  - "app/**/*.php"
+  - "config/dynamodb.php"
+  - "tests/**/*.php"
 ---
 
 # Laravel DynamoDB

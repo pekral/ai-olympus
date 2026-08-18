@@ -77,10 +77,11 @@ test('the retired path of every rule scoping took off the always-on list is stil
     // The references are assembled here rather than written out, so the sweep over this
     // repository's own files does not read this fixture as a real one.
     //
-    // Issue #275 added a fifth entry to `ruleScopingExpectedGlobs()` — a brand-new file that was
-    // never `.mdc` and never on the always-on list, so it has no retired path to sweep for. This
-    // test's concern is narrower than "every scoped rule": only the ones that were both renamed
-    // from `.mdc` (issue #187) and later scoped (issue #274) have a retired `.mdc` path at all.
+    // Issue #275 added an entry to `ruleScopingExpectedGlobs()` — a brand-new file that was never
+    // `.mdc` and never on the always-on list, so it has no retired path to sweep for. Issue #277
+    // added five more that do: the Laravel rules it renamed out of `.mdc` and scoped in the same
+    // move. This test's concern is narrower than "every scoped rule": only the ones renamed from
+    // `.mdc` and also scoped have a retired `.mdc` path at all.
     $retiredPath = static fn (string $rule): string => substr($rule, 0, -3) . '.mdc';
     $scopedRules = array_values(array_intersect(array_keys(ruleScopingExpectedGlobs()), ruleExtensionRenamedFromMdcFiles()));
     $corpus = ['CHANGELOG.md' => 'Renamed ' . $retiredPath('rules/php/core-standards.md') . ' to .md.'];
@@ -92,6 +93,6 @@ test('the retired path of every rule scoping took off the always-on list is stil
         $expected[] = $file . ' → ' . $retiredPath($rule);
     }
 
-    expect($scopedRules)->toHaveCount(4);
+    expect($scopedRules)->toHaveCount(9);
     expect(ruleExtensionStaleMdcReferences($corpus))->toBe($expected);
 });

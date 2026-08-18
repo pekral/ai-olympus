@@ -14,7 +14,7 @@ metadata:
 -   Apply @rules/php/core-standards.md
 -   Apply @rules/git/general.md
 -   Apply @rules/code-testing/general.mdc
--   If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+-   If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 -   If you are not on the main git branch in the project, switch to it.
 -   This task is based on the existing pull request review.
 -   First read your existing code review for the current pull request

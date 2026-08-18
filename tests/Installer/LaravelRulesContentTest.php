@@ -113,7 +113,7 @@ test('laravel rules forbid real HTTP and real system processes in tests (issue #
 
 test('architecture rules enumerate the seven allowed business logic layers including Eloquent models', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     expect($content)->toContain('## Business Logic Layers');
     expect($content)->toContain('seven class types');
@@ -143,7 +143,7 @@ test('laravel rules permit simple self-contained logic on Eloquent models', func
 
 test('architecture bullets remain under the Architecture heading and Business Logic Layers sits before Actions', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     $architectureHeading = strpos($content, "\n## Architecture\n");
     $multitenancyBullet = strpos($content, 'Multitenancy remains mandatory');
@@ -165,7 +165,7 @@ test('architecture bullets remain under the Architecture heading and Business Lo
 
 test('architecture rules carry the Shared Concerns (Traits) section scoped to globally reusable, domain-agnostic logic (issue #531)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     expect($content)->toContain('## Shared Concerns (Traits)');
     expect($content)->toContain('`app/Concerns/` is the **canonical home for all globally shared and reusable logic**');
@@ -182,7 +182,7 @@ test('architecture rules carry the Shared Concerns (Traits) section scoped to gl
 
 test('architecture Shared Concerns (Traits) section sits immediately before Validation Rules (Traits) (issue #531)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     $sharedConcernsHeading = strpos($content, "\n## Shared Concerns (Traits)\n");
     $validationRulesHeading = strpos($content, "\n## Validation Rules (Traits)\n");
@@ -201,7 +201,7 @@ test('architecture Shared Concerns (Traits) section sits immediately before Vali
 
 test('architecture CR Severity Rules cover app/Concerns misuse in both directions (issue #531)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     expect($content)->toContain('domain-specific code placed under `app/Concerns/`');
     expect($content)->toContain('shared, reusable trait or helper logic placed outside `app/Concerns/`');
@@ -225,7 +225,7 @@ test('laravel rules carry the parallel Shared Concerns section and Layer Respons
 
 test('architecture rules require request->DTO transformation in the FormRequest, not the controller (issue #698)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     expect($content)->toContain('Request → DTO transformation belongs in the FormRequest, not the controller.');
     expect($content)->toContain('toDto()');
@@ -247,7 +247,7 @@ test(
     'architecture rules require match() over an enum mode to live in a Data Validator when pekral/arch-app-services is installed (issue #708)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+        $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
     
         expect($content)->toContain('`match()` over an enum mode is domain validation and must live in a Data Validator');
         expect($content)->toContain('only when `pekral/arch-app-services` is installed');
@@ -260,7 +260,7 @@ test(
     'architecture rules mandate an unconditional Service→BaseModelService rule with a structural Action-shape test (issue #126)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+        $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
         expect($content)->toContain('Every class named with a `Service` suffix must extend `BaseModelService`');
         expect($content)->toContain('unconditionally; there is no');
@@ -300,7 +300,7 @@ test('laravel rules mandate the native Image facade over Intervention Image/GD/I
 
 test('architecture rules forbid introducing a new project-owned Facade as a home for business logic (issue #254)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
 
     expect($content)->toContain('**Never introduce a new project-owned Facade.**');
     expect($content)->toContain('A Laravel Facade is a static proxy to a container binding, not a home for logic');

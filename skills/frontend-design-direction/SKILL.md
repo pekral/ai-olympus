@@ -7,8 +7,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/laravel/filament.mdc` — for custom Blade + Tailwind, create and register a custom theme; use Heroicon, not raw icon strings.
-- Apply `@rules/laravel/livewire.mdc` — keep Blade presentation-only; reuse existing Livewire/Blade patterns before inventing new ones.
+- Apply `@rules/laravel/filament.md` — for custom Blade + Tailwind, create and register a custom theme; use Heroicon, not raw icon strings.
+- Apply `@rules/laravel/livewire.md` — keep Blade presentation-only; reuse existing Livewire/Blade patterns before inventing new ones.
 - Apply `@rules/security/frontend.md` only if the direction introduces dynamic output, inline styles, or CSP-sensitive markup — sanitize before DOM insertion and prefer safe rendering.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next.
 

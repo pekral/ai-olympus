@@ -13,7 +13,7 @@
    Suggested Fix:
    ```php
    // minimal corrected snippet; complies with @rules/api/general.md, @rules/php/core-standards.md,
-   // and @rules/laravel/architecture.mdc on Laravel projects
+   // and @rules/laravel/architecture.md on Laravel projects
    ```
 
 ## Moderate

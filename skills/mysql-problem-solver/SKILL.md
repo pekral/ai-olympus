@@ -20,7 +20,7 @@ Focus on:
 
 ## Constraints
 - Apply @rules/sql.mdc
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Be practical and direct
 - Prefer investigation over assumptions
 - Do not invent schema, indexes, or runtime behavior

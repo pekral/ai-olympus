@@ -17,7 +17,7 @@ the entry-point `Class::method`, the orchestration that should move out, the tar
 ## Constraints
 - Apply `@rules/refactoring/general.mdc` — incremental migration only, never a big-bang rewrite. The **Test Coverage Contract** in that rule is binding: 100% coverage of the target lines must exist in a dedicated `test(scope): cover <area> before refactor` commit *before* the entry-point change lands, and the assertion logic of those tests must remain unchanged through the refactor commit.
 - Apply `@rules/php/core-standards.md`.
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Preserve behavior, signatures, response contracts, and tenant/account scope. Rewrite the entry-point code **strictly per the applied rules** — anything that would deviate (parameter count, naming, nesting, layer placement, validation home) is rewritten until it complies.
 - Do not report review output to any third-party service.
 - After changes (`MODE=apply` only), run an internal architecture-first review and fix important findings immediately. In `MODE=cr` there are no changes — emit the Action-extraction proposal and stop.
@@ -37,7 +37,7 @@ Example input:
 - `Refactor entry point <Class::method> in <path> to Action pattern.`
 - `Keep behavior and response contract unchanged.`
 - `Create or reuse Action in app/Actions/<Domain>/<ActionName>.php and delegate from the entry point.`
-- `Respect @rules/laravel/architecture.mdc.`
+- `Respect @rules/laravel/architecture.md.`
 
 ## Required architecture
 - Entry point must become thin and delegate directly to an Action via `$action(...)`.
@@ -52,7 +52,7 @@ Example input:
 - Keep reads in repositories (`Pekral\Arch\Repository\Mysql\BaseRepository`) and writes/updates/deletes in model managers (`Pekral\Arch\ModelManager\Mysql\BaseModelManager`) / services according to project architecture.
 - When the orchestration touches the database in a loop, prefer ModelManager batch methods (`batchUpdate`, `batchInsert`) and bulk delete/read patterns (`whereIn(...)->delete()`, `findBy{Attribute}In(...)` keyed in memory) over per-row queries (see `@rules/sql/optimalize.md` "Batch over per-row operations"). Per-row queries inside the Action are allowed only when iterations have an unavoidable side-effect dependency that must be justified in a code comment.
 - Add or update PHPDoc where needed for PHPStan clarity.
-- **Livewire entry points — Blade view co-refactor.** When the entry point being refactored is a Livewire component, also inspect its Blade view (`resources/views/livewire/<...>.blade.php`). Walk it against the triggers in `@rules/laravel/livewire.mdc` *HTML / Blade Layout Splitting* (repeated markup, >150 Blade lines, self-contained `wire:*` cluster, self-contained data shape, cross-page reuse, independent loading / empty / error state, distinct named UI concern). For every match, propose the extraction in the refactor plan: name the extracted concern, pick the correct component type per the rule's **Component-type decision** (Livewire only for stateful / lifecycle / server-interactive blocks;
+- **Livewire entry points — Blade view co-refactor.** When the entry point being refactored is a Livewire component, also inspect its Blade view (`resources/views/livewire/<...>.blade.php`). Walk it against the triggers in `@rules/laravel/livewire.md` *HTML / Blade Layout Splitting* (repeated markup, >150 Blade lines, self-contained `wire:*` cluster, self-contained data shape, cross-page reuse, independent loading / empty / error state, distinct named UI concern). For every match, propose the extraction in the refactor plan: name the extracted concern, pick the correct component type per the rule's **Component-type decision** (Livewire only for stateful / lifecycle / server-interactive blocks;
 Blade for stateless presentation — never a Livewire wrapper around a pure presentational block), and place the new component under the concern's domain folder (`app/Livewire/<Domain>/` or `resources/views/components/<domain>/`). The extracted children must satisfy the **Reusability contract** in the rule (typed input, one concern, no business logic, events not parent reach-through, independently renderable, concern-based name). **Apply-mode requirement:** the extractions must land in a dedicated `refactor(scope):
 split <view> into reusable components` commit that follows the Action-extraction commit and respects the **Test Coverage Contract** in `@rules/refactoring/general.mdc` in spirit — every rendered branch of the touched view is covered by a Livewire / Blade feature test committed before the layout refactor, and those feature tests stay green through the refactor commit unchanged. PHP `--coverage-clover` does not measure `.blade.php` line-by-line, so the binding gate is feature-test parity, not a numeric coverage percentage on the view file. **CR-mode requirement:** the proposals must be emitted as markdown findings (`file:line`, concern name, Livewire-vs-Blade choice, target folder, rule reference) and the skill stops without modifying code.
 

@@ -254,7 +254,7 @@ test('install copies nested directories', function (): void {
         Installer::run(['agent-skills', 'install']);
         ob_end_clean();
 
-        $installedFile = $root . '/.claude/rules/laravel/architecture.mdc';
+        $installedFile = $root . '/.claude/rules/laravel/architecture.md';
 
         expect(is_file($installedFile))->toBeTrue();
         expect(file_get_contents($installedFile))->not->toBeEmpty();

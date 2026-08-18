@@ -27,7 +27,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - Apply @rules/git/general.md
 - Apply @rules/jira/general.mdc when the target is a JIRA issue
 - Apply @rules/reports/general.mdc — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 
 ### What the comment carries
 

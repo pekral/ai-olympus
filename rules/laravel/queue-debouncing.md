@@ -1,7 +1,9 @@
 ---
 description: Laravel queue debouncing rules for safe job design, urgency separation, and replaceable work
-globs: ["app/**/*.php", "routes/**/*.php", "tests/**/*.php"]
-alwaysApply: false
+paths:
+  - "app/**/*.php"
+  - "routes/**/*.php"
+  - "tests/**/*.php"
 ---
 
 # Laravel Queue Debouncing

@@ -9,7 +9,7 @@ metadata:
 ## Constraints
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/code-testing/general.mdc`
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Do not generate `covers()`
 
 ## Use when

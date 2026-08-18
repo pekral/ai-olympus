@@ -10,7 +10,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/laravel/laravel.md` — use the framework's facades (`Cache`, `RateLimiter`, `Redis`), not a raw client.
-- Apply `@rules/laravel/queue-debouncing.mdc` for queue/job coalescing concerns when Redis backs the queue.
+- Apply `@rules/laravel/queue-debouncing.md` for queue/job coalescing concerns when Redis backs the queue.
 - Cross-link `@rules/sql/optimalize.md` (DB-level caching) — Redis caching sits in front of the query tuning that rule owns; cache the result, do not paper over an unindexed query.
 - `final` classes, `declare(strict_types=1)`, Pest tests (use the `array` cache driver in tests unless asserting Redis-specific behavior).
 - Always set a TTL. Keys without expiry accumulate and cause memory pressure.
@@ -181,7 +181,7 @@ Pipelines cut latency for bulk ops; transactions add atomicity. Do not loop sing
 
 ## Queues, Sessions & Stores
 
-- **Queues:** set `QUEUE_CONNECTION=redis`. Run **Laravel Horizon** for Redis queues — it gives supervisor config, metrics, and a dashboard. For coalescing bursty jobs see `@rules/laravel/queue-debouncing.mdc`.
+- **Queues:** set `QUEUE_CONNECTION=redis`. Run **Laravel Horizon** for Redis queues — it gives supervisor config, metrics, and a dashboard. For coalescing bursty jobs see `@rules/laravel/queue-debouncing.md`.
 - **Sessions / cache:** `SESSION_DRIVER=redis`, `CACHE_STORE=redis`. Keep sessions/queue on a `noeviction` instance and cache on an `allkeys-lru` instance (or distinct DB indexes) so cache eviction never drops a session or job.
 - Size the predis/phpredis pool and set `socket_timeout` / `read_timeout` so a stalled Redis fails fast instead of hanging requests.
 

@@ -1,7 +1,7 @@
 ---
 description: Filament-specific rules and conventions
-globs:
-  - app/Filament/**/*.php
+paths:
+  - "app/Filament/**/*.php"
 ---
 
 ## Resources

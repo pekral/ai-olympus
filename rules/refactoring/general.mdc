@@ -40,7 +40,7 @@ globs: []
     - inline validation → Data Validators / FormRequests
 6. **Remove duplication** — apply DRY pragmatically, not dogmatically.
 7. **Address concurrency** — DB transactions, `lockForUpdate`, atomic operations instead of read-modify-write on shared state.
-8. **Split oversized HTML / Blade layouts** — when the refactor touches a Livewire / Blade view, analyze its HTML as a tree of UI concerns and split it into the smallest set of reusable Livewire and Blade components per `@rules/laravel/livewire.mdc` *HTML / Blade Layout Splitting*. Treat the layout split as a structural refactor: the **Test Coverage Contract** below applies in spirit — every rendered branch of the touched view must be exercised by a Livewire / Blade feature test that stays green through the refactor commit unchanged, since PHP `--coverage-clover` does not measure `.blade.php` line-by-line. See the rule's *Process for splitting an existing view* step 6 for the binding wording.
+8. **Split oversized HTML / Blade layouts** — when the refactor touches a Livewire / Blade view, analyze its HTML as a tree of UI concerns and split it into the smallest set of reusable Livewire and Blade components per `@rules/laravel/livewire.md` *HTML / Blade Layout Splitting*. Treat the layout split as a structural refactor: the **Test Coverage Contract** below applies in spirit — every rendered branch of the touched view must be exercised by a Livewire / Blade feature test that stays green through the refactor commit unchanged, since PHP `--coverage-clover` does not measure `.blade.php` line-by-line. See the rule's *Process for splitting an existing view* step 6 for the binding wording.
 
 ## When to Refactor
 - Changes are slow and painful.
@@ -76,4 +76,4 @@ Code review must reject any refactor PR that violates this contract — see the 
 - Flag big-bang rewrites and mixed-responsibility entry points as findings.
 - Prefer incremental migration over wholesale rewrites in suggested fixes.
 - **Enforce the Test Coverage Contract above on every refactor PR.** Walk the PR commit history and verify: (a) the refactor commit is preceded by a `test(scope): ...` commit that brings the refactored lines to 100% coverage, (b) no pre-existing test file is modified inside the refactor commit (mechanical-rename exemption only, and only when the commit body documents it), (c) coverage of the refactor commit alone — verified with the project's available coverage tooling scoped to the changed files — reports 100% for changed lines. Missing pre-refactor coverage commit, modified tests inside the refactor commit, or sub-100% coverage on the changed lines are each **Critical** findings.
-- For Laravel projects, combine this rule with `@rules/laravel/architecture.mdc` (Action pattern, Repositories, ModelManagers, Data Validators, DTOs).
+- For Laravel projects, combine this rule with `@rules/laravel/architecture.md` (Action pattern, Repositories, ModelManagers, Data Validators, DTOs).

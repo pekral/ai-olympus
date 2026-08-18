@@ -7,9 +7,9 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/laravel/livewire.mdc` — class in `app/Livewire`, view in `resources/views/livewire`, extend `Livewire\Component`; components are slim entry points; delegate business logic to Actions/Services; inject dependencies via `boot()`, never as method params; Blade stays presentation-only.
-- Apply `@rules/laravel/filament.mdc` — prefer Filament form/table components for admin UIs; custom Blade+Tailwind needs a registered theme.
-- Apply `@rules/laravel/architecture.mdc` — keep query/business logic out of views and components.
+- Apply `@rules/laravel/livewire.md` — class in `app/Livewire`, view in `resources/views/livewire`, extend `Livewire\Component`; components are slim entry points; delegate business logic to Actions/Services; inject dependencies via `boot()`, never as method params; Blade stays presentation-only.
+- Apply `@rules/laravel/filament.md` — prefer Filament form/table components for admin UIs; custom Blade+Tailwind needs a registered theme.
+- Apply `@rules/laravel/architecture.md` — keep query/business logic out of views and components.
 - Apply `@rules/sql/optimalize.md` — eager-load to avoid N+1 in loops rendered by Blade.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next — never output `useState`/`useEffect`/`useMemo`/JSX/Framer Motion/React Query.
 

@@ -384,12 +384,12 @@ Rules included in this package:
 | `jira/general.mdc`            | JIRA CLI usage and formatting rules                        | JIRA     |
 | `reports/general.mdc`         | Language rule for reports published to issue trackers (assignment language) | Always   |
 | `writing/general.md`         | Simplified technical writing (ASD-STE100 principles) for every agent response | Always   |
-| `laravel/architecture.mdc`    | Laravel architecture and conventions                       | Laravel  |
+| `laravel/architecture.md`     | Laravel architecture and conventions                       | Laravel  |
 | `laravel/laravel.md`         | Laravel-specific rules and patterns                        | Laravel  |
-| `laravel/filament.mdc`        | Filament v4 specific rules                                 | Filament |
-| `laravel/livewire.mdc`        | Livewire component rules and conventions                   | Livewire |
-| `laravel/queue-debouncing.mdc`| Safe Laravel queue debouncing, urgency separation, and replaceable work | Laravel  |
-| `laravel/dynamodb.mdc`        | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug | Laravel  |
+| `laravel/filament.md`         | Filament v4 specific rules                                 | Filament |
+| `laravel/livewire.md`         | Livewire component rules and conventions                   | Livewire |
+| `laravel/queue-debouncing.md` | Safe Laravel queue debouncing, urgency separation, and replaceable work | Laravel  |
+| `laravel/dynamodb.md`         | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug | Laravel  |
 | `sql/optimalize.md`          | SQL query optimization, index design, schema standards     | SQL      |
 | `security/backend.md`         | Backend security rules and OWASP Top 10 checks             | Always   |
 | `security/frontend.md`        | Frontend security rules (XSS, CSRF, CSP)                  | Frontend |

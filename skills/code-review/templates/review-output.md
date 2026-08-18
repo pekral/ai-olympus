@@ -37,7 +37,7 @@
 - **Test hint:** test layer (unit / integration / feature) + entry point, in one sentence.
 - **Suggested fix:**
   ```php
-  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.mdc on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
+  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.md on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
   ```
 
 ### 🟠 Moderate 1. <short title>
@@ -82,7 +82,7 @@
 1. **Location:** `path/to/file.php:42`
    **Problem:** one sentence.
    **Refactor:** concrete consolidation step (Data Builder / DTO / Service / Action / Repository / ModelManager).
-   **Why:** rule reference (`@rules/laravel/architecture.mdc#<section>` or `@skills/class-refactoring/SKILL.md`) satisfied by the change.
+   **Why:** rule reference (`@rules/laravel/architecture.md#<section>` or `@skills/class-refactoring/SKILL.md`) satisfied by the change.
 
 ---
 
@@ -116,7 +116,7 @@
 
 > **Laravel-only, conditional on findings (issue #530).** On every Laravel project (`laravel/framework` is in `composer.json` `require`), the architecture walk per `@skills/code-review/SKILL.md` Core Analysis "Architecture conformance (Laravel) — mandatory standalone walk-through" runs on every CR run, but this section is rendered **only when the walk produces at least one finding**.
 >
-> - **Walk produced findings →** render the `## Architecture` heading and list the findings below under Critical / Moderate / Minor severity sub-headings (same six reproducer fields as `## Findings`), each citing the offending `file:line` and the specific subsection of `@rules/laravel/architecture.mdc` (`Business Logic Layers`, `Actions`, `Action Rules`, `Model Services`, `Repositories and ModelManagers`, `DTOs`, `Data Modification (DRY)`, `Data Builders`, `Validation Rules (Traits)`, `Data Validators`, `Controllers and Other Entry Points`, `Resource Controllers`, `Single-Action Controllers`, `Livewire`, `Custom Helpers`).
+> - **Walk produced findings →** render the `## Architecture` heading and list the findings below under Critical / Moderate / Minor severity sub-headings (same six reproducer fields as `## Findings`), each citing the offending `file:line` and the specific subsection of `@rules/laravel/architecture.md` (`Business Logic Layers`, `Actions`, `Action Rules`, `Model Services`, `Repositories and ModelManagers`, `DTOs`, `Data Modification (DRY)`, `Data Builders`, `Validation Rules (Traits)`, `Data Validators`, `Controllers and Other Entry Points`, `Resource Controllers`, `Single-Action Controllers`, `Livewire`, `Custom Helpers`).
 > - **Walk produced zero findings →** omit the entire `## Architecture` heading and body. Do not render a `walked, 0 findings` status line, a `clean` placeholder, or any other confirmation that the check ran. The absence of the section is the clean signal — only items that still need action are reported.
 > - **Non-Laravel projects →** omit the entire `## Architecture` section. Do not emit a "skipped" placeholder.
 
@@ -131,7 +131,7 @@
 ### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
-- **Rule:** `@rules/laravel/architecture.mdc#<subsection>`
+- **Rule:** `@rules/laravel/architecture.md#<subsection>`
 - **Note:** one sentence. Faulty Example / Expected behavior / Test hint / Suggested fix may be omitted when no behavior change is implied.
 
 ---

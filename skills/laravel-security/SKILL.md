@@ -11,7 +11,7 @@ metadata:
 ## Constraints
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
 - Apply `@rules/php/core-standards.md` — `final` classes, `declare(strict_types=1)`, typed signatures
-- If the project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, `@rules/laravel/livewire.mdc`
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, `@rules/laravel/livewire.md`
 - Stack: Laravel 11 / PHP 8.3, Filament, Livewire, Alpine.js, Blade, Tailwind, Pest, Vite, MySQL, Redis
 - Never hardcode secrets; never reveal them in output
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens
@@ -161,7 +161,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 });
 ```
 
-For Filament, enforce access via policies and `canAccessPanel()`; for Livewire, re-check authorization inside actions — a mounted component is not an authorization boundary (`@rules/laravel/filament.mdc`, `@rules/laravel/livewire.mdc`).
+For Filament, enforce access via policies and `canAccessPanel()`; for Livewire, re-check authorization inside actions — a mounted component is not an authorization boundary (`@rules/laravel/filament.md`, `@rules/laravel/livewire.md`).
 
 ## Eloquent Security
 

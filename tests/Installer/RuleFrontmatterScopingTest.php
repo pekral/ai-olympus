@@ -71,14 +71,11 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
     ];
 
     foreach ($expectedBodyHashes as $file => $expectedHash) {
-        $content = (string) file_get_contents($packageDir . '/rules/security/' . $file);
-        $afterFrontmatter = ltrim(substr($content, (int) strpos($content, '---', 3) + 3));
-
-        expect(hash('sha256', $afterFrontmatter))->toBe($expectedHash);
+        expect(ruleBodyDigest($packageDir . '/rules/security/' . $file))->toBe($expectedHash);
     }
 });
 
-test('every rule scoped in issue #274 or #275 declares exactly the `paths:` list it was scoped to', function (): void {
+test('every rule scoped in issue #274, #275 or #277 declares exactly the `paths:` list it was scoped to', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $violations = [];
 
@@ -103,10 +100,15 @@ test('every rule scoped in issue #274 or #275 declares exactly the `paths:` list
         'rules/laravel/laravel.md',
         'rules/php/core-standards.md',
         'rules/sql/optimalize.md',
+        'rules/laravel/architecture.md',
+        'rules/laravel/dynamodb.md',
+        'rules/laravel/filament.md',
+        'rules/laravel/livewire.md',
+        'rules/laravel/queue-debouncing.md',
     ]);
 });
 
-test('every glob a rule scoped in issue #274 or #275 declares matches at least one real path (issue #274, #275)', function (): void {
+test('every glob a rule scoped in issue #274, #275 or #277 declares matches at least one real path', function (): void {
     // A glob that matches nothing silences its rule as completely as deleting the file would,
     // and nothing else in the build would notice. The corpus is this repository's own files plus
     // the consumer-project paths this package writes rules for, since it ships no `app/`,
@@ -166,14 +168,29 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
-        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
-        $afterFrontmatter = ltrim(substr($content, (int) strpos($content, '---', 3) + 3));
-
-        expect(hash('sha256', $afterFrontmatter))->toBe($expectedHash);
+        expect(ruleBodyDigest($packageDir . '/' . $relativePath))->toBe($expectedHash);
     }
 });
 
-test('a rule scoped in issue #274 or #275 is no longer claimed as always-on', function (): void {
+test('every rule renamed in issue #277 keeps a byte-identical body below the frontmatter', function (): void {
+    // Digests of everything after the closing `---`, taken from each file while it was still a
+    // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
+    // else, so a mismatch here means a normative sentence moved during the rename.
+    $packageDir = dirname(__DIR__, 2);
+    $expectedBodyHashes = [
+        'rules/laravel/architecture.md' => '849ef2b359d47b969c434821730f16e8da743d67c4915de043dcdcf2fb89270a',
+        'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
+        'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
+        'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
+        'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
+    ];
+
+    foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
+        expect(ruleBodyDigest($packageDir . '/' . $relativePath))->toBe($expectedHash);
+    }
+});
+
+test('a rule scoped in issue #274, #275 or #277 is no longer claimed as always-on', function (): void {
     $alwaysOn = ruleExtensionAlwaysOnFiles();
 
     expect($alwaysOn)->toBe([

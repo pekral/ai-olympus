@@ -38,7 +38,7 @@
 - **Test hint:** test layer (unit / integration / feature) + entry point, in one sentence.
 - **Suggested fix:**
   ```php
-  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.mdc on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
+  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.md on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
   ```
 
 ### 🟠 Moderate 1. <short title>
@@ -70,7 +70,7 @@
 1. **Location:** `path/to/file.php:42`
    **Problem:** one sentence.
    **Refactor:** concrete consolidation step (Data Builder / DTO / Service / Action / Repository / ModelManager).
-   **Why:** rule reference (`@rules/laravel/architecture.mdc#<section>` or `@skills/class-refactoring/SKILL.md`) satisfied by the change.
+   **Why:** rule reference (`@rules/laravel/architecture.md#<section>` or `@skills/class-refactoring/SKILL.md`) satisfied by the change.
 
 ---
 
@@ -115,7 +115,7 @@
 ### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
-- **Rule:** `@rules/laravel/architecture.mdc#<subsection>`
+- **Rule:** `@rules/laravel/architecture.md#<subsection>`
 - **Note:** one sentence. Faulty Example / Expected behavior / Test hint / Suggested fix may be omitted when no behavior change is implied.
 
 ---

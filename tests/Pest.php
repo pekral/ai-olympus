@@ -288,8 +288,9 @@ function installerRestoreEnvAndCleanup(string|false $homeBefore, string $origina
 }
 
 /**
- * The rules issue #187 renamed from `.mdc` to `.md` so Claude Code loads them at all. Kept
- * separate from `ruleExtensionAlwaysOnFiles()`: scoping a rule (issue #274) takes it off the
+ * The rules renamed from `.mdc` to `.md` so Claude Code loads them at all — issue #187 for the
+ * first seven, issue #277 for the rest, which finished the job so `rules/` ships one extension.
+ * Kept separate from `ruleExtensionAlwaysOnFiles()`: scoping a rule (issue #274) takes it off the
  * always-on list, but it never revives the rule's retired `.mdc` path — a `.mdc` file is still
  * one Claude Code never reads, and a `@rules/….mdc` reference still points a reader at nothing.
  *
@@ -301,7 +302,12 @@ function ruleExtensionRenamedFromMdcFiles(): array
         'rules/api/general.md',
         'rules/compound-engineering/general.md',
         'rules/git/general.md',
+        'rules/laravel/architecture.md',
+        'rules/laravel/dynamodb.md',
+        'rules/laravel/filament.md',
         'rules/laravel/laravel.md',
+        'rules/laravel/livewire.md',
+        'rules/laravel/queue-debouncing.md',
         'rules/php/core-standards.md',
         'rules/sql/optimalize.md',
         'rules/writing/general.md',
@@ -309,7 +315,45 @@ function ruleExtensionRenamedFromMdcFiles(): array
 }
 
 /**
- * The references to a rule path issue #187 retired, found in the given file map, reported as
+ * The rules issue #277 renamed from `.mdc` to `.md`, finishing what issue #187 started so that
+ * `rules/` ships one extension and one scoping key. Narrower than
+ * `ruleExtensionRenamedFromMdcFiles()`, which is the whole retired-path sweep list: only these
+ * paths were still spelled `.mdc` when the body digests the scoping tests pin were taken.
+ *
+ * @return array<int, string>
+ */
+function ruleExtensionRenamedInIssue277Files(): array
+{
+    return [
+        'rules/laravel/architecture.md',
+        'rules/laravel/dynamodb.md',
+        'rules/laravel/filament.md',
+        'rules/laravel/livewire.md',
+        'rules/laravel/queue-debouncing.md',
+    ];
+}
+
+/**
+ * A rule body — everything after the closing `---` — hashed with every reference to a rule issue
+ * #277 renamed written back in its retired `.mdc` spelling. Repointing such a cross-reference is
+ * the one body edit that rename was allowed to make, and the digests these tests pin were taken
+ * before it; mapping the references back is what lets an unchanged digest keep proving that no
+ * normative sentence moved, instead of being re-baselined into agreeing with the new text.
+ */
+function ruleBodyDigest(string $path): string
+{
+    $content = (string) file_get_contents($path);
+    $body = ltrim(substr($content, (int) strpos($content, '---', 3) + 3));
+
+    foreach (ruleExtensionRenamedInIssue277Files() as $renamed) {
+        $body = str_replace($renamed, substr($renamed, 0, -3) . '.mdc', $body);
+    }
+
+    return hash('sha256', $body);
+}
+
+/**
+ * The references to a rule path issue #187 or #277 retired, found in the given file map, reported as
  * `<file> → <retired path>`. `CHANGELOG.md` and the project memory are append-only records of
  * what happened, so rewriting a path inside a dated entry would falsify the record — they are
  * excluded by design and the rename is explained in the changelog entry instead.
@@ -368,14 +412,30 @@ function ruleExtensionAlwaysOnFiles(): array
 }
 
 /**
- * The `paths:` globs each rule scoped in issue #274 (and, for the compound-engineering split,
- * issue #275) must declare, written out by hand for the same reason `ruleExtensionAlwaysOnFiles()`
- * is: an expectation read out of the file it checks agrees with any edit made to that file,
- * including a typo.
+ * The `paths:` globs every path-scoped rule must declare, written out by hand for the same reason
+ * `ruleExtensionAlwaysOnFiles()` is: an expectation read out of the file it checks agrees with any
+ * edit made to that file, including a typo. Assembled from the two groups below because they were
+ * scoped by two different kinds of change, and because one flat list outgrows the function-length
+ * limit the project enforces on itself.
+ *
+ * A rule scoped to nothing carries `paths: []` and lives in `ruleScopingReferenceOnlyFiles()`
+ * instead — an empty list here would assert the same thing whether the key is present or absent.
  *
  * @return array<string, array<int, string>>
  */
 function ruleScopingExpectedGlobs(): array
+{
+    return array_merge(ruleScopingGlobsAddedByScoping(), ruleScopingGlobsTranslatedFromCursorGlobs());
+}
+
+/**
+ * The rules that already shipped as `.md` and gained a `paths:` key they never had — the four
+ * issue #274 took off the always-on list, plus the file issue #275 split out of
+ * `compound-engineering/general.md`.
+ *
+ * @return array<string, array<int, string>>
+ */
+function ruleScopingGlobsAddedByScoping(): array
 {
     return [
         'rules/api/general.md' => [
@@ -395,6 +455,40 @@ function ruleScopingExpectedGlobs(): array
             '**/*ModelManager.php',
             '**/*.sql',
         ],
+    ];
+}
+
+/**
+ * The rules whose Cursor `globs:` list issue #277 translated into `paths:` while renaming them out
+ * of `.mdc`. The glob strings are the ones those files already carried — the rename was not
+ * allowed to widen or narrow a rule's reach, only to spell the key the way Claude Code reads it.
+ *
+ * @return array<string, array<int, string>>
+ */
+function ruleScopingGlobsTranslatedFromCursorGlobs(): array
+{
+    return [
+        'rules/laravel/architecture.md' => [
+            'vendor/pekral/arch-app-services/**',
+            'app/Actions/**',
+            'app/DataBuilders/**',
+            'app/DataValidators/**',
+            'app/ModelManagers/**',
+            'app/Repositories/**',
+            'app/Services/**',
+            'app/Http/Controllers/**',
+            'app/Jobs/**',
+            'app/Console/Commands/**',
+            'app/Listeners/**',
+            'app/Livewire/**/*.php',
+        ],
+        'rules/laravel/dynamodb.md' => ['app/**/*.php', 'config/dynamodb.php', 'tests/**/*.php'],
+        'rules/laravel/filament.md' => ['app/Filament/**/*.php'],
+        'rules/laravel/livewire.md' => [
+            'app/Livewire/**/*.php',
+            'resources/views/livewire/**/*.blade.php',
+        ],
+        'rules/laravel/queue-debouncing.md' => ['app/**/*.php', 'routes/**/*.php', 'tests/**/*.php'],
     ];
 }
 
@@ -463,33 +557,70 @@ function ruleScopingGlobMatchesAny(string $glob, array $candidatePaths): bool
 
 /**
  * Representative file paths of a consuming Laravel project, written independently of the globs
- * they are matched against. This package ships instructions, so it holds no `app/`, no
- * migrations and no `.sql` file of its own — without this corpus a glob aimed at a consumer
- * project could match nothing anywhere and the rule would behave as if it had been deleted.
- * `.claude/run/**` is `.gitignore`d in every consuming project (per this package's own
- * `agents/daidalos.md` *Shared task brief*), so it never appears in `packageTextFiles()` either
- * — its representative path lives here for the same reason the rest of this corpus does.
+ * they are matched against. This package ships instructions, so it holds no `app/`, no migrations
+ * and no `.sql` file of its own — without this corpus a glob aimed at a consumer project could
+ * match nothing anywhere and the rule would behave as if it had been deleted. Split across the
+ * two functions below by the tree a path sits in, so neither outgrows the function-length limit
+ * the project enforces on itself.
  *
  * @return array<int, string>
  */
 function ruleScopingConsumerProjectPaths(): array
 {
+    return array_merge(ruleScopingConsumerAppTreePaths(), ruleScopingConsumerPathsOutsideAppTree());
+}
+
+/**
+ * The consumer-project paths under `app/` — one per layer the shipped rules scope themselves to.
+ *
+ * @return array<int, string>
+ */
+function ruleScopingConsumerAppTreePaths(): array
+{
     return [
-        'routes/api.php',
-        'routes/web.php',
         'app/Http/Controllers/OrderController.php',
         'app/Http/Requests/StoreOrderRequest.php',
         'app/Http/Resources/OrderResource.php',
         'app/Http/Middleware/EnsureTokenIsValid.php',
+        'app/Actions/CreateOrderAction.php',
+        'app/Console/Commands/SyncOrdersCommand.php',
+        'app/DataBuilders/OrderDataBuilder.php',
+        'app/DataValidators/Order/StoreOrderDataValidator.php',
+        'app/Filament/Resources/OrderResource.php',
+        'app/Jobs/ProcessOrderJob.php',
+        'app/Listeners/SendOrderConfirmation.php',
+        'app/Livewire/Order/OrderList.php',
+        'app/ModelManagers/OrderModelManager.php',
+        'app/Repositories/OrderRepository.php',
+        'app/Services/OrderPricingService.php',
+        'app/Shop/Order/OrderModelManager.php',
+    ];
+}
+
+/**
+ * The consumer-project paths outside `app/`. Two of them are not the consumer's own source at all
+ * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
+ * every consuming project (per this package's own `agents/daidalos.md` *Shared task brief*), and
+ * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
+ * directory that walk skips. They live here for the same reason the rest of this corpus does.
+ *
+ * @return array<int, string>
+ */
+function ruleScopingConsumerPathsOutsideAppTree(): array
+{
+    return [
+        'routes/api.php',
+        'routes/web.php',
         'src/Billing/Http/Controllers/InvoiceController.php',
         'packages/billing/src/Http/Controllers/RefundController.php',
         'Modules/Shop/Http/Controllers/CartController.php',
         'database/migrations/2026_01_01_000000_create_orders_table.php',
         'database/schema/mysql-schema.sql',
-        'app/Repositories/OrderRepository.php',
-        'app/Shop/Order/OrderModelManager.php',
         'resources/views/order/show.blade.php',
+        'resources/views/livewire/order/list.blade.php',
         'config/database.php',
+        'config/dynamodb.php',
+        'vendor/pekral/arch-app-services/src/Concerns/DataValidator.php',
         '.claude/run/gh-123.md',
     ];
 }

@@ -1015,7 +1015,7 @@ test('frontend and vite skills target the Blade/Livewire/Alpine/Vite stack, not 
     expect($vite)->toContain('@vite');
 
     $patterns = (string) file_get_contents($packageDir . '/skills/frontend-patterns/SKILL.md');
-    expect($patterns)->toContain('@rules/laravel/livewire.mdc');
+    expect($patterns)->toContain('@rules/laravel/livewire.md');
 
     $a11y = (string) file_get_contents($packageDir . '/skills/frontend-a11y/SKILL.md');
     expect($a11y)->toContain('wire:loading');
@@ -1523,7 +1523,7 @@ test('analyze-problem applies the Laravel architecture rules and never designs a
     $content = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
 
     // Without loading the rules, the design steps are free to propose a forbidden home.
-    expect($content)->toContain('Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc`');
+    expect($content)->toContain('Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md`');
     expect($content)->toContain('when the project is a Laravel project and the analysis proposes new or materially changed PHP code');
     expect($content)->toContain('Skip both for a non-Laravel problem');
 
@@ -1532,9 +1532,9 @@ test('analyze-problem applies the Laravel architecture rules and never designs a
     expect($content)->toContain('a Model Service extending `BaseModelService` (the base service)');
     expect($content)->toContain('**Never propose a new project-owned Facade**');
 
-    // architecture.mdc self-scopes to pekral/arch-app-services; a plain Laravel project
+    // architecture.md self-scopes to pekral/arch-app-services; a plain Laravel project
     // must be routed to laravel.md instead of a rule that never loads for it.
-    expect($content)->toContain('`@rules/laravel/architecture.mdc` self-scopes to projects using `pekral/arch-app-services`');
+    expect($content)->toContain('`@rules/laravel/architecture.md` self-scopes to projects using `pekral/arch-app-services`');
     expect($content)->toContain('without the package, one of the layers in `@rules/laravel/laravel.md` *Layer Responsibilities*');
     expect($content)->toContain('a base service where `pekral/arch-app-services` defines one, otherwise a Service or an Action');
 });

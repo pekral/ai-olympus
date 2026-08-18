@@ -1,8 +1,8 @@
 ---
 description: Livewire-specific rules and conventions
-globs:
-  - app/Livewire/**/*.php
-  - resources/views/livewire/**/*.blade.php
+paths:
+  - "app/Livewire/**/*.php"
+  - "resources/views/livewire/**/*.blade.php"
 ---
 
 ## Component Structure
@@ -77,7 +77,7 @@ PHP `--coverage-clover` does not measure `.blade.php` files line-by-line, so the
 - One giant "page" Livewire component holding 400 lines of Blade — split it.
 - A Livewire child whose only job is to render static markup with no `wire:*` — should have been a Blade component.
 - A child that takes the parent component instance, a route-bound global helper, or session state as a property to read foreign state — replace with explicit typed input or Livewire events.
-- Extraction that produces a child used in exactly one place **and matches none of Triggers 3–7 above** — collapse it back; reusability is the goal, not file count. The "two consumers" threshold from `@rules/laravel/architecture.mdc` *Shared Concerns (Traits)* applies in spirit (single-use abstraction with no UI-concern justification = inline). Trigger-driven single-site extractions (self-contained interaction cluster, iterated body, cross-page reuse, independent loading / empty / error state, distinct named UI concern) are exempt — their value is readability and single-responsibility, not literal reuse on day one.
+- Extraction that produces a child used in exactly one place **and matches none of Triggers 3–7 above** — collapse it back; reusability is the goal, not file count. The "two consumers" threshold from `@rules/laravel/architecture.md` *Shared Concerns (Traits)* applies in spirit (single-use abstraction with no UI-concern justification = inline). Trigger-driven single-site extractions (self-contained interaction cluster, iterated body, cross-page reuse, independent loading / empty / error state, distinct named UI concern) are exempt — their value is readability and single-responsibility, not literal reuse on day one.
 - Naming a component after the page it lives on (`Dashboard\\DashboardFilterBar`) instead of after the concern (`Campaign\\FilterBar`). Concern-based naming is what makes the component reusable on the next page.
 
 ### Code Review Severity Rules (HTML Layout Splitting)

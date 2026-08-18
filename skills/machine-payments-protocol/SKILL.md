@@ -10,7 +10,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/php/core-standards.md` when generated code is PHP — `final` classes, `declare(strict_types=1)`, typed signatures.
-- If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.mdc` — payment verification is a service, not controller logic.
+- If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md` — payment verification is a service, not controller logic.
 - Defer to, never restate, `rules/security/backend.md` and `@skills/laravel-security/SKILL.md` for generic secure coding, secret handling, rate limiting, and error-message hygiene; this skill states only the MPP-specific additions.
 - Never invent a protocol detail. Every concrete claim below is labeled **Spec** (cited, with retrieval date), **Package** (a real third-party Laravel package, not the spec), or **Illustrative** (this skill's / the requesting issue's own example naming — never protocol vocabulary). Full source table: `references/protocol-sourcing.md`.
 - The spec is an individual IETF Internet-Draft (`draft-ryan-httpauth-payment-01`), not a ratified standard — no working-group adoption, expires 2026-09-19. Treat every **Spec** claim as a moving target and re-verify before relying on it long-term.
@@ -110,7 +110,7 @@ MPP-specific rules are additive on top of this repo's existing security baseline
 - Audit-log challenge issuance, settlement attempt, outcome, and receipt reference as structured events with correlation ids; log identifiers, never proofs or secrets.
 
 ## Architecture recommendations
-Prefer: middleware for detection/short-circuit, a dedicated service class for verification, DI for the provider, an interface (`PaymentProvider` or your own name) so no route depends on one payment method, and configuration-driven provider selection. Avoid: payment logic inside a controller, a static helper class, or duplicated verification per route — the same failure modes `@rules/laravel/architecture.mdc` already flags for any cross-cutting concern.
+Prefer: middleware for detection/short-circuit, a dedicated service class for verification, DI for the provider, an interface (`PaymentProvider` or your own name) so no route depends on one payment method, and configuration-driven provider selection. Avoid: payment logic inside a controller, a static helper class, or duplicated verification per route — the same failure modes `@rules/laravel/architecture.md` already flags for any cross-cutting concern.
 
 ## Provider abstraction
 The spec defines payment **methods** (registered identifiers, e.g. `tempo`, `stripe`), not a Laravel provider-abstraction name — `MachinePaymentProvider` and similar names are **illustrative**, not protocol vocabulary. Two real, citable payment methods exist today, both Production-status identifiers (retrieved 2026-08-03): `tempo` (Tempo Labs' payments blockchain, mainnet live 2026-03-18 — native stablecoin settlement) and `stripe` (Stripe's MPP payment method — Shared Payment Tokens + PaymentIntents, 0.50 USD card minimum). Design the abstraction so adding a third method is a new class implementing your interface, not a branch in existing code.

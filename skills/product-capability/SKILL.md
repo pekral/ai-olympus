@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/laravel/architecture.mdc` — actors, surfaces, states, and data model must fit the existing layers (Action → ModelService → Repository / ModelManager), not invent new abstractions.
+- Apply `@rules/laravel/architecture.md` — actors, surfaces, states, and data model must fit the existing layers (Action → ModelService → Repository / ModelManager), not invent new abstractions.
 - Apply `@rules/compound-engineering/general.md` — the plan is a durable artifact the next agent reuses, not throwaway prose.
 - Do not invent product truth. Every unknown is an explicit open question, never a silent assumption.
 - Separate user-visible promises from implementation detail. Keep them in distinct sections.
@@ -33,7 +33,7 @@ Walk these four steps in order. Each feeds the next.
    - business rules the capability must obey,
    - scope boundaries (in scope vs explicitly out),
    - invariants that must never break,
-   - trust boundaries and data ownership (who owns and may read/write the data; account scoping per `@rules/laravel/architecture.mdc`),
+   - trust boundaries and data ownership (who owns and may read/write the data; account scoping per `@rules/laravel/architecture.md`),
    - lifecycle and state transitions,
    - rollout / migration requirements.
    Tag every item as fixed policy, architectural preference, or open question.
@@ -48,7 +48,7 @@ Walk these four steps in order. Each feeds the next.
 
 4. **Translate into execution readiness + handoff.** Decide the readiness level and route the work:
    - **Ready to implement** → hand to `@skills/create-issues-from-text/SKILL.md` to break it into tracker issues.
-   - **Needs architecture review** → route the data-model / layering questions through `@rules/laravel/architecture.mdc` before planning.
+   - **Needs architecture review** → route the data-model / layering questions through `@rules/laravel/architecture.md` before planning.
    - **Needs product clarification** → list the open questions that block a contract; stop until they are answered.
 
 ## Output

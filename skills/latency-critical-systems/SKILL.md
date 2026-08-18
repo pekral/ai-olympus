@@ -16,7 +16,7 @@ authorize live trading or financial advice.
 ## Constraints
 - Apply `@rules/sql/optimalize.md` for every query on the hot path (N+1, eager loading, index usage, batching)
 - Apply `@rules/laravel/laravel.md` for framework-level structure and caching choices
-- Apply `@rules/laravel/queue-debouncing.mdc` when smoothing bursty queue work
+- Apply `@rules/laravel/queue-debouncing.md` when smoothing bursty queue work
 - Measure, do not guess — every claim about latency must come from a real readback.
 - Never trade correctness for speed (see Guardrails).
 
@@ -76,7 +76,7 @@ Apply in this order; stop when the target is met.
 3. **Batch small calls and writes.** Combine per-row queries into bulk
    operations (`whereIn`, `upsert`, single keyed read) rather than looping. For
    bursty event streams, debounce/coalesce queued work per
-   `@rules/laravel/queue-debouncing.mdc` so one job processes a window of events.
+   `@rules/laravel/queue-debouncing.md` so one job processes a window of events.
 4. **Move compute closer to the data or user.** Push aggregation into SQL
    (`@rules/sql/optimalize.md`) instead of hydrating models in PHP; serve reads
    from a DB read replica where the connection supports it.

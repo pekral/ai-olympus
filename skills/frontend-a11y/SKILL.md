@@ -7,8 +7,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/laravel/livewire.mdc` — keep Blade presentation-only; use `wire:model` for bindings; components stay slim.
-- Apply `@rules/laravel/filament.mdc` — reuse Filament's built-in accessible form/action components rather than rebuilding them.
+- Apply `@rules/laravel/livewire.md` — keep Blade presentation-only; use `wire:model` for bindings; components stay slim.
+- Apply `@rules/laravel/filament.md` — reuse Filament's built-in accessible form/action components rather than rebuilding them.
 - Apply `@rules/security/frontend.md` — sanitize any dynamic content before DOM insertion; prefer `textContent`/`setAttribute` over `innerHTML`.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next — never output `useState`/`useEffect`/`useRef`/JSX.
 

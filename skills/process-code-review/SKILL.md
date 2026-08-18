@@ -11,7 +11,7 @@ metadata:
 - Apply @rules/git/general.md
 - Apply @rules/jira/general.mdc
 - Apply @rules/reports/general.mdc. **CR reply comments and resolved-items updates posted on the GitHub PR** stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* (they extend the technical CR thread). The **mirrored non-technical summary** delegated to `@skills/pr-summary/SKILL.md` on the linked issue / JIRA ticket follows the language of the source assignment. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Never mix two natural languages inside a single CR comment. The English exception applies to entire comments — not to inline parenthetical glosses.
 - Never push direct changes to the main branch
 - If the pull request has merge conflicts with the base branch, stop and report it

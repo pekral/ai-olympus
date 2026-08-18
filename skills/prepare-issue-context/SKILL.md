@@ -17,7 +17,7 @@ De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-l
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/git/general.md`
 - Apply `@rules/jira/general.mdc` when the assignment lives in JIRA
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.mdc`, `@rules/laravel/filament.mdc`, and `@rules/laravel/livewire.mdc`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - **Read-only for production code.** This skill never modifies production source files. It is allowed to: create temporary seeders / factories / Tinker scripts under `database/seeders/`, `database/factories/`, or a scratch directory; insert rows into the **development** database; create scratch Pest tests that reproduce the bug. It is **never** allowed to mutate the production database, run destructive migrations, drop tables, push to the remote, or modify code in `src/` / `app/` outside of seed-only fixtures.
 - Never invent values that are not derivable from the assignment, the codebase, or the existing dev database. When a required value (account ID, contact phone, enum case, config key) cannot be resolved, list it as a gap — do not guess.
 - Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420600000000`-style sentinels, `qa-*` aliases) explicitly tagged as such.
@@ -67,7 +67,7 @@ Output the list as a numbered table the rest of the steps refer to.
 For each scenario from step 2, locate the concrete code path that owns the behavior:
 
 - **Entry points** — controller / Livewire / job / command / listener / Filament page that the trigger lands on.
-- **Business logic** — Action / Service / Repository / ModelManager / Data Validator / Data Builder per `@rules/laravel/architecture.mdc` (or the project-equivalent layer) called from the entry point.
+- **Business logic** — Action / Service / Repository / ModelManager / Data Validator / Data Builder per `@rules/laravel/architecture.md` (or the project-equivalent layer) called from the entry point.
 - **Persistence shape** — Eloquent models, tables, columns, indexes, enum cases, and pivot rows the scenario reads or writes.
 - **Boundary integrations** — external APIs, queues, signed-URL endpoints, mail templates, SMS providers the scenario touches.
 

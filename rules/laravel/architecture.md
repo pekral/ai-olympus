@@ -1,19 +1,18 @@
 ---
 description: Architecture rules for projects using pekral/arch-app-services package. Apply only when this package is present in vendor.
-alwaysApply: false
-globs:
-  - vendor/pekral/arch-app-services/**
-  - app/Actions/**
-  - app/DataBuilders/**
-  - app/DataValidators/**
-  - app/ModelManagers/**
-  - app/Repositories/**
-  - app/Services/**
-  - app/Http/Controllers/**
-  - app/Jobs/**
-  - app/Console/Commands/**
-  - app/Listeners/**
-  - app/Livewire/**/*.php
+paths:
+  - "vendor/pekral/arch-app-services/**"
+  - "app/Actions/**"
+  - "app/DataBuilders/**"
+  - "app/DataValidators/**"
+  - "app/ModelManagers/**"
+  - "app/Repositories/**"
+  - "app/Services/**"
+  - "app/Http/Controllers/**"
+  - "app/Jobs/**"
+  - "app/Console/Commands/**"
+  - "app/Listeners/**"
+  - "app/Livewire/**/*.php"
 ---
 
 ## Scope

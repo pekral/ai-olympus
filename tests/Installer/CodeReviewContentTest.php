@@ -299,7 +299,7 @@ test('code-review skill enforces strict rule compliance and architecture conform
     expect($content)->toContain('scan the diff for any pattern that matches a numbered or bulleted rule');
     expect($content)->toContain('raise one finding per matched violation');
     expect($content)->toContain('**Architecture conformance (Laravel)**');
-    expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.mdc`');
+    expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.md`');
     expect($content)->toContain('seven allowed homes including the Eloquent-model carve-out');
     expect($content)->toContain('Default severity for rule violations:');
     expect($content)->toContain('apply the **Strict rule compliance** stratification');
@@ -728,7 +728,7 @@ test('code-review skill mandates a standalone Laravel architecture walk on every
 
     expect($content)->toContain('**Architecture conformance (Laravel)** — mandatory standalone walk-through (issue #530)');
     expect($content)->toContain('independent of Strict rule compliance');
-    expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.mdc`');
+    expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.md`');
     expect($content)->toContain('Walk every section of that file against the current diff **regardless of which files the diff touches**');
     expect($content)->toContain('helpers, routes, configs, migrations, seeders, tests, or even a docs-only commit');
     expect($content)->toContain('seven allowed homes including the Eloquent-model carve-out');
@@ -955,7 +955,7 @@ test('code-review skill flags request->DTO transformation called directly in the
     expect($content)->toContain('**Request → DTO transformation belongs in the FormRequest, not the controller**');
     expect($content)->toContain('`$request->toDto()`');
     expect($content)->toContain('Severity: **Moderate**');
-    expect($content)->toContain('`@rules/laravel/architecture.mdc` Controllers and Other Entry Points');
+    expect($content)->toContain('`@rules/laravel/architecture.md` Controllers and Other Entry Points');
 });
 
 test(
