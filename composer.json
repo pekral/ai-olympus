@@ -91,7 +91,7 @@
       "vendor/bin/phpstan analyse --memory-limit=2G"
     ],
     "build": [
-      "bin/agent-skills install --force --allow-subagent-writes",
+      "bin/agent-skills install --force --prune",
       "@fix",
       "@check"
     ],
