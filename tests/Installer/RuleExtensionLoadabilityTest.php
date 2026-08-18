@@ -7,16 +7,16 @@ declare(strict_types = 1);
  * declared as always-on lived in a `.mdc` file (Cursor's extension) and therefore never reached a
  * Claude Code session at all, while the frontmatter kept promising it did.
  *
- * These tests pin the fix so it cannot silently regress: the always-on set is `.md`, it expresses
- * "always" the way Claude Code documents it (no `paths` key), and nothing still points a reader at
- * the retired `.mdc` path.
+ * These tests pin the fix so it cannot silently regress: every renamed rule ships as `.md`, the
+ * ones that are still always-on express "always" the way Claude Code documents it (no `paths`
+ * key), and nothing still points a reader at a retired `.mdc` path.
  */
-test('every always-on rule ships as .md so Claude Code actually loads it (issue #187)', function (): void {
+test('every rule renamed away from .mdc ships as .md so Claude Code actually loads it (issue #187)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $missing = [];
     $revived = [];
 
-    foreach (ruleExtensionAlwaysOnFiles() as $relativePath) {
+    foreach (ruleExtensionRenamedFromMdcFiles() as $relativePath) {
         if (!is_file($packageDir . '/' . $relativePath)) {
             $missing[] = $relativePath;
         }
@@ -59,16 +59,6 @@ test('an always-on rule declares "always" the way Claude Code documents it (issu
 });
 
 test('nothing outside the historical record still points at a retired .mdc rule path (issue #187)', function (): void {
-    // `CHANGELOG.md` and the project memory are append-only records of what happened; rewriting a
-    // path inside a dated entry would falsify the record, so they are excluded here by design and
-    // the rename is explained in the changelog entry instead.
-    $historicalRecord = ['CHANGELOG.md', 'docs/memory/PROJECT_MEMORY.md'];
-    $retiredPaths = array_map(
-        static fn (string $rule): string => substr($rule, 0, -3) . '.mdc',
-        ruleExtensionAlwaysOnFiles(),
-    );
-
-    $stale = [];
     $walked = packageTextFiles();
 
     // Without this the test passes vacuously the moment the walk stops finding anything — the
@@ -77,17 +67,26 @@ test('nothing outside the historical record still points at a retired .mdc rule 
     expect($walked)->toHaveKey('skills/resolve-issue/SKILL.md');
     expect(count($walked))->toBeGreaterThan(200);
 
-    foreach ($walked as $relativePath => $contents) {
-        if (in_array($relativePath, $historicalRecord, strict: true)) {
-            continue;
-        }
+    expect(ruleExtensionStaleMdcReferences($walked))->toBe([]);
+});
 
-        foreach ($retiredPaths as $retired) {
-            if (str_contains($contents, $retired)) {
-                $stale[] = $relativePath . ' → ' . $retired;
-            }
-        }
+test('the retired path of every rule scoping took off the always-on list is still swept (issue #274)', function (): void {
+    // Issue #274 scoped four of the seven rules issue #187 renamed, which took them off
+    // `ruleExtensionAlwaysOnFiles()`. Driving the sweep off that list would have narrowed it to
+    // three paths, so a revived reference to one of the four would pass the whole suite unnoticed.
+    // The references are assembled here rather than written out, so the sweep over this
+    // repository's own files does not read this fixture as a real one.
+    $retiredPath = static fn (string $rule): string => substr($rule, 0, -3) . '.mdc';
+    $scopedRules = array_keys(ruleScopingExpectedGlobs());
+    $corpus = ['CHANGELOG.md' => 'Renamed ' . $retiredPath('rules/php/core-standards.md') . ' to .md.'];
+    $expected = [];
+
+    foreach ($scopedRules as $rule) {
+        $file = 'docs/' . str_replace('/', '-', $rule);
+        $corpus[$file] = 'See @' . $retiredPath($rule) . ' for details.';
+        $expected[] = $file . ' → ' . $retiredPath($rule);
     }
 
-    expect($stale)->toBe([]);
+    expect($scopedRules)->toHaveCount(4);
+    expect(ruleExtensionStaleMdcReferences($corpus))->toBe($expected);
 });

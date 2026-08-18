@@ -288,6 +288,61 @@ function installerRestoreEnvAndCleanup(string|false $homeBefore, string $origina
 }
 
 /**
+ * The rules issue #187 renamed from `.mdc` to `.md` so Claude Code loads them at all. Kept
+ * separate from `ruleExtensionAlwaysOnFiles()`: scoping a rule (issue #274) takes it off the
+ * always-on list, but it never revives the rule's retired `.mdc` path — a `.mdc` file is still
+ * one Claude Code never reads, and a `@rules/….mdc` reference still points a reader at nothing.
+ *
+ * @return array<int, string>
+ */
+function ruleExtensionRenamedFromMdcFiles(): array
+{
+    return [
+        'rules/api/general.md',
+        'rules/compound-engineering/general.md',
+        'rules/git/general.md',
+        'rules/laravel/laravel.md',
+        'rules/php/core-standards.md',
+        'rules/sql/optimalize.md',
+        'rules/writing/general.md',
+    ];
+}
+
+/**
+ * The references to a rule path issue #187 retired, found in the given file map, reported as
+ * `<file> → <retired path>`. `CHANGELOG.md` and the project memory are append-only records of
+ * what happened, so rewriting a path inside a dated entry would falsify the record — they are
+ * excluded by design and the rename is explained in the changelog entry instead.
+ *
+ * @param array<string, string> $textFiles
+ * @return array<int, string>
+ */
+function ruleExtensionStaleMdcReferences(array $textFiles): array
+{
+    $historicalRecord = ['CHANGELOG.md', 'docs/memory/PROJECT_MEMORY.md'];
+    $retiredPaths = array_map(
+        static fn (string $rule): string => substr($rule, 0, -3) . '.mdc',
+        ruleExtensionRenamedFromMdcFiles(),
+    );
+
+    $stale = [];
+
+    foreach ($textFiles as $relativePath => $contents) {
+        if (in_array($relativePath, $historicalRecord, strict: true)) {
+            continue;
+        }
+
+        foreach ($retiredPaths as $retired) {
+            if (str_contains($contents, $retired)) {
+                $stale[] = $relativePath . ' → ' . $retired;
+            }
+        }
+    }
+
+    return $stale;
+}
+
+/**
  * The rules whose author intent is "load into every session" (issue #187). Listed literally
  * rather than derived from the frontmatter, because the frontmatter key that used to carry that
  * intent is exactly what the fix removed — deriving the expectation from the file would make the
