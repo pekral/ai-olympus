@@ -43,7 +43,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **53 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **54 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -191,7 +191,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 ## Skill Catalog
 
-All 53 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 54 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -259,6 +259,7 @@ All 53 skills, grouped by what you reach for them for. Each description is the s
 | [`frontend-a11y`](skills/frontend-a11y/) | Building or reviewing accessible UI in a Laravel app |
 | [`frontend-design-direction`](skills/frontend-design-direction/) | The work is not just making UI function but making it feel purposeful and polished |
 | [`frontend-slides`](skills/frontend-slides/) | Building standalone HTML/CSS/JS presentation slide decks |
+| [`diagram-design`](skills/diagram-design/) | A change, analysis, or document needs a diagram |
 | [`design-system`](skills/design-system/) | Generating, auditing, or reviewing the visual design system of a Laravel app |
 | [`seo`](skills/seo/) | Auditing, planning, or implementing SEO in a Laravel app |
 
