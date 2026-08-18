@@ -91,7 +91,7 @@ Run `@skills/prepare-issue-context/SKILL.md` with `MODE=resolve-issue` and the s
    - **General** — requirements are vague, acceptance criteria are missing, or the root cause is not identified (when in doubt, general). **Run** `@skills/analyze-problem/SKILL.md` over the issue description, scenario table, and current requirements, and use its output for step 7.
 7. Review the input from step 6 and split the identified items into three groups:
    - **In scope** — items that directly match the issue requirements; implemented.
-   - **Pre-existing issues** — bugs, project-rule violations, or security vulnerabilities already in the affected files (see *Pre-existing issue handling* below); fixed in **separate commits** in the same PR.
+   - **Pre-existing issues** — bugs, project-rule violations, security vulnerabilities, or unnecessary comments already in the affected files (see *Pre-existing issue handling* below); fixed in **separate commits** in the same PR.
    - **Out of scope (deferred)** — valid findings outside the current issue that are not pre-existing to fix now (enhancements, refactors, future features); added to the PR `## TODO` list **and each filed as a follow-up issue** per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
 
 ### Read, Map & Verify before implementing (mandatory pre-flight)
@@ -112,7 +112,7 @@ Every commit the plan produces must be **green on its own** per `@rules/git/gene
 
 ### Pre-existing issue handling
 
-While reading and modifying the files required for the in-scope work, you may encounter problems **unrelated to the current assignment** but already present in those files — bugs, project-rule violations, or security vulnerabilities. **Fix a pre-existing issue you encountered in a file you had to read**, in its own `pre-existing — ` commit ordered before the in-scope commits; **do not** scan unrelated files for more, and defer any **non-trivial** one (rule 5) to the *Out of scope (deferred)* group instead of fixing it inline. The full categories, commit conventions, and per-type test-coverage workflow live in `references/pre-existing-issue-handling.md`.
+While reading and modifying the files required for the in-scope work, you may encounter problems **unrelated to the current assignment** but already present in those files — bugs, project-rule violations, security vulnerabilities, or unnecessary comments. **Fix a pre-existing issue you encountered in a file you had to read**, in its own `pre-existing — ` commit ordered before the in-scope commits; **do not** scan unrelated files for more, and defer any **non-trivial** one (rule 5) to the *Out of scope (deferred)* group instead of fixing it inline. The full categories, commit conventions, and per-type test-coverage workflow live in `references/pre-existing-issue-handling.md`.
 
 ### If bug
 

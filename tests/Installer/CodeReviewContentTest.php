@@ -1980,3 +1980,56 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     $longestLine = max(array_map('mb_strlen', explode("\n", $prSummary)));
     expect($longestLine)->toBeLessThan(800);
 });
+
+test('the comment rules mandate deleting unnecessary comments and name what survives (issue #256)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
+
+    // The two rules already in the file govern authoring a new comment and reviewing a
+    // changed line. Neither tells an agent to remove a comment that is already there.
+    expect($standards)->toContain('**The default state of the codebase is no comment.**');
+    expect($standards)->toContain('**Delete every unnecessary comment sitting in code you are already changing.**');
+
+    // Without the bar, "delete unnecessary comments" reads as "delete comments".
+    expect($standards)->toContain('**Only these survive, and only while they stay true:**');
+    expect($standards)->toContain('logic genuinely complex enough that a competent reader cannot recover it from the code in seconds');
+
+    // Deleting is bounded to the region already being read -- it is not a repo-wide sweep.
+    expect($standards)->toContain('Do not go hunting through untouched files for more.');
+
+    // A comment compensating for a bad name must not be dropped before the name is fixed.
+    expect($standards)->toContain('**Two rails before any deletion.**');
+    expect($standards)->toContain('rename or extract **first** and delete it after');
+
+    // The bullet this replaced said the same thing in weaker words -- leaving both would
+    // be the exact redundancy the new rule forbids, sitting inside the rule that forbids it.
+    expect($standards)->not->toContain('Prefer self-documenting code over explanatory comments.');
+
+    // The mandate is worthless unless the skills that touch code actually carry it.
+    $preExisting = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pre-existing-issue-handling.md');
+    expect($preExisting)->toContain('- **Unnecessary comments** —');
+    expect($preExisting)->toContain('*The default state of the codebase is no comment*');
+
+    // A comment-only deletion changes no executable line, so demanding a regression test
+    // or a pre-refactor coverage commit for it would block the deletion on impossible work.
+    expect($preExisting)->toContain('the deletion touches **no executable line**');
+    expect($preExisting)->toContain('author no test for it');
+    expect($preExisting)->toContain('as the single exception, since it adds and modifies no executable line to cover');
+
+    // The skill body summarises the categories; a body out of sync with the reference
+    // means an agent reading only the body never learns the category exists.
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    expect(substr_count($resolveIssue, 'security vulnerabilities, or unnecessary comments'))->toBe(2);
+
+    // Refactoring is what turns an accurate comment into a redundant one.
+    $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
+    expect($refactoring)->toContain('deletes the comment it just made redundant');
+    expect($refactoring)->toContain('Delete it in the same commit as the restructuring that obsoleted it.');
+    expect($refactoring)->toContain('Never delete a comment the refactor did **not** make redundant');
+
+    // MODE=cr is read-only everywhere else in that file; this guideline must not break it.
+    expect($refactoring)->toContain(
+        'In `MODE=cr`, raise each comment the diff leaves behind after such a restructuring '
+        . 'as a refactoring finding proposing the deletion, instead of deleting it.',
+    );
+});
