@@ -221,30 +221,34 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
 test('clarifying questions are gated by severity and never re-ask what the tracker already answered (issue #208)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/code-review-jira/references/clarifying-questions.md');
 
     // Both gates must be named where the block is assembled, and in this order — a question is
     // classified first and only then checked against the tracker, so a Minor one is never walked.
     expect($skill)->toContain('put every candidate through the **severity gate** and the **already-answered walk** below, in that order');
 
+    expect($skill)->toContain('**Severity gate and already-answered walk (issue #208).**');
+    expect($skill)->toContain('`references/clarifying-questions.md`');
+
     // Severity gate: only the two top classes reach a ticket a non-developer reads.
-    expect($skill)->toContain('Severity gate — Critical and Moderate questions only (issue #208)');
-    expect($skill)->toContain('**Minor — dropped, never asked.**');
-    expect($skill)->toContain('without the answer the change cannot be accepted at all');
-    expect($skill)->toContain('the answer decides whether the behaviour it already implements is the intended one');
+    expect($reference)->toContain('Severity gate — Critical and Moderate questions only (issue #208)');
+    expect($reference)->toContain('**Minor — dropped, never asked.**');
+    expect($reference)->toContain('without the answer the change cannot be accepted at all');
+    expect($reference)->toContain('the answer decides whether the behaviour it already implements is the intended one');
     // The severity is a routing decision, never output — JIRA carries no severity vocabulary.
-    expect($skill)->toContain('it is never rendered');
+    expect($reference)->toContain('it is never rendered');
 
     // Already-answered walk: the reason it exists, the sources, and the two-part drop condition.
-    expect($skill)->toContain('Already-answered walk — never re-ask a question the tracker already answered (issue #208)');
-    expect($skill)->toContain('walk **every comment already loaded by step 1**');
-    expect($skill)->toContain('it never issues a second fetch');
-    expect($skill)->toContain('**Drop only on both halves.**');
+    expect($reference)->toContain('Already-answered walk — never re-ask a question the tracker already answered (issue #208)');
+    expect($reference)->toContain('walk **every comment already loaded by step 1**');
+    expect($reference)->toContain('it never issues a second fetch');
+    expect($reference)->toContain('**Drop only on both halves.**');
     // (b) is verified against the code, never against a comment claiming the work was done.
-    expect($skill)->toContain('Verify (b) against the code, never against the comment\'s own claim that it was done');
+    expect($reference)->toContain('Verify (b) against the code, never against the comment\'s own claim that it was done');
     // Answered-but-diverging is a finding, not a repeated question.
-    expect($skill)->toContain('Answered but not implemented → not a question any more');
+    expect($reference)->toContain('Answered but not implemented → not a question any more');
     // An unclear reply keeps the question — the asymmetry of the two mistakes is stated.
-    expect($skill)->toContain('Ambiguous answers stay questions');
+    expect($reference)->toContain('Ambiguous answers stay questions');
 });
 
 test('pr-summary output style is terse — caveman-style prose compression (issue #51)', function (): void {
@@ -958,9 +962,11 @@ test(
     'code-review skill enforces acceptance-criteria use-case coverage and test business logic in Assignment Conformance Gate (issue #708)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-            $packageDir . '/rules/code-review/general.mdc',
-        );
+        $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md')
+            . "\n" . (string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md')
+            . "\n" . (string) file_get_contents(
+                $packageDir . '/rules/code-review/general.mdc',
+            );
     
         // Acceptance-criteria use-case coverage bullet in the Validation section
         expect($content)->toContain('**Acceptance-criteria use-case coverage (mandatory):**');
@@ -1019,11 +1025,12 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+        $conformanceGate = (string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md');
     
         expect($skill)->toContain('### Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)');
         expect($skill)->toContain('Run this step **after** Critical Findings Verification (issue #537) above and **before** the Output assembly');
-        expect($skill)->toContain('a finding moved to `## Excluded per assignment` never counts toward `N`');
-        expect($skill)->toContain(
+        expect($conformanceGate)->toContain('a finding moved to `## Excluded per assignment` never counts toward `N`');
+        expect($conformanceGate)->toContain(
             'and an out-of-scope traceability finding always counts toward `N` regardless of any test-only declaration',
         );
         expect($skill)->toContain('- **`## Excluded per assignment` section (issue #17).**');
@@ -1267,8 +1274,9 @@ test('rule defines the Two-Part CR Output — Technical & Functional Review cont
 test('code-review skill routes Assignment Conformance Gate Critical findings to Functional Review, not Findings (issue #56)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $conformanceGate = (string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md');
 
-    expect($canonical)->toContain(
+    expect($conformanceGate)->toContain(
         'these Critical findings publish under `## Functional Review`, not `## Findings`',
     );
     expect($canonical)->toContain(
@@ -1676,7 +1684,8 @@ test(
     'the third-party contract walk resolves documentation through an ordered source list and cites what it resolved (issue #151)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+        $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md')
+        . "\n" . (string) file_get_contents($packageDir . '/skills/code-review/references/third-party-api-analysis.md');
         $template = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
 
         // The trigger condition is untouched — a diff with no third-party integration still runs nothing.
@@ -1719,7 +1728,8 @@ test(
 
 test('an unresolved third-party contract produces an answerable blocking documentation request, not a bare Moderate (issue #151)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md')
+        . "\n" . (string) file_get_contents($packageDir . '/skills/code-review/references/third-party-api-analysis.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
 
     expect($skill)->toContain('Request the documentation link when no source resolves');

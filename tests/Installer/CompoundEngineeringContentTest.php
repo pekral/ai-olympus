@@ -61,7 +61,7 @@ test('git/general.md mandates English branch names regardless of assignment lang
 
 test('resolve-issue skill requires the created branch name to be in English', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
 
     expect($content)->toContain('name always in English, regardless of the assignment language');
 });
@@ -168,12 +168,12 @@ test('resolve-issue plans one commit per point the assignment enumerates', funct
 
 test('resolve-issue PR description lists one entry per commit', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
 
     // The PR content requirements must demand the change list, and the reference must define
     // its shape — a per-file or per-topic list defeats the point-per-commit mapping.
-    expect($skill)->toContain('**Changes** — one entry per commit');
+    expect($pullRequest)->toContain('**Changes** — one entry per commit');
     expect($reference)->toContain('Rendering the PR `## Changes` list.');
     expect($reference)->toContain('One line per commit — never one line per file');
     expect($reference)->toContain('depends on <N>');
@@ -844,7 +844,7 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     expect($hygieneSection)->toContain('.claude/run/<source-slug>.audit');
 
     // resolve-issue's PR body template renders a mandatory `## Audit` section.
-    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     expect($resolveIssue)->toContain('**`## Audit`** — mandatory on every PR');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
 
