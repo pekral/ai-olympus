@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-test('php/examples/named-arguments.md gains scoping frontmatter and stays reachable from core-standards.mdc (issue #162)', function (): void {
+test('php/examples/named-arguments.md gains scoping frontmatter and stays reachable from core-standards.md (issue #162)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/php/examples/named-arguments.md');
 

@@ -19,7 +19,7 @@ Focus on:
 - safe, justified optimizations
 
 ## Constraints
-- Apply @rules/sql.mdc
+- Apply @rules/sql/optimalize.md
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Be practical and direct
 - Prefer investigation over assumptions

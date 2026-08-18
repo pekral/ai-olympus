@@ -1576,7 +1576,7 @@ test(
             . 'maintainability defect a fixer cannot catch, not an architectural violation).',
         );
 
-        // The general.mdc restatement stays in sync with core-standards.mdc: same exemptions, same escalation,
+        // The general.md restatement stays in sync with core-standards.md: same exemptions, same escalation,
         // same rescoped gating (PR #138 review — Moderate 1, Moderate 3, Moderate 4).
         expect($crRule)->toContain(
             'Exemptions (do **not** flag): memoization / lazy initialization of the returned value, read-through '

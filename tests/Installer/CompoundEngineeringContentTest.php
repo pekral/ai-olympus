@@ -229,7 +229,7 @@ test('CLAUDE.md points to the per-project memory file so it stays discoverable (
     $claudeMd = (string) file_get_contents($packageDir . '/CLAUDE.md');
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
-    // general.mdc already mandates the pointer; CLAUDE.md (root, and the shipped template
+    // general.md already mandates the pointer; CLAUDE.md (root, and the shipped template
     // installed into consumer projects) must actually carry it.
     expect($rule)->toContain('Reference the memory file from `CLAUDE.md`');
     expect($claudeMd)->toContain('docs/memory/PROJECT_MEMORY.md');
@@ -544,7 +544,7 @@ test(
 
 // Per the project's test-isolation rule a Pest test cannot exec a real shell command, so
 // this mirrors the documented awk block-extraction algorithm in PHP and proves it against
-// a synthetic fixture instead of shelling out to the awk snippet pinned in general.mdc.
+// a synthetic fixture instead of shelling out to the awk snippet pinned in general.md.
 function compoundMemoryLineDeclaresRole(string $line, string $role): bool
 {
     return str_starts_with($line, '- Role:') && preg_match('/(' . preg_quote($role, '/') . '|shared)/', $line) === 1;

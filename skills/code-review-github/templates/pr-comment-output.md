@@ -19,7 +19,7 @@
 
 ## Technical Review
 
-> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.mdc`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
+> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.md`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
 
 ## Findings
 
@@ -28,7 +28,7 @@
 ### 🔴 Critical 1. <short title>
 
 - **Location:** `path/to/file.php:42`
-- **Rule:** `@rules/<area>/<file>.mdc#<section>`
+- **Rule:** `@rules/<area>/<file>.md#<section>`
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Faulty Example:**
   ```php
@@ -138,7 +138,7 @@
 
 ### 🔴 Critical 1. <short title>  *(gaps case only)*
 
-(same six fields as `## Findings` — Location / Rule / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.mdc` path)
+(same six fields as `## Findings` — Location / Rule / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.md` path)
 
 (Repeat for every gap.)
 

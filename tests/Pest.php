@@ -346,22 +346,28 @@ function ruleExtensionRenamedInIssue277Files(): array
 }
 
 /**
- * A rule body — everything after the closing `---` — hashed with every reference to a rule issue
- * #277 renamed written back in its retired `.mdc` spelling. Repointing such a cross-reference is
- * the one body edit that rename was allowed to make, and the digests these tests pin were taken
- * before it; mapping the references back is what lets an unchanged digest keep proving that no
- * normative sentence moved, instead of being re-baselined into agreeing with the new text.
+ * A rule body — everything after the closing `---` — hashed with every rule path issue #277
+ * respelled written back the way it read before. Repointing a cross-reference is the one body
+ * edit that change was allowed to make, and the digests these tests pin were taken beforehand;
+ * mapping the spellings back is what lets an unchanged digest keep proving that no normative
+ * sentence moved, instead of being re-baselined into agreeing with whatever the file now says.
+ *
+ * Two spellings are mapped. Each renamed file's own path is the obvious one. The wildcard a rule
+ * uses to name the rules a consuming project adds for itself — `@rules/**\/*.md`, retired
+ * spelling `@rules/**\/*.mdc` — is the second: it matched every rule this package ships until
+ * #277 renamed the last of them, and left matching none the moment it did.
  */
 function ruleBodyDigest(string $path): string
 {
     $content = (string) file_get_contents($path);
     $body = ltrim(substr($content, (int) strpos($content, '---', 3) + 3));
+    $respellings = ['@rules/**/*.md' => '@rules/**/*.mdc'];
 
     foreach (ruleExtensionRenamedInIssue277Files() as $renamed) {
-        $body = str_replace($renamed, substr($renamed, 0, -3) . '.mdc', $body);
+        $respellings[$renamed] = substr($renamed, 0, -3) . '.mdc';
     }
 
-    return hash('sha256', $body);
+    return hash('sha256', str_replace(array_keys($respellings), array_values($respellings), $body));
 }
 
 /**

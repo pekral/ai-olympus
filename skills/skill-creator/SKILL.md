@@ -130,7 +130,7 @@ Examples in the repo: `code-review`, `class-refactoring`, `create-test`, `analyz
 Omit a section only when it does not apply.
 
 ### 5. Reference rules and other skills
-- Reference rule files as `@rules/<area>/<file>.mdc` or `.md` exactly as they exist on disk.
+- Reference rule files as `@rules/<area>/<file>.md` exactly as they exist on disk.
 - Reference other skills as `@skills/<slug>/SKILL.md`.
 - Never invent paths. Verify every reference points to a real file before saving.
 
