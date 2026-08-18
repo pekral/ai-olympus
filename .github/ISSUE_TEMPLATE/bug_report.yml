@@ -79,11 +79,3 @@ body:
       label: Relevant log output
       description: Paste any relevant error output or stack trace. This will be automatically formatted as code.
       render: shell
-
-  - type: checkboxes
-    id: checks
-    attributes:
-      label: Checklist
-      options:
-        - label: I searched existing issues and this is not a duplicate
-          required: true
