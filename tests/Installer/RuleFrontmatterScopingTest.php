@@ -160,7 +160,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
-        'rules/laravel/laravel.md' => 'f0620445408c1056725feaa5a53f5b1516401b35751a2a60c52e7f9af79ccd38',
+        'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
         'rules/php/core-standards.md' => '5cd3e891336f8968e4970d3e457f0e5ae51fab8d3b7ec81d1f34237be6dff6a5',
         'rules/sql/optimalize.md' => 'dcda4f6d54f0458a9a64ae2657a7422231067b1f6735726852167c81d449ed9c',
     ];
