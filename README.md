@@ -371,7 +371,7 @@ Rules included in this package:
 
 | File                          | Description                                                | Scope    |
 |-------------------------------|------------------------------------------------------------|----------|
-| `php/core-standards.md`      | Project context, AI behavior, and unified PHP/Laravel coding standards | Always   |
+| `php/core-standards.md`      | Project context, AI behavior, and unified PHP/Laravel coding standards | PHP      |
 | `php/examples/named-arguments.md` | Named-arguments usage examples (good/avoid) supporting the PHP core standards | Always   |
 | `php/dependency-selection.mdc` | Composer dependency selection — activity and compatibility gates before adopting a new package | Dependencies |
 | `compound-engineering/general.md` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
@@ -389,7 +389,7 @@ Rules included in this package:
 | `laravel/livewire.mdc`        | Livewire component rules and conventions                   | Livewire |
 | `laravel/queue-debouncing.mdc`| Safe Laravel queue debouncing, urgency separation, and replaceable work | Laravel  |
 | `laravel/dynamodb.mdc`        | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug | Laravel  |
-| `sql/optimalize.md`          | SQL query optimization, index design, schema standards     | Always   |
+| `sql/optimalize.md`          | SQL query optimization, index design, schema standards     | SQL      |
 | `security/backend.md`         | Backend security rules and OWASP Top 10 checks             | Always   |
 | `security/frontend.md`        | Frontend security rules (XSS, CSRF, CSP)                  | Frontend |
 | `security/mobile.md`          | Mobile-specific security rules and WebView checks          | Mobile   |
