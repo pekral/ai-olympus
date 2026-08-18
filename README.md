@@ -374,8 +374,8 @@ composer check              # run full quality check (skill-check, normalize, ph
 composer fix                # run all automatic fixes (skill-check-fix, normalize, rector, pint, phpcs)
 composer build              # install (agent-skills install --force) then fix then check
 composer analyse            # run PHPStan static analysis
-composer test:coverage      # run tests with 100% coverage
-composer coverage           # alias for test:coverage
+composer test:coverage      # run tests with 100% coverage (compact output — failures only)
+composer coverage           # same gate with the full per-file coverage report
 composer security-audit     # run security audit of dependencies
 ```
 
