@@ -77,3 +77,103 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         expect(hash('sha256', $afterFrontmatter))->toBe($expectedHash);
     }
 });
+
+test('every rule scoped in issue #274 declares exactly the `paths:` list it was scoped to', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $violations = [];
+
+    foreach (ruleScopingExpectedGlobs() as $relativePath => $expectedGlobs) {
+        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+
+        if (ruleScopingGlobs($packageDir . '/' . $relativePath) !== $expectedGlobs) {
+            $violations[] = $relativePath . ': `paths:` list is not the one this rule was scoped to';
+        }
+
+        // Cursor-only keys (not part of Claude Code's rule schema — see
+        // https://code.claude.com/docs/en/memory, "Path-specific rules") must never appear.
+        if (str_contains($content, 'globs:') || str_contains($content, 'alwaysApply:')) {
+            $violations[] = $relativePath . ': carries a Cursor-only frontmatter key';
+        }
+    }
+
+    expect($violations)->toBe([]);
+    expect(array_keys(ruleScopingExpectedGlobs()))->toBe([
+        'rules/api/general.md',
+        'rules/laravel/laravel.md',
+        'rules/php/core-standards.md',
+        'rules/sql/optimalize.md',
+    ]);
+});
+
+test('every glob a rule scoped in issue #274 declares matches at least one real path (issue #274)', function (): void {
+    // A glob that matches nothing silences its rule as completely as deleting the file would,
+    // and nothing else in the build would notice. The corpus is this repository's own files plus
+    // the consumer-project paths this package writes rules for, since it ships no `app/`,
+    // no migrations and no `.sql` file of its own.
+    $corpus = array_merge(array_keys(packageTextFiles()), ruleScopingConsumerProjectPaths());
+    $unmatched = [];
+
+    // Without these the test passes vacuously the moment the corpus or the matcher degrades.
+    expect($corpus)->toContain('src/Installer.php');
+    expect($corpus)->toContain('app/Http/Controllers/OrderController.php');
+    expect(ruleScopingGlobMatchesAny('app/Htpp/**/*.php', $corpus))->toBeFalse();
+    expect(ruleScopingGlobMatchesAny('routes/*.php', ['routes/nested/api.php']))->toBeFalse();
+
+    foreach (ruleScopingExpectedGlobs() as $relativePath => $globs) {
+        foreach ($globs as $glob) {
+            if (!ruleScopingGlobMatchesAny($glob, $corpus)) {
+                $unmatched[] = $relativePath . ' → ' . $glob;
+            }
+        }
+    }
+
+    expect($unmatched)->toBe([]);
+});
+
+test('a rule scoped to every PHP file still loads over the PHP this repository itself ships (issue #274)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $repositoryPaths = array_keys(packageTextFiles());
+
+    expect($repositoryPaths)->toContain('src/Installer.php');
+
+    foreach (['rules/laravel/laravel.md', 'rules/php/core-standards.md'] as $relativePath) {
+        $globs = ruleScopingGlobs($packageDir . '/' . $relativePath);
+
+        expect($globs)->toBe(['**/*.php']);
+        expect(ruleScopingGlobMatchesAny($globs[0], $repositoryPaths))->toBeTrue();
+    }
+});
+
+test('the four rules scoped in issue #274 keep byte-identical bodies below the frontmatter', function (): void {
+    // Digests of everything after the closing `---`, taken from the files as they stood before
+    // the scoping change. A mismatch means a normative sentence moved, which this change is not
+    // allowed to do — it may only add frontmatter.
+    $packageDir = dirname(__DIR__, 2);
+    $expectedBodyHashes = [
+        'rules/api/general.md' => '331939fcee8d3334b3729d9f58b3599ca8482b42a847354174c13d4580741ec2',
+        'rules/laravel/laravel.md' => 'f0620445408c1056725feaa5a53f5b1516401b35751a2a60c52e7f9af79ccd38',
+        'rules/php/core-standards.md' => '5cd3e891336f8968e4970d3e457f0e5ae51fab8d3b7ec81d1f34237be6dff6a5',
+        'rules/sql/optimalize.md' => 'c7ab59fc4f3eaff99bd8dafeb7a176f651731139a1d8c8a964dfd35a9b57173f',
+    ];
+
+    foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
+        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        $afterFrontmatter = ltrim(substr($content, (int) strpos($content, '---', 3) + 3));
+
+        expect(hash('sha256', $afterFrontmatter))->toBe($expectedHash);
+    }
+});
+
+test('a rule scoped in issue #274 is no longer claimed as always-on', function (): void {
+    $alwaysOn = ruleExtensionAlwaysOnFiles();
+
+    expect($alwaysOn)->toBe([
+        'rules/compound-engineering/general.md',
+        'rules/git/general.md',
+        'rules/writing/general.md',
+    ]);
+
+    foreach (array_keys(ruleScopingExpectedGlobs()) as $relativePath) {
+        expect($alwaysOn)->not->toContain($relativePath);
+    }
+});

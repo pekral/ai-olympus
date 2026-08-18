@@ -1,5 +1,7 @@
 ---
 description: Core Laravel architecture and coding conventions
+paths:
+  - "**/*.php"
 ---
 
 ## Architecture

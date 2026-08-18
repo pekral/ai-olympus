@@ -293,18 +293,134 @@ function installerRestoreEnvAndCleanup(string|false $homeBefore, string $origina
  * intent is exactly what the fix removed — deriving the expectation from the file would make the
  * test agree with whatever the file happens to say.
  *
+ * Issue #274 took four rules off this list by scoping them (see `ruleScopingExpectedGlobs()`).
+ * The three that remain are always-on because they govern something every run produces rather
+ * than a file type a run may or may not touch: `compound-engineering` governs how any agent
+ * orchestrates a run, `git` governs every commit and pull request, and `writing` governs every
+ * sentence an agent writes.
+ *
  * @return array<int, string>
  */
 function ruleExtensionAlwaysOnFiles(): array
 {
     return [
-        'rules/api/general.md',
         'rules/compound-engineering/general.md',
         'rules/git/general.md',
-        'rules/laravel/laravel.md',
-        'rules/php/core-standards.md',
-        'rules/sql/optimalize.md',
         'rules/writing/general.md',
+    ];
+}
+
+/**
+ * The `paths:` globs each rule scoped in issue #274 must declare, written out by hand for the
+ * same reason `ruleExtensionAlwaysOnFiles()` is: an expectation read out of the file it checks
+ * agrees with any edit made to that file, including a typo.
+ *
+ * @return array<string, array<int, string>>
+ */
+function ruleScopingExpectedGlobs(): array
+{
+    return [
+        'rules/api/general.md' => [
+            'routes/**/*.php',
+            'app/Http/**/*.php',
+            'src/**/Http/**/*.php',
+            'packages/**/Http/**/*.php',
+            'Modules/**/Http/**/*.php',
+        ],
+        'rules/laravel/laravel.md' => ['**/*.php'],
+        'rules/php/core-standards.md' => ['**/*.php'],
+        'rules/sql/optimalize.md' => [
+            '**/database/migrations/**/*.php',
+            '**/*Repository.php',
+            '**/*ModelManager.php',
+            '**/*.sql',
+        ],
+    ];
+}
+
+/**
+ * The globs a rule declares under `paths:`, in declaration order, or an empty list when the rule
+ * carries no `paths:` key and is therefore always-on.
+ *
+ * @return array<int, string>
+ */
+function ruleScopingGlobs(string $path): array
+{
+    $globs = [];
+    $inPathsList = false;
+
+    foreach (explode("\n", ruleExtensionFrontmatter($path)) as $line) {
+        if ($line === 'paths:') {
+            $inPathsList = true;
+
+            continue;
+        }
+
+        if (!$inPathsList) {
+            continue;
+        }
+
+        if (preg_match('#^  - "(.+)"$#', $line, $matches) !== 1) {
+            break;
+        }
+
+        $globs[] = $matches[1];
+    }
+
+    return $globs;
+}
+
+/**
+ * Whether a `paths:` glob matches at least one of the given repository-relative paths. A double
+ * asterisk followed by a separator spans any number of directories, including none; a single
+ * asterisk stops at a separator — the semantics Claude Code documents for a rule's `paths:` list.
+ *
+ * @param array<int, string> $candidatePaths
+ */
+function ruleScopingGlobMatchesAny(string $glob, array $candidatePaths): bool
+{
+    $pattern = '#^' . strtr(preg_quote($glob, '#'), [
+        '\*' => '[^/]*',
+        '\*\*' => '.*',
+        '\*\*/' => '(?:[^/]+/)*',
+        '\?' => '[^/]',
+    ]) . '$#';
+
+    foreach ($candidatePaths as $candidatePath) {
+        if (preg_match($pattern, $candidatePath) === 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Representative file paths of a consuming Laravel project, written independently of the globs
+ * they are matched against. This package ships instructions, so it holds no `app/`, no
+ * migrations and no `.sql` file of its own — without this corpus a glob aimed at a consumer
+ * project could match nothing anywhere and the rule would behave as if it had been deleted.
+ *
+ * @return array<int, string>
+ */
+function ruleScopingConsumerProjectPaths(): array
+{
+    return [
+        'routes/api.php',
+        'routes/web.php',
+        'app/Http/Controllers/OrderController.php',
+        'app/Http/Requests/StoreOrderRequest.php',
+        'app/Http/Resources/OrderResource.php',
+        'app/Http/Middleware/EnsureTokenIsValid.php',
+        'src/Billing/Http/Controllers/InvoiceController.php',
+        'packages/billing/src/Http/Controllers/RefundController.php',
+        'Modules/Shop/Http/Controllers/CartController.php',
+        'database/migrations/2026_01_01_000000_create_orders_table.php',
+        'database/schema/mysql-schema.sql',
+        'app/Repositories/OrderRepository.php',
+        'app/Shop/Order/OrderModelManager.php',
+        'resources/views/order/show.blade.php',
+        'config/database.php',
     ];
 }
 

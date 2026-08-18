@@ -1,5 +1,11 @@
 ---
 description: API design standards — treat the API as a consumer-facing contract. Apply when designing, reviewing, or changing HTTP endpoints, routes, controllers, request/response payloads, and API resources.
+paths:
+  - "routes/**/*.php"
+  - "app/Http/**/*.php"
+  - "src/**/Http/**/*.php"
+  - "packages/**/Http/**/*.php"
+  - "Modules/**/Http/**/*.php"
 ---
 
 ## API as a Contract

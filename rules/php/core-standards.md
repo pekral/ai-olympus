@@ -1,5 +1,7 @@
 ---
 description: Project context, AI behavior, and unified coding standards for PHP/Laravel projects
+paths:
+  - "**/*.php"
 ---
 
 ## Project Context
