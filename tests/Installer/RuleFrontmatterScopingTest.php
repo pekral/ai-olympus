@@ -118,6 +118,13 @@ test('every glob a rule scoped in issue #274 declares matches at least one real 
     expect($corpus)->toContain('app/Http/Controllers/OrderController.php');
     expect(ruleScopingGlobMatchesAny('app/Htpp/**/*.php', $corpus))->toBeFalse();
     expect(ruleScopingGlobMatchesAny('routes/*.php', ['routes/nested/api.php']))->toBeFalse();
+    // A trailing `**` spans separators where a single `*` stops at one, and `?` matches exactly
+    // one character that is not a separator. No glob the four rules declare reaches either
+    // translation today, so without these the other half of the matcher is asserted by nothing.
+    expect(ruleScopingGlobMatchesAny('src/**', ['src/Installer/Path.php']))->toBeTrue();
+    expect(ruleScopingGlobMatchesAny('src/*', ['src/Installer/Path.php']))->toBeFalse();
+    expect(ruleScopingGlobMatchesAny('src/Installer?.php', ['src/InstallerX.php']))->toBeTrue();
+    expect(ruleScopingGlobMatchesAny('src/Installer?.php', ['src/InstallerXY.php']))->toBeFalse();
 
     foreach (ruleScopingExpectedGlobs() as $relativePath => $globs) {
         foreach ($globs as $glob) {
