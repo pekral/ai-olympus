@@ -45,9 +45,9 @@
 ### verify-agent-registration-premise — Verify an agent's registration status against the live roster before relying on a recorded premise about it
 - Trigger: a task generalizes across "all agents" (per-role parity, a push-level gate, a dispatch decision) and leans on a recorded premise about whether a specific agent is registered/dispatchable.
 - Rule:    Registration status is point-in-time, not permanent. Before implementing anything scoped to "every agent", verify against current state: `ls .claude/agents/` (and `agents/`) plus a grep of `tests/InstallerTest.php` for the agent set — treat the live roster as source of truth over memory/issue text. A stale premise produces incomplete parity the CR loop flags as Moderate.
-- Example: issue #653 assumed `apollon` was documentation-only (per [[agent-file-vs-registration]]); by #654 it was registered, so the first implementation missed per-role parity — 2 Moderate findings, fixed in `43b6c07`.
+- Example: #653/#654 — `apollon` assumed documentation-only (per [[agent-file-vs-registration]]), already registered; per-role parity missed, 2 Moderate, fixed `43b6c07`. Recurrence (#109): #116 `CLOSED`/`COMPLETED` while `gh repo view` returned `isPrivate: true` — a closed issue records intent, not outcome.
 - Role:    shared
-- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/654   Added: 2026-06-21
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/654, /pull/271   Added: 2026-06-21   Updated: 2026-08-18 (PR #271)
 
 ### installer-security-doc-source-of-truth — Security docs must list unconditional installer writes, not only opt-in-gated ones
 - Trigger: writing/reviewing security/trust-model docs (SECURITY.md, README CLI Switches, installer trust model) for a PHP Composer installer + ComposerPlugin, describing which files the installer writes.
@@ -340,3 +340,10 @@
 - Example: the `gh-69` run (issue #69) and concurrent `gh-57` run (issue #57) both appended a recurrence sentence to [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]'s Example field within ~1 minute of each other; anchor-based `str.replace` let both compose correctly with zero corruption, confirmed via `git status` + unchanged `grep -c '^### '` count.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/issues/69   Added: 2026-07-19
 - Role:    daidalos
+
+### claude-code-plugin-ships-no-rules-or-claude-md — A Claude Code plugin distributes skills and agents only; rules and CLAUDE.md need a command
+- Trigger: work on the plugin-marketplace distribution channel (`.claude-plugin/*.json`), or a claim that installing the plugin gives a project the same result as the Composer installer.
+- Rule:    Claude Code reads `skills/` and `agents/` out of a plugin directory and reads **neither `rules/` nor a `CLAUDE.md`** — no plugin mechanism exists for a project-scoped always-on instruction file. State the limit; never imply the two channels are equivalent. Rules travel by `commands/install-rules.md` (`/laravel-agent-skills:install-rules`), which copies from `${CLAUDE_PLUGIN_ROOT}` and never overwrites an existing `CLAUDE.md`. The plugin is the repo root (`"source": "./"`), so no manifest carries a `version` and none may carry `hooks` — that would ship a runtime component unconditionally, the invariant #265 restored. Verify manifest changes by running them (`claude plugin marketplace add <dir>` + `claude plugin details`), per [[empirical-probe-beats-static-source-read-for-tool-behavior]]; the `owner/repo` form reads the default branch and is unverifiable pre-merge.
+- Example: `.claude-plugin/marketplace.json`, `commands/install-rules.md`, `tests/Installer/PluginMarketplaceTest.php`.
+- Role:    hefaistos
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/270   Added: 2026-08-18
