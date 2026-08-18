@@ -18,14 +18,10 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
 
     private ?Composer $composer = null;
 
-    // phpcs:disable SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter
-
     public function activate(Composer $composer, IOInterface $io): void
     {
         $this->composer = $composer;
     }
-
-    // phpcs:disable SlevomatCodingStandard.Functions.DisallowEmptyFunction.EmptyFunction
 
     public function deactivate(Composer $composer, IOInterface $io): void
     {
@@ -36,9 +32,6 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         // Required by PluginInterface
     }
-
-    // phpcs:enable SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter
-    // phpcs:enable SlevomatCodingStandard.Functions.DisallowEmptyFunction.EmptyFunction
 
     public function runInstaller(): void
     {

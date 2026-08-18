@@ -5,6 +5,16 @@
     <!-- Include pekral/phpcs-rules -->
     <rule ref="vendor/pekral/phpcs-rules/ruleset.xml"/>
 
+    <!--
+        Composer's PluginInterface fixes these three signatures, so the parameters this class
+        cannot use are the contract, not an oversight. The sniff has no interface awareness, so
+        the exclusion lives here, scoped to the one file and the one sniff and auditable in a
+        single place, rather than as phpcs:disable comments scattered through the class.
+    -->
+    <rule ref="SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter">
+        <exclude-pattern>src/ComposerPlugin.php</exclude-pattern>
+    </rule>
+
     <!-- Exclude vendor directory -->
     <exclude-pattern>vendor/*</exclude-pattern>
     <exclude-pattern>coverage.xml</exclude-pattern>
