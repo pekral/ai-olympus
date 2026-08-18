@@ -434,6 +434,10 @@ composer test:coverage      # run tests with coverage (min. 100%)
 
 Remove `coverage.xml` before committing if it was produced locally.
 
+## Questions
+
+Ask in [Discussions](https://github.com/agentic-vibes/laravel-agent-skills/discussions) — the **Q&A** category takes questions about compatibility, using the rules without the agents, and writing your own skill. Keep the issue tracker for bugs and feature requests, so a real defect does not get buried under questions.
+
 ## Author
 
 **Petr Král** — PHP Developer & Laravel programmer, open source contributor ([pekral.cz](https://pekral.cz)).
