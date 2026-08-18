@@ -27,7 +27,7 @@ its merged middleware. If you cannot point to both a real route **and** a cited
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md`
 - Apply `@rules/security/backend.md` — *Database* (authentication & authorization, least privilege) and *Safe Validation & Error Messages* (a 403-vs-404 distinction that confirms a resource exists is itself an authorization-granularity leak)
-- Apply `@rules/code-review/general.mdc` — map every finding onto the CR severity scale (Critical / Moderate / Minor) so this skill plugs into a Laravel CR run
+- Apply `@rules/code-review/general.md` — map every finding onto the CR severity scale (Critical / Moderate / Minor) so this skill plugs into a Laravel CR run
 - **Advise-only.** Reads files and runs one read-only command (`php artisan route:list --json`). Never edits routes, controllers, policies, or any source; emits a report plus fix sketches for a human to apply.
 - Output in English
 
@@ -128,7 +128,7 @@ when in doubt, **lower the confidence, don't drop or inflate the finding**:
 
 ### 6. Classify each finding (confidence + CR severity)
 One row per finding, most severe wins. Confidence is mandatory and travels with an
-evidence chain. Map onto the CR scale per `@rules/code-review/general.mdc`:
+evidence chain. Map onto the CR scale per `@rules/code-review/general.md`:
 
 | Signal | Confidence | CR severity |
 |--------|-----------|-------------|
@@ -162,7 +162,7 @@ Produce the report using `templates/report.md` as the template:
 List each route once, in its most-severe lane; the coverage map carries the rest.
 
 ### Assignment-declared "test-only" carve-out (issue #17)
-Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/Moderate/Minor). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
+Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/Moderate/Minor). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
 
 ### 8. Saving the report (optional, on request only)
 By default **output to the conversation only**. You may offer to save to

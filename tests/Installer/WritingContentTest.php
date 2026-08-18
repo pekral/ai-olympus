@@ -51,12 +51,12 @@ test('writing/general.md is language-neutral and never mandates English', functi
 test('the writing and reports rules declare each other as scope boundaries', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $writing = (string) file_get_contents($packageDir . '/rules/writing/general.md');
-    $reports = (string) file_get_contents($packageDir . '/rules/reports/general.mdc');
+    $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
 
     // `reports` owns which language a report is written in; `writing` owns how the sentences
     // are shaped inside it. Without the cross-reference the two read as competing mandates.
     expect($writing)->toContain('Scope boundary — style, not language choice');
-    expect($writing)->toContain('@rules/reports/general.mdc');
+    expect($writing)->toContain('@rules/reports/general.md');
     expect($reports)->toContain('@rules/writing/general.md');
     expect($reports)->toContain('This rule picks the language');
 });

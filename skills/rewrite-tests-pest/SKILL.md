@@ -8,7 +8,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/php/core-standards.md`
-- Apply `@rules/code-testing/general.mdc`
+- Apply `@rules/code-testing/general.md`
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Do not generate `covers()`
 
@@ -52,7 +52,7 @@ Only after Read, Map, and Verify are complete may the rewrite begin.
 3. Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
 4. Run available fixers on changed test files and fix any violations.
 5. Run available checkers/analyzers on changed test files and resolve all reported errors.
-6. Run a quick code review of rewritten tests against `@rules/code-testing/general.mdc` and fix any findings.
+6. Run a quick code review of rewritten tests against `@rules/code-testing/general.md` and fix any findings.
 
 ## Done when
 - Target tests are rewritten to Pest syntax

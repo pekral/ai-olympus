@@ -8,13 +8,13 @@ metadata:
 
 ## Constraints
 - Apply `@rules/php/core-standards.md`
-- Apply `@rules/php/dependency-selection.mdc` — when the audit recommends replacing a vulnerable package with a hardened alternative, run the Activity gate + Compatibility gate on the proposed replacement before recommending the swap. Never trade a vulnerable-but-maintained package for an archived / abandoned / branch-pinned one in the name of security.
-- Apply `@rules/code-review/general.mdc`
+- Apply `@rules/php/dependency-selection.md` — when the audit recommends replacing a vulnerable package with a hardened alternative, run the Activity gate + Compatibility gate on the proposed replacement before recommending the swap. Never trade a vulnerable-but-maintained package for an archived / abandoned / branch-pinned one in the name of security.
+- Apply `@rules/code-review/general.md`
 - Apply `@rules/security/backend.mdc`
 - Apply `@rules/code-review/frontend.mdc`
 - Apply `@rules/code-review/mobile.mdc`
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
-- Apply @rules/reports/general.mdc. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
+- Apply @rules/reports/general.md. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
 - Focus on realistic, exploitable issues
 - Never reveal secrets
 - **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing to the remote is not. Output is the audit report only.
@@ -160,7 +160,7 @@ the GitHub Advisory Database / NVD for a named component or version the diff tou
 ## Report
 
 ### Real-Code Grounding for Every Finding (issue #97)
-Apply the contract in `@rules/code-review/general.mdc` *Real-Code Grounding for Every Finding (issue #97)* to every finding this skill publishes — **Critical, High, Medium, and Low alike; no severity is exempt**. Security specifics on top of that contract:
+Apply the contract in `@rules/code-review/general.md` *Real-Code Grounding for Every Finding (issue #97)* to every finding this skill publishes — **Critical, High, Medium, and Low alike; no severity is exempt**. Security specifics on top of that contract:
 
 - The surrounding context to re-read is whatever the **exploit scenario** depends on — every reachable path from the entry point to the sink, plus any helper, Service, Repository, or config file the scenario or Suggested Fix relies on. Claiming the surrounding code mitigates the flaw requires citing the mitigating `file:line` for **every** reachable path, not just the one in the diff.
 - An inconclusive re-read keeps the finding and lowers its severity per the **risk-based severity** rule above — never drops it.
@@ -168,7 +168,7 @@ Apply the contract in `@rules/code-review/general.mdc` *Real-Code Grounding for 
 - The contract's "the reviewer's own re-read is the only ground" clause is what the issue #17 carve-out below rests on: a test-only declaration never removes a finding here.
 
 ### Assignment-declared "test-only" carve-out (issue #17)
-Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/High/Medium/Low). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
+Findings from this skill are **never** eligible for the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), at **any** severity (Critical/High/Medium/Low). A "test-only" declaration on an assignment source may at most annotate a finding here as *"author claims test-only"* — it never removes the finding, never excludes it into `## Excluded per assignment`, and never drops it below the merge gate.
 
 ### Severity
 - Critical

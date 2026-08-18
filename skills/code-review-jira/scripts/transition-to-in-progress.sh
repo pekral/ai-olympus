@@ -2,7 +2,7 @@
 # transition-to-in-progress.sh — move a JIRA issue to the project's In Progress
 # status at the start of work (the "claim" transition).
 #
-# Status transitions are otherwise human-only (rules/jira/general.mdc). This
+# Status transitions are otherwise human-only (rules/jira/general.md). This
 # script is the second sanctioned exception: it can ONLY land an issue in an
 # In Progress (start-of-work) status. It structurally refuses any other target
 # (Done, Closed, Review, …) so an AI agent cannot use it to push work through
@@ -117,7 +117,7 @@ elif [[ -n "${JIRA_IN_PROGRESS_SYNONYMS:-}" ]]; then
 fi
 
 if [[ "$is_progress" != true ]]; then
-  echo "transition-to-in-progress.sh: refused — '$TARGET' is not an In Progress status. This script only transitions to an in-progress (start-of-work) status; every other transition is human-only (rules/jira/general.mdc)." >&2
+  echo "transition-to-in-progress.sh: refused — '$TARGET' is not an In Progress status. This script only transitions to an in-progress (start-of-work) status; every other transition is human-only (rules/jira/general.md)." >&2
   exit 1
 fi
 

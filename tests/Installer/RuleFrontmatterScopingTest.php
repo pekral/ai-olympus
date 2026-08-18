@@ -183,11 +183,75 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
+        'rules/code-review/general.md' => '1cbfdf455e61b079e17ba9684def9f77f82374ae02f14741db4d72cc0be901cb',
+        'rules/code-testing/general.md' => '26da477d1ac7b5ccd0796970a421d46902227a189bde55db4b1ac58ddc3f0192',
+        'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
+        'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
+        'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
+        'rules/reports/general.md' => '2b50c2bdbd14e00b79ed27fc50c8536354bbb20889a0d91aedac510f806c618d',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
         expect(ruleBodyDigest($packageDir . '/' . $relativePath))->toBe($expectedHash);
     }
+});
+
+test('a rule scoped to nothing says so with an explicit empty `paths:` list (issue #277)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $violations = [];
+
+    foreach (ruleScopingReferenceOnlyFiles() as $relativePath) {
+        $frontmatter = ruleExtensionFrontmatter($packageDir . '/' . $relativePath);
+
+        if (!str_contains($frontmatter, "\npaths: []")) {
+            $violations[] = $relativePath . ': does not declare the empty scoping list `paths: []`';
+        }
+
+        if (str_contains($frontmatter, 'alwaysApply') || str_contains($frontmatter, 'globs')) {
+            $violations[] = $relativePath . ': still carries a Cursor-only frontmatter key';
+        }
+
+        if (!str_contains($frontmatter, 'description:')) {
+            $violations[] = $relativePath . ': lost its description';
+        }
+    }
+
+    expect($violations)->toBe([]);
+    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(6);
+});
+
+test('a rule scoped to nothing is claimed neither as always-on nor as path-scoped (issue #277)', function (): void {
+    // The three registries partition every shipped rule, so a rule cannot be silently counted
+    // twice — or, worse, moved between them without the move being visible in a diff.
+    $referenceOnly = ruleScopingReferenceOnlyFiles();
+
+    expect(array_intersect($referenceOnly, ruleExtensionAlwaysOnFiles()))->toBe([]);
+    expect(array_intersect($referenceOnly, array_keys(ruleScopingExpectedGlobs())))->toBe([]);
+});
+
+test('every rule scoped to nothing is still reached by an explicit reference (issue #277)', function (): void {
+    // `paths: []` means the loader never attaches the rule on its own, so the explicit
+    // `@rules/…` references are the only thing keeping it reachable. A rule that loses its last
+    // reference is silenced exactly as completely as a glob that matches nothing, and nothing
+    // else in the build would say so.
+    $walked = packageTextFiles();
+    $unreferenced = [];
+
+    foreach (ruleScopingReferenceOnlyFiles() as $relativePath) {
+        $referencingFiles = array_filter(
+            $walked,
+            static fn (string $contents, string $file): bool => $file !== $relativePath
+                && str_contains($contents, '@' . $relativePath),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        if ($referencingFiles === []) {
+            $unreferenced[] = $relativePath;
+        }
+    }
+
+    expect($walked)->toHaveKey('skills/code-review/SKILL.md');
+    expect($unreferenced)->toBe([]);
 });
 
 test('a rule scoped in issue #274, #275 or #277 is no longer claimed as always-on', function (): void {

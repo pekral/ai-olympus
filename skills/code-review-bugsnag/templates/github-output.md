@@ -4,13 +4,13 @@
 > on Laravel projects the walk runs on every CR run, but the heading is rendered **only when the walk produces at least one finding** — when the walk is clean, omit the heading entirely (no "walked, 0 findings" line, no "clean" placeholder, no confirmation that the check ran). On non-Laravel projects (`laravel/framework` not in `composer.json` `require`), omit the `## Architecture` section entirely. Every section is conditional: omit its heading and body entirely when it has no items. Never emit `None.` / `Not applicable.` / `n/a` / `100%` / `walked, 0 findings` placeholders for empty sections or omitted coverage surfaces — drop them entirely. The Counts line in the header is the single source of "zero" signal;
 > the goal is a clean, scannable PR comment a human can read at a glance — only items that still need action remain in the body.
 >
-> **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and drop the *Refactoring (DRY / tech debt)* and *Refactoring proposals* sections entirely, and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.mdc` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
+> **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and drop the *Refactoring (DRY / tech debt)* and *Refactoring proposals* sections entirely, and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
 >
 > **Always-new comment:** this template is rendered into a fresh comment on every CR run. The hidden marker `<!-- cr-comment:actor=<gh-login> -->` (auto-appended by `skills/code-review-github/scripts/upsert-comment.sh`) stays in the body for per-actor traceability but does not drive an in-place edit — each run POSTs a new comment, so the PR thread keeps a chronological audit trail of CR outputs. The `Last updated` line below carries this run's timestamp.
 
 **Status:** clean / needs-fix
 **Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}  *(always the real detected counts — never zeroed to match a narrowed report scope)*
-**Report scope:** Critical + Moderate only (iteration {n} — Minor findings and refactoring sections suppressed)  *(render this line **only** when the caller passed `iteration > 2` — see `@rules/code-review/general.mdc` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*; omit it entirely on iterations 1–2 and on standalone runs)*
+**Report scope:** Critical + Moderate only (iteration {n} — Minor findings and refactoring sections suppressed)  *(render this line **only** when the caller passed `iteration > 2` — see `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*; omit it entirely on iterations 1–2 and on standalone runs)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
 **Linked-tracker mirror:** {posted JIRA summary on <KEY> (+ mirrored to GitHub issue #N) | JIRA only — no linked GitHub issue | failed: <reason>}
@@ -19,7 +19,7 @@
 
 ## Technical Review
 
-> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.mdc`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
+> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.mdc`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
 
 ## Findings
 
@@ -132,7 +132,7 @@
 
 ## Functional Review
 
-> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.mdc` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already behind the `assignment conformance:` token on the Summary line below — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
+> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already behind the `assignment conformance:` token on the Summary line below — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
 
 {conformant → "All stated assignment requirements are satisfied." | gaps → list every Critical functional / business-logic gap below — still counted in the Counts line above}
 

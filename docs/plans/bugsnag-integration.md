@@ -29,7 +29,7 @@ Domov změny:
 - **Úpravy sdílených bodů** (4–5 souborů): `resolve-issue/references/source-detection.md` (řádek Bugsnag
   místo pass-through), `resolve-issue/SKILL.md` (sekce posílání reportu), `pr-summary` (nová šablona
   `templates/pr-summary-bugsnag.md` + Bugsnag jako cíl), `prepare-issue-context`, `assignment-compliance-check`,
-  `code-review/SKILL.md`. A nové pravidlo `.claude/rules/bugsnag/general.mdc` (paralela k `rules/jira/general.mdc`):
+  `code-review/SKILL.md`. A nové pravidlo `.claude/rules/bugsnag/general.mdc` (paralela k `rules/jira/general.md`):
   tooling (`bugsnag` CLI → MCP fallback), formát komentáře, a default **„stav erroru mění jen člověk"**
   shodný s JIRA stance.
 
@@ -70,7 +70,7 @@ linkovaný GitHub PR = cíl technického CR.
   `skills/pr-summary/templates/pr-summary-{github,jira}.md`.
 - Detekce a orchestrace: `skills/resolve-issue/SKILL.md`, `skills/resolve-issue/references/source-detection.md`,
   `skills/prepare-issue-context/SKILL.md`, `skills/assignment-compliance-check/SKILL.md`, `skills/code-review/SKILL.md`.
-- JIRA pravidlo jako vzor: `.claude/rules/jira/general.mdc`.
+- JIRA pravidlo jako vzor: `.claude/rules/jira/general.md`.
 - Bugsnag Data Access API: base `https://api.bugsnag.com`, auth `Authorization: token <TOKEN>`
   (Getting Started — developer.smartbear.com/bugsnag/docs/getting-started). Endpointy: organizations,
   projects, errors (list/get/**update** status fix/open/ignore/snooze + assign), events (list/get s full

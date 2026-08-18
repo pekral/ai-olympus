@@ -182,7 +182,7 @@ test('dependency-only pull requests are exempt from the code-review merge gate',
     expect($merge)->toContain('never from the PR title, the branch name, or the author being a bot');
     expect($merge)->toContain('files[]');
     // Adding or removing a package keeps the full code-review gate.
-    expect($merge)->toContain('@rules/php/dependency-selection.mdc');
+    expect($merge)->toContain('@rules/php/dependency-selection.md');
     // The exemption covers the code-review gate only.
     expect($merge)->toContain('The exemption covers the code-review gate **and nothing else**.');
     // The waiver must stay auditable in the merge report.
@@ -276,10 +276,10 @@ test('assignment-compliance-check omits the block on clean assignments and remov
 
 test('refactoring requires pre-refactor 100% coverage and unchanged tests in the refactor commit (issue #493)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/refactoring/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/refactoring/general.md');
     $classRefactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.mdc',
+        $packageDir . '/rules/code-review/general.md',
     );
 
     expect($rule)->toContain('## Test Coverage Contract (mandatory — issue #493)');
@@ -292,7 +292,7 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($classRefactoring)->toContain('### Test Coverage Gate (mandatory pre-flight — issue #493)');
     expect($classRefactoring)->toContain('**If coverage is below 100% on the target lines, stop and write the missing tests first.**');
     expect($classRefactoring)->toContain('**Test assertion logic must not change during the refactor.**');
-    expect($classRefactoring)->toContain('`@rules/refactoring/general.mdc` Test Coverage Contract');
+    expect($classRefactoring)->toContain('`@rules/refactoring/general.md` Test Coverage Contract');
 
     expect($codeReview)->toContain('**Refactoring test-coverage contract (issue #493)**');
     expect($codeReview)->toContain('Walk the PR commit history and verify the refactor commit is **preceded by a dedicated test commit**');
@@ -406,7 +406,7 @@ test('core standards forbid speculative project-owned interfaces', function (): 
 test('code-review skill flags speculative interfaces in Core Analysis', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.mdc',
+        $packageDir . '/rules/code-review/general.md',
     );
 
     expect($content)->toContain('Speculative interfaces');
@@ -619,7 +619,7 @@ test('JIRA context-consuming skills offer gather-issue-context.sh', function ():
 
 test('jira rule permits the single code-review transition via the helper only', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/jira/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     expect($content)->toContain('transition-to-code-review.sh');
     expect($content)->toContain('human-only');
@@ -628,7 +628,7 @@ test('jira rule permits the single code-review transition via the helper only', 
 
 test('jira rule permits two sanctioned transitions and names both helpers (issue #704)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/jira/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     expect($content)->toContain('transition-to-in-progress.sh');
     expect($content)->toContain('transition-to-code-review.sh');
@@ -720,7 +720,7 @@ test('Bugsnag context-consuming skills offer gather-issue-context.sh', function 
 
 test('dependency-selection rule gates every new Composer package on activity and compatibility', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rulePath = $packageDir . '/rules/php/dependency-selection.mdc';
+    $rulePath = $packageDir . '/rules/php/dependency-selection.md';
 
     expect(is_file($rulePath))->toBeTrue();
 
@@ -762,7 +762,7 @@ test('dependency-selection rule gates every new Composer package on activity and
 
     foreach ($callers as $caller) {
         $body = (string) file_get_contents($caller);
-        expect($body)->toContain('@rules/php/dependency-selection.mdc');
+        expect($body)->toContain('@rules/php/dependency-selection.md');
     }
 });
 
@@ -1212,7 +1212,7 @@ test('quality gates reuse a green CI result for the loop gate but never the fina
     expect($gates)->toContain('queries a live advisory database at run time');
     expect($gates)->toContain('**Staleness guard (mandatory, exact match — no heuristics).**');
     expect($gates)->toContain('git status --porcelain --untracked-files=all');
-    expect($gates)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.mdc`');
+    expect($gates)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.md`');
     expect($gates)->toContain('the loop gate additionally requires the local `HEAD` to equal that actually-checked-out SHA');
     expect($gates)->toContain('there is no per-check "could not have affected it" carve-out');
     expect($gates)->toContain('the same coverage threshold as the local gate');
@@ -1237,7 +1237,7 @@ test('quality gates reuse a green CI result for the loop gate but never the fina
     // concept is exactly what issue #143 removed (follow-up to the #137 hardening). The negative
     // assertion keeps the removed restatement from creeping back in alongside the citation.
     expect($process)->toContain('is gated by that subsection\'s **Staleness guard** bullet');
-    expect($process)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.mdc`');
+    expect($process)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.md`');
     expect($process)->toContain('not merely the workflow\'s nominal trigger SHA — a `pull_request` event may check out a merge ref');
     expect($process)->toContain('a clean working tree with the local `HEAD` equal to it');
     expect($process)->not->toContain('requires a clean working tree with `HEAD` at the exact commit CI validated');

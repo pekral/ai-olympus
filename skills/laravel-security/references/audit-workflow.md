@@ -257,7 +257,7 @@ composer audit
 npm audit --audit-level=high
 ```
 
-**Referenční oprava:** sekce *Secrets and Dependencies* v `@skills/laravel-security/SKILL.md`. Pro dependency-selection viz `@rules/php/dependency-selection.mdc`.
+**Referenční oprava:** sekce *Secrets and Dependencies* v `@skills/laravel-security/SKILL.md`. Pro dependency-selection viz `@rules/php/dependency-selection.md`.
 
 **Příklad regresního testu (CI pin):**
 

@@ -36,7 +36,7 @@ test('the SQL rule requires bounded reads instead of materialising a growing set
 
 test('the code-review rule carries the bulk-data walk with its severities and gating (issue #223)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
 
     expect($rule)->toContain('## Bulk Data & Batch Processing (issue #223)');
 

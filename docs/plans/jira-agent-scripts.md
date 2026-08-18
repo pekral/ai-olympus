@@ -13,7 +13,7 @@ Reálně dodáno (oproti původnímu návrhu níže přibyl `gather-issue-contex
 | Komplexní kontext (issue + komentáře + přílohy + rekurzivně propojené issues + inventář URL → Markdown brief) | `gather-issue-context.sh` (nový) | hotovo |
 | Změna statusu → Code Review | `transition-to-code-review.sh` (nový) | hotovo |
 
-Wiring do skillů: `rules/jira/general.mdc` (výjimka pro transition), `code-review-jira`
+Wiring do skillů: `rules/jira/general.md` (výjimka pro transition), `code-review-jira`
 (katalog scriptů), `resolve-issue` (gather + transition po PR), `prepare-issue-context`
 (gather), `tester-cookbook` (gather).
 
@@ -34,7 +34,7 @@ bez ad-hoc `acli` příkazů a bez rizika, že posune issue do jiného než revi
 Vše žije v **existujícím** domově JIRA nástrojů `skills/code-review-jira/scripts/`, vedle
 `load-issue.sh` a `upsert-comment.sh`. Nezavádíme nový adresář ani novou abstrakci —
 stavíme na tom, co už repo má (`acli` jako primární nástroj, JIRA MCP jako fallback,
-viz `rules/jira/general.mdc`).
+viz `rules/jira/general.md`).
 
 Mapování operace → script:
 
@@ -52,7 +52,7 @@ stávající scripty — viz "Known debt" níže.
 
 ## Implementation steps
 
-1. **Úprava pravidla `rules/jira/general.mdc` (governance, vyžaduje souhlas člověka).**
+1. **Úprava pravidla `rules/jira/general.md` (governance, vyžaduje souhlas člověka).**
    Řádek 9 dnes říká "Never change JIRA issue status." Nahradit zněním s jedinou výjimkou:
    > Never change JIRA issue status, with one exception: a single allowed transition to the
    > project's Code Review status, performed only via
@@ -108,7 +108,7 @@ ve dvou nových scriptech (4×). Až bude třeba pátá kopie, vytáhnout sdíle
 
 - `skills/code-review-jira/scripts/load-issue.sh` — čtení issue + komentářů (`acli jira workitem view --json`, `comment list --json --paginate`), stabilní JSON shape vč. `.comments[]`.
 - `skills/code-review-jira/scripts/upsert-comment.sh` — idempotentní comment upsert (anchor podle aktora).
-- `rules/jira/general.mdc:9` — zákaz změny statusu (mění krok 1); řádky 16–31 — povinný Wiki Markup pro komentáře.
+- `rules/jira/general.md:9` — zákaz změny statusu (mění krok 1); řádky 16–31 — povinný Wiki Markup pro komentáře.
 - `acli jira workitem transition --help` — `--key`, `--status "<name>"`, `--yes`, `--json`; přechod podle **jména** cílového stavu.
 - `acli jira workitem comment list --help` — `--json --paginate`.
 - Požadavek uživatele: status smí jít **jen na "Code Review"**, název se liší projekt od projektu → najít nebo se doptat.
@@ -121,4 +121,4 @@ ve dvou nových scriptech (4×). Až bude třeba pátá kopie, vytáhnout sdíle
 - Při neznámém názvu review stavu skončí exit 5 s instrukcí pro MCP discovery / doptání, nikdy netipuje náhodný přechod.
 - Chybějící `acli` → exit 2; selhání API → exit 3 (konzistentní se stávajícími scripty).
 - `composer build` a `composer skill-check` prochází.
-- `rules/jira/general.mdc` obsahuje výjimku omezenou na jediný script a jediný cílový stav.
+- `rules/jira/general.md` obsahuje výjimku omezenou na jediný script a jediný cílový stav.

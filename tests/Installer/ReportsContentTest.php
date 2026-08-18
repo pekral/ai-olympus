@@ -2,9 +2,9 @@
 
 declare(strict_types = 1);
 
-test('reports/general.mdc rule ships in the package and declares the canonical language statement', function (): void {
+test('reports/general.md rule ships in the package and declares the canonical language statement', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rulePath = $packageDir . '/rules/reports/general.mdc';
+    $rulePath = $packageDir . '/rules/reports/general.md';
 
     expect(is_file($rulePath))->toBeTrue();
 
@@ -17,7 +17,7 @@ test('reports/general.mdc rule ships in the package and declares the canonical l
     expect($content)->toContain('@rules/git/general.md');
 });
 
-test('every tracker-publishing skill references @rules/reports/general.mdc', function (): void {
+test('every tracker-publishing skill references @rules/reports/general.md', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $trackerPublishingSkills = [
         $packageDir . '/skills/pr-summary/SKILL.md',
@@ -36,9 +36,9 @@ test('every tracker-publishing skill references @rules/reports/general.mdc', fun
     foreach ($trackerPublishingSkills as $skillFile) {
         $content = (string) file_get_contents($skillFile);
 
-        $hasReference = str_contains($content, '@rules/reports/general.mdc');
+        $hasReference = str_contains($content, '@rules/reports/general.md');
 
-        expect($hasReference)->toBeTrue($skillFile . ' must reference the shared tracker-report language rule (@rules/reports/general.mdc)');
+        expect($hasReference)->toBeTrue($skillFile . ' must reference the shared tracker-report language rule (@rules/reports/general.md)');
     }
 });
 
@@ -71,17 +71,17 @@ test('no tracker-publishing skill still carries the obsolete "must be in English
     }
 });
 
-test('readme rules overview lists the reports/general.mdc rule', function (): void {
+test('readme rules overview lists the reports/general.md rule', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $readme = (string) file_get_contents($packageDir . '/README.md');
 
-    expect($readme)->toContain('`reports/general.mdc`');
+    expect($readme)->toContain('`reports/general.md`');
     expect($readme)->toContain('Language rule for reports published to issue trackers');
 });
 
-test('reports/general.mdc declares the GitHub-PR technical-CR English exception', function (): void {
+test('reports/general.md declares the GitHub-PR technical-CR English exception', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/reports/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/reports/general.md');
 
     expect($content)->toContain('Exception — technical CR findings on the GitHub PR');
     expect($content)->toContain('canonical English');
@@ -91,9 +91,9 @@ test('reports/general.mdc declares the GitHub-PR technical-CR English exception'
     expect($content)->toContain('pr-summary');
 });
 
-test('reports/general.mdc bans bilingual parentheses and mid-comment language mixing', function (): void {
+test('reports/general.md bans bilingual parentheses and mid-comment language mixing', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/reports/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/reports/general.md');
 
     expect($content)->toContain('never mix that language with another natural language');
     expect($content)->toContain('No bilingual parentheses');
@@ -101,9 +101,9 @@ test('reports/general.mdc bans bilingual parentheses and mid-comment language mi
     expect((bool) preg_match('/use the Czech equivalents \(e\.g\. \*Kritické\*, \*Závažné\*, \*Drobné\*\)/', $content))->toBeFalse();
 });
 
-test('reports/general.mdc names pr-deploy-planner as a second GitHub-PR English exception', function (): void {
+test('reports/general.md names pr-deploy-planner as a second GitHub-PR English exception', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $ruleContent = (string) file_get_contents($packageDir . '/rules/reports/general.mdc');
+    $ruleContent = (string) file_get_contents($packageDir . '/rules/reports/general.md');
     $skillContent = (string) file_get_contents($packageDir . '/skills/pr-deploy-planner/SKILL.md');
 
     expect($ruleContent)->toContain('@skills/pr-deploy-planner/SKILL.md');
@@ -130,7 +130,7 @@ test('CR wrapper skills carry the GitHub-PR English exception in their constrain
         $mentionsCanonicalEnglish = str_contains($content, 'canonical English');
 
         expect($namesException && $mentionsCanonicalEnglish)->toBeTrue(
-            $skillFile . ' must cite the GitHub-PR technical-CR English exception from @rules/reports/general.mdc',
+            $skillFile . ' must cite the GitHub-PR technical-CR English exception from @rules/reports/general.md',
         );
     }
 });

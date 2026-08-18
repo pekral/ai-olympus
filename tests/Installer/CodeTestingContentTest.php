@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 test('code-testing rule bans tautological assertions and names every detectable form', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
+    $content = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
 
     expect($content)->toContain('## No Tautological Assertions');
     expect($content)->toContain('**No tautological assertion belongs in the codebase.**');

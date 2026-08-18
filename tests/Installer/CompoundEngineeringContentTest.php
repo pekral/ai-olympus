@@ -987,7 +987,7 @@ test('an inventory of externally-visible actions and consent levels exists (issu
     expect($athena)->toContain('publishes one consolidated review to the tracker (L1)');
     expect($athena)->toContain('so a human owns the disclosure decision (L3)');
 
-    $jiraRule = (string) file_get_contents($packageDir . '/rules/jira/general.mdc');
+    $jiraRule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
     expect($jiraRule)->toContain('stays human-only (L3,');
 });
 

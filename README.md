@@ -369,33 +369,35 @@ schtasks /create /tn "agent-skills" /sc hourly /mo 2 /tr "cmd /c cd /d C:\path\t
 
 Rules included in this package:
 
-| File                          | Description                                                | Scope    |
-|-------------------------------|------------------------------------------------------------|----------|
-| `php/core-standards.md`      | Project context, AI behavior, and unified PHP/Laravel coding standards | PHP      |
-| `php/examples/named-arguments.md` | Named-arguments usage examples (good/avoid) supporting the PHP core standards | Always   |
-| `php/dependency-selection.mdc` | Composer dependency selection — activity and compatibility gates before adopting a new package | Dependencies |
-| `compound-engineering/general.md` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
+| File                                    | Description                                                                                                                                                       | Scope         |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| `php/core-standards.md`                 | Project context, AI behavior, and unified PHP/Laravel coding standards                                                                                            | PHP           |
+| `php/examples/named-arguments.md`       | Named-arguments usage examples (good/avoid) supporting the PHP core standards                                                                                     | Always        |
+| `php/dependency-selection.md`           | Composer dependency selection — activity and compatibility gates before adopting a new package                                                                    | Reference     |
+| `compound-engineering/general.md`       | Compound engineering — make future work easier and read the per-project compound memory                                                                           | Always        |
 | `compound-engineering/orchestration.md` | Dispatch-time orchestration mechanics — Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, orchestrator turn discipline | Orchestration |
-| `git/general.md`             | Unified git workflow, commits, and pull request rules       | Always   |
-| `code-review/general.mdc`     | Code review conventions and output rules                   | Always   |
-| `code-testing/general.mdc`    | Testing conventions and quality standards                  | Always   |
-| `api/general.md`             | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency | API      |
-| `refactoring/general.mdc`     | Shared refactoring definition (legacy → modern, incremental migration) | Refactor |
-| `jira/general.mdc`            | JIRA CLI usage and formatting rules                        | JIRA     |
-| `reports/general.mdc`         | Language rule for reports published to issue trackers (assignment language) | Always   |
-| `writing/general.md`         | Simplified technical writing (ASD-STE100 principles) for every agent response | Always   |
-| `laravel/architecture.md`     | Laravel architecture and conventions                       | Laravel  |
-| `laravel/laravel.md`         | Laravel-specific rules and patterns                        | Laravel  |
-| `laravel/filament.md`         | Filament v4 specific rules                                 | Filament |
-| `laravel/livewire.md`         | Livewire component rules and conventions                   | Livewire |
-| `laravel/queue-debouncing.md` | Safe Laravel queue debouncing, urgency separation, and replaceable work | Laravel  |
-| `laravel/dynamodb.md`         | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug | Laravel  |
-| `sql/optimalize.md`          | SQL query optimization, index design, schema standards     | SQL      |
-| `security/backend.md`         | Backend security rules and OWASP Top 10 checks             | Always   |
-| `security/frontend.md`        | Frontend security rules (XSS, CSRF, CSP)                  | Frontend |
-| `security/mobile.md`          | Mobile-specific security rules and WebView checks          | Mobile   |
+| `git/general.md`                        | Unified git workflow, commits, and pull request rules                                                                                                             | Always        |
+| `code-review/general.md`                | Code review conventions and output rules                                                                                                                          | Reference     |
+| `code-testing/general.md`               | Testing conventions and quality standards                                                                                                                         | Reference     |
+| `api/general.md`                        | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency                                                              | API           |
+| `refactoring/general.md`                | Shared refactoring definition (legacy → modern, incremental migration)                                                                                            | Reference     |
+| `jira/general.md`                       | JIRA CLI usage and formatting rules                                                                                                                               | Reference     |
+| `reports/general.md`                    | Language rule for reports published to issue trackers (assignment language)                                                                                       | Reference     |
+| `writing/general.md`                    | Simplified technical writing (ASD-STE100 principles) for every agent response                                                                                     | Always        |
+| `laravel/architecture.md`               | Laravel architecture and conventions                                                                                                                              | Laravel       |
+| `laravel/laravel.md`                    | Laravel-specific rules and patterns                                                                                                                               | Laravel       |
+| `laravel/filament.md`                   | Filament v4 specific rules                                                                                                                                        | Filament      |
+| `laravel/livewire.md`                   | Livewire component rules and conventions                                                                                                                          | Livewire      |
+| `laravel/queue-debouncing.md`           | Safe Laravel queue debouncing, urgency separation, and replaceable work                                                                                           | Laravel       |
+| `laravel/dynamodb.md`                   | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug                                                                                          | Laravel       |
+| `sql/optimalize.md`                     | SQL query optimization, index design, schema standards                                                                                                            | SQL           |
+| `security/backend.md`                   | Backend security rules and OWASP Top 10 checks                                                                                                                    | Always        |
+| `security/frontend.md`                  | Frontend security rules (XSS, CSRF, CSP)                                                                                                                          | Frontend      |
+| `security/mobile.md`                    | Mobile-specific security rules and WebView checks                                                                                                                 | Mobile        |
 
-**The extension decides who reads the file.** Claude Code loads only `.md` rules from `.claude/rules/`, and it loads them unconditionally unless the frontmatter carries a `paths` list that scopes them. A `.mdc` file is Cursor's format: Claude Code never injects it, so those rules reach an agent only when a skill, an agent file, or `CLAUDE.md` references them by path and the agent reads them on demand. Both kinds are installed; only the `.md` ones are automatic (issue #187). Seven rules moved from `.mdc` to `.md` in that fix — the installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/agent-skills install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
+**The `paths:` key decides when a rule loads.** Every rule ships as `.md`, the only extension Claude Code reads from `.claude/rules/`, and every rule states its reach with one key. A rule with **no `paths:` key** loads into every session — the `Always` scope above. A rule with a **`paths:` list** loads when the session touches a file the list matches. A rule with an **empty list**, `paths: []`, never loads on its own — the `Reference` scope above: it reaches an agent only when a skill, an agent file, or another rule names it and the agent reads it on demand.
+
+Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue #187 moved seven rules, issue #277 the remaining eleven). The installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/agent-skills install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
 
 ## Development & Testing
 

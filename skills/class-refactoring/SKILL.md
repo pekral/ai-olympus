@@ -31,11 +31,11 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 ---
 
 ## Constraints
-- Apply @rules/refactoring/general.mdc — shared definition of refactoring, recommended incremental process, and "no big-bang rewrite" rule.
+- Apply @rules/refactoring/general.md — shared definition of refactoring, recommended incremental process, and "no big-bang rewrite" rule.
 - Apply @rules/php/core-standards.md
-- Apply @rules/php/dependency-selection.mdc — when the refactor proposes extracting behavior into an external Composer package or replacing a hand-rolled helper with a library, run the Activity gate + Compatibility gate from that rule before recommending the dependency. A refactor that adopts an archived / abandoned / branch-pinned package is rejected on the spot.
+- Apply @rules/php/dependency-selection.md — when the refactor proposes extracting behavior into an external Composer package or replacing a hand-rolled helper with a library, run the Activity gate + Compatibility gate from that rule before recommending the dependency. A refactor that adopts an archived / abandoned / branch-pinned package is rejected on the spot.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
-- Apply @rules/code-testing/general.mdc
+- Apply @rules/code-testing/general.md
 - Never change behavior
 - Keep public API stable unless explicitly required
 
@@ -59,7 +59,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 
 > **`MODE=cr`:** do not write tests or commits. Run the coverage check read-only and report any target lines below 100% coverage as a refactoring finding (a refactor cannot land safely without them) — then continue the analysis. The steps below that author tests / commits apply to `MODE=apply` only.
 
-**The gate is blocking.** Refactoring may not edit a single line of production code until tests for the target lines reach 100% coverage. Satisfy the **Test Coverage Contract** defined in `@rules/refactoring/general.mdc`:
+**The gate is blocking.** Refactoring may not edit a single line of production code until tests for the target lines reach 100% coverage. Satisfy the **Test Coverage Contract** defined in `@rules/refactoring/general.md`:
 
 1. Verify coverage of the *current* code that the refactor will touch, using the project's available coverage tooling scoped to those files (per `@rules/php/core-standards.md` Testing section). Every line, branch, and condition must already be at 100%.
 2. **If coverage is below 100% on the target lines, stop and write the missing tests first.** Use `@skills/create-test/SKILL.md` to author them; commit them in a dedicated `test(scope): cover <area> before refactor` commit per `@rules/git/general.md` Allowed Types. The pre-refactor coverage commit and the refactor commit are **always two separate commits** — never squash them and never mix new tests into the refactor commit.
@@ -69,9 +69,9 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 ### Refactoring steps
 
 - Analyze the class and identify the highest-impact refactoring.
-- Follow the incremental process from `@rules/refactoring/general.mdc` (stabilize → identify entry points → introduce Action pattern → split responsibilities → modernize → DRY → concurrency). Never propose a big-bang rewrite.
+- Follow the incremental process from `@rules/refactoring/general.md` (stabilize → identify entry points → introduce Action pattern → split responsibilities → modernize → DRY → concurrency). Never propose a big-bang rewrite.
 - Fix any obvious pre-existing bugs before refactoring (separate commit).
-- Apply focused refactoring **strictly per the applied rules** — `@rules/refactoring/general.mdc`, `@rules/php/core-standards.md`, `@rules/code-testing/general.mdc`, and (for Laravel projects) `@rules/laravel/laravel.md` + `@rules/laravel/architecture.md` + `@rules/laravel/filament.md` + `@rules/laravel/livewire.md`. The refactor rewrites the existing code into the **target architecture** (Action / Service / Repository / ModelManager / Data Validator / Data Builder / DTO per project rules) and the **target code-style** (naming, structure, parameter count, nesting, design principles). Anything that would deviate from the rules is rewritten until it complies; do not invent ad-hoc structure outside the rule set.
+- Apply focused refactoring **strictly per the applied rules** — `@rules/refactoring/general.md`, `@rules/php/core-standards.md`, `@rules/code-testing/general.md`, and (for Laravel projects) `@rules/laravel/laravel.md` + `@rules/laravel/architecture.md` + `@rules/laravel/filament.md` + `@rules/laravel/livewire.md`. The refactor rewrites the existing code into the **target architecture** (Action / Service / Repository / ModelManager / Data Validator / Data Builder / DTO per project rules) and the **target code-style** (naming, structure, parameter count, nesting, design principles). Anything that would deviate from the rules is rewritten until it complies; do not invent ad-hoc structure outside the rule set.
 - Concrete refactoring activities:
   - simplify structure
   - reduce complexity
@@ -79,7 +79,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
   - extract responsibilities where needed
 - **Test assertion logic must not change during the refactor.** The pre-refactor coverage commit fixed the contract; the refactor commit changes structure only. Pre-existing assertions, expected return values, expected exceptions, expected persisted state, and expected emitted events stay byte-for-byte the same — they are the proof that behavior is preserved. The only allowed test edits in the refactor commit are mechanical renames forced by the refactor itself (e.g. namespace move, constructor argument order forced by an extracted DTO), and they must be flagged in the commit body.
 If an assertion would have to change to make the refactor green, treat that as a signal that you are no longer refactoring and split the behavior change into its own commit instead. New tests that cover newly introduced code paths belong in a separate `test(scope): …` commit *after* the refactor.
-- **After the refactor — re-verify coverage stayed 100%.** Once the refactor commit is in place, run the coverage tooling again scoped to the refactored files and confirm every changed line, branch, and condition is still exercised and the pre-existing assertions still pass unchanged. Coverage must **remain** 100% — a refactored line that is no longer covered means the refactor introduced an untested path; fix the path (it is usually dead code or a new branch), never restore the number by editing the pre-refactor tests. This is the apply-mode enforcement of step 4 of the **Test Coverage Contract** in `@rules/refactoring/general.mdc`.
+- **After the refactor — re-verify coverage stayed 100%.** Once the refactor commit is in place, run the coverage tooling again scoped to the refactored files and confirm every changed line, branch, and condition is still exercised and the pre-existing assertions still pass unchanged. Coverage must **remain** 100% — a refactored line that is no longer covered means the refactor introduced an untested path; fix the path (it is usually dead code or a new branch), never restore the number by editing the pre-refactor tests. This is the apply-mode enforcement of step 4 of the **Test Coverage Contract** in `@rules/refactoring/general.md`.
 - Avoid unnecessary changes outside the scope.
 - Prefer small, safe transformations over large rewrites.
 
@@ -130,7 +130,7 @@ every rendered branch of the touched view (initial render, `wire:loading`, `@emp
 ## Testing
 
 - **`MODE=cr`:** this section is apply-mode only — the read-only lens audits coverage per the Test Coverage Gate note and reports gaps as findings; it never authors tests or commits.
-- The **Test Coverage Gate** in the Execution section is the binding rule — pre-existing target lines must be at 100% coverage *before* the refactor, written into a dedicated `test(scope): cover <area> before refactor` commit per `@rules/refactoring/general.mdc` Test Coverage Contract.
+- The **Test Coverage Gate** in the Execution section is the binding rule — pre-existing target lines must be at 100% coverage *before* the refactor, written into a dedicated `test(scope): cover <area> before refactor` commit per `@rules/refactoring/general.md` Test Coverage Contract.
 - Inside the refactor commit, **assertion logic of pre-existing tests must remain unchanged**. Expected return values, expected exceptions, expected persisted state, expected emitted events, and expected side effects all stay identical — they are the behavior-preservation proof. Mechanical renames forced by the refactor itself (namespace move, constructor argument shape forced by an extracted DTO) are the only allowed test edits and must be flagged in the commit body. An assertion that has to change is a behavior change, not a refactor — split it out.
 - New tests covering code paths introduced by the refactor go in a separate `test(scope): …` commit *after* the refactor.
 - Prefer realistic tests over heavy mocking.

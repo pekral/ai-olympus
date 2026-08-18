@@ -16,12 +16,12 @@ De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-l
 ## Constraints
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/git/general.md`
-- Apply `@rules/jira/general.mdc` when the assignment lives in JIRA
+- Apply `@rules/jira/general.md` when the assignment lives in JIRA
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - **Read-only for production code.** This skill never modifies production source files. It is allowed to: create temporary seeders / factories / Tinker scripts under `database/seeders/`, `database/factories/`, or a scratch directory; insert rows into the **development** database; create scratch Pest tests that reproduce the bug. It is **never** allowed to mutate the production database, run destructive migrations, drop tables, push to the remote, or modify code in `src/` / `app/` outside of seed-only fixtures.
 - Never invent values that are not derivable from the assignment, the codebase, or the existing dev database. When a required value (account ID, contact phone, enum case, config key) cannot be resolved, list it as a gap — do not guess.
 - Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420600000000`-style sentinels, `qa-*` aliases) explicitly tagged as such.
-- Apply `@rules/reports/general.mdc` — when a context-preparation summary is published to the tracker (via `@skills/pr-summary/SKILL.md`), it must be written in the language of the source assignment. The in-conversation `ready` / `blocked` status is allowed to stay in English.
+- Apply `@rules/reports/general.md` — when a context-preparation summary is published to the tracker (via `@skills/pr-summary/SKILL.md`), it must be written in the language of the source assignment. The in-conversation `ready` / `blocked` status is allowed to stay in English.
 
 ---
 

@@ -51,7 +51,7 @@ For every PR that touches DynamoDB code, reviewers must verify:
 
 ## Testing and Debugging with Tinker
 - If Laravel Tinker is available in the project (check `composer.json` for `laravel/tinker`), use `php artisan tinker` for every ad-hoc DynamoDB query verification or debug session instead of writing throwaway routes, commands, or seeders.
-- Tinker complements but does not replace the Pest tests required by `@rules/code-testing/general.mdc` for every behavior change.
+- Tinker complements but does not replace the Pest tests required by `@rules/code-testing/general.md` for every behavior change.
 - Use Tinker to:
   - Confirm whether a builder produces a `Query` or a `Scan` before merging — inspect the builder, dump the underlying AWS SDK request, or enable SDK logging.
   - Verify the shape of items returned by repositories against real data.

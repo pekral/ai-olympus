@@ -10,7 +10,7 @@ use Closure;
  * Entry-point dispatcher for `bin/agent-skills`.
  *
  * It exists so the process layer stays at the edge: `resolve-next` has to spawn `gh` and
- * `claude`, and @rules/code-testing/general.mdc forbids a test from invoking an external binary.
+ * `claude`, and @rules/code-testing/general.md forbids a test from invoking an external binary.
  * The executor is therefore a required argument supplied by `bin/agent-skills`, which keeps every
  * line under src/ reachable from a test with a fake.
  */

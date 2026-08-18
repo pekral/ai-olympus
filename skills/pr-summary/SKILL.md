@@ -25,8 +25,8 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 - Apply @rules/php/core-standards.md
 - Apply @rules/git/general.md
-- Apply @rules/jira/general.mdc when the target is a JIRA issue
-- Apply @rules/reports/general.mdc — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
+- Apply @rules/jira/general.md when the target is a JIRA issue
+- Apply @rules/reports/general.md — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 
 ### What the comment carries
@@ -43,7 +43,7 @@ Every sentence this skill authors into the rendered comment — the `Summary of 
 - **Abbreviations:** standard well-known acronyms are fine (DB, API, HTTP); never invent new abbreviations (cfg / impl / req) — they save nothing and cost clarity.
 - **No decoration:** no decorative tables, no decorative emoji, no causal arrows (→) in authored prose. The ⚠️ in the `{assignment_verdict}` banner is a functional warning marker, not decoration, and stays.
 - **Verbatim always:** technical terms, code identifiers, toggle names, values, URLs, and commands.
-- **Compress the style, never the language** — the assignment-language rule above (`@rules/reports/general.mdc`) is unchanged.
+- **Compress the style, never the language** — the assignment-language rule above (`@rules/reports/general.md`) is unchanged.
 - **Never name or announce the style** in the rendered comment — no "terse mode", no "caveman". The JIRA template's generator-attribution footer is traceability, not a style announcement, and stays.
 - **Auto-clarity carve-outs** — write normal, fully explicit sentences instead of terse ones for: the `{assignment_verdict}` banner (must-not-be-missed information), security warnings and destructive / irreversible actions inside `How to test` steps, and any spot where compression would blur the order or meaning of a step. Never drop a word whose absence changes or blurs a tester's action.
 - **Never compressed at all:** the `Authors` and `Available behind` metadata lines, the `{embedded_blocks}` slot (rendered verbatim per the consolidation contract below), pre-authored test steps passed by the caller (used as passed), and the templates' fixed footers.
@@ -75,7 +75,7 @@ Always flag a change reachable only behind a feature flag, ENV switch, query-str
 
 ### No leaked markup on JIRA
 
-When the target is JIRA, the rendered body must contain **only** JIRA Wiki Markup — never a Markdown control character that JIRA would show as literal text. Before publishing, scan the body and convert or reject each of these per `@rules/jira/general.mdc`:
+When the target is JIRA, the rendered body must contain **only** JIRA Wiki Markup — never a Markdown control character that JIRA would show as literal text. Before publishing, scan the body and convert or reject each of these per `@rules/jira/general.md`:
 
 | Markdown | JIRA Wiki Markup |
 |---|---|

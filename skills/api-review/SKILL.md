@@ -11,7 +11,7 @@ metadata:
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/security/backend.md` — for the error-text and authorization-leak surface of API responses (401/403/404 wording, no internal-detail leak).
 - If the current project uses Laravel, also apply `@rules/laravel/architecture.md` and `@rules/laravel/laravel.md` — validation belongs in FormRequest / Data Validator, controllers stay slim.
-- Apply `@rules/reports/general.mdc` — when the findings are folded into the **GitHub PR comment** by a CR wrapper they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*; a non-technical mirror on a linked issue / JIRA ticket follows the language of the source assignment. HTTP verbs, status codes, header names, and code identifiers stay verbatim regardless of the surrounding prose language.
+- Apply `@rules/reports/general.md` — when the findings are folded into the **GitHub PR comment** by a CR wrapper they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*; a non-technical mirror on a linked issue / JIRA ticket follows the language of the source assignment. HTTP verbs, status codes, header names, and code identifiers stay verbatim regardless of the surrounding prose language.
 - Output findings only — no praise, no summary of what was checked.
 - **Read-only skill** — never modify code, never stage / commit / push, and never run any git write operation. Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing is not.
 
@@ -60,9 +60,9 @@ Walk the diff against each pillar of `@rules/api/general.md` and raise one findi
 ## Report
 
 ### Real-Code Grounding for Every Finding (issue #97)
-Apply the contract in `@rules/code-review/general.mdc` *Real-Code Grounding for Every Finding (issue #97)* to every finding — **Critical, Moderate, and Minor alike; no severity is exempt**. On this skill's surface the context to re-read is the enclosing route / controller / FormRequest / API Resource, plus any Service or DTO the Suggested Fix depends on — a contract claim is grounded only when the real route definition and the real response shape were both read. The requirement holds equally for a standalone run (e.g. a pre-release API design check).
+Apply the contract in `@rules/code-review/general.md` *Real-Code Grounding for Every Finding (issue #97)* to every finding — **Critical, Moderate, and Minor alike; no severity is exempt**. On this skill's surface the context to re-read is the enclosing route / controller / FormRequest / API Resource, plus any Service or DTO the Suggested Fix depends on — a contract claim is grounded only when the real route definition and the real response shape were both read. The requirement holds equally for a standalone run (e.g. a pre-release API design check).
 
-Findings from this skill fold into the core CR's severity buckets; the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) is applied by `@skills/code-review/SKILL.md`, not here — trust-boundary / authorization findings from Core Check 6 fall under the gate's security carve-out and are never excludable.
+Findings from this skill fold into the core CR's severity buckets; the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) is applied by `@skills/code-review/SKILL.md`, not here — trust-boundary / authorization findings from Core Check 6 fall under the gate's security carve-out and are never excludable.
 
 Use the severity scale of `@skills/code-review/SKILL.md` so findings fold cleanly into the code review:
 

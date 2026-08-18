@@ -9,10 +9,10 @@ metadata:
 ## Constraints
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/git/general.md`
-- Apply `@rules/jira/general.mdc` — JIRA comments must be in Wiki Markup, never Markdown
-- Apply `@rules/reports/general.mdc` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
+- Apply `@rules/jira/general.md` — JIRA comments must be in Wiki Markup, never Markdown
+- Apply `@rules/reports/general.md` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
 - Read-only relative to the codebase. The skill never modifies code; it only publishes a JIRA comment.
-- Never change the JIRA task status — per `@rules/jira/general.mdc`, status transitions are handled by humans only.
+- Never change the JIRA task status — per `@rules/jira/general.md`, status transitions are handled by humans only.
 - The audience is an internal QA tester who is not a programmer. Everything in the report must be verifiable by clicking in the application, opening a report screen, reading a delivered email/SMS, or checking the account balance. Anything that cannot be verified that way belongs in the dev-team report as a flag for the development team, not as a tester action.
 - **Forbidden vocabulary** in the comment body — replace with a UI-visible label before publishing:
   - infrastructure: `queue`, `lambda`, `SQS`, `ENV`, `.env`, `config`, `feature flag` (use *switch in Administration*), `job`, `dispatch`, `retry`, `polling`, `telemetry`, `log`, `Bugsnag`, `Slack` (unless the Slack notification is what the tester reads), `AWS`, `payload`, `endpoint`, `API v2` (unless that exact wording appears in the UI).
@@ -72,7 +72,7 @@ Every comment opens with two metadata lines (in JIRA Wiki Markup), then the body
 - Bold: `*bold*`. Italic: `_italic_`.
 - UI labels (button names, menu items) are bold (*Open Campaigns*), **not** wrapped in `{{...}}` — `{{...}}` reads as code and disrupts a non-technical reader.
 - Use `{{...}}` only for literal strings the tester types verbatim, e.g. the test phone number `{{+420600000000}}`.
-- No code fences (` ``` `), no Markdown headings, no Markdown tables. The full conversion cheatsheet lives in `@rules/jira/general.mdc`.
+- No code fences (` ``` `), no Markdown headings, no Markdown tables. The full conversion cheatsheet lives in `@rules/jira/general.md`.
 
 ### 6. Pre-publish validation
 Before sending the comment, scan the body for every forbidden token listed in **Constraints**. When a forbidden token is found, either:

@@ -12,7 +12,7 @@ declare(strict_types = 1);
  */
 test('the testing rule forbids a payload closure on a job-dispatch assertion (issue #181)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-testing/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
 
     // The rule states the prohibition, the reason, and the place the payload belongs instead —
     // dropping any of the three turns it back into a style preference a reviewer can wave through.
@@ -43,7 +43,7 @@ test('the testing rule forbids a payload closure on a job-dispatch assertion (is
 
 test('the code-review rule carries the walk that makes the job-assertion rule enforceable (issue #181)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
 
     expect($rule)->toContain('Job-dispatch assertions carry no payload closure (issue #181)');
     expect($rule)->toContain('An integer second argument is not a finding');
@@ -59,7 +59,7 @@ test('no example this package ships passes a closure to a job-dispatch assertion
     // These three quote the forbidden form in order to forbid or record it: the two rule files
     // state the prohibition, and the changelog entry explains it. Everything else in the package
     // is a place where the pattern would be an example to copy.
-    $quotesToForbid = ['rules/code-testing/general.mdc', 'rules/code-review/general.mdc', 'CHANGELOG.md'];
+    $quotesToForbid = ['rules/code-testing/general.md', 'rules/code-review/general.md', 'CHANGELOG.md'];
     $assertions = ['assertPushed', 'assertNotPushed', 'assertPushedOn', 'assertDispatched', 'assertNotDispatched', 'assertDispatchedSync'];
     $violations = [];
 

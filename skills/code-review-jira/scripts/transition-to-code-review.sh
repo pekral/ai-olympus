@@ -2,7 +2,7 @@
 # transition-to-code-review.sh — move a JIRA issue to the project's Code Review
 # status, and nothing else.
 #
-# Status transitions are otherwise human-only (rules/jira/general.mdc). This
+# Status transitions are otherwise human-only (rules/jira/general.md). This
 # script is the single sanctioned exception: it can ONLY land an issue in a
 # review status. It structurally refuses any other target (Done, In Progress,
 # Closed, …) so an AI agent cannot use it to push work through the board.
@@ -111,7 +111,7 @@ elif [[ -n "${JIRA_CODE_REVIEW_SYNONYMS:-}" ]]; then
 fi
 
 if [[ "$is_review" != true ]]; then
-  echo "transition-to-code-review.sh: refused — '$TARGET' is not a Code Review status. This script only transitions to a review status; every other transition is human-only (rules/jira/general.mdc)." >&2
+  echo "transition-to-code-review.sh: refused — '$TARGET' is not a Code Review status. This script only transitions to a review status; every other transition is human-only (rules/jira/general.md)." >&2
   exit 1
 fi
 

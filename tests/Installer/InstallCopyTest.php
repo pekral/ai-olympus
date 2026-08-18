@@ -73,7 +73,7 @@ test('install copies rules from package when no development directory', function
         $files = [];
 
         foreach ($iterator as $file) {
-            if ($file instanceof SplFileInfo && $file->getExtension() === 'mdc') {
+            if ($file instanceof SplFileInfo && $file->getExtension() === 'md') {
                 $files[] = $file->getPathname();
             }
         }

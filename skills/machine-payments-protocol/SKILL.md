@@ -15,7 +15,7 @@ metadata:
 - Never invent a protocol detail. Every concrete claim below is labeled **Spec** (cited, with retrieval date), **Package** (a real third-party Laravel package, not the spec), or **Illustrative** (this skill's / the requesting issue's own example naming — never protocol vocabulary). Full source table: `references/protocol-sourcing.md`.
 - The spec is an individual IETF Internet-Draft (`draft-ryan-httpauth-payment-01`), not a ratified standard — no working-group adoption, expires 2026-09-19. Treat every **Spec** claim as a moving target and re-verify before relying on it long-term.
 - Do not cite `https://www.machinepaymentsprotocol.org/` — it does not resolve.
-- Adopting `square1/laravel-mpp` (or any other MPP package) is a Composer dependency decision — apply `@rules/php/dependency-selection.mdc` (Activity + Compatibility gates, selection note) before proposing it in generated code.
+- Adopting `square1/laravel-mpp` (or any other MPP package) is a Composer dependency decision — apply `@rules/php/dependency-selection.md` (Activity + Compatibility gates, selection note) before proposing it in generated code.
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens.
 
 ## Use when

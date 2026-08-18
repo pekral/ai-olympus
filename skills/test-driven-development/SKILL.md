@@ -8,7 +8,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/php/core-standards.md`
-- Apply `@rules/code-testing/general.mdc`
+- Apply `@rules/code-testing/general.md`
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Follow test conventions from `@skills/create-test/SKILL.md`
 
@@ -89,7 +89,7 @@ Never fix a bug without first writing or updating a test that reproduces it.
 2. Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
 3. Run available fixers on changed files and fix any violations.
 4. Run available checkers/analyzers on changed files and resolve all reported errors.
-5. Run a quick code review of all tests written during the TDD cycle against `@rules/code-testing/general.mdc` and fix any findings.
+5. Run a quick code review of all tests written during the TDD cycle against `@rules/code-testing/general.md` and fix any findings.
 
 ## Done when
 - Every implemented behavior is backed by a test

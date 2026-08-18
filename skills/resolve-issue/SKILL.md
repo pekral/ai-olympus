@@ -8,9 +8,9 @@ metadata:
 
 ## Constraints
 - Apply `@rules/php/core-standards.md`
-- Apply `@rules/php/dependency-selection.mdc` — whenever the resolution flow needs to add a new Composer dependency (Packagist or a GitHub-hosted VCS repository), run the Activity gate + Compatibility gate from that rule before recommending a package, and embed the selection note in the PR description. When no candidate passes the gates, stop and surface the disqualification table to the user instead of adopting an inactive library.
+- Apply `@rules/php/dependency-selection.md` — whenever the resolution flow needs to add a new Composer dependency (Packagist or a GitHub-hosted VCS repository), run the Activity gate + Compatibility gate from that rule before recommending a package, and embed the selection note in the PR description. When no candidate passes the gates, stop and surface the disqualification table to the user instead of adopting an inactive library.
 - Apply `@rules/git/general.md`
-- Apply `@rules/reports/general.mdc`. The **final technical report** this skill posts on the GitHub PR (code-review and security-review summary block) stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **non-technical report** posted on the original issue / JIRA ticket / Bugsnag-linked GitHub issue follows the language of the source assignment. Code identifiers, file paths, severity labels, and CLI commands stay verbatim regardless of the surrounding prose language; never mix two natural languages inside a single comment.
+- Apply `@rules/reports/general.md`. The **final technical report** this skill posts on the GitHub PR (code-review and security-review summary block) stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **non-technical report** posted on the original issue / JIRA ticket / Bugsnag-linked GitHub issue follows the language of the source assignment. Code identifiers, file paths, severity labels, and CLI commands stay verbatim regardless of the surrounding prose language; never mix two natural languages inside a single comment.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Follow project architecture and testing rules
 - Do not expose sensitive/internal details in user-facing messages
@@ -203,7 +203,7 @@ Post the technical report as a comment on the GitHub PR, since that is where the
 Post the non-technical report on the issue tracker where the task with the assignment was created (the original tracker, regardless of where the PR lives):
 
 - **GitHub** (task filed as a GitHub issue): post as a comment on the original issue
-- **JIRA** (task filed in JIRA): post as a JIRA comment formatted with JIRA Wiki Markup per `@rules/jira/general.mdc` (no Markdown headings, fenced code blocks, or tables)
+- **JIRA** (task filed in JIRA): post as a JIRA comment formatted with JIRA Wiki Markup per `@rules/jira/general.md` (no Markdown headings, fenced code blocks, or tables)
 - **Bugsnag** (task originated from a Bugsnag error): post the non-technical report as a comment directly on the Bugsnag error via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (requires `BUGSNAG_TOKEN`; falls back to a Bugsnag MCP server when the script is unavailable). Also mirror it as a comment on the linked GitHub issue from `linkedIssues[]` when one exists.
 
 The non-technical report must be understandable by non-technical testers and product managers and contain:
@@ -218,7 +218,7 @@ The non-technical report must be understandable by non-technical testers and pro
 
 ### JIRA-specific follow-up
 - Link the created PR back to the JIRA issue.
-- Once the PR is open, move the issue to the project's Code Review status by running `skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>`. This is the second sanctioned status transition (the first is the In Progress claim at the start of work via `skills/code-review-jira/scripts/transition-to-in-progress.sh`; per `@rules/jira/general.mdc`); the helper refuses any non-review target and only reports success after confirming the issue actually reached the review column. When it exits 5 — the review-status name differs for this project and could not be auto-resolved — discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human. Perform no other status transition; all others remain human-only.
+- Once the PR is open, move the issue to the project's Code Review status by running `skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>`. This is the second sanctioned status transition (the first is the In Progress claim at the start of work via `skills/code-review-jira/scripts/transition-to-in-progress.sh`; per `@rules/jira/general.md`); the helper refuses any non-review target and only reports success after confirming the issue actually reached the review column. When it exits 5 — the review-status name differs for this project and could not be auto-resolved — discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human. Perform no other status transition; all others remain human-only.
 
 ### Bugsnag-specific follow-up
 - The created PR is linked through the Bugsnag error's existing GitHub integration (`linkedIssues[]`); do not invent a second link.

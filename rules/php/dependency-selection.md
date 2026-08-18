@@ -1,7 +1,6 @@
 ---
 description: Criteria and selection process for choosing a Composer dependency from Packagist or a GitHub-hosted VCS repository
-alwaysApply: false
-globs: []
+paths: []
 ---
 
 ## Scope

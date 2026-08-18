@@ -14,7 +14,7 @@ Create or update tests to cover current changes according to project conventions
 ---
 
 ## Constraints
-- Apply @rules/code-testing/general.mdc
+- Apply @rules/code-testing/general.md
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Do not modify production code unless strictly required — the only exception is the **Pre-existing issue handling** workflow below, which lands its production-code fixes in their own separate commits
 
@@ -42,7 +42,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - Prefer updating existing tests
 - Create new tests only if necessary
 - Follow project conventions and helpers
-- **Place new test files per `@rules/code-testing/general.mdc` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
+- **Place new test files per `@rules/code-testing/general.md` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
 - **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions. When changing what a test asserts, rename the description in the same change so the code-review test-organization gate passes downstream.
 - **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
 
@@ -68,7 +68,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - Run available checkers/analyzers on changed test files and resolve all reported errors
 
 ### 7. Test Review
-- Run a quick code review of the created/updated tests against `@rules/code-testing/general.mdc`
+- Run a quick code review of the created/updated tests against `@rules/code-testing/general.md`
 - Fix any findings before finalizing
 
 ### 8. Pre-existing issue handling
@@ -88,7 +88,7 @@ Rules:
    - The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance.
    - **Test coverage workflow depends on the commit type:**
      - `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.
-     - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
+     - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.md` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
 4. The "Do not modify production code unless strictly required" constraint above is **overridden** for these fixes — the production-code change is the fix itself, and it lives in its own commit.
 5. If a pre-existing issue is **non-trivial** (would significantly expand the change or requires architectural discussion), do **not** fix it. Surface it in the skill's output report as a deferred follow-up with the reason.
 

@@ -32,6 +32,34 @@ test('every rule renamed away from .mdc ships as .md so Claude Code actually loa
     expect($revived)->toBe([]);
 });
 
+test('the rules tree ships one extension and one scoping key (issue #277)', function (): void {
+    // Two dialects side by side meant the author of a new rule had to choose, and half the
+    // choices were wrong: a `.mdc` file is one Claude Code never loads, and `globs:` /
+    // `alwaysApply:` are keys it never reads. Neither may come back.
+    $packageDir = dirname(__DIR__, 2);
+    $ruleFiles = ruleTreeFiles();
+    $violations = [];
+
+    foreach ($ruleFiles as $relativePath) {
+        if (!str_ends_with($relativePath, '.md')) {
+            $violations[] = $relativePath . ': is not a `.md` file, so Claude Code never loads it';
+
+            continue;
+        }
+
+        $frontmatter = ruleExtensionFrontmatter($packageDir . '/' . $relativePath);
+
+        if (str_contains($frontmatter, 'globs') || str_contains($frontmatter, 'alwaysApply')) {
+            $violations[] = $relativePath . ': carries a Cursor-only frontmatter key';
+        }
+    }
+
+    // Without this the test passes vacuously the moment the walk stops finding anything.
+    expect($ruleFiles)->toContain('rules/php/core-standards.md');
+    expect(count($ruleFiles))->toBeGreaterThan(20);
+    expect($violations)->toBe([]);
+});
+
 test('an always-on rule declares "always" the way Claude Code documents it (issue #187)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $violations = [];

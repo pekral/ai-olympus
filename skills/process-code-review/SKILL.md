@@ -9,8 +9,8 @@ metadata:
 **Constraint:**
 - Apply @rules/php/core-standards.md
 - Apply @rules/git/general.md
-- Apply @rules/jira/general.mdc
-- Apply @rules/reports/general.mdc. **CR reply comments and resolved-items updates posted on the GitHub PR** stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* (they extend the technical CR thread). The **mirrored non-technical summary** delegated to `@skills/pr-summary/SKILL.md` on the linked issue / JIRA ticket follows the language of the source assignment. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.
+- Apply @rules/jira/general.md
+- Apply @rules/reports/general.md. **CR reply comments and resolved-items updates posted on the GitHub PR** stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* (they extend the technical CR thread). The **mirrored non-technical summary** delegated to `@skills/pr-summary/SKILL.md` on the linked issue / JIRA ticket follows the language of the source assignment. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Never mix two natural languages inside a single CR comment. The English exception applies to entire comments — not to inline parenthetical glosses.
 - Never push direct changes to the main branch
@@ -53,7 +53,7 @@ The rebase replayed every commit onto a new base, so before the `git push --forc
 - Build the checklist from **both** sources:
   1. Structured CR findings published by the review skills (general comments come from `comments[]`).
   2. **Unresolved reviewer threads** from the `reviewThreads` query — add every thread where `isResolved == false` (human reviewer **and** bot) as a checklist item, and **skip every thread where `isResolved == true`**. Record each thread's `id` so it can be marked resolved once its fix lands (see **Resolve addressed reviewer threads** below).
-- **`## Excluded per assignment` entries are not findings (issue #17).** A CR's `## Excluded per assignment` section (`@rules/code-review/general.mdc` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) lists findings the Exclusion Gate already relocated out of the blocking buckets — do **not** add these entries to the checklist, do not extract a reproducer for them, and do not generate a fix commit for them.
+- **`## Excluded per assignment` entries are not findings (issue #17).** A CR's `## Excluded per assignment` section (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) lists findings the Exclusion Gate already relocated out of the blocking buckets — do **not** add these entries to the checklist, do not extract a reproducer for them, and do not generate a fix commit for them.
 - Map each finding to a concrete code or test change
 
 #### Reproducer extraction (per finding)
@@ -98,7 +98,7 @@ Rules:
    - The `pre-existing — ` prefix is mandatory so reviewers can identify these commits at a glance.
    - **Test coverage workflow depends on the commit type:**
      - `fix(<scope>): pre-existing — …` (bug, security) — add the regression test in the **same commit** as the fix; the test must fail before the fix lands and pass after.
-     - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.mdc` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
+     - `refactor(<scope>): pre-existing — …` (project-rule violation, behavior-preserving) — apply `@rules/refactoring/general.md` *Test Coverage Contract*: when the target lines are below 100% coverage, author a dedicated `test(<scope>): cover <area> before pre-existing refactor` commit **before** the refactor commit, and do **not** modify pre-existing tests inside the refactor commit (mechanical renames forced by the refactor itself stay exempt and must be flagged in the commit body).
    - Either way, pre-existing fixes follow the same diff-scoped 100% coverage rule as CR fixes.
 4. In the `cr-status` PR comment posted during **PR update**, list every pre-existing fix under a `## Pre-existing fixes` heading with a one-line rationale, so reviewers can review them independently of the CR thread.
 5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the `cr-status` comment as a deferred follow-up with the reason, **and file it yourself as a follow-up issue in the originating tracker** per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*) — do not leave the filing to the reviewer. The `cr-status` entry carries the created issue URL.
@@ -148,7 +148,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 #### Late-iteration report scope (iteration > 2)
 
 - Pass `iteration = <N>` to the CR wrapper on **every** invocation — the quiet loop runs above and the final publishing run in **Completion** below (that one carries the loop's **final** iteration number, so a loop that needed more than two rounds publishes the narrowed report and one that converged sooner publishes the full one).
-- From `iteration = 3` onward the wrapper reports **Critical and Moderate findings only** per `@rules/code-review/general.mdc` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*: no Minor findings, no refactoring sections. Nothing actionable is lost — step 5 above already applies fixes for Critical / Moderate findings only, so the suppressed items were never part of the loop's fix set, and the convergence condition in step 4 reads exactly the two severities the narrowed report keeps.
+- From `iteration = 3` onward the wrapper reports **Critical and Moderate findings only** per `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*: no Minor findings, no refactoring sections. Nothing actionable is lost — step 5 above already applies fixes for Critical / Moderate findings only, so the suppressed items were never part of the loop's fix set, and the convergence condition in step 4 reads exactly the two severities the narrowed report keeps.
 - The narrowing never changes what the review **detects** — only what it renders. The wrapper still reports the real `Counts:` numbers and an explicit `Report scope:` line, so a suppressed Minor is visible as a number and never reads as a clean result.
 
 ---
@@ -157,7 +157,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
 This runs **inside the review loop**, once per iteration, so it uses the cheap **loop gate** from `@skills/resolve-issue/references/quality-gates.md` *Loop gate vs. final gate (issue #65)*: diff-scoped fixers / checkers / coverage on the changed files only, and **skip** the dependency/skill reinstall (`agent-skills install --force`, `composer install`) — nothing the loop does changes them. The full `composer build` (install + full-suite `--min=100`) is **not** run per iteration; it is the **final gate** run once in *Finalization* below, before the push. This lightens the loop without weakening the merge bar — the full build still guards the boundary (issue #75).
 Before re-running a check here, first look for a green CI result on the exact current commit and reuse it instead (`@skills/resolve-issue/references/quality-gates.md` *CI-result reuse for the loop gate (issue #124)*):
-this reuse applies only to **this** loop gate — never to the *Final gate* below, even though both sections happen to share the title "Pre-push quality gates" — is gated by that subsection's **Staleness guard** bullet, which cites the canonical **Staleness guard** sentence in `@rules/code-review/general.mdc` *Validation & Coverage Gate* → Coverage gate → "Reuse CI results when available" for what that run's **actually-checked-out SHA** means (not merely the workflow's nominal trigger SHA — a `pull_request` event may check out a merge ref) and additionally demands a clean working tree with the local `HEAD` equal to it, and never treats a non-green conclusion as a pass.
+this reuse applies only to **this** loop gate — never to the *Final gate* below, even though both sections happen to share the title "Pre-push quality gates" — is gated by that subsection's **Staleness guard** bullet, which cites the canonical **Staleness guard** sentence in `@rules/code-review/general.md` *Validation & Coverage Gate* → Coverage gate → "Reuse CI results when available" for what that run's **actually-checked-out SHA** means (not merely the workflow's nominal trigger SHA — a `pull_request` event may check out a merge ref) and additionally demands a clean working tree with the local `HEAD` equal to it, and never treats a non-green conclusion as a pass.
 `security-audit` is excluded from reuse entirely, alongside any check CI never runs at all (`skill-check`, `composer-normalize-check`, `shell-self-tests`, as this repository's example) — all of those always execute locally, every iteration, regardless of CI status.
 
 - Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`)
@@ -175,7 +175,7 @@ That check needs no savings mode, is consulted before the opt-in tree-hash cache
 - Commit and push changes
 - If PR does not exist, create it according to @rules/git/general.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
   - Title in English (per `@rules/git/general.md`)
-  - Body in the assignment language (per `@rules/reports/general.mdc`)
+  - Body in the assignment language (per `@rules/reports/general.md`)
 
 ---
 

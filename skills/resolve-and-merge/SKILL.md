@@ -8,7 +8,7 @@ metadata:
 
 ## Constraints
 - Apply `@rules/git/general.md`
-- Apply `@rules/reports/general.mdc`
+- Apply `@rules/reports/general.md`
 - Apply `@rules/compound-engineering/general.md`
 - Operate on the current Git repository's GitHub remote only — refuse if the remote is not GitHub
 - **Strictly sequential.** Process one task at a time, start to finish, before touching the next. Never fan work out across tasks in parallel, and never split the batch across several dispatches in one message

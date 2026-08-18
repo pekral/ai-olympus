@@ -300,8 +300,11 @@ function ruleExtensionRenamedFromMdcFiles(): array
 {
     return [
         'rules/api/general.md',
+        'rules/code-review/general.md',
+        'rules/code-testing/general.md',
         'rules/compound-engineering/general.md',
         'rules/git/general.md',
+        'rules/jira/general.md',
         'rules/laravel/architecture.md',
         'rules/laravel/dynamodb.md',
         'rules/laravel/filament.md',
@@ -309,6 +312,9 @@ function ruleExtensionRenamedFromMdcFiles(): array
         'rules/laravel/livewire.md',
         'rules/laravel/queue-debouncing.md',
         'rules/php/core-standards.md',
+        'rules/php/dependency-selection.md',
+        'rules/refactoring/general.md',
+        'rules/reports/general.md',
         'rules/sql/optimalize.md',
         'rules/writing/general.md',
     ];
@@ -325,11 +331,17 @@ function ruleExtensionRenamedFromMdcFiles(): array
 function ruleExtensionRenamedInIssue277Files(): array
 {
     return [
+        'rules/code-review/general.md',
+        'rules/code-testing/general.md',
+        'rules/jira/general.md',
         'rules/laravel/architecture.md',
         'rules/laravel/dynamodb.md',
         'rules/laravel/filament.md',
         'rules/laravel/livewire.md',
         'rules/laravel/queue-debouncing.md',
+        'rules/php/dependency-selection.md',
+        'rules/refactoring/general.md',
+        'rules/reports/general.md',
     ];
 }
 
@@ -493,6 +505,29 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
 }
 
 /**
+ * The rules issue #277 gave an explicit empty scoping list, `paths: []`. Each carried Cursor's
+ * `alwaysApply: false` plus `globs: []` — scoped to nothing, so Cursor never attached it by file
+ * path either, and as a `.mdc` file Claude Code never loaded it at all. Both readings agree that
+ * the rule reaches an agent only when a skill, an agent file, or another rule names it, so the
+ * empty list is the translation that keeps the behaviour these rules already had. Dropping the
+ * key instead would have made all six always-on, which is the opposite of what issues #274 and
+ * #275 spent their diffs achieving.
+ *
+ * @return array<int, string>
+ */
+function ruleScopingReferenceOnlyFiles(): array
+{
+    return [
+        'rules/code-review/general.md',
+        'rules/code-testing/general.md',
+        'rules/jira/general.md',
+        'rules/php/dependency-selection.md',
+        'rules/refactoring/general.md',
+        'rules/reports/general.md',
+    ];
+}
+
+/**
  * The globs a rule declares under `paths:`, in declaration order, or an empty list when the rule
  * carries no `paths:` key and is therefore always-on.
  *
@@ -626,6 +661,31 @@ function ruleScopingConsumerPathsOutsideAppTree(): array
 }
 
 /**
+ * Every file under `rules/`, as a package-relative path. Walked from disk rather than listed, so
+ * a rule added in the wrong format cannot escape the guards that read this.
+ *
+ * @return array<int, string>
+ */
+function ruleTreeFiles(): array
+{
+    $packageDir = dirname(__DIR__);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageDir . '/rules', FilesystemIterator::SKIP_DOTS),
+    );
+    $files = [];
+
+    foreach ($iterator as $file) {
+        if ($file instanceof SplFileInfo && $file->isFile()) {
+            $files[] = ltrim(substr($file->getPathname(), strlen($packageDir)), '/');
+        }
+    }
+
+    sort($files);
+
+    return $files;
+}
+
+/**
  * Returns a rule file's YAML frontmatter, or an empty string when it carries none.
  */
 function ruleExtensionFrontmatter(string $path): string
@@ -645,7 +705,7 @@ function ruleExtensionFrontmatter(string $path): string
  * Every text file the package ships, keyed by its package-relative path. Shared by the content
  * guards that have to prove a pattern appears nowhere in the tree — a retired rule path (issue
  * #187), a forbidden test assertion (issue #181). Walked from disk rather than asked of
- * `git ls-files`, because `@rules/code-testing/general.mdc` forbids a test from spawning a real
+ * `git ls-files`, because `@rules/code-testing/general.md` forbids a test from spawning a real
  * system process.
  *
  * @return array<string, string>

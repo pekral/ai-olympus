@@ -1,7 +1,6 @@
 ---
 description: JIRA CLI (acli) usage and fallback rules
-alwaysApply: false
-globs: []
+paths: []
 ---
 
 ## JIRA Rules
