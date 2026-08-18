@@ -601,7 +601,7 @@ test(
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
-        expect($content)->toContain('@rules/compound-engineering/general.md` *Savings mode*');
+        expect($content)->toContain('@rules/compound-engineering/orchestration.md` *Savings mode*');
         expect($content)->toContain('read the brief\'s `## Context pack`');
         expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
         expect($content)->toContain('otherwise report the coverage gate as deferred to `hefaistos`');
@@ -1480,7 +1480,8 @@ test('the Run cleanup anchor is cross-referenced by name from athena and the com
     expect($athena)->toContain('removes it during *Run cleanup*');
     expect($athena)->not->toContain('during its cleanup (step 7 of `agents/daidalos.md`)');
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Temporary-file hygiene moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($rule)->toContain('released by `daidalos` during *Run cleanup*');
     expect($rule)->toContain('*Run cleanup* (`agents/daidalos.md`) is the **reference implementation**');
     expect($rule)->not->toContain('released by `daidalos` in step 7.');
@@ -1526,7 +1527,8 @@ test('the remediation-conformance verdict is derived once, by the single reviewe
 test('every agent declares a per-agent Bash boundary and the harness-enforced disallowedTools it actually gets (issue #163)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Bash capability boundary moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($rule)->toContain('## Bash capability boundary (advisory, not harness-enforced)');
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
@@ -1615,8 +1617,9 @@ test('no agent frontmatter declares memory: or permissionMode: (issue #160)', fu
     }
 
     // The rule states why the ban is held by this test rather than by an assumption about
-    // `disallowedTools:` precedence.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // `disallowedTools:` precedence. This bullet lives in *Bash capability boundary*, moved to
+    // orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($rule)->toContain('not documented by the vendor');
     expect($rule)->toContain('It bans `hooks:` for the same reason and on two further grounds of its own');
     expect($rule)->toContain('anthropics/claude-code#18392');
@@ -1653,7 +1656,13 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     // document may still tell a consuming project to register a hook pointing at a binary path
     // that answers nothing. SECURITY.md is the one exception and is asserted separately below: it
     // has to name the command string so a project that opted in can find the handler to delete.
-    $documents = ['README.md', 'docs/agents.md', 'docs/installation.md', 'rules/compound-engineering/general.md'];
+    $documents = [
+        'README.md',
+        'docs/agents.md',
+        'docs/installation.md',
+        'rules/compound-engineering/general.md',
+        'rules/compound-engineering/orchestration.md',
+    ];
 
     foreach ($documents as $relativePath) {
         expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('agent-skills bash-guard');

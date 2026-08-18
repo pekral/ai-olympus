@@ -78,7 +78,7 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
     }
 });
 
-test('every rule scoped in issue #274 declares exactly the `paths:` list it was scoped to', function (): void {
+test('every rule scoped in issue #274 or #275 declares exactly the `paths:` list it was scoped to', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $violations = [];
 
@@ -99,17 +99,19 @@ test('every rule scoped in issue #274 declares exactly the `paths:` list it was 
     expect($violations)->toBe([]);
     expect(array_keys(ruleScopingExpectedGlobs()))->toBe([
         'rules/api/general.md',
+        'rules/compound-engineering/orchestration.md',
         'rules/laravel/laravel.md',
         'rules/php/core-standards.md',
         'rules/sql/optimalize.md',
     ]);
 });
 
-test('every glob a rule scoped in issue #274 declares matches at least one real path (issue #274)', function (): void {
+test('every glob a rule scoped in issue #274 or #275 declares matches at least one real path (issue #274, #275)', function (): void {
     // A glob that matches nothing silences its rule as completely as deleting the file would,
     // and nothing else in the build would notice. The corpus is this repository's own files plus
     // the consumer-project paths this package writes rules for, since it ships no `app/`,
-    // no migrations and no `.sql` file of its own.
+    // no migrations and no `.sql` file of its own — and, for `.claude/run/**`, a representative
+    // dispatch-time scratch path every consuming project gets once it installs this package.
     $corpus = array_merge(array_keys(packageTextFiles()), ruleScopingConsumerProjectPaths());
     $unmatched = [];
 
@@ -171,7 +173,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     }
 });
 
-test('a rule scoped in issue #274 is no longer claimed as always-on', function (): void {
+test('a rule scoped in issue #274 or #275 is no longer claimed as always-on', function (): void {
     $alwaysOn = ruleExtensionAlwaysOnFiles();
 
     expect($alwaysOn)->toBe([

@@ -350,9 +350,11 @@ function ruleExtensionStaleMdcReferences(array $textFiles): array
  *
  * Issue #274 took four rules off this list by scoping them (see `ruleScopingExpectedGlobs()`).
  * The three that remain are always-on because they govern something every run produces rather
- * than a file type a run may or may not touch: `compound-engineering` governs how any agent
- * orchestrates a run, `git` governs every commit and pull request, and `writing` governs every
- * sentence an agent writes.
+ * than a file type a run may or may not touch: `compound-engineering` (principles only, since
+ * issue #275 split its dispatch-time orchestration mechanics into a scoped `orchestration.md`
+ * sibling — see `ruleScopingExpectedGlobs()`) governs the memory/tracker contract every run
+ * follows, `git` governs every commit and pull request, and `writing` governs every sentence an
+ * agent writes.
  *
  * @return array<int, string>
  */
@@ -366,9 +368,10 @@ function ruleExtensionAlwaysOnFiles(): array
 }
 
 /**
- * The `paths:` globs each rule scoped in issue #274 must declare, written out by hand for the
- * same reason `ruleExtensionAlwaysOnFiles()` is: an expectation read out of the file it checks
- * agrees with any edit made to that file, including a typo.
+ * The `paths:` globs each rule scoped in issue #274 (and, for the compound-engineering split,
+ * issue #275) must declare, written out by hand for the same reason `ruleExtensionAlwaysOnFiles()`
+ * is: an expectation read out of the file it checks agrees with any edit made to that file,
+ * including a typo.
  *
  * @return array<string, array<int, string>>
  */
@@ -382,6 +385,7 @@ function ruleScopingExpectedGlobs(): array
             'packages/**/Http/**/*.php',
             'Modules/**/Http/**/*.php',
         ],
+        'rules/compound-engineering/orchestration.md' => ['.claude/run/**'],
         'rules/laravel/laravel.md' => ['**/*.php'],
         'rules/php/core-standards.md' => ['**/*.php'],
         'rules/sql/optimalize.md' => [
@@ -462,6 +466,9 @@ function ruleScopingGlobMatchesAny(string $glob, array $candidatePaths): bool
  * they are matched against. This package ships instructions, so it holds no `app/`, no
  * migrations and no `.sql` file of its own — without this corpus a glob aimed at a consumer
  * project could match nothing anywhere and the rule would behave as if it had been deleted.
+ * `.claude/run/**` is `.gitignore`d in every consuming project (per this package's own
+ * `agents/daidalos.md` *Shared task brief*), so it never appears in `packageTextFiles()` either
+ * — its representative path lives here for the same reason the rest of this corpus does.
  *
  * @return array<int, string>
  */
@@ -483,6 +490,7 @@ function ruleScopingConsumerProjectPaths(): array
         'app/Shop/Order/OrderModelManager.php',
         'resources/views/order/show.blade.php',
         'config/database.php',
+        '.claude/run/gh-123.md',
     ];
 }
 

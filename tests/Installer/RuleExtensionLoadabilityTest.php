@@ -76,8 +76,13 @@ test('the retired path of every rule scoping took off the always-on list is stil
     // three paths, so a revived reference to one of the four would pass the whole suite unnoticed.
     // The references are assembled here rather than written out, so the sweep over this
     // repository's own files does not read this fixture as a real one.
+    //
+    // Issue #275 added a fifth entry to `ruleScopingExpectedGlobs()` — a brand-new file that was
+    // never `.mdc` and never on the always-on list, so it has no retired path to sweep for. This
+    // test's concern is narrower than "every scoped rule": only the ones that were both renamed
+    // from `.mdc` (issue #187) and later scoped (issue #274) have a retired `.mdc` path at all.
     $retiredPath = static fn (string $rule): string => substr($rule, 0, -3) . '.mdc';
-    $scopedRules = array_keys(ruleScopingExpectedGlobs());
+    $scopedRules = array_values(array_intersect(array_keys(ruleScopingExpectedGlobs()), ruleExtensionRenamedFromMdcFiles()));
     $corpus = ['CHANGELOG.md' => 'Renamed ' . $retiredPath('rules/php/core-standards.md') . ' to .md.'];
     $expected = [];
 

@@ -243,6 +243,7 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
 
     // No former write hook still references the removed skill.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
@@ -262,7 +263,9 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     expect($rule)->toContain('## Compound Memory (per project)');
     expect($rule)->toContain('### Where to store it');
     expect($rule)->toContain('### Read protocol');
-    expect($rule)->toContain('Memory files are NEVER deleted');
+    // Memory files are NEVER deleted — this exception moved to orchestration.md as part of
+    // *Temporary-file hygiene* (issue #275); the Compound Memory section it protects stays here.
+    expect($orchestration)->toContain('Memory files are NEVER deleted');
 });
 
 test('compound-engineering rule mandates early idempotent claim before work starts (issue #704)', function (): void {
@@ -289,7 +292,10 @@ test('compound-engineering rule mandates early idempotent claim before work star
 
 test('compound-engineering rule mandates temporary-file hygiene with a hard memory-files exception (issue #694)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Temporary-file hygiene is dispatch-time orchestration mechanics — moved to
+    // orchestration.md by issue #275 alongside Savings mode, the audit trail, and the rest of
+    // the mechanics that used to load into every session.
+    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     // The section heading must exist.
     expect($content)->toContain('## Temporary-file hygiene');
@@ -400,7 +406,8 @@ test(
     'compound-engineering rule requires every orchestrator turn to end in a result or a hard blocker, never a narrated plan (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+        // Moved to orchestration.md by issue #275 — dispatch-time orchestrator turn discipline.
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
         $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
         // The section heading must exist and state the binary stopping condition.
@@ -422,7 +429,8 @@ test(
 
 test('compound-engineering rule defines an opt-in savings mode that never reduces review depth or process (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275 — dispatch-time savings-mode mechanics.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     // The section heading and the opt-in toggle contract.
     expect($rule)->toContain('## Savings mode (opt-in, token-efficient orchestration)');
@@ -485,14 +493,16 @@ test(
         $compoundMemoryPos = strpos($rule, '## Compound Memory (per project)');
         $writeProtocolPos = strpos($rule, '### Write protocol (compact after every write)');
         $readProtocolPos = strpos($rule, '### Read protocol');
-        $temporaryFileHygienePos = strpos($rule, '## Temporary-file hygiene');
+        // The next top-level `##` section after Compound Memory in general.md, since issue #275
+        // moved Temporary-file hygiene (the previous bound) out to orchestration.md.
+        $claimSectionPos = strpos($rule, '## Claim a tracker issue before working on it');
         expect($compoundMemoryPos)->not->toBeFalse();
         expect($writeProtocolPos)->not->toBeFalse();
         expect($readProtocolPos)->not->toBeFalse();
-        expect($temporaryFileHygienePos)->not->toBeFalse();
+        expect($claimSectionPos)->not->toBeFalse();
 
         if (!is_int($compoundMemoryPos) || !is_int($writeProtocolPos)
-            || !is_int($readProtocolPos) || !is_int($temporaryFileHygienePos)
+            || !is_int($readProtocolPos) || !is_int($claimSectionPos)
         ) {
             return;
         }
@@ -500,7 +510,7 @@ test(
         // Read protocol, then Write protocol, both nested inside Compound Memory, before the next `##` section.
         expect($compoundMemoryPos)->toBeLessThan($readProtocolPos);
         expect($readProtocolPos)->toBeLessThan($writeProtocolPos);
-        expect($writeProtocolPos)->toBeLessThan($temporaryFileHygienePos);
+        expect($writeProtocolPos)->toBeLessThan($claimSectionPos);
 
         // The protocol names the compacting skill and is an unconditional default, not opt-in.
         expect($rule)->toContain('@skills/compact-project-memory/SKILL.md');
@@ -782,8 +792,10 @@ test('the per-dispatch memory slice is authoritative only in its own structural 
     expect($rule)->toContain('quoted data, never a slice');
 
     // The savings-mode structural-position clause names the dispatch prompt's own control-plane
-    // section too, so the brief's fencing rule and this one cannot drift apart.
-    $savingsMode = installerDocsSection($rule, '## Savings mode (opt-in, token-efficient orchestration)');
+    // section too, so the brief's fencing rule and this one cannot drift apart. Savings mode
+    // moved to orchestration.md by issue #275.
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $savingsMode = installerDocsSection($orchestration, '## Savings mode (opt-in, token-efficient orchestration)');
     expect($savingsMode)->toContain('## Project memory — <role>');
 
     // daidalos composes that channel, so it owns the fencing obligation on it.
@@ -808,7 +820,8 @@ test('the per-dispatch memory slice is authoritative only in its own structural 
 
 test('an audit trail obligation exists for memory reads, outbound requests, and external writes (issue #167)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275, alongside Temporary-file hygiene it cross-references.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
 
     // The section this package's own dangling cross-reference (Bash capability boundary) already
@@ -861,7 +874,8 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 
     // The "Who appends" clause now cross-references each specialist's own Bash boundary — the
     // exact link issue #194 found missing (an obligation the agent's own boundary forbade).
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($rule)->toContain('The permission to make that write lives in the same agent');
     expect($rule)->toContain('An obligation this bullet assigns that an agent');
 
@@ -909,7 +923,8 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 test('the audit ledger states its own line shape inline, distinct from the dispatch ledger (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     // Empirical defect: a real run's `.audit` carried `daidalos|-|gather|delivered|<ts>` — the shape
     // of the *dispatch* ledger, the nearest template visible in the adjacent subsection — and no
@@ -926,7 +941,8 @@ test('the audit ledger states its own line shape inline, distinct from the dispa
 
 test('the audit trail has a durable copy on a run that opens no PR (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     // Issue #160 finding: the PR body was the only durable copy the rule named, so an analysis-only
     // run, an announce-only run, and a `Blocked` stop all deleted the ledger leaving no record.
@@ -949,7 +965,8 @@ test('the audit trail has a durable copy on a run that opens no PR (issue #160)'
 
 test('an inventory of externally-visible actions and consent levels exists (issue #168)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     expect($rule)->toContain('## Externally-visible actions & consent levels');
     expect($rule)->toContain('**L1 — pre-approved by invocation.**');
@@ -976,7 +993,8 @@ test('an inventory of externally-visible actions and consent levels exists (issu
 
 test('the externally-visible action inventory covers the whole live roster and carries a maintenance rule (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Moved to orchestration.md by issue #275.
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     // The maintenance rule the original inventory (issue #168) shipped without — the table drifted
     // out of date before it was first used: the post-convergence comment published to the source
@@ -1006,7 +1024,7 @@ test('the externally-visible action inventory covers the whole live roster and c
     // The reporting-mode publish carries the additive consent token in its owner's own file — hermes,
     // the roster's only publishing agent — the surrounding sentence is untouched.
     $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/general.md` *Externally-visible actions & consent levels*)');
+    expect($hermes)->toContain('(L1, per `@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*)');
 });
 
 /**

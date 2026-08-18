@@ -1640,7 +1640,7 @@ test(
         $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
         // rules/code-review/general.mdc Coverage gate now carries the same hardened wording already
-        // established in rules/compound-engineering/general.md and agents/athena.md —
+        // established in rules/compound-engineering/orchestration.md and agents/athena.md —
         // this was the weakest of the four restatements before issue #137's fix.
         expect($crRule)->toContain(
             '**Staleness guard:** CI results are valid only when that run\'s actually-checked-out SHA '
@@ -1866,8 +1866,9 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     // Removing the second derivation must not turn a redundant check into a single point of failure.
     expect($content)->toContain('An absent verdict falls back to the non-owner, it never silently disappears.');
 
-    // Savings-mode mechanism 1 splits invariants and is opt-in; this rule is always on. Cross-linked so they cannot drift.
-    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    // Savings-mode mechanism 1 splits invariants and is opt-in; this rule is always on. Cross-linked so
+    // they cannot drift. Savings mode moved to orchestration.md by issue #275.
+    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($savings)->toContain('is assigned to a single reviewer **always**, savings mode or not');
     expect($savings)->toContain('the two assignments are complementary');
 });

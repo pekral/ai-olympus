@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Apply `@rules/compound-engineering/general.md` *Compound Memory (per project)* — the `### Entry format` shape and the *Temporary-file hygiene* "memory files are NEVER deleted" clause both govern every edit this skill makes.
+- Apply `@rules/compound-engineering/general.md` *Compound Memory (per project)* and `@rules/compound-engineering/orchestration.md` *Temporary-file hygiene* — the `### Entry format` shape and the "memory files are NEVER deleted" clause both govern every edit this skill makes.
 - Reads and edits **only** the resolved memory file (default `docs/memory/PROJECT_MEMORY.md`). Never creates, reads-for-writing, or modifies `CLAUDE.md`, any `rules/**` file, any other file under `skills/**`, or application code.
 - Never commits or pushes. The run that called this skill owns the commit; this skill's only output is the edited memory file plus the returned report.
 - Never adds a new lesson, never re-derives content from the codebase, and never rewrites an entry outside the touched range's primary set or the capped related set (Execution steps 2–3). Does not reintroduce automated *writes* of new lessons — issue #77 stays reverted; this skill only compacts prose someone already wrote.

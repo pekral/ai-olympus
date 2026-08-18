@@ -375,6 +375,7 @@ Rules included in this package:
 | `php/examples/named-arguments.md` | Named-arguments usage examples (good/avoid) supporting the PHP core standards | Always   |
 | `php/dependency-selection.mdc` | Composer dependency selection — activity and compatibility gates before adopting a new package | Dependencies |
 | `compound-engineering/general.md` | Compound engineering — make future work easier and read the per-project compound memory | Always   |
+| `compound-engineering/orchestration.md` | Dispatch-time orchestration mechanics — Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, orchestrator turn discipline | Orchestration |
 | `git/general.md`             | Unified git workflow, commits, and pull request rules       | Always   |
 | `code-review/general.mdc`     | Code review conventions and output rules                   | Always   |
 | `code-testing/general.mdc`    | Testing conventions and quality standards                  | Always   |

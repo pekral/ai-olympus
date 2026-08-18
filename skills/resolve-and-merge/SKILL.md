@@ -145,7 +145,7 @@ A task that cannot reach a merge — merge conflict, failing CI, unconverged rev
 Stop the whole batch only when the repository state itself is unsafe to continue on: a dirty shared working tree left behind, a lost `gh` session, or `$BASE` no longer merge-able.
 
 ### 10. Close out
-- Confirm the working tree is back on `$BASE`, clean, with no leftover task branch and no scratch file (`@rules/compound-engineering/general.md` *Temporary-file hygiene*).
+- Confirm the working tree is back on `$BASE`, clean, with no leftover task branch and no scratch file (`@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*).
 - Confirm the claim label was released on every task that stopped **before its pull request opened**, and left in place on every task that opened one — a claim is never released once a PR exists, merged or not (`@rules/compound-engineering/general.md` *Claim a tracker issue before working on it*). Releasing it there would make the issue pickable again while its PR is still open, which is the collision the claim exists to prevent.
 
 ---
