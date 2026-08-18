@@ -8,6 +8,7 @@ Before committing and pushing changes, run project fixers and checkers on change
 Run in this order:
 1. **Fixers** — run all available fixers on changed files (e.g. code style, rector, normalize). Fix any issues they report.
 2. **Checkers** — run all available checkers/analyzers on changed files (e.g. code style check, static analysis, audit). Resolve all reported errors before proceeding.
+   **Resolve means change the code, never silence the tool.** A `phpcs:ignore`, `@phpstan-ignore`, `@psalm-suppress`, `@SuppressWarnings`, a new baseline / `ignoreErrors` line, or a PHP `@` operator must never enter the diff — `@rules/php/core-standards.md` PHP Practices admits no exception, and a new suppression annotation is a **Critical** review finding. Narrow a type, split a method, introduce a DTO, or assert an invariant the analyser cannot infer. For a genuine false positive in a surface the project does not own, add one scoped entry to the project's own tool configuration naming the single rule and the single path, with a comment naming the external contract that forces it. When neither works, **stop and report it** — state what the checker flags, what was tried, and why neither route resolved it, and let a human decide. Never write the suppression to get the gate green.
 3. **Coverage** — if a coverage command exists, run it and confirm 100% coverage for changed code paths.
 
 If both fixers and checkers fail or are not found, stop and inform the user.

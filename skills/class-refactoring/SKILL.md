@@ -155,7 +155,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 
 - Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`)
 - Run available fixers on all changed files and fix any violations
-- Run available checkers/analyzers on all changed files and resolve all reported errors
+- Run available checkers/analyzers on all changed files and resolve all reported errors **in the code** — a refactor that ends with a `phpcs:ignore`, `@phpstan-ignore`, or any other suppression annotation in the diff has not resolved anything, and `@rules/php/core-standards.md` PHP Practices admits no exception. When restructuring cannot satisfy the analyser and no scoped tool-configuration entry fits, stop and report it rather than silencing the tool.
 
 ## After Completion
 

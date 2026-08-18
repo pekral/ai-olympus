@@ -1226,7 +1226,7 @@ test('code-review rule and skill enforce storage relocation / migration complete
     expect($skill)->toContain('storage relocation / migration completeness (issue #55)');
 });
 
-test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issue #41)', function (): void {
+test('suppression rule pair flags @-prefixed PHPCS annotations as Critical (issues #41, #258)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
@@ -1238,11 +1238,10 @@ test('suppression rule pair flags @-prefixed PHPCS annotations as Moderate (issu
     expect($phpRule)->toContain($fragment);
     expect($crRule)->toContain($fragment);
 
-    // The rule pair itself was previously unpinned — lock the Moderate severity contract.
     expect($phpRule)->toContain('**Do not introduce new static-analysis / linter suppressions.**');
-    expect($phpRule)->toContain('CR severity for an unjustified new suppression: **Moderate**.');
+    expect($phpRule)->toContain('CR severity for a new suppression annotation: **Critical**.');
     expect($crRule)->toContain('**New static-analysis / linter suppression introduced:**');
-    expect($crRule)->toContain('Severity: **Moderate** (declared in `@rules/php/core-standards.md` PHP Practices)');
+    expect($crRule)->toContain('Severity: **Critical** (declared in `@rules/php/core-standards.md` PHP Practices)');
 
     // The code-review skill enumerates the concern so every CR wrapper inherits it.
     expect($skill)->toContain('new static-analysis / linter suppression');
@@ -2032,4 +2031,78 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
         'In `MODE=cr`, raise each comment the diff leaves behind after such a restructuring '
         . 'as a refactoring finding proposing the deletion, instead of deleting it.',
     );
+});
+
+test('no suppression annotation may enter a diff, with no scoping or documentation exception (issue #258)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
+    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    // The carve-out this replaces let any inconvenient finding through: a reviewer could not
+    // tell a real third-party false positive from a fix someone did not want to make.
+    expect($phpRule)->toContain(
+        '**There is no exception: a suppression annotation never appears in a diff, however narrowly it is scoped and however well it is documented.**',
+    );
+    expect($crRule)->toContain('**There is no exemption for a narrowly-scoped, documented suppression**');
+
+    // Withdrawing the escape hatch without naming a replacement route would just move the
+    // pressure onto the reviewer, so the rule states both routes and the stop condition.
+    expect($phpRule)->toContain('Write the code so the finding does not arise.');
+    expect($phpRule)->toContain('**one scoped entry in the project\'s own tool configuration**');
+    expect($phpRule)->toContain('When neither the restructuring nor a scoped configuration entry resolves it, **stop and report it**');
+
+    // A baseline line is the same silence in a different file.
+    expect($phpRule)->toContain('A new `phpstan-baseline.neon` line and a blanket `ignoreErrors` entry are not that');
+    expect($crRule)->toContain('A new `phpstan-baseline.neon` line or a blanket `ignoreErrors` entry is not that scoped entry');
+
+    // assert() resolves the warning rather than hiding it, so it must survive the tightening.
+    expect($crRule)->toContain('`assert($var !== null)` for a required-but-unused variable');
+});
+
+test('the pre-push gates forbid reaching for a suppression to go green (issue #258)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
+
+    // A rule that only fires in review is reactive; the gate is where the suppression would
+    // otherwise get written, so that is where the prohibition has to be stated too.
+    expect($gates)->toContain('**Resolve means change the code, never silence the tool.**');
+    expect($gates)->toContain('Never write the suppression to get the gate green.');
+    expect($refactoring)->toContain('has not resolved anything');
+
+    // Stopping is an outcome the run is allowed to reach -- otherwise the only way out is the
+    // suppression the rule just banned.
+    expect($gates)->toContain('**stop and report it**');
+});
+
+/**
+ * @return list<string>
+ */
+function packageSourceFiles(string $packageDir): array
+{
+    $paths = [];
+
+    foreach (['src', 'bin'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageDir . '/' . $directory, FilesystemIterator::SKIP_DOTS));
+
+        foreach ($iterator as $file) {
+            $paths[] = $file instanceof SplFileInfo && $file->isFile() ? $file->getPathname() : null;
+        }
+    }
+
+    return array_values(array_filter($paths, static fn (?string $path): bool => $path !== null));
+}
+
+test('this package writes no suppression annotation in its own source (issue #258)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The guard's own source names these patterns as data it detects, so match the annotation
+    // form only -- a comment line that opens with the marker, not a mention inside a string.
+    $pattern = '/^\s*(\/\/|#|\*)\s*@?(phpcs:(ignore|disable)|phpstan-ignore|psalm-suppress|phan-suppress)/m';
+    $offenders = array_filter(
+        packageSourceFiles($packageDir),
+        static fn (string $path): bool => preg_match($pattern, (string) file_get_contents($path)) === 1,
+    );
+
+    expect(array_values($offenders))->toBe([]);
 });
