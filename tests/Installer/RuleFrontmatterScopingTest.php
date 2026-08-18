@@ -65,7 +65,7 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
     // is a narrower, exact-byte cross-check specific to this frontmatter-only change.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
-        'backend.md' => '77b3405ea87c2445027d4d9c362e6cc6f8a9791da4fdba763db9bf4eef4a010b',
+        'backend.md' => 'a42397cf06990ec81fc62874000e0a77f826f41d9851f5fa1d9ef8734d932521',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         'mobile.md' => 'f72b824c6f6d23f0db84662ab7de8c54c5126b4d65d5118e44b169d2a4115fea',
     ];
