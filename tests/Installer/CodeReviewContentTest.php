@@ -2106,3 +2106,30 @@ test('this package writes no suppression annotation in its own source (issue #25
 
     expect(array_values($offenders))->toBe([]);
 });
+
+test('a why-comment is exempt only for the residue naming could not carry (issue #263)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
+    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.mdc');
+
+    // The keep bar from #256 says what a comment may explain. Read alone it also licensed
+    // explaining it in prose the code could have carried, which is the hole #263 reported:
+    // a five-line block narrating what a condition tests, ending in a genuine why sentence.
+    expect($standards)->toContain('**Naming comes first, even for a *why* comment.**');
+    expect($standards)->toContain('A multi-line comment explaining what a condition tests is a **finding**, not a *why* comment');
+    expect($standards)->toContain('the explanation belongs in the predicate\'s name');
+
+    // Naming cannot reach everything -- an external identifier has no name to become.
+    expect($standards)->toContain('an external reference such as a ticket, CVE, or RFC identifier');
+
+    // The test has to be applicable by a reviewer without re-deriving the author's intent.
+    expect($standards)->toContain('read the comment, then ask which sentences a reader would still need after the code is named well');
+
+    // The review-side exemption was unconditional and is now scoped to the residue.
+    expect($crRule)->toContain('**Not findings — these stay, at the length the fact needs once naming has taken what it can (issue #263):**');
+    expect($crRule)->toContain('This exemption covers the **residue**, never the whole narrative');
+    expect($crRule)->toContain('Judge the exemption per sentence, not per comment block;');
+
+    // Without this the fix reads as "shorten the comment", which is the wrong half.
+    expect($crRule)->toContain('the **Suggested Fix** extracts that name and keeps only the sentences a reader still needs afterwards');
+});
