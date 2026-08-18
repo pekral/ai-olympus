@@ -2,6 +2,7 @@
 description: SQL query optimization, index design, schema standards, and advanced SQL patterns for MySQL/MariaDB.
 paths:
   - "**/database/migrations/**/*.php"
+  - "database/migrations/**/*.php"
   - "**/*Repository.php"
   - "**/*ModelManager.php"
   - "**/*.sql"

@@ -386,6 +386,7 @@ function ruleScopingExpectedGlobs(): array
         'rules/php/core-standards.md' => ['**/*.php'],
         'rules/sql/optimalize.md' => [
             '**/database/migrations/**/*.php',
+            'database/migrations/**/*.php',
             '**/*Repository.php',
             '**/*ModelManager.php',
             '**/*.sql',
@@ -428,7 +429,13 @@ function ruleScopingGlobs(string $path): array
 /**
  * Whether a `paths:` glob matches at least one of the given repository-relative paths. A double
  * asterisk followed by a separator spans any number of directories, including none; a single
- * asterisk stops at a separator — the semantics Claude Code documents for a rule's `paths:` list.
+ * asterisk stops at a separator; a question mark matches one character that is not a separator.
+ *
+ * These are the semantics this matcher assumes, not ones the vendor states: Claude Code's memory
+ * documentation (https://code.claude.com/docs/en/memory, *Path-specific rules*) shows a pattern
+ * table, brace expansion and bracket expressions, and never says whether a leading double-asterisk
+ * segment may match zero directories. A glob that would depend on that therefore ships next to a root-anchored twin,
+ * so the rule still loads if the assumption turns out to be wrong.
  *
  * @param array<int, string> $candidatePaths
  */
