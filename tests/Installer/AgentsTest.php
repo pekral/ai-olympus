@@ -1544,7 +1544,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     // The qualifier and the exception bullet must stay together — the absolute claim on its own
     // contradicts SECURITY.md, which cites this section as the source of the harness research.
     expect($rule)->toContain('Nothing in the Claude Code harness enforces any bullet above **by default**');
-    expect($rule)->toContain('**The two opt-in exceptions to "nothing enforces". First, `--deny-network-bash` (issue #184).**');
+    expect($rule)->toContain('**The one opt-in exception to "nothing enforces" — `--deny-network-bash` (issue #184).**');
     expect($rule)->toContain('refuses those command strings before they run');
     expect($rule)->toContain('The flag is **off by default**');
     // The exception must never be overstated: still session-wide, still not an egress control.
@@ -1552,15 +1552,12 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('it is **not an egress control**');
     expect($rule)->toContain('never cite the flag as closing the gap this section documents');
 
-    // Issue #185 added the second exception — the per-agent one, and the only runtime component
-    // this package ships. The count in the lead-in and the bullet must move together, and the
-    // exception must stay described as a check rather than a sandbox.
-    expect($rule)->toContain('the two opt-in exceptions a consuming project can turn on for itself');
-    expect($rule)->toContain('- **Second, `--enforce-agent-bash-boundary` (issue #185)**');
-    expect($rule)->toContain('it is a **check, not a sandbox**');
-    expect($rule)->toContain('It sees a command string, never a process tree.');
-    // The non-goal #185 states explicitly: the prose above stays the contract and the fallback.
-    expect($rule)->toContain('the prose stays the human-readable contract and the fallback whenever the flag is not installed');
+    // Issue #265 removed the per-agent validator again, so the count in the lead-in returns to
+    // one and no bullet may claim the per-agent half is enforced.
+    expect($rule)->toContain('the one opt-in exception a consuming project can turn on for itself');
+    expect($rule)->toContain('so nothing enforces the per-agent half of this section');
+    expect($rule)->not->toContain('--enforce-agent-bash-boundary` (issue #185)');
+    expect($rule)->not->toContain('bash-guard');
 
     // The tools: line every agent already ships stays byte-identical (pinned elsewhere in this
     // file) — disallowedTools is always a new, additive line, never a replacement.
@@ -1610,13 +1607,10 @@ test('no agent frontmatter declares memory: or permissionMode: (issue #160)', fu
         // `tools:` either.
         expect($frontmatter)->not->toMatch('/^permissionMode:/m');
 
-        // `hooks:` was exempted here while issue #185 might still have used it for the per-agent
-        // PreToolUse enforcement. It did not: frontmatter hooks were reported not to execute for
-        // Task-launched subagents (anthropics/claude-code#18392), and agents/*.md is distributed
-        // unconditionally, so an entry here would install a runtime component into every consuming
-        // project regardless of any flag. #185 wires the hook through the project's own
-        // .claude/settings.local.json behind --enforce-agent-bash-boundary instead, which leaves
-        // this field with the same shape as the two above and no legitimate use in this roster.
+        // `hooks:` is banned for the same reason plus two of its own: frontmatter hooks were
+        // reported not to execute for Task-launched subagents (anthropics/claude-code#18392), and
+        // agents/*.md is distributed unconditionally, so an entry here would install a runtime
+        // component into every consuming project — which is what this package never ships.
         expect($frontmatter)->not->toMatch('/^hooks:/m');
     }
 
@@ -1626,7 +1620,7 @@ test('no agent frontmatter declares memory: or permissionMode: (issue #160)', fu
     expect($rule)->toContain('not documented by the vendor');
     expect($rule)->toContain('It bans `hooks:` for the same reason and on two further grounds of its own');
     expect($rule)->toContain('anthropics/claude-code#18392');
-    expect($rule)->toContain('break the opt-in invariant the flag above exists to hold');
+    expect($rule)->toContain('break the invariant that this package ships instructions, never runtime code');
     expect($rule)->not->toContain('deliberately does **not** ban `hooks:`');
 });
 
@@ -1652,55 +1646,59 @@ test('SECURITY.md documents the agent capability model and its residual risk (is
     expect($content)->toContain('a **non-string** item inside `permissions.deny`');
 });
 
-test('SECURITY.md documents the per-agent Bash boundary hook and every way it fails open (issue #185)', function (): void {
+test('the removed bash-guard leaves no trace in the package or its security documentation (issue #265)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/SECURITY.md');
-    $section = installerDocsSection($content, '### `--enforce-agent-bash-boundary`');
 
-    expect($section)->toContain('matcher');
-    expect($section)->toContain('agent-skills bash-guard');
+    // The subcommand, the flag, and every class behind them are gone from the shipped tree, so no
+    // document may still tell a consuming project to register a hook pointing at a binary path
+    // that answers nothing. SECURITY.md is the one exception and is asserted separately below: it
+    // has to name the command string so a project that opted in can find the handler to delete.
+    $documents = ['README.md', 'docs/agents.md', 'docs/installation.md', 'rules/compound-engineering/general.md'];
 
-    // The reason the frontmatter route was rejected has to survive, or a later change will read
-    // "per agent" literally and ship a hooks: line to every consumer unconditionally.
-    expect($section)->toContain('anthropics/claude-code#18392');
-    expect($section)->toContain('is copied into every consuming project **unconditionally**');
+    foreach ($documents as $relativePath) {
+        expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('agent-skills bash-guard');
+    }
 
-    // Issue #185 asks for the fail-open behaviour to be documented plainly rather than assumed
-    // away, so each enumerated case is pinned by the fact it names, not by its number.
-    expect($section)->toContain('Untrusted workspace');
-    expect($section)->toContain('session-start snapshot');
-    expect($section)->toContain('Self-disarming');
-    expect($section)->toContain('A binary that cannot run, or runs too slowly');
-    expect($section)->toContain('bypassPermissions');
-    expect($section)->toContain('never the process tree');
-    expect($section)->toContain('Obfuscation');
-    expect($section)->toContain('Only the `Bash` matcher');
-    expect($section)->toContain('`agent_type` may be absent');
+    $security = (string) file_get_contents($packageDir . '/SECURITY.md');
 
-    // What this project measured and what it did not must stay distinguishable.
-    expect($section)->toContain('has **not** been confirmed empirically by this project');
-    expect($section)->toContain('is **unverified**');
-    expect($section)->toContain('Measured against Claude Code 2.1.221');
+    // No flag section and no hook shape left to copy, and every surviving mention of the command
+    // sits inside the removal instruction — never in prose that would read as a way to install it.
+    expect($security)->not->toContain('### `--enforce-agent-bash-boundary`');
+    expect($security)->not->toContain('"hooks": [{ "type": "command"');
 
-    // The framing that survives every rewrite of the three documents carrying it.
-    expect($section)->toContain('it narrows the gap; it does not close it');
-    expect($section)->toContain('It **never** answers `allow`');
-    expect($section)->toContain('fails loudly and writes no hook');
+    foreach (explode("\n", $security) as $line) {
+        if (str_contains($line, 'agent-skills bash-guard')) {
+            expect($line)->toStartWith('- **If you ever installed the removed hook, remove its entry by hand.**');
+        }
+    }
 
-    // The same honesty --deny-network-bash carries about restricting the human: the rules that
-    // apply to every agent apply to the human's own interactive Bash in that project too.
-    expect($section)->toContain('including your own interactive ones');
+    $orphans = glob($packageDir . '/src/*BashBoundary*.php');
+    expect($orphans === false ? [] : $orphans)->toBe([]);
+    expect(file_exists($packageDir . '/src/InstallerHookSettings.php'))->toBeFalse();
+    expect(file_exists($packageDir . '/src/BashCommandTokenizer.php'))->toBeFalse();
 
-    // The residual-risk section must not go back to calling the per-agent mechanism deferred.
-    $residual = installerDocsSection($content, '## Agent capability model & residual risk');
-    expect($residual)->toContain('The mechanism that makes the boundary genuinely per-agent now exists too, also opt-in');
-    expect($residual)->not->toContain('is still deferred');
+    // The remaining opt-in flag is untouched: removing the per-agent hook must not quietly take
+    // the session-wide network deny with it.
+    expect($security)->toContain('### `--deny-network-bash`');
 
-    // Every file the installer writes is listed, including the conditional one.
-    expect($content)->toContain('| `.claude/settings.local.json` — registers one `hooks.PreToolUse` `Bash` handler | `--enforce-agent-bash-boundary` |');
+    // The honest framing has to survive the removal rather than drift into silence: the per-agent
+    // half is advisory again, and sandboxing stays the only tier that covers child processes.
+    $residual = installerDocsSection($security, '## Agent capability model & residual risk');
+    expect($residual)->toContain('**No mechanism makes the boundary per-agent.**');
+    expect($residual)->toContain('the only tier that would cover child processes');
+
+    // A project that opted into the removed flag still carries the handler, and the flag never had
+    // an inverse. Verified by running the binary: the subcommand falls through to the installer,
+    // prints `Unknown command: bash-guard`, and exits 1 — a non-blocking hook error Claude Code
+    // reprints on every Bash call. The manual cleanup must therefore stay in the security docs,
+    // not only in the changelog entry that announced the removal.
+    expect($residual)->toContain('**If you ever installed the removed hook, remove its entry by hand.**');
+    expect($residual)->toContain('exits `1`');
+    expect($residual)->toContain('the error is printed on **every** Bash call until the entry is gone');
+    expect($residual)->toContain('restart the session');
 });
 
-test('docs/agents.md states the architecture constraint and scopes the one runtime component (issue #185)', function (): void {
+test('docs/agents.md states the architecture constraint with no runtime component left to scope (issue #265)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
 
@@ -1709,34 +1707,14 @@ test('docs/agents.md states the architecture constraint and scopes the one runti
     expect($docs)->toContain('**This package ships instructions, never a runtime.**');
     expect($docs)->toContain('not a permission engine, a logging daemon, or a consent broker');
 
+    // With the validator gone the constraint carries no exception any more — a reinstated one
+    // would put runtime code back into an instructions-only package.
     $section = installerDocsSection($docs, '## Architecture constraint');
+    expect($section)->not->toContain('One deliberate exception');
+    expect($section)->not->toContain('src/AgentBashBoundary');
 
-    // The validator's boundary is what keeps the constraint true, so each half is pinned: it is
-    // shipped, nothing calls it, it does no I/O, it reads a policy rather than the prose, and it
-    // is never described as closing the gap.
-    expect($section)->toContain('src/AgentBashBoundaryHook.php');
-    expect($section)->toContain('agent-skills bash-guard');
-    expect($section)->toContain('**Nothing invokes it unless a project asks for it.**');
-    expect($section)->toContain('only `--enforce-agent-bash-boundary` does, and it is off unless');
-    expect($section)->toContain('**It is a pure function.**');
-    expect($section)->toContain('never `allow`');
-    expect($section)->toContain('it narrows the gap; it does not close it');
-
-    // The advisory paragraph must point at it rather than being rewritten out of existence, and
-    // it must not go back to calling the per-agent mechanism a deferred follow-up now that the
-    // opt-in flag exists.
     $capability = installerDocsSection($docs, '## Capability model');
     expect($capability)->toContain('**Why Bash stays advisory.**');
-    expect($capability)->toContain('`--enforce-agent-bash-boundary` registers one hook entry');
-    expect($capability)->toContain('It is off by default, and it is a check the harness performs rather than a sandbox');
-    expect($capability)->not->toContain('is still a deferred follow-up');
-
-    // The opt-in shortcut has its own section, mirroring the one --deny-network-bash got.
-    $shortcut = installerDocsSection($docs, '## Enforcing the per-agent Bash boundary — installer shortcut (opt-in)');
-    expect($shortcut)->toContain('Restart your Claude Code session afterwards');
-    expect($shortcut)->toContain('All of those fail **open**');
-
-    // The rule file's own reference to this section stays resolvable.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
-    expect($rule)->toContain('`docs/agents.md` *Architecture constraint*');
+    expect($capability)->toContain('The second mechanism, a per-agent `PreToolUse` hook, does **not** exist here.');
+    expect($capability)->toContain('The per-agent half of the boundary is therefore advisory in full.');
 });

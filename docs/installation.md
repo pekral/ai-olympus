@@ -41,7 +41,6 @@ vendor/bin/agent-skills install --prune-global                 # remove this pac
 vendor/bin/agent-skills install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/agent-skills install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 vendor/bin/agent-skills install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
-vendor/bin/agent-skills install --enforce-agent-bash-boundary   # register the per-agent Bash boundary PreToolUse hook in .claude/settings.local.json
 ```
 
 ## Installer Flow
@@ -66,7 +65,6 @@ vendor/bin/agent-skills install --enforce-agent-bash-boundary   # register the p
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `hefaistos`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
-| `--enforce-agent-bash-boundary` | Opt-in. Idempotently registers one `hooks.PreToolUse` entry with `matcher: "Bash"` in `.claude/settings.local.json`, pointing at this package's own `agent-skills bash-guard` validator, so each agent's `## Bash boundary` is checked before a Bash call runs instead of only being documented. Foreign hook entries are preserved. **Restart your Claude Code session afterwards** — hooks are read once, at session start. The layer **fails open**, not closed, in several documented cases (untrusted workspace first among them) — see [`SECURITY.md`](../SECURITY.md#--enforce-agent-bash-boundary) for the full list and how to undo it. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ## Where skills are installed

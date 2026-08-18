@@ -45,13 +45,4 @@ $executor = static function (array $command, bool $captureOutput): AgenticVibes\
     return new AgenticVibes\AgentSkills\CommandResult(proc_close($process), $output);
 };
 
-// The other edge: `bash-guard` reads its JSON payload from stdin. The read is capped one byte
-// above what the validator will parse, so an oversized payload is rejected as a decision rather
-// than by exhausting memory here, and the closure is only ever called for that subcommand — an
-// ordinary `install` run never touches stdin.
-$standardInput = static fn (): string => (string) stream_get_contents(
-    STDIN,
-    AgenticVibes\AgentSkills\AgentBashBoundaryHook::MAX_PAYLOAD_BYTES + 1,
-);
-
-exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor, $standardInput));
+exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor));

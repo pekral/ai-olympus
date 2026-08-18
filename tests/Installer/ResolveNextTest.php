@@ -9,15 +9,6 @@ use AgenticVibes\AgentSkills\CommandResult;
 use AgenticVibes\AgentSkills\InstallerFailure;
 
 /**
- * The stdin reader `Cli::run()` requires for `bash-guard`. Every test in this file exercises a
- * subcommand that must never read stdin, so calling it at all would be the defect.
- */
-function resolveNextNoStandardInput(): string
-{
-    throw new RuntimeException('resolve-next must never read stdin');
-}
-
-/**
  * Records what the resolver asked to run, so a test asserts the intended command line
  * without ever spawning gh or claude. A small typed object rather than a by-reference
  * array: the project's coding standard disallows reference parameters.
@@ -260,7 +251,7 @@ test('the cli routes resolve-next to the resolver', function (): void {
     $spy = new ResolveNextExecutorSpy([new CommandResult(0, '[]')]);
 
     ob_start();
-    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...), resolveNextNoStandardInput(...));
+    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...));
     ob_end_clean();
 
     expect($exitCode)->toBe(0);
@@ -270,7 +261,7 @@ test('the cli routes resolve-next to the resolver', function (): void {
 test('the cli reports a malformed listing instead of letting the failure escape', function (): void {
     $spy = new ResolveNextExecutorSpy([new CommandResult(0, 'not json')]);
 
-    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...), resolveNextNoStandardInput(...));
+    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...));
 
     expect($exitCode)->toBe(1);
 });
@@ -279,7 +270,7 @@ test('the cli passes every other command through to the installer', function ():
     $spy = new ResolveNextExecutorSpy([]);
 
     ob_start();
-    $exitCode = Cli::run(['agent-skills'], $spy(...), resolveNextNoStandardInput(...));
+    $exitCode = Cli::run(['agent-skills'], $spy(...));
     $output = (string) ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -293,10 +284,8 @@ test('the binary propagates the dispatcher exit code instead of always exiting z
 
     // Until #158 the last line was a bare `Installer::run($argv);`, so the script always
     // exited 0 — a cron entry or CI step checking $? could never see a failure. Pinned
-    // here rather than by running the binary, which the testing rules forbid. Issue #185 added
-    // the stdin reader `bash-guard` needs as a third injected edge argument; the property being
-    // pinned is still that the dispatcher's exit code is the process's.
-    expect($binary)->toContain('exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor, $standardInput));');
+    // here rather than by running the binary, which the testing rules forbid.
+    expect($binary)->toContain('exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor));');
     expect($binary)->not->toMatch('/^AgenticVibes\\\\AgentSkills\\\\Installer::run\(\$argv\);$/m');
 });
 

@@ -11,14 +11,14 @@ use stdClass;
  * The read/write round-trip for a Claude Code settings file, plus the `permissions` list handling
  * every writer of one needs.
  *
- * Extracted from `InstallerClaudeSettings` unchanged so a second writer — the `PreToolUse` hook
- * entry `--enforce-agent-bash-boundary` registers — can reuse it instead of duplicating it. That
- * matters more here than anywhere else in the installer: both writers touch security-relevant
- * configuration, and a second copy of the `stdClass` handling below is exactly the kind of drift
- * that silently corrupts a settings file on one path and not the other. The same reasoning brought
- * the two permission-list readers here when issue #202 split the home-level writers
- * (`InstallerClaudeSettings`) from the project-local ones (`InstallerProjectSettings`): both halves
- * read the same `permissions` shape, so it has exactly one implementation.
+ * Extracted from `InstallerClaudeSettings` unchanged so every writer of a settings file reuses one
+ * implementation instead of duplicating it. That matters more here than anywhere else in the
+ * installer: the writers touch security-relevant configuration, and a second copy of the
+ * `stdClass` handling below is exactly the kind of drift that silently corrupts a settings file on
+ * one path and not the other. The same reasoning brought the two permission-list readers here when
+ * issue #202 split the home-level writers (`InstallerClaudeSettings`) from the project-local ones
+ * (`InstallerProjectSettings`): both halves read the same `permissions` shape, so it has exactly
+ * one implementation.
  */
 final class InstallerSettingsFile
 {
