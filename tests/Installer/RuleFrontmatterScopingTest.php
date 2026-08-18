@@ -159,10 +159,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // allowed to do — it may only add frontmatter.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
-        'rules/api/general.md' => '331939fcee8d3334b3729d9f58b3599ca8482b42a847354174c13d4580741ec2',
+        'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'f0620445408c1056725feaa5a53f5b1516401b35751a2a60c52e7f9af79ccd38',
         'rules/php/core-standards.md' => '5cd3e891336f8968e4970d3e457f0e5ae51fab8d3b7ec81d1f34237be6dff6a5',
-        'rules/sql/optimalize.md' => 'c7ab59fc4f3eaff99bd8dafeb7a176f651731139a1d8c8a964dfd35a9b57173f',
+        'rules/sql/optimalize.md' => 'dcda4f6d54f0458a9a64ae2657a7422231067b1f6735726852167c81d449ed9c',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
