@@ -106,10 +106,11 @@ The repo accepts two body layouts. Pick one and stay consistent within the file.
 **Layout A — Constraints-first (preferred for new skills):**
 
 1. `## Constraints` — applied rules and hard limits (one bullet per item)
-2. `## Use when` — concrete triggers
-3. `## Required approach` or `## Execution` — numbered steps the agent must follow
-4. `## Output` or `## Output Format` — structure of what the skill returns
-5. `## Done when` — verifiable completion criteria
+2. `## Scope` *(optional)* — what the skill covers, what it deliberately leaves to another skill, and the focus areas it works through. Write it only when the skill carries scope the `description:` field does not already state; never restate the frontmatter here.
+3. `## Use when` — concrete triggers
+4. `## Required approach` or `## Execution` — numbered steps the agent must follow
+5. `## Output` or `## Output Format` — structure of what the skill returns
+6. `## Done when` — verifiable completion criteria
 
 Examples in the repo: `refactor-entry-point-to-action`, `smartest-project-addition`, `test-driven-development`, `tester-cookbook`, `security-review`.
 
