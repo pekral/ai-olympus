@@ -939,6 +939,58 @@ test('the audit ledger states its own line shape inline, distinct from the dispa
     expect($rule)->toContain('is not an audit record at all');
 });
 
+test('the audit-ledger malformed-line severity is reconciled between orchestration.md and athena.md (issue #285)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+
+    $auditSection = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
+    $athenaBoundary = installerDocsSection($athena, '## Bash boundary');
+
+    // Step 11 is sliced between the two numbered steps rather than via installerDocsSection, which
+    // cuts at the next `## ` heading — that would swallow step 12 and let its wording satisfy
+    // step 11's pins. `strpos` is asserted rather than cast, mirroring installerDocsSection: a cast
+    // `false` silently slices from offset 0 and the pins below would then match anywhere in the file.
+    $step11Start = strpos($athena, '11. **Read the audit trail ledger.**');
+    assert($step11Start !== false);
+    $step12Start = strpos($athena, "\n12. ", $step11Start);
+    assert($step12Start !== false);
+
+    $athenaStep11 = substr($athena, $step11Start, $step12Start - $step11Start);
+
+    // `note` is the fourth, non-action line class: it annotates the trail rather than claiming an
+    // action, so it is a legitimate entry on its own and never itself the malformed-line finding.
+    expect($auditSection)->toContain('<role>|<ISO-8601>|note|');
+    expect($auditSection)->toContain('never itself flagged as malformed');
+
+    // A malformed line can only ever be appended past, never edited away, so the rule must say how
+    // it is closed — otherwise one bad line holds a Moderate until `maxIterations` is exhausted.
+    expect($auditSection)->toContain('never permanently stuck');
+    expect($auditSection)->toContain('is itself appended as a `note` line annotating the earlier one');
+
+    // Both formulations of the Moderate now enumerate the same four classes. Before issue #285 one
+    // was shape-based ("not one of the three event classes") and the other fact-based ("the trail
+    // and the diff disagree"), so a `note` line annotating a deliberately-skipped action was
+    // Moderate under one reading and no finding at all under the other.
+    $sharedClause = 'a line\'s third field falls outside `memory-read` / `outbound-request` / `external-write` / `note`';
+    expect($auditSection)->toContain($sharedClause);
+    expect($auditSection)->toContain('is not one of `memory-read` / `outbound-request` / `external-write` / `note`');
+
+    expect($athenaStep11)->toContain($sharedClause);
+    expect($athenaStep11)->toContain('must not be raised again in a later iteration of the same run');
+    expect($athenaStep11)->toContain('is never itself a finding');
+
+    // The write half: athena's step 12 records a deliberately-skipped promotion as a `note`, and its
+    // Bash boundary grants the append that step 12 obliges it to make (the issue #194 pairing).
+    expect($athena)->toContain('append a `note` line instead');
+    expect($athenaBoundary)->toContain('outbound-request, external-write, and note lines');
+
+    // daidalos owns the ledger mechanics and must not restate a narrower shape than the rule.
+    expect($daidalos)->toContain('(`memory-read` / `outbound-request` / `external-write` / `note`)');
+    expect($daidalos)->toContain('resolvable within the same run only by an appended `note` line');
+});
+
 test('the audit trail has a durable copy on a run that opens no PR (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     // Moved to orchestration.md by issue #275.
