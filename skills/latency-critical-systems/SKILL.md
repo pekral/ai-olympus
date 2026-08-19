@@ -6,19 +6,18 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Latency Critical Systems (Laravel)
-
-Engineering approach for latency-sensitive Laravel paths: realtime dashboards,
-streaming, ingest workers, queues, caches, and execution gateways where p95
-latency and freshness matter. This skill is engineering-focused; it does not
-authorize live trading or financial advice.
-
 ## Constraints
 - Apply `@rules/sql/optimalize.md` for every query on the hot path (N+1, eager loading, index usage, batching)
 - Apply `@rules/laravel/laravel.md` for framework-level structure and caching choices
 - Apply `@rules/laravel/queue-debouncing.md` when smoothing bursty queue work
 - Measure, do not guess — every claim about latency must come from a real readback.
 - Never trade correctness for speed (see Guardrails).
+
+## Scope
+Engineering approach for latency-sensitive Laravel paths: realtime dashboards,
+streaming, ingest workers, queues, caches, and execution gateways where p95
+latency and freshness matter. This skill is engineering-focused; it does not
+authorize live trading or financial advice.
 
 ## Use when
 - A page, API route, broadcast, or dashboard must hit a latency target (p95/p99).

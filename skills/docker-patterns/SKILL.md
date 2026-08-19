@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Docker Patterns
-
 ## Constraints
 - Apply `@rules/security/backend.md` — never bake secrets into image layers, inject them at runtime; apply least privilege (non-root user, dropped capabilities, least-privileged DB user).
 - Apply `@rules/laravel/laravel.md` — respect Laravel's directory layout, artisan commands, and config caching.

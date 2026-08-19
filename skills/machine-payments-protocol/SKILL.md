@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Machine Payments Protocol (MPP)
-
 ## Constraints
 - Apply `@rules/php/core-standards.md` when generated code is PHP — `final` classes, `declare(strict_types=1)`, typed signatures.
 - If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md` — payment verification is a service, not controller logic.

@@ -6,13 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Vite Patterns (Laravel)
-
-Asset bundling and dev-server patterns for Laravel apps using the official
-`laravel-vite-plugin`. Covers `vite.config.js`, the `@vite` Blade directive,
-HMR in development, env vars, aliases, manifests, production builds, code
-splitting, and bundling for Livewire / Filament / Alpine.
-
 ## Constraints
 - Apply `@rules/laravel/laravel.md`
 - Apply `@rules/laravel/livewire.md` and `@rules/laravel/filament.md` when bundling assets for those layers
@@ -20,6 +13,12 @@ splitting, and bundling for Livewire / Filament / Alpine.
 - This stack uses `laravel-vite-plugin` only. Never introduce React/Vue plugins, SSR frameworks, library mode, Bun, or Next.js.
 - Secrets never go into `VITE_`-prefixed vars — those are inlined into the public bundle.
 - Keep examples to `npm`, `php artisan serve`, and `npm run dev` / `npm run build`.
+
+## Scope
+Asset bundling and dev-server patterns for Laravel apps using the official
+`laravel-vite-plugin`. Covers `vite.config.js`, the `@vite` Blade directive,
+HMR in development, env vars, aliases, manifests, production builds, code
+splitting, and bundling for Livewire / Filament / Alpine.
 
 ## Use when
 - Setting up or editing `vite.config.js` with the `laravel()` plugin.
