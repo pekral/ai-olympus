@@ -90,3 +90,47 @@ test('every in-page readme anchor resolves to one of its own headings (issue #10
         expect($slugs)->toContain($anchor);
     }
 });
+
+test('every Always scope in the rules overview table names a rule without a paths key (issue #282)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+
+    // Scope the parse to the Rules Overview table so other markdown tables never leak in.
+    $section = installerDocsSection($readme, '## Rules Overview');
+
+    // Data rows quote the rule file in backticks; the header and separator rows do not. The
+    // description column may escape a pipe, the scope may be several words, and the row may
+    // carry trailing whitespace — a row this misses would silently drop out of the check.
+    preg_match_all(
+        '/^\|\s*`([^`]+)`\s*\|(?:\\\\.|[^|\\\\])*\|\s*([^|]+?)\s*\|[ \t]*\r?$/m',
+        $section,
+        $rows,
+        PREG_SET_ORDER,
+    );
+
+    // Counted off the File cell alone, so a row the strict pattern drops fails the count.
+    preg_match_all('/^\|\s*`[^`]+`\s*\|/m', $section, $fileCells);
+
+    $alwaysRules = array_map(
+        static fn (array $row): string => $row[1],
+        array_filter(
+            $rows,
+            static fn (array $row): bool => $row[2] === 'Always' && str_ends_with($row[1], '.md'),
+        ),
+    );
+
+    // A rule loads into every session only when its frontmatter carries no `paths:` key.
+    $isScoped = static fn (string $path): bool => preg_match('/^paths:/m', ruleExtensionFrontmatter($path)) === 1;
+
+    expect($rows)->toHaveCount(count($fileCells[0]));
+    expect($alwaysRules)->not->toBeEmpty();
+
+    foreach ($alwaysRules as $rule) {
+        $path = $packageDir . '/rules/' . $rule;
+
+        expect(file_exists($path))->toBeTrue('Rules Overview names a missing rule file: ' . $rule);
+        expect($isScoped($path))->toBeFalse(
+            $rule . ' carries a `paths:` key, so its Rules Overview scope cannot be Always',
+        );
+    }
+});
