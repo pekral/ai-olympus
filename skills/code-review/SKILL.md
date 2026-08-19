@@ -2,6 +2,9 @@
 name: code-review
 description: Use when senior PHP code review focused on architecture, business
   logic, and risk detection. Read-only.
+license: MIT
+metadata:
+  author: "Petr Král (pekral.cz)"
 ---
 
 # Code Review
