@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Redis Patterns
-
 ## Constraints
 - Apply `@rules/laravel/laravel.md` — use the framework's facades (`Cache`, `RateLimiter`, `Redis`), not a raw client.
 - Apply `@rules/laravel/queue-debouncing.md` for queue/job coalescing concerns when Redis backs the queue.

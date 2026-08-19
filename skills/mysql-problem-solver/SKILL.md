@@ -7,17 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# MySQL Problem Solver
-
-## Purpose
-Investigate real MySQL performance or query design problems in existing applications.
-
-Focus on:
-- the actual query
-- real schema and index usage
-- EXPLAIN-based diagnosis when possible
-- safe, justified optimizations
-
 ## Constraints
 - Apply @rules/sql/optimalize.md
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
@@ -27,6 +16,15 @@ Focus on:
 - Do not recommend index changes without explaining why they help
 - Apply `@rules/sql/optimalize.md` "Performance Non-Regression on Query Changes" — every proposed query rewrite must be at least as fast as the original (ideally faster); a proposal that is slower must carry the documented reason and the remaining optimization options
 - If DB access is unavailable, continue with static analysis and state the limitation clearly
+
+## Scope
+Investigate real MySQL performance or query design problems in existing applications.
+
+Focus on:
+- the actual query
+- real schema and index usage
+- EXPLAIN-based diagnosis when possible
+- safe, justified optimizations
 
 ## Execution
 

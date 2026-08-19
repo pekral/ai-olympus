@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# PostgreSQL Patterns
-
 ## Constraints
 - Apply `@rules/sql/optimalize.md` — it already owns indexing fundamentals, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, and batch-over-per-row. Do not re-explain those; defer to it. Note it is written for MySQL — translate engine-specific syntax (`EXPLAIN ANALYZE`, plan flags) to Postgres equivalents here.
 - **Its schema-design block is MySQL-only — do not defer to it on Postgres.** Everything in that rule from `## Schema Design` through `## When to Break These Rules` is scoped to MySQL 8.0.16+ on InnoDB, and several of its mandates are not a syntax translation but the opposite advice on Postgres: `TIMESTAMP` is banned there (a 32-bit type with a 2038 limit) while both Postgres timestamp types are 64-bit and carry no such limit — so the MySQL prohibition does not transfer, and the type to reach for here is `timestamptz` per **Data Type Discipline** below, never plain `timestamp`. `UNSIGNED` does not exist at all, and neither does `utf8mb4` or its collation family.

@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# MySQL Patterns
-
 ## Constraints
 - Apply `@rules/sql/optimalize.md` — it already owns indexing, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, batch-over-per-row, CTE/window/recursive queries, schema basics, DB-level caching, and the **Performance Non-Regression on Query Changes** gate. Do not re-explain those here; defer to it. When a pattern in this skill *changes an existing query* (e.g. swapping `LIKE` for a FULLTEXT match, moving a filter onto a generated column, introducing partition pruning), capture the original query's baseline and confirm the new shape is equal or faster — if it is slower, document the reason and the remaining optimization options per that gate.
 - For diagnosing an existing slow query, use `@skills/mysql-problem-solver/SKILL.md`. This skill is for *designing* features, not investigating regressions.
