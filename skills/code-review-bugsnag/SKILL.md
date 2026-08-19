@@ -7,21 +7,19 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Code Review (Bugsnag)
-
-## Purpose
-Perform code review for a fix linked to a Bugsnag error by analyzing the related pull request and publishing results to:
-- GitHub (technical findings, on the linked PR)
-- Bugsnag (human-readable summary, as a comment on the error)
-
----
-
 ## Constraints
 - Apply @rules/git/general.md
 - Apply @rules/reports/general.md. The **GitHub PR technical comment** this skill posts (Status / Counts / Findings / Refactoring / Database Analysis / Coverage / Summary) stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **Bugsnag error comment** delegated to `@skills/pr-summary/SKILL.md` and the **mirrored linked-GitHub-issue summary** follow the language of the source assignment. Never mix languages inside the same comment.
 - **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Checking out the relevant branch and `git pull` to read the latest code are **required** (the mandatory Branch checkout gate below); mutating the working tree or pushing to the remote is not. Publishing is limited to PR / linked-issue comments via `gh` and to the Bugsnag error comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh`.
 - Bugsnag output must be understandable for non-developers
 - Output findings only (no praise)
+
+---
+
+## Scope
+Perform code review for a fix linked to a Bugsnag error by analyzing the related pull request and publishing results to:
+- GitHub (technical findings, on the linked PR)
+- Bugsnag (human-readable summary, as a comment on the error)
 
 ---
 

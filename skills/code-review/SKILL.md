@@ -7,17 +7,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Code Review
-
-## Purpose
-Perform structured code review focused on:
-- correctness
-- architecture
-- regression risks
-- security and performance issues
-
----
-
 ## Constraints
 - Apply @rules/php/core-standards.md
 - Apply @rules/api/general.md — when the diff adds or modifies an HTTP API surface (routes, controllers / `__invoke` request handlers, API Resources / DTOs serialized into responses, FormRequests, status-code / `response()` / `abort()` calls, `Idempotency-Key` handling), walk it against the API contract pillars. The dedicated walk lives in `@skills/api-review/SKILL.md` (Specialized Reviews → Always run); severities follow that rule's CR Severity Rules section.
@@ -29,6 +18,15 @@ Perform structured code review focused on:
 - **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Checking out the relevant branch and `git pull` to read the latest code are **required** (the mandatory Branch checkout gate below); mutating the working tree or pushing to the remote is not. Output is the review markdown only.
 - Apply @rules/reports/general.md — the review markdown handed to `code-review-github` / `code-review-jira` for publishing on the **GitHub PR** stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* (severity labels, structured field labels, rule references, and code identifiers are all in English). The non-technical mirror that the wrappers delegate to `@skills/pr-summary/SKILL.md` follows the language of the source assignment — that is the wrapper's responsibility, not this skill's.
 - Do not duplicate findings the project's fixers already auto-correct (Pint, PHPCS, Rector — pure whitespace, import ordering, unused-use, single-line vs multi-line argument splits). Those are caught by the build. **Do** flag every rule violation a fixer does not cover — architectural breaches, structural rules, missing return types, untyped DTO boundaries, naming bound to a domain rule, testing-pattern violations, etc.
+
+---
+
+## Scope
+Perform structured code review focused on:
+- correctness
+- architecture
+- regression risks
+- security and performance issues
 
 ---
 

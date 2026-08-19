@@ -7,13 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Code Review (GitHub)
-
-## Purpose
-Run a full code review for GitHub pull requests and publish findings directly to the PR.
-
----
-
 ## Constraints
 - Apply @rules/git/general.md
 - Apply @rules/reports/general.md. The **technical CR PR comment** this skill posts on the GitHub PR (Status / Counts / Findings / Refactoring / Coverage / Summary) stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **non-technical mirror** delegated to `@skills/pr-summary/SKILL.md` for every `closingIssues[]` linked GitHub issue follows the language of the source assignment. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.

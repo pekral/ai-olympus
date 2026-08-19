@@ -7,15 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Code Review (JIRA)
-
-## Purpose
-Perform code review for JIRA issues by analyzing related pull requests and publishing results to:
-- GitHub (technical findings)
-- JIRA (human-readable summary)
-
----
-
 ## Constraints
 - Apply @rules/jira/general.md
 - Apply @rules/git/general.md
@@ -23,6 +14,13 @@ Perform code review for JIRA issues by analyzing related pull requests and publi
 - **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Checking out the relevant branch and `git pull` to read the latest code are **required** (the mandatory Branch checkout gate below); mutating the working tree or pushing to the remote is not. Publishing is limited to PR / linked-issue comments via `gh` and to JIRA ticket comments via `acli`.
 - JIRA output must be understandable for non-developers: **only how to test the change**, plus — when they exist — clarifying questions, assignment discrepancies, and Critical items. Nothing else. It is rendered in JIRA Wiki Markup with no leaked Markdown control characters (no raw `**`, `#`, `` ` ``, `- `).
 - Output findings only (no praise)
+
+---
+
+## Scope
+Perform code review for JIRA issues by analyzing related pull requests and publishing results to:
+- GitHub (technical findings)
+- JIRA (human-readable summary)
 
 ---
 
