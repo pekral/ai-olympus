@@ -411,12 +411,15 @@ function ruleExtensionStaleMdcReferences(array $textFiles): array
  * test agree with whatever the file happens to say.
  *
  * Issue #274 took four rules off this list by scoping them (see `ruleScopingExpectedGlobs()`).
- * The three that remain are always-on because they govern something every run produces rather
+ * The four that remain are always-on because they govern something every run produces rather
  * than a file type a run may or may not touch: `compound-engineering` (principles only, since
  * issue #275 split its dispatch-time orchestration mechanics into a scoped `orchestration.md`
  * sibling — see `ruleScopingExpectedGlobs()`) governs the memory/tracker contract every run
- * follows, `git` governs every commit and pull request, and `writing` governs every sentence an
- * agent writes.
+ * follows, `general` governs the project-context and default-AI-behavior baseline every run
+ * follows regardless of which file type it touches (split out of `php/core-standards.md` in
+ * issue #281, because scoping that file to `**\/*.php` in issue #274 stopped those two sections
+ * reaching a run that touches no PHP file), `git` governs every commit and pull request, and
+ * `writing` governs every sentence an agent writes.
  *
  * @return array<int, string>
  */
@@ -424,6 +427,7 @@ function ruleExtensionAlwaysOnFiles(): array
 {
     return [
         'rules/compound-engineering/general.md',
+        'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
     ];

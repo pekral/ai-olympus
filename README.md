@@ -371,9 +371,10 @@ Rules included in this package:
 
 | File                                    | Description                                                                                                                                                       | Scope         |
 |-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| `php/core-standards.md`                 | Project context, AI behavior, and unified PHP/Laravel coding standards                                                                                            | PHP           |
+| `php/core-standards.md`                 | Unified PHP/Laravel coding standards                                                                                                                               | PHP           |
 | `php/examples/named-arguments.md`       | Named-arguments usage examples (good/avoid) supporting the PHP core standards                                                                                     | Always        |
 | `php/dependency-selection.md`           | Composer dependency selection — activity and compatibility gates before adopting a new package                                                                    | Reference     |
+| `general/general.md`                    | Project context and default AI agent behavior — the always-on baseline every run follows regardless of which file type it touches                                | Always        |
 | `compound-engineering/general.md`       | Compound engineering — make future work easier and read the per-project compound memory                                                                           | Always        |
 | `compound-engineering/orchestration.md` | Dispatch-time orchestration mechanics — Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, orchestrator turn discipline | Orchestration |
 | `git/general.md`                        | Unified git workflow, commits, and pull request rules                                                                                                             | Always        |
