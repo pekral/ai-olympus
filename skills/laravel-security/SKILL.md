@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Laravel Security Best Practices
-
 ## Constraints
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
 - Apply `@rules/php/core-standards.md` — `final` classes, `declare(strict_types=1)`, typed signatures
@@ -16,7 +14,7 @@ metadata:
 - Never hardcode secrets; never reveal them in output
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens
 
-## Purpose
+## Scope
 Secure-by-default building blocks for security-sensitive Laravel work. Use the matching section, copy the minimal snippet, and verify against the checklist. For an audit of existing code use `@skills/security-review/SKILL.md`.
 
 ## Use when

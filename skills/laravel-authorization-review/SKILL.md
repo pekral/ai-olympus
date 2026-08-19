@@ -6,8 +6,17 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Laravel Authorization Review
+## Constraints
+- Apply `@rules/php/core-standards.md`
+- Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md`
+- Apply `@rules/security/backend.md` — *Database* (authentication & authorization, least privilege) and *Safe Validation & Error Messages* (a 403-vs-404 distinction that confirms a resource exists is itself an authorization-granularity leak)
+- Apply `@rules/code-review/general.md` — map every finding onto the CR severity scale (Critical / Moderate / Minor) so this skill plugs into a Laravel CR run
+- **Advise-only.** Reads files and runs one read-only command (`php artisan route:list --json`). Never edits routes, controllers, policies, or any source; emits a report plus fix sketches for a human to apply.
+- Output in English
 
+---
+
+## Scope
 > SAST tells you where data flows. This tells you where it flows to the **wrong user**.
 
 This skill is the judgment layer for the one category automated scanners structurally
@@ -20,16 +29,6 @@ The skill is trustworthy because every finding traces to a **ground-truth anchor
 `php artisan route:list --json` is the deterministic inventory of every endpoint and
 its merged middleware. If you cannot point to both a real route **and** a cited
 `file:line`, you do not report it.
-
----
-
-## Constraints
-- Apply `@rules/php/core-standards.md`
-- Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md`
-- Apply `@rules/security/backend.md` — *Database* (authentication & authorization, least privilege) and *Safe Validation & Error Messages* (a 403-vs-404 distinction that confirms a resource exists is itself an authorization-granularity leak)
-- Apply `@rules/code-review/general.md` — map every finding onto the CR severity scale (Critical / Moderate / Minor) so this skill plugs into a Laravel CR run
-- **Advise-only.** Reads files and runs one read-only command (`php artisan route:list --json`). Never edits routes, controllers, policies, or any source; emits a report plus fix sketches for a human to apply.
-- Output in English
 
 ---
 

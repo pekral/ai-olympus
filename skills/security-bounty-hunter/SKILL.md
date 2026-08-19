@@ -6,8 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Security Bounty Hunter
-
 ## Constraints
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
 - If the project uses Laravel, also apply `@rules/laravel/laravel.md`
@@ -16,7 +14,7 @@ metadata:
 - Never run an exploit against infrastructure you are not authorized to test; keep PoCs minimal and safe
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens
 
-## Purpose
+## Scope
 Find unknown, exploitable bugs reachable from a real network or user boundary, and write them up to a standard a bounty program will accept. Bias toward "does this actually pay?" over "is this theoretically unsafe?".
 
 How this differs from neighbors:
