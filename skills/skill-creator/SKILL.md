@@ -6,19 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Skill Creator
-
-## Purpose
-Author a new Agent skill that fits this repository's conventions and ships ready for review.
-
-Focus on:
-- consistent frontmatter and section layout
-- behavior aligned with `skill-check.config.json` limits
-- clear Use when, Execution, and Done when sections
-- no duplication with existing skills
-
----
-
 ## Constraints
 - Apply `@rules/php/core-standards.md` **only once it is established that the skill being created targets PHP code work in a PHP project** — skip it for a stack-agnostic or non-PHP skill; do not load the PHP standards when the new skill does not touch PHP.
 - Apply `@rules/git/general.md`
@@ -26,6 +13,17 @@ Focus on:
 - Do not modify other skills, rules, or production code
 - Do not duplicate an existing skill — extend or refactor instead
 - Never add behavior beyond what the requested skill needs
+
+---
+
+## Scope
+Author a new Agent skill that fits this repository's conventions and ships ready for review.
+
+Focus on:
+- consistent frontmatter and section layout
+- behavior aligned with `skill-check.config.json` limits
+- clear Use when, Execution, and Done when sections
+- no duplication with existing skills
 
 ---
 
@@ -125,7 +123,7 @@ Examples in the repo: `refactor-entry-point-to-action`, `smartest-project-additi
 6. `## Principles` — short guiding rules (optional)
 7. `## Done when`
 
-Examples in the repo: `code-review`, `class-refactoring`, `create-test`, `analyze-problem`.
+No skill in this repo uses Layout B any more — issue #278 migrated the last 24 to Layout A. It stays documented so a skill imported from elsewhere in this shape is still recognized; never pick it for a new skill.
 
 Omit a section only when it does not apply.
 

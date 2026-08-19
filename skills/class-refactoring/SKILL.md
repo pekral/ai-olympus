@@ -7,20 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Class Refactoring
-
-## Purpose
-Improve code structure and quality without changing behavior.
-
-Focus on:
-- clarity
-- separation of concerns
-- testability
-- maintainability
-- efficiency under load
-
----
-
 ## Modes
 
 This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
@@ -38,6 +24,18 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 - Apply @rules/code-testing/general.md
 - Never change behavior
 - Keep public API stable unless explicitly required
+
+---
+
+## Scope
+Improve code structure and quality without changing behavior.
+
+Focus on:
+- clarity
+- separation of concerns
+- testability
+- maintainability
+- efficiency under load
 
 ---
 
