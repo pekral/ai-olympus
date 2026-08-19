@@ -175,8 +175,6 @@ test('guard renders untrusted references without letting them rewrite the messag
 });
 
 test('every skill that acts on a GitHub reference wires the repository-ownership guard', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     // These skills implement, review, comment on, merge, seed data from, or
     // publish a report derived from a GitHub reference.
     $guarded = [
@@ -192,14 +190,11 @@ test('every skill that acts on a GitHub reference wires the repository-ownership
     ];
 
     foreach ($guarded as $skill) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
-        expect($content)->toContain('skills/_shared/assert-current-repo.sh');
+        expect(crContractText('skills/' . $skill . '/SKILL.md'))->toContain('skills/_shared/assert-current-repo.sh');
     }
 });
 
 test('guarded skills state that only a zero exit continues and no MCP fallback applies', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     // Without this the agent has no instruction for exit 1 / 2 / 127 (a missing
     // git, or a stale consumer install without the script) and the gate opens.
     $guarded = [
@@ -215,7 +210,7 @@ test('guarded skills state that only a zero exit continues and no MCP fallback a
     ];
 
     foreach ($guarded as $skill) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
+        $content = crContractText('skills/' . $skill . '/SKILL.md');
         expect($content)->toContain('Only a zero exit permits');
         expect($content)->toContain('never applies to this guard');
     }
@@ -267,7 +262,7 @@ test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped ag
     // The flag must be opt-in: unset keeps the inline pass, so coverage can
     // never drop just because a caller forgot to set it.
     foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/SKILL.md');
+        $content = crContractText('skills/' . $wrapper . '/SKILL.md');
         expect($content)->toContain('SECURITY_OWNER=athena');
         expect($content)->toContain('Absence of the flag means it runs');
         expect($content)->toContain('security: owned by athena');

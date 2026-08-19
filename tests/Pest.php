@@ -708,6 +708,37 @@ function ruleExtensionFrontmatter(string $path): string
 }
 
 /**
+ * The contract a package file applies: its own text, plus the shared
+ * `skills/code-review-github/references/cr-wrapper-contract.md` when the file is one of the three
+ * CR tracker wrappers that reference it (issue #279). Any other file is returned unchanged. The
+ * path may be package-relative or absolute, because the guards that call this hold it both ways.
+ *
+ * The three wrappers used to carry their own copy of every shared rule, so a pin could read the
+ * rule off the wrapper file directly. They now state a shared rule once, in the reference file, and
+ * keep only what their own tracker decides — so a pin asking whether a wrapper declares a rule has
+ * to read the contract the wrapper actually applies, not only the file it is written in. Reading
+ * the wrapper alone would fail a rule that is correctly stated once; reading the reference alone
+ * would miss the tracker-specific half.
+ */
+function crContractText(string $path): string
+{
+    $packageDir = dirname(__DIR__);
+    $relativePath = ltrim(str_replace($packageDir, '', $path), '/');
+    $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+    $wrappers = [
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
+    ];
+
+    if (!in_array($relativePath, $wrappers, strict: true)) {
+        return $content;
+    }
+
+    return $content . "\n" . (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
+}
+
+/**
  * Every text file the package ships, keyed by its package-relative path. Shared by the content
  * guards that have to prove a pattern appears nowhere in the tree — a retired rule path (issue
  * #187), a forbidden test assertion (issue #181). Walked from disk rather than asked of

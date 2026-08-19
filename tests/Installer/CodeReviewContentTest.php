@@ -5,8 +5,8 @@ declare(strict_types = 1);
 test('CR run produces one consolidated linked-tracker comment per linked issue (issue #498)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
     $githubTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md');
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
 
@@ -20,7 +20,7 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
 
     expect($jira)->toContain('#### JIRA (consolidated non-technical comment — fresh comment per CR run)');
     expect($jira)->toContain('Consolidation contract (issue #498)');
-    expect($jira)->toContain('fresh JIRA comment');
+    expect($jira)->toContain('fresh comment per CR run');
 
     expect($githubTemplate)->toContain('{embedded_blocks}');
     expect($githubTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
@@ -116,8 +116,8 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     expect($jiraScriptBody)->toContain('find_latest_id');
     expect($jiraScriptBody)->toContain('sort_by(.created');
 
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
     foreach ([$github, $jira, $prSummary] as $skill) {
@@ -169,8 +169,8 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
 test('process-code-review enforces a convergence loop with quiet iterations and a single final publish', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     expect($process)->toContain('### Review loop (mandatory — convergence gate)');
     expect($process)->toContain('`maxIterations = 3`');
@@ -181,16 +181,16 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     expect($process)->toContain('### Completion (final, single publish)');
 
     expect($github)->toContain('Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`)');
-    expect($github)->toContain('skip the entire Post Results step');
+    expect($github)->toContain('skip the entire Publish Results step');
     expect($jira)->toContain('Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`)');
-    expect($jira)->toContain('skip all publishing');
+    expect($jira)->toContain('skip the entire Publish Results step');
 });
 
 test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $template = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $skill = crContractText('skills/code-review-jira/SKILL.md');
 
     // JIRA non-technical comment carries only "How to test" — no Summary of changes, no Authors.
     expect($template)->toContain('h2. How to test');
@@ -220,7 +220,7 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
 
 test('clarifying questions are gated by severity and never re-ask what the tracker already answered (issue #208)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $skill = crContractText('skills/code-review-jira/SKILL.md');
     $reference = (string) file_get_contents($packageDir . '/skills/code-review-jira/references/clarifying-questions.md');
 
     // Both gates must be named where the block is assembled, and in this order — a question is
@@ -308,8 +308,8 @@ test('code-review skill enforces strict rule compliance and architecture conform
 
 test('code review skills delegate the non-technical issue-tracker summary to pr-summary', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     expect($github)->toContain('#### Linked-issue consolidated summary (mandatory — single comment per linked issue)');
@@ -342,15 +342,14 @@ test('every code review skill invokes assignment-compliance-check', function ():
     expect($wrappers)->not->toBeEmpty();
 
     foreach ($wrappers as $skillFile) {
-        expect((string) file_get_contents($skillFile))->toContain('@skills/assignment-compliance-check/SKILL.md');
+        $relativePath = ltrim(substr($skillFile, strlen($packageDir)), '/');
+        expect(crContractText($relativePath))->toContain('@skills/assignment-compliance-check/SKILL.md');
     }
 });
 
 test('every code review skill runs analyze-problem for assignment conformance', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $skill) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
+        $content = crContractText('skills/' . $skill . '/SKILL.md');
         expect($content)->toContain('@skills/analyze-problem/SKILL.md');
         expect($content)->toContain('assignment conformance');
     }
@@ -371,31 +370,28 @@ test('CR and resolution skills carry no live reference to the removed test-like-
 });
 
 test('every code review skill references class-refactoring skill', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $needle = '@skills/class-refactoring/SKILL.md';
     $reviewSkills = [
-        $packageDir . '/skills/code-review/SKILL.md',
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
+        'skills/code-review/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
     ];
 
-    foreach ($reviewSkills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
-        expect($content)->toContain($needle);
+    foreach ($reviewSkills as $relativePath) {
+        expect(crContractText($relativePath))->toContain($needle);
     }
 });
 
 test('code review skills constrain refactoring lens to PR diff', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $reviewSkills = [
-        $packageDir . '/skills/code-review/SKILL.md',
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
-        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
+        'skills/code-review/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
     ];
 
-    foreach ($reviewSkills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
+    foreach ($reviewSkills as $relativePath) {
+        $content = crContractText($relativePath);
         expect($content)->toContain('Refactoring & Tech Debt (DRY)');
         expect($content)->toContain('untouched code');
     }
@@ -413,18 +409,17 @@ test('reuse-first gate asks whether new logic is necessary before reusing existi
 
     // Every CR-family skill routes the reuse / DRY check through that rule section.
     $reuseRoutingSkills = [
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
-        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
     ];
 
-    foreach ($reuseRoutingSkills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
-        expect($content)->toContain('Reuse Existing Logic');
+    foreach ($reuseRoutingSkills as $relativePath) {
+        expect(crContractText($relativePath))->toContain('Reuse Existing Logic');
     }
 
     // The Bugsnag wrapper, previously the outlier, now carries the reuse-first gate explicitly.
-    $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
+    $bugsnag = crContractText('skills/code-review-bugsnag/SKILL.md');
     expect($bugsnag)->toContain('reuse-first gate');
 });
 
@@ -461,19 +456,19 @@ test('code review output omits empty sections instead of rendering placeholders'
     }
 
     $skills = [
-        $packageDir . '/skills/code-review/SKILL.md',
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
+        'skills/code-review/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
     ];
 
-    foreach ($skills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
+    foreach ($skills as $relativePath) {
+        $content = crContractText($relativePath);
         expect($content)->toContain('**Omit empty sections entirely.**');
         // Counts line is the canonical "clean state" signal after the issue #528 follow-up — the Coverage line is no longer always rendered.
         expect($content)->toContain('the Counts line is the clean signal');
     }
 
-    $githubSkill = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    $githubSkill = crContractText('skills/code-review-github/SKILL.md');
     expect($githubSkill)->not->toContain('post: "No findings identified"');
 });
 
@@ -624,13 +619,14 @@ test('code-review skill short-circuits coverage section in Output Rules + Covera
 
 test('code-review-github skill + template short-circuit coverage section (issue #528 follow-up)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    $skill = crContractText('skills/code-review-github/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
 
     expect($skill)->toContain(
-        'The header block (Status / Counts / Last updated / Issue tracker summary), '
-        . '`## Functional Review`, and the final `Summary` line are always rendered in the PR comment.',
+        'The header block (Status / Counts / Last updated / tracker-mirror status), '
+        . '`## Functional Review`, and the final `Summary` line are always rendered.',
     );
+    expect($skill)->toContain('The header block\'s tracker-mirror field is `Issue tracker summary`.');
     expect($skill)->toContain('all conditional');
     expect($skill)->toContain('includes a `## Coverage` section before the summary line **only** when the coverage gate has something to report');
     expect($skill)->not->toContain('Counts / Coverage / Issue tracker summary');
@@ -642,11 +638,12 @@ test('code-review-github skill + template short-circuit coverage section (issue 
 
 test('code-review-jira skill + template short-circuit coverage section (issue #528 follow-up)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $skill = crContractText('skills/code-review-jira/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-jira/templates/github-output.md');
 
-    expect($skill)->toContain('The header block (Status / Counts / Last updated / Linked-tracker mirror)');
-    expect($skill)->toContain('the final `Summary` line are always rendered in the GitHub PR comment.');
+    expect($skill)->toContain('The header block (Status / Counts / Last updated / tracker-mirror status)');
+    expect($skill)->toContain('The header block\'s tracker-mirror field is `Linked-tracker mirror`.');
+    expect($skill)->toContain('the final `Summary` line are always rendered.');
     expect($skill)->toContain('all conditional');
     expect($skill)->toContain('includes a `## Coverage` section before the summary line **only** when the coverage gate has something to report');
 
@@ -682,7 +679,7 @@ test(
     
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
         // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
-        $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+        $github = crContractText('skills/code-review-github/SKILL.md');
         expect($github)->toContain('a savings-mode `deferred to hefaistos` verdict (non-Critical');
         expect($github)->toContain('render `Coverage: deferred to hefaistos (isolated worktree, no vendor/)`');
     },
@@ -778,7 +775,7 @@ test('code-review canonical template renders the Laravel Architecture section co
 
 test('code-review-github Output Rules and template carry the Architecture conditional rendering rule (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
+    $skill = crContractText('skills/code-review-github/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
 
     expect($skill)->toContain('`## Architecture` section (issue #530)');
@@ -803,13 +800,13 @@ test('code-review-github Output Rules and template carry the Architecture condit
 
 test('code-review-jira Output Rules and GitHub template carry the Architecture conditional rendering rule (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $skill = crContractText('skills/code-review-jira/SKILL.md');
     $template = (string) file_get_contents($packageDir . '/skills/code-review-jira/templates/github-output.md');
 
     expect($skill)->toContain('`## Architecture` section (issue #530)');
     expect($skill)->toContain('only when the walk produces at least one finding');
     expect($skill)->toContain('never render a `walked, 0 findings` status line');
-    expect($skill)->toContain('The JIRA non-technical comment (produced by `pr-summary`) never includes this section');
+    expect($skill)->toContain('The non-technical tracker comment never includes this section');
 
     expect($template)->toContain('## Architecture');
     expect($template)->toContain('**Laravel-only, conditional on findings (issue #530)');
@@ -1072,10 +1069,9 @@ test('api-review defers the Exclusion Gate to the core CR skill (issue #17)', fu
 });
 
 test('CR wrappers confirm they already load the first-class assignment sources for the Exclusion Gate (issue #17)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
-    $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
+    $bugsnag = crContractText('skills/code-review-bugsnag/SKILL.md');
 
     expect($github)->toContain('- **`## Excluded per assignment` section (issue #17).**');
     expect($github)->toContain('requires for detection condition 1');
@@ -1096,8 +1092,6 @@ test('process-code-review skips Excluded per assignment entries as non-actionabl
 });
 
 test('full-tree grep finds no orphaned or duplicated Excluded per assignment / Exclusion Gate references (issue #17)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     $expectedFiles = [
         'rules/code-review/general.md',
         'skills/code-review/SKILL.md',
@@ -1112,7 +1106,7 @@ test('full-tree grep finds no orphaned or duplicated Excluded per assignment / E
     ];
 
     foreach ($expectedFiles as $relativePath) {
-        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        $content = crContractText($relativePath);
         $hasMarker = str_contains($content, 'Excluded per assignment') || str_contains($content, 'Exclusion Gate');
         expect($hasMarker)->toBeTrue(sprintf('Expected %s to reference the Exclusion Gate (issue #17).', $relativePath));
     }
@@ -1286,15 +1280,14 @@ test('code-review skill routes Assignment Conformance Gate Critical findings to 
 });
 
 test('every CR wrapper skill references the canonical Two-Part CR Output contract tersely (issue #56)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $wrappers = [
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
-        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
+        'skills/code-review-github/SKILL.md',
+        'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
     ];
 
-    foreach ($wrappers as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
+    foreach ($wrappers as $relativePath) {
+        $content = crContractText($relativePath);
         expect($content)->toContain('**Two-part output (`## Technical Review` / `## Functional Review`).**');
         expect($content)->toContain('`@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*');
     }
@@ -1342,8 +1335,6 @@ test('every code review template renders Technical Review before Findings and Fu
 });
 
 test('full-tree grep finds every CR skill/template/rule references the Two-Part CR Output contract (issue #56)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     $expectedFiles = [
         'rules/code-review/general.md',
         'skills/code-review/SKILL.md',
@@ -1357,7 +1348,7 @@ test('full-tree grep finds every CR skill/template/rule references the Two-Part 
     ];
 
     foreach ($expectedFiles as $relativePath) {
-        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
+        $content = crContractText($relativePath);
         $hasMarker = str_contains($content, 'Two-Part CR Output') || str_contains($content, '## Functional Review');
         expect($hasMarker)->toBeTrue(sprintf('Expected %s to reference the Two-Part CR Output contract (issue #56).', $relativePath));
     }
@@ -1422,9 +1413,8 @@ test('code-review rule requires a concrete SQL rewrite in Database Analysis, not
 });
 
 test('code-review-github and code-review-jira Output Rules require the same concrete SQL Database Analysis fix (issue #132)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     foreach ([$github, $jira] as $content) {
         expect($content)->toContain(
@@ -1474,8 +1464,6 @@ test(
 );
 
 test('full-tree grep finds every CR skill/template/rule references the concrete SQL Database Analysis contract (issue #132)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     $expectedFiles = [
         'rules/code-review/general.md',
         'skills/code-review/templates/review-output.md',
@@ -1487,8 +1475,7 @@ test('full-tree grep finds every CR skill/template/rule references the concrete 
     ];
 
     foreach ($expectedFiles as $relativePath) {
-        $content = (string) file_get_contents($packageDir . '/' . $relativePath);
-        expect($content)->toContain('(issue #132)');
+        expect(crContractText($relativePath))->toContain('(issue #132)');
     }
 });
 
@@ -1768,7 +1755,7 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
     ];
 
     foreach ($wrappers as $wrapper => $template) {
-        $skill = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/SKILL.md');
+        $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
         $rendered = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/' . $template);
 
         // The conditional trigger must reach step 7, not stop at "run the section".
@@ -1784,17 +1771,17 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
     }
 
     // GitHub: the request stays on the PR comment — pr-summary's linked-issue comment is non-technical.
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    expect($github)->toContain('never moves to the linked-issue summary');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    expect($github)->toContain('It never moves to a non-technical tracker as a technical section');
 
     // JIRA: the JIRA reader gets the same ask in plain language through the existing questions block.
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
     expect($jira)->toContain('**Every blocking documentation request**');
     expect($jira)->toContain('Keep the endpoint / SDK-method list itself on the GitHub PR comment');
 
     // Bugsnag: the fix author reads the linked PR, so the request lives there, not on the error comment.
-    $bugsnag = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/SKILL.md');
-    expect($bugsnag)->toContain('the Bugsnag error comment stays non-technical and never carries it');
+    $bugsnag = crContractText('skills/code-review-bugsnag/SKILL.md');
+    expect($bugsnag)->toContain('It never moves to a non-technical tracker as a technical section');
 });
 
 test('quality-gates records that this repository\'s own PR CI cannot satisfy the CI-reuse staleness guard (issue #144)', function (): void {
@@ -1918,7 +1905,7 @@ test('every CR skill and template carries the late-iteration report scope', func
     expect($canonical)->toContain('This is a rendering filter only — every analysis step still runs in full.');
 
     foreach (['code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
-        $skill = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/SKILL.md');
+        $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
         expect($skill)->toContain('**Late-iteration report scope (iteration > 2):**');
         expect($skill)->toContain('the caller passes `iteration = <N>` on every invocation, quiet or publishing');
         expect($skill)->toContain('**Critical and Moderate findings only**');
@@ -2143,4 +2130,50 @@ test('a why-comment is exempt only for the residue naming could not carry (issue
 
     // Without this the fix reads as "shorten the comment", which is the wrong half.
     expect($crRule)->toContain('the **Suggested Fix** extracts that name and keeps only the sentences a reader still needs afterwards');
+});
+
+test('the three CR tracker wrappers share one contract instead of three drifting copies (issue #279)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $contractPath = 'skills/code-review-github/references/cr-wrapper-contract.md';
+    $wrapperReferences = [
+        'skills/code-review-github/SKILL.md' => '`references/cr-wrapper-contract.md`',
+        'skills/code-review-jira/SKILL.md' => '`@skills/code-review-github/references/cr-wrapper-contract.md`',
+        'skills/code-review-bugsnag/SKILL.md' => '`@skills/code-review-github/references/cr-wrapper-contract.md`',
+    ];
+
+    expect(is_file($packageDir . '/' . $contractPath))->toBeTrue();
+
+    foreach ($wrapperReferences as $relativePath => $reference) {
+        $wrapper = (string) file_get_contents($packageDir . '/' . $relativePath);
+        expect($wrapper)->toContain($reference);
+        expect($wrapper)->toContain('## References');
+    }
+
+    // The drift issue #279 names: `Late-iteration report scope` sat in all three wrappers at three
+    // slightly different lengths (704 / 769 / 769 B) while each claimed the same canonical
+    // contract, so a reader could not tell a deliberate difference from a copy that fell behind.
+    // Every statement below is now stated once and referenced three times.
+    $sharedStatements = [
+        '**Late-iteration report scope (iteration > 2):**',
+        '#### Reviewer Comment Fulfillment Gate (mandatory)',
+        '#### Repository ownership (hard gate)',
+        '#### Branch checkout gate (mandatory, always)',
+        '**Read-only skill**',
+        '**Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`):**',
+        '**Omit empty sections entirely.**',
+        '**Two-part output (`## Technical Review` / `## Functional Review`).**',
+    ];
+
+    foreach ($sharedStatements as $statement) {
+        $occurrences = 0;
+
+        foreach ([$contractPath, ...array_keys($wrapperReferences)] as $relativePath) {
+            $occurrences += substr_count((string) file_get_contents($packageDir . '/' . $relativePath), $statement);
+        }
+
+        expect($occurrences)->toBe(
+            1,
+            sprintf('"%s" must exist exactly once across the shared CR contract and its three wrappers.', $statement),
+        );
+    }
 });

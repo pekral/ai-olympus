@@ -24,8 +24,7 @@ test('race-condition-review skill is referenced only by code review skills', fun
     ];
 
     foreach ($expectedFiles as $expectedFile) {
-        $content = file_get_contents($expectedFile);
-        expect($content)->toContain($needle);
+        expect(crContractText($expectedFile))->toContain($needle);
     }
 
     foreach ($skillFiles as $skillFile) {
@@ -225,8 +224,8 @@ test('assignment-compliance-check returns markdown to the caller without publish
     $packageDir = dirname(__DIR__, 2);
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     expect($compliance)->toContain('### 5. Return the report to the caller');
     expect($compliance)->toContain(
@@ -257,8 +256,8 @@ test('assignment-compliance-check omits the block on clean assignments and remov
     $packageDir = dirname(__DIR__, 2);
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $github = (string) file_get_contents($packageDir . '/skills/code-review-github/SKILL.md');
-    $jira = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $github = crContractText('skills/code-review-github/SKILL.md');
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     expect($compliance)->toContain('no critical gaps — assignment compliance block omitted');
     expect($compliance)->toContain('**only when at least one Critical gap exists**');

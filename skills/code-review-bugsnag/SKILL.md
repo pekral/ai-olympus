@@ -8,11 +8,8 @@ metadata:
 ---
 
 ## Constraints
-- Apply @rules/git/general.md
-- Apply @rules/reports/general.md. The **GitHub PR technical comment** this skill posts (Status / Counts / Findings / Refactoring / Database Analysis / Coverage / Summary) stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **Bugsnag error comment** delegated to `@skills/pr-summary/SKILL.md` and the **mirrored linked-GitHub-issue summary** follow the language of the source assignment. Never mix languages inside the same comment.
-- **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Checking out the relevant branch and `git pull` to read the latest code are **required** (the mandatory Branch checkout gate below); mutating the working tree or pushing to the remote is not. Publishing is limited to PR / linked-issue comments via `gh` and to the Bugsnag error comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh`.
-- Bugsnag output must be understandable for non-developers
-- Output findings only (no praise)
+- Apply the shared CR tracker-wrapper contract in `@skills/code-review-github/references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a Bugsnag-sourced review decides for itself.
+- Publishing is limited to PR / linked-issue comments via `gh` and to the Bugsnag error comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh`.
 
 ---
 
@@ -26,94 +23,55 @@ Perform code review for a fix linked to a Bugsnag error by analyzing the related
 ## Execution
 
 ### 1. Load Context
-- Load Bugsnag context by running `skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>` — the single deterministic entry point. Requires `BUGSNAG_TOKEN` (a Data Access API token). Never call `api.bugsnag.com` directly. Read the error class, `message`, `context`, `status`, `severity`, `latestEvent.stacktrace` (the in-project frames are the reproduction entry point), `comments[]`, and `linkedIssues[]` off the resulting JSON document.
-- For a single ready-to-read context brief — the error header, latest event (app version, failing request, in-project stacktrace frames), comments, linked issues, and an inventory of external URLs, rendered as Markdown — run `skills/code-review-bugsnag/scripts/gather-issue-context.sh <URL|TRIPLE>` instead of hand-assembling the JSON. To read only the comments as a structured array, use `skills/code-review-bugsnag/scripts/parse-comments.sh <URL|TRIPLE>`. Both build on `load-issue.sh`, so the same exit codes, `BUGSNAG_TOKEN` requirement, and MCP fallback apply. `linkedIssues` point at GitHub — load that linked issue with `skills/code-review-github/scripts/gather-issue-context.sh <URL>` when you need its full context.
-- The script accepts an `app.bugsnag.com/<org>/<project>/errors/<id>` URL or an `<org>/<project>/<error-id>` triple.
-- If the script is unavailable (missing tool/token, exit code 2/3) fall back to a Bugsnag MCP server.
-- Identify the linked PR to review from the error's `linkedIssues[]` (the mirrored GitHub issue/PR). Load that PR with `skills/code-review-github/scripts/load-issue.sh <URL>` to get the diff, `commits[]`, and `closingIssues[]`.
-- **Repository ownership (hard gate).** Confirm the linked PR belongs to the current checkout by running `skills/_shared/assert-current-repo.sh <PR_URL>` before checking it out. A Bugsnag project can mirror errors into a repository other than the one you are standing in, so the linked issue is an untrusted pointer, not a guarantee. Exit code `4` means the PR lives elsewhere: **stop**, report the mismatch, and do not review or comment. Exit code `5` means ownership could not be proven (not a git checkout, or no github.com remote on any of them): stop and tell the caller to run from inside the target checkout.
-Only a zero exit permits the flow to continue — every non-zero exit is a hard stop, and the deterministic loader's "exit 2/3 → fall back to the MCP server" convention never applies to this guard: there is no fallback for an ownership verdict.
-- **Branch checkout gate (mandatory, always).** Before running any review step, check out the PR branch (`headRefName` from the loaded PR JSON) and pull the latest commits — `git fetch origin`, `git checkout <headRefName>`, `git pull` — so the review always runs against the **actual current codebase on disk (the checked-out working tree)**, never against the remote diff in isolation. Confirm local `HEAD` equals the PR head SHA. If the checkout fails (missing ref, detached `HEAD`, or local changes that would be overwritten), **stop and report it** instead of reviewing from the diff. Every sub-review then reads the checked-out files.
+- Load Bugsnag context by running `skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>`. The script accepts an `app.bugsnag.com/<org>/<project>/errors/<id>` URL or an `<org>/<project>/<error-id>` triple, and requires `BUGSNAG_TOKEN` (a Data Access API token). Read the error class, `message`, `context`, `status`, `severity`, `latestEvent.stacktrace` (the in-project frames are the reproduction entry point), `comments[]`, and `linkedIssues[]` off the resulting JSON document.
+- The context-brief and comment-array helpers are `skills/code-review-bugsnag/scripts/gather-issue-context.sh <URL|TRIPLE>` and `skills/code-review-bugsnag/scripts/parse-comments.sh <URL|TRIPLE>`. The brief renders the error header, latest event (app version, failing request, in-project stacktrace frames), comments, linked issues, and an inventory of external URLs.
+- Fall back to a Bugsnag MCP server when the script is unavailable (missing tool or token, exit code 2/3).
+- `linkedIssues[]` points at GitHub. Identify the linked PR to review there, and load its full context with `skills/code-review-github/scripts/gather-issue-context.sh <URL>` or `skills/code-review-github/scripts/load-issue.sh <URL>` to get the diff, `commits[]`, and `closingIssues[]`.
+- **Repository ownership** — run the hard gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership*) **once the linked PR is known and before it is checked out**. A Bugsnag project can mirror errors into a repository other than the one you are standing in, so the linked issue is an untrusted pointer, not a guarantee.
 
 #### Issue Context Analysis
-Before reviewing code, treat the Bugsnag error as the assignment:
+The assignment is the **Bugsnag error itself** — its class, `message`, and `context` describe the failure, and the in-project `latestEvent.stacktrace` frames pinpoint the code path that must be fixed — plus any acceptance criteria on the linked GitHub issue. Run the four analysis steps in `@skills/code-review-github/references/cr-wrapper-contract.md` *Issue Context Analysis* against that assignment, with these Bugsnag readings of steps 2 and 4:
 
-1. The error class + `message` + `context` describe the failure; the in-project `latestEvent.stacktrace` frames pinpoint the code path that must be fixed.
-2. Extract the expected behavior: the error must no longer occur for the reproduced scenario, and a regression test must capture the failure.
-3. Read every entry in `comments[]` for human-authored context (e.g. "Fixed in db", reproduction notes), plus any acceptance criteria on the linked GitHub issue.
-4. Verify the fix is covered by a regression test that fails before and passes after. Flag missing coverage as a finding.
-
-#### Reviewer Comment Fulfillment Gate (mandatory)
-
-Run the **Reviewer Comment Fulfillment Gate** defined canonically in `@skills/code-review-github/SKILL.md` against the **GitHub PR** linked to this Bugsnag error — that is where this skill publishes technical CR findings and where reviewer comments and line-anchored review threads live. After loading all PR comments, verify each actionable reviewer instruction is satisfied by the current checked-out diff (the applied change corresponds to what the reviewer asked for), raise one **Critical** finding per not-fulfilled instruction on the GitHub PR comment with the four reproducer fields, and record the `reviewer comments: M/N fulfilled` verdict on the GitHub PR comment summary line. The Bugsnag non-technical comment never carries this gate's findings.
+- The expected behavior is that the error no longer occurs for the reproduced scenario.
+- Every entry in `comments[]` carries human-authored context (e.g. "Fixed in db", reproduction notes) and is read as part of the assignment.
+- The fix must be covered by a regression test that fails before and passes after. Flag missing coverage as a finding.
 
 ### 2. Pre-checks
-- **CI coverage of checks.** Read `statusCheckRollup[]` from the GitHub PR JSON loaded in step 1 (via `skills/code-review-github/scripts/load-issue.sh`). Identify which checks ran on the PR head commit (`headRefOid`) and their result. Pass this CI check map to the Coverage gate decision in `@skills/code-review/SKILL.md` (Validation → Coverage gate; the Reuse-CI-results detail now lives in `@rules/code-review/general.md` *Validation & Coverage Gate*) so only missing or non-green checks are run locally.
-- If the linked PR has conflicts → skip review for that PR.
-- If the error has no linked PR yet → report "no linked PR — review skipped" and stop.
+- `statusCheckRollup[]` for the CI check map comes off the GitHub PR JSON loaded in step 1 (via `skills/code-review-github/scripts/load-issue.sh`).
+- If the error has no linked PR yet → report `no linked PR — review skipped` and stop.
 
 ### 3. Run Reviews
-
-> **Inline dispatch.** Each sub-review runs **inline in this wrapper's context** — invoke each skill directly (`@skills/<name>/SKILL.md` with any `MODE=cr` flag), passing the PR URL / number and the branch already checked out, and declare the publishing contract for this CR run (quiet vs publish; see step 4). Run the sub-reviews **one at a time** — do not dispatch them as parallel subagents.
-
-- For the linked PR (sub-reviews invoked inline, one at a time):
-  - run @skills/assignment-compliance-check/SKILL.md — Bugsnag-originated branch: the error (class / message / context / stacktrace) is the assignment, plus any acceptance criteria on the linked GitHub issue. The skill **does not publish anywhere itself** — it returns the assembled `## Assignment Compliance` markdown block (only when at least one Critical gap exists) or a skip status. The wrapper passes a returned block to `@skills/pr-summary/SKILL.md` as an embedded block so each tracker receives **one consolidated comment** per CR run (per issue #498). **Do not embed** the block into the GitHub PR comment.
-  - run @skills/code-review/SKILL.md
-  - run @skills/analyze-problem/SKILL.md — **always run, scoped to assignment conformance**, invoked inline and read-only (analysis-only — no plan artifact, no code / git writes). Here the assignment is the Bugsnag error (class / message / context / stacktrace) plus any acceptance criteria on the linked GitHub issue; the skill compares that assignment against what the PR diff actually implements and raises every unmet requirement as a **Critical** finding with reproducer fields on the GitHub PR comment. Canonical definition lives in `@skills/code-review/SKILL.md` Specialized Reviews → Always run; it is distinct from the per-Critical-finding verification (issue #537) and must not duplicate gaps already raised by `assignment-compliance-check`.
-  - run @skills/security-review/SKILL.md — **skipped when `SECURITY_OWNER=athena` is set by the caller.** When a **separate, concurrent** agent owns the security review, this inline pass repeats the same review over the same diff for no extra coverage. **Absence of the flag means it runs**, so coverage never drops by omission. **No agent this package ships sets the flag** (issue #179): `athena` is the single reviewer, so this inline pass *is* her security pass. The flag is for an external caller that genuinely runs a concurrent pass. When skipped, surface `security: owned by athena` on the summary line rather than implying a pass that did not happen here.
-  - run @skills/class-refactoring/SKILL.md **with `MODE=cr`** — read-only refactoring lens scoped to the PR diff.
-
-- **Refactoring & Tech Debt (DRY) Analysis (PR diff only — never untouched code).** Apply the **reuse-first gate** from `@rules/code-review/general.md` *Reuse Existing Logic* to every block of new or modified logic on the diff: first verify the new logic is necessary to satisfy the assignment at all (an existing helper / Service / Action / Data Builder / DTO / scope may already fulfil it — wiring it up is the fix, the net-new logic is the finding), then that any logic genuinely needed reuses the existing implementation instead of introducing a parallel one. Fold duplicated-logic findings into the **Refactoring (DRY / Tech Debt Reduction)** section of the GitHub PR comment; out-of-scope structural problems go to **Refactoring Proposals**.
-
-- Run conditionally (same triggers as `@skills/code-review-jira/SKILL.md`): refactoring diff → `@skills/refactor-entry-point-to-action/SKILL.md` with `MODE=cr`; database operations → `@skills/mysql-problem-solver/SKILL.md` (surface under `## Database Analysis`); shared state → `@skills/race-condition-review/SKILL.md`; third-party API changes → the Third-Party API & Service Analysis step from `@skills/code-review/SKILL.md`, including the ordered documentation source walk (step 2) and, when it resolves no reference, the blocking documentation request (step 7), published on the linked GitHub PR comment under `## Documentation Requests` (see Output Rules).
+Run the always-run set, the conditional set, and the Refactoring & Tech Debt (DRY) analysis exactly as `@skills/code-review-github/references/cr-wrapper-contract.md` *3. Run Reviews* defines them, against the linked PR. A Bugsnag-sourced review adds no sub-review of its own and skips none.
 
 ### 4. Publish Results
 
-> **Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`):** when the caller requests "do not publish; return findings as in-memory markdown", **skip all publishing** below and return the assembled review markdown. Only the final (publishing) call after convergence runs Publish Results in full.
-
-> **Late-iteration report scope (iteration > 2):** the caller passes `iteration = <N>` on every invocation, quiet or publishing. When `N > 2`, the assembled review carries **Critical and Moderate findings only** — no Minor findings, no `## Refactoring (DRY / Tech Debt Reduction)`, no `## Refactoring Proposals`, but **security-lens findings stay at every severity** — while the `Counts:` line keeps the real detected numbers and a `Report scope:` header line names the suppression. When no `iteration` is passed, treat the run as iteration 1 and publish the full report. Canonical contract: `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
-
-#### GitHub (technical findings only — always-new comment per CR run)
-- Publish via `skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> -` (body on stdin) on the linked PR. Every CR run posts a **fresh PR comment**; the helper appends the marker `<!-- cr-comment:actor=<gh-login> -->` for traceability and never edits a prior comment in place. On exit code 2/3, fall back to the GitHub MCP server's `addIssueComment` as a fresh post.
-- Format inside the comment body: Critical → Moderate → Minor → Refactoring (DRY / Tech Debt Reduction), each with `file:line` and an actionable fix. Use the template defined in `templates/github-output.md`. Omit empty sections entirely per `@skills/code-review/SKILL.md` Output Rules.
-- This is the only place where technical details appear.
-
 #### Bugsnag (consolidated non-technical comment)
-- Delegate the Bugsnag error comment to `@skills/pr-summary/SKILL.md`. This CR skill must not author its own summary — the goal is the uniform *"Authors / Available behind / Summary of changes / How to test"* output that non-developers understand.
-- **Consolidation contract (issue #498):** invoke `pr-summary` exactly once for the Bugsnag error. When `@skills/assignment-compliance-check/SKILL.md` returned a markdown block, pass it as an embedded block so the Bugsnag audience sees **one consolidated comment**. `pr-summary` posts the comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (Bugsnag MCP server fallback on exit code 2/3). Each CR run posts a fresh comment (Bugsnag renders plain text — no hidden per-actor marker; the token identifies the author).
-- Pass through the PR `author.login` + `commits[].author.login` set and the git `%an <%ae>` log so the published comment credits the **real change author(s)**, never the agent / CR identity. Also pass through any **test-parameter gating** detected in the diff so the comment carries the `Available behind` line.
-- Never post file paths, line numbers, code snippets, technical severity levels, or finding counts to Bugsnag — `pr-summary` enforces this by design.
+- Invoke `@skills/pr-summary/SKILL.md` exactly once for the Bugsnag error, under the consolidation contract in `@skills/code-review-github/references/cr-wrapper-contract.md`. It posts the comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (Bugsnag MCP server fallback on exit code 2/3).
+- Each CR run posts a fresh comment. Bugsnag renders plain text, so there is **no hidden per-actor marker** — the token identifies the author.
 
 #### Linked GitHub issues (consolidated mirror — always-new comment per CR run)
-- If the linked PR also references a GitHub issue (`closingIssues[]` non-empty), delegate the linked-GitHub-issue comment to `@skills/pr-summary/SKILL.md` (GitHub tracker target) and post via `skills/code-review-github/scripts/upsert-comment.sh` on each entry — one fresh comment per linked issue per CR run. Pass the same author + test-parameter context. If `closingIssues[]` is empty, note "no linked GitHub issue — mirror skipped" in the PR comment summary line.
+- Publish the mirror per `@skills/code-review-github/references/cr-wrapper-contract.md` *Linked GitHub issues*. If `closingIssues[]` is empty, note `no linked GitHub issue — mirror skipped` in the PR comment summary line.
 
 ---
 
 ## Output Rules
 
 ### GitHub (technical report — only here)
-- All technical findings go exclusively to the linked GitHub PR comment: file paths, line numbers, code references, severity levels (Critical / Moderate / Minor), concrete fixes. Findings only — no praise.
-- Each Critical / Moderate finding carries the four reproducer fields (**Faulty Example**, **Expected Behavior**, **Test Hint**, **Suggested Fix**) so `@skills/process-code-review/SKILL.md` can convert each finding into a reproducer test and apply the fix. Omit empty sections and the coverage surfaces per `@skills/code-review/SKILL.md` Output Rules.
-- **Late-iteration report scope.** When the caller passed `iteration > 2`, the posted GitHub PR comment carries Critical and Moderate findings only, plus the `Report scope:` header line next to the unchanged real `Counts:` numbers (`@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*). The narrowing is a rendering filter — every review step still runs in full, and the convergence gate stays `Critical + Moderate == 0`.
-- **Two-part output (`## Technical Review` / `## Functional Review`).** Structure the PR comment into `## Technical Review` (wraps every section below, unchanged) followed by `## Functional Review` (always rendered — the one exception to "omit empty sections" above) per `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review* — the canonical contract lives there, not here.
-- **`## Documentation Requests` section (issue #151).** Render this section on the linked GitHub PR comment — after `## Findings`, before `## Refactoring (DRY / tech debt)` — **only** when the Third-Party API & Service Analysis step 7 in `@skills/code-review/SKILL.md` produced at least one blocking documentation request. Each entry carries the vendor / service, the version in use (or an explicit `could not determine`), the endpoints / SDK methods / webhook events being verified, and the one-sentence ask for the documentation link. The PR comment is the surface the fix's author reads, so the request lives there; the Bugsnag error comment stays non-technical and never carries it. Omit the heading entirely when no request exists.
-- **`## Excluded per assignment` section (issue #17).** This wrapper's step 1 (`skills/code-review-bugsnag/scripts/load-issue.sh` plus `skills/code-review-github/scripts/load-issue.sh` for the linked PR) already loads the Bugsnag error `comments[]`, the linked-issue comments, and the linked PR's description and review comments — exactly the first-class assignment sources the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) requires for detection condition 1. Render the section on the GitHub PR comment only when `@skills/code-review/SKILL.md` moved at least one finding into it; omit it entirely otherwise.
+
+Apply `@skills/code-review-github/references/cr-wrapper-contract.md` *Output Rules — GitHub PR comment*, and use the template defined in `templates/github-output.md`. The Bugsnag-specific slots it leaves open:
+
+- The header block's tracker-mirror field is `Linked-tracker mirror`.
+- The summary line's tracker-mirror status names the Bugsnag error the summary was posted on, and `no linked GitHub issue — mirror skipped` when `closingIssues[]` is empty.
 
 ### Bugsnag (non-technical summary — only here)
 - The non-technical Bugsnag comment is **produced and posted by `@skills/pr-summary/SKILL.md`**, not by this skill. Plain language understandable by non-developers, in two sections: *Summary of changes* and *How to test*. No file paths, line numbers, code snippets, or severity jargon.
 
 ---
 
-## Principles
-
-- Focus on risks, not style
-- Prefer impact over quantity
-- Avoid duplication of findings
-- Prioritize regression detection
-- Be precise and actionable
-
----
-
 ## After Completion
 
 - Do **not** change the Bugsnag error status (fixed / ignored / snoozed) automatically — marking an error fixed is left to a human after the fix is verified in production.
+
+## References
+
+- @skills/code-review-github/references/cr-wrapper-contract.md

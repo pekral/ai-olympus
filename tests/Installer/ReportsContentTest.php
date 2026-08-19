@@ -34,7 +34,7 @@ test('every tracker-publishing skill references @rules/reports/general.md', func
     ];
 
     foreach ($trackerPublishingSkills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
+        $content = crContractText($skillFile);
 
         $hasReference = str_contains($content, '@rules/reports/general.md');
 
@@ -124,7 +124,7 @@ test('CR wrapper skills carry the GitHub-PR English exception in their constrain
     ];
 
     foreach ($crWrapperSkills as $skillFile) {
-        $content = (string) file_get_contents($skillFile);
+        $content = crContractText($skillFile);
 
         $namesException = str_contains($content, 'Exception — technical CR findings on the GitHub PR');
         $mentionsCanonicalEnglish = str_contains($content, 'canonical English');
