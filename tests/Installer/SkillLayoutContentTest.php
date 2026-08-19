@@ -87,26 +87,30 @@ test('no skill uses the legacy layout B body (issue #278)', function (): void {
     expect($violations)->toBe([]);
 });
 
-test('every skill carries the license and metadata frontmatter keys (issue #278)', function (): void {
+test('every skill carries the packaged license and metadata.author values (issue #278)', function (): void {
     // `skill-check` validates `name` and `description` but not these two, so a skill authored
     // without them stays green forever — `skills/code-review/SKILL.md` shipped without either
     // until issue #278. This guard makes the omission fail the build instead.
+    //
+    // Both halves pin the value this package ships, not merely the presence of the key: every
+    // skill here is authored by the package owner under one licence, so a divergent value is as
+    // much a defect as a missing line. A fork changes both expectations together.
     $missing = [];
 
     foreach (array_keys(skillEntrypointFiles()) as $path) {
         $frontmatter = ruleExtensionFrontmatter(dirname(__DIR__, 2) . '/' . $path);
 
         if (!str_contains($frontmatter, "\nlicense: MIT")) {
-            $missing[] = $path . ' (license)';
+            $missing[] = $path . ' (license: MIT)';
         }
 
         // The author value is quoted in most files and bare in a few; both are valid YAML, so the
-        // guard pins the key, never the quoting style.
+        // guard accepts either quoting style around the one packaged author value.
         if (preg_match('/\nmetadata:\n {2}author: "?Petr Král \(pekral\.cz\)"?/', $frontmatter) === 1) {
             continue;
         }
 
-        $missing[] = $path . ' (metadata.author)';
+        $missing[] = $path . ' (metadata.author: Petr Král (pekral.cz))';
     }
 
     expect($missing)->toBe([]);
