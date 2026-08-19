@@ -14,6 +14,79 @@ function skillEntrypointFiles(): array
     return array_filter(packageTextFiles(), $isSkillEntrypoint, ARRAY_FILTER_USE_KEY);
 }
 
+/**
+ * A SKILL.md body with its YAML frontmatter removed.
+ *
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function skillBodyLines(array $lines): array
+{
+    if (($lines[0] ?? null) !== '---') {
+        return $lines;
+    }
+
+    $closing = array_search('---', array_slice($lines, 1), strict: true);
+
+    return $closing === false ? $lines : array_slice($lines, (int) $closing + 2);
+}
+
+/**
+ * Markdown headings of a SKILL.md body. Fenced blocks are skipped, so a `# comment` inside a
+ * shell snippet or an output template is never mistaken for a document heading.
+ *
+ * @return list<string>
+ */
+function skillBodyHeadings(string $content): array
+{
+    $headings = [];
+    $insideFence = false;
+
+    foreach (skillBodyLines(explode("\n", $content)) as $line) {
+        if (str_starts_with($line, '```')) {
+            $insideFence = !$insideFence;
+
+            continue;
+        }
+
+        if ($insideFence || !str_starts_with($line, '#')) {
+            continue;
+        }
+
+        $headings[] = $line;
+    }
+
+    return $headings;
+}
+
+test('no skill uses the legacy layout B body (issue #278)', function (): void {
+    // `skill-creator` describes two body layouts. Layout B opens with a `# Title Case Name`
+    // heading that only restates `name:`, followed by a `## Purpose` block restating
+    // `description:`. Layout A is Constraints-first and carries no H1 at all, so the absence of a
+    // body-level H1 is what separates the two.
+    $violations = [];
+
+    foreach (skillEntrypointFiles() as $path => $content) {
+        $headings = skillBodyHeadings($content);
+
+        foreach ($headings as $heading) {
+            if (!str_starts_with($heading, '# ')) {
+                continue;
+            }
+
+            $violations[] = $path . ' carries the layout B title heading "' . $heading . '"';
+        }
+
+        if (str_starts_with($headings[0] ?? '', '## ')) {
+            continue;
+        }
+
+        $violations[] = $path . ' does not open with a `## ` section';
+    }
+
+    expect($violations)->toBe([]);
+});
+
 test('every skill carries the license and metadata frontmatter keys (issue #278)', function (): void {
     // `skill-check` validates `name` and `description` but not these two, so a skill authored
     // without them stays green forever — `skills/code-review/SKILL.md` shipped without either
