@@ -6,13 +6,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Merge GitHub PR
-
-## Purpose
-Merge pull requests that meet all required conditions.
-
----
-
 ## Constraints
 - Apply @rules/git/general.md
 - **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — 0 Critical + 0 Moderate findings (Minor does not block). This is the hard merge gate from `@rules/git/general.md` *Merging*; it is mandatory on every merge and is verified in step 2 below. Its single exemption is a **dependency-only PR** (`@rules/git/general.md` *Dependency-only pull requests*), qualified in step 2 below.

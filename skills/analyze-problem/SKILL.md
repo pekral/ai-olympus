@@ -7,19 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Analyze Problem
-
-## Purpose
-Perform structured problem analysis before proposing or implementing any changes.
-
-Focus on:
-- verified facts
-- multiple hypotheses
-- root cause identification
-- validation strategy
-
----
-
 ## Constraints
 - Apply `@rules/php/core-standards.md` **only once it is established that the project is a PHP project (PHP stack in `composer.json`) and the analyzed change touches PHP code** — skip it for a non-PHP problem (docs, tooling, infra, markdown, config); do not load the PHP standards for an analysis that does not touch PHP.
 - Apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md` **when the project is a Laravel project and the analysis proposes new or materially changed PHP code**. The *Recommended Solution* and the *Implementation Outline* are where the home for new logic is chosen, and those two rules own that choice — an analysis that never loads them is free to propose a shape the architecture forbids. `@rules/laravel/architecture.md` self-scopes to projects using `pekral/arch-app-services`; on a Laravel project without that package, `@rules/laravel/laravel.md` alone governs the choice. Skip both for a non-Laravel problem and for an analysis that proposes no PHP change.
@@ -30,6 +17,17 @@ Focus on:
 - Do not jump directly to solutions
 - Do not assume a single cause
 - Be explicit about uncertainty
+
+---
+
+## Scope
+Perform structured problem analysis before proposing or implementing any changes.
+
+Focus on:
+- verified facts
+- multiple hypotheses
+- root cause identification
+- validation strategy
 
 ---
 

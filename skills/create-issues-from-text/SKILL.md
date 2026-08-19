@@ -6,13 +6,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Create Issues from Text
-
-## Purpose
-Split a complex assignment into multiple clear, structured issues.
-
----
-
 ## Constraints
 - Preserve original assignment (store in parent or first issue)
 - Do not implement code

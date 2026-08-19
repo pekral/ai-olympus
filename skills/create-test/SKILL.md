@@ -6,13 +6,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Create Test
-
-## Purpose
-Create or update tests to cover current changes according to project conventions.
-
----
-
 ## Constraints
 - Apply @rules/code-testing/general.md
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`

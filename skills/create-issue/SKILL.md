@@ -6,13 +6,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-# Create Issue
-
-## Purpose
-Create a well-formatted issue while preserving the original content exactly.
-
----
-
 ## Constraints
 - Preserve original text exactly (no rewriting or summarizing)
 - Improve formatting only (headings, lists, spacing)

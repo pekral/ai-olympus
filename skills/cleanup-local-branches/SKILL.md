@@ -6,17 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Cleanup Local Branches
-
-## Purpose
-Prune dead local branches so the working copy only keeps branches that are still alive on origin or still recently active.
-
-Two deletion categories:
-- **Gone** — local branches whose upstream tracking branch was deleted on origin (e.g. the PR was merged and the origin branch removed).
-- **Stale** — local branches that have **no** counterpart on origin and have not received a commit for **more than six months**.
-
----
-
 ## Constraints
 - Apply `@rules/git/general.md`
 - Output must be in English
@@ -27,6 +16,15 @@ Two deletion categories:
 - Never rewrite history, force-push, or run `git gc` / `git reflog expire`
 - Determine integration status by patch identity against the default branch (`git cherry`), so squash- and rebase-merged branches are recognized as integrated
 - Never delete a `stale` branch that is not integrated into the default branch automatically — keep it and report it unless the user explicitly authorizes force deletion (its commits never reached origin and are unrecoverable)
+
+---
+
+## Scope
+Prune dead local branches so the working copy only keeps branches that are still alive on origin or still recently active.
+
+Two deletion categories:
+- **Gone** — local branches whose upstream tracking branch was deleted on origin (e.g. the PR was merged and the origin branch removed).
+- **Stale** — local branches that have **no** counterpart on origin and have not received a commit for **more than six months**.
 
 ---
 

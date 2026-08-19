@@ -6,13 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-# Prepare Issue Context
-
-## Purpose
-De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-loading the data and codebase context** the agent needs to act without hallucinating. The skill ends with one of two states: **ready** (the development database holds every record the assignment scenarios refer to, and every scenario is mapped to a concrete code path) or **blocked** (a gap exists — the calling skill must stop and surface the gap to the user instead of guessing).
-
----
-
 ## Constraints
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/git/general.md`
@@ -22,6 +15,11 @@ De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-l
 - Never invent values that are not derivable from the assignment, the codebase, or the existing dev database. When a required value (account ID, contact phone, enum case, config key) cannot be resolved, list it as a gap — do not guess.
 - Never expose secrets, production credentials, or PII when seeding. Use test fixtures (`+420600000000`-style sentinels, `qa-*` aliases) explicitly tagged as such.
 - Apply `@rules/reports/general.md` — when a context-preparation summary is published to the tracker (via `@skills/pr-summary/SKILL.md`), it must be written in the language of the source assignment. The in-conversation `ready` / `blocked` status is allowed to stay in English.
+
+---
+
+## Scope
+De-risk the next implementation step (`/resolve-issue`, TDD, or CR) by **front-loading the data and codebase context** the agent needs to act without hallucinating. The skill ends with one of two states: **ready** (the development database holds every record the assignment scenarios refer to, and every scenario is mapped to a concrete code path) or **blocked** (a gap exists — the calling skill must stop and surface the gap to the user instead of guessing).
 
 ---
 
