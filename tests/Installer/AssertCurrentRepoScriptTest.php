@@ -293,7 +293,7 @@ test('a skipped security pass has somewhere to be declared on the summary line',
     ];
 
     foreach ($templates as $template) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $template);
+        $content = crContractText($packageDir . '/skills/' . $template);
         expect($content)->toContain('security: owned by athena');
         expect($content)->toContain('SECURITY_OWNER=athena');
     }
@@ -329,7 +329,7 @@ test('the merge gate verifies a delegated security review actually arrived', fun
         'code-review-jira/templates/github-output.md',
         'code-review/templates/review-output.md',
     ] as $template) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $template);
+        $content = crContractText($packageDir . '/skills/' . $template);
         expect($content)->toContain('url of athena\'s security comment');
         expect($content)->toContain('The URL is mandatory');
     }

@@ -712,34 +712,47 @@ function ruleExtensionFrontmatter(string $path): string
 }
 
 /**
- * The contract a package file applies: its own text, plus the shared
- * `skills/code-review-github/references/cr-wrapper-contract.md` when the file is one of the three
- * CR tracker wrappers that reference it (issue #279). Any other file is returned unchanged. The
- * path may be package-relative or absolute, because the guards that call this hold it both ways.
+ * The effective text a package file applies: its own text, plus the shared file it delegates to,
+ * for every package file that references a shared source instead of restating it. Any other file
+ * is returned unchanged. The path may be package-relative or absolute, because the guards that
+ * call this hold it both ways.
  *
- * The three wrappers used to carry their own copy of every shared rule, so a pin could read the
- * rule off the wrapper file directly. They now state a shared rule once, in the reference file, and
- * keep only what their own tracker decides — so a pin asking whether a wrapper declares a rule has
- * to read the contract the wrapper actually applies, not only the file it is written in. Reading
- * the wrapper alone would fail a rule that is correctly stated once; reading the reference alone
- * would miss the tracker-specific half.
+ * Two independent delegations share this one helper (both concatenate own-text + shared-text, so a
+ * second near-identical function would just be this same logic twice):
+ * - The three CR tracker wrappers (`code-review-github` / `code-review-jira` / `code-review-bugsnag`
+ *   `SKILL.md`) used to carry their own copy of every shared rule, so a pin could read the rule off
+ *   the wrapper file directly. They now state a shared rule once, in
+ *   `skills/code-review-github/references/cr-wrapper-contract.md`, and keep only what their own
+ *   tracker decides (issue #279) — so a pin asking whether a wrapper declares a rule has to read the
+ *   contract the wrapper actually applies, not only the file it is written in.
+ * - The JIRA and Bugsnag GitHub-PR-comment output templates used to carry their own byte-identical
+ *   copy of the rendered CR template. They now point at the canonical
+ *   `skills/code-review-github/templates/pr-comment-output.md` and state only their own tracker's
+ *   header-field-name / status-wording slots (issue #289) — so a pin asking what the rendered
+ *   comment contains has to read the canonical template the pointer file applies, not only the
+ *   two-slot pointer file itself.
+ *
+ * Reading the delegating file alone would miss a rule stated once in the shared file; reading the
+ * shared file alone would miss the tracker-specific half.
  */
 function crContractText(string $path): string
 {
     $packageDir = dirname(__DIR__);
     $relativePath = ltrim(str_replace($packageDir, '', $path), '/');
     $content = (string) file_get_contents($packageDir . '/' . $relativePath);
-    $wrappers = [
-        'skills/code-review-github/SKILL.md',
-        'skills/code-review-jira/SKILL.md',
-        'skills/code-review-bugsnag/SKILL.md',
+    $sharedReferenceFiles = [
+        'skills/code-review-bugsnag/SKILL.md' => 'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/code-review-bugsnag/templates/github-output.md' => 'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-github/SKILL.md' => 'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/code-review-jira/SKILL.md' => 'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/code-review-jira/templates/github-output.md' => 'skills/code-review-github/templates/pr-comment-output.md',
     ];
 
-    if (!in_array($relativePath, $wrappers, strict: true)) {
+    if (!array_key_exists($relativePath, $sharedReferenceFiles)) {
         return $content;
     }
 
-    return $content . "\n" . (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
+    return $content . "\n" . (string) file_get_contents($packageDir . '/' . $sharedReferenceFiles[$relativePath]);
 }
 
 /**

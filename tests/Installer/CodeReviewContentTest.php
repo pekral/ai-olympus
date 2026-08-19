@@ -153,7 +153,7 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
         $packageDir . '/skills/code-review-jira/templates/github-output.md',
         $packageDir . '/skills/code-review/templates/review-output.md',
     ] as $template) {
-        $body = (string) file_get_contents($template);
+        $body = crContractText($template);
         expect($body)->toContain('**Last updated:**');
         expect($body)->not->toContain('## Previous CR Status');
     }
@@ -273,7 +273,7 @@ test('GitHub PR comment templates use a compact AI-parseable header with severit
     $packageDir = dirname(__DIR__, 2);
 
     foreach (['code-review-github/templates/pr-comment-output.md', 'code-review-jira/templates/github-output.md'] as $path) {
-        $content = (string) file_get_contents($packageDir . '/skills/' . $path);
+        $content = crContractText($packageDir . '/skills/' . $path);
 
         expect($content)->toContain('# Code Review');
         expect($content)->toContain('**Status:** clean / needs-fix');
@@ -432,7 +432,7 @@ test('code review templates include refactoring tech debt section', function ():
     ];
 
     foreach ($templates as $template) {
-        $content = (string) file_get_contents($template);
+        $content = crContractText($template);
         expect($content)->toContain('## Refactoring (DRY / tech debt)');
         expect($content)->toContain('{n} Refactoring');
     }
@@ -448,7 +448,7 @@ test('code review output omits empty sections instead of rendering placeholders'
     ];
 
     foreach ($templates as $template) {
-        $content = (string) file_get_contents($template);
+        $content = crContractText($template);
         expect($content)->toContain('Section visibility — render only sections that have content.');
         expect($content)->toContain('Render only when at least one Critical, Moderate, or Minor finding exists.');
         expect($content)->toContain('Render only when at least one in-scope refactoring item exists.');
@@ -639,7 +639,7 @@ test('code-review-github skill + template short-circuit coverage section (issue 
 test('code-review-jira skill + template short-circuit coverage section (issue #528 follow-up)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = crContractText('skills/code-review-jira/SKILL.md');
-    $template = (string) file_get_contents($packageDir . '/skills/code-review-jira/templates/github-output.md');
+    $template = crContractText($packageDir . '/skills/code-review-jira/templates/github-output.md');
 
     expect($skill)->toContain('The header block (Status / Counts / Last updated / tracker-mirror status)');
     expect($skill)->toContain('The header block\'s tracker-mirror field is `Linked-tracker mirror`.');
@@ -801,7 +801,7 @@ test('code-review-github Output Rules and template carry the Architecture condit
 test('code-review-jira Output Rules and GitHub template carry the Architecture conditional rendering rule (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = crContractText('skills/code-review-jira/SKILL.md');
-    $template = (string) file_get_contents($packageDir . '/skills/code-review-jira/templates/github-output.md');
+    $template = crContractText($packageDir . '/skills/code-review-jira/templates/github-output.md');
 
     expect($skill)->toContain('`## Architecture` section (issue #530)');
     expect($skill)->toContain('only when the walk produces at least one finding');
@@ -1303,7 +1303,7 @@ test('every code review template renders Technical Review before Findings and Fu
     ];
 
     foreach ($templates as $template) {
-        $content = (string) file_get_contents($template);
+        $content = crContractText($template);
 
         expect($content)->toContain("\n## Technical Review\n");
         expect($content)->toContain("\n## Functional Review\n");
@@ -1364,7 +1364,7 @@ test('code-review-bugsnag Summary line carries the assignment conformance token 
     ];
 
     foreach ($templates as $template) {
-        $content = (string) file_get_contents($template);
+        $content = crContractText($template);
         $summaryPos = strpos($content, "\n**Summary:**");
         expect($summaryPos)->not->toBeFalse();
         assert($summaryPos !== false);
@@ -1374,7 +1374,7 @@ test('code-review-bugsnag Summary line carries the assignment conformance token 
     }
 
     // Bugsnag's Functional Review blockquote now points at the Summary line, byte-identical to the other 3 templates.
-    $bugsnagTemplate = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/templates/github-output.md');
+    $bugsnagTemplate = crContractText($packageDir . '/skills/code-review-bugsnag/templates/github-output.md');
     expect($bugsnagTemplate)->toContain('`assignment conformance:` token on the Summary line below');
 
     // The rule's "Bugsnag has no token" exception clause is gone now that the drift is fixed.
@@ -1436,7 +1436,7 @@ test(
         ];
     
         foreach ($templates as $template) {
-            $content = (string) file_get_contents($template);
+            $content = crContractText($template);
     
             expect($content)->toContain("\n## Database Analysis\n");
             expect($content)->toContain('{one-sentence fix category — query rewrite to reuse an existing index');
@@ -1756,7 +1756,7 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
 
     foreach ($wrappers as $wrapper => $template) {
         $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
-        $rendered = (string) file_get_contents($packageDir . '/skills/' . $wrapper . '/' . $template);
+        $rendered = crContractText($packageDir . '/skills/' . $wrapper . '/' . $template);
 
         // The conditional trigger must reach step 7, not stop at "run the section".
         expect($skill)->toContain('the blocking documentation request (step 7)');
@@ -1921,7 +1921,7 @@ test('every CR skill and template carries the late-iteration report scope', func
         'code-review-jira/templates/github-output.md',
         'code-review-bugsnag/templates/github-output.md',
     ] as $path) {
-        $template = (string) file_get_contents($packageDir . '/skills/' . $path);
+        $template = crContractText($packageDir . '/skills/' . $path);
         expect($template)->toContain('**Late-iteration report scope (CR iteration > 2).**');
         expect($template)->toContain('**Report scope:** Critical + Moderate only (iteration {n}');
         expect($template)->toContain('*(always the real detected counts — never zeroed to match a narrowed report scope)*');
