@@ -32,6 +32,20 @@ function skillBodyLines(array $lines): array
 }
 
 /**
+ * True when every fenced block in a SKILL.md body is closed again.
+ *
+ * An unclosed fence would leave `skillBodyHeadings()` below inside a block for the rest of the
+ * file, so every later heading — including a reintroduced layout B title — would go unread. The
+ * guard therefore fails on the unbalanced fence itself instead of silently reading less.
+ */
+function skillBodyClosesEveryFence(string $content): bool
+{
+    $isFenceMarker = static fn (string $line): bool => str_starts_with($line, '```');
+
+    return count(array_filter(skillBodyLines(explode("\n", $content)), $isFenceMarker)) % 2 === 0;
+}
+
+/**
  * Markdown headings of a SKILL.md body. Fenced blocks are skipped, so a `# comment` inside a
  * shell snippet or an output template is never mistaken for a document heading.
  *
@@ -59,6 +73,34 @@ function skillBodyHeadings(string $content): array
     return $headings;
 }
 
+/**
+ * Every way one SKILL.md body can fail the layout A guard.
+ *
+ * @return list<string>
+ */
+function skillLayoutViolations(string $path, string $content): array
+{
+    $violations = skillBodyClosesEveryFence($content)
+        ? []
+        : [$path . ' leaves a fenced block open, so the guard cannot read the rest of the body'];
+
+    $headings = skillBodyHeadings($content);
+
+    foreach ($headings as $heading) {
+        if (!str_starts_with($heading, '# ')) {
+            continue;
+        }
+
+        $violations[] = $path . ' carries the layout B title heading "' . $heading . '"';
+    }
+
+    if (str_starts_with($headings[0] ?? '', '## ')) {
+        return $violations;
+    }
+
+    return [...$violations, $path . ' does not open with a `## ` section'];
+}
+
 test('no skill uses the legacy layout B body (issue #278)', function (): void {
     // `skill-creator` describes two body layouts. Layout B opens with a `# Title Case Name`
     // heading that only restates `name:`, followed by a `## Purpose` block restating
@@ -67,21 +109,7 @@ test('no skill uses the legacy layout B body (issue #278)', function (): void {
     $violations = [];
 
     foreach (skillEntrypointFiles() as $path => $content) {
-        $headings = skillBodyHeadings($content);
-
-        foreach ($headings as $heading) {
-            if (!str_starts_with($heading, '# ')) {
-                continue;
-            }
-
-            $violations[] = $path . ' carries the layout B title heading "' . $heading . '"';
-        }
-
-        if (str_starts_with($headings[0] ?? '', '## ')) {
-            continue;
-        }
-
-        $violations[] = $path . ' does not open with a `## ` section';
+        $violations = [...$violations, ...skillLayoutViolations($path, $content)];
     }
 
     expect($violations)->toBe([]);
