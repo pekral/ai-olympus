@@ -654,9 +654,17 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('**GitHub has no supported API for attaching an image to an issue or pull-request comment**');
     expect($content)->toContain('Never claim an image was uploaded where it was not.');
 
+    // A filesystem path is never published: the reader cannot reach that machine, and Run cleanup
+    // deletes the file before the comment is read — the written description carries the finding.
+    expect($content)->toContain('a filesystem path is never published to a tracker');
+    expect($content)->toContain('**The description carries the finding, not the file.**');
+    expect($content)->toContain('a dead pointer dressed as evidence');
+    expect((string) file_get_contents($packageDir . '/agents/hermes.md'))
+        ->toContain('**Never publish the artifact\'s filesystem path**');
+
     // The publishing agent consumes the evidence, and the caller cleans the directory up.
     expect((string) file_get_contents($packageDir . '/agents/hermes.md'))
-        ->toContain('carry each row\'s exact URL and viewport into the report');
+        ->toContain('carry each row\'s exact URL, viewport, and description of what the screenshot showed');
     expect((string) file_get_contents($packageDir . '/agents/daedalus.md'))->toContain('.artifacts');
     // The invariant survives the skip: an unexercised criterion still has no verdict.
     expect($content)->toContain('**`Blocked`, with that reason stated**, never `Met`');
