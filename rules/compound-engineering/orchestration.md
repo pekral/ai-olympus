@@ -94,7 +94,7 @@ Today those gates are scattered across five separate formulations (`agents/herme
 |---|---|---|---|
 | `hephaestus` | Open a PR (as Draft) | L1 | `@skills/resolve-issue/SKILL.md` — the deliverable of the dispatch itself |
 | `hephaestus` | Push the feature branch to the remote | L1 | `@skills/resolve-issue/SKILL.md` — part of opening the PR; feature branch only, never the default branch |
-| `hephaestus` | Write the claim label (`Resolve_by_AI:in-progress`) on the source issue, and release it on a `Blocked` stop | L1 | `@rules/compound-engineering/general.md` *Claim a tracker issue before working on it* — mechanics in `@skills/resolve-issue/SKILL.md` (and `@skills/resolve-and-merge/SKILL.md` on the batch path) |
+| `hephaestus` | Write the claim label (`Resolve_by_AI:in-progress`) on the source issue, and release it on a `Blocked` stop | L1 | `@rules/compound-engineering/general.md` *Claim a tracker issue before working on it* — mechanics in `@skills/resolve-issue/SKILL.md` |
 | `hephaestus` / `daedalus` | Merge a PR | L2 | `@skills/merge-github-pr/SKILL.md`, only on an explicit caller instruction to merge — never `gh pr merge` bare |
 | `athena` | Publish a CR / security-analysis comment to the tracker | L1 | publishing the review is the deliverable of the invocation itself |
 | `athena` | Promote a converged PR out of Draft (`gh pr ready`) | L1 | `@skills/process-code-review/SKILL.md` — only on a converged loop (0 Critical + 0 Moderate), never on a PR that still carries findings |

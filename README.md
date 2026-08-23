@@ -46,7 +46,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **54 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **53 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -68,7 +68,7 @@ There are two ways in. **Composer** is the complete one and stays the recommenda
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 54 skills and the four agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+That loads all 53 skills and the four agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
 /ai-olympus:install-rules
@@ -223,7 +223,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 ## Skill Catalog
 
-All 54 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 53 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -233,7 +233,6 @@ All 54 skills, grouped by what you reach for them for. Each description is the s
 | [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
 | [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
-| [`resolve-and-merge`](skills/resolve-and-merge/) | A batch of open GitHub issues carrying the auto-resolve label must be resolved and merged end-to-end in one run |
 | [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`pr-deploy-planner`](skills/pr-deploy-planner/) | A pull request's commits should ship in smaller, safer increments instead of one big deploy |
 | [`create-issue`](skills/create-issue/) | Create a single issue from provided text without modifying its content |
