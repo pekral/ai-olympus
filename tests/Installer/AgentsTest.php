@@ -643,6 +643,13 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('devices[\'iPhone 13\']');
     expect($content)->toContain('**return a verdict per viewport**');
 
+    // The viewports run concurrently in one process — same reasoning, same handoff, no extra
+    // tokens — except where the scenario writes, which two concurrent runs would corrupt.
+    expect($content)->toContain('**Run both viewports inside one scenario, in one browser process**');
+    expect($content)->toContain('no extra tokens');
+    expect($content)->toContain('**The exception is a scenario that changes state:**');
+    expect($content)->toContain('parallelise only the ones that read');
+
     // A failure carries evidence: the screenshot at the failing viewport plus the URL the
     // failure actually happened on, kept out of the temp-file sweep so hermes can publish it.
     expect($content)->toContain('**Capture evidence for every failure.**');
