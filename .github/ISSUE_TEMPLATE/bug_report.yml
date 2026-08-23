@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with laravel-agent-skills
+description: Report a problem with ai-olympus
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -29,7 +29,7 @@ body:
     attributes:
       label: Exact command you ran
       description: The exact command that triggered the problem.
-      placeholder: "e.g. vendor/bin/agent-skills install --force"
+      placeholder: "e.g. vendor/bin/ai-olympus install --force"
       render: shell
     validations:
       required: true
@@ -39,8 +39,8 @@ body:
     attributes:
       label: Installation method
       options:
-        - "composer require --dev + vendor/bin/agent-skills install"
-        - "Composer plugin auto-install (extra.agent-skills.auto-install)"
+        - "composer require --dev + vendor/bin/ai-olympus install"
+        - "Composer plugin auto-install (extra.ai-olympus.auto-install)"
         - "Cloned this repository directly (development mode)"
         - "Other (describe in Relevant log output / additional context)"
     validations:

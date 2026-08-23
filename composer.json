@@ -1,17 +1,17 @@
 {
-  "name": "agentic-vibes/laravel-agent-skills",
-  "description": "Laravel Agent Skills — a Composer plugin for PHP and Laravel projects that installs Claude Code rules and agent skills: coding standards, testing, and conventions",
+  "name": "pekral/ai-olympus",
+  "description": "AI Olympus — a Composer plugin for PHP and Laravel projects that installs Claude Code rules and agent skills: coding standards, testing, and conventions",
   "license": "MIT",
   "type": "composer-plugin",
   "keywords": [
     "composer-plugin",
-    "agent-skills",
+    "ai-olympus",
     "claude",
     "claude-code",
     "ai-agents",
     "llm",
-    "php-agent-skills",
-    "laravel-agent-skills",
+    "php-ai-olympus",
+    "ai-olympus",
     "php",
     "laravel",
     "coding-standards",
@@ -30,9 +30,9 @@
   ],
   "homepage": "https://pekral.cz",
   "support": {
-    "issues": "https://github.com/agentic-vibes/laravel-agent-skills/issues",
-    "source": "https://github.com/agentic-vibes/laravel-agent-skills",
-    "docs": "https://github.com/agentic-vibes/laravel-agent-skills#readme"
+    "issues": "https://github.com/pekral/ai-olympus/issues",
+    "source": "https://github.com/pekral/ai-olympus",
+    "docs": "https://github.com/pekral/ai-olympus#readme"
   },
   "require": {
     "composer-plugin-api": "^2.0"
@@ -57,7 +57,7 @@
   },
   "autoload": {
     "psr-4": {
-      "AgenticVibes\\AgentSkills\\": "src/"
+      "Pekral\\AiOlympus\\": "src/"
     }
   },
   "autoload-dev": {
@@ -66,7 +66,7 @@
     }
   },
   "bin": [
-    "bin/agent-skills"
+    "bin/ai-olympus"
   ],
   "archive": {
     "exclude": [
@@ -75,7 +75,7 @@
   },
   "config": {
     "allow-plugins": {
-      "agentic-vibes/laravel-agent-skills": true,
+      "pekral/ai-olympus": true,
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "ergebnis/composer-normalize": true,
       "pestphp/pest-plugin": true,
@@ -83,7 +83,7 @@
     }
   },
   "extra": {
-    "class": "AgenticVibes\\AgentSkills\\ComposerPlugin"
+    "class": "Pekral\\AiOlympus\\ComposerPlugin"
   },
   "scripts": {
     "analyse": [
@@ -91,7 +91,7 @@
       "vendor/bin/phpstan analyse --memory-limit=2G"
     ],
     "build": [
-      "bin/agent-skills install --force --prune",
+      "bin/ai-olympus install --force --prune",
       "@fix",
       "@check"
     ],

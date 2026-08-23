@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 /**
  * The install run's outcome counters, reported to the user at the end of `install()`.

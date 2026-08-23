@@ -2,9 +2,9 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerFileCopier;
-use AgenticVibes\AgentSkills\InstallerPruner;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerFileCopier;
+use Pekral\AiOlympus\InstallerPruner;
 
 test('install with prune removes files from target that no longer exist in source', function (): void {
     $root = installerCreateProjectRoot();
@@ -15,13 +15,13 @@ test('install with prune removes files from target that no longer exist in sourc
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         installerWriteFile($root . '/.claude/skills/orphaned-skill/SKILL.md', 'orphaned content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--prune']);
+        Installer::run(['ai-olympus', 'install', '--prune']);
         ob_end_clean();
 
         expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
@@ -45,7 +45,7 @@ test('install without prune keeps orphaned files in target', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect(is_file($root . '/.claude/skills/orphaned-skill/SKILL.md'))->toBeTrue();
@@ -68,7 +68,7 @@ test('the orphan report names which target directory the orphan is in (PR #150 C
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         // Appended after the pinned sentence (never replacing it) — the reader no longer has to
@@ -99,13 +99,13 @@ test('install with prune also removes rules that no longer exist in source', fun
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         installerWriteFile($root . '/.claude/rules/removed.mdc', 'removed rule');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--prune']);
+        Installer::run(['ai-olympus', 'install', '--prune']);
         ob_end_clean();
 
         expect(is_file($root . '/.claude/rules/php/core-standards.md'))->toBeTrue();
@@ -128,13 +128,13 @@ test('install with prune reports pruned file count in output', function (): void
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         installerWriteFile($root . '/.claude/skills/drop-skill/SKILL.md', 'drop');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--prune']);
+        Installer::run(['ai-olympus', 'install', '--prune']);
         $output = ob_get_clean();
 
         expect($output)->toContain('1 pruned');
@@ -338,7 +338,7 @@ test('reportInstallSummary places each counter in its own distinct message (PR #
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         // A stale target file makes the orphan count exactly 1, distinct from the pruned count
@@ -349,7 +349,7 @@ test('reportInstallSummary places each counter in its own distinct message (PR #
         installerWriteFile($root . '/.claude/skills/orphaned-skill/SKILL.md', 'orphaned content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
         $output = ob_get_clean();
 
         expect($output)->toContain('0 pruned');

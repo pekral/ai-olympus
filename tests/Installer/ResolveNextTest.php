@@ -2,11 +2,11 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\AgenticIssueResolver;
-use AgenticVibes\AgentSkills\AgenticOptions;
-use AgenticVibes\AgentSkills\Cli;
-use AgenticVibes\AgentSkills\CommandResult;
-use AgenticVibes\AgentSkills\InstallerFailure;
+use Pekral\AiOlympus\AgenticIssueResolver;
+use Pekral\AiOlympus\AgenticOptions;
+use Pekral\AiOlympus\Cli;
+use Pekral\AiOlympus\CommandResult;
+use Pekral\AiOlympus\InstallerFailure;
 
 /**
  * Records what the resolver asked to run, so a test asserts the intended command line
@@ -22,7 +22,7 @@ final class ResolveNextExecutorSpy
     private array $calls = [];
 
     /**
-     * @param list<\AgenticVibes\AgentSkills\CommandResult> $results
+     * @param list<\Pekral\AiOlympus\CommandResult> $results
      */
     public function __construct(private readonly array $results)
     {
@@ -67,7 +67,7 @@ function resolveNextIssue(int $number, string $createdAt, string ...$labels): st
 }
 
 test('options default to the package claim label and to leaving the pull request unmerged', function (): void {
-    $options = AgenticOptions::fromArgv(['agent-skills', 'resolve-next']);
+    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next']);
 
     expect($options->labels)->toBe([AgenticOptions::DEFAULT_LABEL]);
     expect($options->repository)->toBeNull();
@@ -76,13 +76,13 @@ test('options default to the package claim label and to leaving the pull request
 });
 
 test('options collect every repeated label and keep one containing spaces intact', function (): void {
-    $options = AgenticOptions::fromArgv(['agent-skills', 'resolve-next', '--label=bug', '--label=good first issue']);
+    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next', '--label=bug', '--label=good first issue']);
 
     expect($options->labels)->toBe(['bug', 'good first issue']);
 });
 
 test('options read the repository and the merge and dry-run switches', function (): void {
-    $options = AgenticOptions::fromArgv(['agent-skills', 'resolve-next', '--repo=owner/name', '--merge', '--dry-run']);
+    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next', '--repo=owner/name', '--merge', '--dry-run']);
 
     expect($options->repository)->toBe('owner/name');
     expect($options->merge)->toBeTrue();
@@ -90,7 +90,7 @@ test('options read the repository and the merge and dry-run switches', function 
 });
 
 test('an empty option value is ignored rather than becoming a blank label', function (): void {
-    $options = AgenticOptions::fromArgv(['agent-skills', 'resolve-next', '--label=', '--repo=']);
+    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next', '--label=', '--repo=']);
 
     expect($options->labels)->toBe([AgenticOptions::DEFAULT_LABEL]);
     expect($options->repository)->toBeNull();
@@ -251,7 +251,7 @@ test('the cli routes resolve-next to the resolver', function (): void {
     $spy = new ResolveNextExecutorSpy([new CommandResult(0, '[]')]);
 
     ob_start();
-    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...));
+    $exitCode = Cli::run(['ai-olympus', 'resolve-next'], $spy(...));
     ob_end_clean();
 
     expect($exitCode)->toBe(0);
@@ -261,7 +261,7 @@ test('the cli routes resolve-next to the resolver', function (): void {
 test('the cli reports a malformed listing instead of letting the failure escape', function (): void {
     $spy = new ResolveNextExecutorSpy([new CommandResult(0, 'not json')]);
 
-    $exitCode = Cli::run(['agent-skills', 'resolve-next'], $spy(...));
+    $exitCode = Cli::run(['ai-olympus', 'resolve-next'], $spy(...));
 
     expect($exitCode)->toBe(1);
 });
@@ -270,7 +270,7 @@ test('the cli passes every other command through to the installer', function ():
     $spy = new ResolveNextExecutorSpy([]);
 
     ob_start();
-    $exitCode = Cli::run(['agent-skills'], $spy(...));
+    $exitCode = Cli::run(['ai-olympus'], $spy(...));
     $output = (string) ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -280,18 +280,18 @@ test('the cli passes every other command through to the installer', function ():
 
 test('the binary propagates the dispatcher exit code instead of always exiting zero', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $binary = (string) file_get_contents($packageDir . '/bin/agent-skills');
+    $binary = (string) file_get_contents($packageDir . '/bin/ai-olympus');
 
     // Until #158 the last line was a bare `Installer::run($argv);`, so the script always
     // exited 0 — a cron entry or CI step checking $? could never see a failure. Pinned
     // here rather than by running the binary, which the testing rules forbid.
-    expect($binary)->toContain('exit(AgenticVibes\AgentSkills\Cli::run($argv, $executor));');
-    expect($binary)->not->toMatch('/^AgenticVibes\\\\AgentSkills\\\\Installer::run\(\$argv\);$/m');
+    expect($binary)->toContain('exit(Pekral\AiOlympus\Cli::run($argv, $executor));');
+    expect($binary)->not->toMatch('/^Pekral\\\\AiOlympus\\\\Installer::run\(\$argv\);$/m');
 });
 
 test('the binary never disables Claude Code permission checks on the user behalf', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $sources = (string) file_get_contents($packageDir . '/bin/agent-skills')
+    $sources = (string) file_get_contents($packageDir . '/bin/ai-olympus')
         . (string) file_get_contents($packageDir . '/src/AgenticIssueResolver.php');
 
     expect($sources)->not->toContain('--dangerously-skip-permissions');

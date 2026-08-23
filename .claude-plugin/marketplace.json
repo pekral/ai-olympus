@@ -1,6 +1,6 @@
 {
-  "name": "laravel-agent-skills",
-  "description": "Laravel Agent Skills — Claude Code skills, agents, and PHP/Laravel standards, installable without Composer",
+  "name": "ai-olympus",
+  "description": "AI Olympus — Claude Code skills, agents, and PHP/Laravel standards, installable without Composer",
   "owner": {
     "name": "Petr Král",
     "email": "kral.petr.88@gmail.com",
@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "laravel-agent-skills",
+      "name": "ai-olympus",
       "source": "./",
       "category": "development",
       "tags": [

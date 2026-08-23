@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\InstallerPath;
+use Pekral\AiOlympus\InstallerPath;
 
 test('resolveRulesSource always uses package directory', function (): void {
     $root = installerCreateProjectRoot();

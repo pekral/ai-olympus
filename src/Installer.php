@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 final class Installer
 {
@@ -58,9 +58,9 @@ final class Installer
     private static function showHelp(): int
     {
         echo "Usage:\n";
-        echo "  vendor/bin/agent-skills install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
+        echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
-        echo "  vendor/bin/agent-skills resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
+        echo "  vendor/bin/ai-olympus resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, and agents for Claude Code.\n";
         echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code as one agent run.\n\n";

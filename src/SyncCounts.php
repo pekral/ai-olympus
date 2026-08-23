@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 /**
  * The copy/prune/orphan file counters produced by syncing one payload's directories.

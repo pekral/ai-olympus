@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "Laravel Agent Skills - Test Commands"
+	@echo "AI Olympus - Test Commands"
 	@echo "============================"
 	@echo ""
 	@echo "Available commands:"

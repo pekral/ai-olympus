@@ -1,24 +1,24 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Laravel Agent Skills" width="280">
+  <img src="assets/logo.png" alt="AI Olympus" width="280">
 </p>
 
-# Laravel Agent Skills — An AI Development Team for Laravel
+# AI Olympus — An AI Development Team for Laravel
 
 <p align="center">
-  <a href="https://packagist.org/packages/agentic-vibes/laravel-agent-skills"><img src="https://img.shields.io/packagist/v/agentic-vibes/laravel-agent-skills" alt="Packagist Version"></a>
-  <a href="https://packagist.org/packages/agentic-vibes/laravel-agent-skills"><img src="https://img.shields.io/packagist/dt/agentic-vibes/laravel-agent-skills" alt="Total Downloads"></a>
-  <a href="https://packagist.org/packages/agentic-vibes/laravel-agent-skills"><img src="https://img.shields.io/packagist/php-v/agentic-vibes/laravel-agent-skills" alt="PHP Version"></a>
-  <a href="https://github.com/agentic-vibes/laravel-agent-skills/blob/master/LICENSE"><img src="https://img.shields.io/packagist/l/agentic-vibes/laravel-agent-skills" alt="License"></a>
+  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/v/pekral/ai-olympus" alt="Packagist Version"></a>
+  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
+  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/php-v/pekral/ai-olympus" alt="PHP Version"></a>
+  <a href="https://github.com/pekral/ai-olympus/blob/master/LICENSE"><img src="https://img.shields.io/packagist/l/pekral/ai-olympus" alt="License"></a>
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**Laravel Agent Skills** gives a Laravel/PHP team an **AI development team inside Claude Code** — four specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — four specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 ## Quickstart
 
 ```bash
-composer require agentic-vibes/laravel-agent-skills --dev
-vendor/bin/agent-skills install --force
+composer require pekral/ai-olympus --dev
+vendor/bin/ai-olympus install --force
 ```
 
 No Composer in the project? Add it as a Claude Code plugin instead — see [Installation](#installation).
@@ -26,10 +26,10 @@ No Composer in the project? Add it as a Claude Code plugin instead — see [Inst
 Then point the front-door agent at real work, inside Claude Code:
 
 ```text
-@daidalos resolve https://github.com/owner/repo/issues/123
+@daedalus resolve https://github.com/owner/repo/issues/123
 ```
 
-`daidalos` picks the route, `hefaistos` implements it, `athena` reviews it to convergence, and you get a pull request back.
+`daedalus` picks the route, `hephaestus` implements it, `athena` reviews it to convergence, and you get a pull request back.
 
 ## What You Get
 
@@ -58,19 +58,19 @@ There are two ways in. **Composer** is the complete one and stays the recommenda
 | Skills, agents | ✅ installed into `.claude/` | ✅ loaded from the plugin |
 | Rules, `CLAUDE.md` | ✅ installed into the project | ⚠️ one extra command — see below |
 | `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
-| Unattended runs (`agent-skills resolve-next`) | ✅ | ❌ Composer only |
+| Unattended runs (`ai-olympus resolve-next`) | ✅ | ❌ Composer only |
 
 ### Via the plugin marketplace (no Composer)
 
 ```text
-/plugin marketplace add agentic-vibes/laravel-agent-skills
-/plugin install laravel-agent-skills@laravel-agent-skills
+/plugin marketplace add pekral/ai-olympus
+/plugin install ai-olympus@ai-olympus
 ```
 
 That loads all 54 skills and the four agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
-/laravel-agent-skills:install-rules
+/ai-olympus:install-rules
 ```
 
 It writes `.claude/rules/` and, when the project has none, a `CLAUDE.md` — it never overwrites one you already have. Restart the session afterwards; rules are read at session start.
@@ -88,7 +88,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
 
 > [!IMPORTANT]
-> By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/agent-skills install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
+> By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/ai-olympus install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
 
 Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
 
@@ -108,10 +108,10 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 <table>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/hefaistos.png" alt="hefaistos avatar" width="80"></td>
+<td width="96" valign="top"><img src="assets/agents/hephaestus.png" alt="hephaestus avatar" width="80"></td>
 <td valign="top">
 
-**`hefaistos` — code-writing implementer**
+**`hephaestus` — code-writing implementer**
 
 Implements an issue from context or a tracker link, authors its test coverage, runs local checks (`composer build`) and fixes their errors, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
 
@@ -120,14 +120,14 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/daidalos.png" alt="daidalos avatar" width="80"></td>
+<td width="96" valign="top"><img src="assets/agents/daedalus.png" alt="daedalus avatar" width="80"></td>
 <td valign="top">
 
-**`daidalos` — engineering-workflow orchestrator** · the front door
+**`daedalus` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `hefaistos` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
+The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `hephaestus` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
-**Orchestrates:** `hefaistos`, `athena`, `hermes` (dispatched)
+**Orchestrates:** `hephaestus`, `athena`, `hermes` (dispatched)
 
 </td>
 </tr>
@@ -137,7 +137,7 @@ The entry point for a free-form request. Resolves a concrete source, then dispat
 
 **`athena` — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `hefaistos` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hefaistos`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `hephaestus` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hephaestus`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
@@ -149,7 +149,7 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 
 **`hermes` — release announcer & reporter** · read-only
 
-The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daidalos` run, composed from the shared brief and `hefaistos`'s validation handoff.
+The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daedalus` run, composed from the shared brief and `hephaestus`'s validation handoff.
 
 **Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
@@ -162,7 +162,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 1. Install for Claude Code:
 
    ```bash
-   vendor/bin/agent-skills install
+   vendor/bin/ai-olympus install
    ```
 
    Agents land in `.claude/agents/`.
@@ -179,44 +179,44 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 `athena` is **read-only** — it never applies fixes, commits, pushes, or merges. Those belong to separate agents.
 
-### How to use `hefaistos` in practice
+### How to use `hephaestus` in practice
 
 1. Install for Claude Code, exactly as for `athena` — agents land in `.claude/agents/`.
 
 2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
 
    ```text
-   @hefaistos implement #123
-   @hefaistos implement https://your.atlassian.net/browse/PROJ-42
-   @hefaistos implement the failing upload validation
+   @hephaestus implement #123
+   @hephaestus implement https://your.atlassian.net/browse/PROJ-42
+   @hephaestus implement the failing upload validation
    ```
 
-3. `hefaistos` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
+3. `hephaestus` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
 
-`hefaistos` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
+`hephaestus` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
 
 > [!NOTE]
-> **If `hefaistos` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
+> **If `hephaestus` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
 
-### How to use `daidalos` in practice
+### How to use `daedalus` in practice
 
-`daidalos` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
+`daedalus` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
 
 1. Install for Claude Code, exactly as for the other agents.
 
 2. Invoke it with a request — it resolves the source and chooses the route:
 
    ```text
-   @daidalos resolve a random Resolve_by_AI issue
-   @daidalos resolve https://github.com/owner/repo/issues/123
-   @daidalos implement a dark-mode toggle for the settings page
+   @daedalus resolve a random Resolve_by_AI issue
+   @daedalus resolve https://github.com/owner/repo/issues/123
+   @daedalus implement a dark-mode toggle for the settings page
    ```
 
-3. `daidalos` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hefaistos`; everything else → `hefaistos` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
+3. `daedalus` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hephaestus`; everything else → `hephaestus` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
    Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation and fewer repeated build runs. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
 
-`daidalos` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
+`daedalus` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
 
 ---
 
@@ -333,10 +333,10 @@ All 54 skills, grouped by what you reach for them for. Each description is the s
 `resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler.
 
 ```bash
-vendor/bin/agent-skills resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
-vendor/bin/agent-skills resolve-next                    # resolve it and leave the pull request for review
-vendor/bin/agent-skills resolve-next --merge            # ...and merge once the review converges
-vendor/bin/agent-skills resolve-next --label=bug --repo=owner/name
+vendor/bin/ai-olympus resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
+vendor/bin/ai-olympus resolve-next                    # resolve it and leave the pull request for review
+vendor/bin/ai-olympus resolve-next --merge            # ...and merge once the review converges
+vendor/bin/ai-olympus resolve-next --label=bug --repo=owner/name
 ```
 
 The run chains `/resolve-issue` → `/code-review-github` → `/process-code-review` on the issue it picked. **Merging is opt-in:** without `--merge` the prompt explicitly tells the agent to leave the pull request open, so an unattended schedule never merges on its own.
@@ -357,12 +357,12 @@ Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and the 
 
 ```bash
 # Linux / macOS — crontab -e
-0 */2 * * * cd /path/to/project && vendor/bin/agent-skills resolve-next >> storage/logs/agent.log 2>&1
+0 */2 * * * cd /path/to/project && vendor/bin/ai-olympus resolve-next >> storage/logs/agent.log 2>&1
 ```
 
 ```powershell
 # Windows — Task Scheduler, every 2 hours
-schtasks /create /tn "agent-skills" /sc hourly /mo 2 /tr "cmd /c cd /d C:\path\to\project && vendor\bin\agent-skills resolve-next"
+schtasks /create /tn "ai-olympus" /sc hourly /mo 2 /tr "cmd /c cd /d C:\path\to\project && vendor\bin\ai-olympus resolve-next"
 ```
 
 ## Rules Overview
@@ -398,7 +398,7 @@ Rules included in this package:
 
 **The `paths:` key decides when a rule loads.** Every rule ships as `.md`, the only extension Claude Code reads from `.claude/rules/`, and every rule states its reach with one key. A rule with **no `paths:` key** loads into every session — the `Always` scope above. A rule with a **`paths:` list** loads when the session touches a file the list matches. A rule with an **empty list**, `paths: []`, never loads on its own — the `Reference` scope above: it reaches an agent only when a skill, an agent file, or another rule names it and the agent reads it on demand.
 
-Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue #187 moved seven rules, issue #277 the remaining eleven). The installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/agent-skills install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
+Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue #187 moved seven rules, issue #277 the remaining eleven). The installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/ai-olympus install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
 
 ## Development & Testing
 
@@ -407,7 +407,7 @@ Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue
 ```bash
 composer check              # run full quality check (skill-check, normalize, phpcs, pint, rector, phpstan, audit, tests)
 composer fix                # run all automatic fixes (skill-check-fix, normalize, rector, pint, phpcs)
-composer build              # install (agent-skills install --force) then fix then check
+composer build              # install (ai-olympus install --force) then fix then check
 composer analyse            # run PHPStan static analysis
 composer test:coverage      # run tests with 100% coverage (compact output — failures only)
 composer coverage           # same gate with the full per-file coverage report
@@ -440,7 +440,7 @@ Remove `coverage.xml` before committing if it was produced locally.
 
 ## Questions
 
-Ask in [Discussions](https://github.com/agentic-vibes/laravel-agent-skills/discussions) — the **Q&A** category takes questions about compatibility, using the rules without the agents, and writing your own skill. Keep the issue tracker for bugs and feature requests, so a real defect does not get buried under questions.
+Ask in [Discussions](https://github.com/pekral/ai-olympus/discussions) — the **Q&A** category takes questions about compatibility, using the rules without the agents, and writing your own skill. Keep the issue tracker for bugs and feature requests, so a real defect does not get buried under questions.
 
 ## Author
 

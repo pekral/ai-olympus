@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
+use Pekral\AiOlympus\Installer;
 
 /**
  * Runs one installer invocation with HOME pointed at an isolated directory, so the assertions
@@ -34,7 +34,7 @@ function globalSkillsRunInstall(array $arguments, ?callable $seedHome, callable 
 
         chdir($root);
         ob_start();
-        $exitCode = Installer::run([...['agent-skills', 'install'], ...$arguments]);
+        $exitCode = Installer::run([...['ai-olympus', 'install'], ...$arguments]);
         $output = (string) ob_get_clean();
 
         $assert(['home' => $home, 'root' => $root, 'exitCode' => $exitCode, 'output' => $output]);
@@ -99,7 +99,7 @@ test('install --global reports no effect when neither HOME nor USERPROFILE is se
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--global']);
+        Installer::run(['ai-olympus', 'install', '--global']);
         $output = (string) ob_get_clean();
 
         // Claiming a home install that never happened would misreport where the skills landed.

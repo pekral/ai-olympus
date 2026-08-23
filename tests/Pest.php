@@ -13,7 +13,7 @@ function installerEnsureDirectory(string $directory): void
 
 function installerCreateProjectRoot(): string
 {
-    $root = sys_get_temp_dir() . '/agent-skills-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-' . bin2hex(random_bytes(4));
     installerEnsureDirectory($root);
     file_put_contents($root . '/composer.json', '{}');
 
@@ -645,7 +645,7 @@ function ruleScopingConsumerAppTreePaths(): array
 /**
  * The consumer-project paths outside `app/`. Two of them are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
- * every consuming project (per this package's own `agents/daidalos.md` *Shared task brief*), and
+ * every consuming project (per this package's own `agents/daedalus.md` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
  * directory that walk skips. They live here for the same reason the rest of this corpus does.
  *

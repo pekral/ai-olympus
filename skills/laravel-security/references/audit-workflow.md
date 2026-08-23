@@ -21,7 +21,7 @@ Piny athena.md (`Critical`/`Moderate`/`Minor`) zůstávají beze změny — audi
 1. **Oblast** (1–7 níže) + **severity** (Critical/High/Medium/Low/Info).
 2. **Konkrétní soubor + řádek** (nebo vzorec vyhledávání).
 3. **Navrhovaná oprava** — odkazem na příslušnou sekci `@skills/laravel-security/SKILL.md`.
-4. **Návrh regresního testu** (Pest/PHPUnit) — auditor načrtne test, který by nález odhalil; aplikační opravu implementuje `hefaistos`.
+4. **Návrh regresního testu** (Pest/PHPUnit) — auditor načrtne test, který by nález odhalil; aplikační opravu implementuje `hephaestus`.
 
 ## 7 oblastí auditu
 

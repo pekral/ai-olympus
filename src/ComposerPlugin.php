@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 use Composer\Composer;
 use Composer\EventDispatcher\EventSubscriberInterface;
@@ -39,7 +39,7 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
             return;
         }
 
-        Installer::run(['agent-skills', 'install', '--force']);
+        Installer::run(['ai-olympus', 'install', '--force']);
     }
 
     /**
@@ -55,7 +55,7 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
 
     private function isAutoInstallEnabled(): bool
     {
-        $config = $this->getAgentSkillsConfig();
+        $config = $this->getAiOlympusConfig();
 
         return ($config['auto-install'] ?? false) === true;
     }
@@ -63,14 +63,14 @@ final class ComposerPlugin implements EventSubscriberInterface, PluginInterface
     /**
      * @return array<mixed>
      */
-    private function getAgentSkillsConfig(): array
+    private function getAiOlympusConfig(): array
     {
         if ($this->composer === null) {
             return [];
         }
 
         $extra = $this->composer->getPackage()->getExtra();
-        $config = $extra['agent-skills'] ?? [];
+        $config = $extra['ai-olympus'] ?? [];
 
         return is_array($config) ? array_change_key_case($config, CASE_LOWER) : [];
     }

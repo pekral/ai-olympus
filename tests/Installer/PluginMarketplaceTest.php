@@ -47,7 +47,7 @@ function pluginManifestContents(string $file): string
 }
 
 test('the marketplace manifest exposes the repository root as a single plugin', function (): void {
-    expect(pluginManifestValue('marketplace.json', 'name'))->toBe('laravel-agent-skills');
+    expect(pluginManifestValue('marketplace.json', 'name'))->toBe('ai-olympus');
     expect(pluginManifestValue('marketplace.json', 'owner.name'))->toBe('Petr Král');
     expect(pluginManifestKeys('marketplace.json', 'plugins'))->toBe(['0']);
 
@@ -55,14 +55,14 @@ test('the marketplace manifest exposes the repository root as a single plugin', 
     // plugin ships whatever the git checkout holds, with no second copy to keep in step. Verified
     // against Claude Code 2.1.x rather than assumed — `claude plugin marketplace add <dir>`
     // accepted the manifest and `claude plugin details` listed 54 skills and 4 agents.
-    expect(pluginManifestValue('marketplace.json', 'plugins.0.name'))->toBe('laravel-agent-skills');
+    expect(pluginManifestValue('marketplace.json', 'plugins.0.name'))->toBe('ai-olympus');
     expect(pluginManifestValue('marketplace.json', 'plugins.0.source'))->toBe('./');
 });
 
 test('the plugin manifest names the package and carries no component-path override', function (): void {
-    expect(pluginManifestValue('plugin.json', 'name'))->toBe('laravel-agent-skills');
+    expect(pluginManifestValue('plugin.json', 'name'))->toBe('ai-olympus');
     expect(pluginManifestValue('plugin.json', 'license'))->toBe('MIT');
-    expect(pluginManifestValue('plugin.json', 'repository'))->toBe('https://github.com/agentic-vibes/laravel-agent-skills');
+    expect(pluginManifestValue('plugin.json', 'repository'))->toBe('https://github.com/pekral/ai-olympus');
 
     $keys = pluginManifestKeys('plugin.json');
 
@@ -110,8 +110,8 @@ test('both installation paths are documented with the difference between them', 
     $packageDir = dirname(__DIR__, 2);
 
     $readme = (string) file_get_contents($packageDir . '/README.md');
-    expect($readme)->toContain('/plugin marketplace add agentic-vibes/laravel-agent-skills');
-    expect($readme)->toContain('/laravel-agent-skills:install-rules');
+    expect($readme)->toContain('/plugin marketplace add pekral/ai-olympus');
+    expect($readme)->toContain('/ai-olympus:install-rules');
     expect($readme)->toContain('### Via the plugin marketplace (no Composer)');
     expect($readme)->toContain('### Via Composer');
 
@@ -120,6 +120,6 @@ test('both installation paths are documented with the difference between them', 
 
     // The honest limitation, not a promise the channel cannot keep.
     expect($section)->toContain('reads **neither `rules/` nor a `CLAUDE.md`**');
-    expect($section)->toContain('/laravel-agent-skills:install-rules');
+    expect($section)->toContain('/ai-olympus:install-rules');
     expect($section)->toContain('Composer only');
 });

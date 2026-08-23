@@ -2,13 +2,13 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerPath;
-use AgenticVibes\AgentSkills\InstallOptions;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerPath;
+use Pekral\AiOlympus\InstallOptions;
 
 test('run shows help when executed without arguments', function (): void {
     ob_start();
-    $exitCode = Installer::run(['agent-skills']);
+    $exitCode = Installer::run(['ai-olympus']);
     $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -17,14 +17,14 @@ test('run shows help when executed without arguments', function (): void {
 });
 
 test('run returns error code for unknown command', function (): void {
-    $exitCode = Installer::run(['agent-skills', 'unknown']);
+    $exitCode = Installer::run(['ai-olympus', 'unknown']);
 
     expect($exitCode)->toBe(1);
 });
 
 test('install with any --editor argument returns exit 1 (flag removed, never silently ignored)', function (): void {
     foreach (['claude', 'cursor', 'codex', 'all', 'invalid'] as $editorValue) {
-        $exitCode = Installer::run(['agent-skills', 'install', '--editor=' . $editorValue]);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--editor=' . $editorValue]);
 
         expect($exitCode)->toBe(1);
     }
@@ -32,7 +32,7 @@ test('install with any --editor argument returns exit 1 (flag removed, never sil
 
 test('run shows prune option in help output', function (): void {
     ob_start();
-    $exitCode = Installer::run(['agent-skills']);
+    $exitCode = Installer::run(['ai-olympus']);
     $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -41,7 +41,7 @@ test('run shows prune option in help output', function (): void {
 
 test('help text documents the --allow-bundled-scripts flag', function (): void {
     ob_start();
-    $exitCode = Installer::run(['agent-skills']);
+    $exitCode = Installer::run(['ai-olympus']);
     $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -51,7 +51,7 @@ test('help text documents the --allow-bundled-scripts flag', function (): void {
 });
 
 test('normalizeCliArguments splits --allow-bundled-scripts from a concatenated argv blob', function (): void {
-    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--editor=claude--allow-bundled-scripts']);
+    $normalized = InstallerPath::normalizeCliArguments(['ai-olympus', 'install', '--editor=claude--allow-bundled-scripts']);
 
     expect($normalized)->toContain('--editor=claude');
     expect($normalized)->toContain('--allow-bundled-scripts');
@@ -59,7 +59,7 @@ test('normalizeCliArguments splits --allow-bundled-scripts from a concatenated a
 
 test('help text documents the --allow-subagent-writes flag', function (): void {
     ob_start();
-    $exitCode = Installer::run(['agent-skills']);
+    $exitCode = Installer::run(['ai-olympus']);
     $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -68,7 +68,7 @@ test('help text documents the --allow-subagent-writes flag', function (): void {
 });
 
 test('normalizeCliArguments splits --allow-subagent-writes from a concatenated argv blob', function (): void {
-    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--editor=claude--allow-subagent-writes']);
+    $normalized = InstallerPath::normalizeCliArguments(['ai-olympus', 'install', '--editor=claude--allow-subagent-writes']);
 
     expect($normalized)->toContain('--editor=claude');
     expect($normalized)->toContain('--allow-subagent-writes');
@@ -76,7 +76,7 @@ test('normalizeCliArguments splits --allow-subagent-writes from a concatenated a
 
 test('help text documents the --deny-network-bash flag and its session-wide, project-scoped trade-off', function (): void {
     ob_start();
-    $exitCode = Installer::run(['agent-skills']);
+    $exitCode = Installer::run(['ai-olympus']);
     $output = ob_get_clean();
 
     expect($exitCode)->toBe(0);
@@ -87,14 +87,14 @@ test('help text documents the --deny-network-bash flag and its session-wide, pro
 });
 
 test('normalizeCliArguments splits --deny-network-bash from a concatenated argv blob', function (): void {
-    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--editor=claude--deny-network-bash']);
+    $normalized = InstallerPath::normalizeCliArguments(['ai-olympus', 'install', '--editor=claude--deny-network-bash']);
 
     expect($normalized)->toContain('--editor=claude');
     expect($normalized)->toContain('--deny-network-bash');
 });
 
 test('a concatenated --deny-network-bash actually reaches InstallOptions (a security flag must never silently no-op)', function (): void {
-    $normalized = InstallerPath::normalizeCliArguments(['agent-skills', 'install', '--allow-subagent-writes--deny-network-bash']);
+    $normalized = InstallerPath::normalizeCliArguments(['ai-olympus', 'install', '--allow-subagent-writes--deny-network-bash']);
 
     expect(InstallOptions::fromArgv($normalized)->denyNetworkBash)->toBeTrue();
     expect(InstallOptions::fromArgv($normalized)->allowSubagentWrites)->toBeTrue();
@@ -134,7 +134,7 @@ test('readme keeps the quickstart install command and links out to the installat
     $readme = (string) file_get_contents($packageDir . '/README.md');
 
     expect($readme)->toContain('[`docs/installation.md`](docs/installation.md)');
-    expect($readme)->toContain('composer require agentic-vibes/laravel-agent-skills --dev');
+    expect($readme)->toContain('composer require pekral/ai-olympus --dev');
 
     // The operational reference must not survive in both places, or the two copies drift.
     expect($readme)->not->toContain('### Installer Flow');
@@ -150,7 +150,7 @@ test('install without any flags succeeds and targets Claude Code only', function
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);

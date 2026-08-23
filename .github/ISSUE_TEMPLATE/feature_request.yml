@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea or enhancement for laravel-agent-skills
+description: Suggest an idea or enhancement for ai-olympus
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -29,10 +29,10 @@ body:
     attributes:
       label: Related skill / agent
       description: >-
-        Which skill (under `skills/`) or subagent (`daidalos`, `hefaistos`, `athena`, `hermes`)
+        Which skill (under `skills/`) or subagent (`daedalus`, `hephaestus`, `athena`, `hermes`)
         does this relate to? Free text — leave blank if it's a request for a new skill/agent or doesn't apply
         to an existing one.
-      placeholder: "e.g. code-review, resolve-issue, hefaistos"
+      placeholder: "e.g. code-review, resolve-issue, hephaestus"
 
   - type: textarea
     id: alternatives

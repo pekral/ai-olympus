@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 use Closure;
 use JsonException;
@@ -12,7 +12,7 @@ use JsonException;
  * as one agent run. Built for `cron` / Task Scheduler: one invocation resolves one issue.
  *
  * The process layer is injected as a closure so the whole flow is exercised in tests
- * without ever spawning `gh` or `claude` — `bin/agent-skills` supplies the real one.
+ * without ever spawning `gh` or `claude` — `bin/ai-olympus` supplies the real one.
  */
 final readonly class AgenticIssueResolver
 {
@@ -26,7 +26,7 @@ final readonly class AgenticIssueResolver
     private const int LIST_LIMIT = 100;
 
     /**
-     * @param \Closure(list<string>, bool): \AgenticVibes\AgentSkills\CommandResult $executor
+     * @param \Closure(list<string>, bool): \Pekral\AiOlympus\CommandResult $executor
      */
     public function __construct(private Closure $executor)
     {
@@ -127,7 +127,7 @@ final readonly class AgenticIssueResolver
     }
 
     /**
-     * @return list<\AgenticVibes\AgentSkills\AgenticIssue>
+     * @return list<\Pekral\AiOlympus\AgenticIssue>
      */
     private static function eligibleIssues(string $issueListJson): array
     {

@@ -106,7 +106,7 @@ test('the CR staleness gate reads createdAt, matching the always-new-comment con
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The gate used to justify reading `updatedAt` by claiming the CR comment is upserted in
     // place. Every CR run now POSTs a fresh comment, so `createdAt` is when the review actually
@@ -126,8 +126,8 @@ test('the CR staleness gate reads createdAt, matching the always-new-comment con
     expect($codeReview)->not->toContain('edit history on the upserted comment');
 
     // The orchestrator quotes the gate, so it must not re-introduce the stale field.
-    expect($daidalos)->toContain('whose `createdAt` predates the head commit');
-    expect($daidalos)->not->toContain('whose `updatedAt` predates the head commit');
+    expect($daedalus)->toContain('whose `createdAt` predates the head commit');
+    expect($daedalus)->not->toContain('whose `updatedAt` predates the head commit');
 });
 
 test('merge-github-pr post-merge step includes conditional worktree cleanup with opt-in and used-tree guards (issue #699)', function (): void {
@@ -217,7 +217,7 @@ test('assignment-compliance-check skill exists with required sections and writes
     expect($content)->toContain('Report **only Critical**');
     expect($content)->toContain('must not** write any output to disk');
     expect($content)->toContain('No files were created on disk');
-    expect($content)->not->toContain('.agent-skills-reports');
+    expect($content)->not->toContain('.ai-olympus-reports');
 });
 
 test('assignment-compliance-check returns markdown to the caller without publishing on its own', function (): void {
@@ -1179,7 +1179,7 @@ test('review loop uses a cheap diff-scoped gate and a full final gate (issue #65
     expect($gates)->toContain('Loop gate vs. final gate (issue #65)');
     // The loop skips the reinstall — nothing it does changes dependencies/skills.
     expect($gates)->toContain('skip the dependency/skill reinstall');
-    expect($gates)->toContain('agent-skills install --force');
+    expect($gates)->toContain('ai-olympus install --force');
     // Diff-scoped tools in the loop; full build only at the boundary.
     expect($gates)->toContain('composer test:coverage:diff');
     // The final full build still guards the boundary — issue #75 is preserved.
@@ -1207,7 +1207,7 @@ test('quality gates reuse a green CI result for the loop gate but never the fina
     expect($gates)->toContain('.github/workflows/**');
     expect($gates)->toContain('adding `continue-on-error: true` to it');
     expect($gates)->toContain('**`security-audit` is never reused, regardless of CI status.**');
-    expect($gates)->toContain('are untracked in the `laravel-agent-skills` repository');
+    expect($gates)->toContain('are untracked in the `ai-olympus` repository');
     expect($gates)->toContain('queries a live advisory database at run time');
     expect($gates)->toContain('**Staleness guard (mandatory, exact match — no heuristics).**');
     expect($gates)->toContain('git status --porcelain --untracked-files=all');
@@ -1273,8 +1273,8 @@ test('savings-mode build-gate cache never skips the mandatory full run on the ex
     expect($merge)->toContain('the entry carries this-run provenance');
     expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
 
-    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
-    expect($hefaistos)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    expect($hephaestus)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
 });
 
 test('push-level full-build gates dedup by head SHA unconditionally, without weakening the pre-merge run (issue #212)', function (): void {
@@ -1328,7 +1328,7 @@ test('push-level full-build gates dedup by head SHA unconditionally, without wea
 
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     expect($resolveIssue)->toContain('Push-level gate dedup by head SHA (always on, issue #212)');
-    expect($resolveIssue)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hefaistos:impl');
+    expect($resolveIssue)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hephaestus:impl');
 
     // merge-github-pr is deliberately NOT wired into the dedup — its build always runs.
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');

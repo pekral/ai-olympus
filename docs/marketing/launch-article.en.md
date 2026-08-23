@@ -16,7 +16,7 @@ findings.
 
 I wrote none of it. I wrote one sentence in a GitHub comment:
 
-> agent-skills bash-guard chci úplně smazat z repa!
+> ai-olympus bash-guard chci úplně smazat z repa!
 
 *(I want bash-guard deleted from the repo entirely.)*
 
@@ -58,15 +58,15 @@ pull requests.
 
 So the roster got split. Four agents, four jobs, and no agent doing two of them:
 
-- **`daidalos`** resolves the source, decides the route, and dispatches. It holds `Task`, `Read`,
+- **`daedalus`** resolves the source, decides the route, and dispatches. It holds `Task`, `Read`,
   `Glob`, `Grep`, `Bash`. It never writes code.
-- **`hefaistos`** implements. It is the only agent that holds `Write` and `Edit`.
+- **`hephaestus`** implements. It is the only agent that holds `Write` and `Edit`.
 - **`athena`** reviews — code quality, architecture, and security in one pass — and drives the fix
   loop until it converges. It holds no `Write` and no `Edit`.
 - **`hermes`** writes the human-facing report once the loop converges.
 
 The split matters because of what each agent *cannot* do, not what it can. `athena` reviewing
-`hefaistos`'s diff is reading code it did not write, with none of the author's reasoning in context.
+`hephaestus`'s diff is reading code it did not write, with none of the author's reasoning in context.
 It finds things. In the pull request above it found two, both mine, both real, and both fixed before
 the review was published.
 
@@ -76,8 +76,8 @@ The standards ship as a Composer package: 22 rule files and 54 skills, installed
 `.claude/rules` and `.claude/skills` by a binary.
 
 ```bash
-composer require agentic-vibes/laravel-agent-skills --dev
-vendor/bin/agent-skills install --force
+composer require pekral/ai-olympus --dev
+vendor/bin/ai-olympus install --force
 ```
 
 The reason is drift. A copied `CLAUDE.md` has no version, no changelog, and no way to tell whether
@@ -88,23 +88,23 @@ knows exactly which version it is on.
 There is a second install path as of this week, for projects without Composer:
 
 ```text
-/plugin marketplace add agentic-vibes/laravel-agent-skills
-/plugin install laravel-agent-skills@laravel-agent-skills
+/plugin marketplace add pekral/ai-olympus
+/plugin install ai-olympus@ai-olympus
 ```
 
 That one has an honest gap, which is worth stating rather than glossing: Claude Code reads `skills/`
 and `agents/` out of a plugin directory, but it reads neither `rules/` nor a `CLAUDE.md`. There is no
 plugin mechanism for a project-scoped always-on instruction file. So the rules travel by one extra
-command, `/laravel-agent-skills:install-rules`, and the two paths are not equivalent. Composer is
+command, `/ai-olympus:install-rules`, and the two paths are not equivalent. Composer is
 still the better one on a PHP project.
 
 ## The safety design is mostly about what is refused
 
 Three things stop this from being a machine that rewrites your repository while you are at lunch.
 
-**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, and `daidalos` each carry
+**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, and `daedalus` each carry
 `disallowedTools: Write, Edit`. That is enforced by the harness, not by the agent's own good
-intentions. `hefaistos` carries `disallowedTools: WebSearch, WebFetch` for the mirror-image reason:
+intentions. `hephaestus` carries `disallowedTools: WebSearch, WebFetch` for the mirror-image reason:
 the agent that writes files has no business fetching a third-party URL.
 
 **`composer build` is a gate, not a suggestion.** It runs the installer, then five fixers, then ten
@@ -142,7 +142,7 @@ What the run did:
 5. Verified that second finding by running it instead of reasoning about it:
 
    ```console
-   $ php bin/agent-skills bash-guard </dev/null
+   $ php bin/ai-olympus bash-guard </dev/null
    Unknown command: bash-guard
    $ echo $?
    1
@@ -189,7 +189,7 @@ review I would have skipped at 6pm on a Friday.
 ## Try it
 
 The repository is at
-[agentic-vibes/laravel-agent-skills](https://github.com/agentic-vibes/laravel-agent-skills). The
+[pekral/ai-olympus](https://github.com/pekral/ai-olympus). The
 rules and skills are useful on their own if you never want to run an agent — half of them are not
 PHP-specific at all.
 

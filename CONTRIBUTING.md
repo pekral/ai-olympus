@@ -1,4 +1,4 @@
-# Contributing to Laravel Agent Skills
+# Contributing to AI Olympus
 
 Thank you for your interest in improving this project. This guide covers how to set up the repository, what the quality gate actually checks, and the conventions your pull request is expected to follow.
 
@@ -6,7 +6,7 @@ Thank you for your interest in improving this project. This guide covers how to 
 
 1. Fork the repository and clone your fork.
 2. Install dependencies: `composer install`.
-3. (Optional, for Claude Code users) Sync this package's own rules/skills into the repository's `.claude/` directory: `vendor/bin/agent-skills install --force`.
+3. (Optional, for Claude Code users) Sync this package's own rules/skills into the repository's `.claude/` directory: `vendor/bin/ai-olympus install --force`.
 
 ## The quality gate: `composer build`
 
@@ -18,7 +18,7 @@ composer build
 
 This is the authoritative gate — see the `scripts` section of `composer.json` for the exact commands. It runs, in order:
 
-1. `bin/agent-skills install --force --allow-subagent-writes` — reinstalls this package's own rules/skills (the repository dogfoods its own installer).
+1. `bin/ai-olympus install --force --allow-subagent-writes` — reinstalls this package's own rules/skills (the repository dogfoods its own installer).
 2. `@fix` — auto-fixes: `skill-check-fix`, `composer-normalize-fix`, `rector-fix`, `pint-fix`, `phpcs-fix`.
 3. `@check` — the full check suite, which must pass with **zero errors**:
    - `skill-check` — the `SKILL.md` linter (`npx skill-check check skills --no-security-scan`); required whenever a change touches a `skills/**/SKILL.md` file.

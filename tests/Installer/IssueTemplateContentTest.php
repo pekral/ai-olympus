@@ -49,17 +49,17 @@ test('the issue-form chooser routes questions to Discussions before the tracker 
     // open an issue. A link that only exists in the README is read by someone who was not about to
     // file one, which is the wrong half of the audience.
     expect($config)->toContain('name: Ask a question');
-    expect($config)->toContain('https://github.com/agentic-vibes/laravel-agent-skills/discussions/categories/q-a');
+    expect($config)->toContain('https://github.com/pekral/ai-olympus/discussions/categories/q-a');
 
     // The security link predates this one and must survive beside it: a vulnerability report has to
     // stay off the public tracker.
-    expect($config)->toContain('https://github.com/agentic-vibes/laravel-agent-skills/security/advisories/new');
+    expect($config)->toContain('https://github.com/pekral/ai-olympus/security/advisories/new');
 });
 
 test('the readme points at Discussions for questions (issue #109)', function (): void {
     $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
     expect($readme)->toContain('## Questions');
-    expect($readme)->toContain('https://github.com/agentic-vibes/laravel-agent-skills/discussions');
+    expect($readme)->toContain('https://github.com/pekral/ai-olympus/discussions');
     expect($readme)->toContain('Keep the issue tracker for bugs and feature requests');
 });

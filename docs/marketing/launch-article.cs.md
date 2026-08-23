@@ -15,7 +15,7 @@ tři testovací soubory pryč, pět dokumentů přepsaných. Sada skončila na 6
 
 Nenapsal jsem z toho nic. Napsal jsem jednu větu do komentáře na GitHubu:
 
-> agent-skills bash-guard chci úplně smazat z repa!
+> ai-olympus bash-guard chci úplně smazat z repa!
 
 Ten komentář popíral issue, které jsem sám založil tři minuty předtím a ve kterém jsem místo toho
 žádal tři opatrné opravy. Agent si ten rozpor všiml, vzal novější instrukci jako platnou, napsal to
@@ -53,9 +53,9 @@ requesty.
 
 Tak se roster rozdělil. Čtyři agenti, čtyři role, a žádný agent nedělá dvě z nich:
 
-- **`daidalos`** rozpozná zdroj, rozhodne cestu a dispatchuje. Drží `Task`, `Read`, `Glob`, `Grep`,
+- **`daedalus`** rozpozná zdroj, rozhodne cestu a dispatchuje. Drží `Task`, `Read`, `Glob`, `Grep`,
   `Bash`. Kód nikdy nepíše.
-- **`hefaistos`** implementuje. Je to jediný agent, který drží `Write` a `Edit`.
+- **`hephaestus`** implementuje. Je to jediný agent, který drží `Write` a `Edit`.
 - **`athena`** reviewuje — kvalitu kódu, architekturu a bezpečnost v jednom průchodu — a řídí
   opravnou smyčku až do konvergence. `Write` ani `Edit` nedrží.
 - **`hermes`** napíše lidsky čitelný report, jakmile smyčka zkonverguje.
@@ -71,8 +71,8 @@ Standardy se distribuují jako Composer balíček: 22 souborů s pravidly a 54 s
 nainstaluje do `.claude/rules` a `.claude/skills`.
 
 ```bash
-composer require agentic-vibes/laravel-agent-skills --dev
-vendor/bin/agent-skills install --force
+composer require pekral/ai-olympus --dev
+vendor/bin/ai-olympus install --force
 ```
 
 Důvod je drift. Zkopírovaný `CLAUDE.md` nemá verzi, nemá changelog a nemá jak říct, jestli projekt,
@@ -83,22 +83,22 @@ projekt, který neaktualizoval, přesně ví, na jaké verzi stojí.
 Od tohohle týdne existuje druhá instalační cesta, pro projekty bez Composeru:
 
 ```text
-/plugin marketplace add agentic-vibes/laravel-agent-skills
-/plugin install laravel-agent-skills@laravel-agent-skills
+/plugin marketplace add pekral/ai-olympus
+/plugin install ai-olympus@ai-olympus
 ```
 
 Ta má poctivou mezeru, kterou má cenu říct nahlas, ne obejít: Claude Code čte z adresáře pluginu
 `skills/` a `agents/`, ale nečte ani `rules/`, ani `CLAUDE.md`. Pro projektový instrukční soubor,
 který se načítá do každého sezení, žádný pluginový mechanismus neexistuje. Pravidla proto cestují
-jedním příkazem navíc, `/laravel-agent-skills:install-rules`, a obě cesty nejsou rovnocenné. Na PHP
+jedním příkazem navíc, `/ai-olympus:install-rules`, a obě cesty nejsou rovnocenné. Na PHP
 projektu je Composer pořád ta lepší.
 
 ## Bezpečnostní návrh je hlavně o tom, co je odepřené
 
 Tři věci brání tomu, aby to byl stroj, který vám přepisuje repozitář, když jste na obědě.
 
-**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes` i `daidalos` nesou
-`disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta. `hefaistos` nese
+**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes` i `daedalus` nesou
+`disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta. `hephaestus` nese
 `disallowedTools: WebSearch, WebFetch` z opačného důvodu: agent, který zapisuje soubory, nemá co
 stahovat cizí URL.
 
@@ -136,7 +136,7 @@ Co běh udělal:
 5. Druhé zjištění ověřil spuštěním, ne úvahou:
 
    ```console
-   $ php bin/agent-skills bash-guard </dev/null
+   $ php bin/ai-olympus bash-guard </dev/null
    Unknown command: bash-guard
    $ echo $?
    1
@@ -182,7 +182,7 @@ jestli dokumentace říká pravdu o důsledku. Přesně tu review bych v pátek 
 ## Vyzkoušet
 
 Repozitář je na
-[agentic-vibes/laravel-agent-skills](https://github.com/agentic-vibes/laravel-agent-skills).
+[pekral/ai-olympus](https://github.com/pekral/ai-olympus).
 Pravidla a skilly mají cenu i samy, když nechcete spustit jediného agenta — polovina z nich není
 vázaná na PHP vůbec.
 

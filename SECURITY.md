@@ -2,14 +2,14 @@
 
 ## Plugin trust model
 
-`agentic-vibes/laravel-agent-skills` is a **Composer plugin** (`"type": "composer-plugin"`). Composer requires explicit opt-in before running any plugin — including this one — to guard against supply-chain attacks from unknown packages.
+`pekral/ai-olympus` is a **Composer plugin** (`"type": "composer-plugin"`). Composer requires explicit opt-in before running any plugin — including this one — to guard against supply-chain attacks from unknown packages.
 
 ### `allow-plugins` in `composer.json`
 
-When you `composer require agentic-vibes/laravel-agent-skills`, Composer may ask:
+When you `composer require pekral/ai-olympus`, Composer may ask:
 
 ```
-Do you trust "agentic-vibes/laravel-agent-skills" to execute code and wish to enable it now? (yes/no)
+Do you trust "pekral/ai-olympus" to execute code and wish to enable it now? (yes/no)
 ```
 
 If you answer `yes`, Composer writes the following entry to your project's `composer.json`:
@@ -18,7 +18,7 @@ If you answer `yes`, Composer writes the following entry to your project's `comp
 {
   "config": {
     "allow-plugins": {
-      "agentic-vibes/laravel-agent-skills": true
+      "pekral/ai-olympus": true
     }
   }
 }
@@ -29,8 +29,8 @@ This is the **standard Composer plugin-trust mechanism** (`allow-plugins`). It i
 If you prefer to give a non-interactive answer (e.g. in CI), you can pass the flag explicitly:
 
 ```bash
-composer require agentic-vibes/laravel-agent-skills --dev --no-plugins   # skip the plugin during install
-composer config allow-plugins.agentic-vibes/laravel-agent-skills true     # then grant trust manually
+composer require pekral/ai-olympus --dev --no-plugins   # skip the plugin during install
+composer config allow-plugins.pekral/ai-olympus true     # then grant trust manually
 ```
 
 ### Auto-install hook
@@ -40,14 +40,14 @@ Granting `allow-plugins: true` also enables the package's Composer plugin to rea
 ```json
 {
   "extra": {
-    "agent-skills": {
+    "ai-olympus": {
       "auto-install": true
     }
   }
 }
 ```
 
-When `auto-install` is `true`, every `composer install` or `composer update` automatically runs `Installer::run(['agent-skills', 'install', '--force'])` — the same installer that you would call manually, with `--force` and without any opt-in flags (`--allow-bundled-scripts`, `--allow-subagent-writes`, `--deny-network-bash`). **Security implication:** any package that ships a `post-install-cmd` / `post-update-cmd` hook and is trusted via `allow-plugins` can trigger code execution during a routine `composer install`. Review the `extra.agent-skills` block in your `composer.json` before enabling `auto-install`, and treat it the same way you treat other Composer script hooks.
+When `auto-install` is `true`, every `composer install` or `composer update` automatically runs `Installer::run(['ai-olympus', 'install', '--force'])` — the same installer that you would call manually, with `--force` and without any opt-in flags (`--allow-bundled-scripts`, `--allow-subagent-writes`, `--deny-network-bash`). **Security implication:** any package that ships a `post-install-cmd` / `post-update-cmd` hook and is trusted via `allow-plugins` can trigger code execution during a routine `composer install`. Review the `extra.ai-olympus` block in your `composer.json` before enabling `auto-install`, and treat it the same way you treat other Composer script hooks.
 
 See also: [README — Automatic Installation via Composer Plugin](README.md#automatic-installation-via-composer-plugin).
 
@@ -81,7 +81,7 @@ Edit(//<absolute-project-path>/**)
 Write(//<absolute-project-path>/**)
 ```
 
-These entries pre-allow dispatched subagents (e.g. `hefaistos`) to write files inside the project tree without requiring an interactive approval on each operation. A dispatched subagent runs non-interactively, so a write is denied at runtime unless the path is already in `permissions.allow`.
+These entries pre-allow dispatched subagents (e.g. `hephaestus`) to write files inside the project tree without requiring an interactive approval on each operation. A dispatched subagent runs non-interactively, so a write is denied at runtime unless the path is already in `permissions.allow`.
 
 **Why `settings.local.json` and not `settings.json`.** The entries carry a machine-absolute path — they are personal and not portable. `settings.local.json` is git-ignored by Claude Code by default, so the absolute path never leaks into version control.
 
@@ -131,7 +131,7 @@ The five shipped subagents (`agents/*.md`) each declare a `tools:` allow-list an
 - **What the installer writes by default:** without an opt-in flag, the installer writes no Bash restriction of any kind — not a `permissions.allow` / `permissions.deny` entry, not a hook, nothing. `--allow-bundled-scripts` and `--allow-subagent-writes` do not restrict Bash either; they only pre-approve two specific scripts and pre-allow `Write`/`Edit` for a dispatched subagent, respectively.
 - **One partial mechanism now exists, opt-in:** `--deny-network-bash` (see *Installer security flags* above) writes `permissions.deny` entries for ten literal outbound-network commands, moving exactly those command strings from advisory instruction to harness-enforced refusal. It narrows the gap; it does not close it. The restriction is **session-wide, not per agent** (it restricts the human's own interactive Bash in this project identically), and it matches command strings rather than process trees — child processes of allowed commands, unstripped wrappers, absolute paths, `/dev/tcp`, and unlisted tools all remain open, as enumerated under `--deny-network-bash`. Everything not on that list stays exactly as advisory as before.
 - **No mechanism makes the boundary per-agent.** The per-agent half of the Bash boundary is advisory in full. The OS-level tier (Claude Code sandboxing) is not configured by this package, and it remains the only tier that would cover child processes.
-- **If you ever installed the removed hook, remove its entry by hand.** The flag never had an inverse and its removal does not add one, so a project that opted in still carries the handler in `.claude/settings.local.json`. It now points at a subcommand the binary no longer has: `agent-skills bash-guard` falls through to the installer, prints `Unknown command: bash-guard`, and exits `1`. Claude Code treats a non-zero exit other than `2` as a non-blocking hook error, so the Bash call still runs — but the error is printed on **every** Bash call until the entry is gone. Delete the handler whose `command` ends in `agent-skills bash-guard` from the `Bash` group under `hooks.PreToolUse` (leave any handler you added yourself; removing the whole `hooks` key is safe when it holds nothing else), then restart the session — hooks are read once, at session start.
+- **If you ever installed the removed hook, remove its entry by hand.** The flag never had an inverse and its removal does not add one, so a project that opted in still carries the handler in `.claude/settings.local.json`. It now points at a subcommand the binary no longer has: `ai-olympus bash-guard` falls through to the installer, prints `Unknown command: bash-guard`, and exits `1`. Claude Code treats a non-zero exit other than `2` as a non-blocking hook error, so the Bash call still runs — but the error is printed on **every** Bash call until the entry is gone. Delete the handler whose `command` ends in `ai-olympus bash-guard` from the `Bash` group under `hooks.PreToolUse` (leave any handler you added yourself; removing the whole `hooks` key is safe when it holds nothing else), then restart the session — hooks are read once, at session start.
 
 ## Files this package writes
 
@@ -152,6 +152,6 @@ The installer never writes outside the project directory and the user's home dir
 
 If you discover a security issue in this package, please report it privately so it can be addressed before public disclosure.
 
-**Contact:** open a [GitHub Security Advisory](https://github.com/agentic-vibes/laravel-agent-skills/security/advisories/new) (preferred) or email `kral.petr.88@gmail.com`.
+**Contact:** open a [GitHub Security Advisory](https://github.com/pekral/ai-olympus/security/advisories/new) (preferred) or email `kral.petr.88@gmail.com`.
 
 Please include a description of the issue, reproduction steps, and the potential impact. You will receive a response within a reasonable time. Public disclosure is coordinated after a fix is available.

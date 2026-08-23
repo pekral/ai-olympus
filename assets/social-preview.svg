@@ -21,11 +21,11 @@
   <g font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#e0e7ff">
     <g>
       <rect x="322" y="360" width="150" height="52" rx="26" fill="#312e81"/>
-      <text x="397" y="393" text-anchor="middle">daidalos</text>
+      <text x="397" y="393" text-anchor="middle">daedalus</text>
     </g>
     <g>
       <rect x="487" y="360" width="160" height="52" rx="26" fill="#312e81"/>
-      <text x="567" y="393" text-anchor="middle">hefaistos</text>
+      <text x="567" y="393" text-anchor="middle">hephaestus</text>
     </g>
     <g>
       <rect x="662" y="360" width="140" height="52" rx="26" fill="#312e81"/>
@@ -42,6 +42,6 @@
   </text>
 
   <text x="640" y="560" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#818cf8">
-    agentic-vibes/laravel-agent-skills
+    pekral/ai-olympus
   </text>
 </svg>

@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\InstallerGlobalSkills;
+use Pekral\AiOlympus\InstallerGlobalSkills;
 
 /**
  * Calls the pruner directly with HOME pointed at an isolated directory, so the branches the

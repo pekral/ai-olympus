@@ -2,8 +2,8 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerPath;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerPath;
 
 test('resolveAgentsSource returns the package agents directory when it exists', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -32,11 +32,11 @@ test('install copies the athena agent to .claude/agents', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect(is_file($root . '/.claude/agents/athena.md'))->toBeTrue();
-        expect(is_file($root . '/.claude/agents/hefaistos.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/agents/hephaestus.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
         expect(is_dir($root . '/.codex/agents'))->toBeFalse();
     } finally {
@@ -60,9 +60,9 @@ test('the roster ships exactly one code-review agent and it is athena (issue #17
     foreach ($agentFiles as $agentFile) {
         $content = (string) file_get_contents($agentFile);
 
-        // athena and daidalos each keep one historical sentence explaining what the consolidation
+        // athena and daedalus each keep one historical sentence explaining what the consolidation
         // replaced — the rationale is the point of the change. Every other agent carries none.
-        if (in_array(basename($agentFile), ['athena.md', 'daidalos.md'], strict: true)) {
+        if (in_array(basename($agentFile), ['athena.md', 'daedalus.md'], strict: true)) {
             expect(substr_count($content, 'argos'))->toBe(1);
 
             continue;
@@ -95,14 +95,14 @@ test('athena owns every code-review wrapper and the no-source fallback (issue #1
     expect($content)->toContain('**Architecture agenda:**');
 });
 
-test('agents directory ships the hefaistos code-writing subagent with required frontmatter', function (): void {
+test('agents directory ships the hephaestus code-writing subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/hefaistos.md';
+    $agentPath = $packageDir . '/agents/hephaestus.md';
 
     expect(is_file($agentPath))->toBeTrue();
 
     $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: hefaistos');
+    expect($content)->toContain('name: hephaestus');
     expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
     // The implementer carries the whole change end to end and fixes what `composer build` reports,
     // so it runs on the strongest model rather than the cheaper one it started on.
@@ -111,9 +111,9 @@ test('agents directory ships the hefaistos code-writing subagent with required f
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
 
-test('the roster ships no general problem-analysis subagent and daidalos routes accordingly', function (): void {
+test('the roster ships no general problem-analysis subagent and daedalus routes accordingly', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The analysis subagent and its avatar are gone from the package.
     expect(is_file($packageDir . '/agents/metis.md'))->toBeFalse();
@@ -140,42 +140,42 @@ test('the roster ships no general problem-analysis subagent and daidalos routes 
     expect($survivors)->toBe([]);
 
     // Only the security-focused analysis has a specialist (athena); a general analysis request stops.
-    expect($daidalos)->toContain('There is no general (non-security) analysis agent in the roster');
-    expect($daidalos)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
+    expect($daedalus)->toContain('There is no general (non-security) analysis agent in the roster');
+    expect($daedalus)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
     // A subject too broad for one PR is reported back instead of being decomposed by an agent.
-    expect($daidalos)->toContain('Too broad for one PR');
+    expect($daedalus)->toContain('Too broad for one PR');
 });
 
-test('agents directory ships the daidalos orchestrator subagent with required frontmatter', function (): void {
+test('agents directory ships the daedalus orchestrator subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/daidalos.md';
+    $agentPath = $packageDir . '/agents/daedalus.md';
 
     expect(is_file($agentPath))->toBeTrue();
 
     $content = (string) file_get_contents($agentPath);
-    expect($content)->toContain('name: daidalos');
+    expect($content)->toContain('name: daedalus');
     expect($content)->toContain('tools: Task, Read, Glob, Grep, Bash');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
-    // Shared task brief: daidalos gathers context into a git-ignored ephemeral brief before dispatching.
+    // Shared task brief: daedalus gathers context into a git-ignored ephemeral brief before dispatching.
     expect($content)->toContain('Shared task brief');
     expect($content)->toContain('.claude/run/');
 });
 
-test('daidalos repairs an unmet code-review merge gate instead of escalating it', function (): void {
+test('daedalus repairs an unmet code-review merge gate instead of escalating it', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    // A merge blocked solely by a missing/stale review is a prerequisite daidalos owns, not a hard stop.
-    expect($daidalos)->toContain('An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.');
-    expect($daidalos)->toContain('dispatch the step-6 review-and-fix loop on the current diff');
-    expect($daidalos)->toContain('re-enter the merge');
+    // A merge blocked solely by a missing/stale review is a prerequisite daedalus owns, not a hard stop.
+    expect($daedalus)->toContain('An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.');
+    expect($daedalus)->toContain('dispatch the step-6 review-and-fix loop on the current diff');
+    expect($daedalus)->toContain('re-enter the merge');
 
     // The repaired gate is re-checked against the post-fix head, since the fixes themselves move it.
-    expect($daidalos)->toContain('Re-run the gate against the new head commit, never against the pre-fix one');
+    expect($daedalus)->toContain('Re-run the gate against the new head commit, never against the pre-fix one');
 
     // The repair never becomes a licence to merge unreviewed, and a non-converging loop still escalates.
-    expect($daidalos)->toContain('never a reason to merge without one');
-    expect($daidalos)->toContain('Escalate to the user only when the repair loop itself cannot converge');
+    expect($daedalus)->toContain('never a reason to merge without one');
+    expect($daedalus)->toContain('Escalate to the user only when the repair loop itself cannot converge');
 });
 
 test('agents directory ships the athena security-CR subagent with required frontmatter', function (): void {
@@ -275,14 +275,14 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
     expect($content)->toContain('- **Out-of-scope issues filed:**');
 });
 
-test('athena also runs a pre-implementation security-analysis mode that feeds hefaistos', function (): void {
+test('athena also runs a pre-implementation security-analysis mode that feeds hephaestus', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
     // Dual-mode contract: security analysis (pre-implementation) plus the full code review (post-implementation).
     expect($content)->toContain('Security analysis mode (pre-implementation)');
     expect($content)->toContain('Code review mode (post-implementation)');
-    // Analysis mode frames the remediation through analyze-problem so hefaistos can implement it.
+    // Analysis mode frames the remediation through analyze-problem so hephaestus can implement it.
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
     // Both handoff statuses exist so the caller can route the result.
     expect($content)->toContain('Security analysis done');
@@ -338,7 +338,7 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['hefaistos', 'athena', 'hermes'] as $agent) {
+    foreach (['hephaestus', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('Shared task brief');
         expect($content)->toContain('.claude/run/');
@@ -392,66 +392,66 @@ test(
     },
 );
 
-test('daidalos delegates the end-to-end run by dispatching hefaistos and athena to convergence', function (): void {
+test('daedalus delegates the end-to-end run by dispatching hephaestus and athena to convergence', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
-    expect($content)->toContain('Dispatch `hefaistos` through the Task tool');
+    expect($content)->toContain('Dispatch `hephaestus` through the Task tool');
     expect($content)->toContain('Dispatch `athena` through the Task tool');
-    // The implementation step still routes through resolve-issue (owned by hefaistos), and the convergence gate is named.
+    // The implementation step still routes through resolve-issue (owned by hephaestus), and the convergence gate is named.
     expect($content)->toContain('@skills/resolve-issue');
     expect($content)->toContain('0 Critical');
 });
 
-test('daidalos dispatches athena for a pre-implementation security-risk analysis that feeds hefaistos', function (): void {
+test('daedalus dispatches athena for a pre-implementation security-risk analysis that feeds hephaestus', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    // Security-focused tasks are analysed by athena before hefaistos implements them.
+    // Security-focused tasks are analysed by athena before hephaestus implements them.
     expect($content)->toContain('dispatch `athena` through the Task tool');
     expect($content)->toContain('security analysis mode');
     expect($content)->toContain('Security analysis done');
 });
 
 test(
-    'daidalos gates the pre-convergence scoped validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
+    'daedalus gates the pre-convergence scoped validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
         // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
-        expect($daidalos)->toContain('Only for a high-risk change dispatch `hefaistos` again through the Task tool');
-        expect($daidalos)->toContain('the post-convergence scoped pass in step 6 stays mandatory for every run');
+        expect($daedalus)->toContain('Only for a high-risk change dispatch `hephaestus` again through the Task tool');
+        expect($daedalus)->toContain('the post-convergence scoped pass in step 6 stays mandatory for every run');
 
-        // hefaistos documents the same conditionality in its own scoped-mode contract.
-        $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
-        expect($hefaistos)->toContain('only when `daidalos` classified the change as high-risk');
+        // hephaestus documents the same conditionality in its own scoped-mode contract.
+        $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+        expect($hephaestus)->toContain('only when `daedalus` classified the change as high-risk');
     },
 );
 
 test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bare name', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    // hefaistos is dispatched more than once per run (implementation, then scoped validation before and
+    // hephaestus is dispatched more than once per run (implementation, then scoped validation before and
     // after the CR). Keyed on the bare agent name, the second dispatch reads as a repeat of the
     // first and the in-flight check suppresses it — so the mode has to be part of <role>.
-    expect($daidalos)->toContain('**`<role>` carries the dispatched mode, not just the agent name.**');
-    expect($daidalos)->toContain('`hefaistos:impl`');
-    expect($daidalos)->toContain('`hefaistos:scoped`');
-    expect($daidalos)->toContain('`hermes:reporting`');
+    expect($daedalus)->toContain('**`<role>` carries the dispatched mode, not just the agent name.**');
+    expect($daedalus)->toContain('`hephaestus:impl`');
+    expect($daedalus)->toContain('`hephaestus:scoped`');
+    expect($daedalus)->toContain('`hermes:reporting`');
 
     // The steps that re-dispatch must name the moded role they write, or the convention above is
     // documented in one place and ignored in the two places that actually append a ledger line.
-    expect($daidalos)->toContain('Record the dispatch in the ledger as `hefaistos:scoped`, never bare `hefaistos`');
-    expect($daidalos)->toContain('(ledger role `hefaistos:scoped`)');
-    expect($daidalos)->toContain('v ledgeru role `hermes:reporting`');
+    expect($daedalus)->toContain('Record the dispatch in the ledger as `hephaestus:scoped`, never bare `hephaestus`');
+    expect($daedalus)->toContain('(ledger role `hephaestus:scoped`)');
+    expect($daedalus)->toContain('v ledgeru role `hermes:reporting`');
 });
 
-test('daidalos processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
+test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The concurrency section processes a single request's multiple sources strictly one at a time.
     expect($content)->toContain('Sequential processing of multiple sources');
@@ -466,35 +466,35 @@ test('daidalos processes multiple resolved sources sequentially and never fans t
     expect($content)->toContain('classify **each one independently**');
 });
 
-test('daidalos keeps the writing path on the shared tree but lets read-only CR agents isolate in a worktree, and cleans them up', function (): void {
+test('daedalus keeps the writing path on the shared tree but lets read-only CR agents isolate in a worktree, and cleans them up', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    // The writing path (hefaistos) still never uses worktrees — concurrent writers serialise on the shared tree.
+    // The writing path (hephaestus) still never uses worktrees — concurrent writers serialise on the shared tree.
     expect($content)->toContain('The writing path never uses git worktrees');
     expect($content)->toContain('single shared git working tree');
     expect($content)->toContain('there is no isolated-worktree escape for the writing path');
     // The read-only CR agent may isolate in a worktree for its review.
     expect($content)->toContain('read-only code-review agent (`athena`) may use a git worktree');
-    // Daidalos owns worktree cleanup so the repo stays clean after the run / merge.
+    // Daedalus owns worktree cleanup so the repo stays clean after the run / merge.
     expect($content)->toContain('git worktree remove');
     expect($content)->toContain('git worktree prune');
 });
 
-test('the read-only CR agent documents an optional review worktree it hands back for daidalos cleanup', function (): void {
+test('the read-only CR agent documents an optional review worktree it hands back for daedalus cleanup', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
 
     // The CR agent may isolate its review in a read-only worktree when needed.
     expect($content)->toContain('Review worktree');
     expect($content)->toContain('git worktree add');
-    // It hands the path back so daidalos removes it during cleanup.
+    // It hands the path back so daedalus removes it during cleanup.
     expect($content)->toContain('Record the worktree path in your handoff');
     // Standalone runs clean up after themselves.
     expect($content)->toContain('git worktree remove');
 });
 
-test('the retired apollon subagent is gone from the roster and its work is documented as hefaistos\'s', function (): void {
+test('the retired apollon subagent is gone from the roster and its work is documented as hephaestus\'s', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // The agent file itself must not come back — the roster is what the installer registers.
@@ -502,16 +502,16 @@ test('the retired apollon subagent is gone from the roster and its work is docum
 
     // The retired agent's two jobs were split along the roster's capability line, so every skill
     // it orchestrated still has an owner rather than silently dropping off the roster.
-    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
-    expect($hefaistos)->toContain('@skills/create-test/SKILL.md');
-    expect($hefaistos)->toContain('@skills/create-missing-tests-in-pr/SKILL.md');
-    expect($hefaistos)->toContain('@skills/e2e-testing/SKILL.md');
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    expect($hephaestus)->toContain('@skills/create-test/SKILL.md');
+    expect($hephaestus)->toContain('@skills/create-missing-tests-in-pr/SKILL.md');
+    expect($hephaestus)->toContain('@skills/e2e-testing/SKILL.md');
 
     // Publishing stayed with hermes: the write-capable implementer must not gain the right to
-    // post on a tracker, so pr-summary is hermes's, never hefaistos's. The capability table in
+    // post on a tracker, so pr-summary is hermes's, never hephaestus's. The capability table in
     // docs/agents.md is checked too — it reads as the authority on what an agent may do, so a
-    // stale publish grant left there would contradict hefaistos's own Bash boundary.
-    expect($hefaistos)->not->toContain('@skills/pr-summary/SKILL.md');
+    // stale publish grant left there would contradict hephaestus's own Bash boundary.
+    expect($hephaestus)->not->toContain('@skills/pr-summary/SKILL.md');
 
     $capabilityDocs = (string) file_get_contents($packageDir . '/docs/agents.md');
     expect($capabilityDocs)->toContain('never a tracker publish (that is `hermes`\'s)');
@@ -547,16 +547,16 @@ test('agents directory ships the hermes release-announcer subagent with required
 
 test('parallel agents share their split output through the brief under an append lock with a barrier before consolidation', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The mechanism survives as the standing contract for a future parallel step, explicitly dormant
     // now that every dispatch is sequential (issue #179).
-    expect($daidalos)->toContain('Parallel handoff sharing (dormant — the roster dispatches sequentially)');
+    expect($daedalus)->toContain('Parallel handoff sharing (dormant — the roster dispatches sequentially)');
     // Concurrency-safe append: a per-brief append lock guards every `cat >>` so parallel writes never interleave.
-    expect($daidalos)->toContain('Concurrency-safe append');
-    expect($daidalos)->toContain('$BRIEF.lock');
+    expect($daedalus)->toContain('Concurrency-safe append');
+    expect($daedalus)->toContain('$BRIEF.lock');
     // With one reviewer there is no peer output to consolidate, so no barrier is held today.
-    expect($daidalos)->toContain('No barrier to hold.');
+    expect($daedalus)->toContain('No barrier to hold.');
 
     // The CR agent still takes the append lock unconditionally, so a future parallel step needs no retrofit.
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
@@ -566,37 +566,37 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daidalos', 'hefaistos', 'athena', 'hermes'] as $agent) {
+    foreach (['daedalus', 'hephaestus', 'athena', 'hermes'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
 });
 
-test('daidalos decides the opt-in savings mode once during gather and never narrates an undispatched plan (issue #119)', function (): void {
+test('daedalus decides the opt-in savings mode once during gather and never narrates an undispatched plan (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // Decided once, during gather, only on an explicit user request.
-    expect($daidalos)->toContain('**Savings mode (opt-in).** Decide once, here');
-    expect($daidalos)->toContain('## Savings mode: on` or `## Savings mode: off`');
+    expect($daedalus)->toContain('**Savings mode (opt-in).** Decide once, here');
+    expect($daedalus)->toContain('## Savings mode: on` or `## Savings mode: off`');
 
     // The dedicated section explains what the dispatcher does differently.
-    expect($daidalos)->toContain('## Savings mode (opt-in)');
-    expect($daidalos)->toContain('## Orchestration mode: thin');
-    expect($daidalos)->toContain('The dispatch sequence is unchanged.');
+    expect($daedalus)->toContain('## Savings mode (opt-in)');
+    expect($daedalus)->toContain('## Orchestration mode: thin');
+    expect($daedalus)->toContain('The dispatch sequence is unchanged.');
 
     // Brief layout carries the new fields alongside the pre-existing ones.
-    expect($daidalos)->toContain('## Context pack');
-    expect($daidalos)->toContain('## Build gate cache');
+    expect($daedalus)->toContain('## Context pack');
+    expect($daedalus)->toContain('## Build gate cache');
 
-    // The cache is written by hefaistos only — athena stays read-only and never runs a
+    // The cache is written by hephaestus only — athena stays read-only and never runs a
     // full build, so it never writes this section (issue #119 CR fix for the cross-file contradiction
     // with the reviewer's "the only write you perform" clause).
-    expect($daidalos)->toContain('`athena` never writes this section');
+    expect($daedalus)->toContain('`athena` never writes this section');
 });
 
 test(
-    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to hefaistos when savings mode is on (issue #119)',
+    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to hephaestus when savings mode is on (issue #119)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/athena.md');
@@ -604,7 +604,7 @@ test(
         expect($content)->toContain('@rules/compound-engineering/orchestration.md` *Savings mode*');
         expect($content)->toContain('read the brief\'s `## Context pack`');
         expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
-        expect($content)->toContain('otherwise report the coverage gate as deferred to `hefaistos`');
+        expect($content)->toContain('otherwise report the coverage gate as deferred to `hephaestus`');
         // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
         // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
         expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
@@ -619,42 +619,42 @@ test(
     },
 );
 
-test('hefaistos owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
+test('hephaestus owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
 
-    expect($hefaistos)->toContain('**Savings-mode build-gate cache (opt-in).**');
-    expect($hefaistos)->toContain('check the brief\'s `## Build gate cache`');
-    expect($hefaistos)->toContain('**Own the coverage verdict when savings mode is on.**');
-    expect($hefaistos)->toContain('you are the sole authoritative source for the executed coverage number in this run');
+    expect($hephaestus)->toContain('**Savings-mode build-gate cache (opt-in).**');
+    expect($hephaestus)->toContain('check the brief\'s `## Build gate cache`');
+    expect($hephaestus)->toContain('**Own the coverage verdict when savings mode is on.**');
+    expect($hephaestus)->toContain('you are the sole authoritative source for the executed coverage number in this run');
 
     // Coverage is a dedicated handoff field, and the scoped status definition states whether the
     // coverage gate is included (issue #119 CR fix — agent-new-mode-status-result-parity).
-    expect($hefaistos)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
-    expect($hefaistos)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
+    expect($hephaestus)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
+    expect($hephaestus)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
 
-test('hefaistos checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
+test('hephaestus checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
 
-    expect($hefaistos)->toContain('**Push-level gate dedup by head SHA (always on).**');
-    expect($hefaistos)->toContain('consult the shared brief\'s `## Gate log`');
-    expect($hefaistos)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hefaistos:scoped');
+    expect($hephaestus)->toContain('**Push-level gate dedup by head SHA (always on).**');
+    expect($hephaestus)->toContain('consult the shared brief\'s `## Gate log`');
+    expect($hephaestus)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hephaestus:scoped');
     // Unconditional, and consulted before the opt-in tree-hash cache — the two are independent.
-    expect($hefaistos)->toContain('it does not require `## Savings mode: on`');
-    expect($hefaistos)->toContain('consulted **before** the opt-in tree-hash cache below');
+    expect($hephaestus)->toContain('it does not require `## Savings mode: on`');
+    expect($hephaestus)->toContain('consulted **before** the opt-in tree-hash cache below');
     // The Bash boundary must actually permit the Gate log append it is asked to perform.
-    expect($hefaistos)->toContain('a `## Gate log` entry whenever you run a push-level full build');
+    expect($hephaestus)->toContain('a `## Gate log` entry whenever you run a push-level full build');
 
-    // daidalos creates the section empty during gather, beside (not inside) the opt-in cache.
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    expect($daidalos)->toContain('## Gate log');
-    expect($daidalos)->toContain('**Gate log (always, not opt-in).**');
-    expect($daidalos)->toContain('independent of savings mode and of the opt-in `## Build gate cache` beside it');
+    // daedalus creates the section empty during gather, beside (not inside) the opt-in cache.
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    expect($daedalus)->toContain('## Gate log');
+    expect($daedalus)->toContain('**Gate log (always, not opt-in).**');
+    expect($daedalus)->toContain('independent of savings mode and of the opt-in `## Build gate cache` beside it');
     // The writer is named exactly as the sibling Build-gate-cache bullet names it — not "every specialist".
-    expect($daidalos)->toContain('Whichever `hefaistos` step runs a full build appends its own line under the per-brief append lock');
-    expect($daidalos)->not->toContain('Every specialist that runs a full build appends');
+    expect($daedalus)->toContain('Whichever `hephaestus` step runs a full build appends its own line under the per-brief append lock');
+    expect($daedalus)->not->toContain('Every specialist that runs a full build appends');
 });
 
 test('athena frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {
@@ -670,33 +670,33 @@ test('athena frames a security remediation plan as a severity-prefixed GFM task 
     // The checklist reaches the published issue in a state a following agent can parse.
     expect($athena)->toContain('**verbatim, in GFM task-list syntax**');
 
-    // hefaistos knows to hand the plan link to resolve-issue, whose gate blocks the PR.
-    $hefaistos = (string) file_get_contents($packageDir . '/agents/hefaistos.md');
-    expect($hefaistos)->toContain('**blocks PR creation** until every `[Critical]` / `[Moderate]` item is ticked');
+    // hephaestus knows to hand the plan link to resolve-issue, whose gate blocks the PR.
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    expect($hephaestus)->toContain('**blocks PR creation** until every `[Critical]` / `[Moderate]` item is ticked');
 });
 
-test('daidalos sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
+test('daedalus sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    expect($daidalos)->toContain('**Startup sweep, then gather context & write the shared brief');
-    expect($daidalos)->toContain('other than the file this run is about to write (this run\'s own `<source-slug>.md`)');
-    expect($daidalos)->toContain('probe it with `LC_ALL=C kill -0 "$pid" 2>&1`');
-    expect($daidalos)->toContain('a live peer run — leave it untouched');
-    expect($daidalos)->toContain('Run `git worktree prune` first');
-    expect($daidalos)->toContain('a live PID means a peer\'s CR pass is actively using that worktree, **never remove it**');
-    expect($daidalos)->toContain('## PID');
+    expect($daedalus)->toContain('**Startup sweep, then gather context & write the shared brief');
+    expect($daedalus)->toContain('other than the file this run is about to write (this run\'s own `<source-slug>.md`)');
+    expect($daedalus)->toContain('probe it with `LC_ALL=C kill -0 "$pid" 2>&1`');
+    expect($daedalus)->toContain('a live peer run — leave it untouched');
+    expect($daedalus)->toContain('Run `git worktree prune` first');
+    expect($daedalus)->toContain('a live PID means a peer\'s CR pass is actively using that worktree, **never remove it**');
+    expect($daedalus)->toContain('## PID');
 });
 
 /**
  * ESRCH ("no such process") is the only confirmed-dead outcome; EPERM ("process exists, no
  * permission") means alive under another UID/namespace. Shared by both the brief-half and the
  * worktree-half sweep mirrors below (PR #150 CR fix). The predicate matches the exact phrase
- * `agents/daidalos.md`'s prose pins (`LC_ALL=C kill -0 "$pid" 2>&1` looking for "not permitted") —
+ * `agents/daedalus.md`'s prose pins (`LC_ALL=C kill -0 "$pid" 2>&1` looking for "not permitted") —
  * previously the prose and this mirror matched on two different substrings (PR #150 CR fix,
  * run-2 Minor 1).
  */
-function daidalosPidConfirmedDead(int $pid): bool
+function daedalusPidConfirmedDead(int $pid): bool
 {
     if (posix_kill($pid, 0)) {
         return false;
@@ -721,13 +721,13 @@ function daidalosPidConfirmedDead(int $pid): bool
  * timestamp written before the PID, e.g. capturing `2026` out of a timestamp-first line) (PR #150
  * CR fix, run-2 Critical 1).
  */
-function daidalosBriefConfirmedDead(string $content): bool
+function daedalusBriefConfirmedDead(string $content): bool
 {
     $lines = explode("\n", $content, 6);
 
     foreach (array_slice($lines, 0, 5) as $line) {
         if (preg_match('/^## PID[ \t]+(\d{1,7})[ \t]/', $line, $matches) === 1) {
-            return daidalosPidConfirmedDead((int) $matches[1]);
+            return daedalusPidConfirmedDead((int) $matches[1]);
         }
     }
 
@@ -735,8 +735,8 @@ function daidalosBriefConfirmedDead(string $content): bool
 }
 
 /**
- * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep*: fail-safe by construction.
- * A brief file is safe to delete only on POSITIVE PROOF of death (`daidalosBriefConfirmedDead()`
+ * Mirrors the decision in agents/daedalus.md step 2 *Startup sweep*: fail-safe by construction.
+ * A brief file is safe to delete only on POSITIVE PROOF of death (`daedalusBriefConfirmedDead()`
  * above). Everything else — no PID line, a malformed token, a PID found only inside a fenced
  * tracker-payload quote, a live PID, or an EPERM probe — is preserved, never deleted (PR #150 CR
  * fix for issue #148: the original algorithm treated "no PID" as deletable, a fail-unsafe
@@ -744,7 +744,7 @@ function daidalosBriefConfirmedDead(string $content): bool
  *
  * @return array<int, string> basenames of brief files judged safe to delete
  */
-function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBasename): array
+function daedalusStartupSweepDeletableBriefs(string $runDir, string $ownBriefBasename): array
 {
     $deletable = [];
     $paths = glob($runDir . '/*.md');
@@ -753,7 +753,7 @@ function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBas
     foreach ($paths as $path) {
         $basename = basename($path);
 
-        if ($basename !== $ownBriefBasename && daidalosBriefConfirmedDead((string) file_get_contents($path))) {
+        if ($basename !== $ownBriefBasename && daedalusBriefConfirmedDead((string) file_get_contents($path))) {
             $deletable[] = $basename;
         }
     }
@@ -762,7 +762,7 @@ function daidalosStartupSweepDeletableBriefs(string $runDir, string $ownBriefBas
 }
 
 test(
-    'daidalos startup-sweep algorithm is fail-safe: only a confirmed-dead, fixed-position, format-valid PID is deletable (PR #150 CR fix)',
+    'daedalus startup-sweep algorithm is fail-safe: only a confirmed-dead, fixed-position, format-valid PID is deletable (PR #150 CR fix)',
     function (): void {
         $root = installerCreateProjectRoot();
         $runDir = $root . '/.claude/run';
@@ -816,7 +816,7 @@ test(
         );
 
         try {
-            $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
+            $deletable = daedalusStartupSweepDeletableBriefs($runDir, 'gh-own.md');
             sort($deletable);
 
             // Only the confirmed-dead, fixed-position, format-valid PID is deletable. A missing
@@ -832,7 +832,7 @@ test(
     },
 );
 
-test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as dead (PR #150 CR fix)', function (): void {
+test('daedalus startup-sweep algorithm treats an EPERM probe as alive, never as dead (PR #150 CR fix)', function (): void {
     if (posix_getuid() === 0) {
         expect(value: true)->toBeTrue();
 
@@ -850,7 +850,7 @@ test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as 
     );
 
     try {
-        $deletable = daidalosStartupSweepDeletableBriefs($runDir, 'gh-own.md');
+        $deletable = daedalusStartupSweepDeletableBriefs($runDir, 'gh-own.md');
 
         expect($deletable)->toBe([]);
     } finally {
@@ -859,31 +859,31 @@ test('daidalos startup-sweep algorithm treats an EPERM probe as alive, never as 
 });
 
 /**
- * Mirrors the confirmed-dead-gated steal decision in agents/daidalos.md step 2 *Sweep lock*: a
+ * Mirrors the confirmed-dead-gated steal decision in agents/daedalus.md step 2 *Sweep lock*: a
  * lock is stolen only when it carries a holder file AND that holder's recorded PID probes
  * confirmed-dead — never on a bare timeout, and never when the holder file is missing or its PID
  * is alive/EPERM (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
  *
  * This decision-level mirror alone gave FALSE ASSURANCE in run 2: it encodes the intended
  * `posix_kill()`-first semantics correctly, so it stayed green while the literal shell shipped at
- * `agents/daidalos.md:104` independently miscomputed the same decision by reading a downstream
+ * `agents/daedalus.md:104` independently miscomputed the same decision by reading a downstream
  * `grep`'s exit status instead of `kill -0`'s own (PR #150 CR fix, run-3 Critical 1 — the mirror
- * tested a different implementation than the one that actually ran). `daidalosSweepLockKillProbeConfirmedDead()`
+ * tested a different implementation than the one that actually ran). `daedalusSweepLockKillProbeConfirmedDead()`
  * below closes that gap on the same two primitives the shell computes, and the shell's exact
  * corrected text is separately content-pinned in the sweep-lock documentation test above.
  *
  * @param array{PID: int}|null $holder the parsed holder file contents, or null when absent/unreadable
  */
-function daidalosSweepLockShouldSteal(?array $holder): bool
+function daedalusSweepLockShouldSteal(?array $holder): bool
 {
     if ($holder === null || !isset($holder['PID'])) {
         return false;
     }
 
-    return daidalosPidConfirmedDead($holder['PID']);
+    return daedalusPidConfirmedDead($holder['PID']);
 }
 
-test('daidalos sweep-lock steal is gated on a confirmed-dead holder, never a bare timeout (PR #150 CR fix)', function (): void {
+test('daedalus sweep-lock steal is gated on a confirmed-dead holder, never a bare timeout (PR #150 CR fix)', function (): void {
     $livePid = getmypid();
     expect($livePid)->not->toBeFalse();
 
@@ -894,24 +894,24 @@ test('daidalos sweep-lock steal is gated on a confirmed-dead holder, never a bar
     }
 
     // No holder file at all (an older, pre-holder lock, or an unreadable one) — never steal.
-    expect(daidalosSweepLockShouldSteal(holder: null))->toBeFalse();
+    expect(daedalusSweepLockShouldSteal(holder: null))->toBeFalse();
     // Confirmed-dead holder — the only condition that justifies a steal.
-    expect(daidalosSweepLockShouldSteal(['PID' => 999_999_999]))->toBeTrue();
+    expect(daedalusSweepLockShouldSteal(['PID' => 999_999_999]))->toBeTrue();
     // Live holder — never steal, no matter how many attempts have elapsed.
-    expect(daidalosSweepLockShouldSteal(['PID' => $livePid]))->toBeFalse();
+    expect(daedalusSweepLockShouldSteal(['PID' => $livePid]))->toBeFalse();
 });
 
 /**
- * Mirrors the corrected two-step shell probe at `agents/daidalos.md:104` on the SAME two primitives
+ * Mirrors the corrected two-step shell probe at `agents/daedalus.md:104` on the SAME two primitives
  * the shell itself computes — `kill -0`'s own exit status ($rc) and its captured stderr message —
  * instead of collapsing straight to a live PID through `posix_kill()`. This is what lets the test
  * isolate the precise shape of the run-2 regression: a live holder produces `rc=0` AND an empty
- * message, a combination `daidalosSweepLockShouldSteal()` above cannot represent because
+ * message, a combination `daedalusSweepLockShouldSteal()` above cannot represent because
  * `posix_kill()` always resolves both facts atomically in one call (PR #150 CR fix, run-3
  * Critical 1 — "the mirror must reproduce the shell's two-branch logic — exit status + message —
  * not just the resulting predicate").
  */
-function daidalosSweepLockKillProbeConfirmedDead(int $rc, string $capturedMessage): bool
+function daedalusSweepLockKillProbeConfirmedDead(int $rc, string $capturedMessage): bool
 {
     if ($rc === 0) {
         return false;
@@ -921,16 +921,16 @@ function daidalosSweepLockKillProbeConfirmedDead(int $rc, string $capturedMessag
 }
 
 test(
-    'daidalos sweep-lock steal gate checks kill -0\'s own exit status first, never a downstream grep\'s (PR #150 CR fix, run-3 Critical 1)',
+    'daedalus sweep-lock steal gate checks kill -0\'s own exit status first, never a downstream grep\'s (PR #150 CR fix, run-3 Critical 1)',
     function (): void {
         // Live holder: `kill -0` SUCCEEDS (rc=0) and prints nothing — exactly the input that broke
         // the shipped shell, since `grep -q 'not permitted'` on an EMPTY piped stream exits 1
         // regardless of kill -0's own success, and the old snippet never captured kill -0's own $?.
-        expect(daidalosSweepLockKillProbeConfirmedDead(0, ''))->toBeFalse();
+        expect(daedalusSweepLockKillProbeConfirmedDead(0, ''))->toBeFalse();
         // Confirmed-dead (ESRCH): kill -0 fails, the message does not mention permission.
-        expect(daidalosSweepLockKillProbeConfirmedDead(1, 'kill: (999999999): No such process'))->toBeTrue();
+        expect(daedalusSweepLockKillProbeConfirmedDead(1, 'kill: (999999999): No such process'))->toBeTrue();
         // EPERM: kill -0 fails, but only because of a permission boundary — alive under another UID.
-        expect(daidalosSweepLockKillProbeConfirmedDead(1, 'kill: (1): Operation not permitted'))->toBeFalse();
+        expect(daedalusSweepLockKillProbeConfirmedDead(1, 'kill: (1): Operation not permitted'))->toBeFalse();
     },
 );
 
@@ -941,7 +941,7 @@ test(
  * on this machine: `ps -o etimes=` fails with "keyword not found", `ps -o etime=` succeeds (PR #150
  * CR fix, run-2 Moderate 1).
  */
-function daidalosParseEtimeToSeconds(string $etime): int
+function daedalusParseEtimeToSeconds(string $etime): int
 {
     $etime = trim($etime);
     $days = 0;
@@ -959,15 +959,15 @@ function daidalosParseEtimeToSeconds(string $etime): int
     return ($days * 86_400) + ($hours * 3_600) + ($minutes * 60) + $seconds;
 }
 
-test('daidalosParseEtimeToSeconds parses every ps -o etime= shape into seconds (PR #150 CR fix)', function (): void {
-    expect(daidalosParseEtimeToSeconds('00:00'))->toBe(0);
-    expect(daidalosParseEtimeToSeconds('01:23'))->toBe(83);
-    expect(daidalosParseEtimeToSeconds('02:03:04'))->toBe(7_384);
-    expect(daidalosParseEtimeToSeconds('1-02:03:04'))->toBe(93_784);
+test('daedalusParseEtimeToSeconds parses every ps -o etime= shape into seconds (PR #150 CR fix)', function (): void {
+    expect(daedalusParseEtimeToSeconds('00:00'))->toBe(0);
+    expect(daedalusParseEtimeToSeconds('01:23'))->toBe(83);
+    expect(daedalusParseEtimeToSeconds('02:03:04'))->toBe(7_384);
+    expect(daedalusParseEtimeToSeconds('1-02:03:04'))->toBe(93_784);
 });
 
 /**
- * Mirrors the identity-corroboration probe in agents/daidalos.md *Concurrency & the working-tree
+ * Mirrors the identity-corroboration probe in agents/daedalus.md *Concurrency & the working-tree
  * write-lock* → *Stale reclaim*: a bare alive PID only proves that PID number is currently in use
  * by *something*, never that it is the same process that wrote the lock's `STARTED` timestamp. The
  * process's own start time (`now - etime`) must fall at or before `STARTED`, allowing a small
@@ -977,41 +977,41 @@ test('daidalosParseEtimeToSeconds parses every ps -o etime= shape into seconds (
  * (PR #150 CR fix, run-2 Moderate 1 — closing the gap where the fix added `STARTED` to the layout
  * but nothing ever read it).
  */
-function daidalosWriteLockIdentityCorroborated(int $recordedStartedEpoch, int $processStartEpoch, int $toleranceSeconds = 60): bool
+function daedalusWriteLockIdentityCorroborated(int $recordedStartedEpoch, int $processStartEpoch, int $toleranceSeconds = 60): bool
 {
     return $processStartEpoch <= $recordedStartedEpoch + $toleranceSeconds;
 }
 
 test(
-    'daidalos write-lock identity corroboration treats a PID that started after STARTED as recycled, not the same run (PR #150 CR fix)',
+    'daedalus write-lock identity corroboration treats a PID that started after STARTED as recycled, not the same run (PR #150 CR fix)',
     function (): void {
         $recordedStartedEpoch = 1_800_000_000;
 
         // The genuinely same process always starts at or before the moment it later writes STARTED.
-        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeTrue();
+        expect(daedalusWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeTrue();
         // A little clock/measurement skew right around the same instant is tolerated.
-        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 30))->toBeTrue();
+        expect(daedalusWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 30))->toBeTrue();
         // A PID that provably started AFTER the recorded write cannot be the same process — recycled.
-        expect(daidalosWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeFalse();
+        expect(daedalusWriteLockIdentityCorroborated($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeFalse();
     },
 );
 
 test(
-    'daidalos write-lock reclaim documents identity corroboration, not just PID existence (PR #150 CR fix, run-2 Moderate 1)',
+    'daedalus write-lock reclaim documents identity corroboration, not just PID existence (PR #150 CR fix, run-2 Moderate 1)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-        expect($daidalos)->toContain('corroborate identity before trusting it as a live blocker');
-        expect($daidalos)->toContain('`ps -o etime= -p "$PID"`');
-        expect($daidalos)->toContain('a process cannot have written a timestamp before it existed');
-        expect($daidalos)->toContain('the PID has been recycled by an unrelated process since the lock was written');
-        expect($daidalos)->toContain('write-lock-staleness-needs-corroborating-evidence-not-bare-pid');
+        expect($daedalus)->toContain('corroborate identity before trusting it as a live blocker');
+        expect($daedalus)->toContain('`ps -o etime= -p "$PID"`');
+        expect($daedalus)->toContain('a process cannot have written a timestamp before it existed');
+        expect($daedalus)->toContain('the PID has been recycled by an unrelated process since the lock was written');
+        expect($daedalus)->toContain('write-lock-staleness-needs-corroborating-evidence-not-bare-pid');
     },
 );
 
 /**
- * Mirrors the fail-safe default added to agents/daidalos.md *Stale reclaim* for the case the
+ * Mirrors the fail-safe default added to agents/daedalus.md *Stale reclaim* for the case the
  * identity check cannot be evaluated at all — a holder file with no `STARTED` key, or an
  * unparseable/empty `ps -o etime=` result (the process exits between the `kill -0` probe and the
  * `ps` call, `hidepid=2`, a PID namespace). An inconclusive check must resolve to "still a live
@@ -1020,7 +1020,7 @@ test(
  * wording defined only two outcomes — corroborated or recycled — leaving "cannot compute" to fall
  * through to reclaim by default).
  */
-function daidalosWriteLockShouldReclaim(?int $recordedStartedEpoch, ?int $processStartEpoch, int $toleranceSeconds = 60): bool
+function daedalusWriteLockShouldReclaim(?int $recordedStartedEpoch, ?int $processStartEpoch, int $toleranceSeconds = 60): bool
 {
     if ($recordedStartedEpoch === null || $processStartEpoch === null) {
         return false;
@@ -1030,38 +1030,38 @@ function daidalosWriteLockShouldReclaim(?int $recordedStartedEpoch, ?int $proces
 }
 
 test(
-    'daidalos write-lock reclaim treats an inconclusive identity check as a live blocker, never as grounds to reclaim (PR #150 CR fix, run-3 Moderate 2)',
+    'daedalus write-lock reclaim treats an inconclusive identity check as a live blocker, never as grounds to reclaim (PR #150 CR fix, run-3 Moderate 2)',
     function (): void {
         $recordedStartedEpoch = 1_800_000_000;
 
         // Resolvable cases: only a PROVEN-recycled PID (started after STARTED) reclaims.
-        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeFalse();
-        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeTrue();
+        expect(daedalusWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch - 60))->toBeFalse();
+        expect(daedalusWriteLockShouldReclaim($recordedStartedEpoch, $recordedStartedEpoch + 300))->toBeTrue();
 
         // Inconclusive cases: no STARTED key in the holder file, or ps yielded no parseable etime —
         // both must resolve to "do not reclaim", exactly like a missing/malformed `## PID`.
-        expect(daidalosWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: $recordedStartedEpoch - 60))->toBeFalse();
-        expect(daidalosWriteLockShouldReclaim($recordedStartedEpoch, processStartEpoch: null))->toBeFalse();
-        expect(daidalosWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: null))->toBeFalse();
+        expect(daedalusWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: $recordedStartedEpoch - 60))->toBeFalse();
+        expect(daedalusWriteLockShouldReclaim($recordedStartedEpoch, processStartEpoch: null))->toBeFalse();
+        expect(daedalusWriteLockShouldReclaim(recordedStartedEpoch: null, processStartEpoch: null))->toBeFalse();
     },
 );
 
 test(
-    'daidalos write-lock reclaim states a fail-safe default for an inconclusive check, reconciled with step 5 (PR #150 CR fix, run-3 Moderate 2)',
+    'daedalus write-lock reclaim states a fail-safe default for an inconclusive check, reconciled with step 5 (PR #150 CR fix, run-3 Moderate 2)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-        expect($daidalos)->toContain('the identity check is **inconclusive, not falsified**');
-        expect($daidalos)->toContain('treat the lock as held by a live run and report the inconclusive corroboration');
-        expect($daidalos)->toContain('mirroring the fail-safe default the startup sweep applies to a missing or malformed `## PID`');
+        expect($daedalus)->toContain('the identity check is **inconclusive, not falsified**');
+        expect($daedalus)->toContain('treat the lock as held by a live run and report the inconclusive corroboration');
+        expect($daedalus)->toContain('mirroring the fail-safe default the startup sweep applies to a missing or malformed `## PID`');
 
         // Step 5's own summary no longer contradicts *Stale reclaim* by saying "reclaim ... when the
         // probe fails" (an EPERM probe IS a failed probe, yet must never reclaim) — it now defers to
         // the full ESRCH/EPERM + identity-corroboration logic documented there.
-        expect($daidalos)->toContain('probe the holder per *Stale reclaim* above');
-        expect($daidalos)->toContain('only on a confirmed-dead probe (ESRCH, not EPERM) **and** a failed identity corroboration');
-        expect($daidalos)->not->toContain('reclaim a stale lock (`rm -rf` then re-acquire) when the probe fails');
+        expect($daedalus)->toContain('probe the holder per *Stale reclaim* above');
+        expect($daedalus)->toContain('only on a confirmed-dead probe (ESRCH, not EPERM) **and** a failed identity corroboration');
+        expect($daedalus)->not->toContain('reclaim a stale lock (`rm -rf` then re-acquire) when the probe fails');
     },
 );
 
@@ -1070,7 +1070,7 @@ test(
  * reason carries a `pid <N>` token matching `^[0-9]{1,7}$` — no `locked` line at all, or one with
  * no parseable pid token, is never confirmed-dead.
  */
-function daidalosWorktreeEntryConfirmedDead(string $entry): bool
+function daedalusWorktreeEntryConfirmedDead(string $entry): bool
 {
     if (preg_match('/^locked (.*)$/m', $entry, $lockMatch) !== 1) {
         return false;
@@ -1080,27 +1080,27 @@ function daidalosWorktreeEntryConfirmedDead(string $entry): bool
         return false;
     }
 
-    return daidalosPidConfirmedDead((int) $pidMatch[1]);
+    return daedalusPidConfirmedDead((int) $pidMatch[1]);
 }
 
 /**
- * Mirrors the decision in agents/daidalos.md step 2 *Startup sweep* for the WORKTREE half —
+ * Mirrors the decision in agents/daedalus.md step 2 *Startup sweep* for the WORKTREE half —
  * previously covered only by string assertions, not an algorithmic fixture (PR #150 CR fix,
  * Critical 4's test gap). A `.claude/worktrees/agent-*` entry from `git worktree list
- * --porcelain` is safe to remove only on positive proof of death (`daidalosWorktreeEntryConfirmedDead()`
+ * --porcelain` is safe to remove only on positive proof of death (`daedalusWorktreeEntryConfirmedDead()`
  * above) — an entry with no `locked` line at all, or a `locked` line whose reason carries no
  * parseable pid token, is left in place — never removed (fail-safe, inverted from the original
  * "no locked line → treat like a stale lock → remove" behaviour).
  *
  * @return array<int, string> worktree paths judged safe to remove
  */
-function daidalosStartupSweepRemovableWorktrees(string $porcelain): array
+function daedalusStartupSweepRemovableWorktrees(string $porcelain): array
 {
     $removable = [];
     $entries = array_filter(explode("\n\n", trim($porcelain)), static fn (string $entry): bool => $entry !== '');
 
     foreach ($entries as $entry) {
-        if (preg_match('/^worktree (.+)$/m', $entry, $pathMatch) === 1 && daidalosWorktreeEntryConfirmedDead($entry)) {
+        if (preg_match('/^worktree (.+)$/m', $entry, $pathMatch) === 1 && daedalusWorktreeEntryConfirmedDead($entry)) {
             $removable[] = $pathMatch[1];
         }
     }
@@ -1109,31 +1109,31 @@ function daidalosStartupSweepRemovableWorktrees(string $porcelain): array
 }
 
 test(
-    'daidalos startup-sweep worktree algorithm is fail-safe: only a confirmed-dead, parseable locked pid is removable (PR #150 CR fix)',
+    'daedalus startup-sweep worktree algorithm is fail-safe: only a confirmed-dead, parseable locked pid is removable (PR #150 CR fix)',
     function (): void {
         $livePid = getmypid();
         expect($livePid)->not->toBeFalse();
 
         $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-dead' . "\n"
             . 'HEAD 1111111111111111111111111111111111111111' . "\n"
-            . 'branch refs/heads/hefaistos/gh-1' . "\n"
+            . 'branch refs/heads/hephaestus/gh-1' . "\n"
             . 'locked pid 9999999 slug gh-1' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-live' . "\n"
             . 'HEAD 2222222222222222222222222222222222222222' . "\n"
-            . 'branch refs/heads/hefaistos/gh-2' . "\n"
+            . 'branch refs/heads/hephaestus/gh-2' . "\n"
             . 'locked pid ' . $livePid . ' slug gh-2' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-unlocked' . "\n"
             . 'HEAD 3333333333333333333333333333333333333333' . "\n"
-            . 'branch refs/heads/hefaistos/gh-3' . "\n"
+            . 'branch refs/heads/hephaestus/gh-3' . "\n"
             . "\n"
             . 'worktree /repo/.claude/worktrees/agent-cr-no-pid-token' . "\n"
             . 'HEAD 4444444444444444444444444444444444444444' . "\n"
-            . 'branch refs/heads/hefaistos/gh-4' . "\n"
+            . 'branch refs/heads/hephaestus/gh-4' . "\n"
             . 'locked keep — manual bisect in progress' . "\n";
 
-        $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
+        $removable = daedalusStartupSweepRemovableWorktrees($porcelain);
 
         // Only the confirmed-dead, parseable-pid locked entry is removable — the unlocked entry
         // and the locked-but-no-pid-token entry are both preserved, exactly like the live one.
@@ -1141,7 +1141,7 @@ test(
     },
 );
 
-test('daidalos startup-sweep worktree algorithm treats a locked EPERM pid as alive, never as dead (PR #150 CR fix)', function (): void {
+test('daedalus startup-sweep worktree algorithm treats a locked EPERM pid as alive, never as dead (PR #150 CR fix)', function (): void {
     if (posix_getuid() === 0) {
         expect(value: true)->toBeTrue();
 
@@ -1150,80 +1150,80 @@ test('daidalos startup-sweep worktree algorithm treats a locked EPERM pid as ali
 
     $porcelain = 'worktree /repo/.claude/worktrees/agent-cr-eperm' . "\n"
         . 'HEAD 5555555555555555555555555555555555555555' . "\n"
-        . 'branch refs/heads/hefaistos/gh-5' . "\n"
+        . 'branch refs/heads/hephaestus/gh-5' . "\n"
         . 'locked pid 1 slug gh-5' . "\n";
 
-    $removable = daidalosStartupSweepRemovableWorktrees($porcelain);
+    $removable = daedalusStartupSweepRemovableWorktrees($porcelain);
 
     expect($removable)->toBe([]);
 });
 
 test(
-    'daidalos startup sweep documents the fail-safe default, single PID source, format validation, and a dedicated sweep lock (PR #150 CR fix)',
+    'daedalus startup sweep documents the fail-safe default, single PID source, format validation, and a dedicated sweep lock (PR #150 CR fix)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
         // Fail-safe by construction — absence of a signal is never proof of death.
-        expect($daidalos)->toContain('it deletes only on positive proof of death, never on the mere absence of a liveness signal');
+        expect($daedalus)->toContain('it deletes only on positive proof of death, never on the mere absence of a liveness signal');
 
         // A single, run-stable PID source — $$ is explicitly ruled out everywhere it is prescribed.
-        expect($daidalos)->toContain('**never `$$`**, the ephemeral PID of the single Bash subshell one tool call runs in');
-        expect($daidalos)->toContain('two consecutive Bash calls in this environment report two different `$$` values but an identical, stable `$PPID`');
+        expect($daedalus)->toContain('**never `$$`**, the ephemeral PID of the single Bash subshell one tool call runs in');
+        expect($daedalus)->toContain('two consecutive Bash calls in this environment report two different `$$` values but an identical, stable `$PPID`');
 
         // Fixed-position parsing (never a fence-based "header region") and format validation guard
         // against attacker-influenced tracker text (PR #150 CR fix, run-2 Critical 1).
-        expect($daidalos)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
+        expect($daedalus)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
 
         // The read window tolerates the natural one-blank-line-after-H1 markdown shape instead of
         // requiring the literal second line — still position-bounded, never content-based, and still
         // far short of the attacker-controlled `## Gathered context` payload (PR #150 CR fix, run-3
         // Minor 2 — the strict "second line only" rule was a permanent no-op against every real brief).
-        expect($daidalos)->toContain('read by scanning only the file\'s **first 5 lines**, stopping at the first match');
-        expect($daidalos)->toContain('A file with no matching line inside that window is treated exactly like a missing `## PID`');
-        expect($daidalos)->toContain('require the captured token to match `^[0-9]{1,7}$`');
-        expect($daidalos)->toContain('always double-quote it when it reaches a command (`kill -0 "$pid"`)');
+        expect($daedalus)->toContain('read by scanning only the file\'s **first 5 lines**, stopping at the first match');
+        expect($daedalus)->toContain('A file with no matching line inside that window is treated exactly like a missing `## PID`');
+        expect($daedalus)->toContain('require the captured token to match `^[0-9]{1,7}$`');
+        expect($daedalus)->toContain('always double-quote it when it reaches a command (`kill -0 "$pid"`)');
 
         // ESRCH vs EPERM is distinguished everywhere a `kill -0` probe is prescribed.
-        expect($daidalos)->toContain('conflates "no such process" (ESRCH) with "process exists, no permission" (EPERM)');
+        expect($daedalus)->toContain('conflates "no such process" (ESRCH) with "process exists, no permission" (EPERM)');
 
         // The sweep itself runs under a dedicated, short-lived lock distinct from the write-lock,
         // keyed on the repository-wide common git dir (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
-        expect($daidalos)->toContain('git rev-parse --git-common-dir');
-        expect($daidalos)->toContain('.daidalos-sweep.lock');
-        expect($daidalos)->toContain('mkdir -p "$LOCKROOT/agent-run"');
-        expect($daidalos)->toContain('This is separate from, and much shorter-lived than, the write-lock above');
+        expect($daedalus)->toContain('git rev-parse --git-common-dir');
+        expect($daedalus)->toContain('.daedalus-sweep.lock');
+        expect($daedalus)->toContain('mkdir -p "$LOCKROOT/agent-run"');
+        expect($daedalus)->toContain('This is separate from, and much shorter-lived than, the write-lock above');
 
         // The steal gate captures `kill -0`'s OWN exit status before inspecting its message — never
         // a downstream `grep`'s exit status, which a live same-UID holder (no stderr output at all)
         // would silently misclassify as confirmed-dead (PR #150 CR fix, run-3 Critical 1).
-        expect($daidalos)->toContain('probe="$(LC_ALL=C kill -0 "$holder_pid" 2>&1)"; rc=$?');
-        expect($daidalos)->toContain(
+        expect($daedalus)->toContain('probe="$(LC_ALL=C kill -0 "$holder_pid" 2>&1)"; rc=$?');
+        expect($daedalus)->toContain(
             'if [ -n "$holder_pid" ] && [ "$rc" -ne 0 ] && ! printf \'%s\' "$probe" | grep -q \'not permitted\'; then',
         );
-        expect($daidalos)->not->toContain(
+        expect($daedalus)->not->toContain(
             '! LC_ALL=C kill -0 "$holder_pid" 2>&1 | grep -q \'not permitted\'',
         );
 
         // The holder file is written only on the branch that actually acquired the lock — never on
         // the "skip this run's sweep" branch, which would otherwise clobber a live peer's holder
         // (PR #150 CR fix, run-3 Moderate 1).
-        expect($daidalos)->toContain('skipping this run\'s sweep" >&2; skip=1; break');
-        expect($daidalos)->toContain('[ -z "$skip" ] && printf \'PID=%s\nSLUG=%s\nSTARTED=%s\n\'');
+        expect($daedalus)->toContain('skipping this run\'s sweep" >&2; skip=1; break');
+        expect($daedalus)->toContain('[ -z "$skip" ] && printf \'PID=%s\nSLUG=%s\nSTARTED=%s\n\'');
 
         // The sweep-lock holder's own `PID=` token is format-validated before it reaches `kill -0`,
         // the one PID token that previously skipped this section's own mandatory check
         // (PR #150 CR fix, run-3 Minor 1).
-        expect($daidalos)->toContain('case "$holder_pid" in \'\'|*[!0-9]*) holder_pid=\'\' ;; esac');
-        expect($daidalos)->toContain('Lock-holder `PID=` (write-lock and sweep-lock holder files)');
+        expect($daedalus)->toContain('case "$holder_pid" in \'\'|*[!0-9]*) holder_pid=\'\' ;; esac');
+        expect($daedalus)->toContain('Lock-holder `PID=` (write-lock and sweep-lock holder files)');
 
         // An unlocked worktree entry (or one with no parseable pid token) is left in place, not removed —
         // inverted from the original "no locked line → treat like a stale lock → remove" default.
-        expect($daidalos)->toContain('is left in place — never removed');
+        expect($daedalus)->toContain('is left in place — never removed');
 
         // The brief is created atomically, `## PID` first, closing the mid-write observation window.
-        expect($daidalos)->toContain('Atomic, PID-first brief creation');
-        expect($daidalos)->toContain('so no peer\'s sweep can ever observe the file between its creation and the `## PID` line landing');
+        expect($daedalus)->toContain('Atomic, PID-first brief creation');
+        expect($daedalus)->toContain('so no peer\'s sweep can ever observe the file between its creation and the `## PID` line landing');
     },
 );
 
@@ -1250,9 +1250,9 @@ test(
     },
 );
 
-test('daidalos validates the source-slug format before it reaches a path or a shell command (issue #220)', function (): void {
+test('daedalus validates the source-slug format before it reaches a path or a shell command (issue #220)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // Same guard athena already applies to its own slug — pinned there by the worktree test above.
     expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
@@ -1272,9 +1272,9 @@ test('daidalos validates the source-slug format before it reaches a path or a sh
     expect($content)->toContain('Never build a path from the rejected slug');
 });
 
-test('daidalos probes the same-slug brief before overwriting it, so a live peer survives (issue #221)', function (): void {
+test('daedalus probes the same-slug brief before overwriting it, so a live peer survives (issue #221)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The sweep skips this run's own slug, which is exactly the file the mv would overwrite.
     expect($content)->toContain('the one brief the sweep never probes is the one this run is about to overwrite');
@@ -1353,9 +1353,9 @@ test('the read-only CR agent carries the web tools the third-party documentation
     expect($docs)->not->toContain('A read-only reviewer needs `Read, Glob, Grep, Bash` only.');
 });
 
-test('daidalos dispatches every step blocking so a turn never ends mid-flight (issue #172)', function (): void {
+test('daedalus dispatches every step blocking so a turn never ends mid-flight (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     expect($content)->toContain('### Dispatch blocking, not fire-and-forget');
     expect($content)->toContain('pass `run_in_background: false`');
@@ -1376,9 +1376,9 @@ test('daidalos dispatches every step blocking so a turn never ends mid-flight (i
     expect($content)->toContain('Collapsing the former parallel pair into one agent removed the barrier entirely');
 });
 
-test('daidalos keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
+test('daedalus keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     expect($content)->toContain('### Dispatch ledger');
     expect($content)->toContain('.claude/run/<source-slug>.dispatches');
@@ -1387,18 +1387,18 @@ test('daidalos keeps a dispatch ledger keyed by role, head sha and round (issue 
     expect($content)->toContain('Blocked: kolo <role>/<round> je již dispatchnuté a nedoručilo výsledek');
 });
 
-test('daidalos gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
+test('daedalus gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     expect($content)->toContain('Probe liveness first — the same confirmed-dead gate the startup sweep uses');
     expect($content)->toContain('a live CR pass and a crashed one look **identical** on both signals');
     expect($content)->toContain('never remove on the absence of a liveness signal');
 });
 
-test('daidalos anchors run cleanup to every terminal path instead of the step-7 number (issue #200)', function (): void {
+test('daedalus anchors run cleanup to every terminal path instead of the step-7 number (issue #200)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The checklist carries a named, renumbering-proof anchor rather than living as "step 7's body".
     expect($content)->toContain('*Run cleanup* — a property of every terminating path, not of step 7');
@@ -1441,9 +1441,9 @@ test('daidalos anchors run cleanup to every terminal path instead of the step-7 
     expect($content)->not->toContain('exactly the paths the brief\'s own *Cleanup* bullet already names');
 });
 
-test('daidalos gates scratch-file cleanup on brief ownership via the ## PID field (issue #200)', function (): void {
+test('daedalus gates scratch-file cleanup on brief ownership via the ## PID field (issue #200)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daidalos.md');
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
     // The gate is stated once, inside the Run cleanup checklist.
     expect($content)->toContain('the `## PID` ownership gate.');
@@ -1478,14 +1478,14 @@ test('the Run cleanup anchor is cross-referenced by name from athena and the com
     // The pinned handoff phrase stays; only the anchor it points at changes.
     expect($athena)->toContain('Record the worktree path in your handoff');
     expect($athena)->toContain('removes it during *Run cleanup*');
-    expect($athena)->not->toContain('during its cleanup (step 7 of `agents/daidalos.md`)');
+    expect($athena)->not->toContain('during its cleanup (step 7 of `agents/daedalus.md`)');
 
     // Temporary-file hygiene moved to orchestration.md by issue #275.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    expect($rule)->toContain('released by `daidalos` during *Run cleanup*');
-    expect($rule)->toContain('*Run cleanup* (`agents/daidalos.md`) is the **reference implementation**');
-    expect($rule)->not->toContain('released by `daidalos` in step 7.');
-    expect($rule)->not->toContain('`daidalos` step 7 is the **reference implementation**');
+    expect($rule)->toContain('released by `daedalus` during *Run cleanup*');
+    expect($rule)->toContain('*Run cleanup* (`agents/daedalus.md`) is the **reference implementation**');
+    expect($rule)->not->toContain('released by `daedalus` in step 7.');
+    expect($rule)->not->toContain('`daedalus` step 7 is the **reference implementation**');
 });
 
 test('the reviewer delivers incrementally and treats the handoff as authoritative (issue #172)', function (): void {
@@ -1506,13 +1506,13 @@ test('the reviewer delivers incrementally and treats the handoff as authoritativ
 test('the remediation-conformance verdict is derived once, by the single reviewer (issue #174, issue #179)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // daidalos still states whether a plan exists — it is the only participant that knows whether
+    // daedalus still states whether a plan exists — it is the only participant that knows whether
     // step 4 ran — but there is no owner to assign and no non-owner to hold back any more.
-    $daidalos = (string) file_get_contents($packageDir . '/agents/daidalos.md');
-    expect($daidalos)->toContain('Name the remediation-conformance state in the dispatch prompt.');
-    expect($daidalos)->toContain('remediation-conformance: derive it — plan at <link>');
-    expect($daidalos)->toContain('remediation-conformance: no pre-implementation plan, step is empty');
-    expect($daidalos)->not->toContain('remediation-conformance owner:');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    expect($daedalus)->toContain('Name the remediation-conformance state in the dispatch prompt.');
+    expect($daedalus)->toContain('remediation-conformance: derive it — plan at <link>');
+    expect($daedalus)->toContain('remediation-conformance: no pre-implementation plan, step is empty');
+    expect($daedalus)->not->toContain('remediation-conformance owner:');
 
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
     expect($athena)->toContain('**Remediation-conformance agenda:**');
@@ -1532,7 +1532,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('## Bash capability boundary (advisory, not harness-enforced)');
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
-    expect($rule)->toContain('Read-only agents (`athena`, `hermes`, `daidalos`) never create, modify, or delete a tracked file through Bash');
+    expect($rule)->toContain('Read-only agents (`athena`, `hermes`, `daedalus`) never create, modify, or delete a tracked file through Bash');
     expect($rule)->toContain('**Residual risk — stated plainly, never assumed away.**');
     expect($rule)->toContain('not expressible');
     expect($rule)->toContain('session-wide, not per agent');
@@ -1566,8 +1566,8 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     $expectedDisallowed = [
         'athena' => 'Write, Edit',
         'hermes' => 'Write, Edit',
-        'daidalos' => 'Write, Edit',
-        'hefaistos' => 'WebSearch, WebFetch',
+        'daedalus' => 'Write, Edit',
+        'hephaestus' => 'WebSearch, WebFetch',
     ];
 
     foreach ($expectedDisallowed as $agent => $disallowed) {
@@ -1665,7 +1665,7 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     ];
 
     foreach ($documents as $relativePath) {
-        expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('agent-skills bash-guard');
+        expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('ai-olympus bash-guard');
     }
 
     $security = (string) file_get_contents($packageDir . '/SECURITY.md');
@@ -1676,7 +1676,7 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     expect($security)->not->toContain('"hooks": [{ "type": "command"');
 
     foreach (explode("\n", $security) as $line) {
-        if (str_contains($line, 'agent-skills bash-guard')) {
+        if (str_contains($line, 'ai-olympus bash-guard')) {
             expect($line)->toStartWith('- **If you ever installed the removed hook, remove its entry by hand.**');
         }
     }

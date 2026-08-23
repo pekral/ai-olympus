@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Ask a question
-    url: https://github.com/agentic-vibes/laravel-agent-skills/discussions/categories/q-a
+    url: https://github.com/pekral/ai-olympus/discussions/categories/q-a
     about: Questions about compatibility, using the rules without the agents, or writing your own skill belong in Discussions — the issue tracker is for bugs and feature requests.
   - name: Report a security vulnerability
-    url: https://github.com/agentic-vibes/laravel-agent-skills/security/advisories/new
+    url: https://github.com/pekral/ai-olympus/security/advisories/new
     about: Please report security vulnerabilities privately instead of opening a public issue — see SECURITY.md.

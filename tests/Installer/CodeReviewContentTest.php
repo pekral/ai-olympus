@@ -668,11 +668,11 @@ test(
     
         $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
         expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
-        expect($codeReview)->toContain('reports the gate as `deferred to hefaistos` instead of the Critical finding the bullet above otherwise requires');
+        expect($codeReview)->toContain('reports the gate as `deferred to hephaestus` instead of the Critical finding the bullet above otherwise requires');
     
         $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
         expect($codeTesting)->toContain('**Sanctioned exception:**');
-        expect($codeTesting)->toContain('reports `deferred to hefaistos` here instead of a Critical finding');
+        expect($codeTesting)->toContain('reports `deferred to hephaestus` here instead of a Critical finding');
     
         $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
         expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
@@ -680,8 +680,8 @@ test(
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
         // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
         $github = crContractText('skills/code-review-github/SKILL.md');
-        expect($github)->toContain('a savings-mode `deferred to hefaistos` verdict (non-Critical');
-        expect($github)->toContain('render `Coverage: deferred to hefaistos (isolated worktree, no vendor/)`');
+        expect($github)->toContain('a savings-mode `deferred to hephaestus` verdict (non-Critical');
+        expect($github)->toContain('render `Coverage: deferred to hephaestus (isolated worktree, no vendor/)`');
     },
 );
 
@@ -1805,7 +1805,7 @@ test('quality-gates records that this repository\'s own PR CI cannot satisfy the
 
     expect($gates)->toContain('the reuse path is structurally unreachable here (issue #144)');
     expect($gates)->toContain('checks out the **merge ref** (`refs/pull/<N>/merge`)');
-    expect($gates)->toContain('every check therefore always runs locally in `laravel-agent-skills` itself');
+    expect($gates)->toContain('every check therefore always runs locally in `ai-olympus` itself');
     // A non-match forces the local run, so the dead path is conservative, not a defect.
     expect($gates)->toContain('can never produce a false-positive reuse');
     // Only the PR side is dead — the push trigger does check out the pushed commit.

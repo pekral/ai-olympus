@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\InstallerFailure;
+use Pekral\AiOlympus\InstallerFailure;
 
 test('InstallerFailure missingSource creates exception with correct message', function (): void {
     $exception = InstallerFailure::missingSource('/dev/path', '/vendor/path');

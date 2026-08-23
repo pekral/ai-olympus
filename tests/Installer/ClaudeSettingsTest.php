@@ -2,10 +2,10 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerClaudeSettings;
-use AgenticVibes\AgentSkills\InstallerFailure;
-use AgenticVibes\AgentSkills\InstallerProjectSettings;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerClaudeSettings;
+use Pekral\AiOlympus\InstallerFailure;
+use Pekral\AiOlympus\InstallerProjectSettings;
 
 test('InstallerClaudeSettings exposes the two bundled-script permission patterns', function (): void {
     $patterns = InstallerClaudeSettings::getBundledScriptPermissions();
@@ -245,7 +245,7 @@ test('resolveProjectLocalSettingsPath joins the project root with /.claude/setti
 });
 
 test('ensureSubagentWritesEnabled writes scoped Edit/Write entries into a fresh settings.local.json', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
 
     try {
         $written = InstallerProjectSettings::ensureSubagentWritesEnabled($root);
@@ -269,7 +269,7 @@ test('ensureSubagentWritesEnabled writes scoped Edit/Write entries into a fresh 
 });
 
 test('ensureSubagentWritesEnabled prepends to existing allow without dropping unrelated entries', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'theme' => 'dark',
@@ -299,7 +299,7 @@ test('ensureSubagentWritesEnabled prepends to existing allow without dropping un
 });
 
 test('ensureSubagentWritesEnabled is idempotent when both entries are already present', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'permissions' => ['allow' => [
@@ -317,7 +317,7 @@ test('ensureSubagentWritesEnabled is idempotent when both entries are already pr
 });
 
 test('ensureSubagentWritesEnabled adds only the missing entry when one is already present', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'permissions' => ['allow' => [sprintf('Write(/%s/**)', $root)]],
@@ -340,7 +340,7 @@ test('ensureSubagentWritesEnabled adds only the missing entry when one is alread
 });
 
 test('ensureSubagentWritesEnabled recovers when permissions.allow is the wrong shape and drops non-strings', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'permissions' => ['allow' => ['Bash(git status:*)', 42, null]],
@@ -364,7 +364,7 @@ test('ensureSubagentWritesEnabled recovers when permissions.allow is the wrong s
 });
 
 test('ensureSubagentWritesEnabled recovers when permissions key is the wrong shape', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => 'not-an-object']));
 
@@ -385,14 +385,14 @@ test('ensureSubagentWritesEnabled recovers when permissions key is the wrong sha
 });
 
 test('applySubagentWritesIfRequested returns false when the flag is not set', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
 
     expect(InstallerProjectSettings::applySubagentWritesIfRequested(allowSubagentWrites: false, projectRoot: $root))->toBeFalse();
     expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
 });
 
 test('applySubagentWritesIfRequested writes the allow entries when requested', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-saw-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-saw-' . bin2hex(random_bytes(4));
 
     try {
         expect(InstallerProjectSettings::applySubagentWritesIfRequested(allowSubagentWrites: true, projectRoot: $root))->toBeTrue();
@@ -419,7 +419,7 @@ test('validateSubagentWritePermissions throws when a required entry is missing',
 });
 
 test('ensureNetworkBashDenyPermissions writes every pattern into a fresh settings.local.json', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
 
     try {
         expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
@@ -434,7 +434,7 @@ test('ensureNetworkBashDenyPermissions writes every pattern into a fresh setting
 });
 
 test('ensureNetworkBashDenyPermissions preserves existing allow entries and foreign deny entries', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'theme' => 'dark',
@@ -465,7 +465,7 @@ test('ensureNetworkBashDenyPermissions preserves existing allow entries and fore
 });
 
 test('ensureNetworkBashDenyPermissions is idempotent across two consecutive calls', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
 
     try {
         expect(InstallerProjectSettings::ensureNetworkBashDenyPermissions($root))->toBeTrue();
@@ -478,7 +478,7 @@ test('ensureNetworkBashDenyPermissions is idempotent across two consecutive call
 });
 
 test('ensureNetworkBashDenyPermissions adds only the missing patterns and drops non-strings', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode([
         'permissions' => ['deny' => ['Bash(curl:*)', 42, null]],
@@ -494,7 +494,7 @@ test('ensureNetworkBashDenyPermissions adds only the missing patterns and drops 
 });
 
 test('ensureNetworkBashDenyPermissions recovers when permissions.deny is the wrong shape', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => ['deny' => 'string-not-array']]));
 
@@ -508,7 +508,7 @@ test('ensureNetworkBashDenyPermissions recovers when permissions.deny is the wro
 });
 
 test('ensureNetworkBashDenyPermissions recovers when the permissions key is the wrong shape', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
     $settingsPath = $root . '/.claude/settings.local.json';
     installerWriteFile($settingsPath, (string) json_encode(['permissions' => 'not-an-object']));
 
@@ -522,7 +522,7 @@ test('ensureNetworkBashDenyPermissions recovers when the permissions key is the 
 });
 
 test('ensureNetworkBashDenyPermissions raises InstallerFailure when settings.local.json is malformed JSON', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
     installerWriteFile($root . '/.claude/settings.local.json', '{not-valid-json');
 
     try {
@@ -534,18 +534,18 @@ test('ensureNetworkBashDenyPermissions raises InstallerFailure when settings.loc
 });
 
 test('loadProjectLocalDenyList returns an empty list when no settings.local.json exists', function (): void {
-    expect(InstallerProjectSettings::loadProjectLocalDenyList(sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4))))->toBe([]);
+    expect(InstallerProjectSettings::loadProjectLocalDenyList(sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4))))->toBe([]);
 });
 
 test('applyNetworkBashDenyIfRequested returns false and writes nothing when the flag is not set', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
 
     expect(InstallerProjectSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: false, projectRoot: $root))->toBeFalse();
     expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
 });
 
 test('applyNetworkBashDenyIfRequested writes the deny entries when requested', function (): void {
-    $root = sys_get_temp_dir() . '/agent-skills-dnb-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/ai-olympus-dnb-' . bin2hex(random_bytes(4));
 
     try {
         expect(InstallerProjectSettings::applyNetworkBashDenyIfRequested(denyNetworkBash: true, projectRoot: $root))->toBeTrue();
@@ -604,7 +604,7 @@ test('install --deny-network-bash writes the deny entries and reports it', funct
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--deny-network-bash']);
+        Installer::run(['ai-olympus', 'install', '--deny-network-bash']);
         $output = ob_get_clean();
 
         expect($output)->toContain('Denied outbound-network Bash commands');
@@ -632,7 +632,7 @@ test('install without --deny-network-bash writes no deny entry at all', function
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Denied outbound-network Bash commands');
@@ -658,11 +658,11 @@ test('install --deny-network-bash is idempotent and reports nothing on the secon
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--deny-network-bash']);
+        Installer::run(['ai-olympus', 'install', '--deny-network-bash']);
         ob_end_clean();
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--deny-network-bash']);
+        Installer::run(['ai-olympus', 'install', '--deny-network-bash']);
         $secondOutput = ob_get_clean();
 
         expect($secondOutput)->not->toContain('Denied outbound-network Bash commands');
@@ -689,7 +689,7 @@ test('install --deny-network-bash and --allow-subagent-writes coexist in one set
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-subagent-writes', '--deny-network-bash']);
+        Installer::run(['ai-olympus', 'install', '--allow-subagent-writes', '--deny-network-bash']);
         ob_end_clean();
 
         $data = json_decode((string) file_get_contents($root . '/.claude/settings.local.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
@@ -721,7 +721,7 @@ test('install --allow-bundled-scripts writes the permissions and reports them', 
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
         $output = ob_get_clean();
 
         expect($output)->toContain('Allowed 2 bundled-script permission(s) in ~/.claude/settings.json.');
@@ -751,7 +751,7 @@ test('install without --allow-bundled-scripts still disables AI co-author attrib
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
@@ -784,7 +784,7 @@ test('install --allow-subagent-writes writes the allow entries and reports it', 
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-subagent-writes']);
+        Installer::run(['ai-olympus', 'install', '--allow-subagent-writes']);
         $output = ob_get_clean();
 
         expect($output)->toContain('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.');
@@ -823,7 +823,7 @@ test('install without --allow-subagent-writes does not write settings.local.json
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed subagent file writes');
@@ -846,7 +846,7 @@ test('install --allow-bundled-scripts with HOME unset is a no-op for settings.js
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed');
@@ -883,11 +883,11 @@ test('install --allow-bundled-scripts is idempotent across two consecutive runs'
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
         ob_end_clean();
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
         $secondOutput = ob_get_clean();
 
         expect($secondOutput)->not->toContain('Allowed');

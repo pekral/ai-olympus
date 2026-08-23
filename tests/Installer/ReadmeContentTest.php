@@ -8,15 +8,15 @@ test('readme shows the install command inside the first rendered screen (issue #
 
     $firstScreen = implode('', array_slice($lines, 0, 40));
 
-    expect($firstScreen)->toContain('composer require agentic-vibes/laravel-agent-skills --dev');
-    expect($firstScreen)->toContain('vendor/bin/agent-skills install --force');
+    expect($firstScreen)->toContain('composer require pekral/ai-olympus --dev');
+    expect($firstScreen)->toContain('vendor/bin/ai-olympus install --force');
 });
 
 test('readme hero paragraph describes the product, not the installer mechanics (issue #105)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $readme = (string) file_get_contents($packageDir . '/README.md');
 
-    $heroStart = strpos($readme, '**Laravel Agent Skills**');
+    $heroStart = strpos($readme, '**AI Olympus**');
     assert($heroStart !== false);
     $heroEnd = strpos($readme, "\n\n", $heroStart);
     assert($heroEnd !== false);
@@ -41,7 +41,7 @@ test('installation docs carry every operational section moved out of the readme 
     // "nothing is lost" contract of the move is broken.
     expect($docs)->toContain('composer.json');
     expect($docs)->toContain('symlink');
-    expect($docs)->toContain('vendor/agentic-vibes/laravel-agent-skills/rules');
+    expect($docs)->toContain('vendor/pekral/ai-olympus/rules');
     expect($docs)->toContain('auto-install');
 });
 

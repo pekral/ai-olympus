@@ -1,6 +1,6 @@
 {
-  "name": "laravel-agent-skills",
-  "displayName": "Laravel Agent Skills",
+  "name": "ai-olympus",
+  "displayName": "AI Olympus",
   "description": "Coding standards, review workflows, and an issue-to-PR agent roster for PHP and Laravel projects",
   "author": {
     "name": "Petr Král",
@@ -8,7 +8,7 @@
     "url": "https://pekral.cz"
   },
   "homepage": "https://pekral.cz",
-  "repository": "https://github.com/agentic-vibes/laravel-agent-skills",
+  "repository": "https://github.com/pekral/ai-olympus",
   "license": "MIT",
   "keywords": [
     "php",

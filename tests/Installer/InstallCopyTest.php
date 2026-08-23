@@ -2,8 +2,8 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerPath;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerPath;
 
 test('package directory points to correct location', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -32,7 +32,7 @@ test('install ignores rules directory in project root and uses package source', 
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
@@ -59,7 +59,7 @@ test('install copies rules from package when no development directory', function
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
@@ -98,7 +98,7 @@ test('install respects force flag', function (): void {
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
         $originalContent = file_get_contents($installedFile);
         expect($originalContent)->toBeString();
@@ -106,12 +106,12 @@ test('install respects force flag', function (): void {
         file_put_contents($installedFile, 'modified content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('modified content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--force']);
+        Installer::run(['ai-olympus', 'install', '--force']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe($originalContent);
     } finally {
@@ -135,12 +135,12 @@ test('install never overwrites existing project.mdc in target', function (): voi
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('my project-specific content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install', '--force']);
+        Installer::run(['ai-olympus', 'install', '--force']);
         ob_end_clean();
         expect(file_get_contents($installedFile))->toBe('my project-specific content');
     } finally {
@@ -166,7 +166,7 @@ test('install creates symlinks when requested', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--symlink']);
+        Installer::run(['ai-olympus', 'install', '--symlink']);
         ob_end_clean();
 
         $target = $root . '/.claude/rules/php/core-standards.md';
@@ -190,7 +190,7 @@ test('install without --symlink installs regular files via copy fallback, not sy
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $target = $root . '/.claude/rules/php/core-standards.md';
@@ -221,7 +221,7 @@ test('install creates regular files (copy fallback), never symlinks, when symlin
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--symlink']);
+        Installer::run(['ai-olympus', 'install', '--symlink']);
         ob_end_clean();
 
         $target = $root . '/.claude/rules/php/core-standards.md';
@@ -251,7 +251,7 @@ test('install copies nested directories', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $installedFile = $root . '/.claude/rules/laravel/architecture.md';
@@ -275,7 +275,7 @@ test('install never creates .cursor or .codex directories', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect(is_file($root . '/.claude/rules/php/core-standards.md'))->toBeTrue();
@@ -307,7 +307,7 @@ test('install copies skills to the project target directory', function (): void 
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         foreach (InstallerPath::resolveSkillsTargetDirectories($root) as $targetDir) {
@@ -328,7 +328,7 @@ test('install appends output humanization directive to installed skill', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $installedSkill = $root . '/.claude/skills/code-review/SKILL.md';
@@ -355,7 +355,7 @@ test('install does not duplicate output humanization directive in installed skil
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $installedSkill = $root . '/.claude/skills/code-review/SKILL.md';
@@ -402,7 +402,7 @@ test('install copies all files to every rule, skill, and agent directory', funct
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
@@ -438,7 +438,7 @@ test('install fails when target path is a file instead of directory', function (
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -461,7 +461,7 @@ test('install fails when destination is directory that cannot be removed', funct
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--force']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--force']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -485,7 +485,7 @@ test('install fails when rules subdirectory path is a file', function (): void {
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         ob_get_clean();
 
         expect($exitCode)->toBe(1);
@@ -506,7 +506,7 @@ test('install copies security rules from rules/security directory', function ():
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $securityDir = $root . '/.claude/rules/security';
@@ -537,7 +537,7 @@ test('install always force-copies security rules even without force flag', funct
         chdir($root);
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $securityFile = $root . '/.claude/rules/security/backend.md';
@@ -547,7 +547,7 @@ test('install always force-copies security rules even without force flag', funct
         file_put_contents($regularFile, 'old rules content');
 
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect(file_get_contents($securityFile))->toBe($originalSecurityContent);
@@ -570,7 +570,7 @@ test('install detects a concatenated --force--editor argument and returns exit 1
         chdir($root);
 
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--force--editor=claude']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--force--editor=claude']);
         ob_end_clean();
 
         expect($exitCode)->toBe(1);
@@ -599,7 +599,7 @@ test('install from package root installs rules and skills into .claude', functio
     try {
         chdir($packageRoot);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
@@ -633,7 +633,7 @@ test('install fails when copy fails due to unwritable destination', function ():
         chdir($root);
         ob_start();
         set_error_handler(static fn (): bool => true);
-        $exitCode = Installer::run(['agent-skills', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         restore_error_handler();
         ob_get_clean();
 
@@ -668,7 +668,7 @@ test('install fails when existing file cannot be removed', function (): void {
         chdir($root);
         ob_start();
         set_error_handler(static fn (): bool => true);
-        $exitCode = Installer::run(['agent-skills', 'install', '--force']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--force']);
         restore_error_handler();
         ob_get_clean();
 
@@ -692,7 +692,7 @@ test('install preserves executable bit on shipped scripts', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $installedScripts = [
@@ -722,7 +722,7 @@ test('install with prune on non-existent target directory does nothing', functio
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['agent-skills', 'install', '--prune']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--prune']);
         ob_end_clean();
 
         expect($exitCode)->toBe(0);
@@ -751,7 +751,7 @@ test('installer never installs the per-project memory file into a target project
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         foreach (['.cursor', '.claude', '.codex'] as $editorDir) {

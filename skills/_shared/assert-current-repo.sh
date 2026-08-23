@@ -60,9 +60,9 @@ Usage: assert-current-repo.sh <URL|owner/repo>
        assert-current-repo.sh --self-test
 
   URL         a github.com URL whose path starts with <owner>/<repo>
-              e.g. https://github.com/agentic-vibes/laravel-agent-skills/issues/75
+              e.g. https://github.com/pekral/ai-olympus/issues/75
   owner/repo  a bare nameWithOwner
-              e.g. agentic-vibes/laravel-agent-skills
+              e.g. pekral/ai-olympus
 
 Exits 4 when the reference belongs to a different repository than the checkout.
 Every non-zero exit is a hard stop — there is no MCP fallback for ownership.
@@ -397,28 +397,28 @@ self_test() {
     verdict "$1" "$(mkrepo "remote add origin $2")" "$3" "$4" "${5:-}"
   }
 
-  local ours='https://github.com/agentic-vibes/laravel-agent-skills/issues/75'
+  local ours='https://github.com/pekral/ai-olympus/issues/75'
   local theirs='https://github.com/attacker/other-repo/issues/2017'
-  local OURS_NWO='agentic-vibes/laravel-agent-skills'
+  local OURS_NWO='pekral/ai-olympus'
 
   # Every remote spelling git accepts must recognise its own repository.
-  check 'https remote'              'https://github.com/agentic-vibes/laravel-agent-skills.git' "$ours" 0 "$OURS_NWO"
-  check 'scp-style remote'          'git@github.com:agentic-vibes/laravel-agent-skills.git'     "$ours" 0 "$OURS_NWO"
-  check 'ssh:// remote'             'ssh://git@github.com/agentic-vibes/laravel-agent-skills'   "$ours" 0 "$OURS_NWO"
-  check 'git+ssh:// remote'         'git+ssh://git@github.com/agentic-vibes/laravel-agent-skills' "$ours" 0 "$OURS_NWO"
-  check 'git:// remote'             'git://github.com/agentic-vibes/laravel-agent-skills'       "$ours" 0 "$OURS_NWO"
-  check 'credentials in remote'     'https://user:tok@github.com/agentic-vibes/laravel-agent-skills' "$ours" 0 "$OURS_NWO"
+  check 'https remote'              'https://github.com/pekral/ai-olympus.git' "$ours" 0 "$OURS_NWO"
+  check 'scp-style remote'          'git@github.com:pekral/ai-olympus.git'     "$ours" 0 "$OURS_NWO"
+  check 'ssh:// remote'             'ssh://git@github.com/pekral/ai-olympus'   "$ours" 0 "$OURS_NWO"
+  check 'git+ssh:// remote'         'git+ssh://git@github.com/pekral/ai-olympus' "$ours" 0 "$OURS_NWO"
+  check 'git:// remote'             'git://github.com/pekral/ai-olympus'       "$ours" 0 "$OURS_NWO"
+  check 'credentials in remote'     'https://user:tok@github.com/pekral/ai-olympus' "$ours" 0 "$OURS_NWO"
   # An email address as the username puts an `@` inside the userinfo itself, so
   # the host boundary is the LAST `@` in the authority, never the first.
-  check 'email-style userinfo'      'https://user@corp.example:tok@github.com/agentic-vibes/laravel-agent-skills' "$ours" 0 "$OURS_NWO"
-  check 'trailing slash remote'     'https://github.com/agentic-vibes/laravel-agent-skills.git/' "$ours" 0 "$OURS_NWO"
-  check 'bare nwo reference'        'https://github.com/agentic-vibes/laravel-agent-skills'     'agentic-vibes/laravel-agent-skills' 0 "$OURS_NWO"
-  check 'mixed-case reference'      'https://github.com/agentic-vibes/laravel-agent-skills'     'Agentic-Vibes/Laravel-Agent-Skills' 0 "$OURS_NWO"
+  check 'email-style userinfo'      'https://user@corp.example:tok@github.com/pekral/ai-olympus' "$ours" 0 "$OURS_NWO"
+  check 'trailing slash remote'     'https://github.com/pekral/ai-olympus.git/' "$ours" 0 "$OURS_NWO"
+  check 'bare nwo reference'        'https://github.com/pekral/ai-olympus'     'pekral/ai-olympus' 0 "$OURS_NWO"
+  check 'mixed-case reference'      'https://github.com/pekral/ai-olympus'     'Pekral/Ai-Olympus' 0 "$OURS_NWO"
 
   # The foreign cases this guard exists to stop.
-  check 'foreign repo'              'https://github.com/agentic-vibes/laravel-agent-skills'     "$theirs" 4
-  check 'foreign owner'             'https://github.com/agentic-vibes/laravel-agent-skills'     'pekral/laravel-agent-skills' 4
-  check 'foreign repo name'         'https://github.com/agentic-vibes/laravel-agent-skills'     'agentic-vibes/something-else' 4
+  check 'foreign repo'              'https://github.com/pekral/ai-olympus'     "$theirs" 4
+  check 'foreign owner'             'https://github.com/pekral/ai-olympus'     'other-owner/ai-olympus' 4
+  check 'foreign repo name'         'https://github.com/pekral/ai-olympus'     'pekral/something-else' 4
 
   # --- Regressions -------------------------------------------------------
   #
@@ -426,45 +426,45 @@ self_test() {
   # first `@` made the guard vouch for the trailing segment while the loader
   # read `attacker/other-repo` from the front. The verdict must follow the
   # first two path segments, exactly as every other GitHub parser reads them.
-  check 'userinfo lookalike in path' 'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/attacker/other-repo/issues/1@github.com/agentic-vibes/laravel-agent-skills' 4
+  check 'userinfo lookalike in path' 'https://github.com/pekral/ai-olympus' \
+    'https://github.com/attacker/other-repo/issues/1@github.com/pekral/ai-olympus' 4
 
   # An SSH host alias is a local ~/.ssh/config name. Honouring it over https
   # accepted `github.com-evil.example`, which anyone can register.
-  check 'dash-alias host over https' 'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com-evil.example/agentic-vibes/laravel-agent-skills/issues/1' 1
+  check 'dash-alias host over https' 'https://github.com/pekral/ai-olympus' \
+    'https://github.com-evil.example/pekral/ai-olympus/issues/1' 1
 
   # The same policy applies to the remote side, which has its own, looser host
   # branch. Without this case the reference-side check alone keeps passing while
   # the remote branch silently accepts a registrable look-alike domain.
-  check 'dash-alias remote over https' 'https://github.com-evil.example/agentic-vibes/laravel-agent-skills' "$ours" 5
+  check 'dash-alias remote over https' 'https://github.com-evil.example/pekral/ai-olympus' "$ours" 5
 
   # Traversal, in every spelling that reaches a different repository.
-  check 'traversal in reference'    'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/../../attacker/other-repo/issues/1' 1
-  check 'encoded traversal'         'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/%2e%2e/%2e%2e/attacker/other-repo' 1
-  check 'double-encoded traversal'  'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills/%252e%252e/attacker/other-repo' 1
-  check 'encoded separator in path' 'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills%2f..%2fattacker%2fother-repo' 1
-  check 'backslash separator'       'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/agentic-vibes/laravel-agent-skills\..\attacker\other-repo' 1
+  check 'traversal in reference'    'https://github.com/pekral/ai-olympus' \
+    'https://github.com/pekral/ai-olympus/../../attacker/other-repo/issues/1' 1
+  check 'encoded traversal'         'https://github.com/pekral/ai-olympus' \
+    'https://github.com/pekral/ai-olympus/%2e%2e/%2e%2e/attacker/other-repo' 1
+  check 'double-encoded traversal'  'https://github.com/pekral/ai-olympus' \
+    'https://github.com/pekral/ai-olympus/%252e%252e/attacker/other-repo' 1
+  check 'encoded separator in path' 'https://github.com/pekral/ai-olympus' \
+    'https://github.com/pekral/ai-olympus%2f..%2fattacker%2fother-repo' 1
+  check 'backslash separator'       'https://github.com/pekral/ai-olympus' \
+    'https://github.com/pekral/ai-olympus\..\attacker\other-repo' 1
 
   # Look-alike hosts and malformed input.
-  check 'host suffix attack'        'https://github.com/agentic-vibes/laravel-agent-skills'     'https://github.com.evil.example/agentic-vibes/laravel-agent-skills' 1
-  check 'non-github URL'            'https://github.com/agentic-vibes/laravel-agent-skills'     'https://gitlab.com/foo/bar/issues/1' 1
-  check 'garbage reference'         'https://github.com/agentic-vibes/laravel-agent-skills'     'not-a-repo' 1
-  check 'percent-encoded separator' 'https://github.com/agentic-vibes/laravel-agent-skills'     'agentic-vibes%2Fx/laravel-agent-skills' 1
+  check 'host suffix attack'        'https://github.com/pekral/ai-olympus'     'https://github.com.evil.example/pekral/ai-olympus' 1
+  check 'non-github URL'            'https://github.com/pekral/ai-olympus'     'https://gitlab.com/foo/bar/issues/1' 1
+  check 'garbage reference'         'https://github.com/pekral/ai-olympus'     'not-a-repo' 1
+  check 'percent-encoded separator' 'https://github.com/pekral/ai-olympus'     'pekral%2Fx/ai-olympus' 1
   # A pasted reference is a browser URL. Tracker `url` fields are https too, so
   # an ssh-transport reference is malformed input rather than a repository.
   # An unquoted split also globs, so these expanded against the caller's cwd
   # and the verdict depended on which files happened to be sitting there.
-  check 'glob wildcards in reference'  'https://github.com/agentic-vibes/laravel-agent-skills' 'https://github.com/*/*' 1
-  check 'bracket glob in reference'    'https://github.com/agentic-vibes/laravel-agent-skills' \
-    'https://github.com/[a]gentic-vibes/[l]aravel-agent-skills' 1
+  check 'glob wildcards in reference'  'https://github.com/pekral/ai-olympus' 'https://github.com/*/*' 1
+  check 'bracket glob in reference'    'https://github.com/pekral/ai-olympus' \
+    'https://github.com/[a]gentic-vibes/[l]aravel-ai-olympus' 1
 
-  check 'ssh reference rejected'    'https://github.com/agentic-vibes/laravel-agent-skills'     'ssh://git@github.com/agentic-vibes/laravel-agent-skills' 1
+  check 'ssh reference rejected'    'https://github.com/pekral/ai-olympus'     'ssh://git@github.com/pekral/ai-olympus' 1
 
   # --- Effective remote URLs --------------------------------------------
   #
@@ -472,22 +472,22 @@ self_test() {
   # case the configured value and the URL git actually contacts differ.
   verdict 'insteadOf rewrite' "$(mkrepo \
     'config url.https://github.com/.insteadOf gh:' \
-    'remote add origin gh:agentic-vibes/laravel-agent-skills')" "$ours" 0 "$OURS_NWO"
+    'remote add origin gh:pekral/ai-olympus')" "$ours" 0 "$OURS_NWO"
 
   verdict 'pushurl points at this repo' "$(mkrepo \
     'remote add origin https://github.com/someone/unrelated.git' \
-    'remote set-url --push origin https://github.com/agentic-vibes/laravel-agent-skills.git')" "$ours" 0 "$OURS_NWO"
+    'remote set-url --push origin https://github.com/pekral/ai-olympus.git')" "$ours" 0 "$OURS_NWO"
 
   verdict 'multi-valued remote url' "$(mkrepo \
     'remote add origin https://github.com/someone/unrelated.git' \
-    'remote set-url --add origin https://github.com/agentic-vibes/laravel-agent-skills.git')" "$ours" 0 "$OURS_NWO"
+    'remote set-url --add origin https://github.com/pekral/ai-olympus.git')" "$ours" 0 "$OURS_NWO"
 
   # A fork workflow is legitimately "this project": origin is the fork, the PR
   # lives on upstream. Both must be accepted, and a third repo still blocked.
   local forkdir
   forkdir="$(mkrepo \
-    'remote add origin git@github.com:me/laravel-agent-skills.git' \
-    'remote add upstream https://github.com/agentic-vibes/laravel-agent-skills.git')"
+    'remote add origin git@github.com:me/ai-olympus.git' \
+    'remote add upstream https://github.com/pekral/ai-olympus.git')"
   verdict 'fork workflow accepts upstream'    "$forkdir" "$ours" 0 "$OURS_NWO"
   verdict 'fork workflow still blocks foreign' "$forkdir" "$theirs" 4
 
@@ -516,7 +516,7 @@ STUB
   chmod +x "$stubbin/ssh"
 
   local aliasdir alias_rc alias_out
-  aliasdir="$(mkrepo 'remote add origin git@github-work:agentic-vibes/laravel-agent-skills.git')"
+  aliasdir="$(mkrepo 'remote add origin git@github-work:pekral/ai-olympus.git')"
   set +e
   alias_out="$(cd "$aliasdir" && PATH="$stubbin:$PATH" "$script" "$ours" 2>/dev/null)"
   alias_rc=$?
@@ -532,7 +532,7 @@ STUB
   # this is what makes the check sound where the old `github.com-*` prefix rule
   # was not: `github.com-evil.example` is a registrable domain.
   local unconfigured
-  unconfigured="$(mkrepo 'remote add origin git@github.com-evil.example:agentic-vibes/laravel-agent-skills.git')"
+  unconfigured="$(mkrepo 'remote add origin git@github.com-evil.example:pekral/ai-olympus.git')"
   set +e
   (cd "$unconfigured" && PATH="$stubbin:$PATH" "$script" "$ours" >/dev/null 2>&1)
   alias_rc=$?

@@ -2,16 +2,16 @@
 
 declare(strict_types = 1);
 
-namespace AgenticVibes\AgentSkills;
+namespace Pekral\AiOlympus;
 
 use Closure;
 
 /**
- * Entry-point dispatcher for `bin/agent-skills`.
+ * Entry-point dispatcher for `bin/ai-olympus`.
  *
  * It exists so the process layer stays at the edge: `resolve-next` has to spawn `gh` and
  * `claude`, and @rules/code-testing/general.md forbids a test from invoking an external binary.
- * The executor is therefore a required argument supplied by `bin/agent-skills`, which keeps every
+ * The executor is therefore a required argument supplied by `bin/ai-olympus`, which keeps every
  * line under src/ reachable from a test with a fake.
  */
 final class Cli
@@ -19,7 +19,7 @@ final class Cli
 
     /**
      * @param array<int, string> $argv
-     * @param \Closure(list<string>, bool): \AgenticVibes\AgentSkills\CommandResult $agentExecutor
+     * @param \Closure(list<string>, bool): \Pekral\AiOlympus\CommandResult $agentExecutor
      */
     public static function run(array $argv, Closure $agentExecutor): int
     {

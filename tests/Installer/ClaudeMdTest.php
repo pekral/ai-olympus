@@ -2,8 +2,8 @@
 
 declare(strict_types = 1);
 
-use AgenticVibes\AgentSkills\Installer;
-use AgenticVibes\AgentSkills\InstallerPath;
+use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\InstallerPath;
 
 test('resolveClaudeMdSource returns path to CLAUDE.md in package', function (): void {
     $source = InstallerPath::resolveClaudeMdSource();
@@ -28,7 +28,7 @@ test('install copies CLAUDE.md to project root', function (): void {
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         $claudeMd = $root . '/CLAUDE.md';
@@ -53,7 +53,7 @@ test('install does not overwrite existing CLAUDE.md without force flag', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install']);
+        Installer::run(['ai-olympus', 'install']);
         ob_end_clean();
 
         expect(file_get_contents($claudeMd))->toBe('my custom CLAUDE.md');
@@ -76,7 +76,7 @@ test('install never overwrites existing CLAUDE.md even with force flag', functio
     try {
         chdir($root);
         ob_start();
-        Installer::run(['agent-skills', 'install', '--force']);
+        Installer::run(['ai-olympus', 'install', '--force']);
         ob_end_clean();
 
         expect(file_get_contents($claudeMd))->toBe('my custom CLAUDE.md');

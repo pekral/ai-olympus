@@ -58,7 +58,7 @@ If running interactively, confirm the inputs with the user. If running autonomou
 - Slug must be kebab-case, ≤ 64 chars, and not collide with an existing folder under `skills/`.
 - Create `skills/<slug>/SKILL.md`. Add a subfolder only when the skill genuinely needs one — see the layout below.
 
-**Directory layout (Anthropic's recommended structure).** A skill is a directory whose entrypoint is `SKILL.md`; every other file is optional and exists so `SKILL.md` stays the overview rather than the whole payload ([skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), [Claude Code skills](https://code.claude.com/docs/en/skills)):
+**Directory layout (Anthropic's recommended structure).** A skill is a directory whose entrypoint is `SKILL.md`; every other file is optional and exists so `SKILL.md` stays the overview rather than the whole payload ([skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/ai-olympus/best-practices), [Claude Code skills](https://code.claude.com/docs/en/skills)):
 
 ```text
 <slug>/
