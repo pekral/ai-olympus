@@ -8,6 +8,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/v/pekral/ai-olympus" alt="Packagist Version"></a>
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/php-v/pekral/ai-olympus" alt="PHP Version"></a>
+  <a href="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml"><img src="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml/badge.svg" alt="Quality Checks"></a>
   <a href="https://github.com/pekral/ai-olympus/blob/master/LICENSE"><img src="https://img.shields.io/packagist/l/pekral/ai-olympus" alt="License"></a>
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
@@ -438,9 +439,21 @@ composer test:coverage      # run tests with coverage (min. 100%)
 
 Remove `coverage.xml` before committing if it was produced locally.
 
+## Contributing
+
+Pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) carries the full flow: the `composer build` quality gate every change must pass, how to add or change a skill, and the commit and pull request conventions.
+
+- [`CHANGELOG.md`](CHANGELOG.md) — every notable change, newest first
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — the Contributor Covenant this project follows
+- [`SECURITY.md`](SECURITY.md) — the plugin trust model, the installer security flags, and how to report a vulnerability privately
+
 ## Questions
 
 Ask in [Discussions](https://github.com/pekral/ai-olympus/discussions) — the **Q&A** category takes questions about compatibility, using the rules without the agents, and writing your own skill. Keep the issue tracker for bugs and feature requests, so a real defect does not get buried under questions.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Copyright (c) 2025 Petr Král.
 
 ## Author
 
