@@ -297,6 +297,30 @@ test('athena also runs a pre-implementation security-analysis mode that feeds he
     expect($content)->toContain('CR done');
 });
 
+test('athena runs the broken-object-level-authorization lens the CR rule already exempts (issue #285)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    // `rules/code-review/general.md` builds a full Exclusion-Gate exemption around this lens's
+    // findings, but no agent ever invoked the skill — the rule protected output nothing produced.
+    // Both athena modes must name it, or the OWASP A01 surface goes unreviewed again.
+    expect($athena)->toContain('@skills/laravel-authorization-review/SKILL.md');
+    expect(substr_count($athena, '@skills/laravel-authorization-review/SKILL.md'))->toBe(2);
+
+    // The counts around the security set must move with it, or the handoff under-reports the pass.
+    expect($athena)->toContain('five security skills as analysis lenses');
+    expect($athena)->toContain('Run the remaining four yourself over the same diff');
+    expect($athena)->toContain('the four security skills\' outputs');
+    expect($athena)->toContain('which of the five security skills executed');
+
+    // A lens that cannot run is reported as skipped, never as a clean pass.
+    expect($athena)->toContain('rather than reporting a clean authorization pass you never ran');
+
+    // The rule this closes the loop with still carries its side of the contract.
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    expect($rule)->toContain('@skills/laravel-authorization-review/SKILL.md');
+});
+
 test('athena references the laravel security audit workflow for existing-app audits', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
