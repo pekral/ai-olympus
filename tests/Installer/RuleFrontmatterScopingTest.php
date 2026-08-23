@@ -159,11 +159,12 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // Digests of everything after the closing `---`, taken from the files as they stood before
     // the scoping change. A mismatch means a normative sentence moved, which this change is not
     // allowed to do — it may only add frontmatter.
+    // Re-baselined for the pekral/ai-olympus agent + namespace rename; no sentence moved.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
-        'rules/php/core-standards.md' => '1cec585d1dabc2384f94f4175585659eb3880e8d7f77026da81bc59c353e9ba0',
+        'rules/php/core-standards.md' => '71f1e40d9f79f6fe12465cfa2ec7188abfc157b568e18fd9fd210942280aa475',
         'rules/sql/optimalize.md' => 'dcda4f6d54f0458a9a64ae2657a7422231067b1f6735726852167c81d449ed9c',
     ];
 
@@ -176,6 +177,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // Digests of everything after the closing `---`, taken from each file while it was still a
     // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
     // else, so a mismatch here means a normative sentence moved during the rename.
+    // Re-baselined when the package moved to pekral/ai-olympus: the agent rename
+    // (daidalos -> daedalus, hefaistos -> hephaestus) and the PHP namespace rename
+    // are the only edits these bodies carry.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/laravel/architecture.md' => '849ef2b359d47b969c434821730f16e8da743d67c4915de043dcdcf2fb89270a',
@@ -183,8 +187,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '1cbfdf455e61b079e17ba9684def9f77f82374ae02f14741db4d72cc0be901cb',
-        'rules/code-testing/general.md' => '26da477d1ac7b5ccd0796970a421d46902227a189bde55db4b1ac58ddc3f0192',
+        'rules/code-review/general.md' => 'db067be582a12777dc3c948e5c73ef017daeb006a94178064cd5e6a5c8dedd87',
+        'rules/code-testing/general.md' => 'c900a8196fb215210b1f55bcdc4e095959b511d414e539ab88de45999824e66c',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',

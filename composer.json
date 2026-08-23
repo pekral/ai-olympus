@@ -75,9 +75,9 @@
   },
   "config": {
     "allow-plugins": {
-      "pekral/ai-olympus": true,
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "ergebnis/composer-normalize": true,
+      "pekral/ai-olympus": true,
       "pestphp/pest-plugin": true,
       "phpstan/extension-installer": true
     }

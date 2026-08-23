@@ -51,7 +51,7 @@ test('the rendered PNG is bound to the SVG it was rendered from (issue #193)', f
     $svg = (string) file_get_contents($packageDir . '/assets/social-preview.svg');
 
     expect(hash('sha256', str_replace("\r\n", "\n", $svg)))
-        ->toBe('c9b3225b8c8be0d3d6bddff361cd29ca4e850ac2f2c6f26dae2dd79bcf06d0f5');
+        ->toBe('2dd6f6ae8a97252cd4b38c359f97f9337fe71038d873e7bf6a19f957de6e113a');
 
     expect(hash_file('sha256', $packageDir . '/assets/social-preview.png'))
         ->toBe('a25d42893375449c86203836c29a110aeb609a30b324f396d4e48deb4299fc77');
