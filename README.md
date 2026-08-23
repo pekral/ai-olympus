@@ -126,7 +126,7 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 
 **`argus` — acceptance tester** · read-only
 
-The only agent that **runs the application**. It starts a local instance and tests it like a real tester — the API through a real HTTP client, the UI in a real browser — then returns a per-criterion Met / Not met / Blocked verdict with the exact request/response or clicks it performed. A UI criterion it cannot drive in a browser is `Blocked`, never satisfied by calling the endpoint behind the page. Dispatched only when the change alters observable behaviour — a refactor or a docs change is skipped. Its input is the running system, which is where a missing migration or an unstarted queue worker hides from both the diff and a green test suite. It never edits code, authors tests, merges, or publishes.
+The only agent that **runs the application**. It starts a local instance and tests it like a real tester — the API through a real HTTP client, the UI in a real browser (the project's own automation, or the bundled `browser-drive.sh` runner that needs nothing installed in the project) — then returns a per-criterion Met / Not met / Blocked verdict with the exact request/response or clicks it performed. A UI criterion it cannot drive in a browser is `Blocked`, never satisfied by calling the endpoint behind the page. Dispatched only when the change alters observable behaviour — a refactor or a docs change is skipped. Its input is the running system, which is where a missing migration or an unstarted queue worker hides from both the diff and a green test suite. It never edits code, authors tests, merges, or publishes.
 
 **Orchestrates:** `tester-cookbook`, `e2e-testing`
 

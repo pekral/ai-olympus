@@ -640,6 +640,33 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('**`Blocked`, never `Met`**, and never quietly downgraded to an HTTP request against the endpoint behind the page');
     expect($content)->toContain('Never add a browser-automation dependency to a project that has not adopted one');
 
+    // The UI channel is a real capability, not an aspiration: the package ships a runner that
+    // drives a browser without adding a config file or a dev-dependency to the project under
+    // test, and a blocked run must quote the one command that unblocks it.
+    expect($content)->toContain('skills/_shared/browser-drive.sh');
+    expect($content)->toContain('no config file, no dev-dependency, and no `package.json` inside the project under test');
+    expect($content)->toContain('npm install -g playwright && playwright install chromium');
+    expect($content)->toContain('page.on(\'response\')');
+
+    $runner = $packageDir . '/skills/_shared/browser-drive.sh';
+    expect(is_file($runner))->toBeTrue();
+    $script = (string) file_get_contents($runner);
+    // The project's own pinned Playwright always wins over whatever happens to be global.
+    expect($script)->toContain('"$PWD/node_modules"');
+    expect($script)->toContain('npm root -g');
+    // Distinct exit codes, so a missing runtime is never confused with a failing scenario.
+    expect($script)->toContain('readonly EXIT_NO_RUNTIME=3');
+    expect($script)->toContain('readonly EXIT_NO_BROWSER=4');
+    expect($script)->toContain('--self-test');
+
+    // The self-test is registered in the build gate, like every other shipped shell script.
+    $composer = (array) json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
+
+    /** @var array<string, array<int, string>> $scripts */
+    $scripts = $composer['scripts'];
+
+    expect($scripts['shell-self-tests'])->toContain('bash skills/_shared/browser-drive.sh --self-test');
+
     // Read-only, local-only, and it never publishes — hermes carries its walkthrough to the tracker.
     expect($content)->toContain('read-only');
     expect($content)->toContain('never direct a request at a shared, staging, or production host');
