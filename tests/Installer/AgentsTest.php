@@ -648,6 +648,21 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('npm install -g playwright && playwright install chromium');
     expect($content)->toContain('page.on(\'response\')');
 
+    // The four rules that separate "drove a browser" from "tested like a person": look at the
+    // rendering, locate what a user locates, stay CommonJS, and never blanket-disable TLS.
+    expect($content)->toContain('**A UI verdict of `Met` that is not backed by a screenshot you looked at is not a verdict**');
+    expect($content)->toContain('page.screenshot({ path: <temp>, fullPage: true })');
+    expect($content)->toContain('getByRole(\'button\', { name: \'Save\' })');
+    expect($content)->toContain('A `#id` is an implementation detail the application may rename');
+    expect($content)->toContain('**Write the scenario as CommonJS');
+    expect($content)->toContain('ERR_MODULE_NOT_FOUND');
+    expect($content)->toContain('**Never disable TLS verification as a matter of course.**');
+    expect($content)->toContain('reads as a clean pass');
+
+    // The runner documents the same CommonJS constraint it imposes.
+    expect((string) file_get_contents($packageDir . '/skills/_shared/browser-drive.sh'))
+        ->toContain('which ESM resolution ignores entirely');
+
     $runner = $packageDir . '/skills/_shared/browser-drive.sh';
     expect(is_file($runner))->toBeTrue();
     $script = (string) file_get_contents($runner);

@@ -9,6 +9,11 @@
 # installed (the project's own node_modules first, then the global npm root), and the
 # scenario file is supplied by the caller from a temporary path.
 #
+# The scenario must be CommonJS (`require('playwright')`, a `.js` file). Playwright is made
+# resolvable through NODE_PATH, which ESM resolution ignores entirely — an `import` in a
+# scenario living outside a node project fails with ERR_MODULE_NOT_FOUND regardless of what
+# is installed.
+#
 # Usage:
 #   browser-drive.sh <scenario.js>      run the scenario with `playwright` resolvable
 #   browser-drive.sh --self-test        verify the resolution and failure paths

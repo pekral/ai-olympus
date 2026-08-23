@@ -327,8 +327,10 @@ current_repo_nwos() {
 SELF_TEST_TMP=""
 # Reached only through `trap cleanup_self_test EXIT` below. ShellCheck's reachability pass does
 # not credit a trap as an invocation, which is the case SC2317 itself names ("or ignore if
-# invoked indirectly"); there is nothing to fix at the source.
-# shellcheck disable=SC2317
+# invoked indirectly"); there is nothing to fix at the source. ShellCheck 0.11 split that
+# reachability case out into SC2329, so both codes are suppressed or the newer version of the
+# same false positive re-breaks the gate.
+# shellcheck disable=SC2317,SC2329
 cleanup_self_test() {
   [[ -n "$SELF_TEST_TMP" ]] && rm -rf "$SELF_TEST_TMP"
   return 0
