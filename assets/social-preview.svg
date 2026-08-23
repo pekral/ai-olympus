@@ -20,24 +20,28 @@
   <!-- agent chips -->
   <g font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#e0e7ff">
     <g>
-      <rect x="250" y="360" width="130" height="52" rx="26" fill="#312e81"/>
-      <text x="315" y="393" text-anchor="middle">zeus</text>
+      <rect x="175" y="360" width="130" height="52" rx="26" fill="#312e81"/>
+      <text x="240" y="393" text-anchor="middle">zeus</text>
     </g>
     <g>
-      <rect x="395" y="360" width="150" height="52" rx="26" fill="#312e81"/>
-      <text x="470" y="393" text-anchor="middle">daedalus</text>
+      <rect x="320" y="360" width="150" height="52" rx="26" fill="#312e81"/>
+      <text x="395" y="393" text-anchor="middle">daedalus</text>
     </g>
     <g>
-      <rect x="560" y="360" width="160" height="52" rx="26" fill="#312e81"/>
-      <text x="640" y="393" text-anchor="middle">hephaestus</text>
+      <rect x="485" y="360" width="160" height="52" rx="26" fill="#312e81"/>
+      <text x="565" y="393" text-anchor="middle">hephaestus</text>
     </g>
     <g>
-      <rect x="735" y="360" width="140" height="52" rx="26" fill="#312e81"/>
-      <text x="805" y="393" text-anchor="middle">athena</text>
+      <rect x="660" y="360" width="140" height="52" rx="26" fill="#312e81"/>
+      <text x="730" y="393" text-anchor="middle">athena</text>
     </g>
     <g>
-      <rect x="890" y="360" width="140" height="52" rx="26" fill="#312e81"/>
-      <text x="960" y="393" text-anchor="middle">hermes</text>
+      <rect x="815" y="360" width="135" height="52" rx="26" fill="#312e81"/>
+      <text x="882" y="393" text-anchor="middle">argus</text>
+    </g>
+    <g>
+      <rect x="965" y="360" width="140" height="52" rx="26" fill="#312e81"/>
+      <text x="1035" y="393" text-anchor="middle">hermes</text>
     </g>
   </g>
 

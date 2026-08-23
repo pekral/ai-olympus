@@ -605,6 +605,56 @@ test('agents directory ships the zeus backlog subagent with required frontmatter
     expect($content)->toContain('never **reports** on work done');
 });
 
+test('agents directory ships the argus acceptance-tester subagent with required frontmatter', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $agentPath = $packageDir . '/agents/argus.md';
+
+    expect(is_file($agentPath))->toBeTrue();
+
+    $content = (string) file_get_contents($agentPath);
+    expect($content)->toContain('name: argus');
+    expect($content)->toContain('tools: Read, Glob, Grep, Bash');
+    expect($content)->toContain('model: sonnet');
+    expect($content)->toContain('@skills/tester-cookbook/SKILL.md');
+    expect($content)->toContain('@skills/e2e-testing/SKILL.md');
+
+    // The reason it is a separate agent at all: a different INPUT, not a second opinion. The
+    // boundary that actually needs guarding is hephaestus's scoped mode, which checks the same
+    // acceptance criteria against the diff — argus checks them against the running system.
+    expect($content)->toContain('The boundary that actually needs guarding is `hephaestus`\'s scoped validation');
+    expect($content)->toContain('never accept a criterion on the strength of the diff or of a passing test');
+
+    // A criterion it did not exercise is never Met — the rule that makes the report worth having.
+    expect($content)->toContain('A criterion you did not exercise is never `Met`');
+
+    // Dispatched on demand only, so an unchanged behaviour surface never buys a duplicate pass.
+    expect($content)->toContain('does this change alter behaviour a user can observe?');
+    expect($content)->toContain('QA done (nothing to exercise)');
+
+    // Two channels, and neither substitutes for the other: the API is called with a real HTTP
+    // client that crosses the network, the UI is driven in a real browser. An in-process test-
+    // framework call is neither, and an API call never stands in for a UI criterion.
+    expect($content)->toContain('**API surface → a real HTTP client against the running instance.**');
+    expect($content)->toContain('**UI surface → a real browser.**');
+    expect($content)->toContain('it is not a request that crossed the network');
+    expect($content)->toContain('**`Blocked`, never `Met`**, and never quietly downgraded to an HTTP request against the endpoint behind the page');
+    expect($content)->toContain('Never add a browser-automation dependency to a project that has not adopted one');
+
+    // Read-only, local-only, and it never publishes — hermes carries its walkthrough to the tracker.
+    expect($content)->toContain('read-only');
+    expect($content)->toContain('never direct a request at a shared, staging, or production host');
+
+    // daedalus gates the dispatch on the same question, and names the skip in the route.
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    expect($daedalus)->toContain('**Acceptance pass (`argus`) — on demand, not every run.**');
+    expect($daedalus)->toContain('skip it and say so in the route');
+
+    // `argus` is not the retired `argos`: the docs must resolve a stale reference to athena.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->toContain('**`argus` is not the retired `argos`.**');
+    expect($content)->not->toContain('argos');
+});
+
 test('parallel agents share their split output through the brief under an append lock with a barrier before consolidation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
@@ -626,7 +676,7 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daedalus', 'hephaestus', 'athena', 'hermes', 'zeus'] as $agent) {
+    foreach (['daedalus', 'hephaestus', 'athena', 'hermes', 'zeus', 'argus'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }

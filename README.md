@@ -13,7 +13,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — six specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ There are two ways in. **Composer** is the complete one and stays the recommenda
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 53 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+That loads all 53 skills and the six agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
 /ai-olympus:install-rules
@@ -83,7 +83,7 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the five subagents)
+- `.claude/agents` (the six subagents)
 - `CLAUDE.md` in the project root
 
 Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -117,6 +117,18 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 Implements an issue from context or a tracker link, authors its test coverage, runs local checks (`composer build`) and fixes their errors, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
 
 **Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><img src="assets/agents/argus.svg" alt="argus avatar" width="80"></td>
+<td valign="top">
+
+**`argus` — acceptance tester** · read-only
+
+The only agent that **runs the application**. It starts a local instance and tests it like a real tester — the API through a real HTTP client, the UI in a real browser — then returns a per-criterion Met / Not met / Blocked verdict with the exact request/response or clicks it performed. A UI criterion it cannot drive in a browser is `Blocked`, never satisfied by calling the endpoint behind the page. Dispatched only when the change alters observable behaviour — a refactor or a docs change is skipped. Its input is the running system, which is where a missing migration or an unstarted queue worker hides from both the diff and a green test suite. It never edits code, authors tests, merges, or publishes.
+
+**Orchestrates:** `tester-cookbook`, `e2e-testing`
 
 </td>
 </tr>
