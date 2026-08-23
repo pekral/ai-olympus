@@ -99,6 +99,8 @@ Today those gates are scattered across five separate formulations (`agents/herme
 | `athena` | Publish a CR / security-analysis comment to the tracker | L1 | publishing the review is the deliverable of the invocation itself |
 | `athena` | Promote a converged PR out of Draft (`gh pr ready`) | L1 | `@skills/process-code-review/SKILL.md` — only on a converged loop (0 Critical + 0 Moderate), never on a PR that still carries findings |
 | `athena` | Disclose an unfixed vulnerability on a public tracker | L3 | withheld, routed to a private security channel, or left in the review comment only — never filed as a public issue |
+| `zeus` | Apply priority / type labels across the open backlog | L1 | `@skills/github-issue-triage/SKILL.md` — labelling is the deliverable of a triage dispatch itself; anything beyond it (closing, editing a body, commenting) stays L2 |
+| `zeus` | Create tracker issues when splitting a subject too broad for one PR | L1 | `@skills/create-issues-from-text/SKILL.md` / `@skills/create-issue/SKILL.md` — the decomposition dispatch is itself the ask for exactly those issues; opening one outside that mode stays L2 |
 | `hermes` | Publish an announcement / release note | L2 | "Publish only when explicitly asked", canonical `upsert-comment.sh` wrapper only |
 | `hermes` | Publish the post-convergence feedback comment to the source tracker | L1 | `@skills/pr-summary/SKILL.md` — the deliverable of the reporting-mode dispatch itself; outside that mode `hermes`'s publish stays L2 |
 | any agent | File a deferred-follow-up or newly discovered tracker issue | L1 | `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* — filing is part of the invoked task |

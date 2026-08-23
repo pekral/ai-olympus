@@ -29,7 +29,7 @@ body:
     attributes:
       label: Related skill / agent
       description: >-
-        Which skill (under `skills/`) or subagent (`daedalus`, `hephaestus`, `athena`, `hermes`)
+        Which skill (under `skills/`) or subagent (`daedalus`, `zeus`, `hephaestus`, `athena`, `hermes`)
         does this relate to? Free text — leave blank if it's a request for a new skill/agent or doesn't apply
         to an existing one.
       placeholder: "e.g. code-review, resolve-issue, hephaestus"

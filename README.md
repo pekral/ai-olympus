@@ -13,7 +13,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — four specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ There are two ways in. **Composer** is the complete one and stays the recommenda
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 53 skills and the four agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+That loads all 53 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
 /ai-olympus:install-rules
@@ -83,7 +83,7 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the four subagents)
+- `.claude/agents` (the five subagents)
 - `CLAUDE.md` in the project root
 
 Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -129,6 +129,18 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `hephaestus` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every step — never does the work itself.
 
 **Orchestrates:** `hephaestus`, `athena`, `hermes` (dispatched)
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><img src="assets/agents/zeus.svg" alt="zeus avatar" width="80"></td>
+<td valign="top">
+
+**`zeus` — backlog owner & project manager** · read-only
+
+Owns the queue that feeds `daedalus`, not the change itself. **Triage mode** seeds the priority / type labels over the open backlog and reports the resulting queue with the reason each issue holds its position. **Decomposition mode** takes one subject too broad for a single PR and turns it into independently deliverable issues, each carrying the `## Dependencies` that `daedalus` reads to plan its resolve order. It never analyses, implements, reviews, merges, or publishes a report — the backlog tier is the whole of its job.
+
+**Orchestrates:** `github-issue-triage`, `create-issues-from-text`, `create-issue`
 
 </td>
 </tr>
@@ -213,11 +225,11 @@ The roster's only publishing agent — anything that reaches a tracker audience 
    @daedalus implement a dark-mode toggle for the settings page
    ```
 
-3. `daedalus` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hephaestus`; everything else → `hephaestus` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is reported back with the separable pieces instead of being pushed into a single PR — split it up with `create-issues-from-text` and re-run per piece. It returns a handoff naming the chosen route and reason, written in the same language as your request.
+3. `daedalus` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hephaestus`; everything else → `hephaestus` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is not pushed into a single PR: `daedalus` dispatches `zeus` to split it into deliverable issues and the run ends there, so you re-run it per issue. It returns a handoff naming the chosen route and reason, written in the same language as your request.
 
    Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation and fewer repeated build runs. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
 
-`daedalus` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. A future top-level `zeus` will sit above it to coordinate non-engineering domains too.
+`daedalus` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. `zeus` owns the backlog tier beside it — deciding what is worked on and in what order — and is dispatched by `daedalus` when a subject needs splitting; the same nesting rule is why it sits beside `daedalus` rather than above it.
 
 ---
 

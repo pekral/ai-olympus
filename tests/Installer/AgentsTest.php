@@ -142,8 +142,16 @@ test('the roster ships no general problem-analysis subagent and daedalus routes 
     // Only the security-focused analysis has a specialist (athena); a general analysis request stops.
     expect($daedalus)->toContain('There is no general (non-security) analysis agent in the roster');
     expect($daedalus)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
-    // A subject too broad for one PR is reported back instead of being decomposed by an agent.
+    // A subject too broad for one PR is delegated to `zeus` (the backlog tier) and the run ends at
+    // the created issues — it is never decomposed by `daedalus` itself, and never carried onward
+    // into one PR. That is a different decision from general analysis, which still has no agent.
     expect($daedalus)->toContain('Too broad for one PR');
+    expect($daedalus)->toContain('**dispatch `zeus` through the Task tool** in its decomposition mode');
+    expect($daedalus)->toContain('never carry one of them onward in the same run');
+
+    // `zeus` owns the backlog, not the problem: it must not quietly re-acquire the analysis role.
+    $zeus = (string) file_get_contents($packageDir . '/agents/zeus.md');
+    expect($zeus)->toContain('The roster carries **no general (non-security) analysis agent** and you are not one');
 });
 
 test('agents directory ships the daedalus orchestrator subagent with required frontmatter', function (): void {
@@ -545,6 +553,34 @@ test('agents directory ships the hermes release-announcer subagent with required
     expect($content)->toContain('upsert-comment');
 });
 
+test('agents directory ships the zeus backlog subagent with required frontmatter', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $agentPath = $packageDir . '/agents/zeus.md';
+
+    expect(is_file($agentPath))->toBeTrue();
+
+    $content = (string) file_get_contents($agentPath);
+    expect($content)->toContain('name: zeus');
+    expect($content)->toContain('tools: Read, Glob, Grep, Bash');
+    expect($content)->toContain('model: sonnet');
+
+    // Two modes, and only two: the backlog tier is the whole of the job.
+    expect($content)->toContain('## Triage mode');
+    expect($content)->toContain('## Decomposition mode');
+    expect($content)->toContain('@skills/github-issue-triage/SKILL.md');
+    expect($content)->toContain('@skills/create-issues-from-text/SKILL.md');
+
+    // Beside daedalus, never above it — the one-level nesting rule is why.
+    expect($content)->toContain('sit **beside** `daedalus`, not above it');
+
+    // Read-only with respect to code, and merging is never a side effect of a backlog run.
+    expect($content)->toContain('read-only');
+    expect($content)->toContain('@skills/merge-github-pr/SKILL.md');
+
+    // Its tracker writes are work items, never reports — that line keeps hermes's role intact.
+    expect($content)->toContain('never **reports** on work done');
+});
+
 test('parallel agents share their split output through the brief under an append lock with a barrier before consolidation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
@@ -566,7 +602,7 @@ test('parallel agents share their split output through the brief under an append
 test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daedalus', 'hephaestus', 'athena', 'hermes'] as $agent) {
+    foreach (['daedalus', 'hephaestus', 'athena', 'hermes', 'zeus'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('commit messages and PR titles are always English');
     }
