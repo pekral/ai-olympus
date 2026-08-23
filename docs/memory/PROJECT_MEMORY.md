@@ -347,3 +347,10 @@
 - Example: `.claude-plugin/marketplace.json`, `commands/install-rules.md`, `tests/Installer/PluginMarketplaceTest.php`.
 - Role:    hephaestus
 - Source:  https://github.com/pekral/ai-olympus/pull/270   Added: 2026-08-18
+
+### content-pin-threshold-assertion-can-be-vacuous — A `>=` count assertion pins nothing when the base branch already meets it
+- Trigger: authoring a content-pin test over a prose file (`agents/*.md`, `rules/**`, `skills/**`) — the dominant test shape here — with `substr_count(...)` or a `toContain` on a string the file may already carry.
+- Rule:    Assert the exact count, never a `>=` threshold, and prove RED against the base branch first: `git show origin/<base>:<file> | grep -cF '<pinned string>'` must return the pre-change count. A threshold the baseline already meets passes with the change fully reverted — it pins nothing while looking like coverage. Pair every count assertion with a positive assertion on a string the change actually introduces.
+- Example: PR #245 (issue #228) — `substr_count($content, 'gh repo view --json isPrivate') >= 2` was already true on `master` (step 9's rule + the Bash boundary); replaced with `toBe(3)` plus a `toContain` on the new step-4 sentence.
+- Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/245   Added: 2026-08-11
+- Role:    shared
