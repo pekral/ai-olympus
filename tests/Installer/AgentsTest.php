@@ -631,11 +631,41 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('does this change alter behaviour a user can observe?');
     expect($content)->toContain('QA done (nothing to exercise)');
 
+    // The browser is gated a second time, finer than the dispatch: an API-only task is still
+    // exercised over HTTP, but no browser starts to re-verify a UI this task never touched.
+    expect($content)->toContain('**Gate the browser on an actual UI change before you start it.**');
+    expect($content)->toContain('If nothing there changed, do not start a browser.');
+    expect($content)->toContain('QA done (UI channel skipped — no UI change)');
+
+    // A UI change is exercised at both viewports and reported per viewport — one merged verdict
+    // hides the most common way a UI ships broken.
+    expect($content)->toContain('**Exercise every UI criterion at both a desktop and a mobile viewport.**');
+    expect($content)->toContain('devices[\'iPhone 13\']');
+    expect($content)->toContain('**return a verdict per viewport**');
+
+    // A failure carries evidence: the screenshot at the failing viewport plus the URL the
+    // failure actually happened on, kept out of the temp-file sweep so hermes can publish it.
+    expect($content)->toContain('**Capture evidence for every failure.**');
+    expect($content)->toContain('.claude/run/<source-slug>.artifacts/');
+    expect($content)->toContain('not the URL you started from');
+    expect($content)->toContain('A failed UI criterion without a screenshot row is an incomplete report.');
+
+    // The upload story is stated honestly rather than promised where it cannot be delivered.
+    expect($content)->toContain('**GitHub has no supported API for attaching an image to an issue or pull-request comment**');
+    expect($content)->toContain('Never claim an image was uploaded where it was not.');
+
+    // The publishing agent consumes the evidence, and the caller cleans the directory up.
+    expect((string) file_get_contents($packageDir . '/agents/hermes.md'))
+        ->toContain('carry each row\'s exact URL and viewport into the report');
+    expect((string) file_get_contents($packageDir . '/agents/daedalus.md'))->toContain('.artifacts');
+    // The invariant survives the skip: an unexercised criterion still has no verdict.
+    expect($content)->toContain('**`Blocked`, with that reason stated**, never `Met`');
+
     // Two channels, and neither substitutes for the other: the API is called with a real HTTP
     // client that crosses the network, the UI is driven in a real browser. An in-process test-
     // framework call is neither, and an API call never stands in for a UI criterion.
     expect($content)->toContain('**API surface → a real HTTP client against the running instance.**');
-    expect($content)->toContain('**UI surface → a real browser.**');
+    expect($content)->toContain('**UI surface → a real browser**');
     expect($content)->toContain('it is not a request that crossed the network');
     expect($content)->toContain('**`Blocked`, never `Met`**, and never quietly downgraded to an HTTP request against the endpoint behind the page');
     expect($content)->toContain('Never add a browser-automation dependency to a project that has not adopted one');
