@@ -117,6 +117,7 @@ final class Installer
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
         $networkBashDenied = InstallerProjectSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
+        $orphanedHandlersRemoved = InstallerProjectSettings::removeOrphanedBashGuardHandlers($root);
 
         self::reportInstallSummary(new InstallSummary(
             copied: $copied,
@@ -127,7 +128,7 @@ final class Installer
             orphanedTargets: $syncCounts->orphanedTargets,
         ));
 
-        self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied);
+        self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied, $orphanedHandlersRemoved);
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
@@ -135,13 +136,24 @@ final class Installer
     }
 
     /**
-     * Reports the two opt-in writes to the project's `.claude/settings.local.json`.
-     * Each line is printed only when that write actually happened, never on the mere
-     * presence of its flag: an installer that reports a permission change it did not
-     * apply leaves the user believing in a restriction that does not exist.
+     * Reports the writes to the project's `.claude/settings.local.json` — the two opt-in
+     * permission writes and the unconditional cleanup of the hook handlers left behind by the
+     * removed `bash-guard` validator. Each line is printed only when that write actually happened,
+     * never on the mere presence of its flag: an installer that reports a permission change it did
+     * not apply leaves the user believing in a restriction that does not exist.
      */
-    private static function reportProjectLocalSettings(bool $subagentWritesEnabled, bool $networkBashDenied): void
+    private static function reportProjectLocalSettings(bool $subagentWritesEnabled, bool $networkBashDenied, int $orphanedHandlersRemoved): void
     {
+        if ($orphanedHandlersRemoved > 0) {
+            echo sprintf(
+                'Removed %d orphaned hook handler(s) pointing at the removed bash-guard from .claude/settings.local.json.%s'
+                . 'Restart the session to stop the PreToolUse hook error — hooks are read once, at session start.%s',
+                $orphanedHandlersRemoved,
+                PHP_EOL,
+                PHP_EOL,
+            );
+        }
+
         if ($subagentWritesEnabled) {
             echo sprintf('Allowed subagent file writes (Edit/Write on the working tree) in .claude/settings.local.json.%s', PHP_EOL);
         }

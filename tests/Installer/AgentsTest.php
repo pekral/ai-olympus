@@ -1874,7 +1874,7 @@ test('the removed bash-guard leaves no trace in the package or its security docu
 
     foreach (explode("\n", $security) as $line) {
         if (str_contains($line, 'ai-olympus bash-guard')) {
-            expect($line)->toStartWith('- **If you ever installed the removed hook, remove its entry by hand.**');
+            expect($line)->toStartWith('- **If you ever installed the removed hook, `install` now removes its entry for you.**');
         }
     }
 
@@ -1896,12 +1896,21 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     // A project that opted into the removed flag still carries the handler, and the flag never had
     // an inverse. Verified by running the binary: the subcommand falls through to the installer,
     // prints `Unknown command: bash-guard`, and exits 1 — a non-blocking hook error Claude Code
-    // reprints on every Bash call. The manual cleanup must therefore stay in the security docs,
-    // not only in the changelog entry that announced the removal.
-    expect($residual)->toContain('**If you ever installed the removed hook, remove its entry by hand.**');
+    // reprints on every Bash call. The cleanup must therefore stay in the security docs, not only
+    // in the changelog entry that announced the removal. Since issue #6 the installer performs it
+    // (`InstallerProjectSettings::removeOrphanedBashGuardHandlers()`), so the docs describe that
+    // run rather than a manual edit — and still say to restart the session, which no install can
+    // do for the user, because hooks are read once at session start.
+    expect($residual)->toContain('**If you ever installed the removed hook, `install` now removes its entry for you.**');
     expect($residual)->toContain('exits `1`');
     expect($residual)->toContain('the error is printed on **every** Bash call until the entry is gone');
+    expect($residual)->toContain('Every `install` run now deletes it (issue #6)');
     expect($residual)->toContain('restart the session');
+
+    // The unconditional write belongs in the writes table too: a reader auditing what the installer
+    // touches must find the cleanup there, not only in the prose above it.
+    expect(installerDocsSection($security, '## Files this package writes'))
+        ->toContain('deletes hook handlers pointing at the removed `bash-guard`');
 });
 
 test('docs/agents.md states the architecture constraint with no runtime component left to scope (issue #265)', function (): void {
