@@ -7,11 +7,17 @@ use Pekral\AiOlympus\InstallerProjectSettings;
 
 /**
  * The handler shape the removed `--enforce-agent-bash-boundary` flag used to write: one command
- * handler pointing at `ai-olympus bash-guard`, a subcommand the binary no longer has since #265.
+ * handler pointing at the `bash-guard` subcommand the binary no longer has since #265.
+ *
+ * The default is the shape the field actually carries. `InstallerBashGuard::buildCommand()` wrote
+ * `<binary> bash-guard`, and the binary was `agent-skills` for the whole life of that flag — the
+ * rebrand to `ai-olympus` landed five days after `bash-guard` was deleted, so no installer ever
+ * wrote the new name. The quoted-path and post-rebrand shapes are exercised as their own dataset
+ * below.
  *
  * @return array<string, mixed>
  */
-function orphanedBashGuardHandler(string $command = '/project/vendor/bin/ai-olympus bash-guard'): array
+function orphanedBashGuardHandler(string $command = '/project/vendor/bin/agent-skills bash-guard'): array
 {
     return ['type' => 'command', 'command' => $command, 'timeout' => 10];
 }
@@ -178,9 +184,36 @@ test('removeOrphanedBashGuardHandlers matches a command carrying trailing whites
     }
 });
 
-test('removeOrphanedBashGuardHandlers keeps a handler that merely mentions bash-guard elsewhere in its command', function (): void {
+// Every shape `InstallerBashGuard::buildCommand()` could emit: the project's
+// `vendor/bin/agent-skills` and the package's own `bin/agent-skills` for a root checkout, each
+// single-quoted whenever the path failed the shell-safe pattern. The `ai-olympus` rows were never
+// written by an installer — the rebrand renamed the binary five days after `bash-guard` was
+// deleted — but a hand-edited file may carry the current name, so they are cleaned up too.
+test('removeOrphanedBashGuardHandlers deletes every command shape the removed flag could write', function (string $command): void {
     $root = sys_get_temp_dir() . '/ai-olympus-obg-' . bin2hex(random_bytes(4));
-    $settings = orphanedBashGuardSettings([orphanedBashGuardHandler('bin/ai-olympus bash-guard --log | tee bash-guard.log')]);
+    $settingsPath = orphanedBashGuardWriteSettings($root, orphanedBashGuardSettings([orphanedBashGuardHandler($command)]));
+
+    try {
+        $removed = InstallerProjectSettings::removeOrphanedBashGuardHandlers($root);
+
+        expect($removed)->toBe(1);
+        expect(orphanedBashGuardReadSettings($settingsPath))->toBe([]);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+})->with([
+    'the binary resolved from PATH, with no directory at all' => ['agent-skills bash-guard'],
+    'the package binary of a root checkout' => ['/src/laravel-agent-skills/bin/agent-skills bash-guard'],
+    'the package binary of a root checkout, single-quoted' => ['\'/My Projects/laravel-agent-skills/bin/agent-skills\' bash-guard'],
+    'the post-rebrand binary name, single-quoted' => ['\'/My Projects/app/vendor/bin/ai-olympus\' bash-guard'],
+    'the post-rebrand binary name, unquoted' => ['/project/vendor/bin/ai-olympus bash-guard'],
+    'the project vendor binary, single-quoted around a path with a space' => ['\'/My Projects/app/vendor/bin/agent-skills\' bash-guard'],
+    'the project vendor binary, unquoted' => ['/project/vendor/bin/agent-skills bash-guard'],
+]);
+
+test('removeOrphanedBashGuardHandlers keeps a handler this package did not write', function (string $command): void {
+    $root = sys_get_temp_dir() . '/ai-olympus-obg-' . bin2hex(random_bytes(4));
+    $settings = orphanedBashGuardSettings([orphanedBashGuardHandler($command)]);
     $settingsPath = orphanedBashGuardWriteSettings($root, $settings);
 
     try {
@@ -191,7 +224,13 @@ test('removeOrphanedBashGuardHandlers keeps a handler that merely mentions bash-
     } finally {
         installerRemoveDirectory($root);
     }
-});
+})->with([
+    'a foreign binary whose name merely ends in this package\'s' => ['/project/vendor/bin/my-agent-skills bash-guard'],
+    'a guard of the project\'s own' => ['bin/my-own-guard'],
+    'a longer subcommand starting with the removed one' => ['/project/vendor/bin/agent-skills bash-guard-report'],
+    'the subcommand is not the last thing the command runs' => ['bin/ai-olympus bash-guard --log | tee bash-guard.log'],
+    'this package\'s binary without the removed subcommand' => ['/project/vendor/bin/agent-skills install'],
+]);
 
 test('removeOrphanedBashGuardHandlers reports nothing and creates no settings file when the project has none', function (): void {
     $root = sys_get_temp_dir() . '/ai-olympus-obg-' . bin2hex(random_bytes(4));

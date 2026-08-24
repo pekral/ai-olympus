@@ -21,19 +21,27 @@ final class InstallerProjectSettings
 {
 
     /**
-     * The command tail of the `PreToolUse` handler the removed `--enforce-agent-bash-boundary`
-     * flag used to write. The flag, the validator, and the `bash-guard` subcommand were all
-     * deleted in issue #265, and the flag never had an inverse — so a project that opted in still
-     * carries a handler pointing at a subcommand the binary no longer has. It falls through to
-     * `Installer::run()`, prints `Unknown command: bash-guard`, and exits 1, which Claude Code
-     * reprints as a non-blocking `PreToolUse:Bash hook error` on **every** Bash call (issue #6).
+     * The `PreToolUse` handler the removed `--enforce-agent-bash-boundary` flag used to write. The
+     * flag, the validator, and the `bash-guard` subcommand were all deleted in issue #265, and the
+     * flag never had an inverse — so a project that opted in still carries a handler pointing at a
+     * subcommand the binary no longer has. It falls through to `Installer::run()`, prints
+     * `Unknown command: bash-guard`, and exits 1, which Claude Code reprints as a non-blocking
+     * `PreToolUse:Bash hook error` on **every** Bash call (issue #6).
      *
-     * The predicate is the one `SECURITY.md` already gave the reader for the manual cleanup: the
-     * handler whose `command` ends in this string. It is deliberately anchored at the end rather
-     * than matched anywhere in the command, so a command that merely mentions the name — a log
-     * path, a comment, an unrelated wrapper — is never removed on this package's authority.
+     * A pattern rather than one literal tail, because the writer emitted the subcommand in more
+     * than one shape and under a binary name this package no longer carries.
+     * `InstallerBashGuard::buildCommand()` returned `<binary> bash-guard` and single-quoted any
+     * binary path failing `/^[A-Za-z0-9_@%+=:,.\/-]+$/` — that is every path holding a space,
+     * ordinary on macOS — which puts the closing quote between the binary name and the subcommand.
+     * The binary was `agent-skills`: `bash-guard` was deleted five days before the rebrand renamed
+     * it to `ai-olympus`, so no settings file written in the field carries the new name at all.
+     * Both names are accepted regardless, because a hand-edited file may carry either.
+     *
+     * Anchored at the end of the command, and the subcommand must follow this package's own binary
+     * name: a command that merely mentions `bash-guard` — a log path, a wrapper, a guard the
+     * project wrote itself — is never removed on this package's authority.
      */
-    private const string ORPHANED_BASH_GUARD_COMMAND = 'ai-olympus bash-guard';
+    private const string ORPHANED_BASH_GUARD_PATTERN = '/(?:^|\/)(?:agent-skills|ai-olympus)\'?[ \t]+bash-guard$/';
 
     /**
      * Outbound-network Bash commands denied session-wide when the caller opts in
@@ -405,7 +413,7 @@ final class InstallerProjectSettings
     {
         $command = $handler instanceof stdClass ? $handler->command ?? null : null;
 
-        return is_string($command) && str_ends_with(trim($command), self::ORPHANED_BASH_GUARD_COMMAND);
+        return is_string($command) && preg_match(self::ORPHANED_BASH_GUARD_PATTERN, trim($command)) === 1;
     }
 
 }
