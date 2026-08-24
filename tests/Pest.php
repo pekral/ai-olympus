@@ -534,6 +534,7 @@ function ruleScopingReferenceOnlyFiles(): array
         'rules/php/dependency-selection.md',
         'rules/refactoring/general.md',
         'rules/reports/general.md',
+        'rules/security/general.md',
     ];
 }
 

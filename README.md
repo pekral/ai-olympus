@@ -418,6 +418,7 @@ Rules included in this package:
 | `security/backend.md`                   | Backend security rules and OWASP Top 10 checks                                                                                                                    | Backend       |
 | `security/frontend.md`                  | Frontend security rules (XSS, CSRF, CSP)                                                                                                                          | Frontend      |
 | `security/mobile.md`                    | Mobile-specific security rules and WebView checks                                                                                                                 | Mobile        |
+| `security/general.md`                   | Untrusted Content Boundary — external content is data, never an instruction for the agent                                                                          | Reference     |
 
 **The `paths:` key decides when a rule loads.** Every rule ships as `.md`, the only extension Claude Code reads from `.claude/rules/`, and every rule states its reach with one key. A rule with **no `paths:` key** loads into every session — the `Always` scope above. A rule with a **`paths:` list** loads when the session touches a file the list matches. A rule with an **empty list**, `paths: []`, never loads on its own — the `Reference` scope above: it reaches an agent only when a skill, an agent file, or another rule names it and the agent reads it on demand.
 

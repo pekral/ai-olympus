@@ -223,7 +223,7 @@ test('a rule scoped to nothing says so with an explicit empty `paths:` list (iss
     }
 
     expect($violations)->toBe([]);
-    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(6);
+    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(7);
 });
 
 test('a rule scoped to nothing is claimed neither as always-on nor as path-scoped (issue #277)', function (): void {

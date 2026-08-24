@@ -18,7 +18,7 @@ The strategic sentinel and **the roster's only code-review agent**, named after 
 
 - **Trigger:** a pull request needs reviewing, or a task carries a cyber-security question and needs a pre-implementation security-risk analysis.
 - **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis` (plus `analyze-problem` in analysis mode).
-- **Rules applied:** `@rules/security/backend.md`, `@rules/security/frontend.md`, `@rules/security/mobile.md`.
+- **Rules applied:** `@rules/security/backend.md`, `@rules/security/frontend.md`, `@rules/security/mobile.md`, `@rules/security/general.md`.
 - **Safety:** read-only — never edits, commits, pushes, or merges (`hephaestus` implements what it analyses and fixes what it finds).
 - **Registration dependency:** dispatchable only after the installer copies `agents/athena.md` to `.claude/agents/`. Until then, the review runs inline in `code-review-github` (the continuity fallback), and the pre-implementation analysis mode is skipped — `hephaestus`'s pre-PR self-check still runs `code-review` + `security-review` over its own diff.
 
