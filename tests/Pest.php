@@ -515,13 +515,13 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
 }
 
 /**
- * The rules issue #277 gave an explicit empty scoping list, `paths: []`. Each carried Cursor's
- * `alwaysApply: false` plus `globs: []` — scoped to nothing, so Cursor never attached it by file
- * path either, and as a `.mdc` file Claude Code never loaded it at all. Both readings agree that
- * the rule reaches an agent only when a skill, an agent file, or another rule names it, so the
- * empty list is the translation that keeps the behaviour these rules already had. Dropping the
- * key instead would have made all six always-on, which is the opposite of what issues #274 and
- * #275 spent their diffs achieving.
+ * The rules that intentionally carry an explicit empty scoping list, `paths: []`. Each reaches an
+ * agent only when a skill, an agent file, or another rule names it. The six that issue #277
+ * migrated carried Cursor's `alwaysApply: false` plus `globs: []` — scoped to nothing, so Cursor
+ * never attached them by file path either, and as `.mdc` files Claude Code never loaded them at
+ * all. Both readings agree on that same reach, so the empty list is the translation that keeps
+ * the behaviour those rules already had. Dropping the key instead would have made all of them
+ * always-on, which is the opposite of what issues #274 and #275 spent their diffs achieving.
  *
  * @return array<int, string>
  */
