@@ -1919,10 +1919,18 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     expect($residual)->toContain('the flag itself wrote `agent-skills bash-guard`');
     expect($residual)->toContain('`…/agent-skills\' bash-guard`');
 
+    // The cleanup reads the file on every run, which is a new way for `install` to fail: a project
+    // whose settings file is not valid JSON now gets exit 1 where it used to succeed. That belongs
+    // in a shipped document, not only in a pull request body (issue #6 CR).
+    expect($residual)->toContain('reads `.claude/settings.local.json` on every run');
+    expect($residual)->toContain('Cannot parse Claude settings file');
+
     // The unconditional write belongs in the writes table too: a reader auditing what the installer
     // touches must find the cleanup there, not only in the prose above it.
     expect(installerDocsSection($security, '## Files this package writes'))
         ->toContain('deletes hook handlers pointing at the removed `bash-guard`');
+    expect(installerDocsSection($security, '## Files this package writes'))
+        ->toContain('read on every run (invalid JSON fails the install)');
 });
 
 test('docs/agents.md states the architecture constraint with no runtime component left to scope (issue #265)', function (): void {
