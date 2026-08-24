@@ -21,6 +21,21 @@ final class InstallerProjectSettings
 {
 
     /**
+     * The command tail of the `PreToolUse` handler the removed `--enforce-agent-bash-boundary`
+     * flag used to write. The flag, the validator, and the `bash-guard` subcommand were all
+     * deleted in issue #265, and the flag never had an inverse — so a project that opted in still
+     * carries a handler pointing at a subcommand the binary no longer has. It falls through to
+     * `Installer::run()`, prints `Unknown command: bash-guard`, and exits 1, which Claude Code
+     * reprints as a non-blocking `PreToolUse:Bash hook error` on **every** Bash call (issue #6).
+     *
+     * The predicate is the one `SECURITY.md` already gave the reader for the manual cleanup: the
+     * handler whose `command` ends in this string. It is deliberately anchored at the end rather
+     * than matched anywhere in the command, so a command that merely mentions the name — a log
+     * path, a comment, an unrelated wrapper — is never removed on this package's authority.
+     */
+    private const string ORPHANED_BASH_GUARD_COMMAND = 'ai-olympus bash-guard';
+
+    /**
      * Outbound-network Bash commands denied session-wide when the caller opts in
      * (`--deny-network-bash`).
      *
@@ -200,6 +215,35 @@ final class InstallerProjectSettings
     }
 
     /**
+     * Deletes every hook handler in the project's `.claude/settings.local.json` whose command
+     * points at the removed `bash-guard` subcommand, and returns how many were deleted.
+     *
+     * Runs on every `install`, with no flag of its own. That is deliberate: the entry being
+     * deleted is one **this package wrote itself**, pointing at a command it no longer ships, and
+     * the removal in #265 shipped without the inverse the flag never had. Cleaning up its own
+     * leftover is not a compatibility layer for `bash-guard` — the subcommand stays gone and
+     * `ai-olympus bash-guard` still exits 1 — it is the package taking back a write that now only
+     * produces an error on every Bash call.
+     *
+     * A file the run has nothing to strip is never rewritten, and a project without the file
+     * never gets one: the write happens only after a handler was actually found and removed.
+     */
+    public static function removeOrphanedBashGuardHandlers(string $projectRoot): int
+    {
+        $settingsPath = self::resolveProjectLocalSettingsPath($projectRoot);
+        $existing = InstallerSettingsFile::read($settingsPath);
+        $removed = self::stripOrphanedBashGuardHandlers($existing);
+
+        if ($removed === 0) {
+            return 0;
+        }
+
+        InstallerSettingsFile::write($settingsPath, $existing);
+
+        return $removed;
+    }
+
+    /**
      * @return array<int, string>
      */
     private static function buildSubagentWritePermissions(string $projectRoot): array
@@ -252,6 +296,116 @@ final class InstallerProjectSettings
         $existing->permissions = $permissions;
 
         return true;
+    }
+
+    /**
+     * Walks every hook event, not only `PreToolUse` where the removed flag wrote its handler: the
+     * predicate identifies a handler pointing at a subcommand the binary no longer has, and such a
+     * handler is dead — and prints the same error — under whichever event it sits.
+     */
+    private static function stripOrphanedBashGuardHandlers(stdClass $existing): int
+    {
+        $hooks = $existing->hooks ?? null;
+
+        if (!$hooks instanceof stdClass) {
+            return 0;
+        }
+
+        $removed = 0;
+
+        foreach (get_object_vars($hooks) as $event => $groups) {
+            $removed += is_array($groups) ? self::stripEventGroups($hooks, $event, $groups) : 0;
+        }
+
+        // The `hooks` key outliving its last handler would leave the package's own leftover behind
+        // in a different shape, so it goes with the handler it existed to hold.
+        if ($removed > 0 && get_object_vars($hooks) === []) {
+            unset($existing->hooks);
+        }
+
+        return $removed;
+    }
+
+    /**
+     * @param array<array-key, mixed> $groups
+     */
+    private static function stripEventGroups(stdClass $hooks, string $event, array $groups): int
+    {
+        $removed = 0;
+        $retained = [];
+
+        foreach ($groups as $group) {
+            [$keepGroup, $removedFromGroup] = self::stripGroupHandlers($group);
+            $removed += $removedFromGroup;
+            $retained = $keepGroup ? [...$retained, $group] : $retained;
+        }
+
+        if ($removed === 0) {
+            return 0;
+        }
+
+        if ($retained === []) {
+            unset($hooks->{$event});
+
+            return $removed;
+        }
+
+        $hooks->{$event} = $retained;
+
+        return $removed;
+    }
+
+    /**
+     * Strips the orphaned handlers from one matcher group, in place. Returns whether the group
+     * itself survives — a group emptied by this run is dropped, while a group that was already
+     * empty before it is left exactly as the project wrote it.
+     *
+     * @return array{0: bool, 1: int}
+     */
+    private static function stripGroupHandlers(mixed $group): array
+    {
+        if (!$group instanceof stdClass) {
+            return [true, 0];
+        }
+
+        $handlers = $group->hooks ?? null;
+
+        if (!is_array($handlers)) {
+            return [true, 0];
+        }
+
+        $retained = self::retainedHandlers($handlers);
+        $removed = count($handlers) - count($retained);
+
+        if ($removed === 0) {
+            return [true, 0];
+        }
+
+        if ($retained === []) {
+            return [false, $removed];
+        }
+
+        $group->hooks = $retained;
+
+        return [true, $removed];
+    }
+
+    /**
+     * @param array<array-key, mixed> $handlers
+     * @return array<int, mixed>
+     */
+    private static function retainedHandlers(array $handlers): array
+    {
+        $isForeign = static fn (mixed $handler): bool => !self::isOrphanedBashGuardHandler($handler);
+
+        return array_values(array_filter($handlers, $isForeign));
+    }
+
+    private static function isOrphanedBashGuardHandler(mixed $handler): bool
+    {
+        $command = $handler instanceof stdClass ? $handler->command ?? null : null;
+
+        return is_string($command) && str_ends_with(trim($command), self::ORPHANED_BASH_GUARD_COMMAND);
     }
 
 }
