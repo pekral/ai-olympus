@@ -1861,8 +1861,14 @@ test('the removed bash-guard leaves no trace in the package or its security docu
         'rules/compound-engineering/orchestration.md',
     ];
 
+    // Both binary names, because the removed flag wrote `agent-skills bash-guard` — it was deleted
+    // five days before the rebrand renamed the binary — and the cleanup predicate now names both.
+    $commands = ['agent-skills bash-guard', 'ai-olympus bash-guard'];
+
     foreach ($documents as $relativePath) {
-        expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('ai-olympus bash-guard');
+        foreach ($commands as $command) {
+            expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain($command);
+        }
     }
 
     $security = (string) file_get_contents($packageDir . '/SECURITY.md');
@@ -1873,7 +1879,7 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     expect($security)->not->toContain('"hooks": [{ "type": "command"');
 
     foreach (explode("\n", $security) as $line) {
-        if (str_contains($line, 'ai-olympus bash-guard')) {
+        if (str_contains($line, 'agent-skills bash-guard') || str_contains($line, 'ai-olympus bash-guard')) {
             expect($line)->toStartWith('- **If you ever installed the removed hook, `install` now removes its entry for you.**');
         }
     }
@@ -1906,6 +1912,12 @@ test('the removed bash-guard leaves no trace in the package or its security docu
     expect($residual)->toContain('the error is printed on **every** Bash call until the entry is gone');
     expect($residual)->toContain('Every `install` run now deletes it (issue #6)');
     expect($residual)->toContain('restart the session');
+
+    // The predicate the doc gives the reader has to be the one the code runs. The flag wrote
+    // `agent-skills bash-guard`, and single-quoted any path holding a space, so a doc naming only
+    // the post-rebrand literal would describe a cleanup that never fires (issue #6 CR).
+    expect($residual)->toContain('the flag itself wrote `agent-skills bash-guard`');
+    expect($residual)->toContain('`…/agent-skills\' bash-guard`');
 
     // The unconditional write belongs in the writes table too: a reader auditing what the installer
     // touches must find the cleanup there, not only in the prose above it.
