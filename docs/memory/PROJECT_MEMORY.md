@@ -354,3 +354,10 @@
 - Example: PR #245 (issue #228) — `substr_count($content, 'gh repo view --json isPrivate') >= 2` was already true on `master` (step 9's rule + the Bash boundary); replaced with `toBe(3)` plus a `toContain` on the new step-4 sentence.
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/245   Added: 2026-08-11
 - Role:    shared
+
+### worktree-standing-authorization — Worktree pro řešení issue v tomto repu je předschválený, smazání po mergi je povinné
+- Trigger: agent se chystá řešit GitHub issue v `ai-olympus` a zvažuje, jestli si smí založit `git worktree`, nebo se musí ptát.
+- Rule:    Povolení je **trvalé** pro tento repozitář — worktree pro issue work zakládej bez ptaní; podmínka „only when the user explicitly asks" z `CLAUDE.md` a `@rules/git/general.md` je tímto pro `ai-olympus` splněná natrvalo. Smazání po mergi PR je **povinné**, ne best-effort; mechaniku nemění — platí `@rules/git/general.md` *Worktrees / Workspaces* (ověřit, že worktree není aktivní tree a nemá necommitnuté změny, nikdy `--force`, pak `git worktree remove <path>` + `git worktree prune`), vlastník na merge cestě je `@skills/merge-github-pr/SKILL.md` §4, pro CR worktree `daedalus` *Run cleanup*. Povolení **nevytváří paralelismus** tam, kde ho design zakazuje: zápisová cesta `daedala` worktree nebere, takže druhý souběžný zápisový běh pořád blokuje na `.claude/run/.daedalus-write.lock`.
+- Example: Uživatelský pokyn 2026-08-24 při běhu na issue #11; viz [[pest-worktree-avoid-digit-leading-path]] pro past při umístění disposable worktree.
+- Source:  https://github.com/pekral/ai-olympus/pull/16   Added: 2026-08-24
+- Role:    shared
