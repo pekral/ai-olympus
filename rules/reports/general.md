@@ -17,7 +17,7 @@ The rule applies to every tracker target and every tracker output:
 
 ### Exception — technical CR findings on the GitHub PR
 
-Two narrowly scoped exceptions: **the technical code-review comment posted on a GitHub pull request stays in canonical English**, regardless of the assignment language, and so does a report whose entire payload is proposed commit messages. Specifically:
+One narrowly scoped exception: **the technical code-review comment posted on a GitHub pull request stays in canonical English**, regardless of the assignment language. Specifically:
 
 - `@skills/code-review-github/SKILL.md` PR comments (full CR template — Status, Counts, Findings, Refactoring, Coverage, Summary line)
 - `@skills/code-review-jira/SKILL.md` GitHub-side PR comments (the technical findings half of its split publish)
@@ -26,9 +26,8 @@ Two narrowly scoped exceptions: **the technical code-review comment posted on a 
 - `@skills/security-review/SKILL.md` audit findings when they are folded into the GitHub PR comment
 - `@skills/security-threat-analysis/SKILL.md` remediation reports when posted as a PR comment
 - `@skills/resolve-issue/SKILL.md` final technical report posted on the PR (code-review / security-review summary block) — same channel as the CR wrappers above
-- `@skills/pr-deploy-planner/SKILL.md` deploy-plan reports posted on the GitHub PR — the report's payload is a set of proposed commit messages, which `@rules/git/general.md` requires to be English; wrapping them in assignment-language prose would produce the bilingual comment *No bilingual parentheses* forbids
 
-The first seven stay in English because they (a) are machine-parsed by `@skills/process-code-review/SKILL.md` for reproducer extraction; (b) carry severity labels (*Critical / Moderate / Minor* / *High / Low*), structured field labels (*Location*, *Rule*, *Impact*, *Faulty Example*, *Expected Behavior*, *Test Hint*, *Suggested Fix*), and rule references that already exist in English elsewhere in the codebase; (c) live next to code identifiers, error messages, and discussion threads from non-Czech contributors. Translating them creates parsing breakage and cross-language drift without helping the reader. `pr-deploy-planner`'s report stays in English for the narrower reason stated inline above: its content is git commit-message material, not review prose.
+These seven stay in English because they (a) are machine-parsed by `@skills/process-code-review/SKILL.md` for reproducer extraction; (b) carry severity labels (*Critical / Moderate / Minor* / *High / Low*), structured field labels (*Location*, *Rule*, *Impact*, *Faulty Example*, *Expected Behavior*, *Test Hint*, *Suggested Fix*), and rule references that already exist in English elsewhere in the codebase; (c) live next to code identifiers, error messages, and discussion threads from non-Czech contributors. Translating them creates parsing breakage and cross-language drift without helping the reader.
 
 The exception does **not** extend to:
 

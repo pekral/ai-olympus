@@ -179,7 +179,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // else, so a mismatch here means a normative sentence moved during the rename.
     // Re-baselined when the package moved to pekral/ai-olympus: the agent rename
     // (daidalos -> daedalus, hefaistos -> hephaestus) and the PHP namespace rename
-    // are the only edits these bodies carry.
+    // are the only edits these bodies carry. `rules/reports/general.md` carries one further
+    // re-baseline: #11 deleted the skill whose report was the second half of the GitHub-PR English
+    // exception, so that exception dropped back to a single one.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/laravel/architecture.md' => '849ef2b359d47b969c434821730f16e8da743d67c4915de043dcdcf2fb89270a',
@@ -192,7 +194,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
-        'rules/reports/general.md' => '2b50c2bdbd14e00b79ed27fc50c8536354bbb20889a0d91aedac510f806c618d',
+        'rules/reports/general.md' => 'bdf0e939be095247bb3c9853ae166ea9603938e1bd0f0c9eb234220f99033ac8',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -101,16 +101,6 @@ test('reports/general.md bans bilingual parentheses and mid-comment language mix
     expect((bool) preg_match('/use the Czech equivalents \(e\.g\. \*Kritické\*, \*Závažné\*, \*Drobné\*\)/', $content))->toBeFalse();
 });
 
-test('reports/general.md names pr-deploy-planner as a second GitHub-PR English exception', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $ruleContent = (string) file_get_contents($packageDir . '/rules/reports/general.md');
-    $skillContent = (string) file_get_contents($packageDir . '/skills/pr-deploy-planner/SKILL.md');
-
-    expect($ruleContent)->toContain('@skills/pr-deploy-planner/SKILL.md');
-    expect($skillContent)->toContain('Exception — technical CR findings on the GitHub PR');
-    expect($skillContent)->toContain('canonical English');
-});
-
 test('CR wrapper skills carry the GitHub-PR English exception in their constraints', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $crWrapperSkills = [
