@@ -320,3 +320,40 @@ test('architecture rules forbid introducing a new project-owned Facade as a home
     expect($content)->toContain('a new project-owned Facade added as a home for business logic, or as a static entry point to it');
     expect($content)->toContain('the rule fires only on a facade the change **adds**');
 });
+
+test('architecture rules collapse an Action that only forwards to another Action (issue #20)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+
+    // The pre-existing Pass-through Action rule enumerates "Service / Facade / Model Service",
+    // which structurally excludes an Action forwarding to another Action — the gap issue #20 names.
+    expect($content)->toContain('- **Action-to-Action pass-through rule (Action pattern):**');
+    expect($content)->toContain('an `__invoke()` whose entire body is `($this->otherAction)($payload)` and nothing else');
+
+    // The carve-out is what keeps the rule from flagging legitimate orchestration.
+    expect($content)->toContain('one of them another Action, is the pattern working as intended');
+    expect($content)->toContain('two names for one use case');
+
+    // An Action is a use case, not a reusable method, so both branches collapse the pair.
+    expect($content)->toContain('an Action is a use case rather than a reusable method, so the resolution is always to **collapse the two into one**');
+    expect($content)->toContain('If the outer Action is the **only** caller of the inner one, merge them');
+    expect($content)->toContain('`$outerAction($payload)` becomes `$innerAction($payload)`');
+
+    // Symmetric gating against the general-logic finding, stated on both halves in this file.
+    expect($content)->toContain('when the **entire** `__invoke()` body is that single delegating call, this rule owns it');
+    // Same hand-off, same two targets — and "the matching ... finding" rather than "the
+    // pass-through finding", because two pass-through findings follow this line, not one.
+    expect($content)->toContain(
+        'When the **entire** `__invoke()` body is a single delegating call to a Service / Facade / Model Service method '
+        . 'or to another Action, the matching pass-through finding below owns it instead — never both',
+    );
+
+    // CR Severity Rules and Exceptions both name the new case, so the walk and the carve-out agree.
+    expect($content)->toContain('merge the two Actions when the outer one is the inner one\'s only caller');
+    expect($content)->toContain('a pure single-call delegation to another Action with no orchestration');
+
+    // Exactly one rule definition — a second copy is how two severities drift apart — and exactly
+    // two cross-references back to it (the CR Severity Rules entry and the Exceptions entry).
+    expect(substr_count($content, '- **Action-to-Action pass-through rule (Action pattern):**'))->toBe(1);
+    expect(substr_count($content, '**Action-to-Action pass-through rule**'))->toBe(2);
+});

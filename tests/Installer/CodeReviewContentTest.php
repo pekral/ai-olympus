@@ -2177,3 +2177,46 @@ test('the three CR tracker wrappers share one contract instead of three drifting
         );
     }
 });
+
+test('code review flags an Action that only forwards to another Action (issue #20)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
+
+    // The pre-existing Pass-through Action bullet detects only a Service / Facade / Model Service
+    // target, so an Action forwarding to another Action was never reachable by the walk.
+    expect($rule)->toContain('- **Action-to-Action pass-through (Action pattern)**');
+    expect($rule)->toContain('a single delegating call to **another Action** (`($this->otherAction)($payload)`)');
+
+    // Without the carve-out the bullet would flag every Action that composes another one.
+    expect($rule)->toContain('is the pattern working as intended and is **not** a finding');
+
+    // The fix is a collapse in both branches, because an Action is a use case, not a method.
+    expect($rule)->toContain(
+        'Because an Action is a use case rather than a reusable method, the **Suggested Fix** is always to collapse the two into one',
+    );
+    expect($rule)->toContain('(`$outerAction($payload)` → `$innerAction($payload)`)');
+
+    // Three bullets can fire on one `__invoke()` line; the gating is stated on both halves.
+    expect($rule)->toContain('never raise two of these three on the same line');
+    // The hand-off names both targets, or a body delegating to a Repository / ModelManager / Data
+    // Builder is disclaimed here and claimed by neither receiving bullet — gating that prevents
+    // double-reporting would turn into zero-reporting.
+    expect($rule)->toContain(
+        'When the **entire** `__invoke()` body is a single delegating call to a Service / Facade / Model Service method '
+        . 'or to another Action, the matching **Pass-through Action** / **Action-to-Action pass-through** bullet owns it '
+        . 'instead — never both.',
+    );
+
+    // The Core Analysis walk-through is enumerated by name, so a bullet missing from the list is
+    // a bullet the review never reaches.
+    expect($skill)->toContain('pass-through Action, **Action-to-Action pass-through**, repository scope');
+
+    // The refactoring lens collapses the pair during a refactor and proposes it in MODE=cr.
+    expect($refactoring)->toContain('- **Action-to-Action pass-through (Action pattern).**');
+    expect($refactoring)->toContain('In `MODE=cr`, emit it as a written refactoring proposal rather than applying the change.');
+
+    // Exactly one detection bullet in the rule — a second copy is how two severities drift apart.
+    expect(substr_count($rule, '- **Action-to-Action pass-through (Action pattern)**'))->toBe(1);
+});
