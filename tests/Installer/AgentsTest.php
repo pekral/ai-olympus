@@ -151,6 +151,17 @@ test('the roster ships no general problem-analysis subagent and daedalus routes 
     expect($daedalus)->toContain('**run decomposition inline**, in your own context');
     expect($daedalus)->toContain('never carry one of them onward in the same run');
 
+    // Exactly one step executes that decomposition. Step 1 only classifies and routes; step 3's
+    // backlog-only branch runs it, because that is the branch that has a brief to read (step 2
+    // wrote it) and the branch that owes *Run cleanup* before it stops. Two imperative entry
+    // points would also let one run open the same issues twice through an L1 pre-approved write.
+    expect($daedalus)->toContain('**Record that verdict here and route it onward; this step never runs the decomposition itself.**');
+    expect($daedalus)->toContain('**this branch is the backlog tier\'s single executor**');
+    expect($daedalus)->toContain('step 1 classifies and routes, and the work happens here, once, after step 2 has written the brief');
+
+    // The imperative must not reappear in step 1, or the contradiction is back.
+    expect($daedalus)->not->toContain('**run decomposition inline**, in your own context, per *Backlog tier');
+
     // Gaining the backlog tier must not quietly re-acquire the analysis role along with it — the
     // sentence that guarded this moved out of `agents/zeus.md` into its successor verbatim.
     expect($daedalus)->toContain('The roster carries **no general (non-security) analysis agent** and you are not one');

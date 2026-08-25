@@ -200,9 +200,10 @@ The `daedalus` run carries a request all the way to a clean, reviewed result. `d
 
 ```text
 user → daedalus                                         (top-level; resolves source, then dispatches via Task tool)
-         │  resolve source (oldest-open-issue selection / resolve-issue source-detection)
-         │  backlog request (triage / prioritise)? ── yes ─→ run github-issue-triage inline → Triage done (ordered queue), no PR
-         │  too broad for one PR? ── yes ─→ run decomposition inline (create-issues-from-text) → Breakdown done (created issues), no PR (re-run per piece)
+         │  resolve source (oldest-open-issue selection / resolve-issue source-detection); classify, never execute here
+         │  gather context → shared brief .claude/run/<slug>.md   (written before any branch below runs)
+         │  backlog request (triage / prioritise), or the source classified too broad for one PR? ── yes ─→ run the backlog tier inline, no PR:
+         │       github-issue-triage → Triage done (ordered queue)  |  create-issues-from-text → Breakdown done (created issues, re-run per piece)
          │     │ no
          │  security-focused? ── yes ─→ Task ▶ athena (security analysis mode = security skills + analyze-problem → remediation plan; Security analysis done) → feeds hephaestus
          │     │ no
