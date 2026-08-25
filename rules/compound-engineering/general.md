@@ -30,10 +30,10 @@ Each entry is short and scannable — prefer one rule per lesson over a long ess
 - Rule:    <the decision / what to do next time>
 - Example: <a concrete pointer: file / area / symbol>
 - Source:  <PR / issue link>   Added: <YYYY-MM-DD>
-- Role:    <daedalus | zeus | hephaestus | argus | athena | hermes | shared>
+- Role:    <daedalus | hephaestus | argus | athena | hermes | shared>
 ```
 
-The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `daedalus` = orchestration / briefing / dispatch decisions; `zeus` = backlog triage / priority / splitting a subject into deliverable issues; `hephaestus` = implementation / PR mechanics / test authoring / scoped validation; `argus` = acceptance verification against the running application; `athena` = code review / security / CR loop; `hermes` = announcement / marketing content / post-convergence reporting. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
+The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `daedalus` = orchestration / briefing / dispatch decisions, plus the backlog tier it runs inline (triage / priority / splitting a subject into deliverable issues); `hephaestus` = implementation / PR mechanics / test authoring / scoped validation; `argus` = acceptance verification against the running application; `athena` = code review / security / CR loop; `hermes` = announcement / marketing content / post-convergence reporting. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
 
 The per-entry token budget an entry is compacted back down to after every write — so this shape stays short and scannable instead of drifting into an essay — has one home in `### Write protocol` below.
 
@@ -42,7 +42,7 @@ The per-entry token budget an entry is compacted back down to after every write 
 The memory only compounds if it is **read at the start of each task**, before re-deriving anything:
 
 - The **daedalus gather phase** reads the **full** memory file (it is the orchestrator and must see all roles) so it can slice it correctly later, but it never folds the file unfiltered into the shared brief — see *Per-dispatch memory slice* below for what actually travels to each dispatched specialist.
-- Each **specialist agent** (`hephaestus`, `athena`, `hermes`, `zeus`, `argus`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
+- Each **specialist agent** (`hephaestus`, `athena`, `hermes`, `argus`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
 - `@skills/analyze-problem` (*Context extraction*) and `@skills/prepare-issue-context` consult the memory file before mapping scenarios to code, filtering by the calling agent's role.
 
 #### Per-dispatch memory slice
