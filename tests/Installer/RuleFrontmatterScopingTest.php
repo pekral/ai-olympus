@@ -160,12 +160,17 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // the scoping change. A mismatch means a normative sentence moved, which this change is not
     // allowed to do — it may only add frontmatter.
     // Re-baselined for the pekral/ai-olympus agent + namespace rename; no sentence moved.
+    // `rules/sql/optimalize.md` carries one further re-baseline: issue #20 added the
+    // **Deploy-safe schema changes** section. The pin is scoped to the issue #274 scoping change,
+    // which was allowed to add frontmatter and nothing else — it is not a freeze on the rule
+    // corpus, so a later assignment that deliberately edits a rule body re-baselines it here with
+    // the reason, exactly as `rules/reports/general.md` did below.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
         'rules/php/core-standards.md' => '71f1e40d9f79f6fe12465cfa2ec7188abfc157b568e18fd9fd210942280aa475',
-        'rules/sql/optimalize.md' => 'dcda4f6d54f0458a9a64ae2657a7422231067b1f6735726852167c81d449ed9c',
+        'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -181,7 +186,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // (daidalos -> daedalus, hefaistos -> hephaestus) and the PHP namespace rename
     // are the only edits these bodies carry. `rules/reports/general.md` carries one further
     // re-baseline: #11 deleted the skill whose report was the second half of the GitHub-PR English
-    // exception, so that exception dropped back to a single one.
+    // exception, so that exception dropped back to a single one. `rules/code-review/general.md`
+    // carries the same kind of re-baseline for issue #20, which added the **Deploy-safe schema
+    // changes** Core Analysis bullet.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/laravel/architecture.md' => '849ef2b359d47b969c434821730f16e8da743d67c4915de043dcdcf2fb89270a',
@@ -189,7 +196,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => 'db067be582a12777dc3c948e5c73ef017daeb006a94178064cd5e6a5c8dedd87',
+        'rules/code-review/general.md' => '32832f572b224eb6582dae9493c8af3959c40e62f81ed00f64fbfad8f816b992',
         'rules/code-testing/general.md' => 'c900a8196fb215210b1f55bcdc4e095959b511d414e539ab88de45999824e66c',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
