@@ -6,14 +6,6 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-## Modes
-
-This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
-
-- **`apply` (default)** — perform the entry-point → Action refactoring: create / update the Action, move orchestration, run fixers / checkers, and chain the After Completion review. The Execution and Done-when steps below behave as written.
-- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`)** — **never modify code, never create files, never stage / commit / push, never run fixers or checkers, and never chain `code-review` / `process-code-review`.** Scope the analysis to entry points (controller / job / command / listener / Livewire) touched by the PR diff that still hold business orchestration, and return — as markdown only — the proposed Action extraction for each:
-the entry-point `Class::method`, the orchestration that should move out, the target `app/Actions/<Domain>/<ActionName>` and Data Validator, and the rule reference. The CR folds these into its **Refactoring (DRY / tech debt)** section (in-scope) or **Refactoring proposals** section (out-of-scope). Execution steps 3–11 below apply to `MODE=apply` only.
-
 ## Constraints
 - Apply `@rules/refactoring/general.md` — incremental migration only, never a big-bang rewrite. The **Test Coverage Contract** in that rule is binding: 100% coverage of the target lines must exist in a dedicated `test(scope): cover <area> before refactor` commit *before* the entry-point change lands, and the assertion logic of those tests must remain unchanged through the refactor commit.
 - Apply `@rules/php/core-standards.md`.
@@ -21,6 +13,14 @@ the entry-point `Class::method`, the orchestration that should move out, the tar
 - Preserve behavior, signatures, response contracts, and tenant/account scope. Rewrite the entry-point code **strictly per the applied rules** — anything that would deviate (parameter count, naming, nesting, layer placement, validation home) is rewritten until it complies.
 - Do not report review output to any third-party service.
 - After changes (`MODE=apply` only), run an internal architecture-first review and fix important findings immediately. In `MODE=cr` there are no changes — emit the Action-extraction proposal and stop.
+
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
+
+- **`apply` (default)** — perform the entry-point → Action refactoring: create / update the Action, move orchestration, run fixers / checkers, and chain the After Completion review. The Execution and Done-when steps below behave as written.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`)** — **never modify code, never create files, never stage / commit / push, never run fixers or checkers, and never chain `code-review` / `process-code-review`.** Scope the analysis to entry points (controller / job / command / listener / Livewire) touched by the PR diff that still hold business orchestration, and return — as markdown only — the proposed Action extraction for each:
+the entry-point `Class::method`, the orchestration that should move out, the target `app/Actions/<Domain>/<ActionName>` and Data Validator, and the rule reference. The CR folds these into its **Refactoring (DRY / tech debt)** section (in-scope) or **Refactoring proposals** section (out-of-scope). Execution steps 3–11 below apply to `MODE=apply` only.
 
 ## Use when
 - A controller, job, command, listener, or Livewire component method contains business orchestration that should be moved into an Action.
