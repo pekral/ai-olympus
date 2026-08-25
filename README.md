@@ -279,7 +279,7 @@ All 54 skills, grouped by what you reach for them for. Each description is the s
 |-------|----------------|
 | [`test-driven-development`](skills/test-driven-development/) | Implementing a feature or bugfix with strict TDD |
 | [`create-test`](skills/create-test/) | Create or update tests to ensure full coverage for current changes |
-| [`create-missing-tests-in-pr`](skills/create-missing-tests-in-pr/) | Reads your pull request code review, verifies that all recommended test coverage is implemented in the codebase, and adds missing tests using the create-test skill |
+| [`create-missing-tests-in-pr`](skills/create-missing-tests-in-pr/) | A PR review already exists and missing tests must be completed with 100% coverage for current changes |
 | [`rewrite-tests-pest`](skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
 | [`e2e-testing`](skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
 | [`tester-cookbook`](skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |
