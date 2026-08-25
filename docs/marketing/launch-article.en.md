@@ -56,7 +56,8 @@ available answer when it read.
 A reviewer who wrote the code is not a reviewer. That is not an AI limitation — it is why we invented
 pull requests.
 
-So the roster got split. Five agents, five jobs, and no agent doing two of them:
+So the roster got split. Five agents, each with its own capability boundary, and none of them
+reviewing code it wrote itself:
 
 - **`daedalus`** resolves the source, decides the route, and dispatches. It also owns the backlog:
   it triages the open issues into a defensible order, and splits a subject too broad for one pull

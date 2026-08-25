@@ -51,7 +51,8 @@ odpovědí.
 Reviewer, který ten kód napsal, není reviewer. To není omezení AI — právě proto jsme vymysleli pull
 requesty.
 
-Tak se roster rozdělil. Pět agentů, pět rolí, a žádný agent nedělá dvě z nich:
+Tak se roster rozdělil. Pět agentů, každý s vlastní hranicí schopností, a žádný z nich nereviewuje
+kód, který sám napsal:
 
 - **`daedalus`** rozpozná zdroj, rozhodne cestu a dispatchuje. Vlastní taky backlog: otriáduje
   otevřené issues do obhajitelného pořadí a zadání, které je na jeden pull request příliš velké,
