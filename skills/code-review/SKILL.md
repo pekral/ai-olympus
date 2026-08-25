@@ -126,7 +126,6 @@ The flag is for an external caller that genuinely runs a concurrent pass. When i
 **Both skills run read-only — no code changes, no commits, no fixers, no review chaining — `MODE=cr` enforces this.** Fold their output into the **Refactoring (DRY / tech debt)** section (in-scope items) and **Refactoring proposals** section (out-of-scope items) of the review; this skill never modifies code.
     - **Database operations detected in the diff → `@skills/mysql-problem-solver/SKILL.md` is mandatory.** Trigger this skill whenever the diff touches any of: raw SQL strings, Eloquent / query-builder calls (`DB::`, `->where(`, `->join(`, `->whereHas(`, `->withCount(`, `->orderBy(`, `->groupBy(`, `->chunk(`, `->cursor(`, `paginate(`, `simplePaginate(`), Eloquent relationship definitions, `with(` / `load(` eager loads, model scopes, ModelManager / Repository methods, database migrations (`Schema::`, `up()` / `down()`), seeders, factories that materialise rows, DynamoDB / NoSQL access.
 Pass the diff scope to `mysql-problem-solver` and capture its findings — they **must** appear in the published CR review under the dedicated `## Database Analysis` section described in **Output Rules**, never silently absorbed into the generic Critical / Moderate / Minor buckets.
-    - Shared state / concurrency → @skills/race-condition-review/SKILL.md
     - I/O or external calls → I/O review
 
 ### Refactoring & Tech Debt (DRY) Analysis
