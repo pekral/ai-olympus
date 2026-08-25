@@ -179,7 +179,7 @@ review I would have skipped at 6pm on a Friday.
 
 - **Claude Code only.** There is no Cursor, Copilot, or Windsurf target. The `--editor` flag was
   removed rather than left half-supported.
-- **It needs a paid Claude plan.** Six agents, a review loop that can run up to four iterations, and
+- **It needs a paid Claude plan.** Six agents, a review loop that can run up to three iterations, and
   a full local build per push is not a free-tier workload.
 - **The Bash boundary is advisory, not enforced.** Every agent holds `Bash`, and `Bash` subsumes both
   write access and network access no matter what `disallowedTools` says. A "read-only" agent's own

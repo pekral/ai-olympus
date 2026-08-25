@@ -172,7 +172,7 @@ jestli dokumentace říká pravdu o důsledku. Přesně tu review bych v pátek 
 
 - **Jen Claude Code.** Žádný Cursor, Copilot ani Windsurf. Přepínač `--editor` byl odstraněn, místo
   aby zůstal napůl podporovaný.
-- **Potřebuje placený plán Claude.** Šest agentů, opravná smyčka až o čtyřech iteracích a plný
+- **Potřebuje placený plán Claude.** Šest agentů, opravná smyčka až o třech iteracích a plný
   lokální build před každým pushem není zátěž pro free tier.
 - **Bash hranice je advisory, ne vynucená.** Každý agent drží `Bash` a `Bash` v sobě obsahuje
   zápis i síť bez ohledu na to, co říká `disallowedTools`. Vlastní instrukce „read-only" agenta
