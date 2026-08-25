@@ -1,16 +1,13 @@
 ---
 name: create-missing-tests-in-pr
-description: Reads your pull request code review, verifies that all
-  recommended test coverage is implemented in the codebase, and adds
-  missing tests using the create-test skill. Use when a PR review
-  already exists and missing tests must be completed with 100% coverage
-  for current changes.
+description: Use when a PR review already exists and missing tests must be completed with 100% coverage for current changes. Reads the pull request code review, verifies that all recommended test coverage is implemented in the codebase, and adds missing tests using the create-test skill.
 license: MIT
 metadata:
   author: Petr Král (pekral.cz)
 ---
 
-**Constraint:**
+## Constraints
+
 -   Apply @rules/php/core-standards.md
 -   Apply @rules/git/general.md
 -   Apply @rules/code-testing/general.md
@@ -28,7 +25,9 @@ metadata:
     their own separate commits.
 -   Use @skills/create-test/SKILL.md for all test-writing work.
 
-**Read, Map & Verify before writing tests (mandatory pre-flight):**
+---
+
+## Read, Map & Verify before writing tests (mandatory pre-flight)
 
 Reading, mapping, and verifying come first; writing tests comes last. This pre-flight is **blocking** — do not add or modify a single line until all three steps pass, and never act on an assumption you have not confirmed by reading the code.
 
@@ -38,7 +37,9 @@ Reading, mapping, and verifying come first; writing tests comes last. This pre-f
 
 Only after Read, Map, and Verify are complete may test-writing begin.
 
-**Steps:**
+---
+
+## Execution
 
 -   Load the current pull request context using GitHub CLI (`gh`) first.
     If `gh` is not available, use a GitHub MCP server. If neither is
@@ -74,23 +75,12 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 -   **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions, so the code-review test-organization gate passes when the PR is re-reviewed.
 -   **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
 
-**Deliver:**
-
-Provide a brief markdown summary including:
-
--   reviewed PR testing recommendations
--   which recommendations were already covered
--   which tests were added or updated
--   whether 100% coverage for current changes was achieved
--   list of pre-existing fix commits (if any), each with a one-line rationale, plus any pre-existing issue deferred as a follow-up with the reason
--   any blocker preventing full completion
-
-**Pre-existing issue handling**
+### Pre-existing issue handling
 
 While writing the missing tests, you may uncover problems that are **unrelated to the current PR scope** but were already present in the code you had to read or exercise. The following categories qualify:
 
 -   **Bugs** — incorrect logic, broken edge cases, or runtime errors revealed by exploratory test runs, but already present before this task.
--   **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraint* block or any other rule under `.claude/rules/`.
+-   **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraints* block or any other rule under `.claude/rules/`.
 -   **Security vulnerabilities** — anything `@rules/security/backend.md`, `@rules/security/frontend.md`, or `@rules/security/mobile.md` would flag.
 
 Rules:
@@ -106,7 +96,7 @@ Rules:
 4.  The "Production code may only be changed if it is strictly required" constraint above is **overridden** for these fixes — the production-code change is the fix itself, and it lives in its own commit.
 5.  If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the delivered markdown summary as a deferred follow-up with the reason, and file it as a follow-up issue in the originating tracker per `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); include the created issue URL in the summary.
 
-**After completing the tasks**
+### After completing the tasks
 
 -   Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
 -   Run available fixers on all changed test files and fix any violations.
@@ -119,6 +109,21 @@ Rules:
 -   If something is still missing, clearly describe the blocker or
     uncovered scenario.
 - Create a new commit with the missing tests, separate from any pre-existing fix commits produced by *Pre-existing issue handling* above
+
+---
+
+## Output
+
+Provide a brief markdown summary including:
+
+-   reviewed PR testing recommendations
+-   which recommendations were already covered
+-   which tests were added or updated
+-   whether 100% coverage for current changes was achieved
+-   list of pre-existing fix commits (if any), each with a one-line rationale, plus any pre-existing issue deferred as a follow-up with the reason
+-   any blocker preventing full completion
+
+---
 
 ## Principles
 
