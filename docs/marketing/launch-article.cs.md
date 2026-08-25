@@ -161,7 +161,7 @@ $ git show --stat e26995b | tail -1
 36 files changed, 106 insertions(+), 4782 deletions(-)
 ```
 
-<!-- SEM PATŘÍ DEMO NAHRÁVKA — asciinema embed, 45–75 s, viz issue #106.
+<!-- SEM PATŘÍ DEMO NAHRÁVKA — asciinema embed, 45–75 s, viz issue #1.
      Nepublikovat článek, dokud nahrávka nebude na místě: odstavec výše
      popisuje běh, který by si čtenář měl umět přehrát. -->
 

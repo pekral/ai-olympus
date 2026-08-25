@@ -167,7 +167,7 @@ $ git show --stat e26995b | tail -1
 36 files changed, 106 insertions(+), 4782 deletions(-)
 ```
 
-<!-- DEMO RECORDING GOES HERE — asciinema embed, 45–75 s, see issue #106.
+<!-- DEMO RECORDING GOES HERE — asciinema embed, 45–75 s, see issue #1.
      Do not publish this article until the recording is in place: the paragraph
      above describes a run the reader should be able to watch. -->
 
