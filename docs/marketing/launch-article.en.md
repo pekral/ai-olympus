@@ -56,13 +56,19 @@ available answer when it read.
 A reviewer who wrote the code is not a reviewer. That is not an AI limitation — it is why we invented
 pull requests.
 
-So the roster got split. Four agents, four jobs, and no agent doing two of them:
+So the roster got split. Six agents, six jobs, and no agent doing two of them:
 
+- **`zeus`** owns the backlog, not the change. It triages the open issues into a defensible order,
+  and splits a subject too broad for one pull request into separately deliverable ones. It never
+  implements, reviews, or merges.
 - **`daedalus`** resolves the source, decides the route, and dispatches. It holds `Task`, `Read`,
   `Glob`, `Grep`, `Bash`. It never writes code.
 - **`hephaestus`** implements. It is the only agent that holds `Write` and `Edit`.
 - **`athena`** reviews — code quality, architecture, and security in one pass — and drives the fix
   loop until it converges. It holds no `Write` and no `Edit`.
+- **`argus`** is the only agent that runs the application — the API over real HTTP, the UI in a real
+  browser — and returns a per-criterion verdict: met, not met, partial, or blocked. It never edits
+  code.
 - **`hermes`** writes the human-facing report once the loop converges.
 
 The split matters because of what each agent *cannot* do, not what it can. `athena` reviewing
@@ -173,7 +179,7 @@ review I would have skipped at 6pm on a Friday.
 
 - **Claude Code only.** There is no Cursor, Copilot, or Windsurf target. The `--editor` flag was
   removed rather than left half-supported.
-- **It needs a paid Claude plan.** Four agents, a review loop that can run up to four iterations, and
+- **It needs a paid Claude plan.** Six agents, a review loop that can run up to four iterations, and
   a full local build per push is not a free-tier workload.
 - **The Bash boundary is advisory, not enforced.** Every agent holds `Bash`, and `Bash` subsumes both
   write access and network access no matter what `disallowedTools` says. A "read-only" agent's own
