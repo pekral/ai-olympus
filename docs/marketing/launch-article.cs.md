@@ -66,9 +66,9 @@ kód, který sám napsal:
 - **`hermes`** napíše lidsky čitelný report, jakmile smyčka zkonverguje.
 
 To rozdělení má cenu kvůli tomu, co každý agent **nemůže**, ne kvůli tomu, co může. Když `athena`
-čte diff od `hefaista`, čte kód, který nenapsala, a nemá v kontextu ani jednu autorovu úvahu. Něco
-najde. V pull requestu z úvodu našla dvě věci, obě moje, obě skutečné, a obě opravené ještě před
-publikováním review.
+čte diff od agenta `hephaestus`, čte kód, který nenapsala, a nemá v kontextu ani jednu autorovu
+úvahu. Něco najde. V pull requestu z úvodu našla dvě věci, obě moje, obě skutečné, a obě
+opravené ještě před publikováním review.
 
 ## Proč Composer plugin, a ne zkopírovaný soubor
 
