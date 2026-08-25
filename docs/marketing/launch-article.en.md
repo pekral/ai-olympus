@@ -126,7 +126,7 @@ runs when I asked for it in that run — not implied by "resolve this issue".
 
 Here is the run I opened with, in full.
 
-I filed issue #265: the package shipped an optional `PreToolUse` hook that checked every Bash command
+I filed an issue: the package shipped an optional `PreToolUse` hook that checked every Bash command
 against a per-agent policy, and it kept interrupting ordinary work. Any command whose program name is
 built at runtime — `"$BIN" --version`, `$(which php) -v` — came back as *ask*, and there was no way to
 turn it off, because the opt-in flag had never been given an inverse. I proposed three fixes.

@@ -121,7 +121,7 @@ proběhne jen tehdy, když jsem si ho v tom běhu vyžádal — ze zadání „v
 
 Tady je ten běh z úvodu celý.
 
-Založil jsem issue #265: balíček dodával volitelný `PreToolUse` hook, který kontroloval každý Bash
+Založil jsem issue: balíček dodával volitelný `PreToolUse` hook, který kontroloval každý Bash
 příkaz proti per-agent politice, a pořád přerušoval běžnou práci. Každý příkaz, jehož jméno programu
 vzniká za běhu — `"$BIN" --version`, `$(which php) -v` — dostal verdikt *ask*, a nebylo jak to
 vypnout, protože opt-in přepínač nikdy nedostal svůj protějšek. Navrhl jsem tři opravy.
