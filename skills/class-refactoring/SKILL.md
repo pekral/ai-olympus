@@ -7,15 +7,6 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-## Modes
-
-This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
-
-- **`apply` (default)** — full refactoring: modify code, author the pre-refactor coverage commit, run fixers / checkers, and chain the After Completion review. Every step below behaves as written unless it is explicitly flagged for `MODE=cr`.
-- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`)** — **never modify code, never author tests, never stage / commit / push, never run fixers or checkers, and never chain any After Completion review.** Scope the analysis to the lines added or modified by the PR diff and return the refactoring opportunities as markdown only, for the CR to fold into its Refactoring (DRY / tech debt) and Refactoring proposals sections. Every code-changing instruction below — apply, extract, split, consolidate, collapse, replace, remove, move, or any other verb that would touch code — is emitted as a written proposal, not applied to code; the Test Coverage Gate becomes a read-only audit (report coverage gaps as findings, do not author tests).
-
----
-
 ## Constraints
 - Apply @rules/refactoring/general.md — shared definition of refactoring, recommended incremental process, and "no big-bang rewrite" rule.
 - Apply @rules/php/core-standards.md
@@ -24,6 +15,15 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 - Apply @rules/code-testing/general.md
 - Never change behavior
 - Keep public API stable unless explicitly required
+
+---
+
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
+
+- **`apply` (default)** — full refactoring: modify code, author the pre-refactor coverage commit, run fixers / checkers, and chain the After Completion review. Every step below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`)** — **never modify code, never author tests, never stage / commit / push, never run fixers or checkers, and never chain any After Completion review.** Scope the analysis to the lines added or modified by the PR diff and return the refactoring opportunities as markdown only, for the CR to fold into its Refactoring (DRY / tech debt) and Refactoring proposals sections. Every code-changing instruction below — apply, extract, split, consolidate, collapse, replace, remove, move, or any other verb that would touch code — is emitted as a written proposal, not applied to code; the Test Coverage Gate becomes a read-only audit (report coverage gaps as findings, do not author tests).
 
 ---
 
