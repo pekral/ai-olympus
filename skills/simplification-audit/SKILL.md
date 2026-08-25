@@ -56,6 +56,8 @@ Hold the whole audit in **one canonical report** — the shape lives in `templat
 
 This inventory **is** the coverage contract. A broad catch-all row does not prove coverage of what it claims to cover: split it until every row has a boundary a worker can hold in one pass.
 
+Record the pre-audit `git status --short` output in the report's `## Scope` block before any subsystem review starts. That line is the baseline the read-only guarantee in *Done when* is checked against.
+
 ### 2. Run bounded subsystem reviews
 
 - Give every worker exactly one subsystem, with an **exact, non-overlapping** ownership boundary.
@@ -108,7 +110,7 @@ Write the report in the language the user made the request in. Code identifiers,
 - Every finding carries complete evidence, scope, risk, and validation fields.
 - Duplicates and weak abstractions have been removed.
 - Priorities and dependencies are internally consistent.
-- The repository is unchanged — `git status` reports exactly what it reported before the audit started.
+- The repository is unchanged — `git status --short` matches the pre-audit baseline recorded in the report's `## Scope` block.
 
 ---
 

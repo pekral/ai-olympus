@@ -119,6 +119,16 @@ test('the read-only limit sits inside the block a worker is actually handed', fu
     expect($skill)->toContain('That block is the whole of what a worker receives');
 });
 
+test('the read-only guarantee is checked against a baseline the audit actually records', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+    $template = (string) file_get_contents($packageDir . '/skills/simplification-audit/templates/audit-report.md');
+
+    expect($skill)->toContain('Record the pre-audit `git status --short` output in the report\'s `## Scope` block');
+    expect($skill)->toContain('`git status --short` matches the pre-audit baseline recorded in the report\'s `## Scope` block.');
+    expect($template)->toContain('- **Working tree at start:**');
+});
+
 test('the worker brief numbers all eight required recommendation fields', function (): void {
     $brief = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/simplification-audit/references/worker-brief.md');
 
