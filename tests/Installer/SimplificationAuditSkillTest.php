@@ -99,6 +99,26 @@ test('the worker brief keeps every look-for signal and every do-not-force clause
     expect($brief)->toContain('If nothing clearly meets the threshold, return skip.');
 });
 
+test('the read-only limit sits inside the block a worker is actually handed', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $brief = (string) file_get_contents($packageDir . '/skills/simplification-audit/references/worker-brief.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+
+    // The worker receives the quoted block, nothing else. A read-only limit sitting outside
+    // that block reaches the coordinator and never the worker it is meant to constrain.
+    preg_match_all('/^>.*$/m', $brief, $quotedLines);
+    $quotedBlock = implode("\n", $quotedLines[0]);
+
+    expect($quotedBlock)->toContain('You are read-only, exactly as the coordinator is.');
+    expect($quotedBlock)->toContain('Never edit a file, run a test, implement a recommendation, commit, or push.');
+
+    // Both files must name the same thing as "the brief", or the handover splits in two again.
+    expect($brief)->toContain('Hand the quoted block below over verbatim');
+    expect($brief)->toContain('That block is the whole of what a worker receives');
+    expect($skill)->toContain('Hand every worker the quoted brief block in `references/worker-brief.md` verbatim');
+    expect($skill)->toContain('That block is the whole of what a worker receives');
+});
+
 test('the worker brief numbers all eight required recommendation fields', function (): void {
     $brief = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/simplification-audit/references/worker-brief.md');
 
