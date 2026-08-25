@@ -191,7 +191,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // exception, so that exception dropped back to a single one. `rules/code-review/general.md` and
     // `rules/laravel/architecture.md` carry the same kind of re-baseline for issue #20, which added
     // the **Deploy-safe schema changes** Core Analysis bullet and the **Action-to-Action
-    // pass-through rule**. The pin is scoped to the issue #277 rename, which was allowed to change
+    // pass-through rule**; `rules/code-review/general.md` carries one more for issue #22, which
+    // extended the issue #53 bullet with the declaration-level generated-docblock shapes.
+    // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
     $packageDir = dirname(__DIR__, 2);
@@ -201,7 +203,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '2208f3d51b71abbf9687a32a26b6c9611646387cd2e91788e2e1dd07a4a63a43',
+        'rules/code-review/general.md' => '40aee457d43fbf31abfacb2d35a498c470912a06d56015ea2461e45d42f438b4',
         'rules/code-testing/general.md' => 'c900a8196fb215210b1f55bcdc4e095959b511d414e539ab88de45999824e66c',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
