@@ -361,3 +361,10 @@
 - Example: Uživatelský pokyn 2026-08-24 při běhu na issue #11; viz [[pest-worktree-avoid-digit-leading-path]] pro past při umístění disposable worktree.
 - Source:  https://github.com/pekral/ai-olympus/pull/16   Added: 2026-08-24
 - Role:    shared
+
+### external-tool-adoption-needs-installability-scope-reversal-check — A non-Composer external tool escapes dependency-selection: check installability, scope fit, decision reversal
+- Trigger: an issue proposes implanting an external agent tool (memory manager, CLI, MCP server) into this package.
+- Rule:    `@rules/php/dependency-selection.md` triggers only for a *Composer* dependency, so a non-Composer candidate escapes its gates entirely — run three checks first. (1) Installability: a `composer.json` plus a Composer-installable tag, verified via the GitHub contents API (404 = none), not the README; a per-OS binary can neither enter `require` nor be vendored. (2) Scope fit: the candidate's core value must sit inside this package's declared scope (Claude Code only) — full complexity cost for an unused capability is not a trade. (3) Reversal: adopting it must not undo a deliberate recorded decision (#77 removed automated `PROJECT_MEMORY.md` writes; #12's Untrusted Content Boundary bars auto-capturing assistant output into a persistent store); silence in the proposal is not justification. Any one failing → close as *not planned*, change no code, record it here.
+- Example: issue #8 (`akitaonrails/ai-memory`) — Rust binary, no `composer.json`; cross-vendor handoff out of scope; lifecycle-hook session capture reverses #77. Its curator / scoped-read / project-store parts already exist (`skills/compact-project-memory`, the `Role:` read filter).
+- Source:  https://github.com/pekral/ai-olympus/issues/8   Added: 2026-08-25
+- Role:    shared
