@@ -1,6 +1,6 @@
 ---
 name: laravel-security
-description: "Use when building, configuring, or hardening security-sensitive Laravel features — authentication, authorization, Eloquent safety, CSRF/XSS, API security, file uploads, secrets, and production configuration. Provides condensed, copy-ready secure defaults for Laravel 11 / PHP 8.3."
+description: "Use when building, configuring, or hardening security-sensitive Laravel features — authentication, authorization, Eloquent safety, CSRF/XSS, API security, file uploads, secrets, and production configuration. Provides condensed, copy-ready secure defaults for Laravel 12/13 / PHP 8.4/8.5."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -10,7 +10,7 @@ metadata:
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
 - Apply `@rules/php/core-standards.md` — `final` classes, `declare(strict_types=1)`, typed signatures
 - If the project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, `@rules/laravel/livewire.md`
-- Stack: Laravel 11 / PHP 8.3, Filament, Livewire, Alpine.js, Blade, Tailwind, Pest, Vite, MySQL, Redis
+- Stack: Laravel 12/13 / PHP 8.4/8.5, Filament, Livewire, Alpine.js, Blade, Tailwind, Pest, Vite, MySQL, Redis
 - Never hardcode secrets; never reveal them in output
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens
 

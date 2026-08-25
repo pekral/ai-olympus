@@ -9,7 +9,7 @@ metadata:
 ## Constraints
 - Apply `@rules/security/backend.md` and `@rules/security/frontend.md`
 - If the project uses Laravel, also apply `@rules/laravel/laravel.md`
-- Stack assumed: Laravel 11 / PHP 8.3, Filament, Livewire, Alpine.js, Blade, MySQL, Redis
+- Stack assumed: Laravel 12/13 / PHP 8.4/8.5, Filament, Livewire, Alpine.js, Blade, MySQL, Redis
 - Read-only investigation — never modify, stage, commit, or push code; output is the finding report only
 - Never run an exploit against infrastructure you are not authorized to test; keep PoCs minimal and safe
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens
