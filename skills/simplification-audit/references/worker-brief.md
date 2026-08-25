@@ -4,7 +4,7 @@ The exact brief `@skills/simplification-audit/SKILL.md` step 2 hands to each sub
 
 ## The brief
 
-Hand this over verbatim, with the assigned subsystem's inventory row substituted into the first line. Do not paraphrase it and do not add goals of your own.
+Hand the quoted block below over verbatim, with the assigned subsystem's inventory row substituted into the first line. That block is the whole of what a worker receives, and it states the worker's read-only limit itself. Do not paraphrase it and do not add goals of your own.
 
 > Review the assigned subsystem for at most two materially useful simplifications in its data structures, state representation, or organizing model. Inspect its implementation, public interfaces, major call sites, and existing tests. Stay within the assigned ownership boundary. You may identify cross-subsystem concerns, but do not expand the scope to solve them.
 >
@@ -19,8 +19,8 @@ Hand this over verbatim, with the assigned subsystem's inventory row substituted
 > Do not force an abstraction. Prefer boring local code when it is already clear. Do not recommend changes solely for stylistic consistency, hypothetical extensibility, minor line-count reduction, or moving existing branching behind a new type.
 >
 > Return at most two opportunities. If nothing clearly meets the threshold, return skip.
-
-The worker is read-only, exactly as the coordinator is: it never edits a file, runs a test, or implements anything.
+>
+> You are read-only, exactly as the coordinator is. Never edit a file, run a test, implement a recommendation, commit, or push. Read-only inspection commands are allowed.
 
 ## The eight required fields
 

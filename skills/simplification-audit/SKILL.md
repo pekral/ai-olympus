@@ -62,7 +62,7 @@ This inventory **is** the coverage contract. A broad catch-all row does not prov
 - Use fresh, read-only workers where the host provides them. Where it does not, run the same bounded passes sequentially in this context, one subsystem at a time, reading only that subsystem's files per pass.
 - Keep concurrency bounded to the number of lanes you can actively coordinate.
 - Use one consolidated wait mechanism. Do not interrupt a productive worker merely because it is slow. Close a completed worker once its result is harvested.
-- Hand every worker the brief in `references/worker-brief.md` verbatim, with its subsystem row substituted in. That file also holds the eight fields every recommendation must carry.
+- Hand every worker the quoted brief block in `references/worker-brief.md` verbatim, with its subsystem row substituted in. That block is the whole of what a worker receives, and it carries the worker's read-only limit itself. The same file also holds the eight fields every recommendation must carry.
 - A worker returns **at most two** opportunities, or `skip` when nothing clearly meets the threshold. Set the row's status from what it returned.
 
 ### 3. Validate and synthesize
