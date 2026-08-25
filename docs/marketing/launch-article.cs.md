@@ -51,13 +51,11 @@ odpovědí.
 Reviewer, který ten kód napsal, není reviewer. To není omezení AI — právě proto jsme vymysleli pull
 requesty.
 
-Tak se roster rozdělil. Šest agentů, šest rolí, a žádný agent nedělá dvě z nich:
+Tak se roster rozdělil. Pět agentů, pět rolí, a žádný agent nedělá dvě z nich:
 
-- **`zeus`** vlastní backlog, ne změnu. Otriáduje otevřené issues do obhajitelného pořadí a zadání,
-  které je na jeden pull request příliš velké, rozdělí na samostatně doručitelné. Neimplementuje,
-  nereviewuje ani nemerguje.
-- **`daedalus`** rozpozná zdroj, rozhodne cestu a dispatchuje. Drží `Task`, `Read`, `Glob`, `Grep`,
-  `Bash`. Kód nikdy nepíše.
+- **`daedalus`** rozpozná zdroj, rozhodne cestu a dispatchuje. Vlastní taky backlog: otriáduje
+  otevřené issues do obhajitelného pořadí a zadání, které je na jeden pull request příliš velké,
+  rozdělí na samostatně doručitelné. Drží `Task`, `Read`, `Glob`, `Grep`, `Bash`. Kód nikdy nepíše.
 - **`hephaestus`** implementuje. Je to jediný agent, který drží `Write` a `Edit`.
 - **`athena`** reviewuje — kvalitu kódu, architekturu a bezpečnost v jednom průchodu — a řídí
   opravnou smyčku až do konvergence. `Write` ani `Edit` nedrží.
@@ -103,8 +101,8 @@ projektu je Composer pořád ta lepší.
 
 Tři věci brání tomu, aby to byl stroj, který vám přepisuje repozitář, když jste na obědě.
 
-**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes`, `daedalus`, `argus` i
-`zeus` nesou `disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta.
+**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes`, `daedalus` i `argus`
+nesou `disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta.
 `hephaestus` nese `disallowedTools: WebSearch, WebFetch` z opačného důvodu: agent, který zapisuje
 soubory, nemá co stahovat cizí URL.
 
@@ -172,7 +170,7 @@ jestli dokumentace říká pravdu o důsledku. Přesně tu review bych v pátek 
 
 - **Jen Claude Code.** Žádný Cursor, Copilot ani Windsurf. Přepínač `--editor` byl odstraněn, místo
   aby zůstal napůl podporovaný.
-- **Potřebuje placený plán Claude.** Šest agentů, opravná smyčka až o třech iteracích a plný
+- **Potřebuje placený plán Claude.** Pět agentů, opravná smyčka až o třech iteracích a plný
   lokální build před každým pushem není zátěž pro free tier.
 - **Bash hranice je advisory, ne vynucená.** Každý agent drží `Bash` a `Bash` v sobě obsahuje
   zápis i síť bez ohledu na to, co říká `disallowedTools`. Vlastní instrukce „read-only" agenta

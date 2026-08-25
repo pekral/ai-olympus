@@ -56,13 +56,12 @@ available answer when it read.
 A reviewer who wrote the code is not a reviewer. That is not an AI limitation — it is why we invented
 pull requests.
 
-So the roster got split. Six agents, six jobs, and no agent doing two of them:
+So the roster got split. Five agents, five jobs, and no agent doing two of them:
 
-- **`zeus`** owns the backlog, not the change. It triages the open issues into a defensible order,
-  and splits a subject too broad for one pull request into separately deliverable ones. It never
-  implements, reviews, or merges.
-- **`daedalus`** resolves the source, decides the route, and dispatches. It holds `Task`, `Read`,
-  `Glob`, `Grep`, `Bash`. It never writes code.
+- **`daedalus`** resolves the source, decides the route, and dispatches. It also owns the backlog:
+  it triages the open issues into a defensible order, and splits a subject too broad for one pull
+  request into separately deliverable ones. It holds `Task`, `Read`, `Glob`, `Grep`, `Bash`. It
+  never writes code.
 - **`hephaestus`** implements. It is the only agent that holds `Write` and `Edit`.
 - **`athena`** reviews — code quality, architecture, and security in one pass — and drives the fix
   loop until it converges. It holds no `Write` and no `Edit`.
@@ -108,8 +107,8 @@ still the better one on a PHP project.
 
 Three things stop this from being a machine that rewrites your repository while you are at lunch.
 
-**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, `daedalus`, `argus`, and
-`zeus` each carry `disallowedTools: Write, Edit`. That is enforced by the harness, not by the
+**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, `daedalus`, and `argus`
+each carry `disallowedTools: Write, Edit`. That is enforced by the harness, not by the
 agent's own good intentions. `hephaestus` carries `disallowedTools: WebSearch, WebFetch` for the
 mirror-image reason: the agent that writes files has no business fetching a third-party URL.
 
@@ -179,7 +178,7 @@ review I would have skipped at 6pm on a Friday.
 
 - **Claude Code only.** There is no Cursor, Copilot, or Windsurf target. The `--editor` flag was
   removed rather than left half-supported.
-- **It needs a paid Claude plan.** Six agents, a review loop that can run up to three iterations, and
+- **It needs a paid Claude plan.** Five agents, a review loop that can run up to three iterations, and
   a full local build per push is not a free-tier workload.
 - **The Bash boundary is advisory, not enforced.** Every agent holds `Bash`, and `Bash` subsumes both
   write access and network access no matter what `disallowedTools` says. A "read-only" agent's own
