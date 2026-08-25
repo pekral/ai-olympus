@@ -161,7 +161,9 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // allowed to do — it may only add frontmatter.
     // Re-baselined for the pekral/ai-olympus agent + namespace rename; no sentence moved.
     // `rules/sql/optimalize.md` carries one further re-baseline: issue #20 added the
-    // **Deploy-safe schema changes** section. The pin is scoped to the issue #274 scoping change,
+    // **Deploy-safe schema changes** section, and `rules/php/core-standards.md` one more: issue #22
+    // added the **Never generate a docblock that describes the logic** bullet to `## Documentation`.
+    // The pin is scoped to the issue #274 scoping change,
     // which was allowed to add frontmatter and nothing else — it is not a freeze on the rule
     // corpus, so a later assignment that deliberately edits a rule body re-baselines it here with
     // the reason, exactly as `rules/reports/general.md` did below.
@@ -169,7 +171,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
-        'rules/php/core-standards.md' => '71f1e40d9f79f6fe12465cfa2ec7188abfc157b568e18fd9fd210942280aa475',
+        'rules/php/core-standards.md' => 'a86f70de146fe62283e3d3b3ea335195520b62f95b4f8b5393d88b5057150f51',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
