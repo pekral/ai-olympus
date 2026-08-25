@@ -103,10 +103,10 @@ projektu je Composer pořád ta lepší.
 
 Tři věci brání tomu, aby to byl stroj, který vám přepisuje repozitář, když jste na obědě.
 
-**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes` i `daedalus` nesou
-`disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta. `hephaestus` nese
-`disallowedTools: WebSearch, WebFetch` z opačného důvodu: agent, který zapisuje soubory, nemá co
-stahovat cizí URL.
+**Read-only agenti jsou read-only ve frontmatteru.** `athena`, `hermes`, `daedalus`, `argus` i
+`zeus` nesou `disallowedTools: Write, Edit`. To vynucuje harness, ne dobrá vůle agenta.
+`hephaestus` nese `disallowedTools: WebSearch, WebFetch` z opačného důvodu: agent, který zapisuje
+soubory, nemá co stahovat cizí URL.
 
 **`composer build` je branka, ne doporučení.** Spustí instalátor, pak pět fixerů, pak deset
 kontrolorů — PHPCS, Pint, Rector, PHPStan, bezpečnostní audit, self-testy shell skriptů, ShellCheck

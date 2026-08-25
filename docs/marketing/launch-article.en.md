@@ -108,10 +108,10 @@ still the better one on a PHP project.
 
 Three things stop this from being a machine that rewrites your repository while you are at lunch.
 
-**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, and `daedalus` each carry
-`disallowedTools: Write, Edit`. That is enforced by the harness, not by the agent's own good
-intentions. `hephaestus` carries `disallowedTools: WebSearch, WebFetch` for the mirror-image reason:
-the agent that writes files has no business fetching a third-party URL.
+**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, `daedalus`, `argus`, and
+`zeus` each carry `disallowedTools: Write, Edit`. That is enforced by the harness, not by the
+agent's own good intentions. `hephaestus` carries `disallowedTools: WebSearch, WebFetch` for the
+mirror-image reason: the agent that writes files has no business fetching a third-party URL.
 
 **`composer build` is a gate, not a suggestion.** It runs the installer, then five fixers, then ten
 checkers — PHPCS, Pint, Rector, PHPStan, a security audit, shell self-tests, ShellCheck, and Pest
