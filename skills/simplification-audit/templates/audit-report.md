@@ -7,6 +7,7 @@ The canonical report shape for `@skills/simplification-audit/SKILL.md`. One repo
 - **Audited scope:** <the whole repository, or the part the user named>
 - **Requested by:** <the user's own words for the request>
 - **Commit audited:** <SHA>
+- **Working tree at start:** <`git status --short` output before the audit began, or `clean`>
 
 ## Subsystem inventory (the coverage contract)
 
