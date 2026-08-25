@@ -62,6 +62,7 @@ Look for:
 - N+1 behavior from application code
 - per-row queries inside loops — per-row `update()` / `create()` / `delete()` or single-row reads driven by a `foreach` (distinct from N+1 eager-loading: this is application code intentionally writing or reading row-by-row when a single batch query would suffice)
 - redundant or overlapping indexes
+- schema changes that block during a deploy — a DDL statement that names no `ALGORITHM` / `LOCK` and may silently fall back to a table copy, or a data backfill executed inside the migration itself instead of a separate chunked command (see `@rules/sql/optimalize.md` "Deploy-safe schema changes")
 
 ### 5. Propose Optimizations
 
@@ -80,6 +81,7 @@ Recommend only justified changes, such as:
 - index addition or replacement (only when the existing schema cannot cover the query and EXPLAIN confirms the gap after the rewrite alternative has been ruled out)
 - redundant index removal
 - splitting one query into smaller ones
+- online schema change for a blocking DDL statement — name `ALGORITHM=INPLACE, LOCK=NONE`, or route the statement through `pt-online-schema-change` / `gh-ost` when it cannot run online, and move any backfill into its own chunked, re-runnable command
 
 Explain trade-offs:
 - write overhead
