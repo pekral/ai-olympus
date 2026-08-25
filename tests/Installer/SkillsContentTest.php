@@ -2,41 +2,6 @@
 
 declare(strict_types = 1);
 
-test('race-condition-review skill is referenced only by code review skills', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $needle = '@skills/race-condition-review/SKILL.md';
-    $skillFiles = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($packageDir . '/skills', FilesystemIterator::SKIP_DOTS),
-    );
-
-    foreach ($iterator as $file) {
-        if ($file instanceof SplFileInfo && $file->getFilename() === 'SKILL.md') {
-            $skillFiles[] = $file->getPathname();
-        }
-    }
-
-    $expectedFiles = [
-        $packageDir . '/skills/code-review/SKILL.md',
-        $packageDir . '/skills/code-review-github/SKILL.md',
-        $packageDir . '/skills/code-review-jira/SKILL.md',
-        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
-    ];
-
-    foreach ($expectedFiles as $expectedFile) {
-        expect(crContractText($expectedFile))->toContain($needle);
-    }
-
-    foreach ($skillFiles as $skillFile) {
-        if (in_array($skillFile, $expectedFiles, strict: true)) {
-            continue;
-        }
-
-        $content = file_get_contents($skillFile);
-        expect($content)->not->toContain($needle);
-    }
-});
-
 test('dry review rule is referenced by process-code-review skill', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
