@@ -2210,7 +2210,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
         . 'security-relevant at any severity.**',
     );
     expect($rule)->toContain(
-        "- **Below Critical, and outside the security carve-out above, the project's own convention wins.**",
+        '- **Below Critical, and outside the security carve-out above, the project\'s own convention wins.**',
     );
 
     // The winning side is decided by subject as well as severity: @rules/security/** is not uniformly
@@ -2222,7 +2222,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
         'A finding that meets S1, S2, or S3 never falls under this bullet, whatever severity it carries.',
     );
     expect($skill)->toContain('so does a security-relevant finding at **any** severity');
-    expect($rule)->not->toContain("- **Below Critical, the project's own convention wins.**");
+    expect($rule)->not->toContain('- **Below Critical, the project\'s own convention wins.**');
 
     // Absence is the ordinary case (some install channels ship no CLAUDE.md), never a finding.
     expect($rule)->toContain('### Absent file — skip silently');
