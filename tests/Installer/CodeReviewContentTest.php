@@ -1648,7 +1648,7 @@ test(
         // The canonical wording above stays the single source, and the retired mechanism must not
         // leave a dangling reference behind.
         expect($gates)->not->toContain('nominal trigger SHA');
-        expect($gates)->not->toContain('CI-result reuse for the loop gate');
+        expect($gates)->toContain('**CI-result reuse for the loop gate (issue #124, retired).**');
     },
 );
 
@@ -1777,8 +1777,10 @@ test('the CI-reuse mechanism is retired with the loop gate it served (issue #144
     // structurally unreachable in this repository (a `pull_request` checkout resolves the merge
     // ref, so the staleness guard could never match). Deferring the gate to the merge boundary
     // removed the loop gate outright, so the section goes rather than lingering as dead guidance.
-    expect($gates)->not->toContain('CI-result reuse for the loop gate');
+    expect($gates)->toContain('**CI-result reuse for the loop gate (issue #124, retired).**');
     expect($gates)->not->toContain('the reuse path is structurally unreachable here (issue #144)');
+    // The reason is recorded, not just the removal.
+    expect($gates)->toContain('checks out the merge ref and so could never satisfy its staleness guard');
 
     // What replaced it: one gate, at the merge boundary, never reused from a CI result.
     expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');

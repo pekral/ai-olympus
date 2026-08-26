@@ -449,18 +449,21 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
 
     // The four mechanisms mapped to the four remaining waste sources.
     expect($rule)->toContain('Shared context pack + disjoint reviewer checklists');
-    expect($rule)->toContain('Build-gate cache keyed by the working-tree content hash');
+    // Mechanism 2 is retired: with one gate run per branch there is no next build to serve.
+    expect($rule)->toContain('**Build-gate cache — retired.**');
+    expect($rule)->not->toContain('Build-gate cache keyed by the working-tree content hash');
     expect($rule)->toContain('Single coverage-verdict owner when a CR reviewer runs in an isolated worktree');
     expect($rule)->toContain('Thin orchestration reasoning for a linear pipeline');
 
     // AC3 — the cache never skips the mandatory full run on the exact final head SHA before merge,
     // and the invariant names the sanctioned exceptions `@skills/merge-github-pr/SKILL.md` itself grants (issue #119 CR fix).
     expect($rule)->toContain('it never removes or weakens whatever pre-merge build evidence `@skills/merge-github-pr/SKILL.md` actually requires');
-    expect($rule)->toContain('reusing a result recorded for a different hash is never permitted');
+    // The hash-reuse clause went with the retired cache; what it protected is now stated directly.
+    expect($rule)->toContain('no mode, flag, or cache has ever been able to merge on an ungated commit, and none can now');
 
     // The cache key is a tree hash, not a commit SHA, and mixes in non-tracked build inputs (issue #119 CR fix).
-    expect($rule)->toContain('git rev-parse "$(git stash create)^{tree}"');
-    expect($rule)->toContain('git hash-object composer.lock');
+    // The tree-hash key definition went with the retired cache — nothing computes it any more.
+    expect($rule)->not->toContain('git rev-parse "$(git stash create)^{tree}"');
 
     // AC2 — the preserved-invariants list proves no mechanism reduces review depth.
     expect($rule)->toContain('### What never changes (preserved invariants)');
