@@ -163,6 +163,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // `rules/sql/optimalize.md` carries one further re-baseline: issue #20 added the
     // **Deploy-safe schema changes** section, and `rules/php/core-standards.md` one more: issue #22
     // added the **Never generate a docblock that describes the logic** bullet to `## Documentation`.
+    // `rules/php/core-standards.md` carries one more: the code-review rule set split into three
+    // files to get under Claude Code's 150 000-character per-file limit, so the two coverage-gate
+    // cross-references in this file now name `code-review/review-process.md`, the file that
+    // carries that gate. Only the pointers moved; no sentence of this rule changed.
     // The pin is scoped to the issue #274 scoping change,
     // which was allowed to add frontmatter and nothing else — it is not a freeze on the rule
     // corpus, so a later assignment that deliberately edits a rule body re-baselines it here with
@@ -171,7 +175,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
-        'rules/php/core-standards.md' => '4bdbb45f28a8d81724adb85557a96d74cb9ca0f24763facdaec7dd2212b42c53',
+        'rules/php/core-standards.md' => '26aef9a085f29a5b7005f17f0dddaebbfcdf9b143af6b9d9befa06b2da31d917',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -196,10 +200,21 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `rules/code-testing/general.md` and `rules/php/core-standards.md` carry a re-baseline for the
     // quality-gate deferral, which moved the gate to the end of the work and retired the
     // "pre-push" vocabulary those sections used.
+    // `rules/code-testing/general.md` carries one more, for the same three-way split: its coverage
+    // cross-reference now names `code-review/review-process.md`. Only the pointer moved.
     // `rules/code-review/general.md` carries one further re-baseline for the project `CLAUDE.md`
     // gate, which added the *Project `CLAUDE.md` as an additional review input* section and then
     // bound its conflict-resolution rule by subject as well as severity, so a project convention can
     // never override a security finding that the S1-S3 carve-out protects at any severity.
+    // `rules/code-review/general.md` carries one final re-baseline: the file passed the 150 000-
+    // character limit Claude Code enforces per rule file, so the loader stopped loading it and the
+    // whole code-review rule set went silently inactive. The fix split it into three files at its
+    // own structural seams — `general.md`, `core-analysis.md`, `review-process.md` — and moved no
+    // normative sentence: the bytes below the frontmatter of the three files, concatenated in that
+    // order, read as the one file did but for a single line — the `Strict rule compliance`
+    // cross-reference inside the Core Analysis walk-through, repointed at the file that now carries
+    // that section. The digest here therefore covers only what stayed in
+    // `general.md` plus the pointer section that names the other two.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -210,8 +225,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '394e4525e6fb88455bd219b78168772dc92e7c173aa28c7d010fa6a72975c880',
-        'rules/code-testing/general.md' => '719c2646a21ff76458ace581ba8cebaaa58a29f5558168c52aa1769482fb84f9',
+        'rules/code-review/general.md' => '8ac608aad04d99c14cb39acaa4c6c3f8dc49a34a2ed206776dbf83cadedbcc8f',
+        'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
@@ -244,7 +259,7 @@ test('a rule scoped to nothing says so with an explicit empty `paths:` list (iss
     }
 
     expect($violations)->toBe([]);
-    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(7);
+    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(9);
 });
 
 test('a rule scoped to nothing is claimed neither as always-on nor as path-scoped (issue #277)', function (): void {

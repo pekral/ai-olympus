@@ -330,7 +330,7 @@ test('athena runs the broken-object-level-authorization lens the CR rule already
     expect($athena)->toContain('rather than reporting a clean authorization pass you never ran');
 
     // The rule this closes the loop with still carries its side of the contract.
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     expect($rule)->toContain('@skills/laravel-authorization-review/SKILL.md');
 });
 

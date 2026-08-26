@@ -60,8 +60,7 @@ test('the generated-docblock rule extends the existing Documentation section rat
 });
 
 test('the code-review walk finds the generated docblock on the changed lines (issue #22)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $crRule = codeReviewRuleContents();
 
     // The two shapes the #53 bullet never named. Without them a reviewer had to argue the
     // category into an existing pattern instead of matching it.
@@ -82,7 +81,7 @@ test('the code-review walk finds the generated docblock on the changed lines (is
 
 test('the generated-docblock trigger extends the issue #53 bullet instead of forking a rival one (issue #22)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $crRule = codeReviewRuleContents();
 
     // Reuse-first: the category lives inside the bullet that already owns redundancy. A second
     // bullet would have needed a gating clause; extending the first one needs none, and this

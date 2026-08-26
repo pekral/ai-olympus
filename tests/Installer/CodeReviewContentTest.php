@@ -291,9 +291,7 @@ test('GitHub PR comment templates use a compact AI-parseable header with severit
 
 test('code-review skill enforces strict rule compliance and architecture conformance', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('**Strict rule compliance (mandatory walk-through)**');
     expect($content)->toContain('scan the diff for any pattern that matches a numbered or bulleted rule');
@@ -398,11 +396,9 @@ test('code review skills constrain refactoring lens to PR diff', function (): vo
 });
 
 test('reuse-first gate asks whether new logic is necessary before reusing existing logic (issue #722)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     // Canonical home: the rule carries the reuse-first gate so every CR skill that
     // runs code-review inherits it.
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     expect($rule)->toContain('Reuse-first gate');
     expect($rule)->toContain('Is new logic necessary to satisfy the assignment?');
     expect($rule)->toContain('reuse-first gate');
@@ -520,8 +516,7 @@ test('code-testing rules register the Test Organization Review Hook pointing at 
 });
 
 test('code-review rule references Test Organization gate (issue #528)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $content = codeReviewRuleContents();
 
     expect($content)->toContain('## Test Organization');
     expect($content)->toContain('mirrors the namespace of the production class');
@@ -533,9 +528,7 @@ test('code-review rule references Test Organization gate (issue #528)', function
 
 test('code-review skill enforces Test Organization gate on every diff (issue #528)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('**Test organization (issue #528)**');
     expect($content)->toContain('Placement mirrors the SUT namespace');
@@ -597,9 +590,7 @@ test('core-standards Testing bullet short-circuits coverage reporting when 100% 
 
 test('code-review skill short-circuits coverage section in Output Rules + Coverage gate (issue #528 follow-up)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     // Coverage gate text mandates short-by-default reporting.
     expect($content)->toContain('**Coverage reporting is short by default.**');
@@ -666,7 +657,7 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
     
-        $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+        $codeReview = codeReviewRuleContents();
         expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
         expect($codeReview)->toContain('reports the gate as `deferred to hephaestus` instead of the Critical finding the bullet above otherwise requires');
     
@@ -687,7 +678,7 @@ test(
 
 test('code review rule flags extensive PHPDoc / inline commentary as a readability finding (issue #179)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('**Extensive PHPDoc / inline commentary standing in for readable code**');
 
@@ -719,9 +710,7 @@ test('code review rule flags extensive PHPDoc / inline commentary as a readabili
 
 test('code-review skill mandates a standalone Laravel architecture walk on every CR run (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('**Architecture conformance (Laravel)** — mandatory standalone walk-through (issue #530)');
     expect($content)->toContain('independent of Strict rule compliance');
@@ -742,9 +731,7 @@ test('code-review skill mandates a standalone Laravel architecture walk on every
 
 test('code-review Output Rules carry the Architecture section conditional rendering rule (issue #530)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('`## Architecture` section (issue #530)');
     expect($content)->toContain('the `## Architecture` heading is rendered **only when the walk produces at least one finding**');
@@ -825,9 +812,7 @@ test('code-review-jira Output Rules and GitHub template carry the Architecture c
 
 test('code-review skill adds Shared Concerns (Traits) to the mandatory architecture walk (issue #531)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('**Shared Concerns (Traits)** (globally shared, domain-agnostic, reusable-as-is logic only');
     expect($content)->toContain('flag domain-specific code parked under `app/Concerns/`');
@@ -836,9 +821,7 @@ test('code-review skill adds Shared Concerns (Traits) to the mandatory architect
 
 test('code-review skill verifies every Critical finding via analyze-problem before publishing (issue #537)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('### Critical Findings Verification (issue #537)');
     expect($content)->toContain('Walk every **Critical** finding aggregated within this skill\'s run through `@skills/analyze-problem/SKILL.md`');
@@ -853,9 +836,7 @@ test('code-review skill verifies every Critical finding via analyze-problem befo
 
 test('code review enforces translatable UI, console, and API strings (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('Translation completeness (mandatory when the project ships translations)');
     expect($content)->toContain('@rules/laravel/laravel.md` **Localization and Translatable Strings**');
@@ -864,8 +845,7 @@ test('code review enforces translatable UI, console, and API strings (issue #553
 });
 
 test('code review flags a translation key that exists in no locale (issue #37)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $content = codeReviewRuleContents();
 
     // Laravel returns the raw key on a miss, so a referenced-but-nonexistent
     // key reaches the user as a dotted identifier and passes every other gate.
@@ -882,7 +862,7 @@ test('code review flags a translation key that exists in no locale (issue #37)',
 
 test('code review flags comments and docs that only restate the code (issue #53)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('Explanatory comments and docs that restate the code (issue #53)');
     // The fix is a better name, not a comment.
@@ -901,7 +881,7 @@ test('code review flags comments and docs that only restate the code (issue #53)
 
 test('code review output must state only verified facts, never assumptions (issue #74)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('Output Rules — Truthful reporting (issue #74)');
     // Governs the whole output, not just findings.
@@ -920,9 +900,7 @@ test('code review output must state only verified facts, never assumptions (issu
 
 test('code review enforces test isolation against real HTTP and system processes (issue #553)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('Test isolation — no real HTTP, no real system processes');
     expect($content)->toContain('**Real outbound HTTP**');
@@ -934,9 +912,7 @@ test('code review enforces test isolation against real HTTP and system processes
 
 test('code-review wires the API rule and api-review skill into every CR run (issue #552)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('- Apply @rules/api/general.md');
     expect($content)->toContain('@skills/api-review/SKILL.md');
@@ -945,9 +921,7 @@ test('code-review wires the API rule and api-review skill into every CR run (iss
 
 test('code-review skill flags request->DTO transformation called directly in the controller body (issue #698)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     expect($content)->toContain('**Request → DTO transformation belongs in the FormRequest, not the controller**');
     expect($content)->toContain('`$request->toDto()`');
@@ -961,9 +935,7 @@ test(
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md')
             . "\n" . (string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md')
-            . "\n" . (string) file_get_contents(
-                $packageDir . '/rules/code-review/general.md',
-            );
+            . "\n" . codeReviewRuleContents();
     
         // Acceptance-criteria use-case coverage bullet in the Validation section
         expect($content)->toContain('**Acceptance-criteria use-case coverage (mandatory):**');
@@ -978,8 +950,7 @@ test(
 );
 
 test('rule defines the Assignment-Declared Test-Only Conditions Exclusion Gate with the security carve-out (issue #17)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('## Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)');
     expect($rule)->toContain('### Detection conditions (all four required)');
@@ -1114,9 +1085,7 @@ test('full-tree grep finds no orphaned or duplicated Excluded per assignment / E
 
 test('code-review skill flags enum-mode match() in Data Validator bullet and New storage reuse analysis (issue #708)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . (string) file_get_contents(
-        $packageDir . '/rules/code-review/general.md',
-    );
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
     // enum-mode match() added to the inline validation guards bullet
     expect($content)->toContain('enum-mode `match()` belong in a Data Validator');
@@ -1156,8 +1125,7 @@ test('code-testing rules reference the canonical mandatory AAA rule (issue #25)'
 });
 
 test('code-review Test Organization gate and Core Analysis bullet enforce AAA structure (issue #25)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $content = codeReviewRuleContents();
 
     expect($content)->toContain(
         'AAA phase order per `@rules/code-testing/general.md` / `@rules/php/core-standards.md` Testing — setup, '
@@ -1198,7 +1166,7 @@ test('rewrite-tests-pest skill requires mandatory AAA flow, not merely preferred
 
 test('code-review rule and skill enforce backward-compatible data/storage changes (issue #38)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the gating.
@@ -1212,7 +1180,7 @@ test('code-review rule and skill enforce backward-compatible data/storage change
 
 test('code-review rule and skill enforce storage relocation / migration completeness (issue #55)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the 3-way gating.
@@ -1230,7 +1198,7 @@ test('code-review rule and skill enforce storage relocation / migration complete
 test('suppression rule pair flags @-prefixed PHPCS annotations as Critical (issues #41, #258)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
-    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $crRule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // Both canonical rule locations enumerate the @-prefixed spelling verbatim and stay byte-in-sync.
@@ -1249,8 +1217,7 @@ test('suppression rule pair flags @-prefixed PHPCS annotations as Critical (issu
 });
 
 test('rule defines the Two-Part CR Output — Technical & Functional Review contract (issue #56)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('## Two-Part CR Output — Technical & Functional Review');
     expect($rule)->toContain('**`## Technical Review`**');
@@ -1378,15 +1345,14 @@ test('code-review-bugsnag Summary line carries the assignment conformance token 
     expect($bugsnagTemplate)->toContain('`assignment conformance:` token on the Summary line below');
 
     // The rule's "Bugsnag has no token" exception clause is gone now that the drift is fixed.
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     expect($rule)->not->toContain('except `@skills/code-review-bugsnag`');
 });
 
 test(
     'code-review class inventory bullet carries a worked Service-vs-Action Faulty Example and explicit collision gating (issue #126)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+        $content = codeReviewRuleContents();
 
         expect($content)->toContain('final readonly class InvoiceAttachmentSizeService');
         expect($content)->toContain('A `Service`-suffixed class not extending `BaseModelService` is always in this bucket, unconditionally');
@@ -1402,8 +1368,7 @@ test(
 );
 
 test('code-review rule requires a concrete SQL rewrite in Database Analysis, not just a category label (issue #132)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain(
         'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
@@ -1465,7 +1430,10 @@ test(
 
 test('full-tree grep finds every CR skill/template/rule references the concrete SQL Database Analysis contract (issue #132)', function (): void {
     $expectedFiles = [
-        'rules/code-review/general.md',
+        // The Database Analysis contract sits in the review-process half of the code-review rule
+        // set, not in `general.md`, since the split that took the set under Claude Code's
+        // 150 000-character per-file limit.
+        'rules/code-review/review-process.md',
         'skills/code-review/templates/review-output.md',
         'skills/code-review-github/SKILL.md',
         'skills/code-review-github/templates/pr-comment-output.md',
@@ -1484,7 +1452,7 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
-        $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+        $crRule = codeReviewRuleContents();
         $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
         // The Naming section defines the binding misleading-name rule with concrete triggers, for both methods and variables.
@@ -1582,8 +1550,7 @@ test(
 );
 
 test('Real-Code Grounding contract lives once in the code-review rule (issue #97)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('## Real-Code Grounding for Every Finding (issue #97)');
     expect($rule)->toContain('**at every severity, no exception**');
@@ -1623,7 +1590,7 @@ test(
     'Coverage gate Staleness guard uses the hardened actually-checked-out-SHA wording, cited (not restated) by quality-gates.md (issue #137)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+        $crRule = codeReviewRuleContents();
         $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
         // rules/code-review/general.md Coverage gate now carries the same hardened wording already
@@ -1788,8 +1755,7 @@ test('the CI-reuse mechanism is retired with the loop gate it served (issue #144
 });
 
 test('code review rule breaks a parallel-reviewer severity divergence toward the higher severity (issue #172)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $content = codeReviewRuleContents();
 
     expect($content)->toContain('## Severity divergence between parallel reviewers (issue #172)');
     expect($content)->toContain('**The higher severity wins.**');
@@ -1800,7 +1766,7 @@ test('code review rule breaks a parallel-reviewer severity divergence toward the
 
 test('code review rule assigns the remediation-conformance verdict to exactly one reviewer (issue #174)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $content = codeReviewRuleContents();
 
     expect($content)->toContain('## Remediation-conformance ownership — derive once, not once per reviewer (issue #174)');
     expect($content)->toContain('**Exactly one reviewer derives the remediation-conformance verdict per PR head SHA.**');
@@ -1819,8 +1785,7 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
 });
 
 test('code review rule narrows the report to Critical and Moderate from the third CR iteration on', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('## Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
     // The trigger is an explicit caller-supplied value; absent it, nothing is narrowed.
@@ -1992,7 +1957,7 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
 test('no suppression annotation may enter a diff, with no scoping or documentation exception (issue #258)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
-    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $crRule = codeReviewRuleContents();
 
     // The carve-out this replaces let any inconvenient finding through: a reviewer could not
     // tell a real third-party false positive from a fix someone did not want to make.
@@ -2066,7 +2031,7 @@ test('this package writes no suppression annotation in its own source (issue #25
 test('a why-comment is exempt only for the residue naming could not carry (issue #263)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
-    $crRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $crRule = codeReviewRuleContents();
 
     // The keep bar from #256 says what a comment may explain. Read alone it also licensed
     // explaining it in prose the code could have carried, which is the hole #263 reported:
@@ -2138,7 +2103,7 @@ test('the three CR tracker wrappers share one contract instead of three drifting
 
 test('code review flags an Action that only forwards to another Action (issue #20)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
 
@@ -2181,7 +2146,7 @@ test('code review flags an Action that only forwards to another Action (issue #2
 
 test('every CR run loads the project CLAUDE.md from the default branch and applies its code guidance', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // Without this gate a review never sees the conventions the consuming project treats as binding.

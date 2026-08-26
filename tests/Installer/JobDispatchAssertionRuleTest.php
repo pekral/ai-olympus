@@ -42,8 +42,7 @@ test('the testing rule forbids a payload closure on a job-dispatch assertion (is
 });
 
 test('the code-review rule carries the walk that makes the job-assertion rule enforceable (issue #181)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('Job-dispatch assertions carry no payload closure (issue #181)');
     expect($rule)->toContain('An integer second argument is not a finding');
