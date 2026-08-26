@@ -47,7 +47,7 @@ gh issue list --repo OWNER/REPO --state all --limit 1000 \
 
 # Fallback for very large backlogs: paginate REST and drop pull requests.
 gh api --paginate "/repos/OWNER/REPO/issues?state=all&per_page=100" \
-  --jq '.[] | select(has("pull_request") | not) | {number,title,state,url}'
+  --jq '.[] | select(has("pull_request") | not) | {number,title,body,state,labels,milestone,user,created_at,updated_at,closed_at,assignees,html_url}'
 ```
 
 Read comments only for candidate and ambiguous issues — a comment can change classification, scope, dependencies, or compatibility impact:
