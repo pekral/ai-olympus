@@ -78,7 +78,7 @@ the review was published.
 
 ## Why a Composer plugin, not a copied file
 
-The standards ship as a Composer package: 25 rule files and 53 skills, installed into
+The standards ship as a Composer package: 25 rule files and 54 skills, installed into
 `.claude/rules` and `.claude/skills` by a binary.
 
 ```bash
