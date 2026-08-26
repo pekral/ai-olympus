@@ -15,6 +15,11 @@
 
 **AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
 
+> [!WARNING]
+> **Experimental, and under active development.** This package is being built in the open and is not stable yet. Agent definitions, skills, and rules are added, renamed, and removed between releases, and a change to any of them can alter how the agents behave in your project. Breaking changes ship in minor versions and are recorded in [`CHANGELOG.md`](CHANGELOG.md).
+>
+> Pin an exact version if you depend on current behaviour, read the changelog before upgrading, and review what the agents propose rather than merging it unread. Issues and pull requests are welcome — that is what this stage is for.
+
 ## Quickstart
 
 ```bash
