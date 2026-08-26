@@ -144,7 +144,7 @@ Omit a section only when it does not apply.
 Run before declaring the skill done:
 - `composer skill-check` — must report `PASS` with no warnings on the new file
 - If `skill-check` flags an auto-fixable warning, run `npx skill-check check skills/<slug> --fix --no-security-scan` (path-scoped) instead of `composer skill-check-fix`, which rewrites every skill in the tree and can pollute the diff with unrelated formatting changes
-- `composer build` — full project build (must finish without errors)
+- The full build is **not** run here — the project's gate runs once at the end of the work (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), and `composer skill-check` above is a diff-scoped check, not that gate
 
 Do not silence checks; fix the SKILL.md content until the report is clean.
 
@@ -185,6 +185,6 @@ Skip the README update only when the skill is intentionally internal and not par
 ## Done when
 - `skills/<slug>/SKILL.md` exists with valid frontmatter and required sections
 - `composer skill-check` passes with no warnings on the new file
-- `composer build` finishes without errors
+- `composer skill-check` reports `PASS` (the full build is not run here — it runs once at the end of the work)
 - `CHANGELOG.md` and `README.md` reflect the new skill (or the omission is justified)
 - The summary lists the slug, references, and validation result
