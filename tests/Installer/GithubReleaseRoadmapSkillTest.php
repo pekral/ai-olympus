@@ -188,6 +188,15 @@ test('the github-release-roadmap CLI reference names the defaults that truncate 
     expect($workflow)->toContain('Always pass an explicit `--limit`');
     expect($workflow)->toContain('unless `--paginate` is passed');
 
+    // `gh project list` and `gh project field-list` carry the same default. A truncated Project
+    // list makes the run conclude no roadmap Project exists and propose a duplicate on top of the
+    // real one, so both the rule and the prescribed commands have to name the limit.
+    expect($workflow)->toContain('`gh issue list`, `gh label list`, `gh project list`, and `gh project field-list` default to **30** items');
+    expect($workflow)->toContain('gh project list --owner OWNER --format json --limit 100');
+    expect($workflow)->toContain('gh project field-list <NUMBER> --owner OWNER --format json --limit 100');
+    expect($workflow)->not->toContain("gh project list --owner OWNER --format json\n");
+    expect($workflow)->not->toContain("gh project field-list <NUMBER> --owner OWNER --format json\n");
+
     // `/issues` includes pull requests; `gh issue list` does not. Conflating the two inflates the
     // roadmap with PRs the issue explicitly excluded.
     expect($workflow)->toContain('The REST endpoint does **not**');

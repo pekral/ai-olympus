@@ -28,7 +28,7 @@ gh repo view OWNER/REPO --json name,owner,defaultBranchRef,visibility
 
 Two defaults truncate silently and are the main reason a roadmap drops work:
 
-- `gh issue list` and `gh label list` default to **30** items. Always pass an explicit `--limit`.
+- `gh issue list`, `gh label list`, `gh project list`, and `gh project field-list` default to **30** items. Always pass an explicit `--limit`.
 - REST list endpoints return one page (30 items) unless `--paginate` is passed.
 
 Two habits close it:
@@ -72,9 +72,9 @@ The label list is what makes the *prefer an existing label* rule checkable: matc
 ## Read the Projects
 
 ```bash
-gh project list --owner OWNER --format json
+gh project list --owner OWNER --format json --limit 100
 gh project view <NUMBER> --owner OWNER --format json
-gh project field-list <NUMBER> --owner OWNER --format json
+gh project field-list <NUMBER> --owner OWNER --format json --limit 100
 gh project item-list <NUMBER> --owner OWNER --format json --limit 1000
 ```
 
