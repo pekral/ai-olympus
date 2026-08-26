@@ -23,11 +23,28 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 ### Rules to apply
 
-- Apply @rules/php/core-standards.md
-- Apply @rules/git/general.md
-- Apply @rules/jira/general.md when the target is a JIRA issue
+Each line states what the rule actually decides here, so its relevance is clear without opening it.
+
+- Apply @rules/php/core-standards.md — the package-wide prose and code standards every skill is held to.
+- Apply @rules/git/general.md — how the base branch is resolved and what the commit history this skill reads is expected to look like.
+- Apply @rules/jira/general.md when the target is a JIRA issue — the Markdown → Wiki Markup mapping and the ban on leaked Markdown control characters, both applied in *No leaked markup on JIRA* below.
 - Apply @rules/reports/general.md — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
-- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
+- If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md` — they tell the summary what a change to an Action, a Livewire component, or a Filament resource means in business terms.
+
+### What renders where
+
+The two targets are deliberately asymmetric: the GitHub PR comment is the full report, the JIRA comment is the tester's instructions and nothing else. Every constraint below is the detail behind one row of this table.
+
+| Element | GitHub PR comment | JIRA comment |
+|---|---|---|
+| `{assignment_verdict}` banner | conditional — only when an `Assignment Compliance` block is passed | conditional — same rule |
+| `Authors` | yes, own metadata line | never |
+| `Available behind` | yes, own metadata line | never — folded into `How to test` step 1 |
+| `Summary of changes` | yes | never |
+| `How to test` | yes | yes — the entire comment |
+| `{embedded_blocks}` | conditional — exactly as the wrapper passed them | conditional — exactly as the wrapper passed them |
+| Markup | GitHub Markdown | JIRA Wiki Markup only; no Markdown control character may leak |
+| Template | `templates/pr-summary-github.md` | `templates/pr-summary-jira.md` |
 
 ### What the comment carries
 
