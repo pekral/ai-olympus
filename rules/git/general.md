@@ -100,7 +100,7 @@ A pull request is a **Draft** for as long as it is **not yet ready to merge and 
     - Merge into `main`
     - Close the PR
     - Delete the branch
-    - Remove the worktree if one was created for this work unit (see *Worktrees / Workspaces* above for the opt-in / safety rules; `@skills/merge-github-pr/SKILL.md` §4 owns the step)
+    - Remove the worktree if one was created for this work unit (see *Worktrees / Workspaces* above for the opt-in / safety rules; `@skills/merge-github-pr/SKILL.md` §5 owns the step)
     - Switch locally to `main`
     - Pull latest changes
 

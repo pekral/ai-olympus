@@ -171,7 +171,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
-        'rules/php/core-standards.md' => 'a86f70de146fe62283e3d3b3ea335195520b62f95b4f8b5393d88b5057150f51',
+        'rules/php/core-standards.md' => '4bdbb45f28a8d81724adb85557a96d74cb9ca0f24763facdaec7dd2212b42c53',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -193,9 +193,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // the **Deploy-safe schema changes** Core Analysis bullet and the **Action-to-Action
     // pass-through rule**; `rules/code-review/general.md` carries one more for issue #22, which
     // extended the issue #53 bullet with the declaration-level generated-docblock shapes.
-    // `rules/code-testing/general.md` carries a re-baseline for the quality-gate deferral, which
-    // moved its **Code Style and Quality Gates** section from per-change fixers to the single
-    // pre-merge gate.
+    // `rules/code-testing/general.md` and `rules/php/core-standards.md` carry a re-baseline for the
+    // quality-gate deferral, which moved the gate to the end of the work and retired the
+    // "pre-push" vocabulary those sections used.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -207,7 +207,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         'rules/code-review/general.md' => '40aee457d43fbf31abfacb2d35a498c470912a06d56015ea2461e45d42f438b4',
-        'rules/code-testing/general.md' => 'abaa9f22353027e72331b536e5a320a0e172f60b1942f13184293db0053b6391',
+        'rules/code-testing/general.md' => '719c2646a21ff76458ace581ba8cebaaa58a29f5558168c52aa1769482fb84f9',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',

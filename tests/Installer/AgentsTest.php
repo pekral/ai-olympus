@@ -831,7 +831,6 @@ test('daedalus decides the opt-in savings mode once during gather and never narr
     // Brief layout carries the new fields alongside the pre-existing ones.
     expect($daedalus)->toContain('## Context pack');
 
-    // The cache is written by hephaestus only — athena stays read-only and never runs a
     // The build-gate cache the clause used to guard is retired (#119) — one gate run per branch
     // leaves no second build to serve — so no brief section survives for daedalus to carry.
     expect($daedalus)->not->toContain('## Build gate cache');

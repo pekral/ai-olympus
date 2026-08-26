@@ -66,7 +66,7 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Each `it()` / `test()` description states the scenario in plain language and matches what the body actually asserts. Examples of *matching* descriptions: `it('returns zero for an empty cart')`, `test('throws InvalidArgumentException when the discount is negative')`. Examples of *non-matching* descriptions that violate this rule: generic placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), descriptions that name the method instead of the scenario (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions (`it('adds user')` over a body that asserts removal). When changing what a test asserts, rename the description in the same change.
 
 ## Test Organization Review Hook
-- In code-review and pre-push contexts, every new or moved test file must satisfy the **Test Organization** rules above. Misplaced files, mismatched file names, and descriptions that do not match the asserted scenario are CR findings — see `@skills/code-review/SKILL.md` "Test organization" Core Analysis bullet for the severity matrix and Suggested Fix template.
+- In code-review and pre-PR contexts, every new or moved test file must satisfy the **Test Organization** rules above. Misplaced files, mismatched file names, and descriptions that do not match the asserted scenario are CR findings — see `@skills/code-review/SKILL.md` "Test organization" Core Analysis bullet for the severity matrix and Suggested Fix template.
 
 ## Scope
 - Focus tests on behavior, not implementation details.
