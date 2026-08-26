@@ -1218,6 +1218,8 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
 
     // No sentence may say a caller instruction lifts the gate.
     expect($merge)->not->toContain('The only thing that lifts this requirement');
+    expect($merge)->not->toContain('request standing in for it');
+    expect($merge)->not->toContain('decision by the caller to merge without one');
     expect($merge)->toContain('a merge must never re-prove, on the same bytes, what a recorded run already proved');
 });
 
