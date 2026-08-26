@@ -189,7 +189,7 @@ Conventional `type(scope)` subjects from `@rules/git/general.md` make this chang
 Never commit `.env`, the `vendor/` or `node_modules/` trees, the Vite build output in `/public/build`, or generated keys.
 
 ## Hooks
-If you wire a pre-commit or pre-push hook, run the project's own checks (the `composer build` / Composer scripts and the Pest suite), not ad-hoc tooling. The hook should fail the commit on any error, mirroring CI.
+A pre-commit or pre-push hook must **not** run the project's full gate — that gate runs once at the end of the work (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), and a hook repeating it per push is exactly the cost that placement removes. A hook that runs only the tests covering the change is fine; use the project's own test command rather than ad-hoc tooling.
 
 ## Defer to
 - `@rules/git/general.md` — commit, PR, and merge conventions.
