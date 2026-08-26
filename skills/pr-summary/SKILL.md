@@ -125,6 +125,10 @@ Whenever the calling CR wrapper passes an `Assignment Compliance` embedded block
 
 ## Steps
 
+Ten numbered steps, four independent jobs. The headings below are the jobs; the numbering runs continuously so a step can still be cited by number.
+
+### Load context (1–4)
+
 1. Identify the current branch and its base branch (usually `master` or `main`).
 2. Load all commits in the current branch since it diverged from the base branch (`git log base..HEAD`).
 3. For each commit, read the commit message and the diff to understand what changed and why.
@@ -132,16 +136,25 @@ Whenever the calling CR wrapper passes an `Assignment Compliance` embedded block
    - **GitHub:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it); read `body`, `comments[]`, `author`, `commits[].author`, and `closingIssues[]` off the resulting JSON document.
    - **JIRA:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — read `descriptionText`, `comments[]`, `assignee`, `reporter`, and linked PRs.
    - Never call `gh pr view`, `gh issue view`, or `acli` directly; fall back to the GitHub / JIRA MCP server only when the loader is unavailable (exit code 2/3).
+
+### Resolve authorship (5)
+
 5. **Resolve the real change author(s):**
    - Run `git log --pretty='%an <%ae>' base..HEAD | awk 'NF' | sort -u` to collect commit authors.
    - When PR metadata is available, also collect `author.login` and the unique `commits[].author.login` set — these give GitHub handles that are preferred over the raw `Name <email>` form when the target tracker is GitHub.
    - When the target tracker is JIRA and the PR commit author email matches a known JIRA account (via the JIRA loader's user lookup or `assignee` / `reporter` matching the committer), prefer the JIRA display name.
    - Build the **Authors** line: comma-separated identities in commit order, deduped, prefixed with `@` for GitHub handles. If no identity could be resolved, fall back to *"unknown — git history did not yield a recognisable identity"*.
+
+### Decide gating and target (6–7)
+
 6. **Detect test-parameter gating:** scan the diff for the guards listed under *Available behind* above. For every guard found, record the toggle name, the value required to reach the change, and any documented switch label (admin screen, ENV var). Populate the conditional **Available behind** line; omit it only when no guard exists on the path to the change.
 7. Detect the **target tracker** for the comment by following the table in `@skills/resolve-issue/references/source-detection.md` (branch name / PR description / linked issue trail):
    - **JIRA** — the branch or PR description matches a JIRA issue-key regex (e.g. `^[A-Z][A-Z0-9_]+-\d+$`), or the JIRA loader from step 4 returns a non-empty document. Use `templates/pr-summary-jira.md` (JIRA Wiki Markup).
    - **GitHub** — otherwise, or when the user explicitly asks for a PR comment. Use `templates/pr-summary-github.md` (GitHub Markdown).
    - If both signals match (cross-tracker PR), prefer the tracker named in the user's invocation; if none was given, prefer JIRA so the JIRA UI receives a formatted comment.
+
+### Write and publish (8–10)
+
 8. Write the summary using the chosen template.
    - **GitHub target** — fill the metadata lines and both required sections:
      - **Authors** — comma-separated identities resolved in step 5.
