@@ -106,10 +106,9 @@ CR severity: **Moderate**. Escalate to **Critical** when the tautology is the on
   When every changed line is at 100% coverage and the tool ran successfully, **omit the `## Coverage` section entirely, omit the `Coverage:` header line, and omit the `coverage …` slot from the final summary line.** The CR is "clean" on the Counts line and the omission is the signal that coverage is satisfied — never emit `100%` / `clean` / `n/a` placeholders for the section, the header line, or the summary slot. The coverage check itself still runs unconditionally on every CR; only the user-visible reporting is short-circuited.
 
 ## Code Style and Quality Gates
-- Discover available fixers and checkers: prefer Phing targets (`build.xml`/`phing.xml`) over Composer scripts (`composer.json`).
-- Run available fixers on changed test files and fix any violations.
-- Run available checkers/analyzers on changed test files and resolve all reported errors.
-- Complete all quality gates before finalizing test changes.
+- **Do not run fixers or checkers on test changes as you author them.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), executed by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*, which commits the fixes it produces as their own commit.
+- Do run the **tests** you are writing or changing — that is correctness feedback on the change itself, not a style gate, and it costs no build.
+- The gate discovers its own tooling: prefer Phing targets (`build.xml`/`phing.xml`) over Composer scripts (`composer.json`).
 
 ## Test Review
 - After completing test changes, run a quick code review focused on test quality against these rules.

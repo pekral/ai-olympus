@@ -75,7 +75,7 @@ git rebase --exec 'composer build' \
   "origin/$DEFAULT_BRANCH"            # 3) replay the range; stops on the first commit that fails
 git push --force-with-lease           # 4) publish; do NOT git pull again — it would undo the rebase
 ```
-Step 3 is not optional. The rebase in step 2 replayed every commit onto a different base, so each one now has a tree it was never gated against — a branch that was green before the rebase can carry a commit that fails after it, and nothing between step 2 and the push would notice. `@rules/git/general.md` *Every commit is green* requires the replay before a reshaped branch is pushed; substitute the project's own gate for `composer build` where it differs.
+The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted; substitute the project's own gate for `composer build` where it differs.
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
 composer install                      # run only when composer.lock actually changed

@@ -109,9 +109,10 @@ Only after Read, Map, and Verify are complete may commit planning and implementa
 
 ### Commit planning (one point = one commit)
 
-Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.md` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end, running the pre-push fixers and tests on its changes first.
+Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.md` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end.
+Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
 
-Every commit the plan produces must be **green on its own** per `@rules/git/general.md` *Git Rules* (*Every commit is green*): a point's test and the change that makes it pass land in the **same** commit, no failing or simulated-failing test is ever committed, and a history reshaped by a rebase, `--autosquash`, reorder, or split is replayed with `git rebase --exec '<the project gate>' <base>` before the branch is pushed.
+Per `@rules/git/general.md` *Git Rules* (*The merged head is green; intermediate commits are not gated*), a point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed. Intermediate commits are not individually gated — the project's gate runs once on the head commit being merged. When a branch genuinely needs a bisectable history, replay the range with `git rebase --exec '<the project gate>' <base>`; that replay is available, not required.
 
 ### Pre-existing issue handling
 
@@ -139,22 +140,21 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 15. Add or update tests to cover the new or fixed behavior.
 16. Verify 100% code coverage for all changed or added code paths — if coverage tooling exists, run it and confirm the result before proceeding.
 
-## Pre-push quality gates
+## Quality gates — deferred to the merge boundary
 
-Follow `references/quality-gates.md` — this section **is** the **final gate**; CI-reuse never applies here, regardless of the shared section title.
+**Do not run fixers, checkers, or the full build in this skill.** Per `references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's full gate runs exactly once, immediately before the merge, and is owned by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*. Running it here would prove, at implementation time, what that gate re-proves on the final head commit anyway — and on a larger task those repeated full builds dominated the wall-clock cost of delivering the change.
 
-The head-SHA dedup of `references/quality-gates.md` *Push-level gate dedup by head SHA (always on, issue #212)* applies to this gate as well, but note the ordering: in an orchestrated run this is normally the **first** push-level full build, so it typically **misses** and runs fresh — its job here is to **record** the `full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hephaestus:impl` line in the shared brief's `## Gate log` (under the per-brief append lock) that the later gates reuse. Behaviour is otherwise unchanged; consult the log first anyway, in case an earlier step already built this exact commit.
+Author the change, commit each planned point, and push. The self-checks below still run — they read the diff and cost no build.
 
 ## Code quality self-check (single pass)
 
-After implementation and pre-push quality gates pass, and **before creating the pull request**, run one self-check pass on the local changes:
+After implementation, and **before creating the pull request**, run one self-check pass on the local changes:
 
 1. **Run the review inline.** Invoke `@skills/code-review/SKILL.md` directly in this skill's context, passing the current branch / diff context plus the instruction "run `@skills/code-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings with their reproducer fields (Faulty Example, Expected Behavior, Test Hint, Suggested Fix)". Do not dispatch the review as a subagent — run it sequentially in the current context.
 2. If **Critical** or **Moderate** findings exist:
    - Apply the **Suggested Fix** snippet from each finding directly to the working tree
    - Add or update a reproducer test for each finding using its **Faulty Example**, **Expected Behavior**, and **Test Hint**
-   - Re-run the pre-push quality gates on touched files
-3. **Do not re-run the full review to convergence.** The full-diff review runs exactly once; after applying the fixes, re-verify each fixed finding in a targeted way — re-read the finding's code path and re-run the pre-push quality gates on the touched files — instead of re-invoking the full review over the whole diff. Full-diff convergence is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `athena` ↔ `hephaestus` loop), which reviews the complete diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
+3. **Do not re-run the full review to convergence.** The full-diff review runs exactly once; after applying the fixes, re-verify each fixed finding in a targeted way — re-read the finding's code path — instead of re-invoking the full review over the whole diff. Full-diff convergence is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `athena` ↔ `hephaestus` loop), which reviews the complete diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
 4. **PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding surfaced by this pass is resolved (0 Critical + 0 Moderate remaining). When a surfaced finding cannot be resolved, stop as **Blocked** and surface it to the user instead of opening a PR that knowingly carries it.
 
 PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR self-check because it requires an open PR to operate on.
@@ -165,7 +165,7 @@ After the code quality self-check pass, and **still before creating the pull req
 
 1. **Run the security review inline.** Invoke `@skills/security-review/SKILL.md` directly in this skill's context, passing the current diff context plus the instruction "run `@skills/security-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings". Do not dispatch the review as a subagent — run it sequentially in the current context.
 
-Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review and re-run the pre-push quality gates on touched files. Like the code quality self-check, this is a single full pass — do not re-enter a full review loop; re-verify the fixed findings in a targeted way, and the authoritative post-PR convergence loop re-validates the full diff. The same **PR gate** applies: the pull request may be created only when every surfaced Critical / Moderate security finding is resolved (0 Critical + 0 Moderate remaining) — otherwise stop as **Blocked**.
+Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review. Like the code quality self-check, this is a single full pass — do not re-enter a full review loop; re-verify the fixed findings in a targeted way, and the authoritative post-PR convergence loop re-validates the full diff. The same **PR gate** applies: the pull request may be created only when every surfaced Critical / Moderate security finding is resolved (0 Critical + 0 Moderate remaining) — otherwise stop as **Blocked**.
 
 ## Security remediation checklist (when a pre-implementation security plan exists)
 
@@ -238,7 +238,7 @@ The non-technical report must be understandable by non-technical testers and pro
 - The issue is fully addressed
 - Behavior is correct and stable
 - Tests cover affected logic with 100% coverage and pass
-- Pre-push fixers and checkers ran clean on all changed files
+- Fixers and checkers are **not** run in this skill — the project's full gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*)
 - No sensitive data is exposed
 - Code quality self-check ran as a single full-diff pass and every surfaced Critical / Moderate finding was resolved (0 Critical + 0 Moderate) **before the PR was created**
 - Security review completed **before the PR was created**

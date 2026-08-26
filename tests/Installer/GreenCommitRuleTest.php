@@ -3,22 +3,28 @@
 declare(strict_types = 1);
 
 /**
- * Issue #233 — a PR's commits must be deployable one at a time. The git rules already asked for
- * cherry-pickable commits, but only that each one "still build"; nothing said a commit had to pass
- * its tests, nothing forbade committing the TDD RED state, and nothing required re-running the gate
- * after a rebase reshaped every later commit's tree.
+ * Issue #233 established that a PR's commits must be deployable one at a time, gated per commit.
+ * That guarantee was later traded away deliberately: proving every commit green costs one full
+ * build per commit, which dominates the delivery time of a larger task for a guarantee almost
+ * nothing consumes. The gate now runs once, on the head commit being merged.
  *
- * These tests pin the rule as a rule rather than as advice, and prove the package ships no example
- * that contradicts it.
+ * These tests pin what survived that trade — the obligations that were never about gate placement
+ * (no committed failing test, the project's own gate, a reshaped branch never inheriting a verdict)
+ * — and pin that the trade-off itself is stated rather than silently dropped.
  */
-test('the git rule requires every commit in a PR to be green (issue #233)', function (): void {
+test('the git rule gates the merged head and states what deferring the gate trades away (issue #233, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
-    // The claim is about the whole range, not the tip — a rule that only bound the last commit
-    // would leave exactly the history this issue reports.
-    expect($rule)->toContain('**Every commit is green.**');
-    expect($rule)->toContain('Every commit between the base and the branch head passes the project\'s own gate on its own');
+    // The gate is pinned to the one commit that actually ships, and to the skill that runs it.
+    expect($rule)->toContain('**The merged head is green; intermediate commits are not gated.**');
+    expect($rule)->toContain('once, on the exact head commit being merged');
+    expect($rule)->toContain('*Pre-merge quality gate*');
+
+    // The cost of the trade must be stated, not discovered later by whoever runs git bisect.
+    expect($rule)->toContain('What this trades away, stated plainly:');
+    expect($rule)->toContain('git bisect');
+    expect($rule)->toContain('Cherry-pick *independence* — disjoint file sets, groundwork ordered before its consumers — is unaffected');
 
     // Obligation 1 — the RED state is real but never committed.
     expect($rule)->toContain('A test and the change that makes it pass land in the same commit.');
@@ -26,9 +32,10 @@ test('the git rule requires every commit in a PR to be green (issue #233)', func
     expect($rule)->toContain('never commit a test written to fail');
     expect($rule)->toContain('it is a state of the **working tree**, never a commit');
 
-    // Obligation 2 — the rebase case the issue names explicitly.
+    // Obligation 2 — a reshaped branch never inherits the verdict of the history it replaced.
     expect($rule)->toContain('A history rewrite re-runs the gate.');
-    expect($rule)->toContain('whenever the branch is rebased, re-verify the whole range');
+    expect($rule)->toContain('the pre-merge gate runs again on the new head');
+    expect($rule)->toContain('never inherits an earlier run\'s verdict');
     expect($rule)->toContain('git rebase --exec');
 
     // Obligation 3 — a hand-picked subset is what lets a broken commit through.
@@ -43,10 +50,13 @@ test('the green-commit rule declares its own review severity (issue #233)', func
     // Without a declared severity a reviewer falls back to the generic stratification and can wave
     // a committed failing test through as a style nit.
     expect($rule)->toContain('a committed failing or simulated-failing test is **Critical**');
-    expect($rule)->toContain('pushed without the `git rebase --exec` replay is **Moderate**');
+    expect($rule)->toContain('A merge performed without a passing gate run on the merged head commit is **Critical**');
+
+    // The inverse must be explicit: an ungated intermediate commit is now correct, not a finding.
+    expect($rule)->toContain('Intermediate commits that do not individually pass the gate are **not** a finding');
 });
 
-test('every skill that authors or reshapes branch history cites the green-commit rule (issue #233)', function (): void {
+test('every skill that authors or reshapes branch history cites the merged-head rule (issue #233, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // A rule nothing applies is documentation. These five are the surfaces that actually create a
@@ -63,7 +73,7 @@ test('every skill that authors or reshapes branch history cites the green-commit
     $missing = [];
 
     foreach ($mustCite as $relativePath) {
-        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), 'Every commit is green')) {
+        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), 'The merged head is green; intermediate commits are not gated')) {
             $missing[] = $relativePath;
         }
     }
@@ -71,11 +81,12 @@ test('every skill that authors or reshapes branch history cites the green-commit
     expect($missing)->toBe([]);
 });
 
-test('every skill that rebases a branch replays the range before pushing (issue #233)', function (): void {
+test('no skill mandates the per-commit range replay any more (issue #233, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // The rebase case is the one the issue names. A skill that rebases and pushes without the
-    // replay publishes a history whose commits were gated against a base they no longer sit on.
+    // The replay runs the whole gate once per commit — exactly the cost the deferral removes. It
+    // stays available for a branch that genuinely needs a bisectable history, so each of these may
+    // still mention it, but none may present it as required before a push.
     $mustReplay = [
         'skills/resolve-issue/SKILL.md',
         'skills/resolve-issue/references/phase-planning.md',
@@ -83,15 +94,21 @@ test('every skill that rebases a branch replays the range before pushing (issue 
         'skills/process-code-review/SKILL.md',
     ];
 
-    $missing = [];
+    $mandating = [];
 
     foreach ($mustReplay as $relativePath) {
-        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), 'git rebase --exec')) {
-            $missing[] = $relativePath;
+        $body = (string) file_get_contents($packageDir . '/' . $relativePath);
+
+        if (!str_contains($body, 'git rebase --exec')) {
+            continue;
+        }
+
+        if (!str_contains($body, 'available')) {
+            $mandating[] = $relativePath;
         }
     }
 
-    expect($missing)->toBe([]);
+    expect($mandating)->toBe([]);
 });
 
 test('the TDD cycle keeps RED out of the commit history (issue #233)', function (): void {
@@ -109,8 +126,9 @@ test('cherry-pick independence is measured by the gate, not by compilation (issu
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
-    // "still build" was the weaker bar this issue replaces: a commit can build and still fail every
-    // test it ships, which is precisely the commit a cherry-pick breaks on.
+    // Independence survives the deferral; only the per-commit green guarantee is gone. The rule
+    // must say so explicitly, or a reader concludes the ordering discipline was dropped too.
     expect($rule)->toContain('cherry-picked onto the default branch on its own and still pass the project\'s gate');
     expect($rule)->not->toContain('on its own and still build');
+    expect($rule)->toContain('only the per-commit green guarantee is gone');
 });

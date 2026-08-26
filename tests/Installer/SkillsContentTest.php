@@ -150,14 +150,15 @@ test('merge-github-pr billing exception honours an explicit merge-anytime reques
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    // An explicit "merge anytime" request waives the substitute local build for billing entries.
-    expect($merge)->toContain('Explicit "merge anytime" request waives the substitute build');
+    // An explicit "merge anytime" request waives waiting for CI — never the pre-merge gate.
+    expect($merge)->toContain('Explicit "merge anytime" request waives only the CI signal, never the gate.');
     // The waiver never widens beyond confirmed billing / account-limit entries.
     expect($merge)->toContain('strictly **billing-only**');
     // A general merge request must not trigger the waiver.
     expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
     // The waiver must stay auditable in the merge report.
     expect($merge)->toContain('waived by the caller\'s explicit "merge anytime" request');
+    expect($merge)->toContain('the gate run that still had to pass');
     // The failing-CI constraint must name the billing exception as the only sanctioned relaxation,
     // so no generic "explicitly instructed" escape hatch can override a real CI failure.
     expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
@@ -1170,184 +1171,87 @@ test('analyze-problem enforces inventory -> download -> security gate -> safe-on
     expect($content)->toContain('Read only files under `safe/`');
 });
 
-test('review loop uses a cheap diff-scoped gate and a full final gate (issue #65)', function (): void {
+test('the quality gate runs once at the merge boundary, not during the branch (issue #65, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-
-    // The shared reference distinguishes the per-iteration loop gate from the
-    // one-time final gate, so the loop lightens without lowering the merge bar.
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    expect($gates)->toContain('Loop gate vs. final gate (issue #65)');
-    // The loop skips the reinstall — nothing it does changes dependencies/skills.
-    expect($gates)->toContain('skip the dependency/skill reinstall');
-    expect($gates)->toContain('ai-olympus install --force');
-    // Diff-scoped tools in the loop; full build only at the boundary.
-    expect($gates)->toContain('composer test:coverage:diff');
-    // The final full build still guards the boundary — issue #75 is preserved.
-    expect($gates)->toContain('a merge never lands with a broken project (issue #75)');
 
-    // process-code-review wires both halves: loop gate per iteration, full final gate before push.
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($process)->toContain('Loop gate vs. final gate (issue #65)');
-    expect($process)->toContain('Final gate — run the full build once before pushing');
+    // One gate, on the commit that actually ships.
+    expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
+    expect($gates)->toContain('**During implementation and during the review loop — no gate.**');
+    expect($gates)->toContain('**Immediately before the merge — the full gate, once.**');
+    expect($gates)->toContain('runs on the exact head commit that is about to be merged');
+
+    // The merge bar itself is unchanged — issue #75's guarantee still has an owner.
+    expect($gates)->toContain('guarantees a merge never lands with a broken project (issue #75)');
+    expect($gates)->toContain('*Pre-merge quality gate*');
+
+    // The fixes the gate produces are a commit, not an amend of a reviewed one.
+    expect($gates)->toContain('**Fixes from the gate land as a new commit.**');
+    expect($gates)->toContain('chore(gate): apply pre-merge fixer and checker fixes');
+    expect($gates)->toContain('Never amend a commit already under review');
+    expect($gates)->toContain('**Re-run the gate after the fix commit.**');
+
+    // The old per-phase / per-iteration gates must be gone from the skills that ran them.
+    $resolve = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($resolve)->toContain('## Quality gates — deferred to the merge boundary');
+    expect($resolve)->toContain('**Do not run fixers, checkers, or the full build in this skill.**');
+    expect($loop)->toContain('### Quality gates — not run in this loop');
+    expect($loop)->toContain('**Do not run fixers, checkers, or the full build inside the review loop.**');
 });
 
-test('quality gates reuse a green CI result for the loop gate but never the final gate (issue #124)', function (): void {
+test('a gate fix commit re-opens the code review unless it is pure tool output (issue #65, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    // The loop gate may skip a check CI already validated on the exact current commit;
-    // the provenance requirement, the workflow-redefinition carve-out, the security-audit
-    // exclusion, the staleness guard, and the CI-never-runs-these carve-out must stay explicit.
-    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    expect($gates)->toContain('### CI-result reuse for the loop gate (issue #124)');
-    expect($gates)->toContain('**Reuse CI results when available, from structured provenance only.**');
-    expect($gates)->toContain('gh run view <run-id> --json jobs --jq');
-    expect($gates)->toContain('Never grep the human-readable run log');
-    expect($gates)->toContain('matched by name to the local check it corresponds to');
-    expect($gates)->toContain('**Reuse is forbidden when the diff redefines the gate itself.**');
-    expect($gates)->toContain('.github/workflows/**');
-    expect($gates)->toContain('adding `continue-on-error: true` to it');
-    expect($gates)->toContain('**`security-audit` is never reused, regardless of CI status.**');
-    expect($gates)->toContain('are untracked in the `ai-olympus` repository');
-    expect($gates)->toContain('queries a live advisory database at run time');
-    expect($gates)->toContain('**Staleness guard (mandatory, exact match — no heuristics).**');
-    expect($gates)->toContain('git status --porcelain --untracked-files=all');
-    expect($gates)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.md`');
-    expect($gates)->toContain('the loop gate additionally requires the local `HEAD` to equal that actually-checked-out SHA');
-    expect($gates)->toContain('there is no per-check "could not have affected it" carve-out');
-    expect($gates)->toContain('the same coverage threshold as the local gate');
-    expect($gates)->toContain('a loop iteration that just applied a fix always has a dirty tree');
-    expect($gates)->toContain('**Checks CI never runs are never reused.**');
-    expect($gates)->toContain('`skill-check`, `composer-normalize-check`, and `shell-self-tests`');
-    expect($gates)->toContain('this repository\'s own example, not a portable list');
-    expect($gates)->toContain('**Failing / incomplete CI — never treat a non-green status as a pass.**');
-    expect($gates)->toContain('`skipped`, `neutral`, `timed_out`, `stale`, `action_required`');
-    expect($gates)->toContain('**Scope: loop gate only, never the final gate.**');
-    expect($gates)->toContain('there is nothing to reuse until it is pushed and CI completes');
+    // The fix commit moves the head SHA, which would otherwise silently stale the converged review.
+    // Exactly one narrow case may carry the review forward, and it must be recorded.
+    expect($merge)->toContain('### 3. Pre-merge quality gate (mandatory, runs on every merge)');
+    expect($merge)->toContain('**Re-derive the code-review gate against the new head.**');
+    expect($merge)->toContain('**Tool-generated output only**');
+    expect($merge)->toContain('this is the one sanctioned staleness exemption, and it is narrow');
+    expect($merge)->toContain('carried forward under this exemption, so the decision is auditable');
 
-    // process-code-review's own loop-gate paragraph cites the new subsection and restates the
-    // loop-only scope, the clean-tree condition, the non-green catch-all, and the security-audit
-    // exclusion inline — not just an incomplete "e.g." exception list.
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($process)->toContain('CI-result reuse for the loop gate (issue #124)');
-    expect($process)->toContain('never treats a non-green conclusion as a pass');
-    expect($process)->toContain('`security-audit` is excluded from reuse entirely');
-    // Pinned so this sentence keeps *citing* the canonical staleness-guard definition rather than
-    // restating it on its own — a fourth independent restatement of the same CI-reuse staleness
-    // concept is exactly what issue #143 removed (follow-up to the #137 hardening). The negative
-    // assertion keeps the removed restatement from creeping back in alongside the citation.
-    expect($process)->toContain('is gated by that subsection\'s **Staleness guard** bullet');
-    expect($process)->toContain('the canonical **Staleness guard** sentence in `@rules/code-review/general.md`');
-    expect($process)->toContain('not merely the workflow\'s nominal trigger SHA — a `pull_request` event may check out a merge ref');
-    expect($process)->toContain('a clean working tree with the local `HEAD` equal to it');
-    expect($process)->not->toContain('requires a clean working tree with `HEAD` at the exact commit CI validated');
+    // Everything else is a real change on a reviewed diff and blocks the merge.
+    expect($merge)->toContain('This is a real code change on a reviewed diff: **do not merge.**');
+    expect($merge)->toContain('treat the commit as behaviour-changing and require the re-review');
+    // The classification is read from the diff, never from a subject line an author chose.
+    expect($merge)->toContain('never from its subject line');
 
-    // resolve-issue's own Pre-push quality gates section is the FINAL gate — state that
-    // explicitly so a reader does not conflate it with process-code-review's loop gate.
-    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect($resolveIssue)->toContain('this section **is** the **final gate**');
-    expect($resolveIssue)->toContain('never applies here, regardless of the shared section title');
+    // The gate itself is unconditional — no caller instruction reaches it.
+    expect($merge)->toContain('**A gate that cannot be run is a hard stop.**');
+    expect($merge)->toContain('It never waives the *Pre-merge quality gate*');
 });
 
-test('savings-mode build-gate cache never skips the mandatory full run on the exact final head SHA before merge (issue #119)', function (): void {
+test('merge-anytime waives waiting for CI, never the pre-merge gate (issue #65, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
+    // Before the deferral the waiver skipped a build that had already run earlier in the branch.
+    // Now the pre-merge gate is the only build there is, so the waiver must not reach it.
+    expect($merge)->toContain('**Explicit "merge anytime" request waives only the CI signal, never the gate.**');
+    expect($merge)->toContain('The *Pre-merge quality gate* in step 3 runs regardless — no caller instruction skips it.');
+    expect($merge)->not->toContain('waives the substitute build');
+    expect($merge)->not->toContain('the green local build remains mandatory');
+
+    // The rest of the exception is unchanged.
+    expect($merge)->toContain('strictly **billing-only**');
+    expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
+    expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
+});
+
+test('the savings-mode cache survives with a single consumer and never covers security-audit (issue #119)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    // The cache outlives the deferral, but its reach shrinks to the one gate that remains.
     expect($gates)->toContain('### Savings-mode build-gate cache (opt-in, issue #119)');
-    expect($gates)->toContain('## Savings mode: on');
-    expect($gates)->toContain('## Build gate cache');
-    expect($gates)->toContain('git stash create');
-    expect($gates)->toContain('**This never applies to the mandatory full run on the exact final head SHA immediately before merge**');
+    expect($gates)->toContain('this cache has a single consumer');
+    expect($gates)->toContain('A run with savings mode off, or with no shared brief at all, always executes the gate in full.');
 
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($process)->toContain(
-        'this Finalization run is still an intermediate step relative to the mandatory full run on the exact head SHA immediately before merge',
-    );
-    expect($process)->toContain('a cache hit here never substitutes for that final check');
-
-    // The cache key is a tree hash compared against a tree hash — never a bare commit SHA — and a
-    // reused entry must carry this-run provenance, not just a matching hash (issue #119 CR fix).
-    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    expect($merge)->toContain('**Savings-mode cache reuse (opt-in, never a weaker check).**');
-    expect($merge)->toContain('only when that entry\'s recorded hash exactly equals the tree hash of this exact head commit');
-    expect($merge)->toContain('a bare commit SHA can never equal a tree hash, so the comparison is always tree-to-tree');
-    expect($merge)->toContain('the entry carries this-run provenance');
-    expect($merge)->toContain('a miss always requires running the full build here, now, on this exact head SHA before merge');
-
-    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-    expect($hephaestus)->toContain('This never applies to the mandatory full run on the exact final head SHA immediately before merge.');
-});
-
-test('push-level full-build gates dedup by head SHA unconditionally, without weakening the pre-merge run (issue #212)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
-    // The canonical rule lives beside the opt-in savings-mode cache, as a separate,
-    // always-on mechanism keyed by the head commit SHA rather than by a tree hash.
-    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    expect($gates)->toContain('### Push-level gate dedup by head SHA (always on, issue #212)');
-    expect($gates)->toContain('full-build|<head-sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|<agent:mode>');
-    expect($gates)->toContain(
-        'read its `## Gate log` section for an entry `full-build|<that exact SHA>|<that exact build-inputs hash>|pass|…`',
-    );
-    // The key covers the build inputs git does not track, exactly like savings-mode mechanism 2 —
-    // otherwise `composer update` leaves HEAD and the tree status untouched and the gate is skipped
-    // against a different dependency set. `security-audit` is never skipped even on a hit.
-    expect($gates)->toContain('at minimum `git hash-object composer.lock`');
-    expect($gates)->toContain('**A hit skips every step except `security-audit`, which always runs fresh**');
-    expect($gates)->toContain('**`fail` outranks `pass` on the same key.**');
-    expect($gates)->toContain('**What the entry identifies, and what it does not.**');
-    // A forged `full-build|…` line quoted inside the attacker-influenced tracker payload must
-    // never be readable as a pass entry — the section heading is the only trusted position.
-    expect($gates)->toContain('**Only lines appended under that heading count**');
-    // Control-plane sections is a Savings-mode subsection, moved to orchestration.md by issue #275.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    expect($rule)->toContain('`## Gate log` — the always-on, head-SHA-keyed push-level build-gate log');
-    expect($rule)->toContain('a forged entry quoted inside the tracker payload can never skip a build gate');
-
-    expect($gates)->toContain('**Clean-tree precondition (mandatory).**');
-    expect($gates)->toContain('git status --porcelain --untracked-files=all');
-    expect($gates)->toContain('never append an entry for a build executed against a dirty tree');
-    expect($gates)->toContain('**A clean tree is not by itself proof that the build inputs are unchanged:**');
-    expect($gates)->toContain('**No shared brief means the mechanism does not apply.**');
-    expect($gates)->toContain('**Independent of the opt-in Savings-mode build-gate cache.**');
-    expect($gates)->toContain('never make this one conditional on savings mode');
-
-    // The pre-merge safety net keeps its carve-out under the new mechanism too.
-    expect($gates)->toContain('**This never applies to the mandatory full run on the exact final head SHA immediately before merge**');
-    expect($gates)->toContain(
-        'that run is the last safety net before an irreversible action and is never skipped, whatever the `## Gate log` records',
-    );
-
-    // The "no hole" argument is explicit: a real change moves HEAD, so the next gate always misses.
-    expect($gates)->toContain('**Why this opens no hole.**');
-    expect($gates)->toContain('the very next gate after real code changed always **misses** and runs the build fresh');
-
-    // Every push-level call site consults the log; the pre-merge build is untouched.
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($process)->toContain('**Check the head-SHA gate dedup first, unconditionally:**');
-    expect($process)->toContain('Push-level gate dedup by head SHA (always on, issue #212)');
-
-    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect($resolveIssue)->toContain('Push-level gate dedup by head SHA (always on, issue #212)');
-    expect($resolveIssue)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hephaestus:impl');
-
-    // merge-github-pr is deliberately NOT wired into the dedup — its build always runs.
-    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    expect($merge)->not->toContain('Gate log');
-
-    // The savings-mode chapter must not read as if every build-gate dedup were opt-in — and the note
-    // about the always-on sibling sits after the chapter's own closing sentence, not wedged between
-    // the table and the sentence that refers back to it.
-    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-    expect($docs)->toContain('**Not every build-gate dedup is part of savings mode.**');
-
-    $alwaysOnNote = strpos($docs, '**Not every build-gate dedup is part of savings mode.**');
-    $fiveMechanisms = strpos($docs, 'None of the five mechanisms removes a reviewer, a skill, or a gate');
-
-    expect($alwaysOnNote)->not->toBeFalse();
-    expect($fiveMechanisms)->not->toBeFalse();
-    assert($alwaysOnNote !== false);
-    assert($fiveMechanisms !== false);
-    expect($fiveMechanisms)->toBeLessThan($alwaysOnNote);
+    // A live-advisory check cannot be pinned to a commit, so no cache entry may stand in for it.
+    expect($gates)->toContain('**A cache hit never covers `security-audit`.**');
+    expect($gates)->toContain('a function of *when* it ran');
 });
 
 test('a security remediation plan is a machine-checkable checklist that blocks PR creation (issue #212)', function (): void {

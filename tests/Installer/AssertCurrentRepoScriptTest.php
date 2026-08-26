@@ -343,7 +343,9 @@ test('the billing exception substitutes local evidence instead of waiving it', f
     // code — but "we could not measure" must not become "it is fine". The
     // local build replaces the missing signal at equal strictness.
     expect($merge)->toContain('Substitute evidence is mandatory');
-    expect($merge)->toContain('green local `composer build` on the exact head commit');
+    // The substitute is now the mandatory pre-merge gate itself, not a second build run here.
+    expect($merge)->toContain('*Pre-merge quality gate* runs the project\'s full local gate on the exact head commit being merged on **every** merge');
+    expect($merge)->toContain('do not run a second build here');
     expect($merge)->toContain('Verify the jobs truly did not start');
     expect($merge)->toContain('check-runs/<id>/annotations');
     expect($merge)->not->toContain('billing exception (explicit merge only)');
