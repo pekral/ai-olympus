@@ -685,10 +685,34 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     $memory = (string) file_get_contents($packageDir . '/docs/memory/PROJECT_MEMORY.md');
     $entries = compoundMemoryParseEntries($memory);
 
+    // Derived from agents/*.md plus `shared`, never restated as a literal. The sibling test below
+    // derives the rule's own dictionary the same way and asserts it equals the live roster, so a
+    // literal here silently disagrees with both the rule and that test the moment the roster
+    // changes — which is exactly the drift issue #29 filed, with `argus` legal under the rule and
+    // rejected here.
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    expect($agentFiles)->not->toBeEmpty();
+
+    $liveRoles = array_map(
+        static fn (string $path): string => basename($path, '.md'),
+        $agentFiles,
+    );
+    $allowedRoles = [...$liveRoles, 'shared'];
+    $quotedRoles = array_map(static fn (string $role): string => preg_quote($role, '/'), $allowedRoles);
+    $rolePattern = '/^- Role:\s+(' . implode('|', $quotedRoles) . ')\s*$/m';
+
+    // The dictionary admits every allowed role, not only the ones an entry happens to use today. A
+    // literal that had drifted narrow would fail here on the first role it omitted, instead of
+    // waiting for the first entry that legitimately declares one.
+    foreach ($allowedRoles as $role) {
+        expect('- Role:    ' . $role)->toMatch($rolePattern);
+    }
+
     foreach ($entries as $entry) {
         $title = strtok($entry, "\n");
 
-        expect($entry)->toMatch('/^- Role:\s+(daedalus|hephaestus|athena|hermes|shared)\s*$/m', 'Entry is missing a valid Role: ' . $title);
+        expect($entry)->toMatch($rolePattern, 'Entry is missing a valid Role: ' . $title);
     }
 });
 
