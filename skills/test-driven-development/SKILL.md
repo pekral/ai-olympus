@@ -30,6 +30,8 @@ Reading, mapping, and verifying come first; implementing comes last. This pre-fl
 
 1. **Read** — open and read the actual target files and the code they depend on (callers, called methods, related tests, configuration). Confirm what the code does by reading it, not by guessing from names or the assignment description.
 2. **Map** — map the change's blast radius: every call site, caller, data-flow path, and existing test that the behavior touches, plus the conventions and helpers already in the codebase to reuse instead of reinventing.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, convention, and section title the behavior change renames, removes, or redefines — never only the files the assignment names, and never only the files you have already opened.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before the first RED test, then classify each match as in scope for this cycle or as a stated exception. An incomplete sweep hides a call site the cycle never covers, so GREEN reports done while that path still runs the old behavior.
 3. **Verify** — check your assumptions against the real code and its observed behavior (reproduce the current behavior so the first RED test asserts the real gap). If what you read contradicts the assignment framing, stop and surface the discrepancy instead of writing a test on a wrong premise.
 
 Only after Read, Map, and Verify are complete may the first RED test be written.

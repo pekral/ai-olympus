@@ -812,12 +812,34 @@ test('resolve-issue Map step mandates a full-tree completeness sweep before impl
 
     // The enumerated categories are the point of the sweep: naming them is what stops a reader
     // from reading "whole tree" as "the source tree".
-    foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation', 'configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
+    foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation, configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
         expect($content)->toContain($category);
     }
 
     // The sweep is ordered before the edit, not alongside it.
     expect($content)->toContain('Record the full match list before you edit anything');
+});
+
+test('the TDD pre-flight Map step mandates a full-tree completeness sweep before the first RED (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/test-driven-development/SKILL.md');
+
+    // The audit names three pre-flights, not two: resolve-issue, analyze-problem, and this one. The
+    // shared pre-flight test above walks seven skills and asserts only the markers all seven carry,
+    // so it passes whether or not this skill ever gained the sweep. This test is what holds the
+    // third target — and it stays separate from that loop, because the other five skills are
+    // outside the approved scope and must not be forced to carry the paragraph.
+    expect($content)->toContain('**completeness sweep**');
+    expect($content)->toContain('Grep the entire repository');
+    expect($content)->toContain('never only the files the assignment names');
+
+    // Naming the categories is what stops a reader from reading "whole tree" as "the source tree".
+    foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation, configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
+        expect($content)->toContain($category);
+    }
+
+    // The sweep is ordered before the first failing test, which is where this skill's cycle starts.
+    expect($content)->toContain('Record the full match list before the first RED test');
 });
 
 test('analyze-problem skill carries the UI Redesign Lens with one-click default and wizard fallback', function (): void {
