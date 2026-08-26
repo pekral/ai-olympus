@@ -10,7 +10,7 @@ Thank you for your interest in improving this project. This guide covers how to 
 
 ## The quality gate: `composer build`
 
-Before you push any change or open a pull request, run:
+Once the work is finished and the review has converged, run:
 
 ```bash
 composer build
