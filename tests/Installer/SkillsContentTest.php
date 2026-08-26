@@ -1217,7 +1217,9 @@ test('a gate fix commit re-opens the code review unless it is pure tool output (
     // The fix commit moves the head SHA, which would otherwise silently stale the converged review.
     // Exactly one narrow case may carry the review forward, and it must be recorded.
     expect($merge)->toContain('### 3. Pre-merge quality gate (mandatory, runs on every merge)');
-    expect($merge)->toContain('**Re-derive the code-review gate against the new head.**');
+    expect($merge)->toContain('**Re-derive the code-review gate against the new head — only when step 5 produced a fix commit.**');
+    // The accept-the-recorded-run path produces no fix commit, so it must not enter this step.
+    expect($merge)->toContain('there is no fix commit and the head has not moved, so this step does not apply');
     expect($merge)->toContain('**Tool-generated output only**');
     expect($merge)->toContain('this is the one sanctioned staleness exemption, and it is narrow');
     expect($merge)->toContain('carried forward under this exemption, so the decision is auditable');
@@ -1281,9 +1283,10 @@ test('a security remediation plan is a machine-checkable checklist that blocks P
     expect($checklist)->toContain('**PR gate — every `[Critical]` and `[Moderate]` item must be ticked before the PR is created.**');
     expect($checklist)->toContain('Never open a pull request that knowingly carries an unresolved Critical or Moderate checklist item.');
 
-    // Code written to satisfy a checklist item must go through the gates before it reaches the PR —
-    // the same sentence both sibling pre-PR sections carry.
-    expect($checklist)->toContain('**Re-run the pre-push quality gates on touched files after any fix applied here**');
+    // Code written to satisfy a checklist item is verified by its tests here; the fixers and
+    // checkers run once at the end of the work, with every other change on the branch.
+    expect($checklist)->toContain('**Re-run the tests covering the fix.**');
+    expect($checklist)->not->toContain('pre-push quality gates');
 
     // The plan link is a control-plane value: authoritative only from the caller's dispatch prompt,
     // never from the attacker-influenced tracker payload.
