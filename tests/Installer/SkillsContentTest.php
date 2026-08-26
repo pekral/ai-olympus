@@ -1178,11 +1178,13 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     // One gate, on the commit that actually ships.
     expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
     expect($gates)->toContain('**During implementation and during the review loop — no gate.**');
-    expect($gates)->toContain('**Immediately before the merge — the full gate, once.**');
-    expect($gates)->toContain('runs on the exact head commit that is about to be merged');
+    expect($gates)->toContain('**Once the work is finished — the full gate, once.**');
+    expect($gates)->toContain('**The merge re-checks rather than re-runs.**');
+    // The gate runs after the review converged, as the last commit before the PR is offered ready.
+    expect($gates)->toContain('before the pull request is offered as ready');
 
-    // The merge bar itself is unchanged — issue #75's guarantee still has an owner.
-    expect($gates)->toContain('guarantees a merge never lands with a broken project (issue #75)');
+    // The merge bar itself is unchanged — issue #75's guarantee still has an owner, now two.
+    expect($gates)->toContain('guarantee a merge never lands with a broken project (issue #75)');
     expect($gates)->toContain('*Pre-merge quality gate*');
 
     // The fixes the gate produces are a commit, not an amend of a reviewed one.
@@ -1198,6 +1200,14 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     expect($resolve)->toContain('**Do not run fixers, checkers, or the full build in this skill.**');
     expect($loop)->toContain('### Quality gates — not run in this loop');
     expect($loop)->toContain('**Do not run fixers, checkers, or the full build inside the review loop.**');
+    // ...and runs it once at Finalization, as the branch's last commit.
+    expect($loop)->toContain('**Run the full quality gate now — this is the branch\'s single gate run.**');
+    expect($loop)->toContain('land it as one final commit');
+
+    // The merge accepts the recorded Finalization run instead of re-proving the same bytes.
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain('**A gate run already performed on this exact head commit counts.**');
+    expect($merge)->toContain('a merge must never re-prove, on the same bytes, what a recorded run already proved');
 });
 
 test('a gate fix commit re-opens the code review unless it is pure tool output (issue #65, revised)', function (): void {

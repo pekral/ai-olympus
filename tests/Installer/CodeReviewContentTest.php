@@ -1782,7 +1782,7 @@ test('the CI-reuse mechanism is retired with the loop gate it served (issue #144
 
     // What replaced it: one gate, at the merge boundary, never reused from a CI result.
     expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
-    expect($gates)->toContain('**Immediately before the merge — the full gate, once.**');
+    expect($gates)->toContain('**Once the work is finished — the full gate, once.**');
 });
 
 test('code review rule breaks a parallel-reviewer severity divergence toward the higher severity (issue #172)', function (): void {
