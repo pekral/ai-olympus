@@ -18,12 +18,12 @@
 > [!WARNING]
 > **Experimental, and under active development.** This package is being built in the open and is not stable yet. Agent definitions, skills, and rules are added, renamed, and removed between releases, and a change to any of them can alter how the agents behave in your project. While the package is on `0.x`, breaking changes ship in minor versions and are recorded in [`CHANGELOG.md`](CHANGELOG.md).
 >
-> No tagged release exists yet, so `composer require` resolves `dev-master` and every `composer update` can change agent behaviour. Read the changelog before upgrading, pin an exact version once the first release is tagged, and review what the agents propose rather than merging it unread. Issues and pull requests are welcome — that is what this stage is for.
+> No tagged release exists yet, so `composer require pekral/ai-olympus --dev` fails on a project with the default `minimum-stability: stable` — install the development branch explicitly, as the Quickstart below does. Every `composer update` then pulls the latest `master` and can change agent behaviour. Read the changelog before upgrading, pin an exact version once the first release is tagged, and review what the agents propose rather than merging it unread. Issues and pull requests are welcome — that is what this stage is for.
 
 ## Quickstart
 
 ```bash
-composer require pekral/ai-olympus --dev
+composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
 
