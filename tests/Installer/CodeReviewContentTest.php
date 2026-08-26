@@ -2237,9 +2237,10 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     expect($skill)->toContain(
         'lives in `@rules/code-review/general.md` *Project `CLAUDE.md` as an additional review input*',
     );
-    expect($skill)->toContain(
-        '- Apply @rules/code-review/general.md — including its *Project `CLAUDE.md` as an additional review input* gate',
-    );
+    // The trust boundary is stated once, in the Execution gate. The Constraints entry stays a bare
+    // reference like every other rule file, so one sentence cannot drift into two versions here.
+    expect($skill)->toContain("- Apply @rules/code-review/general.md\n");
+    expect(substr_count($skill, 'from the default branch by git ref'))->toBe(1);
 
     // One canonical home — a second copy is how two versions of the trust boundary drift apart.
     expect(substr_count($rule, '## Project `CLAUDE.md` as an additional review input (mandatory gate)'))->toBe(1);
