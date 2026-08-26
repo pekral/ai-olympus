@@ -1201,7 +1201,7 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     expect($loop)->toContain('### Quality gates — not run in this loop');
     expect($loop)->toContain('**Do not run fixers, checkers, or the full build inside the review loop.**');
     // ...and runs it once at Finalization, as the branch's last commit.
-    expect($loop)->toContain('**Run the full quality gate now — this is the branch\'s single gate run.**');
+    expect($loop)->toContain('**Run the full quality gate now — the branch\'s gate run happens here.**');
     expect($loop)->toContain('land it as one final commit');
 
     // The merge accepts the recorded Finalization run instead of re-proving the same bytes.
