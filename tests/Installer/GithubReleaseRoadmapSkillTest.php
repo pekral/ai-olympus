@@ -245,4 +245,9 @@ test('github-release-roadmap registers its GitHub mutations in the consent inven
     // to the writes, which wait for their own confirmation package.
     expect($inventory)->toContain('`@skills/github-release-roadmap/SKILL.md` *Non-negotiable approval gate*');
     expect($inventory)->toContain('while planning a release roadmap | L2 |');
+
+    // The row's enumeration has to match the mutation set the skill's own gate sentence defines.
+    // Omitting `issue` left issue creation resolving against the neighbouring "newly discovered
+    // tracker issue" row at L1 — a lower level than the confirmation package this skill demands.
+    expect($inventory)->toContain('label, issue, milestone, Project, Project field, Project item');
 });
