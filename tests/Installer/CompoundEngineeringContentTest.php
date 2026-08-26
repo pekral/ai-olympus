@@ -495,6 +495,28 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
     expect($docs)->toContain('Why it saves tokens without reducing review depth');
 });
 
+test('savings mode advertises no build reuse, since the build-gate dedup mechanisms are retired (issue #31)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $section = installerDocsSection($rule, '## Savings mode (opt-in, token-efficient orchestration)');
+
+    // Mechanism 2 is retired in this very section, so nothing in it may still sell a reused or
+    // deduplicated build as a live savings-mode benefit. The retirement sweep left these two
+    // behind once already; the negative pins are what stop the contradiction coming back.
+    expect($section)->not->toContain('repeated build runs');
+    expect($section)->not->toContain('reused intermediate build results');
+
+    // The surviving wording, pinned so a rewrite cannot drop the fix while still passing above.
+    expect($section)->toContain('orchestration overhead — repeated context re-derivation and duplicated review work —');
+    expect($section)->toContain('cheaper context propagation, a single coverage-verdict owner, leaner orchestration reasoning');
+
+    // The user-facing promise in README must not outlive the mechanism either.
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+
+    expect($readme)->not->toContain('fewer repeated build runs');
+    expect($readme)->toContain('same PR/review/feedback artifacts, just less duplicate context re-derivation.');
+});
+
 test(
     'compound-engineering rule adds a narrower compaction-only Write protocol sibling to Read protocol (issue #98)',
     function (): void {
