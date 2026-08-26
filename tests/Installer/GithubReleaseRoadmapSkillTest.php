@@ -215,6 +215,10 @@ test('the github-release-roadmap CLI reference names the defaults that truncate 
     expect($workflow)->toContain('`gh repo view --json issues` counts **open** issues only, never the `--state all` set');
     expect($workflow)->not->toContain('the issue-list footer');
 
+    // The one suppression in the file has to state its benign intent inline, in a skill whose
+    // invariant is that incomplete data stops the run.
+    expect($workflow)->toContain('# Both manifests are optional; an absent one is an expected version-source gap, not a read');
+
     expect($workflow)->toContain('## Read-back verification');
     expect($workflow)->toContain('An exit code is not evidence');
 });

@@ -85,7 +85,11 @@ gh project item-list <NUMBER> --owner OWNER --format json --limit 1000
 Read-only inspection of the checkout. Never write, never tag.
 
 ```bash
-cat composer.json package.json 2>/dev/null      # version / require constraints
+# Both manifests are optional; an absent one is an expected version-source gap, not a read
+# failure, so 2>/dev/null suppresses only the "No such file" line. Read what it prints for the
+# version and the require constraints; when neither manifest prints, say so in the report rather
+# than treating the silence as evidence of a version.
+cat composer.json package.json 2>/dev/null
 git tag --list --sort=-v:refname | head -20
 cat CHANGELOG.md | head -60
 ```
