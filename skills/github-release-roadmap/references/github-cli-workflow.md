@@ -34,7 +34,7 @@ Two defaults truncate silently and are the main reason a roadmap drops work:
 Two habits close it:
 
 1. Prefer `gh api --paginate` for anything that can exceed a page.
-2. Compare the number of records received against the repository's own totals (`gh repo view --json` counters, the issue-list footer, the Project's `totalCount`). A mismatch is a **gap**, not a rounding difference — report it and stop before proposing an executable plan.
+2. Prove the read was exhaustive rather than comparing against a counter of a different population: `gh api --paginate` follows `Link: rel="next"` until the last page, so an unexhausted read is an error rather than a short result. Where a counter is compared, match the population — `gh repo view --json issues` counts **open** issues only, never the `--state all` set — and use the Project's `totalCount` for `gh project item-list`. A mismatch is a **gap**, not a rounding difference: report it and stop before proposing an executable plan.
 
 ## Read the backlog
 

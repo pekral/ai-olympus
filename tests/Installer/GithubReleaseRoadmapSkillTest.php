@@ -202,6 +202,14 @@ test('the github-release-roadmap CLI reference names the defaults that truncate 
     expect($workflow)->toContain('The REST endpoint does **not**');
     expect($workflow)->toContain('pull_request');
 
+    // The completeness proof has to be one the run can pass on a complete read. Comparing against
+    // `gh repo view --json issues` counted open issues only while the prescribed backlog read is
+    // `--state all`, so the hard stop fired on every repository that had ever closed an issue.
+    expect($workflow)->toContain('Prove the read was exhaustive rather than comparing against a counter of a different population');
+    expect($workflow)->toContain('`gh api --paginate` follows `Link: rel="next"` until the last page');
+    expect($workflow)->toContain('`gh repo view --json issues` counts **open** issues only, never the `--state all` set');
+    expect($workflow)->not->toContain('the issue-list footer');
+
     expect($workflow)->toContain('## Read-back verification');
     expect($workflow)->toContain('An exit code is not evidence');
 });
