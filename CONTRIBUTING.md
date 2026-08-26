@@ -33,7 +33,7 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
 
 See `README.md` → *Development & Testing* for the individual commands (`composer check`, `composer fix`, `composer phpcs-check`, …) if you want to run a single step instead of the full gate.
 
-**CI is not the same gate.** `.github/workflows/pr.yml` runs only a subset of `@check` — `security-audit`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, and `test:coverage`. It does **not** run `skill-check` or `composer-normalize-check`. A green CI check on your PR is therefore not proof that the full `composer build` passes — always run it locally before pushing.
+**CI is not the same gate.** `.github/workflows/pr.yml` runs only a subset of `@check` — `security-audit`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, and `test:coverage`. It does **not** run `skill-check` or `composer-normalize-check`. A green CI check on your PR is therefore not proof that the full `composer build` passes — run it locally before you mark the pull request ready.
 
 ## Adding or changing a skill
 
