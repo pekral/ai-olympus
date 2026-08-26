@@ -425,6 +425,7 @@ Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue
 composer check              # run full quality check (skill-check, normalize, phpcs, pint, rector, phpstan, audit, tests)
 composer fix                # run all automatic fixes (skill-check-fix, normalize, rector, pint, phpcs)
 composer build              # install (ai-olympus install --force) then fix then check
+                            # runs once at the end of the work, not before every push
 composer analyse            # run PHPStan static analysis
 composer test:coverage      # run tests with 100% coverage (compact output — failures only)
 composer coverage           # same gate with the full per-file coverage report
@@ -457,7 +458,7 @@ Remove `coverage.xml` before committing if it was produced locally.
 
 ## Contributing
 
-Pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) carries the full flow: the `composer build` quality gate every change must pass, how to add or change a skill, and the commit and pull request conventions.
+Pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) carries the full flow: the `composer build` quality gate every change must pass before it is merged, how to add or change a skill, and the commit and pull request conventions.
 
 - [`CHANGELOG.md`](CHANGELOG.md) — every notable change, newest first
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — the Contributor Covenant this project follows
