@@ -196,6 +196,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `rules/code-testing/general.md` and `rules/php/core-standards.md` carry a re-baseline for the
     // quality-gate deferral, which moved the gate to the end of the work and retired the
     // "pre-push" vocabulary those sections used.
+    // `rules/code-review/general.md` carries one further re-baseline for the project `CLAUDE.md`
+    // gate, which added the *Project `CLAUDE.md` as an additional review input* section.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -206,7 +208,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '40aee457d43fbf31abfacb2d35a498c470912a06d56015ea2461e45d42f438b4',
+        'rules/code-review/general.md' => 'ae359da46df5923ed6a012c8c452d71572fb43a682fbb2d57849028697a11642',
         'rules/code-testing/general.md' => '719c2646a21ff76458ace581ba8cebaaa58a29f5558168c52aa1769482fb84f9',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
