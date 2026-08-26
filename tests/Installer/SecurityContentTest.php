@@ -505,6 +505,57 @@ test('every roster agent points at the Untrusted Content Boundary rule instead o
     expect($copied)->toBe([]);
 });
 
+test('every external-content-ingesting skill points at the Untrusted Content Boundary rule instead of copying it (issue #18)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The audit list issue #12 deferred and issue #18 carried out. It is an explicit list rather
+    // than a derived one because "does this skill ingest external content" is a judgement about
+    // the skill's inputs, not a property any glob can compute — every skill under `skills/` reads
+    // *something*, but only these load a tracker payload, a PR body, reviewer comments, or a
+    // fetched page. Two of the nine names issue #12 listed (`auto-fix-bug`, `answer-pr-questions`)
+    // no longer ship. `code-review-jira` and `code-review-bugsnag` are audited alongside
+    // `code-review-github` because the reference lives in the contract all three share, so pinning
+    // only one of them would let a move back into a single wrapper file silently uncover the other
+    // two. The existence assertion below is what stops this list from shrinking after a rename.
+    $ingestingSkills = [
+        'analyze-problem',
+        'code-review',
+        'code-review-bugsnag',
+        'code-review-github',
+        'code-review-jira',
+        'merge-github-pr',
+        'process-code-review',
+        'resolve-issue',
+        'security-review',
+    ];
+
+    $missing = [];
+    $copied = [];
+
+    foreach ($ingestingSkills as $skill) {
+        $path = $packageDir . '/skills/' . $skill . '/SKILL.md';
+        expect(is_file($path))->toBeTrue('Audited skill no longer ships: ' . $skill);
+
+        // crContractText() appends the shared CR wrapper contract for the three tracker wrappers,
+        // which is where their Constraints live — reading the wrapper file alone would miss a
+        // rule the wrapper deliberately does not restate.
+        $content = crContractText($path);
+
+        if (!str_contains($content, '@rules/security/general.md')) {
+            $missing[] = $skill;
+        }
+
+        // One central rule, one reference per skill. `skills/` ships verbatim to every consumer
+        // tree, so a pasted section would drift out of sync in every one of them at once.
+        if (str_contains($content, '## Untrusted sources') || str_contains($content, '## Trusted sources')) {
+            $copied[] = $skill;
+        }
+    }
+
+    expect($missing)->toBe([]);
+    expect($copied)->toBe([]);
+});
+
 test('the orchestration rules carry the dispatch-time boundary as a pointer, not a second copy (issue #12)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
