@@ -830,12 +830,11 @@ test('daedalus decides the opt-in savings mode once during gather and never narr
 
     // Brief layout carries the new fields alongside the pre-existing ones.
     expect($daedalus)->toContain('## Context pack');
-    expect($daedalus)->toContain('## Build gate cache');
 
     // The cache is written by hephaestus only — athena stays read-only and never runs a
-    // full build, so it never writes this section (issue #119 CR fix for the cross-file contradiction
-    // with the reviewer's "the only write you perform" clause).
-    expect($daedalus)->toContain('`athena` never writes this section');
+    // The build-gate cache the clause used to guard is retired (#119) — one gate run per branch
+    // leaves no second build to serve — so no brief section survives for daedalus to carry.
+    expect($daedalus)->not->toContain('## Build gate cache');
 });
 
 test(
@@ -891,8 +890,9 @@ test('the head-SHA gate log is retired along with the repeated builds it dedupli
     // The retirement is recorded where the mechanism used to be documented, so a later reader
     // finds the decision rather than an unexplained absence.
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    expect($gates)->toContain('Why the always-on head-SHA dedup is gone (issue #212, retired)');
-    expect($gates)->toContain('The `## Gate log` brief section it was keyed to is retired with it.');
+    expect($gates)->toContain('### Retired with the repeated builds they deduplicated');
+    expect($gates)->toContain('**Head-SHA push-level dedup (issue #212, retired).**');
+    expect($gates)->toContain('the `## Gate log` brief section it was keyed to is retired with it');
 });
 
 test('athena frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {

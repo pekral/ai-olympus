@@ -1252,18 +1252,30 @@ test('merge-anytime waives waiting for CI, never the pre-merge gate (issue #65, 
     expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
 });
 
-test('the savings-mode cache survives with a single consumer and never covers security-audit (issue #119)', function (): void {
+test('the three build-dedup mechanisms are retired with the repeats they removed (issues #119, #124, #212)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
-    // The cache outlives the deferral, but its reach shrinks to the one gate that remains.
-    expect($gates)->toContain('### Savings-mode build-gate cache (opt-in, issue #119)');
-    expect($gates)->toContain('this cache has a single consumer');
-    expect($gates)->toContain('A run with savings mode off, or with no shared brief at all, always executes the gate in full.');
+    // Each existed only to stop the same commit being built twice. One gate run per branch leaves
+    // them nothing to deduplicate, so they go rather than lingering as unreachable guidance.
+    expect($gates)->toContain('### Retired with the repeated builds they deduplicated');
+    expect($gates)->toContain('**Head-SHA push-level dedup (issue #212, retired).**');
+    expect($gates)->toContain('**CI-result reuse for the loop gate (issue #124, retired).**');
+    expect($gates)->toContain('**Savings-mode build-gate cache (issue #119, retired).**');
+    expect($gates)->toContain('left with readers and no writer');
 
-    // A live-advisory check cannot be pinned to a commit, so no cache entry may stand in for it.
-    expect($gates)->toContain('**A cache hit never covers `security-audit`.**');
-    expect($gates)->toContain('a function of *when* it ran');
+    // The one reuse that remains is keyed to the head SHA and needs no cache.
+    expect($gates)->toContain('is keyed to the head SHA and lives in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*');
+
+    // A live-advisory check can never be pinned to a commit, cache or no cache.
+    expect($gates)->toContain('**`security-audit` is never reused by anything.**');
+
+    // No brief section survives for a mechanism nothing writes to.
+    foreach (['agents/daedalus.md', 'agents/hephaestus.md'] as $relativePath) {
+        $body = (string) file_get_contents($packageDir . '/' . $relativePath);
+        expect($body)->not->toContain('## Build gate cache');
+        expect($body)->not->toContain('## Gate log');
+    }
 });
 
 test('a security remediation plan is a machine-checkable checklist that blocks PR creation (issue #212)', function (): void {
