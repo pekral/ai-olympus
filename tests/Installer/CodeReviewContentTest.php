@@ -2015,7 +2015,7 @@ test('no suppression annotation may enter a diff, with no scoping or documentati
     expect($crRule)->toContain('`assert($var !== null)` for a required-but-unused variable');
 });
 
-test('the pre-push gates forbid reaching for a suppression to go green (issue #258)', function (): void {
+test('the quality gate forbids reaching for a suppression to go green (issue #258)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');

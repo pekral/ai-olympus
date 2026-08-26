@@ -98,12 +98,12 @@ test('no skill mandates the per-commit range replay any more (issue #233, revise
         'skills/process-code-review/SKILL.md' => 'no range replay is required here',
     ];
 
-    // The wordings the replay-mandating versions carried; none may survive anywhere.
+    // The wordings the replay-mandating versions of these four files carried; none may survive in
+    // them. The rule file's own former wording is pinned by the first test in this file, not here.
     $mandatingWordings = [
         'Step 3 is not optional',
         'requires the replay before a reshaped branch is pushed',
         'requires the check before a reshaped branch is published',
-        'whenever the branch is rebased, re-verify the whole range',
     ];
 
     $violations = [];
