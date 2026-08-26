@@ -17,7 +17,40 @@
 
 {embedded_blocks}
 
-> Render the `{embedded_blocks}` slot only when the calling CR wrapper passes one or more markdown blocks (typically the `## Assignment Compliance` block returned by `@skills/assignment-compliance-check/SKILL.md`). Each block is appended verbatim, in the order received, separated by a single blank line. When no blocks are passed, omit this slot entirely — including the surrounding blank lines — so the comment ends right after `How to test`.
+<!-- ─────────────────────────────────────────────────────────────────────────────
+     TEMPLATE GUIDANCE — never part of the published comment.
 
-> Render the `{assignment_verdict}` slot at the very top **only when the calling CR wrapper passes an `## Assignment Compliance` block** (i.e. the changes do not satisfy the assignment). It is a single bold line in the assignment language stating non-compliance and the gap count `N` (taken from the block's `Critical gaps found: N` verdict / count of gap entries), pointing the reader to the detail below — e.g. `⚠️ **Changes do not satisfy the assignment — N gap(s). See Assignment Compliance below.**` (Czech assignment → `⚠️ **Změny nesplňují zadání — N nedostatk(ů). Viz Assignment Compliance níže.**`).
-> When the changes satisfy the assignment (no Assignment Compliance block passed) or no tracker is linked, omit this slot entirely — including the surrounding blank line — so the comment begins at `Authors`. Never render a positive "satisfies the assignment" line; only non-compliance is surfaced, consistent with the report-only-what-needs-action convention.
+     Everything above this marker is the comment body. Everything below it is an
+     HTML comment: GitHub renders nothing for it, so it cannot reach a reader even
+     if the whole file is copied into a comment by mistake. Keep it that way — a
+     blockquote (`>`) would render as a visible, official-looking quotation, which
+     is exactly how meta-instructions leak unnoticed.
+
+     {embedded_blocks}
+       Render this slot only when the calling CR wrapper passes one or more markdown
+       blocks (typically the `## Assignment Compliance` block returned by
+       `@skills/assignment-compliance-check/SKILL.md`). Each block is appended
+       verbatim, in the order received, separated by a single blank line. When no
+       blocks are passed, omit this slot entirely — including the surrounding blank
+       lines — so the comment ends right after `How to test`.
+
+     {assignment_verdict}
+       Render this slot at the very top only when the calling CR wrapper passes an
+       `## Assignment Compliance` block — i.e. the changes do not satisfy the
+       assignment. It is a single bold line in the assignment language stating
+       non-compliance and the gap count `N` (taken from the block's
+       `Critical gaps found: N` verdict / count of gap entries), pointing the reader
+       to the detail below — e.g.
+       `⚠️ **Changes do not satisfy the assignment — N gap(s). See Assignment Compliance below.**`
+       (Czech assignment → `⚠️ **Změny nesplňují zadání — N nedostatk(ů). Viz Assignment Compliance níže.**`).
+
+       When the changes satisfy the assignment (no Assignment Compliance block
+       passed) or no tracker is linked, omit this slot entirely — including the
+       surrounding blank line — so the comment begins at `Authors`. Never render a
+       positive "satisfies the assignment" line; only non-compliance is surfaced.
+
+     The canonical statement of both rules lives in `@skills/pr-summary/SKILL.md`
+     (*Embedded blocks* and *Assignment non-compliance verdict (top banner)*). This
+     block restates the slot mechanics for whoever is filling the template in; the
+     skill is the source of truth if the two ever disagree.
+     ───────────────────────────────────────────────────────────────────────────── -->
