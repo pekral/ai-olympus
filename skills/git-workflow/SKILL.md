@@ -71,11 +71,15 @@ git fetch origin
 git pull --rebase                     # 1) take the branch's own remote first
 git rebase "origin/$DEFAULT_BRANCH"   # 2) bring the latest default branch in
 # resolve conflicts if any, then: git rebase --continue
-git rebase --exec 'composer build' \
-  "origin/$DEFAULT_BRANCH"            # 3) replay the range; stops on the first commit that fails
-git push --force-with-lease           # 4) publish; do NOT git pull again — it would undo the rebase
+git push --force-with-lease           # 3) publish; do NOT git pull again — it would undo the rebase
 ```
 The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted; substitute the project's own gate for `composer build` where it differs.
+
+Run that replay only when you actually want a bisectable history — it executes the whole gate once per commit, which is the cost the single end-of-work gate exists to avoid:
+
+```bash
+git rebase --exec 'composer build' "origin/$DEFAULT_BRANCH"   # optional; stops on the first commit that fails
+```
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
 composer install                      # run only when composer.lock actually changed
