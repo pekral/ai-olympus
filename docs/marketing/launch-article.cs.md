@@ -72,7 +72,7 @@ opravené ještě před publikováním review.
 
 ## Proč Composer plugin, a ne zkopírovaný soubor
 
-Standardy se distribuují jako Composer balíček: 25 souborů s pravidly a 53 skillů, které binárka
+Standardy se distribuují jako Composer balíček: 25 souborů s pravidly a 54 skillů, které binárka
 nainstaluje do `.claude/rules` a `.claude/skills`.
 
 ```bash
