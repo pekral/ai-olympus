@@ -24,8 +24,8 @@ Rules for the inventory:
 ## 2. Map one point to one commit
 
 - Each inventoried in-scope point is **exactly one commit**, in the assignment's original order. Never merge two points into one commit, never split one point across two, never re-scope or reorder them.
-- Each commit is **complete on its own**: the production change for its point, the tests covering it, and any doc or locale update the point requires — so the point is verifiable at that commit and nothing is left to a later fixup. For a bug, the TDD failing test is written **first in the working tree** and committed **together with the fix that makes it pass** — the RED state is never a commit of its own (`@rules/git/general.md` *Every commit is green*).
-- Each commit is **green on its own**: it passes the project's own gate (`composer build` / the Phing target / the CI workflow), not a subset. A commit that only builds is not enough — see *Every commit is green* in `@rules/git/general.md` for the full contract and its review severities.
+- Each commit is **complete on its own**: the production change for its point, the tests covering it, and any doc or locale update the point requires — so the point is verifiable at that commit and nothing is left to a later fixup. For a bug, the TDD failing test is written **first in the working tree** and committed **together with the fix that makes it pass** — the RED state is never a commit of its own (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*).
+- Commits are **not individually gated**: the project's own gate (`composer build` / the Phing target / the CI workflow) runs once, on the head commit being merged — see *The merged head is green; intermediate commits are not gated* in `@rules/git/general.md` for the full contract, what it trades away, and its review severities.
 - Every commit subject is `type(scope): description` per `@rules/git/general.md`, in English, and names the point it resolves rather than the mechanics of the edit.
 
 ## 3. Order for independence (cherry-pick friendly — preferred, not required)
@@ -66,7 +66,7 @@ This table is the commit plan for step 11 of the skill body and the source of th
 
 ## 5. Implement point by point
 
-Implement one point at a time and, at the end of each point, run the pre-push fixers and tests on that point's changes before committing it (`references/quality-gates.md`). Never start the next point with the previous one uncommitted — a mixed working tree is what silently merges two points into one commit.
+Implement one point at a time and, at the end of each point, run the tests covering that point's changes before committing it. Do not run fixers or checkers between points — the project's gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*). Never start the next point with the previous one uncommitted — a mixed working tree is what silently merges two points into one commit.
 
 If implementation proves the plan wrong (a point turns out to need two commits, or two points are inseparable), update the table and reflect it in the PR `## Changes` list; the committed history and the plan must never diverge.
 
@@ -82,6 +82,6 @@ Work that arrives after the plan — a finding from the pre-PR review loop, a co
 
 Then reconcile: run `git log <base>..HEAD` against the recorded plan table and confirm every commit is one logical change and every logical change is one commit. Split a commit that turned out to bundle two; fold two that turned out to be one. Check the same range for dead code — for each commit, confirm every symbol it adds is referenced inside the tree that commit produces, and fold an unreferenced symbol forward into the commit that first consumes it (`@rules/git/general.md` *No commit ships dead code*). Do this **before** opening the PR, while the branch is still yours to rewrite — and re-derive every short SHA the plan table and the PR description cite, since a rewrite moves all of them.
 
-Any rewrite here — an `--autosquash`, a split, a fold, a reorder — changes the tree of every commit after the edit point, so the gate each of those commits passed before the rewrite proves nothing about the history that came out of it. Replay the whole range before pushing: `git rebase --exec '<the project gate>' <base>` stops on the first commit that fails. This is the enforcement half of `@rules/git/general.md` *Every commit is green*.
+Any rewrite here — an `--autosquash`, a split, a fold, a reorder — changes the tree of the head commit, so the pre-merge gate runs again on the new head; a reshaped branch never inherits an earlier verdict (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*). Replaying the whole range with `git rebase --exec '<the project gate>' <base>` remains available when a bisectable history is wanted, and is not required by default.
 
 Review-loop and CHANGELOG commits stay **out** of the PR's `## Changes` checklist (that table maps assignment points), but they are still named in the PR description so no commit on the branch is unaccounted for.

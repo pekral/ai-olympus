@@ -193,6 +193,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // the **Deploy-safe schema changes** Core Analysis bullet and the **Action-to-Action
     // pass-through rule**; `rules/code-review/general.md` carries one more for issue #22, which
     // extended the issue #53 bullet with the declaration-level generated-docblock shapes.
+    // `rules/code-testing/general.md` carries a re-baseline for the quality-gate deferral, which
+    // moved its **Code Style and Quality Gates** section from per-change fixers to the single
+    // pre-merge gate.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -204,7 +207,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         'rules/code-review/general.md' => '40aee457d43fbf31abfacb2d35a498c470912a06d56015ea2461e45d42f438b4',
-        'rules/code-testing/general.md' => 'c900a8196fb215210b1f55bcdc4e095959b511d414e539ab88de45999824e66c',
+        'rules/code-testing/general.md' => 'abaa9f22353027e72331b536e5a320a0e172f60b1942f13184293db0053b6391',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',

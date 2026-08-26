@@ -862,42 +862,37 @@ test(
     },
 );
 
-test('hephaestus owns the executed coverage verdict and reuses the cached build gate when savings mode is on (issue #119)', function (): void {
+test('hephaestus owns the executed coverage verdict and runs no build gate of its own (issue #119, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
 
-    expect($hephaestus)->toContain('**Savings-mode build-gate cache (opt-in).**');
-    expect($hephaestus)->toContain('check the brief\'s `## Build gate cache`');
+    // The gate moved to the merge boundary, so the implementer must not run one — in either mode.
+    expect($hephaestus)->toContain('Gate placement — deferred to the merge boundary');
+    expect($hephaestus)->toContain('Do not run fixers, checkers, or `composer build` in the implementation flow either.');
+    expect($hephaestus)->toContain('never a full build');
+
+    // The coverage ownership it carries is unrelated to gate placement and survives unchanged.
     expect($hephaestus)->toContain('**Own the coverage verdict when savings mode is on.**');
     expect($hephaestus)->toContain('you are the sole authoritative source for the executed coverage number in this run');
-
-    // Coverage is a dedicated handoff field, and the scoped status definition states whether the
-    // coverage gate is included (issue #119 CR fix — agent-new-mode-status-result-parity).
     expect($hephaestus)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
     expect($hephaestus)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
 });
 
-test('hephaestus checks the always-on head-SHA gate log before a full build, ahead of the opt-in cache (issue #212)', function (): void {
+test('the head-SHA gate log is retired along with the repeated builds it deduplicated (issue #212, retired)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
 
-    expect($hephaestus)->toContain('**Push-level gate dedup by head SHA (always on).**');
-    expect($hephaestus)->toContain('consult the shared brief\'s `## Gate log`');
-    expect($hephaestus)->toContain('full-build|<sha>|<build-inputs-hash>|<pass-or-fail>|<ISO-8601>|hephaestus:scoped');
-    // Unconditional, and consulted before the opt-in tree-hash cache — the two are independent.
-    expect($hephaestus)->toContain('it does not require `## Savings mode: on`');
-    expect($hephaestus)->toContain('consulted **before** the opt-in tree-hash cache below');
-    // The Bash boundary must actually permit the Gate log append it is asked to perform.
-    expect($hephaestus)->toContain('a `## Gate log` entry whenever you run a push-level full build');
+    // The dedup existed only because three call sites each ran a full build on the same commit.
+    // Deferring the gate removed all three, so the log has nothing left to deduplicate and must
+    // not survive as a brief section nobody writes to.
+    foreach (['agents/hephaestus.md', 'agents/daedalus.md'] as $relativePath) {
+        expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('## Gate log');
+    }
 
-    // daedalus creates the section empty during gather, beside (not inside) the opt-in cache.
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
-    expect($daedalus)->toContain('## Gate log');
-    expect($daedalus)->toContain('**Gate log (always, not opt-in).**');
-    expect($daedalus)->toContain('independent of savings mode and of the opt-in `## Build gate cache` beside it');
-    // The writer is named exactly as the sibling Build-gate-cache bullet names it — not "every specialist".
-    expect($daedalus)->toContain('Whichever `hephaestus` step runs a full build appends its own line under the per-brief append lock');
-    expect($daedalus)->not->toContain('Every specialist that runs a full build appends');
+    // The retirement is recorded where the mechanism used to be documented, so a later reader
+    // finds the decision rather than an unexplained absence.
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain('Why the always-on head-SHA dedup is gone (issue #212, retired)');
+    expect($gates)->toContain('The `## Gate log` brief section it was keyed to is retired with it.');
 });
 
 test('athena frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {

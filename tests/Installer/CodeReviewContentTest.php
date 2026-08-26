@@ -1643,27 +1643,12 @@ test(
             'exact PR head commit** (confirm that run\'s **actually-checked-out SHA** matches the PR `headRefOid`)',
         );
 
-        // quality-gates.md's own loop-gate Staleness guard bullet cites the rule above as the single
-        // canonical source of what "actually-checked-out SHA" means, instead of restating that definition
-        // a second time — but it still states its own, additional loop-gate-specific predicate explicitly:
-        // the local `HEAD` must equal that SHA (not merely the PR's remote `headRefOid`), because a fix
-        // committed locally but not yet pushed leaves a clean tree while `headRefOid` still lags behind
-        // (CR follow-up — a bare citation had silently dropped this local comparison).
-        expect($gates)->toContain(
-            '`HEAD` must equal that run\'s **actually-checked-out SHA** — as defined by the canonical '
-            . '**Staleness guard** sentence in `@rules/code-review/general.md` *Validation & Coverage Gate* '
-            . '→ Coverage gate → "Reuse CI results when available"',
-        );
-        expect($gates)->toContain('the loop gate additionally requires the local `HEAD` to equal that actually-checked-out SHA');
-        expect($gates)->toContain(
-            'a locally committed but not-yet-pushed fix leaves a clean tree while `headRefOid` still points '
-            . 'at the previous commit',
-        );
-
-        // Negative pin, matched on a markup/case-independent fragment so a non-bold or reworded restatement
-        // of the definitional caveat cannot slip back in unnoticed (CR follow-up — the original bold-only
-        // pin would not have caught that).
+        // quality-gates.md no longer restates or cites this definition: the loop gate it belonged to
+        // is retired (the gate runs once at the merge boundary), so the citation has no host section.
+        // The canonical wording above stays the single source, and the retired mechanism must not
+        // leave a dangling reference behind.
         expect($gates)->not->toContain('nominal trigger SHA');
+        expect($gates)->not->toContain('CI-result reuse for the loop gate');
     },
 );
 
@@ -1784,49 +1769,20 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
     expect($bugsnag)->toContain('It never moves to a non-technical tracker as a technical section');
 });
 
-test('quality-gates records that this repository\'s own PR CI cannot satisfy the CI-reuse staleness guard (issue #144)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
-
-    // The documented consequence is only true while the workflow keeps this exact shape: a
-    // pull_request trigger with a checkout that does NOT pin any ref. Pin the premise, not just the
-    // prose — otherwise a later workflow change would silently turn the note into a false claim.
-    expect($workflow)->toContain('pull_request:');
-    expect($workflow)->toContain('uses: actions/checkout@v4');
-    // Assert the ABSENCE of a `with:` block on the checkout step (the step line is followed by a
-    // blank line), not the absence of one forbidden expression. Forbidding a single spelling leaves
-    // every other one silently passing — `ref: ${{ github.head_ref }}` is the shorter, likelier edit
-    // and would check out the branch head instead of the merge ref, falsifying the whole note while
-    // the substring check below still went green (CR fix, PR #153 Moderate 1).
-    expect($workflow)->toMatch('#uses: actions/checkout@v4\s*\n\s*\n#');
-    // Kept as a second, more specific guard on the spelling the note names verbatim.
-    expect($workflow)->not->toContain('github.event.pull_request.head.sha');
-
-    expect($gates)->toContain('the reuse path is structurally unreachable here (issue #144)');
-    expect($gates)->toContain('checks out the **merge ref** (`refs/pull/<N>/merge`)');
-    expect($gates)->toContain('every check therefore always runs locally in `ai-olympus` itself');
-    // A non-match forces the local run, so the dead path is conservative, not a defect.
-    expect($gates)->toContain('can never produce a false-positive reuse');
-    // Only the PR side is dead — the push trigger does check out the pushed commit.
-    expect($gates)->toContain('it is only the **PR-side** reuse');
-
-    // The rejected alternative is recorded with its reason so nobody "fixes" it back.
-    expect($gates)->toContain('Do not "fix" the above by pointing the checkout at the head SHA.');
-    expect($gates)->toContain('validates the **merged** result for one that validates the branch in isolation');
-    expect($gates)->toContain('never on `@skills/resolve-issue/SKILL.md`\'s pre-PR gate');
-});
-
-test('the CI-reuse unreachability note cites the vendor documentation its premise rests on (issue #144 CR fix)', function (): void {
+test('the CI-reuse mechanism is retired with the loop gate it served (issue #144, retired)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
-    // The note asserts third-party behaviour, so it must carry its own provenance — a reader of the
-    // file cannot otherwise verify the premise without re-deriving it (CR fix, PR #153 Minor 1).
-    expect($gates)->toContain('defaults to the reference or SHA for that event');
-    expect($gates)->toContain('https://github.com/actions/checkout');
-    expect($gates)->toContain('`refs/pull/<pr_number>/merge`');
-    expect($gates)->toContain('https://docs.github.com/en/actions/reference/workflows-and-actions/variables');
+    // The mechanism only ever applied to the per-iteration loop gate, and it was already
+    // structurally unreachable in this repository (a `pull_request` checkout resolves the merge
+    // ref, so the staleness guard could never match). Deferring the gate to the merge boundary
+    // removed the loop gate outright, so the section goes rather than lingering as dead guidance.
+    expect($gates)->not->toContain('CI-result reuse for the loop gate');
+    expect($gates)->not->toContain('the reuse path is structurally unreachable here (issue #144)');
+
+    // What replaced it: one gate, at the merge boundary, never reused from a CI result.
+    expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
+    expect($gates)->toContain('**Immediately before the merge — the full gate, once.**');
 });
 
 test('code review rule breaks a parallel-reviewer severity divergence toward the higher severity (issue #172)', function (): void {
