@@ -69,7 +69,10 @@ test('github-release-roadmap enumerates the whole picture and stops on an incomp
 
     expect($skill)->toContain('Enumerate **all open and closed issues with pagination**, excluding pull requests.');
     expect($skill)->toContain('number, title, body, state, labels, milestone, author, timestamps, assignees, and URL');
-    expect($skill)->toContain('Enumerate all repository labels with their descriptions, open and closed milestones, the relevant releases and tags, and the Projects belonging to the intended Project owner.');
+    expect($skill)->toContain(
+        'Enumerate all repository labels with their descriptions, open and closed milestones, '
+        . 'the relevant releases and tags, and the Projects belonging to the intended Project owner.',
+    );
     expect($skill)->toContain('Read the comments of candidate and ambiguous issues');
 
     // A partially-read backlog produces a roadmap that looks complete and silently drops work, so
@@ -122,7 +125,10 @@ test('github-release-roadmap applies the plan idempotently and verifies by readi
     $skill = releaseRoadmapSkill();
 
     expect($skill)->toContain('Re-read each target **immediately before** mutating it. Reuse what matches; create only what is missing.');
-    expect($skill)->toContain('**Verify by reading back** the resulting milestone, labels, Project link, items, and field values — never infer success from a command\'s exit code.');
+    expect($skill)->toContain(
+        '**Verify by reading back** the resulting milestone, labels, Project link, items, and field values'
+        . ' — never infer success from a command\'s exit code.',
+    );
     expect($skill)->toContain('**Never overwrite unrelated metadata.**');
 
     // The apply order is load-bearing: fields must exist before item values can be set on them.
