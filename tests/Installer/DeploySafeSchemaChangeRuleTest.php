@@ -38,8 +38,7 @@ test('the SQL rule defines deploy-safe schema changes (issue #20)', function ():
 });
 
 test('the code-review rule raises deploy-safe schema changes with severities and gating (issue #20)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('- **Deploy-safe schema changes (issue #20)**');
 

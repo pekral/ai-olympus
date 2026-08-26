@@ -528,7 +528,9 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
 function ruleScopingReferenceOnlyFiles(): array
 {
     return [
+        'rules/code-review/core-analysis.md',
         'rules/code-review/general.md',
+        'rules/code-review/review-process.md',
         'rules/code-testing/general.md',
         'rules/jira/general.md',
         'rules/php/dependency-selection.md',
@@ -536,6 +538,26 @@ function ruleScopingReferenceOnlyFiles(): array
         'rules/reports/general.md',
         'rules/security/general.md',
     ];
+}
+
+/**
+ * The code-review rule set as one string. It ships as three files — `general.md` carries the
+ * review's constraints, gates, and output contract, `core-analysis.md` the catalog of what counts
+ * as a finding, `review-process.md` the passes the review runs and how it reports — because one
+ * file passed the 150 000-character limit Claude Code enforces per rule file and the loader
+ * stopped loading it. A test that asks whether the rule set states something asks it of all three,
+ * so the split cannot make an assertion pass or fail by which file a sentence landed in.
+ */
+function codeReviewRuleContents(): string
+{
+    $packageDir = dirname(__DIR__);
+    $contents = '';
+
+    foreach (['general.md', 'core-analysis.md', 'review-process.md'] as $file) {
+        $contents .= (string) file_get_contents($packageDir . '/rules/code-review/' . $file) . "\n";
+    }
+
+    return $contents;
 }
 
 /**
