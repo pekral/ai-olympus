@@ -5,36 +5,35 @@ declare(strict_types = 1);
 test('every @skills reference resolves to a skill that exists on disk (issue #28)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Issue #28 found `@skills/race-condition-review/SKILL.md` referenced from four live files
-    // while the directory had never existed, so the CR wrapper could not resolve it at run time.
-    // Removing those references fixed the instance; this test pins the class, so the next dangling
-    // reference fails here instead of silently shipping to every consumer tree.
+    // The audit's first finding was a reference to a `race-condition-review` skill directory that
+    // had never existed, so no CR wrapper could resolve it at run time. Removing the four call
+    // sites fixed that instance; this guard pins the class, so the next dangling reference fails
+    // here instead of shipping verbatim to every consumer tree.
+    //
+    // Scoped to the surfaces an agent actually resolves at run time. `CHANGELOG.md` is an
+    // append-only record of past state, not live documentation, and the tests themselves may name
+    // a retired skill while proving it is gone.
+    $liveSurfaces = array_filter(
+        packageTextFiles(),
+        static fn (string $path): bool => (bool) preg_match('#^(skills|agents|rules)/#', $path),
+        ARRAY_FILTER_USE_KEY,
+    );
+
     $references = [];
 
-    foreach (['skills', 'agents', 'rules'] as $directory) {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($packageDir . '/' . $directory, FilesystemIterator::SKIP_DOTS),
-        );
+    foreach ($liveSurfaces as $relativePath => $contents) {
+        preg_match_all('#@skills/([a-z0-9-]+)/SKILL\\.md#', $contents, $matches);
 
-        foreach ($iterator as $file) {
-            if (!$file instanceof SplFileInfo || !$file->isFile()) {
-                continue;
-            }
-
-            $content = (string) file_get_contents($file->getPathname());
-            preg_match_all('#@skills/([a-z0-9-]+)/SKILL\\.md#', $content, $matches);
-
-            foreach ($matches[1] as $skill) {
-                $references[$skill] ??= $file->getPathname();
-            }
+        foreach ($matches[1] as $skill) {
+            $references[$skill] ??= $relativePath;
         }
     }
 
     expect($references)->not->toBeEmpty();
 
-    foreach ($references as $skill => $source) {
+    foreach ($references as $skill => $relativePath) {
         expect(is_file($packageDir . '/skills/' . $skill . '/SKILL.md'))
-            ->toBeTrue('Dangling reference @skills/' . $skill . '/SKILL.md in ' . $source);
+            ->toBeTrue('Dangling skill reference to "' . $skill . '" in ' . $relativePath);
     }
 });
 
