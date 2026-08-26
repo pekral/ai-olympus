@@ -2,6 +2,42 @@
 
 declare(strict_types = 1);
 
+test('every @skills reference resolves to a skill that exists on disk (issue #28)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // Issue #28 found `@skills/race-condition-review/SKILL.md` referenced from four live files
+    // while the directory had never existed, so the CR wrapper could not resolve it at run time.
+    // Removing those references fixed the instance; this test pins the class, so the next dangling
+    // reference fails here instead of silently shipping to every consumer tree.
+    $references = [];
+
+    foreach (['skills', 'agents', 'rules'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($packageDir . '/' . $directory, FilesystemIterator::SKIP_DOTS),
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file instanceof SplFileInfo || !$file->isFile()) {
+                continue;
+            }
+
+            $content = (string) file_get_contents($file->getPathname());
+            preg_match_all('#@skills/([a-z0-9-]+)/SKILL\\.md#', $content, $matches);
+
+            foreach ($matches[1] as $skill) {
+                $references[$skill] ??= $file->getPathname();
+            }
+        }
+    }
+
+    expect($references)->not->toBeEmpty();
+
+    foreach ($references as $skill => $source) {
+        expect(is_file($packageDir . '/skills/' . $skill . '/SKILL.md'))
+            ->toBeTrue('Dangling reference @skills/' . $skill . '/SKILL.md in ' . $source);
+    }
+});
+
 test('dry review rule is referenced by process-code-review skill', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
