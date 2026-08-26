@@ -114,7 +114,7 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 **`hephaestus` — code-writing implementer**
 
-Implements an issue from context or a tracker link, authors its test coverage, runs local checks (`composer build`) and fixes their errors, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
+Implements an issue from context or a tracker link, authors its test coverage, runs the tests covering the change, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
 
 **Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
 
@@ -204,7 +204,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
    @hephaestus implement the failing upload validation
    ```
 
-3. `hephaestus` detects the source, runs `resolve-issue` to implement the change, runs local checks (`composer build`) and fixes their errors, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
+3. `hephaestus` detects the source, runs `resolve-issue` to implement the change, runs the tests covering it, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
 
 `hephaestus` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
 
