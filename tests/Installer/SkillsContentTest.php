@@ -1207,6 +1207,17 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     // The merge accepts the recorded Finalization run instead of re-proving the same bytes.
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     expect($merge)->toContain('**A gate run already performed on this exact head commit counts.**');
+
+    // All four acceptance conditions — dropping any one reopens the bypass this predicate closed.
+    expect($merge)->toContain('**The record is authentic.**');
+    expect($merge)->toContain('`author_association` to be `OWNER`, `MEMBER`, or `COLLABORATOR`');
+    expect($merge)->toContain('**The record names this exact commit.**');
+    expect($merge)->toContain('Compare the SHA itself — **never a timestamp proxy.**');
+    expect($merge)->toContain('**The record is a pass.**');
+    expect($merge)->toContain('**The tree is clean**');
+
+    // No sentence may say a caller instruction lifts the gate.
+    expect($merge)->not->toContain('The only thing that lifts this requirement');
     expect($merge)->toContain('a merge must never re-prove, on the same bytes, what a recorded run already proved');
 });
 
