@@ -88,6 +88,8 @@ Before proposing or implementing anything, do the research that grounds the anal
 ### Research (do all three before planning)
 
 1. **Codebase** — read the actual files, layers, and conventions the change will touch. Find the existing part of the system the work belongs to; per `@rules/compound-engineering/general.md`, reach for an existing home before inventing a new abstraction.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, convention, and section title the analysed change would rename, remove, or redefine — not only the files the problem description names.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. The sweep establishes the true scope of the work, so the **Implementation steps** and **Success criteria** below account for every affected file instead of the obvious ones. Report the match list in the plan, and state explicitly which matches the analysis rules out of scope.
 2. **Commit history** — walk `git log` / `git blame` for the affected area to learn how it evolved, which past changes touched it, and which approaches were already tried or reverted. Past decisions are context you must not re-derive blindly.
 3. **Internet best practices (when relevant)** — for an unfamiliar pattern, library, protocol, or security-sensitive surface, consult current authoritative references. Cite every source you rely on; skip this step for routine, well-understood changes.
 

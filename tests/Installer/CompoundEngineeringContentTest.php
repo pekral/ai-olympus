@@ -40,6 +40,16 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
     expect($content)->toContain('**Commit history**');
     expect($content)->toContain('**Internet best practices');
 
+    // The Codebase input carries a full-tree completeness sweep (issue #25). The analysis sets the
+    // scope the implementation later works to, so a sweep that stops at the files the problem
+    // description names understates that scope in the plan itself — every downstream step then
+    // inherits the omission. Pinned on the introduced strings, so a rewrite of the paragraph
+    // cannot drop the requirement while still satisfying the '**Codebase**' marker above.
+    expect($content)->toContain('**completeness sweep**');
+    expect($content)->toContain('Grep the entire repository');
+    expect($content)->toContain('not only the files the problem description names');
+    expect($content)->toContain('The sweep establishes the true scope of the work');
+
     // The plan artifact is a text file or a GitHub issue.
     expect($content)->toContain('text file in the repo');
     expect($content)->toContain('GitHub issue');

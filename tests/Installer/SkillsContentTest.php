@@ -796,6 +796,30 @@ test('code-generation skills enforce a Read, Map & Verify pre-flight before impl
     }
 });
 
+test('resolve-issue Map step mandates a full-tree completeness sweep before implementing (issue #25)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // PROJECT_MEMORY.md records this repo's single most repeated defect class: a grep that stopped
+    // at the files the assignment named, leaving a stale reference in a file nobody opened. The
+    // Map step now has to enumerate every file category across the whole tree before an edit
+    // lands. Pinning the introduced strings — not the pre-existing '**Map**' marker, which the
+    // pre-flight test above already covers and which this change deliberately preserves — is what
+    // keeps the requirement from being quietly dropped by a later rewrite of the same paragraph.
+    expect($content)->toContain('**completeness sweep**');
+    expect($content)->toContain('Grep the entire repository');
+    expect($content)->toContain('never only the files the assignment names');
+
+    // The enumerated categories are the point of the sweep: naming them is what stops a reader
+    // from reading "whole tree" as "the source tree".
+    foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation', 'configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
+        expect($content)->toContain($category);
+    }
+
+    // The sweep is ordered before the edit, not alongside it.
+    expect($content)->toContain('Record the full match list before you edit anything');
+});
+
 test('analyze-problem skill carries the UI Redesign Lens with one-click default and wizard fallback', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');

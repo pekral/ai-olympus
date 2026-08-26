@@ -103,6 +103,8 @@ Reading, mapping, and verifying come first; implementing comes last. This pre-fl
 
 1. **Read** — open and read the actual files you will change and the code they depend on (callers, called methods, related tests, configuration, migrations). Confirm what the code does by reading it, not by guessing from names or the issue description.
 2. **Map** — map the change's blast radius: every call site, caller, data-flow path, and existing test that the in-scope change touches, plus the conventions, helpers, Services, and Actions already in the codebase to reuse instead of reinventing.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, convention, and section title the change renames, removes, or redefines — never only the files the assignment names, and never only the files you have already opened.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you edit anything, then classify each match as in scope for this change or as a stated exception. An incomplete sweep leaves a stale reference in a file nobody opened, and that reference surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior (for bugs, reproduce the failure; for features, confirm the integration points exist as assumed). If reading and mapping contradict the issue framing or the scenario table, stop and surface the discrepancy instead of implementing on a wrong premise.
 
 Only after Read, Map, and Verify are complete may commit planning and implementation begin.
