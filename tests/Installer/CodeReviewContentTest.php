@@ -2205,8 +2205,24 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     expect($rule)->toContain('Applied guidance is **additive**.');
 
     // Conflict resolution, both halves — a missing half is how one side silently swallows the other.
-    expect($rule)->toContain('- **The packaged rule wins whenever it is Critical-severity.**');
-    expect($rule)->toContain("- **Below Critical, the project's own convention wins.**");
+    expect($rule)->toContain(
+        '- **The packaged rule wins whenever it is Critical-severity, and whenever the finding is '
+        . 'security-relevant at any severity.**',
+    );
+    expect($rule)->toContain(
+        "- **Below Critical, and outside the security carve-out above, the project's own convention wins.**",
+    );
+
+    // The winning side is decided by subject as well as severity: @rules/security/** is not uniformly
+    // Critical (CSV formula injection is Moderate, security-review maps Low/Info onto CR Minor), so a
+    // severity-only gate would let one CLAUDE.md sentence silence a real security finding — which the
+    // Exclusion Gate's S1 clause and the late-iteration report scope both forbid absolutely.
+    expect($rule)->toContain('the **S1–S3** carve-out defined in *Assignment-Declared Test-Only Conditions');
+    expect($rule)->toContain(
+        'A finding that meets S1, S2, or S3 never falls under this bullet, whatever severity it carries.',
+    );
+    expect($skill)->toContain('so does a security-relevant finding at **any** severity');
+    expect($rule)->not->toContain("- **Below Critical, the project's own convention wins.**");
 
     // Absence is the ordinary case (some install channels ship no CLAUDE.md), never a finding.
     expect($rule)->toContain('### Absent file — skip silently');
