@@ -85,30 +85,44 @@ test('no skill mandates the per-commit range replay any more (issue #233, revise
     $packageDir = dirname(__DIR__, 2);
 
     // The replay runs the whole gate once per commit — exactly the cost the deferral removes. It
-    // stays available for a branch that genuinely needs a bisectable history, so each of these may
+    // stays available for a branch that genuinely wants a bisectable history, so each of these may
     // still mention it, but none may present it as required before a push.
-    $mustReplay = [
-        'skills/resolve-issue/SKILL.md',
-        'skills/resolve-issue/references/phase-planning.md',
-        'skills/git-workflow/SKILL.md',
-        'skills/process-code-review/SKILL.md',
+    //
+    // Pin the sentence each file actually gained, not a bare substring: an earlier version of this
+    // test asserted the word "available", which `unavailable` already satisfies in two of the four
+    // files, so it would have passed against the fully reverted change.
+    $mustNotMandateReplay = [
+        'skills/resolve-issue/SKILL.md' => 'that replay is available, not required',
+        'skills/resolve-issue/references/phase-planning.md' => 'remains available when a bisectable history is wanted, and is not required by default',
+        'skills/git-workflow/SKILL.md' => 'is available when a bisectable history is wanted',
+        'skills/process-code-review/SKILL.md' => 'no range replay is required here',
     ];
 
-    $mandating = [];
+    // The wordings the replay-mandating versions carried; none may survive anywhere.
+    $mandatingWordings = [
+        'Step 3 is not optional',
+        'requires the replay before a reshaped branch is pushed',
+        'requires the check before a reshaped branch is published',
+        'whenever the branch is rebased, re-verify the whole range',
+    ];
 
-    foreach ($mustReplay as $relativePath) {
+    $violations = [];
+
+    foreach ($mustNotMandateReplay as $relativePath => $optionalWording) {
         $body = (string) file_get_contents($packageDir . '/' . $relativePath);
 
-        if (!str_contains($body, 'git rebase --exec')) {
-            continue;
+        if (!str_contains($body, $optionalWording)) {
+            $violations[] = $relativePath . ': does not state the replay is optional';
         }
 
-        if (!str_contains($body, 'available')) {
-            $mandating[] = $relativePath;
+        foreach ($mandatingWordings as $mandating) {
+            if (str_contains($body, $mandating)) {
+                $violations[] = $relativePath . ': still mandates the replay — "' . $mandating . '"';
+            }
         }
     }
 
-    expect($mandating)->toBe([]);
+    expect($violations)->toBe([]);
 });
 
 test('the TDD cycle keeps RED out of the commit history (issue #233)', function (): void {
