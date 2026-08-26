@@ -202,6 +202,11 @@ test('the github-release-roadmap CLI reference names the defaults that truncate 
     expect($workflow)->toContain('The REST endpoint does **not**');
     expect($workflow)->toContain('pull_request');
 
+    // The fallback path has to capture the same field set the entrypoint mandates, or the
+    // large-backlog route silently drops body, labels, milestone, author, timestamps, and
+    // assignees from every issue it reads.
+    expect($workflow)->toContain('{number,title,body,state,labels,milestone,user,created_at,updated_at,closed_at,assignees,html_url}');
+
     // The completeness proof has to be one the run can pass on a complete read. Comparing against
     // `gh repo view --json issues` counted open issues only while the prescribed backlog read is
     // `--state all`, so the hard stop fired on every repository that had ever closed an issue.
