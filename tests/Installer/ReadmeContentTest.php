@@ -134,3 +134,41 @@ test('every Always scope in the rules overview table names a rule without a path
         );
     }
 });
+
+test('every rules/**/*.md file appears as a row in the readme rules overview table (issue #49)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+
+    // Scope the parse to the Rules Overview table so other markdown tables never leak in.
+    $section = installerDocsSection($readme, '## Rules Overview');
+
+    // Same row-matching regex the neighbouring "Always scope" test uses, so both tests agree on
+    // what counts as a row.
+    preg_match_all(
+        '/^\|\s*`([^`]+)`\s*\|(?:\\\\.|[^|\\\\])*\|\s*([^|]+?)\s*\|[ \t]*\r?$/m',
+        $section,
+        $rows,
+        PREG_SET_ORDER,
+    );
+
+    // Counted off the File cell alone, so a row the strict pattern drops fails the count.
+    preg_match_all('/^\|\s*`[^`]+`\s*\|/m', $section, $fileCells);
+
+    $tableFiles = array_map(static fn (array $row): string => $row[1], $rows);
+
+    // ruleTreeFiles() already walks rules/ recursively and returns package-relative paths
+    // (rules/php/core-standards.md); the table quotes paths relative to rules/ itself.
+    $ruleFiles = array_map(
+        static fn (string $path): string => substr($path, strlen('rules/')),
+        ruleTreeFiles(),
+    );
+
+    expect($rows)->toHaveCount(count($fileCells[0]));
+    expect($ruleFiles)->not->toBeEmpty();
+
+    foreach ($ruleFiles as $ruleFile) {
+        expect(in_array($ruleFile, $tableFiles, true))->toBeTrue(
+            'Rules Overview table is missing a row for rule file: ' . $ruleFile,
+        );
+    }
+});
