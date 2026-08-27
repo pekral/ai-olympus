@@ -38,6 +38,9 @@ jobs:
       - name: "🔒 Security Audit"
         run: composer security-audit
 
+      - name: "📝 Composer Normalize"
+        run: composer composer-normalize-check
+
       - name: "🔍 PHP CodeSniffer"
         run: composer phpcs-check
 
@@ -52,6 +55,9 @@ jobs:
 
       - name: "🐚 ShellCheck"
         run: composer shellcheck
+
+      - name: "🧪 Shell Self-Tests"
+        run: composer shell-self-tests
 
       - name: "📊 Coverage Tests"
         run: composer test:coverage
