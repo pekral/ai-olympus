@@ -547,8 +547,10 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
  * see `ruleExtensionAlwaysOnFiles()`.
  *
  * Both fail safe when the glob does not match: `@skills/create-test/SKILL.md` and the code-review
- * rule set name `@rules/code-testing/general.md`, and `@rules/code-review/core-analysis.md` names
- * `@rules/php/dependency-selection.md`, so an agent still reads either on demand.
+ * rule set name `@rules/code-testing/general.md`, and `@rules/git/general.md` names
+ * `@rules/php/dependency-selection.md` from its dependency-only-PR exemption. The code-review set
+ * and `rules/git/general.md` are themselves always-on, so that fallback is present in every
+ * session and an agent still reads either rule on demand.
  *
  * @return array<string, array<int, string>>
  */
