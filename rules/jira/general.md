@@ -1,6 +1,5 @@
 ---
 description: JIRA CLI (acli) usage and fallback rules
-paths: []
 ---
 
 ## JIRA Rules

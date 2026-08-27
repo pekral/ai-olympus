@@ -121,6 +121,6 @@ test('the retired path of every rule scoping took off the always-on list is stil
         $expected[] = $file . ' → ' . $retiredPath($rule);
     }
 
-    expect($scopedRules)->toHaveCount(9);
+    expect($scopedRules)->toHaveCount(11);
     expect(ruleExtensionStaleMdcReferences($corpus))->toBe($expected);
 });

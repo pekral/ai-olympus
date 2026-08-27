@@ -1,6 +1,9 @@
 ---
 description: Shared testing conventions for skills that generate or modify tests
-paths: []
+paths:
+  - "tests/**"
+  - "**/tests/**"
+  - "**/*Test.php"
 ---
 
 ## Testing Rules

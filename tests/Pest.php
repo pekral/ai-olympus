@@ -411,15 +411,26 @@ function ruleExtensionStaleMdcReferences(array $textFiles): array
  * test agree with whatever the file happens to say.
  *
  * Issue #274 took four rules off this list by scoping them (see `ruleScopingExpectedGlobs()`).
- * The four that remain are always-on because they govern something every run produces rather
- * than a file type a run may or may not touch: `compound-engineering` (principles only, since
- * issue #275 split its dispatch-time orchestration mechanics into a scoped `orchestration.md`
- * sibling — see `ruleScopingExpectedGlobs()`) governs the memory/tracker contract every run
- * follows, `general` governs the project-context and default-AI-behavior baseline every run
- * follows regardless of which file type it touches (split out of `php/core-standards.md` in
- * issue #281, because scoping that file to `**\/*.php` in issue #274 stopped those two sections
- * reaching a run that touches no PHP file), `git` governs every commit and pull request, and
- * `writing` governs every sentence an agent writes.
+ * The first four entries below are always-on because they govern something every run produces
+ * rather than a file type a run may or may not touch: `compound-engineering` (principles only,
+ * since issue #275 split its dispatch-time orchestration mechanics into a scoped
+ * `orchestration.md` sibling — see `ruleScopingExpectedGlobs()`) governs the memory/tracker
+ * contract every run follows, `general` governs the project-context and default-AI-behavior
+ * baseline every run follows regardless of which file type it touches (split out of
+ * `php/core-standards.md` in issue #281, because scoping that file to `**\/*.php` in issue #274
+ * stopped those two sections reaching a run that touches no PHP file), `git` governs every commit
+ * and pull request, and `writing` governs every sentence an agent writes.
+ *
+ * Issue #45 added the remaining seven. They used to declare `paths: []` and were described as
+ * reference-only — reachable only when a skill, an agent file, or another rule named them. That
+ * description was never true of the loader: an empty list reads the same as no key at all, so all
+ * of them already loaded into every session. The measurement is in `CHANGELOG.md`. Each of the
+ * seven governs an *activity* — reviewing a diff, talking to JIRA, refactoring, publishing a
+ * report, reading external content — and no path glob names an activity, so inventing one would
+ * silence the rule exactly where it applies. That is the variant `CHANGELOG.md` records as
+ * rejected for `security/general.md` back in issue #12, and it holds for the other six too.
+ * Always-on is therefore the state that matches both the loader and the intent; the token cost of
+ * these seven is real, and shrinking them is a content problem, not a frontmatter one.
  *
  * @return array<int, string>
  */
@@ -430,24 +441,38 @@ function ruleExtensionAlwaysOnFiles(): array
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
+        'rules/code-review/core-analysis.md',
+        'rules/code-review/general.md',
+        'rules/code-review/review-process.md',
+        'rules/jira/general.md',
+        'rules/refactoring/general.md',
+        'rules/reports/general.md',
+        'rules/security/general.md',
     ];
 }
 
 /**
  * The `paths:` globs every path-scoped rule must declare, written out by hand for the same reason
  * `ruleExtensionAlwaysOnFiles()` is: an expectation read out of the file it checks agrees with any
- * edit made to that file, including a typo. Assembled from the two groups below because they were
- * scoped by two different kinds of change, and because one flat list outgrows the function-length
- * limit the project enforces on itself.
+ * edit made to that file, including a typo. Assembled from the three groups below because they
+ * were scoped by three different kinds of change, and because one flat list outgrows the
+ * function-length limit the project enforces on itself.
  *
- * A rule scoped to nothing carries `paths: []` and lives in `ruleScopingReferenceOnlyFiles()`
- * instead — an empty list here would assert the same thing whether the key is present or absent.
+ * Every entry declares at least one glob. The loader has two states, not three: no `paths:` key
+ * loads the rule into every session, and a `paths:` list loads it when the session touches a
+ * matching file. An empty list is the first state wearing the second one's spelling, so it is
+ * banned outright (issue #45) — `ruleExtensionAlwaysOnFiles()` is where a rule that loads
+ * everywhere belongs, and it says so without a key.
  *
  * @return array<string, array<int, string>>
  */
 function ruleScopingExpectedGlobs(): array
 {
-    return array_merge(ruleScopingGlobsAddedByScoping(), ruleScopingGlobsTranslatedFromCursorGlobs());
+    return array_merge(
+        ruleScopingGlobsAddedByScoping(),
+        ruleScopingGlobsTranslatedFromCursorGlobs(),
+        ruleScopingGlobsAddedByIssue45(),
+    );
 }
 
 /**
@@ -515,28 +540,23 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
 }
 
 /**
- * The rules that intentionally carry an explicit empty scoping list, `paths: []`. Each reaches an
- * agent only when a skill, an agent file, or another rule names it. The six that issue #277
- * migrated carried Cursor's `alwaysApply: false` plus `globs: []` — scoped to nothing, so Cursor
- * never attached them by file path either, and as `.mdc` files Claude Code never loaded them at
- * all. Both readings agree on that same reach, so the empty list is the translation that keeps
- * the behaviour those rules already had. Dropping the key instead would have made all of them
- * always-on, which is the opposite of what issues #274 and #275 spent their diffs achieving.
+ * The two rules issue #45 moved off the retired `paths: []` spelling into real globs, because
+ * each one names a concrete file the session has to touch for the rule to apply: testing
+ * conventions apply when the session writes a test, and the dependency-selection gates apply when
+ * it edits a Composer manifest. The other seven had no such file and became always-on instead —
+ * see `ruleExtensionAlwaysOnFiles()`.
  *
- * @return array<int, string>
+ * Both fail safe when the glob does not match: `@skills/create-test/SKILL.md` and the code-review
+ * rule set name `@rules/code-testing/general.md`, and `@rules/code-review/core-analysis.md` names
+ * `@rules/php/dependency-selection.md`, so an agent still reads either on demand.
+ *
+ * @return array<string, array<int, string>>
  */
-function ruleScopingReferenceOnlyFiles(): array
+function ruleScopingGlobsAddedByIssue45(): array
 {
     return [
-        'rules/code-review/core-analysis.md',
-        'rules/code-review/general.md',
-        'rules/code-review/review-process.md',
-        'rules/code-testing/general.md',
-        'rules/jira/general.md',
-        'rules/php/dependency-selection.md',
-        'rules/refactoring/general.md',
-        'rules/reports/general.md',
-        'rules/security/general.md',
+        'rules/code-testing/general.md' => ['tests/**', '**/tests/**', '**/*Test.php'],
+        'rules/php/dependency-selection.md' => ['composer.json', '**/composer.json'],
     ];
 }
 

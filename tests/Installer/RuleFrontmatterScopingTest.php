@@ -105,6 +105,8 @@ test('every rule scoped in issue #274, #275 or #277 declares exactly the `paths:
         'rules/laravel/filament.md',
         'rules/laravel/livewire.md',
         'rules/laravel/queue-debouncing.md',
+        'rules/code-testing/general.md',
+        'rules/php/dependency-selection.md',
     ]);
 });
 
@@ -238,48 +240,73 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     }
 });
 
-test('a rule scoped to nothing says so with an explicit empty `paths:` list (issue #277)', function (): void {
+test('no rule declares the empty `paths: []` list the loader reads as always-on (issue #45)', function (): void {
+    // Measured in a live session: a rule with `paths: []` is present in the system prompt from the
+    // first turn, exactly like a rule with no `paths:` key, while a rule with a real glob is absent
+    // until the session touches a matching file. The empty list is therefore always-on wearing
+    // path-scoping's spelling — the one state that reads as a third option and is not one.
     $packageDir = dirname(__DIR__, 2);
+    $ruleFiles = ruleTreeFiles();
     $violations = [];
 
-    foreach (ruleScopingReferenceOnlyFiles() as $relativePath) {
+    foreach ($ruleFiles as $relativePath) {
         $frontmatter = ruleExtensionFrontmatter($packageDir . '/' . $relativePath);
 
-        if (!str_contains($frontmatter, "\npaths: []")) {
-            $violations[] = $relativePath . ': does not declare the empty scoping list `paths: []`';
+        if (str_contains($frontmatter, 'paths: []')) {
+            $violations[] = $relativePath . ': declares `paths: []`, which loads it into every session rather than none';
         }
+    }
 
-        if (str_contains($frontmatter, 'alwaysApply') || str_contains($frontmatter, 'globs')) {
-            $violations[] = $relativePath . ': still carries a Cursor-only frontmatter key';
-        }
+    // Without this the walk could stop finding rules and the assertion would pass vacuously.
+    expect($ruleFiles)->toContain('rules/security/general.md');
+    expect($violations)->toBe([]);
+});
 
-        if (!str_contains($frontmatter, 'description:')) {
-            $violations[] = $relativePath . ': lost its description';
+test('every rule declares exactly one of the two scopes the loader has (issue #45)', function (): void {
+    // No key means "load everywhere" and a `paths:` list means "load when a file matches". A rule
+    // that omits the key without being claimed as always-on is loading everywhere unnoticed, and a
+    // rule claimed as always-on while carrying a key is not always-on at all.
+    $packageDir = dirname(__DIR__, 2);
+    $alwaysOn = ruleExtensionAlwaysOnFiles();
+    $violations = [];
+
+    foreach (ruleTreeFiles() as $relativePath) {
+        $declaresPaths = preg_match('/^paths:/m', ruleExtensionFrontmatter($packageDir . '/' . $relativePath)) === 1;
+        $claimedAlwaysOn = in_array($relativePath, $alwaysOn, true);
+
+        if ($declaresPaths === $claimedAlwaysOn) {
+            $violations[] = $relativePath . ($declaresPaths
+                ? ': is claimed always-on yet declares a `paths:` list'
+                : ': declares no `paths:` key, so it loads everywhere, yet is not claimed always-on');
         }
     }
 
     expect($violations)->toBe([]);
-    expect(ruleScopingReferenceOnlyFiles())->toHaveCount(9);
+    expect($alwaysOn)->toHaveCount(11);
+    expect(array_intersect($alwaysOn, array_keys(ruleScopingExpectedGlobs())))->toBe([]);
 });
 
-test('a rule scoped to nothing is claimed neither as always-on nor as path-scoped (issue #277)', function (): void {
-    // The three registries partition every shipped rule, so a rule cannot be silently counted
-    // twice — or, worse, moved between them without the move being visible in a diff.
-    $referenceOnly = ruleScopingReferenceOnlyFiles();
+test('the two rules issue #45 scoped carry the globs that name their trigger', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $testing = ruleExtensionFrontmatter($packageDir . '/rules/code-testing/general.md');
+    $dependency = ruleExtensionFrontmatter($packageDir . '/rules/php/dependency-selection.md');
 
-    expect(array_intersect($referenceOnly, ruleExtensionAlwaysOnFiles()))->toBe([]);
-    expect(array_intersect($referenceOnly, array_keys(ruleScopingExpectedGlobs())))->toBe([]);
+    expect($testing)->toContain('  - "tests/**"');
+    expect($testing)->toContain('  - "**/*Test.php"');
+    expect($dependency)->toContain('  - "composer.json"');
+    expect($dependency)->toContain('  - "**/composer.json"');
+    expect(ruleScopingGlobsAddedByIssue45())->toHaveCount(2);
 });
 
-test('every rule scoped to nothing is still reached by an explicit reference (issue #277)', function (): void {
-    // `paths: []` means the loader never attaches the rule on its own, so the explicit
-    // `@rules/…` references are the only thing keeping it reachable. A rule that loses its last
-    // reference is silenced exactly as completely as a glob that matches nothing, and nothing
-    // else in the build would say so.
+test('a rule scoped to a narrow glob is still reached by an explicit reference (issue #45)', function (): void {
+    // `tests/**` and `composer.json` do not match every session that needs these two rules, so the
+    // explicit `@rules/…` references are what carry them into a run the glob misses. A rule that
+    // loses its last reference is silenced exactly as completely as a glob that matches nothing,
+    // and nothing else in the build would say so.
     $walked = packageTextFiles();
     $unreferenced = [];
 
-    foreach (ruleScopingReferenceOnlyFiles() as $relativePath) {
+    foreach (array_keys(ruleScopingGlobsAddedByIssue45()) as $relativePath) {
         $referencingFiles = array_filter(
             $walked,
             static fn (string $contents, string $file): bool => $file !== $relativePath
@@ -304,6 +331,13 @@ test('a rule scoped in issue #274, #275 or #277 is no longer claimed as always-o
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
+        'rules/code-review/core-analysis.md',
+        'rules/code-review/general.md',
+        'rules/code-review/review-process.md',
+        'rules/jira/general.md',
+        'rules/refactoring/general.md',
+        'rules/reports/general.md',
+        'rules/security/general.md',
     ]);
 
     foreach (array_keys(ruleScopingExpectedGlobs()) as $relativePath) {

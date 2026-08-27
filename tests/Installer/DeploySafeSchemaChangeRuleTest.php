@@ -60,7 +60,7 @@ test('the code-review rule raises deploy-safe schema changes with severities and
     // Findings land in the section the DB lens already owns, not in the generic buckets.
     expect($rule)->toContain('Fold the findings into the `## Database Analysis` section alongside the `mysql-problem-solver` findings.');
 
-    // `rules/code-review/general.md` declares `paths: []`, so this bullet loads on every project,
+    // The code-review rule set declares no `paths:` key, so this bullet loads on every project,
     // while `ALGORITHM` / `LOCK` and the online-schema tools exist only on MySQL. Without the gate
     // the walk raises a Critical against a PostgreSQL project and hands its author invalid syntax.
     expect($rule)->toContain('**Scope: MySQL / MariaDB.**');
