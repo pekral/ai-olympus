@@ -1,6 +1,5 @@
 ---
 description: Shared definition of refactoring (legacy → modern architecture). Applies to refactoring skills and code review whenever refactoring is in scope.
-paths: []
 ---
 
 ## What Refactoring Is

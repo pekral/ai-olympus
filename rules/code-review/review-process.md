@@ -1,6 +1,5 @@
 ---
 description: Code Review — the passes the review runs and how it reports: refactoring/DRY analysis, the coverage gate, findings verification, and the output rules. Companion to code-review/general.md; apply both.
-paths: []
 ---
 
 # Code Review — canonical review-process detail

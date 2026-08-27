@@ -1,6 +1,5 @@
 ---
 description: Constraints for read-only review skills (code review, security review, etc.)
-paths: []
 ---
 
 ## Review-Only Constraints

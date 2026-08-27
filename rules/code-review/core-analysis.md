@@ -1,6 +1,5 @@
 ---
 description: Code Review — canonical Core Analysis walk-through. The catalog of what counts as a finding on a diff. Companion to code-review/general.md; apply both.
-paths: []
 ---
 
 # Code Review — canonical Core Analysis walk-through

@@ -1,6 +1,8 @@
 ---
 description: Criteria and selection process for choosing a Composer dependency from Packagist or a GitHub-hosted VCS repository
-paths: []
+paths:
+  - "composer.json"
+  - "**/composer.json"
 ---
 
 ## Scope

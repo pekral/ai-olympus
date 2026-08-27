@@ -1,6 +1,5 @@
 ---
 description: Language rule for reports published to issue trackers (GitHub, JIRA, Bugsnag)
-paths: []
 ---
 
 ## Tracker-Published Reports — Language
