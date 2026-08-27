@@ -838,6 +838,44 @@ test('the TDD pre-flight Map step mandates a full-tree completeness sweep before
     expect($content)->toContain('Record the full match list before the first RED test');
 });
 
+test('the three test-authoring pre-flights mandate a full-tree completeness sweep (issue #42)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The shared pre-flight test above walks all seven code-generation skills but asserts only the
+    // markers every one of them carries, so it passes whether or not a given skill states how far
+    // to look. Issue #25 delivered the sweep to two of the seven; these three were never in that
+    // scope, which left one convention drifted apart inside one shared template. This test holds
+    // the test-authoring half of issue #42 — the half whose sweep is tailored to test paths and
+    // fixtures — and stays separate from the refactoring half below, whose tailoring differs.
+    $skills = [
+        // Each skill states where its own sweep sits in its own cycle, so the ordering sentence is
+        // what proves the paragraph was mirrored and tailored rather than pasted verbatim.
+        'create-test' => 'Record the full match list before you write the first test',
+        'create-missing-tests-in-pr' => 'Record the full match list before you add the first missing test',
+        'rewrite-tests-pest' => 'Record the full match list before you rewrite the first test',
+    ];
+
+    foreach ($skills as $skill => $ordering) {
+        $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
+
+        // The shared core, pinned on the introduced strings rather than on the pre-existing
+        // '**Map**' marker the pre-flight test already covers and this change deliberately
+        // preserves.
+        expect($content)->toContain('**completeness sweep**');
+        expect($content)->toContain('Grep the entire repository');
+        expect($content)->toContain('never only the files the assignment names');
+
+        // Naming the categories is what stops a reader from reading "whole tree" as "the source
+        // tree" — the exact misreading that leaves a stale reference in a file nobody opened.
+        foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation, configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
+            expect($content)->toContain($category);
+        }
+
+        // The sweep is ordered before the edit, not alongside it.
+        expect($content)->toContain($ordering);
+    }
+});
+
 test('analyze-problem skill carries the UI Redesign Lens with one-click default and wizard fallback', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');

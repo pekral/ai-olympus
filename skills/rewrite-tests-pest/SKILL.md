@@ -30,6 +30,8 @@ Reading, mapping, and verifying come first; rewriting comes last. This pre-fligh
 
 1. **Read** — open and read the actual tests being rewritten and the code they exercise (the system under test, shared setup, helpers, datasets). Confirm what each test asserts by reading it, not by guessing from its name.
 2. **Map** — map the change's blast radius: every assertion and covered code path that must survive the rewrite, the shared setup/helpers to reuse, and the project's existing Pest conventions.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, helper, dataset, and convention the rewrite renames, removes, or redefines, and every test path that references them — never only the files the assignment names, and never only the files you have already opened.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you rewrite the first test, then classify each match as in scope for this rewrite or as a stated exception. An incomplete sweep leaves a PHPUnit-era helper referenced by a file nobody opened, so the rewritten tests pass here while that file stops running.
 3. **Verify** — run the existing tests first and confirm they pass, so you rewrite from a known-green baseline. If the original behavior or coverage is unclear, stop and clarify instead of rewriting on a wrong premise.
 
 Only after Read, Map, and Verify are complete may the rewrite begin.

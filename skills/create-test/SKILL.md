@@ -19,6 +19,8 @@ Reading, mapping, and verifying come first; writing tests comes last. This pre-f
 
 1. **Read** — open and read the actual code under test and the code it depends on (callers, called methods, related existing tests, configuration). Confirm what the code does by reading it, not by guessing from names or the change description.
 2. **Map** — map the change's blast radius: every changed code path, its call sites, the data-flow branches a test must exercise, and the existing test conventions, helpers, and fixtures to reuse instead of reinventing.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, and behavior the code under test exposes, and every test path, helper, and fixture that already exercises it — never only the files the assignment names, and never only the files you have already opened.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you write the first test, then classify each match as in scope for this test change or as a stated exception. An incomplete sweep duplicates a fixture that already exists in a directory nobody opened, or leaves a sibling test still asserting the behavior this change replaced.
 3. **Verify** — check your assumptions against the real code and its observed behavior (run the code path or an exploratory assertion where applicable). If what you read contradicts the change description, stop and surface the discrepancy instead of writing tests on a wrong premise.
 
 Only after Read, Map, and Verify are complete may test-writing begin.
