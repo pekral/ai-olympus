@@ -1995,3 +1995,37 @@ test('docs/agents.md states the architecture constraint with no runtime componen
     expect($capability)->toContain('The second mechanism, a per-agent `PreToolUse` hook, does **not** exist here.');
     expect($capability)->toContain('The per-agent half of the boundary is therefore advisory in full.');
 });
+
+test('every agents/*.md file is documented in docs/agents.md and the readme roster (issue #50)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+
+    expect($agentFiles)->not->toBeEmpty();
+
+    $docsAgents = (string) file_get_contents($packageDir . '/docs/agents.md');
+    $docsRosterSection = installerDocsSection($docsAgents, '## Agent roster');
+
+    $readme = (string) file_get_contents($packageDir . '/README.md');
+    $readmeSubagentsSection = installerDocsSection($readme, '## Claude Code Subagents');
+
+    // Scope to the <table> block only: the section also carries "How to use `athena`/`hephaestus`/
+    // `daedalus` in practice" subsections that mention agent names in prose, which must not count
+    // as roster documentation for an agent the table itself never lists.
+    $tableStart = strpos($readmeSubagentsSection, '<table>');
+    $tableEnd = strpos($readmeSubagentsSection, '</table>');
+    assert($tableStart !== false && $tableEnd !== false);
+    $readmeRosterTable = substr($readmeSubagentsSection, $tableStart, $tableEnd - $tableStart);
+
+    foreach ($agentFiles as $agentFile) {
+        $agentName = basename($agentFile, '.md');
+
+        expect(str_contains($docsRosterSection, '`' . $agentName . '`'))->toBeTrue(
+            'docs/agents.md `## Agent roster` is missing an entry for agent: ' . $agentName,
+        );
+
+        expect(str_contains($readmeRosterTable, '`' . $agentName . '`'))->toBeTrue(
+            'README.md `## Claude Code Subagents` roster table is missing a card for agent: ' . $agentName,
+        );
+    }
+});
