@@ -272,7 +272,7 @@ test('every rule declares exactly one of the two scopes the loader has (issue #4
 
     foreach (ruleTreeFiles() as $relativePath) {
         $declaresPaths = preg_match('/^paths:/m', ruleExtensionFrontmatter($packageDir . '/' . $relativePath)) === 1;
-        $claimedAlwaysOn = in_array($relativePath, $alwaysOn, true);
+        $claimedAlwaysOn = in_array($relativePath, $alwaysOn, strict: true);
 
         if ($declaresPaths === $claimedAlwaysOn) {
             $violations[] = $relativePath . ($declaresPaths
