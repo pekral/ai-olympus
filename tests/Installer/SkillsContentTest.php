@@ -876,6 +876,42 @@ test('the three test-authoring pre-flights mandate a full-tree completeness swee
     }
 });
 
+test('the two refactoring pre-flights mandate a full-tree completeness sweep (issue #42)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The refactoring half of issue #42. It is held apart from the test-authoring half above
+    // because the tailoring differs: a refactoring sweep hunts the call sites and public API
+    // consumers bound to a name that is about to move, where a test-authoring sweep hunts the
+    // test paths and fixtures that already cover it. Both skills run their Map step read-only
+    // under MODE=cr, and a grep stays read-only, so the sweep applies in that mode unchanged.
+    $skills = [
+        // Each skill states where its own sweep sits in its own cycle, so the ordering sentence is
+        // what proves the paragraph was mirrored and tailored rather than pasted verbatim.
+        'refactor-entry-point-to-action' => 'Record the full match list before you move a single line into the Action',
+        'class-refactoring' => 'Record the full match list before you rename or move anything',
+    ];
+
+    foreach ($skills as $skill => $ordering) {
+        $content = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
+
+        // The shared core, pinned on the introduced strings rather than on the pre-existing
+        // '**Map**' marker the pre-flight test already covers and this change deliberately
+        // preserves.
+        expect($content)->toContain('**completeness sweep**');
+        expect($content)->toContain('Grep the entire repository');
+        expect($content)->toContain('never only the files the assignment names');
+
+        // Naming the categories is what stops a reader from reading "whole tree" as "the source
+        // tree" — the exact misreading that leaves a stale reference in a file nobody opened.
+        foreach (['source, tests', '`rules/`', '`skills/`', '`agents/`', 'documentation, configuration', '`CHANGELOG.md`', '`README.md`'] as $category) {
+            expect($content)->toContain($category);
+        }
+
+        // The sweep is ordered before the first line moves, not alongside it.
+        expect($content)->toContain($ordering);
+    }
+});
+
 test('analyze-problem skill carries the UI Redesign Lens with one-click default and wizard fallback', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');

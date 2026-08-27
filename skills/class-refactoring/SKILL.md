@@ -49,6 +49,8 @@ Reading, mapping, and verifying come first; refactoring comes last. This pre-fli
 
 1. **Read** — open and read the actual class being refactored and the code it depends on (callers, called methods, related tests, configuration). Confirm what the code does by reading it, not by guessing from names.
 2. **Map** — map the change's blast radius: every call site and caller of the touched code, the data-flow paths through it, the public API consumers, and the existing helpers / Services / Actions / layers to reuse instead of reinventing.
+   Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, signature, and convention the refactoring renames, removes, or redefines, and every call site, test, and public API consumer bound to them — never only the files the assignment names, and never only the files you have already opened.
+   Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you rename or move anything, then classify each match as in scope for this refactoring or as a stated exception. An incomplete sweep leaves a call site bound to a signature that no longer exists, and that call site surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior before deciding the highest-impact refactoring. If reading and mapping contradict the task framing, stop and surface the discrepancy instead of refactoring on a wrong premise.
 
 Only after Read, Map, and Verify are complete may the Test Coverage Gate and the refactor proceed.
