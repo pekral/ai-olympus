@@ -167,7 +167,7 @@ test('every rules/**/*.md file appears as a row in the readme rules overview tab
     expect($ruleFiles)->not->toBeEmpty();
 
     foreach ($ruleFiles as $ruleFile) {
-        expect(in_array($ruleFile, $tableFiles, true))->toBeTrue(
+        expect(in_array($ruleFile, $tableFiles, strict: true))->toBeTrue(
             'Rules Overview table is missing a row for rule file: ' . $ruleFile,
         );
     }
