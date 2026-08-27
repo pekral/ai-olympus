@@ -33,6 +33,8 @@ Reading, mapping, and verifying come first; writing tests comes last. This pre-f
 
 1.  **Read** — open and read the actual changed code and the code it depends on (callers, called methods, related existing tests, configuration). Confirm what the code does by reading it, not by guessing from the review text or names.
 2.  **Map** — map the change's blast radius: every uncovered code path the review flagged, its call sites, the branches a test must exercise, and the existing test conventions, helpers, and fixtures to reuse instead of reinventing.
+    Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, and convention the flagged code path touches, and every test path, helper, and fixture that already exercises it — never only the files the assignment names, and never only the files you have already opened.
+    Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you add the first missing test, then classify each match as in scope for this batch of missing tests or as a stated exception. An incomplete sweep re-adds coverage that already exists elsewhere in the tree, or closes the review item while a sibling call site of the same code path stays untested.
 3.  **Verify** — check your assumptions against the real code and its observed behavior, and confirm each recommended test does not already exist before adding it. If what you read contradicts the review recommendation, surface the discrepancy instead of writing tests on a wrong premise.
 
 Only after Read, Map, and Verify are complete may test-writing begin.
