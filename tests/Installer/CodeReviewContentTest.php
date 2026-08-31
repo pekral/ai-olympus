@@ -2479,3 +2479,98 @@ test('every CR wrapper and template renders the Database Analysis section for ei
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
     expect($athena)->toContain('the engine-resolved DB lens (`mysql-problem-solver`, or `postgres-patterns` with `MODE=cr` on PostgreSQL)');
 });
+
+test('a Blade or Livewire diff triggers all three frontend lenses (issue #60)', function (): void {
+    // Before this trigger existed the CR ran 14 skills and none of them read frontend code, so a
+    // diff that only touched Blade or Livewire was reviewed without a single frontend lens while
+    // three matching skills shipped in the package that no CR path ever invoked.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Frontend surface detected in the diff → all three frontend lenses run.**');
+
+    // The pattern list is the whole gate — it decides whether the lenses run at all.
+    expect($contract)->toContain('a `*.blade.php` file anywhere in the tree');
+    expect($contract)->toContain('a Livewire component class under `app/Livewire/**`');
+    expect($contract)->toContain('any file under `resources/views/**`');
+    expect($contract)->toContain('a Filament resource / page / widget / form schema under `app/Filament/**`');
+    expect($contract)->toContain('the Tailwind configuration (`tailwind.config.js` / `tailwind.config.ts`');
+
+    // A non-frontend diff must run none of them, and the trigger must not gate any other lens out.
+    expect($contract)->toContain('**a diff matching none of those patterns runs no frontend lens at all**');
+    expect($contract)->toContain('a change confined to `app/Models/**`, a migration, or a console command never triggers one');
+    expect($contract)->toContain('runs the frontend lenses and the engine-resolved DB lens side by side');
+
+    // One trigger, three lenses — each named, each with its own responsibility and read-only mode.
+    expect($contract)->toContain('**One trigger, three lenses, three responsibilities.**');
+    expect($contract)->toContain('- **`@skills/frontend-patterns/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('- **`@skills/frontend-a11y/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('- **`@skills/design-system/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('never edits a view, a component, a token, a config, or a theme');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Frontend surface detected in the diff'))->toBe(1);
+});
+
+test('every frontend-trigger outcome lands in exactly one branch (issue #60)', function (): void {
+    // The sibling DB trigger shipped without a branch for a recognised but unnamed driver, so that
+    // case fired no branch at all. The same shape here is a frontend diff on a project the lenses
+    // cannot read — it must resolve to a named, silent skip rather than falling through.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('- **Project is not Laravel → skip all three, silently.**');
+    expect($contract)->toContain('`laravel/framework` is absent from `composer.json` `require`');
+    expect($contract)->toContain('*Architecture conformance (Laravel)*');
+
+    // Past defect: a new rule introduced an output slot no render template carried. This skip is
+    // deliberately invisible, so nothing has to be added to any template for it.
+    expect($contract)->toContain(
+        'no finding, no section, no summary-line slot, no "skipped" placeholder',
+    );
+
+    // A Laravel project without Livewire / Filament still has Blade and Tailwind to review.
+    expect($contract)->toContain(
+        '- **Laravel project missing a package a lens assumes — no Livewire, no Filament, or neither '
+        . '→ all three still run, each narrowed to the surface that exists.**',
+    );
+    expect($contract)->toContain('never raise a finding whose fix is to adopt Livewire, Filament, or Alpine');
+
+    // The catch-all, so no outcome of the detection step is left unanswered.
+    expect($contract)->toContain('- **Every other outcome runs all three.**');
+    expect($contract)->toContain(
+        'every outcome of the detection step falls into exactly one of the three branches above '
+        . 'and no frontend diff is ever left with no lens',
+    );
+});
+
+test('frontend-lens findings use the existing severity buckets and add no output surface (issue #60)', function (): void {
+    // Keeping the findings in Critical / Moderate / Minor is what lets this trigger ship without
+    // touching a single render template — the failure mode the DB trigger hit when it defined a
+    // summary-line slot no template rendered.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('Fold the findings of all three lenses into the standard **Critical / Moderate / Minor** buckets of `## Findings`');
+    expect($contract)->toContain('This trigger introduces **no** new report section and **no** new summary-line slot');
+    expect($contract)->toContain('the CR wrapper contract does not restate this trigger for the same reason');
+
+    // No template may grow a frontend-specific section or slot on the back of this trigger.
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('## Frontend');
+        expect($body)->not->toContain('frontend lens');
+    }
+
+    // The skill's own conditional-lens list has to name the trio, or the trigger is unreachable
+    // from the one file that says which conditional lenses to run.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain(
+        'the three frontend lenses — `frontend-patterns`, `frontend-a11y`, and `design-system`, '
+        . 'each with `MODE=cr`, always all three together',
+    );
+});
