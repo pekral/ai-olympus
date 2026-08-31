@@ -231,6 +231,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // regression of this revision or a pre-existing issue. The *Context Awareness* bullet that
     // already said "do not repeat already reported findings" gained the cross-reference that makes
     // it concrete; nothing else in the file moved.
+    // `rules/code-review/general.md` carries one last re-baseline for the latency lens: the CR gained a
+    // conditional trigger for `latency-critical-systems`, which reads the same hot-path lines the
+    // *Bulk Data & Batch Processing (issue #223)* section already walks. That section's own Gating
+    // paragraph now names the lens, states which dimension each owner keeps, and states that the two
+    // divide the dimensions of a hot-path change rather than its lines — so the hand-over never
+    // suppresses a budget or freshness finding no other owner raises. Nothing else in the file moved.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -241,7 +247,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => 'e20bad607e1a3ad4cea784936834b24c9401a979f56e3bee7b1ec99a965aa0ba',
+        'rules/code-review/general.md' => 'c6460e032a7a6322b23b69816207d6da626d39b73a9fc211e557898c97487376',
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',

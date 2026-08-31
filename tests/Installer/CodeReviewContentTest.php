@@ -2702,8 +2702,13 @@ test('every cache-trigger outcome lands in exactly one branch and adds no output
 
     // Narrowing must not become a second detection step, or the review resolves the store twice and
     // the two answers can disagree — the defect this issue's sibling trigger exists to avoid.
-    expect($contract)->toContain('This narrowing adds **no** detection step of its own');
-    expect($contract)->toContain('so the review never resolves a cache store twice');
+    // Anchored on the cache lens's own tail: two later triggers carry the same opening clause,
+    // so a pin on it alone would stay green with this narrowing deleted (issue #41).
+    expect($contract)->toContain(
+        'This narrowing adds **no** detection step of its own: the lens reads the store '
+        . 'the diff and the configuration in front of it already show, '
+        . 'so the review never resolves a cache store twice',
+    );
 
     // The catch-all names the one decision step it covers and answers both of its outcomes, so no
     // case falls through — the gap the sibling DB trigger shipped with.
@@ -3292,7 +3297,13 @@ test('the container lens is gated against the malicious-code walk on both carrie
         'A **hardcoded** secret — a credential, key, or token written literally into a `Dockerfile`, '
         . 'a compose file, or an env file copied into an image — is not the lens\'s either',
     );
-    expect($contract)->toContain('and a security finding is never moved out of a security owner.');
+    // Anchored on the container boundary's own sentence: the SEO and payment gatings close with
+    // the same clause, so a pin on it alone would stay green with this one deleted (issue #41).
+    expect($contract)->toContain(
+        '`@rules/security/backend.md` *General Secure Coding Practices* and '
+        . '`@skills/security-review/SKILL.md` own it, '
+        . 'and a security finding is never moved out of a security owner.',
+    );
     expect($rule)->toContain(
         'A **hardcoded** secret in any of those files stays with `@rules/security/backend.md` '
         . '*General Secure Coding Practices*, never with the lens.',
@@ -3655,4 +3666,126 @@ test('the three domain lenses are conditional only, so an ordinary diff fires no
     ] as $silence) {
         expect(substr_count($conditionalBlock, $silence))->toBe(1);
     }
+});
+
+test('the latency lens is gated against the bulk-data walk and the query lens (issue #64)', function (): void {
+    // The issue's own edge case: a `foreach` with a query inside on a queue path belongs to the
+    // bulk-data walk, not to the latency lens. Both owners already read those lines, so without a
+    // boundary one loop would be reported three times from three angles.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    // Carrier one: the trigger's own copy.
+    expect(substr_count(
+        $contract,
+        '**Gating — one finding per violation, never two.** '
+        . 'Two owners already read the same hot-path lines',
+    ))->toBe(1);
+    expect($contract)->toContain('**owns how much a loop holds at once and the per-item work inside it**');
+    expect($contract)->toContain('**owns the performance of a query and its plan**');
+    expect($contract)->toContain('**The latency lens owns the budget of the path and the freshness of its data**');
+    expect($contract)->toContain(
+        'The three divide the *dimensions* of a hot-path change, never its lines:',
+    );
+
+    // Carrier two: the *Bulk Data & Batch Processing (issue #223)* section's own Gating paragraph.
+    $bulkRule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    expect($bulkRule)->toContain(
+        'The latency budget of the changed path and the freshness of its data stay with the latency lens',
+    );
+    expect($bulkRule)->toContain('`@skills/latency-critical-systems/SKILL.md` with `MODE=cr`');
+    // The hand-over is conditional on the lens actually running: the walk fires on collections that
+    // sit nowhere near a latency-critical surface, where no latency lens is present to take it.
+    expect($bulkRule)->toContain('when the CR\'s latency trigger runs it over the same diff');
+
+    // Carrier three: the Core Analysis bullet that restates the same gating list.
+    $walkBullet = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    expect($walkBullet)->toContain(
+        '**Variable Ordering & Lazy Evaluation**, and the latency lens.',
+    );
+    expect($walkBullet)->toContain(
+        'that lens owns the path\'s stated latency budget and its data freshness, this walk owns the volume',
+    );
+
+    // Carrier four: the query lens's own ownership paragraph.
+    $querySkill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+    expect($querySkill)->toContain('The same division holds against the CR\'s latency lens.');
+    expect($querySkill)->toContain('This skill keeps the query and its plan, including N+1.');
+});
+
+test('every carrier of the latency boundary states its dimensions half (issue #64)', function (): void {
+    // A boundary written only as "one finding per violation, never two for the same line" reads as
+    // "one owner speaks on this line" and would suppress the budget finding no other owner raises.
+    // Issue #63 shipped that defect in two rule carriers; every carrier here states the half.
+    $packageDir = dirname(__DIR__, 2);
+
+    $carriers = [
+        'rules/code-review/general.md',
+        'rules/code-review/core-analysis.md',
+        'skills/code-review/references/specialized-reviews.md',
+        'skills/latency-critical-systems/SKILL.md',
+        'skills/mysql-problem-solver/SKILL.md',
+    ];
+
+    foreach ($carriers as $carrier) {
+        $body = (string) file_get_contents($packageDir . '/' . $carrier);
+
+        expect($body)->toContain('divide the *dimensions* of a hot-path change, never its lines:');
+        expect($body)->toContain('a `foreach` issuing a query per row on a queue path');
+        // Each carrier names the concrete second defect the lens is still allowed to raise, so the
+        // dimensions half cannot be read as a formula with no content.
+        expect($body)->toContain('no stated budget or no freshness window');
+    }
+});
+
+test('the SEO lens is gated against the frontend lenses and the build lens (issue #64)', function (): void {
+    // A `<head>` change fires the frontend trigger, and an `@vite` directive inside it fires the
+    // build trigger. Both sides of that boundary carry it, so neither restates the other.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    // Carrier one: the SEO trigger's own copy.
+    expect(substr_count(
+        $contract,
+        '**Gating — one finding per violation, never two.** '
+        . 'A Blade diff that changes a `<head>` fires the frontend trigger above',
+    ))->toBe(1);
+    expect($contract)->toContain('**The SEO lens owns what the changed `<head>` promises a crawler**');
+    expect($contract)->toContain('The four divide the *dimensions* of a `<head>` change, never its lines:');
+
+    // Carrier two: the frontend trigger's own copy, which already names the build lens as a fourth
+    // owner and now names the SEO lens as a fifth.
+    expect(substr_count(
+        $contract,
+        '**The SEO lens is a fifth owner on the same line, and it is not one of these three either.**',
+    ))->toBe(1);
+    expect($contract)->toContain('never restate a crawler-contract finding in their own words');
+
+    // Carriers three and four: the two sibling lenses that already carry a defers blockquote.
+    foreach (['frontend-patterns', 'vite-patterns'] as $sibling) {
+        $body = (string) file_get_contents($packageDir . '/skills/' . $sibling . '/SKILL.md');
+
+        expect($body)->toContain('It **defers what the changed `<head>` promises a crawler**');
+        expect($body)->toContain('`@skills/seo/SKILL.md` with `MODE=cr`');
+    }
+});
+
+test('the payment lens is gated against the API and security lenses (issue #64)', function (): void {
+    // api-review and security-review both run from the always-run set over the same endpoint. The
+    // security half is a hand-over the lens never takes back: a security finding stays with its
+    // owner whatever the protocol says about the same middleware.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect(substr_count(
+        $contract,
+        '**Gating — one finding per violation, never two.** `@skills/api-review/SKILL.md` and',
+    ))->toBe(1);
+    expect($contract)->toContain('**The API lens owns the generic HTTP contract of the gated endpoint**');
+    expect($contract)->toContain('**The security review owns generic secure coding**');
+    expect($contract)->toContain(
+        'secret handling, rate limiting, transport configuration, and error-message hygiene '
+        . '— and a security finding is never moved out of a security owner',
+    );
+    expect($contract)->toContain('**The payment lens owns protocol conformance**');
+    expect($contract)->toContain('The three divide the *dimensions* of a payment change, never its lines:');
 });

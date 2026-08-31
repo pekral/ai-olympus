@@ -29,6 +29,8 @@ Focus on:
 **In a code review this skill owns query performance and its plan, never the shape of a schema feature.** When the CR's schema-feature trigger fires on the same diff (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*), `@skills/mysql-patterns/SKILL.md` with `MODE=cr` runs alongside this skill and owns whether an upsert is one statement over a backing unique index, whether a JSON path is indexed through a generated column, whether the partition key matches the predicate, whether `sticky` survives a read-after-write path, and whether a concurrent transaction carries a deadlock retry.
 Raise one finding per violation: keep index usage, rows examined, `EXPLAIN` shape, and the non-regression gate here, and never restate a schema-shape finding in your own words. Both lenses fold into the review's single `## Database Analysis` section.
 
+The same division holds against the CR's latency lens. When `@skills/latency-critical-systems/SKILL.md` with `MODE=cr` runs over the same diff, it owns **the budget of the path and the freshness of its data** — the stated p50 / p95 / p99 target, the mapped hot path, the staleness window on a cached or broadcast read, and the backpressure that bounds queue depth. This skill keeps the query and its plan, including N+1. The two divide the *dimensions* of a hot-path change, never its lines: a `foreach` issuing a query per row on a queue path carries this skill's query-plan finding, and the latency lens speaks on the same change only when it also leaves the path with no stated budget or no freshness window — a different defect, never this skill's finding restated.
+
 ## Execution
 
 ### 1. Identify the Query
