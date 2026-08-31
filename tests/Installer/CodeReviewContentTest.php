@@ -2603,8 +2603,21 @@ test('the frontend lenses are gated against the Blade layout-splitting walk (iss
     expect($contract)->toContain('`design-system` is the sole owner of token and theme consistency');
     expect($contract)->toContain(
         '`frontend-patterns` is the sole owner of state placement, render cost, form mechanics, '
-        . 'and the loading / empty / error states — and, among the three lenses, of composition '
-        . '**inside a component that already exists**, never of the decision that a block should become one',
+        . 'and the loading / empty / error states',
+    );
+    expect($contract)->toContain(
+        'among the three lenses, of composition **inside a component that already exists**, '
+        . 'never of the decision that a block should become one',
+    );
+
+    // design-system audits Polish (hover, transition, loading, empty) as one dimension, and the
+    // loading / empty half is what frontend-patterns claims. The split has to be on both sides.
+    expect($contract)->toContain(
+        '`design-system` is the sole owner of token and theme consistency, and of the hover and '
+        . 'transition half of its own *Polish* audit dimension',
+    );
+    expect($contract)->toContain(
+        'that last surface is the half of `design-system`\'s *Polish* dimension that lens defers here',
     );
 
     // Gating picks the owner; it never launders a severity.
