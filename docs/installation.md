@@ -108,7 +108,7 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 
 | | Loaded by the plugin |
 |---|---|
-| 54 skills (`skills/*/SKILL.md`) | ✅ automatically |
+| 53 skills (`skills/*/SKILL.md`) | ✅ automatically |
 | 4 agents (`agents/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ — `/ai-olympus:install-rules` copies them |
 | `CLAUDE.md` | ❌ — same command, and only when the project has none |
