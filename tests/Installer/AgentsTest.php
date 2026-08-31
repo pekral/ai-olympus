@@ -2029,3 +2029,34 @@ test('every agents/*.md file is documented in docs/agents.md and the readme rost
         );
     }
 });
+
+test('athena points at the not-run section once and never restates its list (issue #65)', function (): void {
+    // The issue's concrete risk: nothing stopped a write-capable skill from being added to a
+    // review athena performs read-only. The agent therefore has to name where that boundary is
+    // written, and the boundary itself stays in one carrier so the two can never disagree.
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    expect(substr_count($athena, 'Which skills the review deliberately does **not** run as a lens'))->toBe(1);
+    expect($athena)->toContain(
+        '`@skills/code-review/references/specialized-reviews.md` *Skills deliberately not run*',
+    );
+    expect($athena)->toContain('never duplicate the list here');
+
+    // The non-duplication half, derived from the section rather than restated here: no skill the
+    // section excludes for writing to the working tree, or for needing a running application, is
+    // named anywhere in athena's own definition. Those are the two groups athena must never
+    // invoke at all - groups 3 and 4 hold skills the run legitimately calls around the review.
+    $section = explode(
+        "\n## Skills deliberately not run\n",
+        (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'),
+    )[1];
+    $groups = deliberatelyNotRunGroups($section);
+
+    expect($groups[1])->not->toBeEmpty();
+    expect($groups[2])->not->toBeEmpty();
+
+    foreach ([...$groups[1], ...$groups[2]] as $excluded) {
+        expect($athena)->not->toContain($excluded);
+    }
+});
