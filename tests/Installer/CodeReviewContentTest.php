@@ -2334,6 +2334,21 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
     expect($contract)->toContain('(2) `DB_CONNECTION` in `.env.example`');
     expect($contract)->toContain('(3) the driver / DBAL package required in `composer.json`');
     expect($contract)->toContain('A project with several connections is decided by its **default** connection, never by the presence of a second one.');
+
+    // Source (1) is an indirection on a stock Laravel project: `default` is an `env()` lookup, so
+    // taking its fallback literal as the answer resolves `sqlite` for a PostgreSQL project and
+    // never consults sources (2) or (3) — the exact defect issue #62 exists to close.
+    expect($contract)->toContain(
+        '**Source (1)\'s `default` key is usually not a literal, so read it in two steps.**',
+    );
+    expect($contract)->toContain('`\'default\' => env(\'DB_CONNECTION\', \'sqlite\')`');
+    expect($contract)->toContain(
+        'resolve the connection **name** through source (2) first, '
+        . 'and take the `env()` fallback literal only when `.env.example` carries no `DB_CONNECTION`',
+    );
+    expect($contract)->toContain(
+        'Once the connection name is known, its own `driver` key in `config/database.php` is a literal and is read directly.',
+    );
 });
 
 test('each database engine branch names its own lens and the unresolved case keeps the MySQL default (issue #62)', function (): void {
