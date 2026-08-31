@@ -1626,3 +1626,57 @@ test('postgres-patterns carries a read-only MODE=cr contract so the CR can invok
     );
     expect($content)->toContain('a failed `CONCURRENTLY` build leaves an invalid index behind, so `down()` drops that index explicitly');
 });
+
+test('the three frontend lenses carry a read-only MODE=cr contract so the CR can invoke them (issue #60)', function (): void {
+    // All three are written as build/audit skills that edit views, tokens, and themes. The CR is
+    // read-only, so each lens invocation needs an explicit mode that suspends every write verb —
+    // the same contract `class-refactoring` and `postgres-patterns` already carry.
+    $packageDir = dirname(__DIR__, 2);
+
+    $lenses = [
+        'design-system' => 'design',
+        'frontend-a11y' => 'build',
+        'frontend-patterns' => 'build',
+    ];
+
+    foreach ($lenses as $slug => $defaultMode) {
+        $content = (string) file_get_contents($packageDir . '/skills/' . $slug . '/SKILL.md');
+
+        expect($content)->toContain('## Modes');
+        expect($content)->toContain('selected by the caller via `MODE` (default `' . $defaultMode . '`)');
+        expect($content)->toContain('- **`' . $defaultMode . '` (default)**');
+        expect($content)->toContain('when the diff touches a frontend surface)**');
+        expect($content)->toContain('never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.**');
+        expect($content)->toContain('lines added or modified by the PR diff');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('never applied to the project');
+        expect($content)->toContain('> **What this lens owns in a CR:**');
+    }
+});
+
+test('each frontend lens states its own responsibility and defers the other two (issue #60)', function (): void {
+    // One trigger fires three lenses over the same markup, so without an ownership line each of
+    // them would raise the same accessibility or token finding from its own angle.
+    $packageDir = dirname(__DIR__, 2);
+
+    $patterns = (string) file_get_contents($packageDir . '/skills/frontend-patterns/SKILL.md');
+    expect($patterns)->toContain('component composition, where state lives (Livewire vs Alpine)');
+    expect($patterns)->toContain(
+        'It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` '
+        . 'and token / theme consistency to `@skills/design-system/SKILL.md`',
+    );
+
+    $a11y = (string) file_get_contents($packageDir . '/skills/frontend-a11y/SKILL.md');
+    expect($a11y)->toContain('every accessibility finding on the diff');
+    expect($a11y)->toContain('It is the **sole** owner of that surface');
+    expect($a11y)->toContain('defer here rather than raising an accessibility finding of their own');
+
+    $design = (string) file_get_contents($packageDir . '/skills/design-system/SKILL.md');
+    expect($design)->toContain('token and theme consistency');
+    expect($design)->toContain('It **defers** every accessibility finding, contrast ratio included');
+    // A 0-10 score is not a finding, and Mode 1 generates rather than reviews.
+    expect($design)->toContain('Skip Mode 1 entirely — generating a design system is not a review.');
+    expect($design)->toContain('Drop the 0–10 per-dimension scoring too');
+    // The skill's own numbered modes must not read as the MODE selector the CR passes.
+    expect($design)->toContain('In `MODE=design` this skill has three working modes.');
+});
