@@ -1679,6 +1679,17 @@ test('each frontend lens states its own responsibility and defers the other two 
     $design = (string) file_get_contents($packageDir . '/skills/design-system/SKILL.md');
     expect($design)->toContain('token and theme consistency');
     expect($design)->toContain('It **defers** every accessibility finding, contrast ratio included');
+    // Audit dimension 10 bundles hover / transition with loading / empty, and the second half is
+    // frontend-patterns' surface — so the lens keeps one half and hands over the other.
+    expect($design)->toContain('Dimension 10 (*Polish*) splits between two owners');
+    expect($design)->toContain(
+        '**defers the loading (`wire:loading`), empty, and error half** to `@skills/frontend-patterns/SKILL.md`',
+    );
+    expect($design)->toContain('Never raise a missing loading or empty state as a token finding.');
+    // The dimension itself has to carry the pointer, or a MODE=cr run reads it without the split.
+    expect($design)->toContain(
+        '(in `MODE=cr` the loading / empty / error half belongs to `frontend-patterns`; see *Modes*)',
+    );
     // A 0-10 score is not a finding, and Mode 1 generates rather than reviews.
     expect($design)->toContain('Skip Mode 1 entirely — generating a design system is not a review.');
     expect($design)->toContain('Drop the 0–10 per-dimension scoring too');

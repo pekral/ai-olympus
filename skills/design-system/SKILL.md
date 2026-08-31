@@ -22,7 +22,7 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 - **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a frontend surface)** — **never modify a view, a token, a config, or a theme, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Run the Mode 2 audit dimensions and the Mode 3 slop patterns over the lines added or modified by the PR diff only, and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
 Skip Mode 1 entirely — generating a design system is not a review. Drop the 0–10 per-dimension scoring too: a score is not a finding, and the CR reports findings. Every instruction below that would touch a file — define, extract, register, build, replace, or any other such verb — is emitted as a written proposal carrying a concrete token / class / theme snippet, never applied to the project.
 
-> **What this lens owns in a CR:** token and theme consistency — an ad-hoc hex or arbitrary spacing value where a token exists, a component built outside the shared `<x-ui.*>` set, incomplete `dark:` coverage, and the AI-slop patterns. It **defers** every accessibility finding, contrast ratio included, to `@skills/frontend-a11y/SKILL.md`, and never raises one of its own.
+> **What this lens owns in a CR:** token and theme consistency — an ad-hoc hex or arbitrary spacing value where a token exists, a component built outside the shared `<x-ui.*>` set, incomplete `dark:` coverage, and the AI-slop patterns. It **defers** every accessibility finding, contrast ratio included, to `@skills/frontend-a11y/SKILL.md`, and never raises one of its own. Dimension 10 (*Polish*) splits between two owners: this lens keeps the **hover and transition half**, which is visual finish it owns anyway, and **defers the loading (`wire:loading`), empty, and error half** to `@skills/frontend-patterns/SKILL.md`, which owns whether those states exist and behave. Never raise a missing loading or empty state as a token finding.
 
 ## Use when
 - Starting a project that needs a coherent design system.
@@ -123,7 +123,7 @@ Score the UI across 10 dimensions, 0–10 each. Every dimension needs a score, a
 7. **Motion** — purposeful Alpine/`transition` use vs gratuitous animation.
 8. **Accessibility / contrast** — token contrast ratios, visible focus states, touch targets (cross-link `frontend-a11y`).
 9. **Information density** — clean and scannable vs cluttered.
-10. **Polish** — hover, transition, loading (`wire:loading`), and empty states present.
+10. **Polish** — hover, transition, loading (`wire:loading`), and empty states present (in `MODE=cr` the loading / empty / error half belongs to `frontend-patterns`; see *Modes*).
 
 A live-URL crawl or screenshot pass is OPTIONAL. If no browser tool exists, audit from the Blade/Tailwind source and Filament config directly — that is sufficient.
 
