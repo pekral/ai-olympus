@@ -1690,6 +1690,16 @@ test('each frontend lens states its own responsibility and defers the other two 
     expect($design)->toContain(
         '(in `MODE=cr` the loading / empty / error half belongs to `frontend-patterns`; see *Modes*)',
     );
+    // design-system is the only remaining lens whose MODE=cr verb list still carries `extract`, so
+    // it needs the same walk deferral frontend-patterns already carries.
+    expect($design)->toContain('It **defers the decision that a component should exist at all**');
+    expect($design)->toContain('to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*)');
+    expect($design)->toContain('never raises a finding whose fix is *create a component*');
+    // Dimension 4 is the live MODE=cr surface that would otherwise read "build one" out of a
+    // consistency audit; Mode 1's own component instruction is already skipped wholesale.
+    expect($design)->toContain(
+        '(in `MODE=cr` the decision that the component should exist at all belongs to the layout-splitting walk; see *Modes*)',
+    );
     // A 0-10 score is not a finding, and Mode 1 generates rather than reviews.
     expect($design)->toContain('Skip Mode 1 entirely — generating a design system is not a review.');
     expect($design)->toContain('Drop the 0–10 per-dimension scoring too');
