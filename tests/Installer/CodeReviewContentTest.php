@@ -2459,11 +2459,12 @@ test('every CR wrapper and template renders the Database Analysis section for ei
         $content = (string) file_get_contents($packageDir . '/' . $summaryTemplate);
 
         expect($content)->toContain(
-            '{` · Assumption: <the assumption sentence verbatim from the DB-lens branch that fired>` '
-            . '— appended **only** when a DB lens ran on an engine that is unresolved or has no dedicated lens',
+            '{` · Assumption: <the assumption sentence verbatim from the branch that fired>` '
+            . '— appended **only** when a lens ran on an engine that is unresolved or has no dedicated lens',
         );
         expect($content)->toContain(
-            'omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, and omitted when no DB lens ran',
+            'omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, '
+            . 'and omitted when neither trigger resolved an engine',
         );
     }
 
@@ -2789,10 +2790,47 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
     $contract = crContractText('skills/code-review/SKILL.md');
 
     expect($contract)->toContain(
-        '**This lens hangs on the engine the DB-lens trigger above already resolved — '
-        . 'it never resolves the engine a second time.**',
+        '**This lens hangs on the one engine resolution the DB-lens trigger above defines — '
+        . 'it never defines a second one.**',
     );
     expect($contract)->toContain('Two independent resolutions in one review can disagree');
+
+    // This trigger's pattern list is broader than the DB lens's, so a diff can reach it with no
+    // engine resolved at all. Left unqualified, the catch-all ran `mysql-patterns` on a PostgreSQL
+    // project and forbade the assumption line, because it assumed a branch that never ran wrote it.
+    expect($contract)->toContain(
+        '**When the DB-lens trigger did not fire on this diff, that answer does not exist yet, '
+        . 'so this trigger runs that same step itself.**',
+    );
+    expect($contract)->toContain(
+        'a `read` / `write` / `sticky` key under a `config/database.php` connection, '
+        . 'and a caught SQLSTATE `40001` / error `1213` outside any query call, '
+        . 'match nothing in the DB-lens list',
+    );
+    expect($contract)->toContain(
+        'Running the one defined step here is not a second resolution — it is the same step, '
+        . 'by the same sources, in the same order',
+    );
+    expect($contract)->toContain('One resolution per review, owned by whichever trigger fires first');
+
+    // The DB-lens half has to name its second consumer, or an editor of the resolution step cannot
+    // see what depends on it.
+    expect($contract)->toContain('**This one resolution step has two consumers, not one.**');
+    expect($contract)->toContain('Whoever edits the sources above edits them for both readers.');
+
+    // The silent PostgreSQL skip must not rest on a lens that only runs when the DB trigger fired.
+    expect($contract)->toContain(
+        'when only this trigger fired, the diff carries none of the query patterns a DB lens reads, '
+        . 'so no lens runs on it and none is missing',
+    );
+
+    // One `Assumption:` line, written by whoever resolved the engine — the templates carry one slot.
+    expect($contract)->toContain(
+        'The assumption goes on the summary line **once**, in the single conditional '
+        . '`Assumption:` slot the two render templates already define, '
+        . 'written by whichever trigger resolved the engine',
+    );
+    expect($contract)->toContain('when only this trigger fired, this lens writes it');
 
     // Three branches over the one engine answer, and the third is the catch-all.
     expect($contract)->toContain('- **`mysql` / `mariadb` → `@skills/mysql-patterns/SKILL.md` with `MODE=cr`.**');
@@ -2808,9 +2846,9 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
         . 'so no schema-feature diff is ever left with no lens',
     );
 
-    // The unresolved branch must not grow a second Assumption slot — the DB lens already states it,
+    // The unresolved branch must not grow a second Assumption slot — one trigger writes the line,
     // and a rule that introduces an output element no template renders is a known past defect.
-    expect($contract)->toContain('**never state it twice**, and never add a second `Assumption:` slot for this lens');
+    expect($contract)->toContain('**Never state it twice**, and never add a second `Assumption:` slot for this lens');
 });
 
 test('the schema-pattern lens does not re-open the mutually exclusive engine branch (issue #61)', function (): void {
