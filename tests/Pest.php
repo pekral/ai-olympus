@@ -838,3 +838,34 @@ function packageTextFiles(): array
 
     return $files;
 }
+
+/**
+ * The four groups of *Skills deliberately not run*
+ * (`skills/code-review/references/specialized-reviews.md`), keyed by group number, each holding the
+ * skill names its bullets classify. Only the lead of a bullet — everything before the em-dash that
+ * opens the reason — is read, so a skill this section merely mentions inside a reason is never
+ * mistaken for a classified one. Shared, because both the section's own coverage guard and the
+ * athena non-duplication guard classify against the same parse.
+ *
+ * @return array<int, list<string>>
+ */
+function deliberatelyNotRunGroups(string $section): array
+{
+    $groups = [];
+
+    foreach (array_slice(explode("\n### Group ", $section), 1) as $rawGroup) {
+        $group = explode("\n### ", $rawGroup)[0];
+        preg_match_all('/^- (.+?) —/m', $group, $bullets);
+
+        $names = [];
+
+        foreach ($bullets[1] as $lead) {
+            preg_match_all('/`([a-z0-9-]+)`/', $lead, $matches);
+            $names = [...$names, ...$matches[1]];
+        }
+
+        $groups[(int) substr($group, 0, 1)] = $names;
+    }
+
+    return $groups;
+}

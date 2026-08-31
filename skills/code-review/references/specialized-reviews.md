@@ -116,3 +116,66 @@ That pattern list is the first of this trigger's two decision steps and it decid
 **Gating — one finding per violation, never two.** `@skills/api-review/SKILL.md` and `@skills/security-review/SKILL.md` both read the same endpoint from the always-run set. **The API lens owns the generic HTTP contract of the gated endpoint** — status-code choice outside the `402` challenge itself, the response envelope, versioning, and idempotency-key mechanics. **The security review owns generic secure coding** — secret handling, rate limiting, transport configuration, and error-message hygiene — and a security finding is never moved out of a security owner. **The payment lens owns protocol conformance** — the challenge and receipt shape, single-use proof, request and body binding, expiry, no side effect before payment, idempotent settlement, and server-side pricing.
 The three divide the *dimensions* of a payment change, never its lines: one middleware that both settles before verifying the body digest and leaks the provider's error text into `detail` carries one protocol finding from the lens and one safe-error-message finding from the security owner, because those are two different defects.
     - I/O or external calls → I/O review
+
+## Skills deliberately not run
+
+The set above says which skills a code review runs. This section says which ones it does **not** run as a lens over the diff, and why. Without it, every analysis of the CR set re-derives the same exclusions from scratch, and nothing stops a skill that writes to the working tree from being added to a review `athena` performs read-only.
+
+**Read the groups below as a rule, never as an inventory.** The names in each group are today's members. The criterion on each group is what classifies a skill this repository does not carry yet. Ask the four questions in this order and stop at the first `yes`:
+
+1. **Does it move the run's own artifact forward** — produce the diff, change the pull request's review state, publish the run's summary, or merge it? → **group 4**.
+2. **Does it write to the working tree** — author or edit code, tests, or project assets? → **group 1**.
+3. **Does it need a running application** — an HTTP request, a browser, a queue, or runtime telemetry? → **group 2**.
+4. **Is its output something other than findings on the changed lines?** → **group 3**.
+
+The order carries weight, because the questions overlap. A pipeline phase such as `resolve-issue` also writes code. A skill that writes code also produces something other than findings. Asking the questions in this order gives one answer per skill, so a new skill is classified without further analysis.
+
+A skill that answers `no` four times is a candidate lens rather than an excluded one. Take it through *Adding a `MODE=cr` lens* below instead of adding it to a group here.
+
+### Group 1 — writes to the working tree, so it belongs to `hephaestus`
+
+Criterion: the skill authors or edits files — code, tests, or project assets. `athena` is read-only (`agents/athena.md`), so a lens that proposes a write must never perform one in a review. Intent does not make such a skill safe here; the mode contract in *Adding a `MODE=cr` lens* below is what does.
+
+- `create-test`, `create-missing-tests-in-pr`, `rewrite-tests-pest` — each authors or rewrites test files.
+- `test-driven-development` — drives a red / green / refactor cycle that writes both the test and the code.
+- `understand-propose-implement-verify` — implements the proposal it produces.
+- `frontend-design-direction` — chooses a UI direction and then builds it (*"Build the actual usable experience"*). It also matches group 3's shape, because a design direction is a judgment rather than a finding on a changed line. Question 2 is asked before question 4, so it lands here.
+
+### Group 2 — needs a running application, so it belongs to `argus`
+
+Criterion: the skill's evidence comes from a live instance — an HTTP request, a browser, a queue, or runtime telemetry. A code review reads a diff and has no running instance to read.
+
+- `e2e-testing` — drives a browser against a running application. `agents/argus.md` and `agents/hephaestus.md` already reference it.
+- `laravel-telescope` — reads telemetry that a live application recorded.
+
+### Group 3 — its output is not findings on the changed lines
+
+Criterion: the skill's unit of work is the whole repository, a document, a tracker artifact, or the local git state — not the lines this diff added or modified. A review that ran one would report on code the pull request never touched, which `agents/athena.md` *Review scope — the current diff only* forbids.
+
+- `simplification-audit` — audits the whole codebase rather than a diff, and overlaps `class-refactoring` in `MODE=cr`, which the review already runs.
+- `tester-cookbook` — writes a QA report for a human tester.
+- `diagram-design`, `frontend-slides`, `product-capability` — produce a diagram, a deck, or a capability description.
+- `skill-creator`, `smartest-project-addition` — produce a new skill, or a proposal about this package.
+- `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review still calls `create-issue` after it publishes, to file an out-of-scope item (`agents/athena.md`). That call creates a different artifact and reads no diff, so it is not a lens and produces no finding.
+- `cleanup-local-branches`, `git-workflow` — act on the local git state.
+- `compact-project-memory` — maintains `docs/memory/PROJECT_MEMORY.md`.
+
+### Group 4 — moves the run's own artifact forward
+
+Criterion: the skill produces or advances the very artifact under review, rather than reading it. The review may invoke such a skill, and it still never reads the diff to produce findings. A skill in this group does **not** leave it by gaining a `MODE=cr` section: a phase is not a lens.
+
+- `resolve-issue` — the implementation phase that produced the diff under review.
+- `process-code-review` — drives the convergence loop this review feeds, and promotes the pull request out of Draft.
+- `pr-summary` — publishes the run's non-technical tracker summary.
+- `merge-github-pr` — merges the pull request after the review converges.
+
+### Adding a `MODE=cr` lens — what moves a skill out of groups 1–3
+
+This is the path every conditional lens in the set above already took. A skill leaves this section only when all four of the following exist. Three of them are additions; the fourth is the deletion that keeps the two lists from disagreeing.
+
+1. **A `MODE=cr` section in the skill itself**, stating the read-only contract in the skill's own words: it modifies no project file, authors no test, stages / commits / pushes nothing, runs no fixer or checker, scopes the analysis to the lines the diff added or modified, and returns its findings as markdown. Every instruction that would touch a file is emitted as a written proposal instead.
+2. **A trigger under *Specialized Reviews* above**, naming the diff patterns that run the lens and stating in its own sentence that a diff matching none of them runs no such lens at all. The silence on a non-matching diff is written down, never inferred.
+3. **A gating paragraph** against every owner that already reads the same lines, dividing the *dimensions* of the change rather than its lines, so one defect is never reported twice.
+4. **Removal of the skill from its group above**, so this section and the set above never name the same skill.
+
+Item 1 on its own is not enough. A skill that gains a read-only mode and no trigger is a lens that nothing ever runs.
