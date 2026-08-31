@@ -20,6 +20,17 @@ Asset bundling and dev-server patterns for Laravel apps using the official
 HMR in development, env vars, aliases, manifests, production builds, code
 splitting, and bundling for Livewire / Filament / Alpine.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `configure`):
+
+- **`configure` (default)** — full Vite work: edit `vite.config.js`, wire entrypoints and the `@vite` directive into Blade, set up HMR, aliases, env exposure, the manifest, and the production build. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches an asset build surface)** — **never modify a config file, a Blade layout, or any other project file, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Every instruction below that would touch a file — add, wire, alias, split, expose, or any other such verb — is emitted as a written proposal carrying a concrete config or Blade snippet, never applied to the project.
+
+> **What this lens owns in a CR:** how the bundle is built and loaded — entrypoint declaration and the `@vite` directive that loads it, HMR and dev-server configuration, `VITE_`-prefixed env exposure, `resolve.alias` paths, the manifest and cache-busting, and code splitting in the production build. It **defers the markup a view renders** — component composition, state placement, accessibility semantics, and design tokens — to the three frontend lenses (`@skills/frontend-patterns/SKILL.md`, `@skills/frontend-a11y/SKILL.md`, `@skills/design-system/SKILL.md`), and never raises a finding one of them owns.
+> The lens judges the Vite setup the project already has. **Never raise a finding whose only fix is to adopt a plugin or a framework the project does not use** — React, Vue, an SSR framework, library mode, or Bun: the toolchain is a project decision, not a defect on the diff.
+
 ## Use when
 - Setting up or editing `vite.config.js` with the `laravel()` plugin.
 - Wiring entrypoints and the `@vite([...])` directive into Blade layouts.
