@@ -2725,11 +2725,26 @@ test('the cache lens is gated against the Object caching bullet on both sides (i
     // TTL defect at once, and each owner raises its own — that is not double-reporting.
     expect($contract)->toContain('The two divide the *dimensions* of a cache write, never its lines');
 
+    // The issue's own edge case names one finding for `Cache::put($model)`; a call with no TTL
+    // carries a second, real defect, so the shipped rule raises two. That departure is written
+    // down on both carriers rather than left for a reader to derive from the boundary table.
+    $departure = '**This is a recorded departure from the issue\'s own edge case, not an oversight.**';
+    $suppression = 'Suppressing the second would drop a defect no other owner reports: '
+        . 'gating decides **who** raises a finding, never whether the finding exists.';
+
+    expect($contract)->toContain($departure);
+    expect($contract)->toContain(
+        'so the boundary above raises **two** findings on that call rather than the one the example names',
+    );
+    expect($contract)->toContain($suppression);
+
     $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('**This bullet owns the shape of the cached value and nothing else.**');
     expect($rule)->toContain('When the cache lens `@skills/redis-patterns/SKILL.md` with `MODE=cr` runs over the same diff');
     expect($rule)->toContain('are that lens\'s findings and are never restated here');
+    expect($rule)->toContain($departure);
+    expect($rule)->toContain($suppression);
 });
 
 test('redis-patterns declares the read-only MODE=cr contract the CR invokes it with (issue #61)', function (): void {
