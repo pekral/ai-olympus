@@ -23,6 +23,9 @@ metadata:
 ## Scope
 Review only the API surface on the **diff** — never untouched endpoints. Detect the surface from any of: route definitions, controller/`__invoke` request handlers, API Resources / DTOs serialized into responses, FormRequests, `response()` / `abort()` / status-code calls, and `Idempotency-Key` handling. If the diff touches no API surface, return no findings.
 
+**This lens owns the generic HTTP contract of an MPP-gated endpoint, never the protocol behind it.** When the CR's payment trigger fires on the same diff on a project that implements MPP (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*), `@skills/machine-payments-protocol/SKILL.md` with `MODE=cr` runs alongside this lens and owns protocol conformance — the challenge and receipt shape on the wire, single-use proof, request and body binding, expiry, no side effect before payment, idempotent settlement, and server-side pricing. This lens keeps status-code choice outside the `402` challenge itself, the response envelope, versioning, and idempotency-key mechanics, and never restates a protocol finding in its own words.
+The two divide the *dimensions* of a payment change, never its lines: a gated endpoint that both settles a replayed receipt a second time and answers a client retry with no `Idempotency-Key` handling carries one protocol finding from the payment lens and one idempotency finding here — a different defect, never this lens's finding restated.
+
 ## Core Checks
 Walk the diff against each pillar of `@rules/api/general.md` and raise one finding per match.
 
