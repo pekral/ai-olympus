@@ -3062,7 +3062,7 @@ test('every container-trigger outcome lands in exactly one branch and adds no ou
 
     // Narrowing must not become a second detection step, or the review resolves the service set
     // twice and the two answers can disagree.
-    expect($contract)->toContain('This narrowing adds **no** detection step of its own');
+    expect($contract)->toContain('This narrowing introduces **no** detection step of its own');
     expect($contract)->toContain('so the review never resolves a service set twice');
 
     // The catch-all names the one decision step it covers and answers both of its outcomes.
@@ -3079,6 +3079,10 @@ test('every container-trigger outcome lands in exactly one branch and adds no ou
     // #60 and #61 each carry their own no-output-surface sentence, and a pin phrased like theirs
     // would stay green with this one deleted (issue #41).
     expect(substr_count($contract, '**The container lens adds no output surface**'))->toBe(1);
+    expect($contract)->toContain(
+        'Fold the container lens\'s findings into the standard '
+        . '**Critical / Moderate / Minor** buckets of `## Findings`',
+    );
     expect($contract)->toContain(
         '**The container lens adds no output surface** — no report section, no summary-line slot, '
         . 'and therefore no render template to change, '
@@ -3195,4 +3199,105 @@ test('the build lens resolves Vite itself and skips silently without it (issue #
 
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     expect($skill)->toContain('the asset-build lens `vite-patterns` with `MODE=cr`');
+});
+
+test('the container lens is gated against the malicious-code walk on both carriers (issue #63)', function (): void {
+    // A boundary written on one side only is a boundary the other side never reads. The walk lives
+    // in two files — the CR half in rules/code-review/review-process.md and the rule half in
+    // rules/security/backend.md — so both have to carry it, and so does the trigger.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**That walk owns what a line fetches, trusts, and hides**');
+    expect($contract)->toContain('**The container lens owns the shape of the image and its services**');
+    // The issue's own edge case: `curl -k | sh` inside a Dockerfile is the walk's finding, not the
+    // lens's. Naming the line makes the boundary checkable instead of merely stated.
+    expect($contract)->toContain('A `RUN curl -k https://… | sh` line is the walk\'s finding alone');
+
+    // The division is per dimension, not per line: one RUN line can carry a transport defect and
+    // an image-shape defect at once, and each owner raises its own — that is not double-reporting.
+    expect($contract)->toContain('The two divide the *dimensions* of a container change, never its lines');
+
+    // Anchored on this block's own header and count-bearing. The bare gating header is a shared
+    // heading shape carried by the frontend and cache blocks too, so a pin on it alone would stay
+    // green with this block deleted (issue #41).
+    expect(substr_count(
+        $contract,
+        '**Gating — one finding per violation, never two.** '
+        . 'The walk *Malicious code & supply-chain indicators (issue #549)*',
+    ))->toBe(1);
+
+    // Carrier one: the walk's CR half.
+    $rule = codeReviewRuleContents();
+    expect($rule)->toContain(
+        '**Scope boundary — this walk owns the fetch, the trust, and the concealment; '
+        . 'the container lens owns the image.**',
+    );
+    expect($rule)->toContain(
+        'When the container lens `@skills/docker-patterns/SKILL.md` with `MODE=cr` runs over the same diff',
+    );
+    expect($rule)->toContain('are that lens\'s findings and are never repeated in this walk');
+
+    // Carrier two: the walk's rule half.
+    $backend = (string) file_get_contents($packageDir . '/rules/security/backend.md');
+    expect($backend)->toContain(
+        '> **Scope boundary.** This section owns the **fetch, the transport trust, and the concealment** on a line',
+    );
+    expect($backend)->toContain('inside a `Dockerfile` exactly as inside any other shell / deploy / CI script');
+    // Anchored on this boundary's own sentence and count-bearing: the SSRF section in the same
+    // file closes with the identical formula, so a pin on the bare clause would stay green with
+    // this boundary deleted (issue #41).
+    expect(substr_count(
+        $backend,
+        'belongs to `@skills/docker-patterns/SKILL.md` with `MODE=cr`, '
+        . 'the container lens the code review runs over the same diff '
+        . '— raise one finding per violation, never two for the same line.',
+    ))->toBe(1);
+
+    // The lens owns how a secret reaches the build. A hardcoded credential in a Dockerfile or a
+    // compose file is a security finding, and this file keeps it — a security finding is never
+    // handed to a non-security owner (`@rules/code-review/general.md` conflict resolution, S1-S3).
+    foreach ([$contract, $rule, $backend] as $carrier) {
+        expect($carrier)->toContain(
+            'the non-root user and dropped capabilities, healthchecks, one process per container, '
+            . 'and how a secret is delivered to the build',
+        );
+        expect($carrier)->toContain(
+            'a runtime injection or a BuildKit '
+            . '`--mount=type=secret` against an `ENV` / `COPY` that persists in a layer',
+        );
+    }
+
+    expect($contract)->toContain(
+        'A **hardcoded** secret — a credential, key, or token written literally into a `Dockerfile`, '
+        . 'a compose file, or an env file copied into an image — is not the lens\'s either',
+    );
+    expect($contract)->toContain('and a security finding is never moved out of a security owner.');
+    expect($rule)->toContain(
+        'A **hardcoded** secret in any of those files stays with `@rules/security/backend.md` '
+        . '*General Secure Coding Practices*, never with the lens.',
+    );
+    expect($backend)->toContain(
+        'A **hardcoded** secret in a `Dockerfile`, a compose file, or an env file copied into an image '
+        . 'is **not** handed over: *General Secure Coding Practices* above keeps it',
+    );
+});
+
+test('the build lens is gated against the three frontend lenses (issue #63)', function (): void {
+    // An @vite directive lives in a Blade view, so a diff touching it fires the frontend trigger
+    // as well. Without a boundary the same line has two owners and one defect is reported twice.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '**Gating — the build lens against the three frontend lenses, '
+        . 'one finding per violation, never two.**',
+    );
+    expect($contract)->toContain('**Those three lenses own the markup a view renders**');
+    expect($contract)->toContain('**The build lens owns which bundle that view loads**');
+    expect($contract)->toContain('Neither side restates the other\'s finding in its own words.');
+
+    // The lens's own half of the boundary, so a reader of the skill alone knows what is not its.
+    $packageDir = dirname(__DIR__, 2);
+    $vite = (string) file_get_contents($packageDir . '/skills/vite-patterns/SKILL.md');
+    expect($vite)->toContain('It **defers the markup a view renders**');
 });

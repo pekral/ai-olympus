@@ -108,6 +108,10 @@ Severity: **Critical** when both halves co-occur (hidden / temp write **and** ba
 
 Each finding maps to an active attack technique (RCE, MITM, evasion, persistence), so the **Suggested Fix** replaces the unsafe construct with the allow-listed / verified / logged / queued equivalent above. Genuinely benign uses — a `-s` curl inside a documentation example, a `2>/dev/null` on a best-effort cleanup annotated with a comment — are not findings when the intent is documented inline.
 
+> **Scope boundary.** This section owns the **fetch, the transport trust, and the concealment** on a line — a silent remote fetch, disabled TLS validation, suppressed error output, and the hidden-file-plus-detached-process pattern — inside a `Dockerfile` exactly as inside any other shell / deploy / CI script.
+> The **shape of the image and its services** — stage layout and layer caching, pinned base image tags, the non-root user and dropped capabilities, healthchecks, one process per container, and how a secret is delivered to the build — a runtime injection or a BuildKit `--mount=type=secret` against an `ENV` / `COPY` that persists in a layer — belongs to `@skills/docker-patterns/SKILL.md` with `MODE=cr`, the container lens the code review runs over the same diff — raise one finding per violation, never two for the same line.
+> A **hardcoded** secret in a `Dockerfile`, a compose file, or an env file copied into an image is **not** handed over: *General Secure Coding Practices* above keeps it, because a security finding is never moved out of a security owner.
+
 ## Malicious File Upload Content (issue #680)
 Uploaded files are an attacker-controlled byte stream. When the application later renders, serves, or processes the file's bytes, name, or metadata, active content inside the file can execute in the browser or be injected into downstream consumers. Apply these rules to every code path that **accepts**, **stores**, **processes**, or **serves** user-uploaded files.
 
