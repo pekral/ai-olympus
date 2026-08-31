@@ -16,6 +16,14 @@ The engine-neutral half — naming discipline, nullability semantics, `CHECK` as
 - `final` classes, `declare(strict_types=1)`, Pest tests for any data-access code added.
 - Confirm the major version (`SELECT version();`) before using version-specific features — `MERGE` (15+), covering `INCLUDE` indexes (11+), and `NULLS NOT DISTINCT` (15+) are not in older servers.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):
+
+- **`design` (default)** — full design work: write migrations, add indexes, change column types, and set connection configuration. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the reviewed project's database engine resolves to `pgsql`)** — **never modify code, never author a migration or a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, for the CR to fold into its single `## Database Analysis` section.
+Every instruction below that would touch the database, a migration, or configuration — create, add, alter, index, enable, set, or any other such verb — is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project.
+
 ## Use when
 - Adding jsonb columns, GIN/BRIN/partial/covering indexes, or full-text search to a Laravel app on Postgres.
 - Building a queue/worker that pulls jobs with `FOR UPDATE SKIP LOCKED`, or paginating large result sets by cursor.
@@ -68,6 +76,8 @@ ON CONFLICT (sku) DO UPDATE SET price = EXCLUDED.price;
 - `updateOrCreate()` is per-row, fires events, and is race-prone unless a unique index backs the match columns; wrap concurrent use in a transaction retry.
 
 ## Indexing Beyond B-tree
+
+> **`MODE=cr`:** this section carries the deploy-safety answer `@rules/code-review/core-analysis.md` *Deploy-safe schema changes (issue #20)* redirects a PostgreSQL project to. Raise a blocking index build on a populated table as a finding whose **Suggested Fix** is `CREATE INDEX CONCURRENTLY` with the migration's wrapping transaction disabled (`public $withinTransaction = false;`) — never `ALGORITHM=INPLACE, LOCK=NONE`, `pt-online-schema-change`, or `gh-ost`, none of which PostgreSQL parses or supports. Name the reversal too: a failed `CONCURRENTLY` build leaves an invalid index behind, so `down()` drops that index explicitly.
 
 B-tree (the default) covers equality/range. Reach for these when the access pattern differs:
 
