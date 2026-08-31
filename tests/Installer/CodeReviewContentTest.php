@@ -1234,7 +1234,7 @@ test('rule defines the Two-Part CR Output — Technical & Functional Review cont
 
 test('code-review skill routes Assignment Conformance Gate Critical findings to Functional Review, not Findings (issue #56)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $canonical = crContractText('skills/code-review/SKILL.md');
     $conformanceGate = (string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md');
 
     expect($conformanceGate)->toContain(

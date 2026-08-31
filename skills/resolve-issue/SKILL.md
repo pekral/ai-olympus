@@ -73,16 +73,7 @@ follow useful links recursively to a sensible depth. If the script is unavailabl
 
 ### Comment analysis
 
-5. Before analyzing the problem, fetch and read **all comments and replies** from the issue tracker (GitHub, JIRA, or Bugsnag). For GitHub, JIRA, and Bugsnag issues, read `comments[]` directly off the JSON loaded in step 2 — do not issue a second listing call:
-   - Group comments by conversation thread (e.g., review threads, reply chains).
-   - For each thread, determine:
-     - **Current requirements** — requests or conditions that are still valid and unfulfilled.
-     - **Resolved items** — requirements already addressed by merged PRs or subsequent comments.
-     - **Outdated items** — requests superseded by newer comments or decisions.
-   - Use only the **current requirements** (combined with the issue description) as input for the next step.
-
-   **Reopened task (mandatory deep pass).** When step 1 marked the run as a reopened continuation, the comment analysis above is blocking: read the comments posted **after the most recent close / merge** first (they win over the original description on why it was reopened and what still fails), then load every earlier linked PR (`closingPullRequests[]` / `pullRequests[]` / `devSummary` / the mirrored issue's PRs) via the deterministic loader and classify what already landed as **Resolved items** — **never reimplement or revert** it unless a post-reopen comment asks. Derive the **continuation scope** as the post-reopen delta plus any stated requirement that verifiably never landed, not the original assignment from scratch.
-If nothing explains the reopen, stop as **Blocked**, post a question asking the reopen reason, and release the claim per step 1 — never guess the continuation scope.
+5. Before analyzing the problem, fetch and read **all comments and replies** from the issue tracker, grouped by conversation thread, and use only the **current requirements** — those still valid and unfulfilled — as input for the next step. Read `comments[]` off the JSON already loaded in step 2; do not issue a second listing call. When step 1 marked the run as a **reopened continuation**, the *Reopened task (mandatory deep pass)* clause is blocking: the post-reopen comments and the earlier linked PRs decide the continuation scope, and an unexplained reopen stops the run as **Blocked**. The full thread classification, the deep pass, and the Blocked rule live in `references/comment-analysis.md`.
 
 ### Context preparation (mandatory pre-flight)
 
@@ -151,16 +142,9 @@ Author the change, commit each planned point, and push. The self-checks below st
 
 ## Code quality self-check (single pass)
 
-After implementation, and **before creating the pull request**, run one self-check pass on the local changes:
+After implementation, and **before creating the pull request**, run `@skills/code-review/SKILL.md` inline on the local changes — once, over the whole diff — and apply the **Suggested Fix** plus a reproducer test for every Critical and Moderate finding it returns. Do not re-run the full review to convergence: full-diff convergence belongs to the authoritative post-PR loop (`code-review-github` / `process-code-review`), and repeating it here doubles the cost without raising the bar of the merged result.
 
-1. **Run the review inline.** Invoke `@skills/code-review/SKILL.md` directly in this skill's context, passing the current branch / diff context plus the instruction "run `@skills/code-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings with their reproducer fields (Faulty Example, Expected Behavior, Test Hint, Suggested Fix)". Do not dispatch the review as a subagent — run it sequentially in the current context.
-2. If **Critical** or **Moderate** findings exist:
-   - Apply the **Suggested Fix** snippet from each finding directly to the working tree
-   - Add or update a reproducer test for each finding using its **Faulty Example**, **Expected Behavior**, and **Test Hint**
-3. **Do not re-run the full review to convergence.** The full-diff review runs exactly once; after applying the fixes, re-verify each fixed finding in a targeted way — re-read the finding's code path — instead of re-invoking the full review over the whole diff. Full-diff convergence is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `athena` ↔ `hephaestus` loop), which reviews the complete diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
-4. **PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding surfaced by this pass is resolved (0 Critical + 0 Moderate remaining). When a surfaced finding cannot be resolved, stop as **Blocked** and surface it to the user instead of opening a PR that knowingly carries it.
-
-PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR self-check because it requires an open PR to operate on.
+**PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding this pass surfaced is resolved. When one cannot be resolved, stop as **Blocked** and surface it instead of opening a PR that knowingly carries it. The full procedure — the invocation contract, the targeted re-verification, and why PR-comment processing is not part of this pre-PR pass — lives in `references/code-quality-self-check.md`.
 
 ## Testing
 
@@ -230,6 +214,8 @@ The non-technical report must be understandable by non-technical testers and pro
 ## References
 
 - references/source-detection.md
+- references/comment-analysis.md
+- references/code-quality-self-check.md
 - references/quality-gates.md
 - references/deferred-follow-up.md
 - references/pre-existing-issue-handling.md

@@ -791,6 +791,7 @@ function crContractText(string $path): string
         'skills/code-review-github/SKILL.md' => 'skills/code-review-github/references/cr-wrapper-contract.md',
         'skills/code-review-jira/SKILL.md' => 'skills/code-review-github/references/cr-wrapper-contract.md',
         'skills/code-review-jira/templates/github-output.md' => 'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review/SKILL.md' => 'skills/code-review/references/specialized-reviews.md',
     ];
 
     if (!array_key_exists($relativePath, $sharedReferenceFiles)) {

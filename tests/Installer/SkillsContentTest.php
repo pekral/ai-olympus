@@ -224,7 +224,7 @@ test('assignment-compliance-check skill exists with required sections and writes
 test('assignment-compliance-check returns markdown to the caller without publishing on its own', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
-    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $canonical = crContractText('skills/code-review/SKILL.md');
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
@@ -256,7 +256,7 @@ test('assignment-compliance-check returns markdown to the caller without publish
 test('assignment-compliance-check omits the block on clean assignments and removes "what is satisfied" / "open questions" lists', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
-    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $canonical = crContractText('skills/code-review/SKILL.md');
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
@@ -557,7 +557,10 @@ test('resolve-issue claims the GitHub issue before implementation and releases o
 
 test('resolve-issue analyzes comments and continues work on reopened tasks', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    // The comment analysis moved into its own reference; the deep pass travelled with it.
+    $commentAnalysis = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/comment-analysis.md');
+    $content = $skill . "\n" . $commentAnalysis;
 
     // Reopen detection runs inside the open-state gate, off the loader JSON.
     expect($content)->toContain('Detect a reopened task');
@@ -575,27 +578,29 @@ test('resolve-issue analyzes comments and continues work on reopened tasks', fun
     // Missing reopen reason blocks the run instead of guessing.
     expect($content)->toContain('reopen reason');
 
-    // Placement: detection sits inside the step-1 gate before the claim step,
-    // and the deep pass lives inside the Comment analysis section.
-    $detectPos = strpos($content, 'Detect a reopened task');
-    $claimPos = strpos($content, 'Claim the issue immediately');
-    $commentAnalysisPos = strpos($content, '### Comment analysis');
-    $contextPreparationPos = strpos($content, '### Context preparation');
+    // Placement: detection sits inside the step-1 gate before the claim step, and the deep pass
+    // lives inside the comment analysis — which is now `references/comment-analysis.md`, named by
+    // the skill's own Comment analysis section between step 5 and the context-preparation pre-flight.
+    $detectPos = strpos($skill, 'Detect a reopened task');
+    $claimPos = strpos($skill, 'Claim the issue immediately');
+    $commentAnalysisPos = strpos($skill, '### Comment analysis');
+    $contextPreparationPos = strpos($skill, '### Context preparation');
     // The bold clause heading is unique — step 1 references the clause in italics.
-    $deepPassPos = strpos($content, '**Reopened task (mandatory deep pass).**');
+    $deepPassPos = strpos($commentAnalysis, '**Reopened task (mandatory deep pass).**');
     expect($detectPos)->not->toBeFalse();
     expect($claimPos)->not->toBeFalse();
     expect($commentAnalysisPos)->not->toBeFalse();
     expect($contextPreparationPos)->not->toBeFalse();
     expect($deepPassPos)->not->toBeFalse();
+    // The skill still points at the reference that carries the deep pass, from that section.
+    expect($skill)->toContain('references/comment-analysis.md');
 
-    if (!is_int($detectPos) || !is_int($claimPos) || !is_int($commentAnalysisPos) || !is_int($contextPreparationPos) || !is_int($deepPassPos)) {
+    if (!is_int($detectPos) || !is_int($claimPos) || !is_int($commentAnalysisPos) || !is_int($contextPreparationPos)) {
         return;
     }
 
     expect($detectPos)->toBeLessThan($claimPos);
-    expect($deepPassPos)->toBeGreaterThan($commentAnalysisPos);
-    expect($deepPassPos)->toBeLessThan($contextPreparationPos);
+    expect($commentAnalysisPos)->toBeLessThan($contextPreparationPos);
 });
 
 test('JIRA context-consuming skills offer gather-issue-context.sh', function (): void {
