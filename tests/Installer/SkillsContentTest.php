@@ -1665,6 +1665,11 @@ test('each frontend lens states its own responsibility and defers the other two 
         'It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` '
         . 'and token / theme consistency to `@skills/design-system/SKILL.md`',
     );
+    // The lens owns composition inside an existing component; whether a block becomes one at all
+    // is the layout-splitting walk's decision, so the deferral has to name the walk too.
+    expect($patterns)->toContain('It **defers the decision that a block should become its own component**');
+    expect($patterns)->toContain('to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*)');
+    expect($patterns)->toContain('never raises a finding whose fix is *extract this*');
 
     $a11y = (string) file_get_contents($packageDir . '/skills/frontend-a11y/SKILL.md');
     expect($a11y)->toContain('every accessibility finding on the diff');
