@@ -340,6 +340,8 @@ All 53 skills, grouped by what you reach for them for. Each description is the s
 | [`skill-creator`](skills/skill-creator/) | Creating a new Agent skill in this repository |
 | [`compact-project-memory`](skills/compact-project-memory/) | docs/memory/PROJECT_MEMORY.md was just written to |
 
+Writing the README itself is not in this catalog. [`pekral/github-readme-generator`](https://github.com/pekral/github-readme-generator) is a standalone Agent Skill that builds a repository's root `README.md` from its code, manifests, scripts, tests, and workflows. Install it with `npx skills add pekral/github-readme-generator`, or as a Claude Code plugin from its own marketplace.
+
 ## Unattended Runs
 
 `resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler.
