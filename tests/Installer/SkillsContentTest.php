@@ -1033,6 +1033,12 @@ test('machine-payments-protocol skill is installed with sourced, not invented, p
         'Defer to, never restate, `rules/security/backend.md` and `@skills/laravel-security/SKILL.md`',
     );
     expect($content)->toContain('@rules/security/backend.md');
+    // On master the bare pin above had exactly one hit - this security sentence. The MODE=cr block
+    // added a second, so the bare pin no longer holds it and the sentence needs its own anchor.
+    expect($content)->toContain(
+        'Never leak provider internals in `detail` — '
+        . '`@rules/security/backend.md` *Safe Validation & Error Messages*',
+    );
     expect($content)->toContain('@skills/laravel-security/SKILL.md');
     expect($content)->toContain('square1/laravel-mpp');
     expect($content)->toContain('references/protocol-sourcing.md');
