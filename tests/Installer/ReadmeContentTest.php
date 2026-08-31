@@ -7,9 +7,12 @@ test('readme shows the install command inside the first rendered screen (issue #
     $lines = (array) file($packageDir . '/README.md');
 
     $firstScreen = implode('', array_slice($lines, 0, 40));
+    // Anchored to the Quickstart block, not to the whole screen: the experimental warning above
+    // it quotes an install command verbatim to say it fails, so a screen-wide match pins prose.
+    $quickstart = installerDocsSection($firstScreen, '## Quickstart');
 
-    expect($firstScreen)->toContain('composer require pekral/ai-olympus --dev');
-    expect($firstScreen)->toContain('vendor/bin/ai-olympus install --force');
+    expect($quickstart)->toContain('composer require pekral/ai-olympus:dev-master --dev');
+    expect($quickstart)->toContain('vendor/bin/ai-olympus install --force');
 });
 
 test('readme hero paragraph describes the product, not the installer mechanics (issue #105)', function (): void {

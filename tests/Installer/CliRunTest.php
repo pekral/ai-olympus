@@ -134,7 +134,11 @@ test('readme keeps the quickstart install command and links out to the installat
     $readme = (string) file_get_contents($packageDir . '/README.md');
 
     expect($readme)->toContain('[`docs/installation.md`](docs/installation.md)');
-    expect($readme)->toContain('composer require pekral/ai-olympus --dev');
+
+    // Anchored to the Quickstart block, not to the whole file: the experimental warning quotes
+    // an install command verbatim to say it fails, so a file-wide match pins that prose instead.
+    expect(installerDocsSection($readme, '## Quickstart'))
+        ->toContain('composer require pekral/ai-olympus:dev-master --dev');
 
     // The operational reference must not survive in both places, or the two copies drift.
     expect($readme)->not->toContain('### Installer Flow');
