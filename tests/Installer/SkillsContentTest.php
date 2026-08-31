@@ -1706,3 +1706,67 @@ test('each frontend lens states its own responsibility and defers the other two 
     // The skill's own numbered modes must not read as the MODE selector the CR passes.
     expect($design)->toContain('In `MODE=design` this skill has three working modes.');
 });
+
+test('docker-patterns and vite-patterns carry a read-only MODE=cr contract (issue #63)', function (): void {
+    // Both ship as build skills that write Dockerfiles, compose files, and vite.config.js. A code
+    // review is read-only, so each needs an explicit mode that suspends every write verb before a
+    // CR trigger can invoke it — the contract the frontend lenses and redis-patterns already carry.
+    $packageDir = dirname(__DIR__, 2);
+
+    $lenses = [
+        'docker-patterns' => 'build',
+        'vite-patterns' => 'configure',
+    ];
+
+    foreach ($lenses as $slug => $defaultMode) {
+        $content = (string) file_get_contents($packageDir . '/skills/' . $slug . '/SKILL.md');
+
+        expect($content)->toContain('## Modes');
+        expect($content)->toContain('selected by the caller via `MODE` (default `' . $defaultMode . '`)');
+        expect($content)->toContain('- **`' . $defaultMode . '` (default)**');
+        expect($content)->toContain(
+            'never author a test, never stage / commit / push, '
+            . 'never run fixers or checkers, and never chain a follow-up review.**',
+        );
+        expect($content)->toContain('Scope the analysis to the lines added or modified by the PR diff');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('never applied to the project');
+        expect($content)->toContain('> **What this lens owns in a CR:**');
+    }
+});
+
+test('each new infrastructure lens states what it owns and what it defers (issue #63)', function (): void {
+    // Two lenses read files a security walk and three frontend lenses already read. Without an
+    // ownership line each would restate a finding another owner raises over the same line.
+    $packageDir = dirname(__DIR__, 2);
+
+    $docker = (string) file_get_contents($packageDir . '/skills/docker-patterns/SKILL.md');
+    expect($docker)->toContain('the shape of the image and its services');
+    expect($docker)->toContain('It **defers the fetch, the transport trust, and the concealment on a line**');
+    expect($docker)->toContain(
+        'to the walk *Malicious Code & Supply-Chain Indicators* (`@rules/security/backend.md`), '
+        . 'and never raises a finding that walk owns',
+    );
+    // A hardcoded credential in a Dockerfile is a security finding, so the lens must not claim it.
+    expect($docker)->toContain(
+        '> A **hardcoded** secret — a credential, key, or token written literally into a `Dockerfile`, '
+        . 'a compose file, or an env file copied into an image — is not the lens\'s either',
+    );
+    expect($docker)->toContain('`@skills/security-review/SKILL.md` own it');
+    // The service list a project runs is a project decision — the lens must not legislate it.
+    expect($docker)->toContain(
+        '**Never raise a finding whose only fix is to adopt a service the project does not run**',
+    );
+
+    $vite = (string) file_get_contents($packageDir . '/skills/vite-patterns/SKILL.md');
+    expect($vite)->toContain('how the bundle is built and loaded');
+    expect($vite)->toContain('It **defers the markup a view renders**');
+    expect($vite)->toContain(
+        'to the three frontend lenses (`@skills/frontend-patterns/SKILL.md`, '
+        . '`@skills/frontend-a11y/SKILL.md`, `@skills/design-system/SKILL.md`), '
+        . 'and never raises a finding one of them owns',
+    );
+    expect($vite)->toContain(
+        '**Never raise a finding whose only fix is to adopt a plugin or a framework the project does not use**',
+    );
+});
