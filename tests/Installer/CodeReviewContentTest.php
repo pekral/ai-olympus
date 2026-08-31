@@ -3796,4 +3796,28 @@ test('the payment lens is gated against the API and security lenses (issue #64)'
     );
     expect($contract)->toContain('**The payment lens owns protocol conformance**');
     expect($contract)->toContain('The three divide the *dimensions* of a payment change, never its lines:');
+
+    // Carrier two: the API lens's own copy. The security half needs none - it is a one-way
+    // hand-over a security owner never gives back - but api-review shares the endpoint with the
+    // payment lens in both directions, so a one-sided boundary would let it restate a protocol
+    // finding in HTTP words.
+    $packageDir = dirname(__DIR__, 2);
+    $apiReview = (string) file_get_contents($packageDir . '/skills/api-review/SKILL.md');
+
+    expect($apiReview)->toContain(
+        '**This lens owns the generic HTTP contract of an MPP-gated endpoint, '
+        . 'never the protocol behind it.**',
+    );
+    expect($apiReview)->toContain('`@skills/machine-payments-protocol/SKILL.md` with `MODE=cr`');
+    // The hand-over is conditional on the payment lens actually running: api-review is always-run
+    // and reads endpoints on projects that implement no payment protocol at all.
+    expect($apiReview)->toContain(
+        'When the CR\'s payment trigger fires on the same diff on a project that implements MPP',
+    );
+    expect($apiReview)->toContain('never restates a protocol finding in its own words');
+    // The dimensions half, with the concrete second defect this lens still raises on the same line.
+    expect($apiReview)->toContain(
+        'The two divide the *dimensions* of a payment change, never its lines:',
+    );
+    expect($apiReview)->toContain('one idempotency finding here');
 });
