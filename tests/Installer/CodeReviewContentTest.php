@@ -2756,3 +2756,171 @@ test('redis-patterns declares the read-only MODE=cr contract the CR invokes it w
     expect($skill)->toContain('*Object caching (issue #683)*, and never raises a finding that bullet owns');
     expect($skill)->toContain('**Never raise a finding whose only fix is to adopt Redis**');
 });
+
+test('a MySQL schema-feature diff triggers the mysql-patterns lens (issue #61)', function (): void {
+    // `mysql-problem-solver` answers "is this query fast", never "is this schema feature built
+    // right". Upserts, JSON columns, full-text indexes, partitions, read/write splitting and
+    // deadlock handling had no lens, while skills/mysql-patterns shipped and no CR path ran it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**MySQL schema-feature surface detected in the diff → the schema-pattern lens runs.**');
+
+    // Each pattern the issue names has to be in the list, or the trigger misses the feature.
+    expect($contract)->toContain('a migration (`Schema::create` / `Schema::table` / a raw DDL statement)');
+    expect($contract)->toContain('an upsert (`upsert(`, `insertOrIgnore(`, `updateOrCreate(`, `ON DUPLICATE KEY UPDATE`)');
+    expect($contract)->toContain('a JSON column or JSON path');
+    expect($contract)->toContain('a full-text index or match (`fullText(`, `whereFullText(`, `MATCH … AGAINST`)');
+    expect($contract)->toContain('a partition definition (`PARTITION BY`, `ADD PARTITION`)');
+    expect($contract)->toContain('deadlock handling (`DB::transaction(…, attempts:)`, a caught SQLSTATE `40001` / error `1213`');
+    expect($contract)->toContain('read/write splitting (a `read` / `write` / `sticky` key under a `config/database.php` connection');
+
+    // A diff touching none of those features runs no schema lens — the acceptance criterion that a
+    // diff without cache and without schema changes fires neither of the two new lenses.
+    expect($contract)->toContain('**a diff matching none of those patterns runs no schema-pattern lens at all**');
+    expect($contract)->toContain('a query change that touches none of those features is the DB lens\'s business alone');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'MySQL schema-feature surface detected in the diff'))->toBe(1);
+});
+
+test('the schema-pattern lens reuses the one engine resolution and covers every outcome (issue #61)', function (): void {
+    // Issue #62 put a deterministic engine resolution into this same file. A second, independent
+    // detection here could disagree with it, so the trigger must read that answer instead.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '**This lens hangs on the engine the DB-lens trigger above already resolved — '
+        . 'it never resolves the engine a second time.**',
+    );
+    expect($contract)->toContain('Two independent resolutions in one review can disagree');
+
+    // Three branches over the one engine answer, and the third is the catch-all.
+    expect($contract)->toContain('- **`mysql` / `mariadb` → `@skills/mysql-patterns/SKILL.md` with `MODE=cr`.**');
+    expect($contract)->toContain('- **`pgsql` → the lens does not run, silently.**');
+    expect($contract)->toContain('owns the Postgres counterpart of every feature in the list');
+    expect($contract)->toContain('no finding, no section, no summary-line slot, no "skipped" placeholder');
+    expect($contract)->toContain(
+        '- **Engine not resolvable, or resolved to any other driver (`sqlite`, `sqlsrv`, …) '
+        . '→ `@skills/mysql-patterns/SKILL.md` with `MODE=cr`**, following the DB lens into its own catch-all',
+    );
+    expect($contract)->toContain(
+        'every outcome of the single engine resolution lands in exactly one of the three branches above, '
+        . 'so no schema-feature diff is ever left with no lens',
+    );
+
+    // The unresolved branch must not grow a second Assumption slot — the DB lens already states it,
+    // and a rule that introduces an output element no template renders is a known past defect.
+    expect($contract)->toContain('**never state it twice**, and never add a second `Assumption:` slot for this lens');
+});
+
+test('the schema-pattern lens does not re-open the mutually exclusive engine branch (issue #61)', function (): void {
+    // #62's "never both lenses" sentence is about the two engine lenses. Read as covering this one
+    // it would forbid the very pairing this issue asks for, so the boundary is stated explicitly.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('- **This lens is not a fourth engine branch.**');
+    expect($contract)->toContain('The *Never run both lenses on the same diff* rule above does not reach it.');
+    expect($contract)->toContain('That rule governs the two mutually exclusive *engine* lenses');
+    expect($contract)->toContain(
+        'The schema-pattern lens is a second *dimension* over the one resolved engine, not a second engine, '
+        . 'so on MySQL / MariaDB it runs **alongside** `mysql-problem-solver`, never instead of it.',
+    );
+
+    // #62's own sentence has to survive intact — this change must not widen or narrow it.
+    expect($contract)->toContain('- **Never run both lenses on the same diff.**');
+    expect($contract)->toContain('The branches are mutually exclusive by construction');
+});
+
+test('the schema-pattern lens is gated against mysql-problem-solver on both sides (issue #61)', function (): void {
+    // A boundary written on one side only is a boundary the other side never reads.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**That lens owns the performance of a query and its plan**');
+    expect($contract)->toContain('**The schema-pattern lens owns the shape of the feature**');
+    expect($contract)->toContain(
+        'a slow query over a new partition carries one performance finding from `mysql-problem-solver` '
+        . 'and one partition-shape finding from `mysql-patterns`',
+    );
+    expect($contract)->toContain('What neither does is restate the other\'s finding in its own words.');
+
+    // The other carrier of the same boundary.
+    $solver = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+
+    expect($solver)->toContain(
+        '**In a code review this skill owns query performance and its plan, '
+        . 'never the shape of a schema feature.**',
+    );
+    expect($solver)->toContain('`@skills/mysql-patterns/SKILL.md` with `MODE=cr` runs alongside this skill');
+    expect($solver)->toContain('never restate a schema-shape finding in your own words');
+    expect($solver)->toContain('Both lenses fold into the review\'s single `## Database Analysis` section.');
+});
+
+test('mysql-patterns declares the read-only MODE=cr contract the CR invokes it with (issue #61)', function (): void {
+    // A trigger naming `MODE=cr` against a skill that never defines the mode invokes nothing.
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/mysql-patterns/SKILL.md');
+
+    expect($skill)->toContain('## Modes');
+    expect($skill)->toContain('This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):');
+    expect($skill)->toContain('- **`design` (default)**');
+    expect($skill)->toContain(
+        '**never modify code, never author a migration or a test, never stage / commit / push, '
+        . 'never run fixers or checkers, and never chain a follow-up review.**',
+    );
+    expect($skill)->toContain('for the CR to fold into its single `## Database Analysis` section');
+
+    // The lens states its own half of the gating, so a reader of the skill alone knows which
+    // finding is not its own.
+    expect($skill)->toContain('**What this lens owns in a CR:**');
+    expect($skill)->toContain('It **defers the performance of a query and its plan**');
+    expect($skill)->toContain('`@skills/mysql-problem-solver/SKILL.md`, and never raises a finding that lens owns');
+});
+
+test('every Database Analysis producer list names the schema-pattern lens (issue #61)', function (): void {
+    // The section already existed with one named producer per engine. Adding a second producer
+    // without updating the contracts that describe it would land findings in a section whose
+    // render condition does not admit them — the failure mode issue #62 hit with its summary slot.
+    $packageDir = dirname(__DIR__, 2);
+
+    $rule = codeReviewRuleContents();
+    expect($rule)->toContain(
+        'and equally when the schema-feature trigger fires alongside it and adds '
+        . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a second producer on MySQL / MariaDB',
+    );
+
+    // The skill's own conditional-lens list, or the trigger is unreachable from the one file that
+    // says which conditional lenses to run.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the schema-pattern lens `mysql-patterns` with `MODE=cr` alongside it on MySQL / MariaDB');
+
+    // Every wrapper that publishes the section.
+    foreach (['skills/code-review-github/SKILL.md', 'skills/code-review-jira/SKILL.md', 'skills/code-review-bugsnag/SKILL.md'] as $wrapper) {
+        $contract = crContractText($wrapper);
+
+        expect($contract)->toContain(
+            'additionally runs `@skills/mysql-patterns/SKILL.md` with `MODE=cr` **alongside** the engine lens; '
+            . 'its findings land in that same single section, never a second one',
+        );
+        expect($contract)->toContain(
+            'When the schema-feature trigger also fired on MySQL / MariaDB, '
+            . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` is a second producer of the same section',
+        );
+    }
+
+    // Both templates that render the section.
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $content = crContractText($template);
+
+        expect($content)->toContain(
+            'On MySQL / MariaDB the schema-feature trigger may add `@skills/mysql-patterns/SKILL.md` '
+            . 'with `MODE=cr` as a second producer of this same section',
+        );
+        expect($content)->toContain('render its findings here beside the engine lens\'s, still as one section');
+    }
+});

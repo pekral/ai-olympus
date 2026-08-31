@@ -8,11 +8,22 @@ metadata:
 
 ## Constraints
 - Apply `@rules/sql/optimalize.md` — it already owns indexing, SARGable WHERE, seek/keyset pagination, EXPLAIN, transactions/locking basics, batch-over-per-row, CTE/window/recursive queries, schema basics, DB-level caching, and the **Performance Non-Regression on Query Changes** gate. Do not re-explain those here; defer to it. When a pattern in this skill *changes an existing query* (e.g. swapping `LIKE` for a FULLTEXT match, moving a filter onto a generated column, introducing partition pruning), capture the original query's baseline and confirm the new shape is equal or faster — if it is slower, document the reason and the remaining optimization options per that gate.
-- For diagnosing an existing slow query, use `@skills/mysql-problem-solver/SKILL.md`. This skill is for *designing* features, not investigating regressions.
+- For diagnosing an existing slow query, use `@skills/mysql-problem-solver/SKILL.md`. In `MODE=design` this skill designs features rather than investigating regressions; in `MODE=cr` it reviews the shape of those same features on a diff (see *Modes*). Query diagnosis stays with that skill in both modes.
 - If the project uses Laravel, also apply `@rules/laravel/laravel.md` and `@rules/laravel/architecture.md`.
 - Apply `@rules/security/backend.md` — parameterized queries / ORM only, least-privilege DB users, never hardcode credentials.
 - `final` classes, `declare(strict_types=1)`, Pest tests for any data-access code added.
 - Verify the engine/version before using a version-specific feature (`SELECT VERSION();`). MySQL 8 and MariaDB diverge on JSON, `ON DUPLICATE KEY` aliases, and `SKIP LOCKED`.
+
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):
+
+- **`design` (default)** — full design work: write migrations, add generated columns and indexes, change connection configuration, and apply the patterns below to the project. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a MySQL schema-feature surface)** — **never modify code, never author a migration or a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, for the CR to fold into its single `## Database Analysis` section.
+Every instruction below that would touch the database, a migration, or configuration — create, add, alter, index, enable, set, or any other such verb — is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project.
+
+> **What this lens owns in a CR:** the shape of the schema feature and of the data-access pattern built on it — whether an upsert runs as one statement over a backing unique index, whether a JSON path is indexed through a generated column, whether full-text search replaces a leading-wildcard `LIKE`, whether the partition key matches the predicate the queries filter on, whether read/write splitting keeps `sticky` on a read-after-write path, and whether a concurrent transaction carries a deadlock retry.
+> It **defers the performance of a query and its plan** — index usage, rows examined, `EXPLAIN` shape, `filesort` / `temporary`, and the non-regression gate on a rewritten query — to `@skills/mysql-problem-solver/SKILL.md`, and never raises a finding that lens owns. The two run side by side on a MySQL diff and divide the *dimensions* of a DB change, never its lines: a slow query over a new partition carries one performance finding from that lens and one partition-shape finding from this one.
 
 ## Use when
 - Adding upserts, JSON columns, full-text search, generated columns, or partitioning to a Laravel app.
