@@ -2524,9 +2524,12 @@ test('every frontend-trigger outcome lands in exactly one branch (issue #60)', f
 
     // Past defect: a new rule introduced an output slot no render template carried. This skip is
     // deliberately invisible, so nothing has to be added to any template for it.
-    expect($contract)->toContain(
-        'no finding, no section, no summary-line slot, no "skipped" placeholder',
-    );
+    expect(substr_count(
+        $contract,
+        'The skip is not an error and is **not reported**: '
+        . 'no finding, no section, no summary-line slot, no "skipped" placeholder '
+        . '— exactly like the `## Architecture` section the same detection already omits.',
+    ))->toBe(1);
 
     // A Laravel project without Livewire / Filament still has Blade and Tailwind to review.
     expect($contract)->toContain(
@@ -2551,7 +2554,15 @@ test('frontend-lens findings use the existing severity buckets and add no output
     $contract = crContractText('skills/code-review/SKILL.md');
 
     expect($contract)->toContain('Fold the findings of all three lenses into the standard **Critical / Moderate / Minor** buckets of `## Findings`');
-    expect($contract)->toContain('This trigger introduces **no** new report section and **no** new summary-line slot');
+    // Anchored on this trigger's own copy, and count-bearing. Issue #61 added a second trigger
+    // carrying the same opening clause, which left a bare `toContain` green with this trigger's
+    // copy deleted — a pin that stays syntactically valid while its meaning moves (issue #41).
+    expect(substr_count(
+        $contract,
+        'This trigger introduces **no** new report section and **no** new summary-line slot, '
+        . 'so no render template changes for it; '
+        . 'the CR wrapper contract does not restate this trigger for the same reason',
+    ))->toBe(1);
     expect($contract)->toContain('the CR wrapper contract does not restate this trigger for the same reason');
 
     // No template may grow a frontend-specific section or slot on the back of this trigger.
@@ -2692,7 +2703,15 @@ test('every cache-trigger outcome lands in exactly one branch and adds no output
 
     // Findings go into the existing severity buckets, so no render template changes for this trigger.
     expect($contract)->toContain('Fold the findings into the standard **Critical / Moderate / Minor** buckets of `## Findings`');
-    expect($contract)->toContain('This trigger introduces **no** new report section and **no** new summary-line slot');
+    // Anchored on this trigger's own copy, and count-bearing. The bare clause also stands in the
+    // frontend trigger from #60, so a `toContain` on it passed with this copy deleted — the pin
+    // was syntactically valid and semantically empty (issue #41), and that clause is precisely
+    // the guarantee that no render template needs a change.
+    expect(substr_count(
+        $contract,
+        'This trigger introduces **no** new report section and **no** new summary-line slot, '
+        . 'so no render template changes for it, and the CR wrapper contract does not restate it',
+    ))->toBe(1);
 
     foreach ([
         'skills/code-review/templates/review-output.md',
@@ -2851,7 +2870,14 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
     expect($contract)->toContain('- **`mysql` / `mariadb` → `@skills/mysql-patterns/SKILL.md` with `MODE=cr`.**');
     expect($contract)->toContain('- **`pgsql` → the lens does not run, silently.**');
     expect($contract)->toContain('owns the Postgres counterpart of every feature in the list');
-    expect($contract)->toContain('no finding, no section, no summary-line slot, no "skipped" placeholder');
+    // Anchored on the pgsql branch's own copy, and count-bearing. The bare clause also stands in
+    // the frontend "not Laravel" branch from #60, so a `toContain` on it stayed green with this
+    // branch's silent-skip guarantee deleted — the same empty pin as above (issue #41).
+    expect(substr_count(
+        $contract,
+        'Either way the skip is not an error and is **not reported**: '
+        . 'no finding, no section, no summary-line slot, no "skipped" placeholder.',
+    ))->toBe(1);
     expect($contract)->toContain(
         '- **Engine not resolvable, or resolved to any other driver (`sqlite`, `sqlsrv`, …) '
         . '→ `@skills/mysql-patterns/SKILL.md` with `MODE=cr`**, following the DB lens into its own catch-all',
