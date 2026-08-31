@@ -1611,13 +1611,18 @@ test('postgres-patterns carries a read-only MODE=cr contract so the CR can invok
     expect($content)->toContain('selected by the caller via `MODE` (default `design`)');
     expect($content)->toContain('- **`design` (default)** — full design work');
     expect($content)->toContain('when the reviewed project\'s database engine resolves to `pgsql`');
-    expect($content)->toContain('**never modify code, never author a migration or a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.**');
+    expect($content)->toContain(
+        '**never modify code, never author a migration or a test, never stage / commit / push, '
+        . 'never run fixers or checkers, and never chain a follow-up review.**',
+    );
     expect($content)->toContain('for the CR to fold into its single `## Database Analysis` section');
     expect($content)->toContain('is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project');
 
     // The engine gate in the code-review rule redirects a PostgreSQL migration here, so the CR half
     // has to state the Postgres fix and rule out the MySQL one it would otherwise inherit.
     expect($content)->toContain('*Deploy-safe schema changes (issue #20)* redirects a PostgreSQL project to');
-    expect($content)->toContain('never `ALGORITHM=INPLACE, LOCK=NONE`, `pt-online-schema-change`, or `gh-ost`, none of which PostgreSQL parses or supports');
+    expect($content)->toContain(
+        'never `ALGORITHM=INPLACE, LOCK=NONE`, `pt-online-schema-change`, or `gh-ost`, none of which PostgreSQL parses or supports',
+    );
     expect($content)->toContain('a failed `CONCURRENTLY` build leaves an invalid index behind, so `down()` drops that index explicitly');
 });
