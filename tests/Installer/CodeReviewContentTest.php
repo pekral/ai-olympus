@@ -2369,11 +2369,21 @@ test('each database engine branch names its own lens and the unresolved case kee
     );
 
     // A project with no resolvable engine must not silently pick a lens — the fallback is the old
-    // behaviour plus a stated assumption.
-    expect($contract)->toContain('- **Engine not resolvable → `@skills/mysql-problem-solver/SKILL.md`**, the pre-existing default');
+    // behaviour plus a stated assumption. The same branch is the catch-all for a driver that does
+    // resolve but has no lens of its own (`sqlite`, `sqlsrv`), so no outcome falls through.
+    expect($contract)->toContain(
+        '- **Engine not resolvable, or resolved to any other driver (`sqlite`, `sqlsrv`, …) '
+        . '→ `@skills/mysql-problem-solver/SKILL.md`**, the pre-existing default',
+    );
+    expect($contract)->toContain(
+        'This branch is the catch-all: every outcome of the resolution step lands in exactly one of the three branches',
+    );
     expect($contract)->toContain('states the assumption per `@rules/code-review/general.md` *Safety*');
     expect($contract)->toContain(
         '`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — reviewed with the MySQL lens.`',
+    );
+    expect($contract)->toContain(
+        '`Assumption: database engine resolved to <driver>, which has no dedicated lens — reviewed with the MySQL lens.`',
     );
 
     // Two lenses on one diff would double-report a single defect under one heading — the gating
