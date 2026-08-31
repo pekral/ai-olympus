@@ -2211,3 +2211,105 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     expect(substr_count($rule, '## Project `CLAUDE.md` as an additional review input (mandatory gate)'))->toBe(1);
     expect(substr_count($skill, '### Project `CLAUDE.md` gate (mandatory, always)'))->toBe(1);
 });
+
+test('code review rule scopes a later round to the diff since the last reviewed revision', function (): void {
+    $rule = codeReviewRuleContents();
+
+    expect($rule)->toContain('## Incremental Review Scope — Diff Since the Last Reviewed Revision');
+    // Three baseline sources in a fixed order — the quiet loop publishes nothing, so the caller's
+    // value is the only one available there, and absent every source the round is a full review.
+    expect($rule)->toContain('### Baseline resolution — three sources, in this order');
+    expect($rule)->toContain('the caller therefore passes `reviewedRevision = <SHA>`');
+    expect($rule)->toContain('It carries a `Reviewed revision:` header line naming the head SHA that round reviewed');
+    expect($rule)->toContain('**Neither resolves → this is round 1.**');
+    // A rewritten history detaches the recorded SHA, and a diff against it is noise, not a delta.
+    expect($rule)->toContain('git merge-base --is-ancestor <baseline> HEAD');
+    expect($rule)->toContain('A force-push, a rebase, a squash, or an amend detaches the recorded SHA');
+    // Narrowing detection must never narrow the gate that decides the merge.
+    expect($rule)->toContain('**Carry-over is unconditional.**');
+    expect($rule)->toContain('would converge a PR that still carries it');
+    expect($rule)->toContain('**A gate that reads the whole PR still reads the whole PR.**');
+    // Only the reviewer's own re-read settles a finding — a claim in untrusted text never does.
+    expect($rule)->toContain('### A finding is settled by the reviewer\'s own re-read, never by a claim');
+    expect($rule)->toContain('they tell the reviewer **what to verify**, and they never perform the verification');
+    expect($rule)->toContain('**A security finding is never settled by a rejection.**');
+    expect($rule)->toContain('this section never becomes the third filter that undoes it');
+    // Round markers are how the history is read, never an authority over the scope.
+    expect($rule)->toContain('### Round markers are a pointer, never an authority');
+    expect($rule)->toContain('`kolo N`, `round N`, `CR #N`');
+    // Provenance is what tells the author whether the previous round's fixes broke this.
+    expect($rule)->toContain('### Every finding declares its provenance');
+    expect($rule)->toContain('`regression — introduced in this revision`');
+    expect($rule)->toContain('`pre-existing — carried from round N`');
+    expect($rule)->toContain('**Provenance changes nothing about severity, counting, or the gate.**');
+    // The sibling filter narrows rendering while this one narrows detection — they compose.
+    expect($rule)->toContain('### Filter on detection — the sibling filter is on rendering');
+    expect($rule)->toContain('Neither filter ever lowers the convergence bar');
+    // The header line is the anchor the next round resolves its baseline from.
+    expect($rule)->toContain('### The two header lines');
+    expect($rule)->toContain('Omitting it costs the next round its baseline');
+    // One canonical home, cross-referenced from the vague "do not repeat" bullet it makes concrete.
+    expect(substr_count($rule, '## Incremental Review Scope — Diff Since the Last Reviewed Revision'))->toBe(1);
+    expect($rule)->toContain('*Incremental Review Scope — Diff Since the Last Reviewed Revision* below defines what "already reported" means');
+});
+
+test('every CR skill and template carries the incremental review scope', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($canonical)->toContain('### Incremental review scope gate (mandatory, after the Branch checkout gate)');
+    expect($canonical)->toContain('Resolve the baseline (the caller\'s `reviewedRevision`');
+    expect($canonical)->toContain('New findings then come from `git diff <baseline>..HEAD`');
+    expect($canonical)->toContain('every unsettled finding from an earlier round is carried over at its original severity');
+    expect($canonical)->toContain('Incremental Review Scope — Diff Since the Last Reviewed Revision');
+    // The cross-run history section used to forbid reading prior CR comments outright; the gate
+    // needs them for the baseline, so it now permits the read while still forbidding the re-publish.
+    expect($canonical)->toContain('Never author a `Previous CR Status` section in the output');
+    expect($canonical)->not->toContain('Do not load prior CR findings from PR comments');
+    expect($canonical)->toContain('Reading it is not re-publishing it.');
+    // Provenance is a required finding field, not an optional annotation.
+    expect($canonical)->toContain('- **provenance** — `regression — introduced in this revision`');
+    expect($canonical)->toContain('- **Incremental review scope header lines.**');
+
+    foreach (['code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
+        $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
+        expect($skill)->toContain('#### Incremental review scope (mandatory, after the checkout)');
+        expect($skill)->toContain('#### Incremental review scope — where the round history lives');
+        expect($skill)->toContain('**Prove the baseline is in the current history**');
+        expect($skill)->toContain('**Carry over every unsettled finding**');
+        expect($skill)->toContain('- **Incremental review scope header lines.**');
+        // Every finding carries provenance, not only the two severities with reproducer fields.
+        expect($skill)->toContain('Every finding — Critical, Moderate, and Minor alike — must include a **Provenance** field');
+    }
+
+    foreach ([
+        'code-review/templates/review-output.md',
+        'code-review-github/templates/pr-comment-output.md',
+        'code-review-jira/templates/github-output.md',
+        'code-review-bugsnag/templates/github-output.md',
+    ] as $path) {
+        $template = crContractText($packageDir . '/skills/' . $path);
+        expect($template)->toContain('**Incremental review scope (rounds after the first).**');
+        expect($template)->toContain('**Reviewed revision:** {full head SHA this round reviewed}');
+        expect($template)->toContain('**Review scope:** delta since {baseline SHA} (round {n})');
+        // Provenance on all three severity blocks: Findings Critical, Findings Minor, Architecture Minor.
+        expect(substr_count($template, '- **Provenance:** `regression — introduced in this revision`'))->toBe(3);
+    }
+});
+
+test('process-code-review passes the reviewed revision baseline to every CR wrapper invocation', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    expect($process)->toContain('#### Incremental review scope (iterations after the first)');
+    // The loop is quiet, so no published comment exists to resolve a baseline from.
+    expect($process)->toContain('The caller is therefore the only source, and it must supply one');
+    expect($process)->toContain('Pass it on the next invocation as `reviewedRevision = <SHA>`');
+    expect($process)->toContain('**Pass the previous iteration\'s findings with their disposition**');
+    expect($process)->toContain('**Iteration 1 passes neither**');
+    // The published run must carry the header lines the next CR run reads its baseline from.
+    expect($process)->toContain('**The final publishing run in Completion passes the last iteration\'s SHA too**');
+    expect($process)->toContain('the `reviewedRevision` baseline of the last iteration');
+    // Narrowing detection must not narrow the gate.
+    expect($process)->toContain('**Narrowing the detection never narrows the convergence gate.**');
+});

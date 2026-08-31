@@ -34,6 +34,9 @@ Perform code review for JIRA issues by analyzing related pull requests and publi
 #### Issue Context Analysis
 The assignment is the **JIRA issue**. Fetch it complete — description, all comments, and all attachments (screenshots, files, embedded data) — and run the four analysis steps in `@skills/code-review-github/references/cr-wrapper-contract.md` *Issue Context Analysis* against it.
 
+#### Incremental review scope — where the round history lives
+The baseline still resolves from the **GitHub PR's** CR comments (`@skills/code-review-github/references/cr-wrapper-contract.md` *Incremental review scope*) — JIRA carries no reviewed revision. The round markers this wrapper reads as a pointer to that history are the `kolo N` / `round N` markers in the **JIRA description and comments**, and they are resolved **per linked PR**: each PR keeps its own baseline, so a ticket linking several PRs never crosses one PR's revision into another's delta.
+
 ### 2. Pre-checks
 - `statusCheckRollup[]` for the CI check map comes off the GitHub PR JSON, loaded via `skills/code-review-github/scripts/load-issue.sh <PR-URL>` if it is not already loaded.
 

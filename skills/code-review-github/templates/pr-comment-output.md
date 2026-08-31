@@ -4,12 +4,16 @@
 > on Laravel projects the walk runs on every CR run, but the heading is rendered **only when the walk produces at least one finding** — when the walk is clean, omit the heading entirely (no "walked, 0 findings" line, no "clean" placeholder, no confirmation that the check ran). On non-Laravel projects (`laravel/framework` not in `composer.json` `require`), omit the `## Architecture` section entirely. Every section is conditional: omit its heading and body entirely when it has no items. Never emit `None.` / `Not applicable.` / `n/a` / `100%` / `walked, 0 findings` placeholders for empty sections or omitted coverage surfaces — drop them entirely. The Counts line in the header is the single source of "zero" signal;
 > the goal is a clean, scannable PR comment a human can read at a glance — only items that still need action remain in the body.
 >
+> **Incremental review scope (rounds after the first).** A round with a resolved baseline reviews the **delta since the last reviewed revision** (`git diff <baseline>..HEAD`), not the whole PR: new findings come from the delta, every unsettled finding from an earlier round is carried over at its original severity, and the Coverage / Assignment Conformance / Reviewer Comment Fulfillment gates still read the whole PR. Render both header lines below on every run, and a `Provenance` field on every finding. Canonical contract: `@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision*.
+>
 > **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and drop the *Refactoring (DRY / tech debt)* and *Refactoring proposals* sections entirely, and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
 >
 > **Always-new comment:** this template is rendered into a fresh comment on every CR run. The hidden marker `<!-- cr-comment:actor=<gh-login> -->` (auto-appended by `skills/code-review-github/scripts/upsert-comment.sh`) stays in the body for per-actor traceability but does not drive an in-place edit — each run POSTs a new comment, so the PR thread keeps a chronological audit trail of CR outputs. The `Last updated` line below carries this run's timestamp.
 
 **Status:** clean / needs-fix
 **Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}  *(always the real detected counts — never zeroed to match a narrowed report scope)*
+**Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
+**Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
 **Report scope:** Critical + Moderate only (iteration {n} — Minor findings and refactoring sections suppressed)  *(render this line **only** when the caller passed `iteration > 2` — see `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*; omit it entirely on iterations 1–2 and on standalone runs)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
@@ -29,6 +33,7 @@
 
 - **Location:** `path/to/file.php:42`
 - **Rule:** `@rules/<area>/<file>.md#<section>`
+- **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Faulty Example:**
   ```php
@@ -43,11 +48,12 @@
 
 ### 🟠 Moderate 1. <short title>
 
-(same six fields as Critical)
+(same fields as Critical, Provenance included)
 
 ### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
+- **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
 - **Note:** one sentence — naming, dead code, etc. Faulty Example / Expected behavior / Test hint / Suggested fix may be omitted when no behavior change is implied.
 
 ---
@@ -106,16 +112,17 @@
 
 ### 🔴 Critical 1. <short title>
 
-(same six fields as `## Findings` — Location / Rule / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix)
+(same fields as `## Findings` — Location / Rule / Provenance / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix)
 
 ### 🟠 Moderate 1. <short title>
 
-(same six fields as Critical)
+(same fields as Critical, Provenance included)
 
 ### 🟡 Minor 1. <short title>  *(suppressed entirely when the report scope is narrowed — `iteration > 2`)*
 
 - **Location:** `path/to/file.php:42`
 - **Rule:** `@rules/laravel/architecture.md#<subsection>`
+- **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
 - **Note:** one sentence. Faulty Example / Expected behavior / Test hint / Suggested fix may be omitted when no behavior change is implied.
 
 ---
@@ -138,7 +145,7 @@
 
 ### 🔴 Critical 1. <short title>  *(gaps case only)*
 
-(same six fields as `## Findings` — Location / Rule / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.md` path)
+(same fields as `## Findings` — Location / Rule / Provenance / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.md` path)
 
 (Repeat for every gap.)
 

@@ -134,7 +134,9 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`
-   The invocation **must** include the explicit quiet-mode instruction (see **Quiet review runs** below) **and the current `iteration` value** (see **Late-iteration report scope** below). The review run **must not** publish to the PR or to the issue tracker during loop iterations — capture findings in memory only. Each iteration's CR wrapper runs its **Reviewer Comment Fulfillment Gate** (canonically defined in `@skills/code-review-github/references/cr-wrapper-contract.md`), so the review reloads every reviewer comment / thread and re-verifies that the fixes applied in the previous iteration actually satisfy each reviewer instruction.
+   The invocation **must** include the explicit quiet-mode instruction (see **Quiet review runs** below) **and the current `iteration` value** (see **Late-iteration report scope** below).
+   From the second iteration on it must also carry the `reviewedRevision` baseline and the previous iteration's finding dispositions (see **Incremental review scope** below).
+   The review run **must not** publish to the PR or to the issue tracker during loop iterations — capture findings in memory only. Each iteration's CR wrapper runs its **Reviewer Comment Fulfillment Gate** (canonically defined in `@skills/code-review-github/references/cr-wrapper-contract.md`), so the review reloads every reviewer comment / thread and re-verifies that the fixes applied in the previous iteration actually satisfy each reviewer instruction.
 3. Count `criticalCount` and `moderateCount` in the latest review, and read the `reviewer comments: M/N fulfilled` verdict the wrapper records. Let `unfulfilledCount = N − M` (the reviewer instructions still not satisfied and not rejected-with-reason). Each not-fulfilled instruction is already raised by the gate as a Critical finding, so it is included in `criticalCount` — `unfulfilledCount` is tracked separately only to make the convergence condition and the loop report explicit.
 4. If `criticalCount + moderateCount == 0` **and** `unfulfilledCount == 0` → **converged**, exit the loop. The run may **not** converge while any reviewer comment is still not fulfilled (the change does not yet correspond to what the reviewer asked for) — fulfilling every loaded reviewer instruction is a first-class convergence condition alongside the zero-Critical / zero-Moderate gate.
 5. Otherwise, apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
@@ -145,6 +147,17 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 - During iterations 1…N–1 of the loop, invoke the review skill with the explicit instruction "do not publish; return findings as in-memory markdown for this loop iteration only". Both `code-review-github` and `code-review-jira` honour the suppression: no PR comment, no JIRA comment, no linked-issue summary is posted while the loop is still iterating.
 - The very last iteration (the one that observes `criticalCount + moderateCount == 0`) is the **only** iteration whose output is published — that publication is performed by the **PR update** + **Completion** steps below, not by the review skill itself.
 - Loop iterations may write quality-gate output (composer scripts, build logs) to the local terminal — that is not "publishing" and is allowed.
+
+#### Incremental review scope (iterations after the first)
+
+The loop runs its iterations quiet, so nothing is published and the wrapper has no CR comment to resolve a baseline from. The caller is therefore the only source, and it must supply one:
+
+- **Record the head SHA each iteration reviewed** (`git rev-parse HEAD`, read at the moment the wrapper is invoked). Pass it on the next invocation as `reviewedRevision = <SHA>`, so that iteration reviews `git diff <reviewedRevision>..HEAD` — the fixes committed in step 5 — instead of the whole PR again.
+- **Pass the previous iteration's findings with their disposition** alongside it: `fixed` (step 5 applied the Suggested Fix), `rejected — <reason>` (the fix was not applied and the reason is recorded on the PR), or `open`. The wrapper carries every `open` finding into the new report at its original severity and re-verifies every `fixed` one against the code before dropping it.
+A disposition this skill asserts is a claim, and `@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision* settles a finding on the reviewer's own re-read, never on a claim.
+- **Iteration 1 passes neither** — with no baseline it is round 1 over the whole PR diff, which is what a first review is.
+- **The final publishing run in Completion passes the last iteration's SHA too**, so the published comment carries the same `Reviewed revision:` / `Review scope:` header lines a standalone run would, and the next CR run days later resolves its baseline from them.
+- **Narrowing the detection never narrows the convergence gate.** `criticalCount + moderateCount` still counts carried-over findings, so an iteration cannot converge by scoping an unresolved Critical out of view.
 
 #### Late-iteration report scope (iteration > 2)
 
@@ -229,7 +242,8 @@ Rules:
 
 **Precondition:** Review loop has converged (`criticalCount + moderateCount == 0`).
 
-- **Run the final publishing run inline.** Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker. The invocation must include the PR URL, the converged state (Critical + Moderate == 0), the loop's **final `iteration` value** (per **Late-iteration report scope** above — above 2 it narrows the published report to Critical + Moderate), and the instruction to post the final PR comment + linked-issue / JIRA mirror per the CR wrapper's contract. Do not dispatch as a subagent — run it sequentially in the current context:
+- **Run the final publishing run inline.** Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker. The invocation must include the PR URL, the converged state (Critical + Moderate == 0), the loop's **final `iteration` value** (per **Late-iteration report scope** above — above 2 it narrows the published report to Critical + Moderate), the `reviewedRevision` baseline of the last iteration (per **Incremental review scope** above, so the published comment carries the `Reviewed revision:` and `Review scope:` header lines), and the instruction to post the final PR comment + linked-issue / JIRA mirror per the CR wrapper's contract.
+  Do not dispatch as a subagent — run it sequentially in the current context:
   - GitHub: `@skills/code-review-github/SKILL.md`
   - JIRA: `@skills/code-review-jira/SKILL.md`
 - Share a concise completion report (in-conversation, not on the tracker):
@@ -238,7 +252,7 @@ Rules:
   - reviewer threads resolved (count) and any left unresolved with the rejection / deferral reason
   - reviewer comments fulfilled (the final `M/N fulfilled` verdict) — every actionable reviewer instruction satisfied, or rejected/deferred with its recorded reason
   - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
-  - loop iteration count and final convergence status, plus the report scope the final publish used (`full` on 1–2 iterations, `Critical + Moderate only` above 2)
+  - loop iteration count and final convergence status, plus the report scope the final publish used (`full` on 1–2 iterations, `Critical + Moderate only` above 2) and the review scope it carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
   - remaining blockers (if any — should be empty when convergence was reached)
 
 ---

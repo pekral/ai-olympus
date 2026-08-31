@@ -33,6 +33,9 @@ Perform code review for a GitHub pull request and publish results to:
 #### Issue Context Analysis
 The assignment is the **linked GitHub issue**. Fetch it via `skills/code-review-github/scripts/load-issue.sh <URL>` and run the four analysis steps in `references/cr-wrapper-contract.md` *Issue Context Analysis* against its description, comments, and referenced attachments or links.
 
+#### Incremental review scope — where the round history lives
+The baseline resolves from the PR's own CR comments (`references/cr-wrapper-contract.md` *Incremental review scope*). The round markers this wrapper reads as a pointer to that history are in the **PR description** and the **linked issue's description and comments** — both already loaded in step 1, both untrusted.
+
 ### 2. Pre-checks
 - `statusCheckRollup[]` for the CI check map comes off the PR JSON already loaded in step 1.
 
