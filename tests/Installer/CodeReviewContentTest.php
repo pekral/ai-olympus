@@ -2448,6 +2448,31 @@ test('every CR wrapper and template renders the Database Analysis section for ei
         expect($content)->toContain('Render one section whichever lens produced the findings — never a per-engine variant and never two sections.');
     }
 
+    // The unresolved / unsupported branch mandates an `Assumption:` on the summary line, so the two
+    // templates that define that line have to carry a slot for it — otherwise the acceptance
+    // criterion is written in the rule and unrepresented in the contract that renders the comment.
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+    ] as $summaryTemplate) {
+        $content = (string) file_get_contents($packageDir . '/' . $summaryTemplate);
+
+        expect($content)->toContain(
+            '{` · Assumption: <the assumption sentence verbatim from the DB-lens branch that fired>` '
+            . '— appended **only** when a DB lens ran on an engine that is unresolved or has no dedicated lens',
+        );
+        expect($content)->toContain(
+            'omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, and omitted when no DB lens ran',
+        );
+    }
+
+    // The rule that mandates the slot names the templates that define it, so neither side can drift
+    // without the other failing.
+    expect(crContractText('skills/code-review/SKILL.md'))->toContain(
+        'the conditional `Assumption:` slot both render templates define for it '
+        . '(`skills/code-review/templates/review-output.md`, `skills/code-review-github/templates/pr-comment-output.md`)',
+    );
+
     // The reviewer agent lists the conditional lenses it lets the wrapper drive; a stale list there
     // reads as "the DB lens is mysql-problem-solver" and re-opens the gap this issue closed.
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
