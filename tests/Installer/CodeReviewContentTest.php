@@ -2366,3 +2366,52 @@ test('each database engine branch names its own lens and the unresolved case kee
     // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional DB bullet.
     expect(substr_count($contract, 'Database operations detected in the diff'))->toBe(1);
 });
+
+test('the Database Analysis contract is one section whichever engine lens filled it (issue #62)', function (): void {
+    // The trigger now resolves two lenses, so every file that describes the published section has to
+    // stop naming `mysql-problem-solver` as its only possible producer — otherwise a PostgreSQL
+    // review runs a lens whose findings no template is allowed to render.
+    $rule = codeReviewRuleContents();
+
+    expect($rule)->toContain('when the conditional DB-lens trigger fires (see **Specialized Reviews** for the trigger pattern list and the engine branch that resolves the lens');
+    expect($rule)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL)');
+    expect($rule)->toContain('those belong to the DB lens\'s internal investigation');
+    expect($rule)->toContain('The section is **one** section whichever lens filled it — never a per-engine variant, never two sections on one review.');
+
+    // The engine-neutral query bullet must fold into the same section regardless of engine; the
+    // deploy-safe bullet keeps its MySQL wording because that bullet is itself scoped to MySQL.
+    expect($rule)->toContain('alongside the other findings of the run\'s DB lens (`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*)');
+    expect($rule)->toContain('Fold the findings into the `## Database Analysis` section alongside the `mysql-problem-solver` findings.');
+});
+
+test('every CR wrapper and template renders the Database Analysis section for either engine lens (issue #62)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the engine-resolved DB lens — `mysql-problem-solver` or `postgres-patterns` with `MODE=cr`, never both');
+
+    foreach (['skills/code-review-github/SKILL.md', 'skills/code-review-jira/SKILL.md', 'skills/code-review-bugsnag/SKILL.md'] as $wrapper) {
+        $contract = crContractText($wrapper);
+
+        expect($contract)->toContain('**Database operations detected in the diff → exactly one DB lens is mandatory.**');
+        expect($contract)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL, never both on one diff');
+        expect($contract)->toContain('The section reports only the DB lens\'s findings, whichever engine branch produced them');
+    }
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $content = crContractText($template);
+
+        expect($content)->toContain('at least one finding is produced by the run\'s DB lens');
+        expect($content)->toContain('Render one section whichever lens produced the findings — never a per-engine variant and never two sections.');
+    }
+
+    // The reviewer agent lists the conditional lenses it lets the wrapper drive; a stale list there
+    // reads as "the DB lens is mysql-problem-solver" and re-opens the gap this issue closed.
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('the engine-resolved DB lens (`mysql-problem-solver`, or `postgres-patterns` with `MODE=cr` on PostgreSQL)');
+});

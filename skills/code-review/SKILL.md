@@ -125,7 +125,8 @@ Apply this subsection only when the source issue is flagged as **highest priorit
 
 ### Specialized Reviews
 
-The always-run set, the conditional set, and the `MODE=cr` read-only contract each lens runs under live in `references/specialized-reviews.md` *Specialized Reviews* — including the `mysql-problem-solver` trigger pattern list that other files cite as owned by this section. A reference to `@skills/code-review/SKILL.md` *Specialized Reviews* therefore still resolves: the section keeps its name, and the detail behind it reads from the companion file. Run the lenses from there — the always-run lenses (`prepare-issue-context`, `assignment-compliance-check`, `analyze-problem`, `security-review`, `api-review`, `class-refactoring`) one at a time, inline, then the conditional ones whose trigger the diff fires (`mysql-problem-solver`, `refactor-entry-point-to-action`, I/O review).
+The always-run set, the conditional set, and the `MODE=cr` read-only contract each lens runs under live in `references/specialized-reviews.md` *Specialized Reviews* — including the DB-lens trigger pattern list and the engine branch that resolves the lens, which other files cite as owned by this section. A reference to `@skills/code-review/SKILL.md` *Specialized Reviews* therefore still resolves: the section keeps its name, and the detail behind it reads from the companion file.
+Run the lenses from there — the always-run lenses (`prepare-issue-context`, `assignment-compliance-check`, `analyze-problem`, `security-review`, `api-review`, `class-refactoring`) one at a time, inline, then the conditional ones whose trigger the diff fires (the engine-resolved DB lens — `mysql-problem-solver` or `postgres-patterns` with `MODE=cr`, never both — `refactor-entry-point-to-action`, I/O review).
 
 ### Refactoring & Tech Debt (DRY) Analysis
 
