@@ -1216,3 +1216,28 @@ test('athena and the deferred-follow-up procedure both route filing through the 
     expect($deferred)->toContain('Apply the filing bar to anything the run was not asked for.');
     expect($deferred)->toContain('is filed unconditionally');
 });
+
+test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $trigger = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+
+    // The ban was written as an unqualified glob over every `.env*` spelling, so a skill reading
+    // the committed template was violating an absolute the rule states. A sanctioned exception a
+    // skill relies on has to be named inline in the rule that states the mandate.
+    expect($rule)->toContain(
+        'or any `.env*` file — **with one named exception: the committed `.env.example` template is readable.**',
+    );
+    expect($rule)->toContain('carries placeholder keys and never a real secret');
+
+    // The exception is bounded on both axes: only that one spelling, and only reading it.
+    expect($rule)->toContain('`.env`, `.env.local`, `.env.testing`, `.env.production` — stays banned');
+    expect($rule)->toContain('the exception covers reading the template only, never writing it');
+
+    // The DB-engine detection source that depends on the exception cites it, so the two files
+    // visibly agree instead of one silently contradicting the other.
+    expect($trigger)->toContain(
+        'reading that one template is the named exception '
+        . '`@rules/compound-engineering/orchestration.md` *Bash capability boundary* carves out of its `.env*` read ban',
+    );
+});
