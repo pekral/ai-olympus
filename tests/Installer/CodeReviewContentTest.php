@@ -2341,18 +2341,25 @@ test('each database engine branch names its own lens and the unresolved case kee
 
     // MySQL is a no-op branch by design — the regression bar for this change is that a MySQL
     // project reviews exactly as it did before.
-    expect($contract)->toContain('- **`mysql` / `mariadb` → `@skills/mysql-problem-solver/SKILL.md`.** Identical to the behaviour before this branch existed');
+    expect($contract)->toContain(
+        '- **`mysql` / `mariadb` → `@skills/mysql-problem-solver/SKILL.md`.** Identical to the behaviour before this branch existed',
+    );
 
     // PostgreSQL gets the lens the rules already redirect it to, in its read-only mode, carrying
     // the engine's own deploy-safe fix rather than the MySQL one.
     expect($contract)->toContain('- **`pgsql` → `@skills/postgres-patterns/SKILL.md` with `MODE=cr`.**');
-    expect($contract)->toContain('`CREATE INDEX CONCURRENTLY` with the migration\'s wrapping transaction disabled (`public $withinTransaction = false;`), never `ALGORITHM` / `LOCK`, which PostgreSQL does not parse');
+    expect($contract)->toContain(
+        '`CREATE INDEX CONCURRENTLY` with the migration\'s wrapping transaction disabled '
+        . '(`public $withinTransaction = false;`), never `ALGORITHM` / `LOCK`, which PostgreSQL does not parse',
+    );
 
     // A project with no resolvable engine must not silently pick a lens — the fallback is the old
     // behaviour plus a stated assumption.
     expect($contract)->toContain('- **Engine not resolvable → `@skills/mysql-problem-solver/SKILL.md`**, the pre-existing default');
     expect($contract)->toContain('states the assumption per `@rules/code-review/general.md` *Safety*');
-    expect($contract)->toContain('`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — reviewed with the MySQL lens.`');
+    expect($contract)->toContain(
+        '`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — reviewed with the MySQL lens.`',
+    );
 
     // Two lenses on one diff would double-report a single defect under one heading — the gating
     // `@rules/compound-engineering/general.md` asks for whenever two bullets can fire on one line.
@@ -2373,14 +2380,20 @@ test('the Database Analysis contract is one section whichever engine lens filled
     // review runs a lens whose findings no template is allowed to render.
     $rule = codeReviewRuleContents();
 
-    expect($rule)->toContain('when the conditional DB-lens trigger fires (see **Specialized Reviews** for the trigger pattern list and the engine branch that resolves the lens');
+    expect($rule)->toContain(
+        'when the conditional DB-lens trigger fires (see **Specialized Reviews** '
+        . 'for the trigger pattern list and the engine branch that resolves the lens',
+    );
     expect($rule)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL)');
     expect($rule)->toContain('those belong to the DB lens\'s internal investigation');
     expect($rule)->toContain('The section is **one** section whichever lens filled it — never a per-engine variant, never two sections on one review.');
 
     // The engine-neutral query bullet must fold into the same section regardless of engine; the
     // deploy-safe bullet keeps its MySQL wording because that bullet is itself scoped to MySQL.
-    expect($rule)->toContain('alongside the other findings of the run\'s DB lens (`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*)');
+    expect($rule)->toContain(
+        'alongside the other findings of the run\'s DB lens '
+        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*)',
+    );
     expect($rule)->toContain('Fold the findings into the `## Database Analysis` section alongside the `mysql-problem-solver` findings.');
 });
 
