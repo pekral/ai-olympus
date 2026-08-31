@@ -3017,3 +3017,182 @@ test('every Database Analysis producer list names the schema-pattern lens (issue
         expect($content)->toContain('render its findings here beside the engine lens\'s, still as one section');
     }
 });
+
+test('a Docker or compose diff triggers the docker-patterns lens (issue #63)', function (): void {
+    // Before this trigger existed, a diff changing a Dockerfile or a compose file passed code
+    // review with no lens at all: the CR skill set reads application code, API, database, and
+    // application security, while skills/docker-patterns shipped and no CR path ever invoked it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Container build or runtime surface detected in the diff → the container lens runs.**');
+
+    // Every path the issue names has to be in the list, or the trigger misses the file.
+    expect($contract)->toContain(
+        'a `Dockerfile`, a `Dockerfile.*` / `*.Dockerfile` variant, '
+        . 'a `docker-compose*.y*ml` / `compose*.y*ml` file, '
+        . 'an override such as `docker-compose.override.yml` included, '
+        . 'a `.dockerignore`, or any file under a `docker/**` directory',
+    );
+
+    // The issue's documentation edge case: a compose snippet inside README.md is prose, not
+    // infrastructure. Matching paths rather than content is what makes that skip automatic.
+    expect($contract)->toContain('**The list matches paths, never file content**');
+    expect($contract)->toContain('is documentation and fires nothing');
+
+    // A diff with no infrastructure file runs no container lens (acceptance criterion).
+    expect($contract)->toContain('**a diff matching none of those paths runs no container lens at all**');
+    expect($contract)->toContain('a change confined to `app/`, a migration, or a Blade view never triggers one');
+
+    // The lens is named with its read-only mode and its own responsibility.
+    expect($contract)->toContain('- **`@skills/docker-patterns/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('never edits a `Dockerfile`, a compose file, or any other project file');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Container build or runtime surface detected in the diff'))->toBe(1);
+});
+
+test('every container-trigger outcome lands in exactly one branch and adds no output surface (issue #63)', function (): void {
+    // Sibling triggers shipped with a case that fired no branch at all. Here the equivalent gap is
+    // a project whose compose file declares none of the services the skill's examples assume.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('- **The project\'s own service set narrows the findings; it never gates the lens.**');
+    expect($contract)->toContain('never raise a finding whose fix is to adopt a service the project does not run');
+
+    // Narrowing must not become a second detection step, or the review resolves the service set
+    // twice and the two answers can disagree.
+    expect($contract)->toContain('This narrowing adds **no** detection step of its own');
+    expect($contract)->toContain('so the review never resolves a service set twice');
+
+    // The catch-all names the one decision step it covers and answers both of its outcomes.
+    expect($contract)->toContain(
+        '- **The path list is the only decision step, and both of its outcomes are answered.**',
+    );
+    expect($contract)->toContain(
+        'There is no third outcome, so no container surface is ever left with no lens '
+        . 'and no non-container diff ever picks one up',
+    );
+
+    // Findings go into the existing severity buckets, so no render template changes for this
+    // trigger. Anchored on this trigger's own wording and count-bearing: the sibling triggers from
+    // #60 and #61 each carry their own no-output-surface sentence, and a pin phrased like theirs
+    // would stay green with this one deleted (issue #41).
+    expect(substr_count($contract, '**The container lens adds no output surface**'))->toBe(1);
+    expect($contract)->toContain(
+        '**The container lens adds no output surface** — no report section, no summary-line slot, '
+        . 'and therefore no render template to change, '
+        . 'which is equally why the CR wrapper contract has nothing to restate for it.',
+    );
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('## Container');
+        expect($body)->not->toContain('container lens');
+        expect($body)->not->toContain('docker-patterns');
+    }
+
+    // The skill's own conditional-lens list has to name the lens, or the trigger is unreachable
+    // from the one file that says which conditional lenses to run.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the container lens `docker-patterns` with `MODE=cr`');
+});
+
+test('a Vite or asset-build diff triggers the vite-patterns lens (issue #63)', function (): void {
+    // A diff changing vite.config.js, a build-bound package.json entry, or an @vite directive had
+    // no lens either, while skills/vite-patterns shipped and no CR path ever invoked it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '**Asset build surface detected in the diff → the build lens runs, '
+        . 'on a project that builds with Vite.**',
+    );
+
+    // Each pattern the issue names has to be in the list, or the trigger misses the change.
+    expect($contract)->toContain(
+        'a `vite.config.*` file, the `scripts` section of `package.json` '
+        . 'or a `dependencies` / `devDependencies` entry that is part of the asset build '
+        . '(`vite`, `laravel-vite-plugin`, a Vite plugin, or a package an entrypoint imports), '
+        . 'or an `@vite([...])` directive in a Blade view',
+    );
+
+    // A diff with no build file runs no build lens (acceptance criterion).
+    expect($contract)->toContain('**a diff matching none of those patterns runs no build lens at all**');
+    expect($contract)->toContain('a stylesheet no entrypoint declares never triggers one');
+
+    // The lens is named with its read-only mode and its own responsibility.
+    expect($contract)->toContain('- **A source answers → `@skills/vite-patterns/SKILL.md` with `MODE=cr` runs.**');
+    expect($contract)->toContain('never edits a config file, a Blade layout, or any other project file');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Asset build surface detected in the diff'))->toBe(1);
+});
+
+test('the build lens resolves Vite itself and skips silently without it (issue #63)', function (): void {
+    // The issue's edge case: a project that does not use Vite skips without an error. A
+    // package.json script change on a Mix or webpack project must not become a Vite finding.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '- **Resolve whether the project builds with Vite, from the first of these sources that answers:**',
+    );
+    expect($contract)->toContain(
+        '(1) a `vite.config.*` file in the repository; '
+        . '(2) `vite` or `laravel-vite-plugin` under `dependencies` / `devDependencies` in `package.json`; '
+        . '(3) an `@vite(` directive in any Blade view',
+    );
+
+    // A sibling trigger shipped a pattern list broader than the list whose answer it consumed, so
+    // some diffs reached it with nothing resolved. This trigger resolves its own answer instead.
+    expect($contract)->toContain(
+        'never off another trigger\'s answer — this trigger owns its own resolution, '
+        . 'so a pattern it matches can never arrive here with nothing resolved',
+    );
+
+    expect($contract)->toContain(
+        '- **No source answers → the project does not build assets with Vite, so the lens does not run.**',
+    );
+    expect($contract)->toContain('bundling with Mix, webpack, esbuild, or nothing at all is not a Vite defect');
+
+    // Anchored on this branch's own copy, and count-bearing. The trailing clause of the sentence
+    // also stands in the frontend and pgsql skips, so a pin phrased on the shared part alone would
+    // stay green with this skip deleted (issue #41).
+    expect(substr_count(
+        $contract,
+        'The skip is silent and carries no output of its own: '
+        . 'no finding, no section, no summary-line slot, no "skipped" placeholder',
+    ))->toBe(1);
+
+    // Both decision steps answer both of their outcomes, so no case falls through.
+    expect($contract)->toContain(
+        '- **Both decision steps are answered on both sides, so no case falls through.**',
+    );
+    expect($contract)->toContain(
+        'so no asset-build surface is ever left with no lens and no non-build diff ever picks one up',
+    );
+
+    // Anchored and count-bearing for the same reason as the container lens's own sentence.
+    expect(substr_count($contract, '**The build lens adds no output surface either**'))->toBe(1);
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('build lens');
+        expect($body)->not->toContain('vite-patterns');
+    }
+
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the asset-build lens `vite-patterns` with `MODE=cr`');
+});
