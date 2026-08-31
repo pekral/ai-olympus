@@ -3358,3 +3358,301 @@ test('the three frontend lenses carry their own half of the build-lens boundary 
         );
     }
 });
+
+test('a broadcast, streaming, or queue-configuration diff triggers the latency lens (issue #64)', function (): void {
+    // Before this trigger existed, a diff adding an SSE endpoint or rewriting the queue
+    // configuration passed code review with no latency lens at all: skills/latency-critical-systems
+    // shipped in the package and no CR path ever invoked it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Latency-critical surface detected in the diff → the latency lens runs.**');
+
+    // Each surface the issue names has to be in the list, or the trigger misses the change.
+    expect($contract)->toContain(
+        'a broadcast event (a class implementing `ShouldBroadcast` / `ShouldBroadcastNow`, '
+        . 'a `broadcast(` call, or a channel definition in `routes/channels.php`)',
+    );
+    expect($contract)->toContain(
+        'a streaming endpoint (`response()->stream(`, `StreamedResponse`, `->eventStream(`, '
+        . 'or a `text/event-stream` content type)',
+    );
+    expect($contract)->toContain(
+        'the queue or worker configuration (`config/queue.php`, `config/horizon.php`, '
+        . 'or a Horizon supervisor\'s `balance` / `maxProcesses` / `tries` / `timeout` setting)',
+    );
+    expect($contract)->toContain('the Octane configuration (`config/octane.php`)');
+    expect($contract)->toContain('or a path the project itself marks latency-critical');
+
+    // The issue is explicit that the trigger must add no token to an ordinary diff, so the list is
+    // deliberately narrower than "anything queued" — a job class alone must not fire it.
+    expect($contract)->toContain('**a diff matching none of those patterns runs no latency lens at all**');
+    expect($contract)->toContain('**a job class on its own is not a latency-critical surface**');
+    expect($contract)->toContain('which is exactly the false positive this trigger is written to avoid');
+
+    // The lens is named with its read-only mode and its own responsibility.
+    expect($contract)->toContain('- **`@skills/latency-critical-systems/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('never edits code, a configuration file, or a running system');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Latency-critical surface detected in the diff'))->toBe(1);
+});
+
+test('the latency lens reports a missing measurement and every outcome lands in one branch (issue #64)', function (): void {
+    // The skill's own constraint is "measure, do not guess", and a CR runs nothing. Without this
+    // branch the lens would either assert a latency figure it never took or stay silent entirely.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '- **Nothing runs during a review, so the lens reports a missing measurement, never a measured one.**',
+    );
+    expect($contract)->toContain('it never asserts a latency figure the review did not take');
+
+    // The runtime a project runs is a project decision, and narrowing must not become a second
+    // detection step, or the review resolves the runtime twice and the answers can disagree.
+    expect($contract)->toContain('- **The project\'s own runtime narrows the findings; it never gates the lens.**');
+    expect($contract)->toContain('so the review never resolves a runtime twice');
+
+    // Anchored on this trigger's own catch-all wording: the sibling triggers carry a sentence that
+    // starts identically, so a pin on the shared prefix alone would stay green with this branch
+    // deleted (issue #41).
+    expect(substr_count(
+        $contract,
+        '- **The pattern list is the only decision step for the latency lens, '
+        . 'and both of its outcomes are answered.**',
+    ))->toBe(1);
+    expect($contract)->toContain(
+        'so no latency-critical surface is ever left with no lens '
+        . 'and no ordinary application diff ever picks one up',
+    );
+
+    // The issue asks explicitly for the no-severity-scale statement. Anchored and count-bearing,
+    // because all three new triggers carry the same statement in their own words.
+    expect(substr_count($contract, '**The latency lens carries no severity scale of its own.**'))->toBe(1);
+    expect($contract)->toContain(
+        '**The latency lens carries no severity scale of its own.** Its findings map onto the standard '
+        . '**Critical / Moderate / Minor** buckets of `## Findings` exactly as every other lens\'s do',
+    );
+    expect(substr_count($contract, 'It therefore **adds no output surface**:'))->toBe(1);
+});
+
+test('a head, robots, sitemap, canonical, or JSON-LD diff triggers the SEO lens (issue #64)', function (): void {
+    // A diff changing what a crawler reads had no lens either, while skills/seo shipped in the
+    // package and no CR path ever invoked it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Public crawl or indexing surface detected in the diff → the SEO lens runs.**');
+
+    // Each surface the issue names has to be in the list, or the trigger misses the change.
+    expect($contract)->toContain(
+        'a `<head>` block in a Blade template, or one of the on-page tags inside it '
+        . '(`<title>`, `<meta name="description">`, `<meta name="robots">`)',
+    );
+    expect($contract)->toContain('a `<link rel="canonical"` element');
+    expect($contract)->toContain('a `<script type="application/ld+json">` block');
+    expect($contract)->toContain(
+        '`public/robots.txt` or the route / controller / command that renders a `robots.txt`',
+    );
+    expect($contract)->toContain(
+        'a sitemap (`public/sitemap*.xml`, or the route / controller / command that generates one)',
+    );
+
+    // The issue's edge case: an internal admin Blade without a `<head>` must not fire the lens, and
+    // the pattern list alone has to deliver that — no extra public-vs-admin detection step.
+    expect($contract)->toContain('**a diff matching none of those patterns runs no SEO lens at all**');
+    expect($contract)->toContain(
+        '**an internal admin Blade carrying no `<head>`, no canonical link, '
+        . 'and no JSON-LD block matches nothing and fires nothing**',
+    );
+
+    // The lens is named with its read-only mode and its own responsibility.
+    expect($contract)->toContain('- **`@skills/seo/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('never edits a Blade view, a route, `robots.txt`, a sitemap, or any other project file');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Public crawl or indexing surface detected in the diff'))->toBe(1);
+});
+
+test('the SEO lens narrows on published surface and adds no output surface (issue #64)', function (): void {
+    // A layout the project deliberately keeps out of the index is correct, not a defect, so the
+    // narrowing must exist — and it must not become a second detection step.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '- **The surface the project publishes narrows the findings; it never gates the lens.**',
+    );
+    expect($contract)->toContain('never raise a finding whose fix is to index a surface the project deliberately keeps');
+    expect($contract)->toContain('so the review never resolves a surface\'s crawlability twice');
+
+    // Anchored on this trigger's own catch-all wording, for the same reason as the latency one.
+    expect(substr_count(
+        $contract,
+        '- **The pattern list is the only decision step for the SEO lens, '
+        . 'and both of its outcomes are answered.**',
+    ))->toBe(1);
+    expect($contract)->toContain(
+        'so no public crawl surface is ever left with no lens and no internal-only diff ever picks one up',
+    );
+
+    expect(substr_count($contract, '**The SEO lens carries no severity scale of its own.**'))->toBe(1);
+    expect(substr_count($contract, 'It therefore **adds no output surface either**:'))->toBe(1);
+
+    // No template may grow an SEO-specific section or slot on the back of this trigger.
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('## SEO');
+        expect($body)->not->toContain('SEO lens');
+        expect($body)->not->toContain('@skills/seo/SKILL.md');
+    }
+
+    // The skill's own conditional-lens list has to name the lens, or the trigger is unreachable
+    // from the one file that says which conditional lenses to run.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the latency lens `latency-critical-systems` with `MODE=cr`');
+    expect($skill)->toContain('the SEO lens `seo` with `MODE=cr`');
+    expect($skill)->toContain('the payment lens `machine-payments-protocol` with `MODE=cr`');
+});
+
+test('a 402 or payment-middleware diff triggers the payment lens on an MPP project (issue #64)', function (): void {
+    // A diff touching the HTTP 402 payment flow had no lens either, while
+    // skills/machine-payments-protocol shipped and no CR path ever invoked it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '**MPP payment surface detected in the diff → the payment lens runs, '
+        . 'on a project that implements MPP.**',
+    );
+
+    // Each surface the issue names has to be in the list, or the trigger misses the change.
+    expect($contract)->toContain(
+        'an HTTP `402` (a `402` status literal, `Response::HTTP_PAYMENT_REQUIRED`, or `abort(402`)',
+    );
+    expect($contract)->toContain(
+        'a `WWW-Authenticate: Payment` challenge / an `Authorization: Payment` credential '
+        . '/ a `Payment-Receipt` header',
+    );
+    expect($contract)->toContain(
+        'a middleware or attribute that gates a route on payment '
+        . '(an `mpp` middleware alias, a `#[RequiresPayment]` attribute)',
+    );
+    expect($contract)->toContain('or code the project itself marks as MPP (`config/mpp.php`');
+
+    expect($contract)->toContain('**a diff matching none of those patterns runs no payment lens at all**');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'MPP payment surface detected in the diff'))->toBe(1);
+});
+
+test('the payment lens resolves MPP itself and skips silently without it (issue #64)', function (): void {
+    // The issue's edge case: a project that does not use MPP is skipped without an error. A quota
+    // `402` on such a project must not become a proposal to adopt the protocol.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain(
+        '- **Resolve whether the project implements MPP, from the first of these sources that answers:**',
+    );
+    expect($contract)->toContain(
+        '(1) a `config/mpp.php` file in the repository; '
+        . '(2) an MPP package under `require` in `composer.json` (`square1/laravel-mpp`, or another); '
+        . '(3) an `MPP_`-prefixed key in `.env.example`, the committed template',
+    );
+
+    expect($contract)->toContain(
+        '- **No source answers → the project does not implement MPP, so the lens does not run.**',
+    );
+    expect($contract)->toContain('the review must never turn one into a proposal to adopt the protocol');
+
+    // Anchored on this branch's own wording and count-bearing. The asset-build skip from #63 says
+    // "carries no output of its own"; a pin phrased like that one would stay green with this skip
+    // deleted, and would also break that trigger's own count pin (issue #41).
+    expect(substr_count($contract, '**The skip is silent and produces nothing of its own**'))->toBe(1);
+    expect(substr_count(
+        $contract,
+        'The skip is silent and carries no output of its own: '
+        . 'no finding, no section, no summary-line slot, no "skipped" placeholder',
+    ))->toBe(1);
+
+    expect($contract)->toContain(
+        '- **A source answers → `@skills/machine-payments-protocol/SKILL.md` with `MODE=cr` runs.**',
+    );
+    // The skill's sourcing labels are its own invariant and must survive into the review output.
+    expect($contract)->toContain(
+        'reports each finding only at the **Spec** / **Package** / **Illustrative** label '
+        . '`references/protocol-sourcing.md` gives it, never an illustrative name presented as protocol',
+    );
+
+    // Anchored on this trigger's own catch-all wording: #63's build trigger carries a sentence that
+    // starts identically, so a pin on the shared prefix alone would not distinguish them.
+    expect(substr_count(
+        $contract,
+        '- **Both of the payment trigger\'s decision steps are answered on both sides, '
+        . 'so no case falls through.**',
+    ))->toBe(1);
+    expect($contract)->toContain(
+        'so no MPP surface is ever left with no lens and no non-MPP diff ever picks one up',
+    );
+
+    expect(substr_count($contract, '**The payment lens carries no severity scale of its own.**'))->toBe(1);
+    expect(substr_count($contract, 'It therefore **adds no output surface of its own**:'))->toBe(1);
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('## Payment');
+        expect($body)->not->toContain('payment lens');
+        expect($body)->not->toContain('machine-payments-protocol');
+        expect($body)->not->toContain('latency lens');
+        expect($body)->not->toContain('latency-critical-systems');
+    }
+});
+
+test('the three domain lenses are conditional only, so an ordinary diff fires none of them (issue #64)', function (): void {
+    // The issue's regression criterion: a diff touching none of the three layers must produce the
+    // same findings and the same run time as before this change. That holds only while the three
+    // lenses sit under "Run conditionally" — an entry in the always-run set would run them on every
+    // diff, and the CR would pay for all three on a change that has nothing for them to read.
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents(
+        $packageDir . '/skills/code-review/references/specialized-reviews.md',
+    );
+
+    $alwaysRunStart = strpos($reference, '- Always run:');
+    $conditionalStart = strpos($reference, '- Run conditionally:');
+    expect($alwaysRunStart)->not->toBeFalse();
+    expect($conditionalStart)->not->toBeFalse();
+    expect($alwaysRunStart)->toBeLessThan($conditionalStart);
+
+    $alwaysRunBlock = substr($reference, $alwaysRunStart, $conditionalStart - $alwaysRunStart);
+    $conditionalBlock = substr($reference, $conditionalStart);
+
+    foreach ([
+        '@skills/latency-critical-systems/SKILL.md',
+        '@skills/seo/SKILL.md',
+        '@skills/machine-payments-protocol/SKILL.md',
+    ] as $lens) {
+        expect($alwaysRunBlock)->not->toContain($lens);
+        expect($conditionalBlock)->toContain($lens);
+    }
+
+    // Each trigger states its own "no diff without the surface runs it" sentence, so the silence on
+    // an ordinary diff is written down rather than inferred from where the bullet sits.
+    foreach ([
+        '**a diff matching none of those patterns runs no latency lens at all**',
+        '**a diff matching none of those patterns runs no SEO lens at all**',
+        '**a diff matching none of those patterns runs no payment lens at all**',
+    ] as $silence) {
+        expect(substr_count($conditionalBlock, $silence))->toBe(1);
+    }
+});
