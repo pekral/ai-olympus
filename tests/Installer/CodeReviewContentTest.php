@@ -2462,9 +2462,14 @@ test('every CR wrapper and template renders the Database Analysis section for ei
             '{` · Assumption: <the assumption sentence verbatim from the branch that fired>` '
             . '— appended **only** when a lens ran on an engine that is unresolved or has no dedicated lens',
         );
+        // The second omission case is "no trigger fired", never "the engine could not be
+        // resolved" — an unresolved engine is precisely when the catch-all branch runs a lens
+        // and the slot *must* render. Read in parallel with the clause before it, the earlier
+        // wording said the opposite of what it meant, so the pin holds the disambiguation.
         expect($content)->toContain(
             'omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, '
-            . 'and omitted when neither trigger resolved an engine',
+            . 'and omitted when neither trigger fired at all, '
+            . 'so no resolution step ran and no lens is waiting on its answer',
         );
     }
 
