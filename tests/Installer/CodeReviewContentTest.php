@@ -2635,3 +2635,124 @@ test('the layout-splitting walk carries its own half of the frontend gating (iss
     expect($rule)->toContain('**Those three lenses own what is inside the component.**');
     expect($rule)->toContain('Never raise both sides on the same line.');
 });
+
+test('a cache or rate-limit diff triggers the redis-patterns lens (issue #61)', function (): void {
+    // Before this trigger existed, `Cache::` / `RateLimiter::` code was reviewed by one text rule
+    // that checks a single thing — that no object is stored — while `skills/redis-patterns` shipped
+    // in the package and no CR path ever invoked it. TTL, key collision, stampede, and lock
+    // handling had no lens at all.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Cache, lock, or rate-limit surface detected in the diff → the cache lens runs.**');
+
+    // The pattern list is the whole gate — it decides whether the lens runs at all.
+    expect($contract)->toContain(
+        'a `Cache::` facade call, a `Redis::` facade call, a `cache()` helper call, '
+        . 'a `RateLimiter::` call, `config/cache.php`, or the `redis` section of `config/database.php`',
+    );
+
+    // A diff that touches neither cache nor rate limiting runs no cache lens (acceptance criterion:
+    // a diff with no cache and no schema change fires neither of the two new lenses).
+    expect($contract)->toContain('**a diff matching none of those patterns runs no cache lens at all**');
+    expect($contract)->toContain('a change confined to a controller, a migration, or a Blade view never triggers one');
+    expect($contract)->toContain('runs this lens and the engine-resolved DB lens side by side');
+
+    // The lens is named with its read-only mode and its own responsibility.
+    expect($contract)->toContain('- **`@skills/redis-patterns/SKILL.md` with `MODE=cr`**');
+    expect($contract)->toContain('never edits code, a configuration file, or a server setting');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional one.
+    expect(substr_count($contract, 'Cache, lock, or rate-limit surface detected in the diff'))->toBe(1);
+});
+
+test('every cache-trigger outcome lands in exactly one branch and adds no output surface (issue #61)', function (): void {
+    // The sibling DB trigger shipped without a branch for a recognised but unnamed driver, so that
+    // case fired no branch at all. Here the equivalent gap is a project on a non-Redis cache store.
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('- **The cache store narrows the findings; it never gates the lens.**');
+    expect($contract)->toContain('never raise a finding whose fix is to adopt Redis or a Redis-only feature');
+
+    // Narrowing must not become a second detection step, or the review resolves the store twice and
+    // the two answers can disagree — the defect this issue's sibling trigger exists to avoid.
+    expect($contract)->toContain('This narrowing adds **no** detection step of its own');
+    expect($contract)->toContain('so the review never resolves a cache store twice');
+
+    // The catch-all names the one decision step it covers and answers both of its outcomes, so no
+    // case falls through — the gap the sibling DB trigger shipped with.
+    expect($contract)->toContain(
+        '- **The pattern list is the only decision step, and both of its outcomes are answered.**',
+    );
+    expect($contract)->toContain(
+        'There is no third outcome, so no cache surface is ever left with no lens '
+        . 'and no non-cache diff ever picks one up',
+    );
+
+    // Findings go into the existing severity buckets, so no render template changes for this trigger.
+    expect($contract)->toContain('Fold the findings into the standard **Critical / Moderate / Minor** buckets of `## Findings`');
+    expect($contract)->toContain('This trigger introduces **no** new report section and **no** new summary-line slot');
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-jira/templates/github-output.md',
+        'skills/code-review-bugsnag/templates/github-output.md',
+    ] as $template) {
+        $body = (string) file_get_contents($packageDir . '/' . $template);
+
+        expect($body)->not->toContain('## Cache');
+        expect($body)->not->toContain('cache lens');
+    }
+
+    // The skill's own conditional-lens list has to name the lens, or the trigger is unreachable
+    // from the one file that says which conditional lenses to run.
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    expect($skill)->toContain('the cache lens `redis-patterns` with `MODE=cr`');
+});
+
+test('the cache lens is gated against the Object caching bullet on both sides (issue #61)', function (): void {
+    // A boundary written on one side only is a boundary the other side never reads. The bullet
+    // lives in the rule file, the lens in the skill reference, so both have to state it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**That bullet owns the shape of the cached value**');
+    expect($contract)->toContain('**The lens owns how the call behaves**');
+    expect($contract)->toContain('What the lens never does is restate the stored-shape defect in its own words.');
+
+    // The division is per dimension, not per line: one call can carry a stored-shape defect and a
+    // TTL defect at once, and each owner raises its own — that is not double-reporting.
+    expect($contract)->toContain('The two divide the *dimensions* of a cache write, never its lines');
+
+    $rule = codeReviewRuleContents();
+
+    expect($rule)->toContain('**This bullet owns the shape of the cached value and nothing else.**');
+    expect($rule)->toContain('When the cache lens `@skills/redis-patterns/SKILL.md` with `MODE=cr` runs over the same diff');
+    expect($rule)->toContain('are that lens\'s findings and are never restated here');
+});
+
+test('redis-patterns declares the read-only MODE=cr contract the CR invokes it with (issue #61)', function (): void {
+    // A trigger that names `MODE=cr` against a skill that never defines the mode invokes nothing —
+    // the same parity the frontend lenses and postgres-patterns already carry.
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/redis-patterns/SKILL.md');
+
+    expect($skill)->toContain('## Modes');
+    expect($skill)->toContain('This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):');
+    expect($skill)->toContain('- **`design` (default)**');
+
+    // The read-only half is what makes the lens safe to run inside a review.
+    expect($skill)->toContain(
+        '**never modify code, never author a test, never stage / commit / push, '
+        . 'never run fixers or checkers, and never chain a follow-up review.**',
+    );
+    expect($skill)->toContain('Scope the analysis to the lines added or modified by the PR diff');
+    expect($skill)->toContain('carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets');
+
+    // The lens states its own half of the gating, so a reader of the skill alone still knows which
+    // finding is not its own.
+    expect($skill)->toContain('**What this lens owns in a CR:**');
+    expect($skill)->toContain('It **defers the shape of the cached value**');
+    expect($skill)->toContain('*Object caching (issue #683)*, and never raises a finding that bullet owns');
+    expect($skill)->toContain('**Never raise a finding whose only fix is to adopt Redis**');
+});

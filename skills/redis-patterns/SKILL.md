@@ -13,6 +13,17 @@ metadata:
 - `final` classes, `declare(strict_types=1)`, Pest tests (use the `array` cache driver in tests unless asserting Redis-specific behavior).
 - Always set a TTL. Keys without expiry accumulate and cause memory pressure.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):
+
+- **`design` (default)** — full Redis work: write caching code, add locks and rate limiters, set key and TTL conventions, and change cache, queue, session, or eviction configuration. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a cache, lock, or rate-limit surface)** — **never modify code, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Every instruction below that would touch a file or a server — set, add, guard, configure, publish, or any other such verb — is emitted as a written proposal carrying a concrete PHP or configuration snippet, never applied to the project.
+
+> **What this lens owns in a CR:** how a cache, lock, or rate-limit call behaves — TTL presence and length, key naming and collision, stampede protection on a cold or expired rebuild, lock acquisition / ownership / release, rate-limit construction, eviction policy against the store's role, and `KEYS *` or per-command loops where `SCAN` or a pipeline belongs. It **defers the shape of the cached value** — an Eloquent model, a DTO, a Collection of models, or any other object stored where raw data belongs — to `@rules/code-review/core-analysis.md` *Object caching (issue #683)*, and never raises a finding that bullet owns.
+> The lens runs whatever cache store the project configures. **Never raise a finding whose only fix is to adopt Redis**, or a Redis-only feature such as cache tags, `Redis::throttle`, `Redis::funnel`, or a server eviction policy: the store is a project decision, not a defect on the diff.
+
 ## Use when
 - Adding caching, rate limiting, distributed coordination, or pub/sub to a Laravel app.
 - Choosing a cache strategy, protecting a cold cache from stampede, or designing key/TTL conventions.
