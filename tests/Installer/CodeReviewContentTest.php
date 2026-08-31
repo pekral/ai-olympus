@@ -2413,13 +2413,14 @@ test('the Database Analysis contract is one section whichever engine lens filled
     expect($rule)->toContain('those belong to the DB lens\'s internal investigation');
     expect($rule)->toContain('The section is **one** section whichever lens filled it — never a per-engine variant, never two sections on one review.');
 
-    // The engine-neutral query bullet must fold into the same section regardless of engine; the
-    // deploy-safe bullet keeps its MySQL wording because that bullet is itself scoped to MySQL.
+    // The engine-neutral query bullet must fold into the same section regardless of engine. The
+    // deploy-safe bullet's own closing sentence is pinned by `DeploySafeSchemaChangeRuleTest` under
+    // its `(issue #20)` mandate — one sentence, one owner — and the wording collision between that
+    // mandate and this change is filed separately as issue #67.
     expect($rule)->toContain(
         'alongside the other findings of the run\'s DB lens '
         . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*)',
     );
-    expect($rule)->toContain('Fold the findings into the `## Database Analysis` section alongside the `mysql-problem-solver` findings.');
 });
 
 test('every CR wrapper and template renders the Database Analysis section for either engine lens (issue #62)', function (): void {
