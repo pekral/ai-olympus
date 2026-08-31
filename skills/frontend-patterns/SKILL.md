@@ -22,6 +22,7 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 Every instruction below that would touch a file — compose, extract, move, add, replace, split, or any other such verb — is emitted as a written proposal carrying a concrete Blade / Livewire snippet, never applied to the project.
 
 > **What this lens owns in a CR:** component composition, where state lives (Livewire vs Alpine), render and network cost, form mechanics, and whether the loading / empty / error / offline states exist and behave. It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` and token / theme consistency to `@skills/design-system/SKILL.md`, and never raises a finding those two own. It **defers the decision that a block should become its own component** — an oversized view, an oversized `@foreach` body, a nameable UI concern still inline — to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*): this lens judges composition inside a component that already exists, and never raises a finding whose fix is *extract this*.
+> It **defers which bundle the view loads** — the entrypoint, the `@vite` directive that pulls it in, the manifest behind it, and how it splits — to `@skills/vite-patterns/SKILL.md` with `MODE=cr`: this lens's render and network cost is what the rendered component costs, never how the bundle behind it is built.
 
 ## Use when
 - Composing UI from Blade/Livewire components.

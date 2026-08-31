@@ -3321,3 +3321,40 @@ test('the build lens is gated against the three frontend lenses (issue #63)', fu
     $vite = (string) file_get_contents($packageDir . '/skills/vite-patterns/SKILL.md');
     expect($vite)->toContain('It **defers the markup a view renders**');
 });
+
+test('the three frontend lenses carry their own half of the build-lens boundary (issue #63)', function (): void {
+    // A boundary written on the build lens's side alone is one the frontend side never reads.
+    // `frontend-patterns` claims render and network cost, and an `@vite([...])` directive lives in
+    // a Blade view, so both triggers fire on that line and both lenses would claim it.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    // Carrier one: the frontend trigger block, which speaks for all three lenses at once.
+    // Anchored on this block's own sentence and count-bearing — the build lens's own gating
+    // paragraph states the same division from the other side, so a pin on a shared phrase would
+    // stay green with this half deleted (issue #41).
+    expect(substr_count(
+        $contract,
+        '**The build lens is a fourth owner on the same line, and it is not one of these three.**',
+    ))->toBe(1);
+    expect($contract)->toContain(
+        'There `@skills/vite-patterns/SKILL.md` with `MODE=cr` owns **which bundle the view loads**',
+    );
+    expect($contract)->toContain(
+        'These three lenses own **the markup the view renders** '
+        . 'and never restate a bundle finding in their own words.',
+    );
+
+    // Carrier two: the one lens whose declared surface actually overlaps. `frontend-a11y` and
+    // `design-system` claim no part of the bundle, so the trigger block above is their whole half.
+    $packageDir = dirname(__DIR__, 2);
+    $frontend = (string) file_get_contents($packageDir . '/skills/frontend-patterns/SKILL.md');
+    expect($frontend)->toContain('It **defers which bundle the view loads**');
+
+    // The overlap the boundary exists to settle, stated the same way on both sides.
+    foreach ([$contract, $frontend] as $carrier) {
+        expect($carrier)->toContain(
+            'render and network cost is what the rendered component costs, '
+            . 'never how the bundle behind it is built.',
+        );
+    }
+});
