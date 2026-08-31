@@ -3709,6 +3709,11 @@ test('the latency lens is gated against the bulk-data walk and the query lens (i
     expect($walkBullet)->toContain(
         'that lens owns the path\'s stated latency budget and its data freshness, this walk owns the volume',
     );
+    // The hand-over is conditional in this carrier too. Without this pin, rewriting the sentence to
+    // an unconditional gating - the defect #63 shipped - leaves the whole suite green.
+    expect($walkBullet)->toContain(
+        'the gating applies when the CR\'s latency trigger runs it over the same diff',
+    );
 
     // Carrier four: the query lens's own ownership paragraph.
     $querySkill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
