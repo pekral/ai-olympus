@@ -2590,11 +2590,22 @@ test('the frontend lenses are gated against the Blade layout-splitting walk (iss
     expect($contract)->toContain('the walk owns the *extract this cluster* entry');
     expect($contract)->toContain('the walk owns the *extract this block* entry');
 
+    // Walk triggers 2, 4 and 7 are the pure "should this block be a component" cases. Naming a
+    // lens as the owner of composition would hand them a second owner, so the walk keeps them
+    // whole and the lenses are barred from a finding whose fix is to create the component.
+    expect($contract)->toContain('(walk triggers 2, 4, and 7) — the walk owns it whole');
+    expect($contract)->toContain('**No lens ever raises a finding whose fix is *create a component*.**');
+
     // Three lenses over one file can also collide with each other, so each owns a surface alone.
     expect($contract)->toContain('**Never raise two of the three lenses on the same line either.**');
+    expect($contract)->toContain('This sentence divides the three lenses against each other; it never re-opens the walk');
     expect($contract)->toContain('`frontend-a11y` is the sole owner of every accessibility finding, contrast included');
     expect($contract)->toContain('`design-system` is the sole owner of token and theme consistency');
-    expect($contract)->toContain('`frontend-patterns` is the sole owner of composition, state placement, and render cost');
+    expect($contract)->toContain(
+        '`frontend-patterns` is the sole owner of state placement, render cost, form mechanics, '
+        . 'and the loading / empty / error states — and, among the three lenses, of composition '
+        . '**inside a component that already exists**, never of the decision that a block should become one',
+    );
 
     // Gating picks the owner; it never launders a severity.
     expect($contract)->toContain('Gating decides **who** raises a finding, never **at what severity**');
