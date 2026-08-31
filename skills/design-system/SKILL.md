@@ -23,6 +23,7 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 Skip Mode 1 entirely — generating a design system is not a review. Drop the 0–10 per-dimension scoring too: a score is not a finding, and the CR reports findings. Every instruction below that would touch a file — define, extract, register, build, replace, or any other such verb — is emitted as a written proposal carrying a concrete token / class / theme snippet, never applied to the project.
 
 > **What this lens owns in a CR:** token and theme consistency — an ad-hoc hex or arbitrary spacing value where a token exists, a component built outside the shared `<x-ui.*>` set, incomplete `dark:` coverage, and the AI-slop patterns. It **defers** every accessibility finding, contrast ratio included, to `@skills/frontend-a11y/SKILL.md`, and never raises one of its own. Dimension 10 (*Polish*) splits between two owners: this lens keeps the **hover and transition half**, which is visual finish it owns anyway, and **defers the loading (`wire:loading`), empty, and error half** to `@skills/frontend-patterns/SKILL.md`, which owns whether those states exist and behave. Never raise a missing loading or empty state as a token finding.
+> It **defers the decision that a component should exist at all** — a repeated markup block with no `<x-ui.*>` component yet, an inline visual shell a designer would name — to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*): this lens judges consistency across components that already exist, so *Component consistency* (dimension 4) reads as *these elements should use the same existing `<x-ui.*>` component*, never as *build one for them*, and it never raises a finding whose fix is *create a component*.
 
 ## Use when
 - Starting a project that needs a coherent design system.
@@ -117,7 +118,7 @@ Score the UI across 10 dimensions, 0–10 each. Every dimension needs a score, a
 1. **Color consistency** — palette tokens vs ad-hoc hex/`rgb()` strings in Blade.
 2. **Typographic hierarchy** — clear `h1 > h2 > h3 > body > caption`; no skipped levels.
 3. **Spacing rhythm** — a consistent scale (4/8/16) vs arbitrary `mt-[13px]`.
-4. **Component consistency** — similar elements built from the same `<x-ui.*>` component.
+4. **Component consistency** — similar elements built from the same `<x-ui.*>` component (in `MODE=cr` the decision that the component should exist at all belongs to the layout-splitting walk; see *Modes*).
 5. **Responsive behavior** — fluid across breakpoints; no overflow or layout breaks.
 6. **Dark mode** — complete `dark:` coverage, not half-applied.
 7. **Motion** — purposeful Alpine/`transition` use vs gratuitous animation.
