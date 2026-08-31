@@ -2593,7 +2593,16 @@ test('the frontend lenses are gated against the Blade layout-splitting walk (iss
     // walk and once as a state finding by frontend-patterns — over one line of markup.
     $contract = crContractText('skills/code-review/SKILL.md');
 
-    expect($contract)->toContain('**Gating — one finding per violation, never two.**');
+    // Anchored on this trigger's own copy, and count-bearing. The bare header is a shared heading
+    // shape: issue #61 added two more gating blocks carrying it, which left a `toContain` on it
+    // green with this block's own header deleted — syntactically valid, semantically empty
+    // (issue #41). The sweep that caught the sibling cases asked whether the *new* pins were
+    // unique; this defect runs the other way, so added text empties an *older* pin.
+    expect(substr_count(
+        $contract,
+        '**Gating — one finding per violation, never two.** '
+        . 'The walk *Livewire / Blade layout splitting*',
+    ))->toBe(1);
     expect($contract)->toContain('**The walk owns where the markup is split**');
     expect($contract)->toContain('**The three lenses own what is inside the component**');
 
