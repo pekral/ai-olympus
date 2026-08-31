@@ -15,6 +15,20 @@ metadata:
 - Mobile-first: indexing is mobile-first, so audit the mobile render.
 - White-hat only: recommend nothing that violates search-engine guidelines (no cloaking, paid links, doorway pages, or scaled spam content).
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `optimize`):
+
+- **`optimize` (default)** — full SEO work: write `<head>` tags, canonical links, and JSON-LD into Blade layouts, edit `robots.txt` and the sitemap, restructure internal linking, and change what a page loads. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a public crawl or indexing surface)** — **never modify a Blade view, a route, `robots.txt`, a sitemap, or any other project file, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Every instruction below that would touch a file — add, set, rewrite, redirect, canonicalize, or any other such verb — is emitted as a written proposal carrying a concrete Blade or configuration snippet, never applied to the project.
+
+> **What this lens owns in a CR:** the crawler-facing contract of the surface the diff changes — what `robots.txt` allows and blocks, what the sitemap lists, whether the canonical is self-consistent and non-looping, whether a page is unintentionally `noindex`, the title / meta-description / heading structure of the changed page, whether a JSON-LD block is valid and matches content actually present, and what the changed `<head>` asks the browser to fetch first for LCP.
+> It **defers the markup a view renders** — component composition, state placement, accessibility semantics, and design tokens — to the three frontend lenses (`@skills/frontend-patterns/SKILL.md`, `@skills/frontend-a11y/SKILL.md`, `@skills/design-system/SKILL.md`), and **defers which bundle that view loads** — the entrypoint, the `@vite` directive that pulls it in, the manifest behind it, and how it splits — to `@skills/vite-patterns/SKILL.md`. It never raises a finding one of those four owns.
+> Those boundaries divide the *dimensions* of a `<head>` change, never its lines: one `@vite` line inside a layout carries a bundle finding from the build lens and, when the same change also drops the preload the largest contentful element needs, an LCP finding from this lens, because those are two different defects.
+> An **unescaped dynamic value** rendered into a meta tag, a canonical `href`, or a JSON-LD payload is not this lens's either: `@rules/security/frontend.md` and `@skills/security-review/SKILL.md` own it, and a security finding is never moved out of a security owner.
+> The lens judges the surface the project publishes. **Never raise a finding whose only fix is to index a surface the project deliberately keeps out of the index** — an admin, staging, or authenticated layout carrying `noindex` is the correct answer, not a defect on the diff.
+
 ## Use when
 - Auditing crawlability, indexability, canonicals, or redirects.
 - Improving title tags, meta descriptions, or heading structure.

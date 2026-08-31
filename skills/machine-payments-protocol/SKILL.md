@@ -16,6 +16,18 @@ metadata:
 - Adopting `square1/laravel-mpp` (or any other MPP package) is a Composer dependency decision — apply `@rules/php/dependency-selection.md` (Activity + Compatibility gates, selection note) before proposing it in generated code.
 - Hard limits: this file stays <= 500 lines and <= 5000 tokens.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `implement`):
+
+- **`implement` (default)** — full MPP work: the payment middleware, the verification service and its provider abstraction, `config/mpp.php`, pricing, and MCP tool billing. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches an MPP payment surface on a project that implements MPP)** — **never modify a middleware, a service, a route, a configuration file, or any other project file, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets. Every instruction below that would touch a file is emitted as a written proposal, never applied to the project.
+
+> **What this lens owns in a CR:** protocol conformance — challenge and receipt shape, single-use proof, request and body binding, expiry, no side effect before payment, idempotent settlement, server-side pricing, RFC 9457 problem bodies — each reported at the **Spec** / **Package** / **Illustrative** label `references/protocol-sourcing.md` gives it, never above it.
+> It **defers the generic HTTP contract of the gated endpoint** — status choice outside the `402` challenge, response envelope, versioning, idempotency-key mechanics — to `@skills/api-review/SKILL.md`, and **defers generic secure coding** — secrets, rate limiting, transport, error-message hygiene — to `@rules/security/backend.md` and `@skills/security-review/SKILL.md`, as the Constraints above already require. It never raises a finding one of those owns.
+> Those boundaries divide the *dimensions* of a payment change, never its lines: a middleware that both settles before verifying the body digest and leaks provider internals into `detail` carries one protocol finding here and one safe-error-message finding from the security owner — two different defects.
+> **The lens never proposes adopting MPP.** A project that does not implement MPP is not reviewed by it at all, and a `402` for an exceeded quota or a lapsed plan there is not an MPP defect.
+
 ## Use when
 - Implementing MPP-gated Laravel endpoints ("Implement Machine Payments Protocol in Laravel.", "Protect this endpoint using MPP.")
 - Generating a payment-verification middleware or service layer for pay-per-request AI-agent access.

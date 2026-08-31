@@ -1770,3 +1770,145 @@ test('each new infrastructure lens states what it owns and what it defers (issue
         '**Never raise a finding whose only fix is to adopt a plugin or a framework the project does not use**',
     );
 });
+
+test('the three domain lenses carry a read-only MODE=cr contract (issue #64)', function (): void {
+    // All three ship as working skills that write project files: latency-critical-systems changes
+    // queue and cache configuration, seo writes `<head>` tags and robots.txt, and
+    // machine-payments-protocol writes middleware and services. A code review is read-only, so each
+    // needs an explicit mode that suspends every write verb before a CR trigger can invoke it.
+    $packageDir = dirname(__DIR__, 2);
+
+    $lenses = [
+        'latency-critical-systems' => 'tune',
+        'machine-payments-protocol' => 'implement',
+        'seo' => 'optimize',
+    ];
+
+    foreach ($lenses as $slug => $defaultMode) {
+        $content = (string) file_get_contents($packageDir . '/skills/' . $slug . '/SKILL.md');
+
+        expect($content)->toContain('## Modes');
+        expect($content)->toContain('selected by the caller via `MODE` (default `' . $defaultMode . '`)');
+        expect($content)->toContain('- **`' . $defaultMode . '` (default)**');
+        expect($content)->toContain(
+            'never author a test, never stage / commit / push, '
+            . 'never run fixers or checkers, and never chain a follow-up review.**',
+        );
+        expect($content)->toContain('Scope the analysis to the lines added or modified by the PR diff');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('never applied to the project');
+        expect($content)->toContain('> **What this lens owns in a CR:**');
+        // Each mode block must be the only one in its file, so a later edit cannot leave two
+        // contradicting mode selectors behind.
+        expect(substr_count($content, '## Modes'))->toBe(1);
+        expect(substr_count($content, 'This skill runs in one of two modes'))->toBe(1);
+    }
+});
+
+test('the latency lens states its budget-and-freshness scope and both hand-overs (issue #64)', function (): void {
+    // The issue's own edge case: a `foreach` with a query inside on a queue path belongs to the
+    // bulk-data walk, not to this lens. Without the two hand-overs the lens would restate a
+    // batching finding and a query-plan finding that two other owners already raise.
+    $packageDir = dirname(__DIR__, 2);
+    $latency = (string) file_get_contents($packageDir . '/skills/latency-critical-systems/SKILL.md');
+
+    expect($latency)->toContain(
+        'the latency budget of the changed path and the freshness of the data it serves',
+    );
+    expect($latency)->toContain('It **defers how much a loop holds at once and the per-item work inside it**');
+    expect($latency)->toContain(
+        'to the walk *Bulk Data & Batch Processing (issue #223)* (`@rules/code-review/general.md`)',
+    );
+    expect($latency)->toContain('It **defers the performance of a query and its plan**');
+    expect($latency)->toContain('to `@skills/mysql-problem-solver/SKILL.md`. It never raises a finding either of those owns.');
+
+    // The dimensions half. Without it the hand-overs read as "one owner speaks on this line" and
+    // would suppress a budget finding that no other owner raises (issue #63 precedent).
+    expect(substr_count(
+        $latency,
+        'Both boundaries divide the *dimensions* of a hot-path change, never its lines:',
+    ))->toBe(1);
+    expect($latency)->toContain('no stated budget or no freshness window');
+    expect($latency)->toContain('a different defect, never the batching or the query plan restated');
+
+    // A review runs nothing, so the skill's measurement mandate cannot be met in this mode.
+    expect($latency)->toContain(
+        '> **Nothing runs in `MODE=cr`, so this skill\'s *Verification — real readbacks* '
+        . 'measurements are unavailable.**',
+    );
+    expect($latency)->toContain('never assert a latency figure this review did not take');
+
+    // The runtime a project runs is a project decision, not a defect on the diff.
+    expect($latency)->toContain(
+        '**Never raise a finding whose only fix is to adopt infrastructure the project does not run**',
+    );
+});
+
+test('the SEO lens states its crawler-facing scope and hands the rest over (issue #64)', function (): void {
+    // A Blade diff that changes a `<head>` also fires the three frontend lenses and, through an
+    // `@vite` directive, the build lens. Without the hand-over the SEO lens would restate a markup
+    // or a bundle finding one of those four already raises.
+    $packageDir = dirname(__DIR__, 2);
+    $seo = (string) file_get_contents($packageDir . '/skills/seo/SKILL.md');
+
+    expect($seo)->toContain('the crawler-facing contract of the surface the diff changes');
+    expect($seo)->toContain('It **defers the markup a view renders**');
+    expect($seo)->toContain('and **defers which bundle that view loads**');
+    expect($seo)->toContain('It never raises a finding one of those four owns.');
+
+    // The dimensions half, so the hand-over never suppresses an LCP finding no one else raises.
+    expect(substr_count(
+        $seo,
+        'Those boundaries divide the *dimensions* of a `<head>` change, never its lines:',
+    ))->toBe(1);
+    expect($seo)->toContain('an LCP finding from this lens, because those are two different defects');
+
+    // Escaping a dynamic value in a meta tag or a JSON-LD payload is a security finding, so the
+    // lens must not claim it — a security finding is never moved out of a security owner.
+    expect($seo)->toContain(
+        'An **unescaped dynamic value** rendered into a meta tag, a canonical `href`, '
+        . 'or a JSON-LD payload is not this lens\'s either',
+    );
+    expect($seo)->toContain('`@rules/security/frontend.md` and `@skills/security-review/SKILL.md` own it');
+
+    // An admin or staging layout kept out of the index deliberately is correct, not a defect.
+    expect($seo)->toContain(
+        '**Never raise a finding whose only fix is to index a surface '
+        . 'the project deliberately keeps out of the index**',
+    );
+});
+
+test('the payment lens states its protocol scope and never proposes adopting MPP (issue #64)', function (): void {
+    // The issue's edge case: a project that does not implement MPP is skipped without an error. The
+    // lens must not turn a quota `402` on such a project into a proposal to adopt the protocol.
+    $packageDir = dirname(__DIR__, 2);
+    $mpp = (string) file_get_contents($packageDir . '/skills/machine-payments-protocol/SKILL.md');
+
+    expect($mpp)->toContain('> **What this lens owns in a CR:** protocol conformance');
+    expect($mpp)->toContain('no side effect before payment, idempotent settlement, server-side pricing');
+    // Sourcing labels are this skill's own invariant and must survive into the review output.
+    expect($mpp)->toContain(
+        'each reported at the **Spec** / **Package** / **Illustrative** label '
+        . '`references/protocol-sourcing.md` gives it, never above it',
+    );
+
+    expect($mpp)->toContain('It **defers the generic HTTP contract of the gated endpoint**');
+    expect($mpp)->toContain('to `@skills/api-review/SKILL.md`');
+    expect($mpp)->toContain('and **defers generic secure coding**');
+    expect($mpp)->toContain('`@rules/security/backend.md` and `@skills/security-review/SKILL.md`');
+    expect($mpp)->toContain('It never raises a finding one of those owns.');
+
+    // The dimensions half, so the hand-over never suppresses a protocol finding of its own.
+    expect(substr_count(
+        $mpp,
+        'Those boundaries divide the *dimensions* of a payment change, never its lines:',
+    ))->toBe(1);
+
+    expect($mpp)->toContain('> **The lens never proposes adopting MPP.**');
+    expect($mpp)->toContain(
+        'a `402` for an exceeded quota or a lapsed plan there is not an MPP defect',
+    );
+
+    // The file states its own hard limits; the mode block must not push it past the line budget.
+    expect(substr_count($mpp, "\n"))->toBeLessThanOrEqual(500);
+});
