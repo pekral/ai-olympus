@@ -2574,3 +2574,40 @@ test('frontend-lens findings use the existing severity buckets and add no output
         . 'each with `MODE=cr`, always all three together',
     );
 });
+
+test('the frontend lenses are gated against the Blade layout-splitting walk (issue #60)', function (): void {
+    // The walk already reads every *.blade.php on the diff. Without a stated boundary a region
+    // with an inline wire:loading state is reported twice — once as an extraction proposal by the
+    // walk and once as a state finding by frontend-patterns — over one line of markup.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Gating — one finding per violation, never two.**');
+    expect($contract)->toContain('**The walk owns where the markup is split**');
+    expect($contract)->toContain('**The three lenses own what is inside the component**');
+
+    // Each of the three collision points resolves to exactly one owner.
+    expect($contract)->toContain('the walk owns the *extract this region* entry');
+    expect($contract)->toContain('the walk owns the *extract this cluster* entry');
+    expect($contract)->toContain('the walk owns the *extract this block* entry');
+
+    // Three lenses over one file can also collide with each other, so each owns a surface alone.
+    expect($contract)->toContain('**Never raise two of the three lenses on the same line either.**');
+    expect($contract)->toContain('`frontend-a11y` is the sole owner of every accessibility finding, contrast included');
+    expect($contract)->toContain('`design-system` is the sole owner of token and theme consistency');
+    expect($contract)->toContain('`frontend-patterns` is the sole owner of composition, state placement, and render cost');
+
+    // Gating picks the owner; it never launders a severity.
+    expect($contract)->toContain('Gating decides **who** raises a finding, never **at what severity**');
+});
+
+test('the layout-splitting walk carries its own half of the frontend gating (issue #60)', function (): void {
+    // A boundary written on one side only is a boundary the other side never reads. The walk lives
+    // in the rule file, the lenses in the skill reference, so both have to state it.
+    $rule = codeReviewRuleContents();
+
+    expect($rule)->toContain('**Gating against the three frontend lenses — one finding per violation, never two.**');
+    expect($rule)->toContain('fires `frontend-patterns`, `frontend-a11y`, and `design-system` (each with `MODE=cr`)');
+    expect($rule)->toContain('**This walk owns where the markup is split**');
+    expect($rule)->toContain('**Those three lenses own what is inside the component.**');
+    expect($rule)->toContain('Never raise both sides on the same line.');
+});
