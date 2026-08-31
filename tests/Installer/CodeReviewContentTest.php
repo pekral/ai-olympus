@@ -3639,14 +3639,17 @@ test('the three domain lenses are conditional only, so an ordinary diff fires no
         $packageDir . '/skills/code-review/references/specialized-reviews.md',
     );
 
-    $alwaysRunStart = strpos($reference, '- Always run:');
-    $conditionalStart = strpos($reference, '- Run conditionally:');
-    expect($alwaysRunStart)->not->toBeFalse();
-    expect($conditionalStart)->not->toBeFalse();
-    expect($alwaysRunStart)->toBeLessThan($conditionalStart);
+    // Split on the two markers rather than offsetting on strpos(): explode() returns strings, so no
+    // int|false union reaches the arithmetic, and the two count assertions carry the same facts the
+    // offsets carried - each marker appears exactly once, and "Always run" precedes the other.
+    $conditionalParts = explode('- Run conditionally:', $reference);
+    expect($conditionalParts)->toHaveCount(2);
 
-    $alwaysRunBlock = substr($reference, $alwaysRunStart, $conditionalStart - $alwaysRunStart);
-    $conditionalBlock = substr($reference, $conditionalStart);
+    $alwaysRunParts = explode('- Always run:', $conditionalParts[0]);
+    expect($alwaysRunParts)->toHaveCount(2);
+
+    $alwaysRunBlock = $alwaysRunParts[1];
+    $conditionalBlock = $conditionalParts[1];
 
     foreach ([
         '@skills/latency-critical-systems/SKILL.md',
