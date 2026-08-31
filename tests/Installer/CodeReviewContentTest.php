@@ -2313,3 +2313,56 @@ test('process-code-review passes the reviewed revision baseline to every CR wrap
     // Narrowing detection must not narrow the gate.
     expect($process)->toContain('**Narrowing the detection never narrows the convergence gate.**');
 });
+
+test('the CR database lens trigger resolves the engine and branches to one lens (issue #62)', function (): void {
+    // Before this branch existed, `mysql-problem-solver` was the unconditional DB lens, so a
+    // PostgreSQL project was reviewed by a lens whose deploy-safety fix (`ALGORITHM` / `LOCK`) the
+    // engine cannot parse — while two rule files already redirected that project to
+    // `postgres-patterns`, a skill no CR path ever invoked.
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    expect($contract)->toContain('**Database operations detected in the diff → exactly one DB lens is mandatory.**');
+
+    // The pattern list still decides whether a lens runs at all, so a diff that touches no DB
+    // operation keeps running neither lens.
+    expect($contract)->toContain('The pattern list is engine-independent: it decides *whether* a DB lens runs, and the engine decides *which one*.');
+    expect($contract)->toContain('A diff matching none of those patterns runs no DB lens at all.');
+
+    // The three sources are named and ordered, so the branch is reproducible instead of guessed.
+    expect($contract)->toContain('**Resolve the engine deterministically, never by guessing**');
+    expect($contract)->toContain('(1) `config/database.php` — the `default` connection, then that connection\'s `driver`');
+    expect($contract)->toContain('(2) `DB_CONNECTION` in `.env.example`');
+    expect($contract)->toContain('(3) the driver / DBAL package required in `composer.json`');
+    expect($contract)->toContain('A project with several connections is decided by its **default** connection, never by the presence of a second one.');
+});
+
+test('each database engine branch names its own lens and the unresolved case keeps the MySQL default (issue #62)', function (): void {
+    $contract = crContractText('skills/code-review/SKILL.md');
+
+    // MySQL is a no-op branch by design — the regression bar for this change is that a MySQL
+    // project reviews exactly as it did before.
+    expect($contract)->toContain('- **`mysql` / `mariadb` → `@skills/mysql-problem-solver/SKILL.md`.** Identical to the behaviour before this branch existed');
+
+    // PostgreSQL gets the lens the rules already redirect it to, in its read-only mode, carrying
+    // the engine's own deploy-safe fix rather than the MySQL one.
+    expect($contract)->toContain('- **`pgsql` → `@skills/postgres-patterns/SKILL.md` with `MODE=cr`.**');
+    expect($contract)->toContain('`CREATE INDEX CONCURRENTLY` with the migration\'s wrapping transaction disabled (`public $withinTransaction = false;`), never `ALGORITHM` / `LOCK`, which PostgreSQL does not parse');
+
+    // A project with no resolvable engine must not silently pick a lens — the fallback is the old
+    // behaviour plus a stated assumption.
+    expect($contract)->toContain('- **Engine not resolvable → `@skills/mysql-problem-solver/SKILL.md`**, the pre-existing default');
+    expect($contract)->toContain('states the assumption per `@rules/code-review/general.md` *Safety*');
+    expect($contract)->toContain('`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — reviewed with the MySQL lens.`');
+
+    // Two lenses on one diff would double-report a single defect under one heading — the gating
+    // `@rules/compound-engineering/general.md` asks for whenever two bullets can fire on one line.
+    expect($contract)->toContain('- **Never run both lenses on the same diff.**');
+    expect($contract)->toContain('Running both would report one query defect twice under one `## Database Analysis` heading');
+
+    // One section, whichever branch filled it.
+    expect($contract)->toContain('Pass the diff scope to the resolved lens and capture its findings');
+    expect($contract)->toContain('under the single dedicated `## Database Analysis` section described in **Output Rules**, whichever lens produced them');
+
+    // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional DB bullet.
+    expect(substr_count($contract, 'Database operations detected in the diff'))->toBe(1);
+});

@@ -1600,3 +1600,24 @@ test('analyze-problem applies the Laravel architecture rules and never designs a
     expect($content)->toContain('without the package, one of the layers in `@rules/laravel/laravel.md` *Layer Responsibilities*');
     expect($content)->toContain('a base service where `pekral/arch-app-services` defines one, otherwise a Service or an Action');
 });
+
+test('postgres-patterns carries a read-only MODE=cr contract so the CR can invoke it as a lens (issue #62)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/postgres-patterns/SKILL.md');
+
+    // The skill is written as a design skill — it creates migrations, indexes, and config. The CR
+    // is read-only, so the lens invocation needs an explicit mode that suspends every write verb.
+    expect($content)->toContain('## Modes');
+    expect($content)->toContain('selected by the caller via `MODE` (default `design`)');
+    expect($content)->toContain('- **`design` (default)** — full design work');
+    expect($content)->toContain('when the reviewed project\'s database engine resolves to `pgsql`');
+    expect($content)->toContain('**never modify code, never author a migration or a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.**');
+    expect($content)->toContain('for the CR to fold into its single `## Database Analysis` section');
+    expect($content)->toContain('is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project');
+
+    // The engine gate in the code-review rule redirects a PostgreSQL migration here, so the CR half
+    // has to state the Postgres fix and rule out the MySQL one it would otherwise inherit.
+    expect($content)->toContain('*Deploy-safe schema changes (issue #20)* redirects a PostgreSQL project to');
+    expect($content)->toContain('never `ALGORITHM=INPLACE, LOCK=NONE`, `pt-online-schema-change`, or `gh-ost`, none of which PostgreSQL parses or supports');
+    expect($content)->toContain('a failed `CONCURRENTLY` build leaves an invalid index behind, so `down()` drops that index explicitly');
+});
