@@ -3214,10 +3214,6 @@ test('the container lens is gated against the malicious-code walk on both carrie
     // lens's. Naming the line makes the boundary checkable instead of merely stated.
     expect($contract)->toContain('A `RUN curl -k https://… | sh` line is the walk\'s finding alone');
 
-    // The division is per dimension, not per line: one RUN line can carry a transport defect and
-    // an image-shape defect at once, and each owner raises its own — that is not double-reporting.
-    expect($contract)->toContain('The two divide the *dimensions* of a container change, never its lines');
-
     // Anchored on this block's own header and count-bearing. The bare gating header is a shared
     // heading shape carried by the frontend and cache blocks too, so a pin on it alone would stay
     // green with this block deleted (issue #41).
@@ -3249,10 +3245,34 @@ test('the container lens is gated against the malicious-code walk on both carrie
     // this boundary deleted (issue #41).
     expect(substr_count(
         $backend,
-        'belongs to `@skills/docker-patterns/SKILL.md` with `MODE=cr`, '
-        . 'the container lens the code review runs over the same diff '
+        'belongs to `@skills/docker-patterns/SKILL.md` with `MODE=cr` '
+        . 'when that container lens runs over the same diff '
+        . '(`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*) '
         . '— raise one finding per violation, never two for the same line.',
     ))->toBe(1);
+
+    // Both rule carriers hand the image over on the same condition — the lens actually running
+    // over this diff. The walk also fires on a `*.sh` or a CI step where no container lens runs,
+    // and an unconditional hand-over there would name an owner that is not present.
+    expect($rule)->toContain(
+        'When the container lens `@skills/docker-patterns/SKILL.md` with `MODE=cr` '
+        . 'runs over the same diff '
+        . '(`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*)',
+    );
+
+    // The division is per dimension, not per line: one RUN line can carry a transport defect and
+    // an image-shape defect at once, and each owner raises its own — that is not double-reporting.
+    // Every carrier states it. The bare formula `never two for the same line`, which is all two of
+    // them carried before, reads as *one owner speaks here* and would suppress the walk's own
+    // Critical TLS finding on a line that also installs build tooling into the runtime stage.
+    foreach ([$contract, $rule, $backend] as $carrier) {
+        expect(substr_count(
+            $carrier,
+            'The two divide the *dimensions* of a container change, never its lines: '
+            . 'one `RUN` line that both disables TLS and installs build tooling into the runtime stage '
+            . 'carries one walk finding and one lens finding, because those are two different defects.',
+        ))->toBe(1);
+    }
 
     // The lens owns how a secret reaches the build. A hardcoded credential in a Dockerfile or a
     // compose file is a security finding, and this file keeps it — a security finding is never
