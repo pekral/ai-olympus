@@ -12,6 +12,16 @@ metadata:
 - Apply `@rules/security/frontend.md` — sanitize any dynamic content before DOM insertion; prefer `textContent`/`setAttribute` over `innerHTML`.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next — never output `useState`/`useEffect`/`useRef`/JSX.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `build`):
+
+- **`build` (default)** — full accessibility work: write and correct Blade markup, add ARIA attributes and focus management, and adjust Alpine keyboard handlers. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a frontend surface)** — **never modify a view or a component, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Every instruction below that would touch a file — add, connect, replace, trap, announce, or any other such verb — is emitted as a written proposal carrying a concrete Blade / Alpine snippet, never applied to the project. The Checklist at the end of this file is the walk-through: run it against the changed markup and raise one finding per unmet item.
+
+> **What this lens owns in a CR:** every accessibility finding on the diff — semantic markup, label / error association, keyboard operability, focus management, live-region announcement of Livewire updates, and contrast of the token pairs the markup uses. It is the **sole** owner of that surface: `@skills/frontend-patterns/SKILL.md` and `@skills/design-system/SKILL.md` defer here rather than raising an accessibility finding of their own.
+
 ## Use when
 - Building or reviewing forms (`<input>`, `<select>`, `<textarea>`).
 - Creating interactive elements (modals, dropdowns, tabs, tooltips) with Alpine.

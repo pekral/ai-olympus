@@ -13,6 +13,16 @@ metadata:
 - Apply `@rules/sql/optimalize.md` — eager-load to avoid N+1 in loops rendered by Blade.
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next — never output `useState`/`useEffect`/`useMemo`/JSX/Framer Motion/React Query.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `build`):
+
+- **`build` (default)** — full UI work: create and edit Blade views and Livewire components, move state between layers, add `wire:key` and `wire:model` modifiers, and wire up loading / empty / error states. Every section below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a frontend surface)** — **never modify a view or a component, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Every instruction below that would touch a file — compose, extract, move, add, replace, split, or any other such verb — is emitted as a written proposal carrying a concrete Blade / Livewire snippet, never applied to the project.
+
+> **What this lens owns in a CR:** component composition, where state lives (Livewire vs Alpine), render and network cost, form mechanics, and whether the loading / empty / error / offline states exist and behave. It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` and token / theme consistency to `@skills/design-system/SKILL.md`, and never raises a finding those two own.
+
 ## Use when
 - Composing UI from Blade/Livewire components.
 - Deciding where state lives (Livewire vs Alpine).

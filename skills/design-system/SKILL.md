@@ -14,6 +14,16 @@ metadata:
 - Stack is Blade + Livewire + Alpine.js + Filament + Tailwind. No React/Vue/Next.
 - Any live-URL or browser-screenshot step is OPTIONAL and tool-agnostic — never a hard dependency.
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `design`):
+
+- **`design` (default)** — full design work: write tokens into the Tailwind config and CSS variables, register the Filament theme, build shared components, and author `DESIGN.md`. The three working modes below (Generate / Visual audit / AI-slop detection) are how that work is scoped; every section behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches a frontend surface)** — **never modify a view, a token, a config, or a theme, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Run the Mode 2 audit dimensions and the Mode 3 slop patterns over the lines added or modified by the PR diff only, and return the findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets.
+Skip Mode 1 entirely — generating a design system is not a review. Drop the 0–10 per-dimension scoring too: a score is not a finding, and the CR reports findings. Every instruction below that would touch a file — define, extract, register, build, replace, or any other such verb — is emitted as a written proposal carrying a concrete token / class / theme snippet, never applied to the project.
+
+> **What this lens owns in a CR:** token and theme consistency — an ad-hoc hex or arbitrary spacing value where a token exists, a component built outside the shared `<x-ui.*>` set, incomplete `dark:` coverage, and the AI-slop patterns. It **defers** every accessibility finding, contrast ratio included, to `@skills/frontend-a11y/SKILL.md`, and never raises one of its own.
+
 ## Use when
 - Starting a project that needs a coherent design system.
 - Auditing an existing codebase for visual consistency.
@@ -21,7 +31,7 @@ metadata:
 - The UI looks "off" but the cause is unclear.
 - Reviewing a PR that touches styling, Tailwind config, or a Filament theme.
 
-This skill has three modes. Pick the one that matches the request.
+In `MODE=design` this skill has three working modes. Pick the one that matches the request.
 
 ---
 
