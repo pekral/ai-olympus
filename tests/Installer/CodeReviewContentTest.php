@@ -3821,3 +3821,80 @@ test('the payment lens is gated against the API and security lenses (issue #64)'
     );
     expect($apiReview)->toContain('one idempotency finding here');
 });
+
+test('every shipped skill is either in the CR set or classified as deliberately not run (issue #65)', function (): void {
+    // The gap this closes: nothing said whether a skill missing from the CR set was excluded on
+    // purpose or forgotten. A skill that answers neither question is the defect - most recently
+    // `frontend-design-direction`, which the issue's own four lists did not name at all.
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents(
+        $packageDir . '/skills/code-review/references/specialized-reviews.md',
+    );
+
+    $parts = explode("\n## Skills deliberately not run\n", $reference);
+    expect($parts)->toHaveCount(2);
+
+    $groups = deliberatelyNotRunGroups($parts[1]);
+    // Guard the parser before the coverage assertion: a renamed heading or a reshaped bullet would
+    // otherwise yield an empty classification that reads exactly like a clean one.
+    expect(array_keys($groups))->toEqualCanonicalizing([1, 2, 3, 4]);
+
+    $classified = array_merge(...array_values($groups));
+    expect(count($classified))->toBeGreaterThan(20);
+
+    // The CR set is read from the two carriers that name what a review runs, never from a list
+    // maintained here - a lens added there must not have to be added to a test as well.
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    preg_match_all('#@skills/([a-z0-9-]+)/SKILL\.md#', $parts[0] . $athena, $named);
+    $crSet = array_unique($named[1]);
+    expect(count($crSet))->toBeGreaterThan(20);
+
+    $entries = scandir($packageDir . '/skills');
+    assert($entries !== false);
+
+    $shipped = array_values(array_filter(
+        $entries,
+        static fn (string $entry): bool => is_file($packageDir . '/skills/' . $entry . '/SKILL.md'),
+    ));
+
+    expect(array_diff($shipped, [...$crSet, ...$classified]))->toBe([]);
+    // Both directions: a group naming something the repository does not ship is stale text.
+    expect(array_diff($classified, $shipped))->toBe([]);
+    // One skill, one group - two groups would make the rule below ambiguous for that skill.
+    expect(array_diff_assoc($classified, array_unique($classified)))->toBe([]);
+});
+
+test('the not-run section classifies by rule, not by inventory (issue #65)', function (): void {
+    // An inventory goes stale on the first new skill; a rule does not. The section must therefore
+    // carry an ordered decision procedure that answers for a skill the repository does not ship.
+    $packageDir = dirname(__DIR__, 2);
+    $section = explode(
+        "\n## Skills deliberately not run\n",
+        (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'),
+    )[1];
+
+    expect($section)->toContain('**Read the groups below as a rule, never as an inventory.**');
+    expect($section)->toContain('Ask the four questions in this order and stop at the first `yes`');
+
+    // Each question is the criterion that classifies an unshipped skill into its group.
+    expect($section)->toContain('**Does it move the run\'s own artifact forward**');
+    expect($section)->toContain('**Does it write to the working tree**');
+    expect($section)->toContain('**Does it need a running application**');
+    expect($section)->toContain('**Is its output something other than findings on the changed lines?**');
+
+    // The order is load-bearing: the questions overlap, so an unordered list would give two
+    // answers for `resolve-issue` (a phase that also writes) and for a code-writing skill whose
+    // output is also not a finding. Without this the section reads as a rule and behaves as one.
+    expect($section)->toContain('The order carries weight, because the questions overlap.');
+    expect($section)->toContain('gives one answer per skill, so a new skill is classified without further analysis');
+
+    // Edge case 2 from the issue: the exit path a skill takes to become a lens, and what has to be
+    // added when it does. Without it the section says what is excluded and never how that changes.
+    expect($section)->toContain('### Adding a `MODE=cr` lens — what moves a skill out of groups 1–3');
+    expect($section)->toContain('**A `MODE=cr` section in the skill itself**');
+    expect($section)->toContain('**A trigger under *Specialized Reviews* above**');
+    expect($section)->toContain('**A gating paragraph**');
+    expect($section)->toContain('**Removal of the skill from its group above**');
+    // Group 4 is the one group the exit path does not apply to.
+    expect($section)->toContain('does **not** leave it by gaining a `MODE=cr` section: a phase is not a lens');
+});
