@@ -288,8 +288,15 @@ test('security/backend.md carries the SSRF section with the sinks and the requir
     expect($content)->toContain('one central validator');
     expect($content)->toContain('DNS rebinding');
 
-    // Never fires twice with the neighbouring rules.
-    expect($content)->toContain('raise one finding per violation, never two for the same line');
+    // Never fires twice with the neighbouring rules. Anchored on this section's own sentence and
+    // count-bearing: issue #63 added a second scope boundary to this same file closing with the
+    // identical formula, so a pin on the bare clause would stay green with this boundary deleted.
+    expect(substr_count(
+        $content,
+        'an unvalidated user-supplied URL used as an **HTTP redirect target for the browser** '
+        . 'is an open redirect owned by `@rules/security/frontend.md` *Redirects* '
+        . '— raise one finding per violation, never two for the same line.',
+    ))->toBe(1);
 });
 
 test('security/frontend.md carries the SSRF mirror (issue #169)', function (): void {

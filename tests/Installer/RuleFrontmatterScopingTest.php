@@ -65,7 +65,10 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
     // is a narrower, exact-byte cross-check specific to this frontmatter-only change.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
-        'backend.md' => 'a42397cf06990ec81fc62874000e0a77f826f41d9851f5fa1d9ef8734d932521',
+        // Re-baselined by issue #63, which adds the *Scope boundary* paragraph dividing this
+        // section from the container lens. The digest records the current body; it never
+        // forbids a deliberate edit to it, only an accidental one.
+        'backend.md' => '05d2ca22a72e341ef264e4c1fb239426892fade8d58de3c0e11ea59d7df5e6c9',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         'mobile.md' => 'f72b824c6f6d23f0db84662ab7de8c54c5126b4d65d5118e44b169d2a4115fea',
     ];
