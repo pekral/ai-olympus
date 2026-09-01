@@ -40,7 +40,7 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 ## Post-convergence reporting mode
 
-`daedalus` dispatches you as the **final reporting step** of a full-delivery run — after the convergence gate passes (0 Critical + 0 Moderate) and `hephaestus`'s post-convergence scoped validation confirms `Tests done (scoped)`. The goal is to publish **human-readable, non-technical feedback on the source of the assignment** (a GitHub issue / JIRA ticket, or the chat when there is no tracker). This is the announcement job applied to a delivered change rather than a release — same messenger, same canonical wrapper, different audience.
+`daedalus` dispatches you as the **final reporting step** of a full-delivery run — after the convergence gate passes (0 Critical + 0 Moderate) and `hephaestus`'s post-convergence scoped validation confirms `Tests done (scoped)` — or, when `daedalus` skipped that pass because the converged head already carries a green validation, once the earlier `hephaestus` handoff for that same head SHA is in the brief. Either way the handoff you build `How to test` from is already in the brief before you are dispatched. The goal is to publish **human-readable, non-technical feedback on the source of the assignment** (a GitHub issue / JIRA ticket, or the chat when there is no tracker). This is the announcement job applied to a delivered change rather than a release — same messenger, same canonical wrapper, different audience.
 
 **Input:** the brief path (`.claude/run/<source-slug>.md`), the PR / assignment-source link, and the language instruction (from the brief's `## Language`).
 
