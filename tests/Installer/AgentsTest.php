@@ -510,15 +510,19 @@ test(
         expect($daedalus)->toContain('**Skip it exactly when all four conditions hold at once:**');
         expect($daedalus)->toContain('the CR converged on **0 Critical + 0 Moderate** and the loop produced no fix commit');
         expect($daedalus)->toContain('the PR\'s **head SHA is identical** to a SHA a green validation already covered in this run');
-        expect($daedalus)->toContain('the brief does **not** record `## Savings mode: on` together with a coverage gate `athena` deferred to `hephaestus`');
-        expect($daedalus)->toContain('the brief already carries, **for that same head SHA**, the `hephaestus` handoff that `hermes` builds its `How to test` from');
+        expect($daedalus)->toContain(
+            'the brief does **not** record `## Savings mode: on` together with a coverage gate `athena` deferred to `hephaestus`',
+        );
+        expect($daedalus)->toContain(
+            'the brief already carries, **for that same head SHA**, the `hephaestus` handoff that `hermes` builds its `How to test` from',
+        );
 
         // Exactly four — a fifth condition silently widens the skip, and a lost fourth silently
         // narrows the evidence the skip rests on. Count the enumeration itself, not the prose.
         $skipBlock = (string) mb_strstr(
             (string) mb_strstr($daedalus, '**Skip it exactly when all four conditions hold at once:**'),
             '**Write the skip into the ledger',
-            true,
+            before_needle: true,
         );
         expect(preg_match_all('/^ {7}\d\. /m', $skipBlock))->toBe(4);
 
@@ -550,7 +554,9 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
     expect($daedalus)->toContain('a skip writes no `dispatched` line, so there is no in-flight round for the check to consider at all');
 
     // The step that does the skipping names the role and the exact state it appends.
-    expect($daedalus)->toContain('Append one line to `${BRIEF%.md}.dispatches` for role `hephaestus:scoped` with the state `skipped — head <SHA> already validated`');
+    expect($daedalus)->toContain(
+        'Append one line to `${BRIEF%.md}.dispatches` for role `hephaestus:scoped` with the state `skipped — head <SHA> already validated`',
+    );
 
     // …and the user sees the decision. Dropping the step from the route would make a deliberate
     // skip read as a step that silently never ran.
@@ -576,7 +582,9 @@ test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decis
     expect($hephaestus)->toContain('unless `daedalus` established that the converged head already carries a green validation from this run');
 
     // The frontmatter is the agent's routing surface, so it has to carry the condition too.
-    expect($hephaestus)->toContain('athena convergence — unless daedalus established the converged head already carries a green validation from this run');
+    expect($hephaestus)->toContain(
+        'athena convergence — unless daedalus established the converged head already carries a green validation from this run',
+    );
 
     // The decision itself stays in the orchestrator. hephaestus never argues itself out of a pass:
     // it holds neither the ledger nor the four conditions the skip rests on.
@@ -625,9 +633,15 @@ test('hermes builds How to test from the hephaestus handoff for the current head
     // Conditioning `Blocked` on the scoped-validation handoff specifically ended the assignment's
     // own happy path in an escalation instead of a merge.
     expect($hermes)->not->toContain('When the brief carries no scoped-validation handoff to build the steps from');
-    expect($hermes)->not->toContain("otherwise `hephaestus`'s scoped validation.");
-    expect($hermes)->toContain('the `hephaestus` handoff for the current head SHA (the scoped-validation handoff, or the implementation handoff when `daedalus` skipped that pass)');
-    expect($hermes)->toContain('otherwise the last green `hephaestus` validation for the current head SHA — the implementation run, the pre-convergence scoped pass, or the post-convergence scoped pass');
+    expect($hermes)->not->toContain('otherwise `hephaestus`\'s scoped validation.');
+    expect($hermes)->toContain(
+        'the `hephaestus` handoff for the current head SHA '
+        . '(the scoped-validation handoff, or the implementation handoff when `daedalus` skipped that pass)',
+    );
+    expect($hermes)->toContain(
+        'otherwise the last green `hephaestus` validation for the current head SHA — '
+        . 'the implementation run, the pre-convergence scoped pass, or the post-convergence scoped pass',
+    );
 
     // `Blocked` survives, narrowed to the one case that genuinely has nothing to build from.
     expect($hermes)->toContain('**`Blocked` is reserved for the brief carrying no green `hephaestus` validation for the current head SHA at all**');
@@ -637,17 +651,22 @@ test('hermes builds How to test from the hephaestus handoff for the current head
     // hermes is in fact able to serve.
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
     expect($daedalus)->not->toContain('ze scoped-validation handoffu, který `hephaestus` do briefu zapsal v kroku 6');
-    expect($daedalus)->toContain('z poslední zelené `hephaestus` validace pro **aktuální head SHA**: scoped-validation handoffu z kroku 6, nebo implementačního handoffu, když jsi scoped pass podle čtyř podmínek přeskočil');
+    expect($daedalus)->toContain(
+        'z poslední zelené `hephaestus` validace pro **aktuální head SHA**: '
+        . 'scoped-validation handoffu z kroku 6, nebo implementačního handoffu, když jsi scoped pass podle čtyř podmínek přeskočil',
+    );
     expect($daedalus)->toContain('dispatchni ho až když handoff pro aktuální head SHA v briefu skutečně je');
 
     // The two descriptions of the brief's contents assumed a scoped-validation handoff is always
     // there. Neither gates a decision, but both are read as a description of what the brief holds.
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-    expect($docs)->not->toContain("`hephaestus`'s scoped-validation handoff (the executed tests");
-    expect($docs)->toContain("`hephaestus`'s handoff for the current head SHA (the executed tests, the coverage verdict, the acceptance-criteria statuses)");
+    expect($docs)->not->toContain('`hephaestus`\'s scoped-validation handoff (the executed tests');
+    expect($docs)->toContain(
+        '`hephaestus`\'s handoff for the current head SHA (the executed tests, the coverage verdict, the acceptance-criteria statuses)',
+    );
 
     $argus = (string) file_get_contents($packageDir . '/agents/argus.md');
-    expect($argus)->not->toContain("`hephaestus`'s implementation and scoped-validation handoffs");
+    expect($argus)->not->toContain('`hephaestus`\'s implementation and scoped-validation handoffs');
     expect($argus)->toContain('the implementation one always, the scoped-validation one when `daedalus` did not skip that pass');
 });
 
