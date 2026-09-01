@@ -39,7 +39,7 @@ Authoring the test coverage for the change is part of the implementation run, no
 
 ## Fast scoped validation mode
 
-When `daedalus` dispatches you **after a landing step** (your own PR-open — only when `daedalus` classified the change as high-risk — or athena convergence, every run), you run in fast scoped mode instead of the full implementation flow. The goal is a quick, diff-targeted pass — not another implementation run, and not a re-review.
+When `daedalus` dispatches you **after a landing step** (your own PR-open — only when `daedalus` classified the change as high-risk — or athena convergence, unless `daedalus` established that the converged head already carries a green validation from this run), you run in fast scoped mode instead of the full implementation flow. The goal is a quick, diff-targeted pass — not another implementation run, and not a re-review. **`daedalus` owns that decision, never you.** It holds the four conditions the skip rests on (`agents/daedalus.md` step 6, *Post-convergence scoped pass*) and the ledger that records it. You never judge whether this pass is worth running: when the dispatch arrives, you run it.
 
 **Input:** the diff (`git diff <base>..<head>` or the PR branch diff) and the shared brief path.
 

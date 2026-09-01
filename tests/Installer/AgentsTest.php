@@ -558,6 +558,24 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
     expect($daedalus)->toContain('nebo poté, co jsi ho podle čtyř podmínek v kroku 6 přeskočil');
 });
 
+test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decision to daedalus (issue #70)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+
+    // The mode description must match daedalus's actual dispatch condition — "every run" became
+    // false the moment the post-convergence pass gained a skip.
+    expect($hephaestus)->not->toContain('or athena convergence, every run');
+    expect($hephaestus)->toContain('unless `daedalus` established that the converged head already carries a green validation from this run');
+
+    // The decision itself stays in the orchestrator. hephaestus never argues itself out of a pass:
+    // it holds neither the ledger nor the four conditions the skip rests on.
+    expect($hephaestus)->toContain('**`daedalus` owns that decision, never you.**');
+    expect($hephaestus)->toContain('when the dispatch arrives, you run it');
+
+    // The pre-convergence half of the condition is unchanged (issue #62).
+    expect($hephaestus)->toContain('only when `daedalus` classified the change as high-risk');
+});
+
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
