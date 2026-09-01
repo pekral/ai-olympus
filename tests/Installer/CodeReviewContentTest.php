@@ -3860,6 +3860,17 @@ test('every shipped skill is either in the CR set or classified as deliberately 
     expect(array_diff($shipped, [...$crSet, ...$classified]))->toBe([]);
     // Both directions: a group naming something the repository does not ship is stale text.
     expect(array_diff($classified, $shipped))->toBe([]);
+
+    // The union above covers a doubly-named skill twice, so deleting its bullet from a group
+    // leaves this test green - $crSet is scraped from prose and also names the skills the review
+    // only calls around itself (a phase in group 4, the out-of-scope filing call in group 3).
+    // Each of those bullets was individually deletable with this test still green. Pin the
+    // doubly-covered set itself: a deleted bullet shrinks it, and a skill that becomes doubly
+    // covered later has to be added here deliberately, with the same hole re-examined.
+    $doubleCovered = array_values(array_intersect($crSet, $classified));
+    sort($doubleCovered);
+
+    expect($doubleCovered)->toBe(['create-issue', 'pr-summary', 'process-code-review', 'resolve-issue']);
     // One skill, one group - two groups would make the rule below ambiguous for that skill.
     expect(array_diff_assoc($classified, array_unique($classified)))->toBe([]);
 });
