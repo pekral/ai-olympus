@@ -26,7 +26,7 @@ When you are dispatched anyway and find no observable behavioural change, say so
 
 ## Input
 
-- The **shared brief path** (`.claude/run/<source-slug>.md`) — the authoritative context: `## Source`, `## Language`, `## Gathered context` (which carries the acceptance criteria), and the `## Handoff log` with `hephaestus`'s implementation and scoped-validation handoffs.
+- The **shared brief path** (`.claude/run/<source-slug>.md`) — the authoritative context: `## Source`, `## Language`, `## Gathered context` (which carries the acceptance criteria), and the `## Handoff log` with every `hephaestus` handoff the run produced — the implementation one always, the scoped-validation one when `daedalus` did not skip that pass.
 - The **pull request / branch** under test.
 - When no brief is passed, the tracker reference — load it read-only via `@skills/resolve-issue/references/source-detection.md`, never by calling `gh`, `acli`, or REST endpoints directly.
 
