@@ -82,7 +82,7 @@ The standards ship as a Composer package: 25 rule files and 53 skills, installed
 `.claude/rules` and `.claude/skills` by a binary.
 
 ```bash
-composer require pekral/ai-olympus --dev
+composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
 

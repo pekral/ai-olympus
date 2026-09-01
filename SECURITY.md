@@ -6,7 +6,7 @@
 
 ### `allow-plugins` in `composer.json`
 
-When you `composer require pekral/ai-olympus`, Composer may ask:
+When you `composer require pekral/ai-olympus:dev-master --dev`, Composer may ask:
 
 ```
 Do you trust "pekral/ai-olympus" to execute code and wish to enable it now? (yes/no)
@@ -29,7 +29,7 @@ This is the **standard Composer plugin-trust mechanism** (`allow-plugins`). It i
 If you prefer to give a non-interactive answer (e.g. in CI), you can pass the flag explicitly:
 
 ```bash
-composer require pekral/ai-olympus --dev --no-plugins   # skip the plugin during install
+composer require pekral/ai-olympus:dev-master --dev --no-plugins   # skip the plugin during install
 composer config allow-plugins.pekral/ai-olympus true     # then grant trust manually
 ```
 

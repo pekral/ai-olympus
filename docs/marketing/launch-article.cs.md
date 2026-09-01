@@ -76,7 +76,7 @@ Standardy se distribuují jako Composer balíček: 25 souborů s pravidly a 53 s
 nainstaluje do `.claude/rules` a `.claude/skills`.
 
 ```bash
-composer require pekral/ai-olympus --dev
+composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
 
