@@ -634,6 +634,16 @@ test('hermes builds How to test from the hephaestus handoff for the current head
     expect($daedalus)->not->toContain('ze scoped-validation handoffu, který `hephaestus` do briefu zapsal v kroku 6');
     expect($daedalus)->toContain('z poslední zelené `hephaestus` validace pro **aktuální head SHA**: scoped-validation handoffu z kroku 6, nebo implementačního handoffu, když jsi scoped pass podle čtyř podmínek přeskočil');
     expect($daedalus)->toContain('dispatchni ho až když handoff pro aktuální head SHA v briefu skutečně je');
+
+    // The two descriptions of the brief's contents assumed a scoped-validation handoff is always
+    // there. Neither gates a decision, but both are read as a description of what the brief holds.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->not->toContain("`hephaestus`'s scoped-validation handoff (the executed tests");
+    expect($docs)->toContain("`hephaestus`'s handoff for the current head SHA (the executed tests, the coverage verdict, the acceptance-criteria statuses)");
+
+    $argus = (string) file_get_contents($packageDir . '/agents/argus.md');
+    expect($argus)->not->toContain("`hephaestus`'s implementation and scoped-validation handoffs");
+    expect($argus)->toContain('the implementation one always, the scoped-validation one when `daedalus` did not skip that pass');
 });
 
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
