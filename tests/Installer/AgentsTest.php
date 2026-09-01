@@ -603,10 +603,13 @@ test('the roster stops claiming the post-convergence scoped pass runs unconditio
     expect($docs)->toContain('unless `daedalus` skipped that pass because the converged head already carries a green validation from this run');
     expect($docs)->toContain('after the CR converges unless the converged head already carries a green validation from this run');
 
-    // Savings mode never removes the pass — it is one of the conditions that forces it to run, so
-    // the invariant list has to say which direction the interaction goes.
+    // The skip belongs to daedalus step 6, not to savings mode: with the flag on and the coverage
+    // gate executed rather than deferred, all four conditions can hold and the pass is skipped. The
+    // absolute claimed more than condition 3 grants, so the invariant states the narrower fact.
     $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    expect($savings)->toContain('savings mode never lets it be skipped');
+    expect($savings)->not->toContain('savings mode never lets it be skipped');
+    expect($savings)->toContain('savings mode neither introduces nor removes that skip');
+    expect($savings)->toContain('a coverage gate deferred under mechanism 3 is itself one of the conditions that forces the pass to run');
 });
 
 test('hermes builds How to test from the hephaestus handoff for the current head SHA, whichever pass produced it (issue #70)', function (): void {
