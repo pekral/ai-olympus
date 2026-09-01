@@ -146,14 +146,14 @@ Criterion: the skill authors or edits files — code, tests, documents, or any o
 - `diagram-design`, `frontend-slides` — each ships a self-contained HTML file, one diagram or one deck per file. They also match group 3's shape, because a picture and a deck are not findings on changed lines. Question 2 is asked before question 4, so they land here.
 - `product-capability` — writes its plan to a durable file (`PRODUCT.md`, or a capability document under `docs/`). It also matches group 3's shape, because a capability plan is not a finding on a changed line. Question 2 is asked before question 4, so it lands here.
 - `compact-project-memory` — edits `docs/memory/PROJECT_MEMORY.md`, the one file it is allowed to touch. It also matches group 3's shape, because maintaining a memory file reads no diff. Question 2 is asked before question 4, so it lands here.
+- `e2e-testing` — authors Playwright `*.spec.ts` files. It also matches group 2's shape, because those tests only produce evidence against a running application, which is why `agents/argus.md` runs them and `agents/hephaestus.md` writes them. Question 2 is asked before question 3, so it lands here.
 - `git-workflow` — resolves conflicts, stashes work, and undoes commits, so it rewrites the working tree itself. `cleanup-local-branches` stays in group 3 because it deletes local refs and edits no file: acting on git metadata is not a write to the tree, and the two bullets read together are what draws that line.
 
 ### Group 2 — needs a running application, so it belongs to `argus`
 
 Criterion: the skill's evidence comes from a live instance — an HTTP request, a browser, a queue, or runtime telemetry. A code review reads a diff and has no running instance to read.
 
-- `e2e-testing` — drives a browser against a running application. `agents/argus.md` and `agents/hephaestus.md` already reference it.
-- `laravel-telescope` — reads telemetry that a live application recorded.
+- `laravel-telescope` — reads telemetry that a live application recorded, and writes nothing itself, so question 2 passes it on to question 3.
 
 ### Group 3 — its output is not findings on the changed lines
 
