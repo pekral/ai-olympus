@@ -14,6 +14,11 @@ function assignmentDataGateRule(): string
     return (string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/review-process.md');
 }
 
+function assignmentDataGateSkill(): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/skills/code-review/SKILL.md');
+}
+
 test('the acceptance-criteria gate requires the test to use the data the assignment states (issue #69)', function (): void {
     $rule = assignmentDataGateRule();
 
@@ -86,5 +91,19 @@ test('the data finding is gated against the coverage gate and test organization 
     expect($coreAnalysis)->toContain('This bullet also never owns the **data** a test uses');
     expect($coreAnalysis)->toContain('*Acceptance-criteria use-case coverage* finding in');
     expect($coreAnalysis)->toContain('never a Test organization finding — raise one, never both');
+});
+
+test('the code-review skill points at the gate instead of restating a weaker rule (issue #69)', function (): void {
+    $skill = assignmentDataGateSkill();
+
+    // The removed sentence carried neither a definition of coverage nor a severity, so the same
+    // situation produced a Critical under the rule and an unranked "finding" under the skill.
+    // `origin/master` carries exactly one occurrence of it; this run removes it.
+    expect(substr_count($skill, 'If the issue contains test data or test scenarios'))->toBe(0);
+    expect(substr_count($skill, 'verify they are covered by existing or new tests'))->toBe(0);
+
+    expect($skill)->toContain('Hand the extracted criteria, scenarios, and test data to the **Validation & Coverage Gate**');
+    expect($skill)->toContain('*Acceptance-criteria use-case coverage* bullet owns the whole contract');
+    expect($skill)->toContain('Do not restate a weaker version of it here');
 });
 
