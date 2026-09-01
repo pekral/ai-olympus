@@ -460,7 +460,7 @@ test('daedalus dispatches athena for a pre-implementation security-risk analysis
 });
 
 test(
-    'daedalus gates the pre-convergence scoped validation on high-risk changes and keeps the post-convergence pass mandatory (issue #62)',
+    'daedalus gates the pre-convergence scoped validation on high-risk changes and runs the post-convergence pass by default (issue #62, issue #70)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
