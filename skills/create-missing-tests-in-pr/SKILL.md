@@ -49,6 +49,11 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 -   Read your existing code review for the pull request.
 -   Extract all recommendations related to missing tests, missing
     scenarios, edge cases, regression coverage, and coverage gaps.
+-   **Take the data a finding names verbatim.** When a finding's **Test Hint** carries concrete values from the assignment — an input value, a
+    payload, a boundary value, an expected output or error message — write the test with exactly those values. Never substitute a rounder number,
+    a simplified payload, or an invented equivalent: that value is what reproduces the defect, and replacing it re-opens the finding the review
+    raised (`@rules/code-review/review-process.md` *Validation & Coverage Gate*). Reaching the same value through a named fixture or constant is
+    fine, and adding further cases beyond the named ones is allowed — the stated data are a minimum, not a ceiling.
 -   Analyze the current branch changes against the review findings.
 -   Verify whether the recommended tests already exist in the codebase.
 -   Check whether current changes have 100% coverage **for the changed files only**, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`). Do not gate on the project-wide coverage percentage — if the project ships no coverage tooling at all, stop and report it as a blocker, and **do not add a new bespoke coverage script** to the consuming project.
@@ -130,6 +135,7 @@ Provide a brief markdown summary including:
 ## Principles
 
 - Follow code review recommendations strictly
+- Data a finding names are copied verbatim, never re-invented
 - Do not duplicate existing tests
 - Prefer minimal changes for full coverage
 - Use data providers where they improve readability and reduce duplication

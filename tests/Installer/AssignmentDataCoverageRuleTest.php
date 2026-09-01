@@ -19,6 +19,11 @@ function assignmentDataGateSkill(): string
     return (string) file_get_contents(dirname(__DIR__, 2) . '/skills/code-review/SKILL.md');
 }
 
+function assignmentDataGateFixSkill(): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/skills/create-missing-tests-in-pr/SKILL.md');
+}
+
 test('the acceptance-criteria gate requires the test to use the data the assignment states (issue #69)', function (): void {
     $rule = assignmentDataGateRule();
 
@@ -74,6 +79,29 @@ test('the data condition names what is not a deviation so it cannot fire on a na
     // The positive half has to stay concrete too, or the negative list swallows the finding.
     expect($rule)->toContain('**What is a deviation (the finding).**');
     expect($rule)->toContain('a boundary value the assignment names that no test exercises');
+});
+
+test('the finding itself carries the assignment data in its Test Hint (issue #69)', function (): void {
+    $rule = assignmentDataGateRule();
+
+    // create-missing-tests-in-pr never reads the tracker — the review is its only input — so a
+    // Test Hint that merely points back at the issue breaks the chain the fix depends on.
+    expect($rule)->toContain('The **Test Hint** field names the concrete values verbatim from the assignment');
+    expect($rule)->toContain('A Test Hint that says *"use the value from the issue"* does not satisfy this contract');
+    expect($rule)->toContain('write the test from the finding without re-reading the tracker');
+});
+
+test('the fix skill copies the data a finding names instead of re-inventing it (issue #69)', function (): void {
+    $fixSkill = assignmentDataGateFixSkill();
+
+    expect($fixSkill)->toContain('**Take the data a finding names verbatim.**');
+    expect($fixSkill)->toContain('write the test with exactly those values');
+    expect($fixSkill)->toContain('Never substitute a rounder number');
+    expect($fixSkill)->toContain('Data a finding names are copied verbatim, never re-invented');
+
+    // The same minimum-not-ceiling carve-out has to reach the fix side, or the fix skill deletes
+    // the extra cases a good test added while satisfying the finding.
+    expect($fixSkill)->toContain('the stated data are a minimum, not a ceiling');
 });
 
 test('the data finding is gated against the coverage gate and test organization (issue #69)', function (): void {
