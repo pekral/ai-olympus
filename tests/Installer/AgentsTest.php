@@ -543,6 +543,11 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
     expect($daedalus)->toContain('**`skipped` closes a round you deliberately never dispatched.**');
     expect($daedalus)->toContain('with no preceding `dispatched` line');
     expect($daedalus)->toContain('It is terminal exactly like `delivered` and `failed`');
+    // The terminality claim has to be backed by the in-flight check's own list, not only asserted
+    // next to it: today a skip is safe because it writes no `dispatched` line, and that is the
+    // reason the bullet gives. A future skip path that did write one would need the list.
+    expect($daedalus)->toContain('with no later `delivered`, `failed`, or `skipped`, the round is **already in flight**');
+    expect($daedalus)->toContain('a skip writes no `dispatched` line, so there is no in-flight round for the check to consider at all');
 
     // The step that does the skipping names the role and the exact state it appends.
     expect($daedalus)->toContain('Append one line to `${BRIEF%.md}.dispatches` for role `hephaestus:scoped` with the state `skipped — head <SHA> already validated`');
