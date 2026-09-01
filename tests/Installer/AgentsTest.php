@@ -596,7 +596,10 @@ test('the roster stops claiming the post-convergence scoped pass runs unconditio
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
     expect($docs)->not->toContain('and always once after the `athena` CR converges');
     expect($docs)->not->toContain('once after the `athena` CR converges (every run)');
-    expect($docs)->not->toContain('and always after the CR converges');
+    // Pin the shared substring: the Orchestrates bullet said `and always after the CR converges`
+    // while the intro paragraph said `only, always after the CR converges`, so an `and`-prefixed
+    // pin passes while a sibling phrasing of the same claim survives in the same file.
+    expect($docs)->not->toContain('always after the CR converges');
     expect($docs)->toContain('unless `daedalus` skipped that pass because the converged head already carries a green validation from this run');
     expect($docs)->toContain('after the CR converges unless the converged head already carries a green validation from this run');
 
