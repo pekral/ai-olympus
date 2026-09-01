@@ -467,7 +467,7 @@ test(
 
         // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
         expect($daedalus)->toContain('Only for a high-risk change dispatch `hephaestus` again through the Task tool');
-        expect($daedalus)->toContain('the post-convergence scoped pass in step 6 stays mandatory for every run');
+        expect($daedalus)->toContain('the post-convergence scoped pass in step 6 validates the final diff and runs by default');
 
         // hephaestus documents the same conditionality in its own scoped-mode contract.
         $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
@@ -492,6 +492,70 @@ test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bar
     expect($daedalus)->toContain('Record the dispatch in the ledger as `hephaestus:scoped`, never bare `hephaestus`');
     expect($daedalus)->toContain('(ledger role `hephaestus:scoped`)');
     expect($daedalus)->toContain('v ledgeru role `hermes:reporting`');
+});
+
+test(
+    'daedalus skips the post-convergence scoped pass only when all four conditions hold, and runs it by default (issue #70)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+        // The default has to be stated, not implied. A reader who only skims the four conditions
+        // below would otherwise read them as a checklist to satisfy rather than an exception to
+        // prove, and would skip the pass whenever a condition is merely unclear.
+        expect($daedalus)->toContain('**Running the pass is the default; skipping it is the exception.**');
+        expect($daedalus)->toContain('An unproven or inconclusive condition resolves to *run*');
+
+        // All four conditions, each one load-bearing on its own.
+        expect($daedalus)->toContain('**Skip it exactly when all four conditions hold at once:**');
+        expect($daedalus)->toContain('the CR converged on **0 Critical + 0 Moderate** and the loop produced no fix commit');
+        expect($daedalus)->toContain('the PR\'s **head SHA is identical** to a SHA a green validation already covered in this run');
+        expect($daedalus)->toContain('the brief does **not** record `## Savings mode: on` together with a coverage gate `athena` deferred to `hephaestus`');
+        expect($daedalus)->toContain('the brief already carries, **for that same head SHA**, the `hephaestus` handoff that `hermes` builds its `How to test` from');
+
+        // Exactly four — a fifth condition silently widens the skip, and a lost fourth silently
+        // narrows the evidence the skip rests on. Count the enumeration itself, not the prose.
+        $skipBlock = (string) mb_strstr(
+            (string) mb_strstr($daedalus, '**Skip it exactly when all four conditions hold at once:**'),
+            '**Write the skip into the ledger',
+            true,
+        );
+        expect(preg_match_all('/^ {7}\d\. /m', $skipBlock))->toBe(4);
+
+        // The two edge cases the issue names explicitly: a CR that produced a fix commit moves the
+        // head, and a deferred coverage gate has no other owner — both force the pass to run.
+        expect($daedalus)->toContain('a deferred coverage verdict has no other owner, so the pass runs to produce it');
+
+        // Nothing downstream is loosened by the skip — the pre-merge gate above all.
+        expect($daedalus)->toContain('**The skip relaxes nothing downstream.**');
+        expect($daedalus)->toContain('the pre-merge quality gate in `@skills/merge-github-pr/SKILL.md` runs unchanged on the merged head');
+    },
+);
+
+test('a skipped post-convergence scoped pass is recorded in the ledger and named in the report (issue #70)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // A skipped step that leaves no trace is indistinguishable from a step that fell over, which is
+    // the exact ambiguity the dispatch ledger exists to remove — so `skipped` is a first-class
+    // transition next to `dispatched` / `delivered` / `failed`, carrying its reason in the state.
+    expect($daedalus)->toContain('<role>|<pr-head-sha or ->|<round>|skipped — <reason>|<ISO-8601>');
+    expect($daedalus)->toContain('**`skipped` closes a round you deliberately never dispatched.**');
+    expect($daedalus)->toContain('with no preceding `dispatched` line');
+    expect($daedalus)->toContain('It is terminal exactly like `delivered` and `failed`');
+
+    // The step that does the skipping names the role and the exact state it appends.
+    expect($daedalus)->toContain('Append one line to `${BRIEF%.md}.dispatches` for role `hephaestus:scoped` with the state `skipped — head <SHA> already validated`');
+
+    // …and the user sees the decision. Dropping the step from the route would make a deliberate
+    // skip read as a step that silently never ran.
+    expect($daedalus)->toContain('**Name the skip in the final report.**');
+    expect($daedalus)->toContain('`hephaestus (scoped — skipped, head <SHA> already validated)`');
+    expect($daedalus)->toContain('never omitted, so a deliberate skip never reads as a step that silently did not run');
+
+    // The two dependent steps stop asserting that the scoped handoff always came from a fresh pass.
+    expect($daedalus)->toContain('or after you skipped it under the four conditions above — decide one question');
+    expect($daedalus)->toContain('nebo poté, co jsi ho podle čtyř podmínek v kroku 6 přeskočil');
 });
 
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
