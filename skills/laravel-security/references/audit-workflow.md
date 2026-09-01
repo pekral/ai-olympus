@@ -209,13 +209,20 @@ it('rejects php file upload', function (): void {
 
 **Vzory Grep:**
 
+Čtení `.env*` je per `@rules/compound-engineering/orchestration.md` *Bash capability boundary* zakázáno až na jedinou pojmenovanou výjimku — committnutou šablonu `.env.example`, která nese jen placeholder hodnoty, nikdy skutečné tajemství. Vzor (a) níže je proto jediné místo, kde tato sekce čte `.env*` obsah, a cílí výhradně na `.env.example`. Vzory (b) a (c) pokrývají zbytek tvrzení výše (produkční config, `.env` git-tracking) bez čtení jiné `.env*` varianty.
+
 ```bash
-grep -rn "APP_DEBUG=true" . --include=".env*"
+# (a) šablona — jediné povolené čtení .env* obsahu
+grep -rn "APP_DEBUG=true" . --include=".env.example"
+# (b) produkční config — hardcoded 'debug' => true obcházející env()
+grep -rn "'debug'" config/ --include="*.php" | grep -v "env("
+# (c) .env git-tracking — čte seznam trackovaných souborů, nikdy obsah .env
+git ls-files | grep -qx '\.env' && echo "CRITICAL: .env is tracked by git"
 grep -rn "password\|secret\|api_key" --include="*.php" app/ config/ | grep -v "env(\|config("
 grep -rn "Log::" app/ --include="*.php" | grep -i "password\|secret\|token"
 ```
 
-**Referenční oprava:** sekce *Production Configuration* a *Secrets and Dependencies* v `@skills/laravel-security/SKILL.md`. Pro cookie viz `@rules/security/backend.md`.
+**Referenční oprava:** sekce *Production Configuration* a *Secrets and Dependencies* v `@skills/laravel-security/SKILL.md` — zahrnuje i produkční config-check vzor (b) výše. Pro cookie viz `@rules/security/backend.md`.
 
 **Příklad regresního testu:**
 
