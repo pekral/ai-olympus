@@ -132,14 +132,21 @@ The order carries weight, because the questions overlap. A pipeline phase such a
 
 A skill that answers `no` four times is a candidate lens rather than an excluded one. Take it through *Adding a `MODE=cr` lens* below instead of adding it to a group here.
 
-### Group 1 — writes to the working tree, so it belongs to `hephaestus`
+### Group 1 — writes to the working tree, so it belongs to a write-capable agent
 
-Criterion: the skill authors or edits files — code, tests, or project assets. `athena` is read-only (`agents/athena.md`), so a lens that proposes a write must never perform one in a review. Intent does not make such a skill safe here; the mode contract in *Adding a `MODE=cr` lens* below is what does.
+Criterion: the skill authors or edits files — code, tests, documents, or any other project asset. Most of these belong to `hephaestus`; `compact-project-memory` belongs to whichever run wrote the memory file. `athena` is read-only (`agents/athena.md`), so a lens that proposes a write must never perform one in a review. Intent does not make such a skill safe here; the mode contract in *Adding a `MODE=cr` lens* below is what does.
+
+**Question 2 puts a skill here even when a later group also describes it.** The questions overlap, so a skill that writes a file and produces something other than findings answers `yes` twice, and the order decides. Every bullet below that also matches a later group says so, so the reader sees the overlap resolved instead of hidden. This group is also the one the guard in `tests/Installer/AgentsTest.php` reads, so a skill parked in a later group by mistake is a skill the guard stops covering.
 
 - `create-test`, `create-missing-tests-in-pr`, `rewrite-tests-pest` — each authors or rewrites test files.
 - `test-driven-development` — drives a red / green / refactor cycle that writes both the test and the code.
 - `understand-propose-implement-verify` — implements the proposal it produces.
 - `frontend-design-direction` — chooses a UI direction and then builds it (*"Build the actual usable experience"*). It also matches group 3's shape, because a design direction is a judgment rather than a finding on a changed line. Question 2 is asked before question 4, so it lands here.
+- `skill-creator` — writes `skills/<slug>/SKILL.md` and edits the changelog and the readme. It also matches group 3's shape, because a new skill is not a finding on a changed line. Question 2 is asked before question 4, so it lands here.
+- `diagram-design`, `frontend-slides` — each ships a self-contained HTML file, one diagram or one deck per file. They also match group 3's shape, because a picture and a deck are not findings on changed lines. Question 2 is asked before question 4, so they land here.
+- `product-capability` — writes its plan to a durable file (`PRODUCT.md`, or a capability document under `docs/`). It also matches group 3's shape, because a capability plan is not a finding on a changed line. Question 2 is asked before question 4, so it lands here.
+- `compact-project-memory` — edits `docs/memory/PROJECT_MEMORY.md`, the one file it is allowed to touch. It also matches group 3's shape, because maintaining a memory file reads no diff. Question 2 is asked before question 4, so it lands here.
+- `git-workflow` — resolves conflicts, stashes work, and undoes commits, so it rewrites the working tree itself. `cleanup-local-branches` stays in group 3 because it deletes local refs and edits no file: acting on git metadata is not a write to the tree, and the two bullets read together are what draws that line.
 
 ### Group 2 — needs a running application, so it belongs to `argus`
 
@@ -153,12 +160,10 @@ Criterion: the skill's evidence comes from a live instance — an HTTP request, 
 Criterion: the skill's unit of work is the whole repository, a document, a tracker artifact, or the local git state — not the lines this diff added or modified. A review that ran one would report on code the pull request never touched, which `agents/athena.md` *Review scope — the current diff only* forbids.
 
 - `simplification-audit` — audits the whole codebase rather than a diff, and overlaps `class-refactoring` in `MODE=cr`, which the review already runs.
-- `tester-cookbook` — writes a QA report for a human tester.
-- `diagram-design`, `frontend-slides`, `product-capability` — produce a diagram, a deck, or a capability description.
-- `skill-creator`, `smartest-project-addition` — produce a new skill, or a proposal about this package.
+- `tester-cookbook` — writes a QA report for a human tester and posts it as a tracker comment.
+- `smartest-project-addition` — proposes the next addition to this package.
 - `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review still calls `create-issue` after it publishes, to file an out-of-scope item (`agents/athena.md`). That call creates a different artifact and reads no diff, so it is not a lens and produces no finding.
-- `cleanup-local-branches`, `git-workflow` — act on the local git state.
-- `compact-project-memory` — maintains `docs/memory/PROJECT_MEMORY.md`.
+- `cleanup-local-branches` — deletes local branch refs. It writes no file, which is what keeps it here while `git-workflow` sits in group 1.
 
 ### Group 4 — moves the run's own artifact forward
 
