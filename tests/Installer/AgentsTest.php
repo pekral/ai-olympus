@@ -600,6 +600,30 @@ test('the roster stops claiming the post-convergence scoped pass runs unconditio
     expect($savings)->toContain('savings mode never lets it be skipped');
 });
 
+test('hermes builds How to test from the hephaestus handoff for the current head SHA, whichever pass produced it (issue #70)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+
+    // On the skip path the brief carries the implementation handoff, not a scoped-validation one.
+    // Conditioning `Blocked` on the scoped-validation handoff specifically ended the assignment's
+    // own happy path in an escalation instead of a merge.
+    expect($hermes)->not->toContain('When the brief carries no scoped-validation handoff to build the steps from');
+    expect($hermes)->not->toContain("otherwise `hephaestus`'s scoped validation.");
+    expect($hermes)->toContain('the `hephaestus` handoff for the current head SHA (the scoped-validation handoff, or the implementation handoff when `daedalus` skipped that pass)');
+    expect($hermes)->toContain('otherwise the last green `hephaestus` validation for the current head SHA — the implementation run, the pre-convergence scoped pass, or the post-convergence scoped pass');
+
+    // `Blocked` survives, narrowed to the one case that genuinely has nothing to build from.
+    expect($hermes)->toContain('**`Blocked` is reserved for the brief carrying no green `hephaestus` validation for the current head SHA at all**');
+    expect($hermes)->toContain('never for the scoped-validation handoff alone being absent');
+
+    // Step 6a has to name the same either-or source, or the orchestrator withholds a dispatch
+    // hermes is in fact able to serve.
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    expect($daedalus)->not->toContain('ze scoped-validation handoffu, který `hephaestus` do briefu zapsal v kroku 6');
+    expect($daedalus)->toContain('z poslední zelené `hephaestus` validace pro **aktuální head SHA**: scoped-validation handoffu z kroku 6, nebo implementačního handoffu, když jsi scoped pass podle čtyř podmínek přeskočil');
+    expect($daedalus)->toContain('dispatchni ho až když handoff pro aktuální head SHA v briefu skutečně je');
+});
+
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
