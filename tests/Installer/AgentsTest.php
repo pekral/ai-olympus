@@ -564,8 +564,14 @@ test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decis
 
     // The mode description must match daedalus's actual dispatch condition — "every run" became
     // false the moment the post-convergence pass gained a skip.
-    expect($hephaestus)->not->toContain('or athena convergence, every run');
+    // Pin the shared substring, not one spelling: the body said `athena convergence, every run`
+    // while the frontmatter `description:` said `athena convergence — every run`, so a pin on
+    // either spelling alone leaves the other claim standing in the same file.
+    expect($hephaestus)->not->toContain('every run');
     expect($hephaestus)->toContain('unless `daedalus` established that the converged head already carries a green validation from this run');
+
+    // The frontmatter is the agent's routing surface, so it has to carry the condition too.
+    expect($hephaestus)->toContain('athena convergence — unless daedalus established the converged head already carries a green validation from this run');
 
     // The decision itself stays in the orchestrator. hephaestus never argues itself out of a pass:
     // it holds neither the ledger nor the four conditions the skip rests on.

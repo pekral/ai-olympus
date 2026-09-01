@@ -1,6 +1,6 @@
 ---
 name: hephaestus
-description: Use when a tracker issue or a described task needs to be implemented as a safe fix or feature — a GitHub issue/PR number or URL, a JIRA key/URL, a Bugsnag error, or the current task context. Detects the source, implements the change, authors its test coverage, runs the tests covering it, and opens a pull request, then hands back an "Impl done" handoff with links. Also runs as a fast scoped validation gate after landing steps (its own PR-open — high-risk changes only; athena convergence — every run) when dispatched by daedalus. The implementation run stops at the PR — it never reviews its own work (the whole CR belongs to `athena`) and never merges.
+description: Use when a tracker issue or a described task needs to be implemented as a safe fix or feature — a GitHub issue/PR number or URL, a JIRA key/URL, a Bugsnag error, or the current task context. Detects the source, implements the change, authors its test coverage, runs the tests covering it, and opens a pull request, then hands back an "Impl done" handoff with links. Also runs as a fast scoped validation gate after landing steps (its own PR-open — high-risk changes only; athena convergence — unless daedalus established the converged head already carries a green validation from this run) when dispatched by daedalus. The implementation run stops at the PR — it never reviews its own work (the whole CR belongs to `athena`) and never merges.
 tools: Read, Write, Edit, Glob, Grep, Bash
 disallowedTools: WebSearch, WebFetch
 model: opus
