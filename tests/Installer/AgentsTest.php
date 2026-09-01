@@ -576,6 +576,30 @@ test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decis
     expect($hephaestus)->toContain('only when `daedalus` classified the change as high-risk');
 });
 
+test('the roster stops claiming the post-convergence scoped pass runs unconditionally (issue #70)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // hermes is dispatched after the scoped pass, so its own contract described that pass as always
+    // having run. Its real precondition is the handoff for the current head SHA being in the brief,
+    // which condition 4 of the skip guarantees either way.
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->toContain('or, when `daedalus` skipped that pass because the converged head already carries a green validation');
+    expect($hermes)->toContain('the handoff you build `How to test` from is already in the brief before you are dispatched');
+
+    // The reader-facing roster docs described the pass as running on every run, twice.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->not->toContain('and always once after the `athena` CR converges');
+    expect($docs)->not->toContain('once after the `athena` CR converges (every run)');
+    expect($docs)->not->toContain('and always after the CR converges');
+    expect($docs)->toContain('unless `daedalus` skipped that pass because the converged head already carries a green validation from this run');
+    expect($docs)->toContain('after the CR converges unless the converged head already carries a green validation from this run');
+
+    // Savings mode never removes the pass — it is one of the conditions that forces it to run, so
+    // the invariant list has to say which direction the interaction goes.
+    $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    expect($savings)->toContain('savings mode never lets it be skipped');
+});
+
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
