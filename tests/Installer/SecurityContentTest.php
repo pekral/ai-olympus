@@ -572,3 +572,18 @@ test('the orchestration rules carry the dispatch-time boundary as a pointer, not
     expect($content)->not->toContain('## Trusted sources');
     expect($content)->not->toContain('## Untrusted sources');
 });
+
+test('audit-workflow.md scopes the APP_DEBUG grep to .env.example only, never a broader .env* glob (issue #68)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/laravel-security/references/audit-workflow.md');
+
+    // The APP_DEBUG grep targets the committed template only — the one `.env*` spelling
+    // `@rules/compound-engineering/orchestration.md` *Bash capability boundary* allows reading.
+    expect($content)->toContain('grep -rn "APP_DEBUG=true" . --include=".env.example"');
+    expect($content)->not->toContain('--include=".env*"');
+
+    // Section 6 promises a production-config check and a .env git-tracking check; each now
+    // carries its own grep pattern instead of leaving the prose unmatched by any command.
+    expect($content)->toContain('grep -rn "\'debug\'" config/ --include="*.php" | grep -v "env("');
+    expect($content)->toContain('git ls-files | grep -qx \'\\.env\'');
+});
