@@ -205,7 +205,8 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
     $skill = crContractText('skills/code-review-jira/SKILL.md');
 
-    // JIRA non-technical comment carries only "How to test" — no Summary of changes, no Authors.
+    // JIRA renders the same two sections as every target, under Wiki Markup headings — and none
+    // of the metadata the old shape carried, on any target.
     expect($template)->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
