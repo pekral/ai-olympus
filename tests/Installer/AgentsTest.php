@@ -1880,8 +1880,9 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('**check count**');
     expect($content)->toContain('Never write "the counter" for either of them.');
 
-    // Detection escalates, and never re-dispatches over an unconfirmed original.
-    expect($content)->toContain('Blocked: dispatch <role>/<round> nejeví známky života');
+    // Detection escalates, and never re-dispatches over an unconfirmed original. The round is a
+    // "kolo" here exactly as in the ledger's sibling Blocked string.
+    expect($content)->toContain('Blocked: kolo <role>/<round> nejeví známky života');
     expect($content)->toContain('Never re-dispatch a stuck round without first confirming the original is dead.');
 
     // The cap bounds the checks themselves, so an unbounded wait cannot masquerade as monitoring —
