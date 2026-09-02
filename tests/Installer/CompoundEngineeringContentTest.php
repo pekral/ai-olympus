@@ -1481,8 +1481,20 @@ test('the comment-analysis rule resolves trust per tracker and names the JIRA li
 
     // JIRA: the name-match fallback is stated as corroboration, never as a permission check.
     expect($rule)->toContain('**JIRA — no role data exists, so the fallback is a name match, and it is weaker.**');
-    expect($rule)->toContain('matches the issue\'s own `reporter`, `assignee`, or `creator`');
+    expect($rule)->toContain('matches the issue\'s own `assignee`');
     expect($rule)->toContain('a display-name match is corroboration, not a permission check');
+
+    // The fallback applies the cited Authorship trust test rather than widening it: that test
+    // excludes an external reporter by name, so `reporter` and `creator` stay untrusted here and
+    // the section cannot contradict its own "never restate its values" bullet.
+    expect($rule)->toContain('**The `reporter` and the `creator` are deliberately outside the trusted set.**');
+    expect($rule)->toContain('a project member / assignee, not an external reporter');
+    expect($rule)->not->toContain('`reporter`, `assignee`, or `creator`');
+
+    // The quoted half of the cited test must still read that way in the file that owns it, so the
+    // two rule files cannot drift apart the way they had.
+    $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    expect($codeReview)->toContain('JIRA — a project member / assignee, not an external reporter');
 
     // Bugsnag: trusted because the platform gates the surface, not because a per-comment check ran.
     expect($rule)->toContain('**Bugsnag — the platform gates the comment surface itself.**');
