@@ -172,8 +172,6 @@ test('the merge gate reads zero Critical with no undeferred Moderate, coherently
 });
 
 test('no shipped surface restates the withdrawn convergence wording', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
     // Every spelling of the withdrawn gate, so a sweep cannot miss one by rephrasing it.
     $withdrawn = '/0 Critical \+ 0 Moderate'
         . '|zero Critical and zero Moderate'
@@ -196,20 +194,15 @@ test('no shipped surface restates the withdrawn convergence wording', function (
         'docs/memory/PROJECT_MEMORY.md' => 1,
     ];
 
-    $files = ['README.md', 'CONTRIBUTING.md'];
+    // Every `.md` under the four instruction directories, plus the two root documents.
+    $surfaces = array_filter(
+        packageTextFiles(),
+        static fn (string $path): bool => (bool) preg_match('#^(rules|skills|agents|docs)/.+\\.md$|^(README|CONTRIBUTING)\\.md$#', $path),
+        ARRAY_FILTER_USE_KEY,
+    );
 
-    foreach (['rules', 'skills', 'agents', 'docs'] as $dir) {
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageDir . '/' . $dir));
-
-        foreach ($iterator as $file) {
-            if ($file->isFile() && $file->getExtension() === 'md') {
-                $files[] = substr((string) $file->getPathname(), strlen($packageDir) + 1);
-            }
-        }
-    }
-
-    foreach ($files as $relative) {
-        $matches = preg_match_all($withdrawn, (string) file_get_contents($packageDir . '/' . $relative));
+    foreach ($surfaces as $relative => $contents) {
+        $matches = preg_match_all($withdrawn, $contents);
 
         expect($matches)->toBe($allowed[$relative] ?? 0, $relative . ' restates the withdrawn convergence wording');
     }
