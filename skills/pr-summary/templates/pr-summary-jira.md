@@ -1,12 +1,29 @@
-{assignment_verdict}
+h2. What changed
+
+*Problem:* [Who hit it, on what, and what they saw instead. Name the scale when it is known — how many attempts, over how long, how many accounts. Terse, but every number stays.]
+
+*Cause:* [One mechanism, stated so a non-developer follows it. A missing or partially met acceptance criterion is named here in prose — never as a verdict field.]
+
+*Result:* [What the cause actually cost: the number, the runtime, the failure it produced. When the failure was silent, say why it was silent.]
+
+*What I fixed:*
+
+* [One change the reader can observe. State the new behaviour and, where a number exists, the before-and-after.]
+* [Next observable change.]
+
+*Side benefit:* [Optional — an improvement the fix produces that the assignment never asked for. Omit this field entirely when there is none.]
+
+*Filed separately:* [Optional — a genuinely unrelated defect found during the work and filed on its own ticket. Name the ticket and state that it is linked. Omit this field entirely when there is none.]
 
 h2. How to test
 
-# [If the change is reachable only behind a test parameter (feature flag, ENV switch, query string, request header, admin toggle, allow-listed account), this first step *must* enable it — naming the exact value: admin switch label _New pricing preview_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature key {{feature.new_pricing}}. Omit this step when the change is reachable unconditionally.]
-# [Next concrete action the tester performs — short imperative, no filler; exact names / values verbatim]
-# [Outcome the tester verifies — terse but complete; keep every word needed for unambiguous verification]
+# [The scenario's starting point, with concrete inputs — account, URL, entity name, value typed in. When the change is reachable only behind a test parameter, this step enables it, naming the exact toggle and value: admin switch label _New pricing preview_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature key {{feature.new_pricing}}. Then the must-hold outcome: what the tester must see for the step to pass.]
+# [Next scenario step — concrete input, then its must-hold outcome. Say so in the step when this is the important one.]
+# [Regression: the neighbouring flows the tester exercises to confirm nothing else moved, and the outcome that must stay unchanged.]
 
 {embedded_blocks}
+
+[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
 ----
 
@@ -24,38 +41,41 @@ reaches the published body - which is exactly how meta-instructions leak
 unnoticed. That macro's name is deliberately not written out anywhere in this
 file: a single unpaired opening token would swallow everything after it.
 
-{assignment_verdict}
-  Render this slot at the very top only when the calling CR wrapper passes an
-  "h2. Assignment Compliance" block — i.e. the changes do not satisfy the
-  assignment. It is a single bold line in the assignment language stating
-  non-compliance and the gap count N (taken from the block's
-  "Critical gaps found: N" verdict / count of gap entries), pointing the reader to
-  the detail below — for example:
-    Czech assignment  → *Změny nesplňují zadání — N nedostatk(ů). Viz Assignment Compliance níže.*
-    English assignment → *Changes do not satisfy the assignment — N gap(s). See Assignment Compliance below.*
-  The warning marker that opens that line is functional, not decoration.
+Headings and field labels
+  Translate them into the assignment language per @rules/reports/general.md — a
+  Czech assignment renders "h2. Co se změnilo", "*Problém:*", "*Příčina:*",
+  "*Výsledek:*", "*Co jsem opravil:*", "*Vedlejší přínos:*", "*Na jiný ticket:*",
+  "h2. Jak otestovat". Never mix an English heading with assignment-language
+  prose.
 
-  When the changes satisfy the assignment (no Assignment Compliance block passed)
-  or no tracker is linked, omit this slot entirely — including the surrounding
-  blank line — so the comment begins at "h2. How to test". Never render a positive
-  "satisfies the assignment" line; only non-compliance is surfaced.
+Length
+  There is no word budget. The report is as long as the facts it carries and no
+  longer — see @skills/pr-summary/SKILL.md (Length follows the facts).
 
 {embedded_blocks}
-  This JIRA comment carries only how to test the change. Render this slot only
-  when the calling CR wrapper passes one or more JIRA Wiki Markup blocks — the
-  "h2. Clarifying questions" block (open questions the reviewer needs answered
-  before the work can be accepted) and/or the "h2. Assignment Compliance" block
-  returned by @skills/assignment-compliance-check/SKILL.md (discrepancies with the
-  assignment and Critical items). Each block is already converted to Wiki Markup;
-  append it verbatim, in the order received, separated by a single blank line.
-  When no blocks are passed, omit this slot entirely — including the surrounding
-  blank lines — so the comment ends right after the test steps and its footer.
+  Render this slot only when the calling CR wrapper passes one or more JIRA Wiki
+  Markup blocks — the "h2. Clarifying questions" block (open questions the
+  reviewer needs answered before the work can be accepted) and/or the
+  "h2. Assignment Compliance" block returned by
+  @skills/assignment-compliance-check/SKILL.md (discrepancies with the assignment
+  and Critical items). Each block is already converted to Wiki Markup; append it
+  verbatim, in the order received, separated by a single blank line. When no
+  blocks are passed, omit this slot entirely — including the surrounding blank
+  lines — so the comment runs straight from the test steps to the closing links
+  line. This slot is the only route an assignment gap takes into this comment:
+  the template renders no verdict, no banner, and no positive "satisfies the
+  assignment" line of its own.
 
-  Do not add an Authors line, a Summary of changes section, severity counts, file
-  paths, line numbers, or code snippets — those belong on the GitHub PR comment,
-  not here.
+  Do not add an Authors line, an Available behind line, a Summary of changes
+  section, severity counts, file paths, line numbers, or code snippets — none of
+  those belongs on any target this skill publishes to.
 
-The canonical statement of both rules lives in @skills/pr-summary/SKILL.md
-(Embedded blocks and Assignment non-compliance verdict (top banner)). This block
-restates the slot mechanics for whoever is filling the template in; the skill is
-the source of truth if the two ever disagree.
+Closing links line
+  One line, the pull request and the source tracker item, separated by " · ", in
+  Wiki Markup link form ([label|url]). Render whichever of the two links exists;
+  omit the line when neither does. It sits above the footer separator.
+
+The canonical statement of every rule above lives in
+@skills/pr-summary/SKILL.md. This block restates the slot mechanics for whoever
+is filling the template in; the skill is the source of truth if the two ever
+disagree.

@@ -28,19 +28,32 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
     expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
 });
 
-test('pr-summary surfaces an assignment non-compliance verdict at the top of the tracker comment', function (): void {
+test('pr-summary renders no assignment verdict of its own — the embedded block is the verdict', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
-    $githubTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md');
-    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+    $templates = [
+        (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md'),
+        (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md'),
+        (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-bugsnag.md'),
+    ];
 
-    expect($prSummary)->toContain('Assignment non-compliance verdict (top banner)');
-    expect($prSummary)->toContain('{assignment_verdict}');
+    // The top banner duplicated a verdict `assignment-compliance-check` already issues, so the
+    // slot and its section are gone. Pinned as an absence: the skill and both original templates
+    // carried the literal `{assignment_verdict}` before this change, so these assertions fail on
+    // the base branch rather than passing vacuously.
+    expect($prSummary)->not->toContain('{assignment_verdict}');
+    expect($prSummary)->not->toContain('Assignment non-compliance verdict (top banner)');
 
-    foreach ([$githubTemplate, $jiraTemplate] as $template) {
-        expect($template)->toContain('{assignment_verdict}');
-        expect($template)->toContain('do not satisfy the assignment');
+    // What replaces it: the compliance block still reaches the reader, through the one slot that
+    // was always the delivery mechanism — so removing the banner drops a duplicate, not a check.
+    expect($prSummary)->toContain('This slot is how an assignment gap reaches the reader.');
+    expect($prSummary)->toContain('no verdict of its own, no banner');
+
+    foreach ($templates as $template) {
+        expect($template)->not->toContain('{assignment_verdict}');
+        expect($template)->toContain('{embedded_blocks}');
         expect($template)->toContain('omit this slot entirely');
+        expect($template)->toContain('@skills/assignment-compliance-check/SKILL.md');
     }
 });
 
@@ -208,9 +221,11 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
     expect($skill)->toContain('@skills/pr-summary/templates/pr-summary-jira.md');
     expect(is_file($packageDir . '/skills/code-review-jira/templates/jira-output.md'))->toBeFalse();
 
-    // JIRA report = how to test only, plus conditional clarifying questions / assignment discrepancies / critical.
+    // JIRA now renders the same two sections as every other target — there is no reduced shape
+    // left, because the report carries no Authors / Available behind line for JIRA to drop.
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
-    expect($prSummary)->toContain('output **only `How to test`**');
+    expect($prSummary)->not->toContain('output **only `How to test`**');
+    expect($prSummary)->toContain('no target gets a reduced shape');
     expect($prSummary)->toContain('No leaked markup on JIRA');
     expect($skill)->toContain('Clarifying questions block (conditional)');
     expect($skill)->toContain('only `How to test`');
@@ -264,9 +279,16 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
     expect($prSummary)->toContain('write normal, fully explicit sentences');
     expect($prSummary)->toContain('Never compressed at all');
 
-    expect($githubTemplate)->toContain('1–3 short sentences or fragments');
-    expect($githubTemplate)->toContain('short imperative');
-    expect($jiraTemplate)->toContain('short imperative');
+    // The terse contract now defers sentence shape to @rules/writing/general.md: filler goes,
+    // words the sentence needs stay. A template that still advertised "fragments" would reinstate
+    // the telegraphic compression that rule bans.
+    expect($prSummary)->toContain('Terseness removes ideas per sentence and removes filler');
+    expect($prSummary)->toContain('telegraphic fragments are not terse, only shorter');
+
+    foreach ([$githubTemplate, $jiraTemplate] as $template) {
+        expect($template)->toContain('Terse, but every number stays.');
+        expect($template)->not->toContain('fragments');
+    }
 });
 
 test('GitHub PR comment templates use a compact AI-parseable header with severity icons', function (): void {
@@ -1879,21 +1901,32 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     // The reader learns both output shapes before reading a single constraint.
     expect($prSummary)->toContain('## TL;DR');
     expect($prSummary)->toContain('Read the branch\'s commits and its linked tracker. Write one non-technical comment. Publish it.');
-    expect($prSummary)->toContain('**GitHub target** → `Authors`, conditional `Available behind`, `Summary of changes`, `How to test`.');
-    expect($prSummary)->toContain('**JIRA target** → `How to test` only, in Wiki Markup.');
+    expect($prSummary)->toContain('**Every target renders the same two sections** → `What changed`, then `How to test`.');
+    expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
+    expect($prSummary)->toContain('Only the markup differs per target: GitHub Markdown, JIRA Wiki Markup, Bugsnag plain text.');
 
     // Every normative block is its own heading, so a reader can jump to the one they need.
     foreach ([
         '### Terse output style (issue #51)',
-        '### Authors — GitHub target only',
-        '### Available behind — flag test / opt-in gated changes',
+        '### What changed — four required fields, two conditional ones',
+        '### How to test — a scenario, not a checklist of tests',
+        '### Closing line — the PR and the source issue',
+        '### Length follows the facts',
         '### Output shape per target',
         '### No leaked markup on JIRA',
+        '### No markup at all on Bugsnag',
         '### Embedded blocks (consolidation contract — issue #498)',
-        '### Assignment non-compliance verdict (top banner)',
     ] as $heading) {
         expect($prSummary)->toContain($heading);
     }
+
+    // The two metadata lines are gone from the contract, not merely from the templates: this skill
+    // resolves no authorship, and a gating toggle now lives inside the `How to test` step that
+    // enables it. Both literals were in the skill on the base branch, so neither assertion is
+    // vacuous.
+    expect($prSummary)->not->toContain('### Authors — GitHub target only');
+    expect($prSummary)->not->toContain('### Available behind — flag test / opt-in gated changes');
+    expect($prSummary)->toContain('This skill resolves no authorship');
 
     // The defect this rewrite fixes: single bullets of 2157 / 943 / 901 characters. Nothing
     // is deleted, so the word count barely moves — the bound is what keeps the prose scannable.
