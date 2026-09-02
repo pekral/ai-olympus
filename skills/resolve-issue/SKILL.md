@@ -201,7 +201,11 @@ The non-technical report must be understandable by non-technical testers and pro
 - **Pre-existing fixes also covered by this PR (when any):** plain-language one-line summary per pre-existing fix commit produced by *Pre-existing issue handling*, plus a one-line "what to re-verify" hint per fix so the tester knows the additional regression surface to validate. Omit the bullet entirely when no pre-existing fix landed.
 
 ### GitHub-specific follow-up
-- If the original repository uses a `ready for review` (or equivalent) label, apply it to the source issue once the PR is open to signal it is ready for reviewers. Skip this step when the project does not use such labels.
+- Once the PR is open, mark the source issue as waiting for code review (per `@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*). This is phase 2 of that invariant, so it always runs — never conditional on the repository already carrying the label:
+  1. **Create the label when the repository lacks it**, then ignore the "already exists" outcome on every later run: `gh label create "ready for review" --description "The PR for this issue is open and waiting for a reviewer" --color 0e8a16`. This mirrors the `EPIC` label creation in `@skills/create-issues-from-text/SKILL.md` *EPIC parent & sub-issues*.
+  2. **Apply it to the source issue:** `gh issue edit <N> --add-label "ready for review"`.
+  3. **Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <URL>` — external writes can be silently blocked in auto-mode, so the command's exit code is not evidence. This is the same apply-then-verify discipline the claim label uses in step 1. When it did not land, report the failed phase write in the handoff; the PR itself stays open and is not rolled back.
+- Leave the `Resolve_by_AI:in-progress` claim label in place. It is no longer the active work-state signal once `ready for review` is applied, and removing it would make the issue an unclaimed candidate again.
 
 ### JIRA-specific follow-up
 - Link the created PR back to the JIRA issue.

@@ -1923,3 +1923,27 @@ test('the payment lens states its protocol scope and never proposes adopting MPP
     // The file states its own hard limits; the mode block must not push it past the line budget.
     expect(substr_count($mpp, "\n"))->toBeLessThanOrEqual(500);
 });
+
+test('resolve-issue always signals the GitHub review-waiting phase once the PR is open', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // The step is phase 2 of the tracker-status invariant, so it cites the rule that owns it.
+    expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+
+    // The old escape hatch made the signal a coin flip on repository configuration.
+    expect($content)->not->toContain('Skip this step when the project does not use such labels');
+    expect($content)->toContain('never conditional on the repository already carrying the label');
+
+    // Create-if-missing, mirroring the EPIC label precedent.
+    expect($content)->toContain('gh label create "ready for review"');
+    expect($content)->toContain('`@skills/create-issues-from-text/SKILL.md` *EPIC parent & sub-issues*');
+
+    // Apply, then verify through the deterministic loader — an exit code is not evidence.
+    expect($content)->toContain('gh issue edit <N> --add-label "ready for review"');
+    expect($content)->toContain('**Re-read and verify the label landed**');
+    expect($content)->toContain('skills/code-review-github/scripts/load-issue.sh');
+
+    // The claim label stays: removing it would make the issue an unclaimed candidate again.
+    expect($content)->toContain('Leave the `Resolve_by_AI:in-progress` claim label in place');
+});
