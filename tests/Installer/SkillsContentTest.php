@@ -1967,3 +1967,16 @@ test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag
     expect($content)->toContain('Bugsnag therefore has no review-waiting phase write');
     expect($content)->toContain('the comment posted above on the error and on the linked GitHub issue is the substitute signal');
 });
+
+test('process-code-review writes the review-waiting phase signal when it opens the PR itself', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    // This skill is the second and only other path that can open the PR, so the phase-2 write
+    // cannot live in resolve-issue alone without leaving this path silently unsignalled.
+    expect($content)->toContain(
+        'write that issue\'s review-waiting phase signal now, exactly as the resolving run would have',
+    );
+    expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+    expect($content)->toContain('This is the only other path that opens the PR, so it owns the phase-2 write on that path.');
+});

@@ -186,6 +186,7 @@ Apply each fix, commit it, push it, and let the next review iteration read the n
 - If PR does not exist, create it according to @rules/git/general.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
   - Title in English (per `@rules/git/general.md`)
   - Body in the assignment language (per `@rules/reports/general.md`)
+  - When the branch resolves a tracker issue, write that issue's review-waiting phase signal now, exactly as the resolving run would have (`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*, mechanics in `@skills/resolve-issue/SKILL.md` *GitHub-specific follow-up* / *JIRA-specific follow-up*). This is the only other path that opens the PR, so it owns the phase-2 write on that path. Skip it when the signal is already present — the write is idempotent.
 
 ---
 
