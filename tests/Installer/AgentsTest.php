@@ -163,6 +163,24 @@ test('athena grants the phase-3 ready-to-merge write its consent-table row assig
     expect($boundary)->toContain('writing or withdrawing the ready-to-merge phase signal on the source issue');
 });
 
+test('athena grants the round-3 sub-issue write its step-10 obligation assigns it (issue #194)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $boundary = installerDocsSection($athena, '## Bash boundary');
+
+    // Step 10 assigns athena the round-3 deferral outcome, whose write is a `gh issue create`, an
+    // `addSubIssue` mutation, and an `acli jira workitem create` — none of them a wrapper the
+    // boundary named. Obligation and permission must always agree.
+    expect($athena)->toContain('a non-security Moderate that clears the filing bar becomes a sub-issue of the source tracker item');
+    expect($boundary)->toContain('skills/process-code-review/scripts/file-deferred-moderate.sh');
+    // The grant is the script, never a hand-typed equivalent of what it runs.
+    expect($boundary)->toContain('never a hand-typed `gh issue create` / `addSubIssue` / `acli jira workitem create`');
+
+    // The filing is an externally-visible write, so it owes its own audit line in step 12 too.
+    expect($athena)->toContain('every round-3 deferred Moderate the step-10 loop files as a sub-issue');
+    expect($boundary)->toContain('filing a round-3 deferred Moderate as a sub-issue');
+});
+
 test('hephaestus grants the PR link-back write its consent-table row assigns it (issue #194)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
