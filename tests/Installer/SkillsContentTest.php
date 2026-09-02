@@ -1926,7 +1926,10 @@ test('the payment lens states its protocol scope and never proposes adopting MPP
 
 test('resolve-issue always signals the GitHub review-waiting phase once the PR is open', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    // The per-tracker follow-up moved into its own reference to keep the skill body under the
+    // skill-check token limit; the skill keeps the pointer, the reference keeps the procedure.
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md')
+        . "\n" . (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
 
     // The step is phase 2 of the tracker-status invariant, so it cites the rule that owns it.
     expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
@@ -1950,7 +1953,8 @@ test('resolve-issue always signals the GitHub review-waiting phase once the PR i
 
 test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag included', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md')
+        . "\n" . (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
 
     // Phase 1: the claim write is also the in-progress signal, for GitHub and JIRA alike.
     expect($content)->toContain(
@@ -1979,4 +1983,29 @@ test('process-code-review writes the review-waiting phase signal when it opens t
     );
     expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
     expect($content)->toContain('This is the only other path that opens the PR, so it owns the phase-2 write on that path.');
+});
+
+test('the resolve-issue per-tracker follow-up lives in a listed reference', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $referencePath = $packageDir . '/skills/resolve-issue/references/tracker-follow-up.md';
+
+    expect(is_file($referencePath))->toBeTrue();
+
+    // The skill keeps the decision (phase 2 always runs, Bugsnag is the named exception) and
+    // points at the reference for the procedure — the pattern seven of its sections already use.
+    expect($skill)->toContain('### Per-tracker follow-up');
+    expect($skill)->toContain('lives in `references/tracker-follow-up.md`');
+    expect($skill)->toContain('- references/tracker-follow-up.md');
+
+    // The three per-tracker sections travelled whole; none was dropped in the move.
+    $reference = (string) file_get_contents($referencePath);
+    expect($reference)->toContain('### GitHub-specific follow-up');
+    expect($reference)->toContain('### JIRA-specific follow-up');
+    expect($reference)->toContain('### Bugsnag-specific follow-up');
+
+    // The extraction exists to hold the body under the skill-check limit, so the body must stay
+    // below it — measured on the same whitespace-token proxy the limit was recorded against.
+    $body = (string) preg_replace('/\A---\R.*?\R---\R/s', '', $skill);
+    expect(count((array) preg_split('/\s+/', trim($body))))->toBeLessThan(5000);
 });
