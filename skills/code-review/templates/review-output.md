@@ -6,10 +6,10 @@
 >
 > **Incremental review scope (rounds after the first).** A round with a resolved baseline reviews the **delta since the last reviewed revision** (`git diff <baseline>..HEAD`), not the whole PR: new findings come from the delta, every unsettled finding from an earlier round is carried over at its original severity, and the Coverage / Assignment Conformance / Reviewer Comment Fulfillment gates still read the whole PR. Render both header lines below on every run, and a `Provenance` field on every finding. Canonical contract: `@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision*.
 >
-> **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and drop the *Refactoring (DRY / tech debt)* and *Refactoring proposals* sections entirely, and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
+> **Late-iteration report scope (CR iteration > 2).** When the caller passed `iteration > 2`, render Critical and Moderate findings only: drop every **Minor** sub-heading (in the Findings, Architecture, and Database Analysis sections) and render the `Report scope:` header line below. The `Counts:` line still carries the **real** detected numbers — never zero a suppressed severity. On iterations 1–2 and on standalone runs (no `iteration` passed) nothing is suppressed. Canonical contract: `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*.
 
 **Status:** clean / needs-fix
-**Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}  *(always the real detected counts — never zeroed to match a narrowed report scope)*
+**Counts:** Critical {n} · Moderate {n} · Minor {n}  *(always the real detected counts — never zeroed to match a narrowed report scope)*
 **Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
 **Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
 **Report scope:** Critical + Moderate only (iteration {n} — Minor findings and refactoring sections suppressed)  *(render this line **only** when the caller passed `iteration > 2` — see `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*; omit it entirely on iterations 1–2 and on standalone runs)*
@@ -22,7 +22,7 @@
 
 ## Technical Review
 
-> Strict, rule-by-rule compliance check of the diff against every applicable project rule (`@rules/**/*.md`) — architecture, security, style, refactoring, testing. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
+> The technical half of the review — the Core Analysis bullets, the Architecture conformance walk, security, and the coverage gate. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
 
 ## Findings
 
@@ -78,28 +78,6 @@
    **Version in use:** {resolved version + where it was read from — `composer.json` / lock file / pinned API version in config — or `could not determine`}
    **Verifying:** the concrete endpoints / SDK methods / webhook events / message contracts under review, one per line
    **Needed:** a link to the official documentation for that version covering the items above.
-
----
-
-## Refactoring (DRY / tech debt)
-
-> Render only when at least one in-scope refactoring item exists. Only items on lines touched by this PR (added or modified). Each item must reduce tech debt — no stylistic preferences. Omit the entire section when there are no items, and omit it entirely when the report scope is narrowed (`iteration > 2`).
-
-1. **Location:** `path/to/file.php:42`
-   **Problem:** one sentence.
-   **Refactor:** concrete consolidation step (Data Builder / DTO / Service / Action / Repository / ModelManager).
-   **Why:** rule reference (`@rules/laravel/architecture.md#<section>` or `@skills/class-refactoring/SKILL.md`) satisfied by the change.
-
----
-
-## Refactoring proposals
-
-> Render only when at least one out-of-scope structural improvement is justified by a rule. Omit the entire section when there are no items, and omit it entirely when the report scope is narrowed (`iteration > 2`).
-
-1. **Title:** short, actionable issue title
-   **Scope:** affected file(s) or area
-   **Reason:** rule violated + why it matters
-   **Approach:** brief description
 
 ---
 
@@ -170,6 +148,6 @@
 
 ---
 
-**Summary:** {n} Critical · {n} Moderate · {n} Minor · {n} Refactoring · assignment conformance: {conformant | N gap(s) | no linked issue}{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass}
+**Summary:** {n} Critical · {n} Moderate · {n} Minor · assignment conformance: {conformant | N gap(s) | no linked issue}{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass}
 {` · Assumption: <the assumption sentence verbatim from the branch that fired>` — appended **only** when a lens ran on an engine that is unresolved or has no dedicated lens, per `@skills/code-review/references/specialized-reviews.md`; omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, and omitted when neither trigger fired at all, so no resolution step ran and no lens is waiting on its answer}
 {` · security: owned by athena (<url of athena's security comment>)` — appended **only** when the inline `security-review` pass was skipped because the caller set `SECURITY_OWNER=athena`; omitted when the pass ran here. **The URL is mandatory**: the token records a delegation, and without a link to the delivered review there is nothing to distinguish a security pass that ran from one that died mid-run. A token with no URL is itself the visible gap, and `@skills/merge-github-pr/SKILL.md` blocks the merge on it}

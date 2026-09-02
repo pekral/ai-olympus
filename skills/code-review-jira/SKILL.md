@@ -41,7 +41,7 @@ The baseline still resolves from the **GitHub PR's** CR comments (`@skills/code-
 - `statusCheckRollup[]` for the CI check map comes off the GitHub PR JSON, loaded via `skills/code-review-github/scripts/load-issue.sh <PR-URL>` if it is not already loaded.
 
 ### 3. Run Reviews
-Run the always-run set, the conditional set, and the Refactoring & Tech Debt (DRY) analysis exactly as `@skills/code-review-github/references/cr-wrapper-contract.md` *3. Run Reviews* defines them, for **each** linked PR. Two JIRA-specific riders apply:
+Run the always-run set, the conditional set, and the reuse-first gate exactly as `@skills/code-review-github/references/cr-wrapper-contract.md` *3. Run Reviews* defines them, for **each** linked PR. Two JIRA-specific riders apply:
 
 - When `@skills/assignment-compliance-check/SKILL.md` returns a block, convert it to JIRA Wiki Markup before passing it to `pr-summary` for the JIRA target, and keep the GitHub-Markdown original for the linked-GitHub-issue mirror.
 - Every blocking documentation request from the Third-Party API & Service Analysis also becomes a plain-language one-liner in the JIRA *Clarifying questions* block below, so whichever tracker the answerer reads carries the ask.
