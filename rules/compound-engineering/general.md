@@ -125,7 +125,13 @@ Three purposes, in the order they pay off:
 
 ### Truncated input is disclosed, never absorbed in silence
 
-The deterministic loaders cap what they return: 100 comments per issue and per sub-issue, the first 50 sub-issues, one level of sub-issue nesting, and no line-anchored pull-request review comments at all. A run that hits a cap holds incomplete context **and cannot see that it does**.
+The deterministic loaders cap what they return, and the caps differ per tracker. State the caps of the tracker the run actually reads, never a single list for all three.
+
+- **GitHub.** The item's own comments are paginated in full, so an issue with 400 comments returns 400. The caps sit on the sub-issue tree: 100 comments per **sub-issue**, the first 50 sub-issues, and one level of nesting. Line-anchored pull-request review comments are not fetched at all.
+- **JIRA.** The issue's comments and each subtask's comments are paginated in full, so no cap applies to either.
+- **Bugsnag.** The error's comments are fetched in one unpaginated request, so only the API's first page comes back. This one is not a designed cap — it is a loader gap, and it is the silent truncation this section exists to catch.
+
+A run that hits a cap holds incomplete context **and cannot see that it does**.
 
 - **Compare the returned count against the cap and write down every truncation** where the next agent reads it — the shared brief on an orchestrated run, the handoff and the analysis output otherwise. Name which cap was hit.
 - **A silent truncation is worse than a missing feature**, because it looks exactly like complete context. Never report a comment analysis as complete over a truncated read set.
