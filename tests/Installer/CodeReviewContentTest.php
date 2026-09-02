@@ -187,7 +187,9 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
 
     expect($process)->toContain('### Review loop (mandatory — convergence gate)');
     expect($process)->toContain('`maxIterations = 3`');
-    expect($process)->toContain('The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred**');
+    expect($process)->toContain(
+        'The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred**',
+    );
     expect($process)->toContain('`references/review-loop-scope.md`');
     $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
     expect($loopScope)->toContain('do not publish; return findings as in-memory markdown for this loop iteration only');
