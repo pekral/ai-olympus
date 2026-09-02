@@ -1896,6 +1896,11 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('**Precedence over the ledger\'s in-flight stop — this check runs first.**');
     expect($content)->toContain('That stop is the last resort for an open round, never the first move:');
 
+    // Naming the path taken and the tool-availability limitation is a mandatory-but-conditional
+    // item of the handoff contract, not a loose sentence that no output rule carries.
+    expect($content)->toContain('- **Liveness checks:** rendered **only** when at least one liveness check came due this run');
+    expect($content)->toContain('**Omit the item entirely on every other run**');
+
     // The tail safety net never becomes a step of the golden path.
     expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
 });
