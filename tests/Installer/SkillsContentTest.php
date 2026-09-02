@@ -1951,6 +1951,31 @@ test('resolve-issue always signals the GitHub review-waiting phase once the PR i
     expect($content)->toContain('Leave the `Resolve_by_AI:in-progress` claim label in place');
 });
 
+test('resolve-issue puts a concrete tracker reference in the PR itself and verifies it landed', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
+
+    // "reference to the original issue" was the whole instruction — no keyword, no surface, no
+    // per-tracker shape, so nothing guaranteed the link GitHub, JIRA, or Bugsnag actually reads.
+    expect($pullRequest)->not->toContain('  - reference to the original issue' . "\n");
+    expect($pullRequest)->toContain('**reference to the source tracker item**');
+    expect($pullRequest)->toContain('`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*');
+
+    // One concrete shape per tracker, plus the described-task case that has nothing to link.
+    expect($pullRequest)->toContain('**GitHub-sourced task:** the literal English `Closes #<N>` in the body');
+    expect($pullRequest)->toContain('**JIRA-sourced task:** the issue key in the pull request **title**');
+    expect($pullRequest)->toContain('**Bugsnag-sourced task:** the error URL in the body');
+    expect($pullRequest)->toContain('**No tracker source (a task the user described directly):**');
+    expect($pullRequest)->toContain('This is the rule\'s inapplicable case, not a missing link');
+
+    // Apply-then-verify: the PR is re-read through the deterministic loader, and a link that did
+    // not land is retried once and then reported rather than assumed.
+    expect($pullRequest)->toContain('**Verify the link registered — the PR is not done until it did.**');
+    expect($pullRequest)->toContain('`gh pr create` exiting zero is not evidence');
+    expect($pullRequest)->toContain('skills/code-review-github/scripts/load-issue.sh <PR-URL>');
+    expect($pullRequest)->toContain('report the failed link write in the handoff');
+});
+
 test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag included', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md')
