@@ -49,7 +49,7 @@ Run the always-run set, the conditional set, and the Refactoring & Tech Debt (DR
 ### 4. Publish Results
 
 #### Bugsnag (consolidated non-technical comment)
-- Invoke `@skills/pr-summary/SKILL.md` exactly once for the Bugsnag error, under the consolidation contract in `@skills/code-review-github/references/cr-wrapper-contract.md`. It posts the comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (Bugsnag MCP server fallback on exit code 2/3).
+- Invoke `@skills/pr-summary/SKILL.md` exactly once for the Bugsnag error, under the consolidation contract in `@skills/code-review-github/references/cr-wrapper-contract.md`. It renders `@skills/pr-summary/templates/pr-summary-bugsnag.md` in plain text and posts the comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (Bugsnag MCP server fallback on exit code 2/3).
 - Each CR run posts a fresh comment. Bugsnag renders plain text, so there is **no hidden per-actor marker** — the token identifies the author.
 
 #### Linked GitHub issues (consolidated mirror — always-new comment per CR run)
@@ -67,7 +67,8 @@ Apply `@skills/code-review-github/references/cr-wrapper-contract.md` *Output Rul
 - The summary line's tracker-mirror status names the Bugsnag error the summary was posted on, and `no linked GitHub issue — mirror skipped` when `closingIssues[]` is empty.
 
 ### Bugsnag (non-technical summary — only here)
-- The non-technical Bugsnag comment is **produced and posted by `@skills/pr-summary/SKILL.md`**, not by this skill. Plain language understandable by non-developers, in two sections: *Summary of changes* and *How to test*. No file paths, line numbers, code snippets, or severity jargon.
+- The non-technical Bugsnag comment is **produced and posted by `@skills/pr-summary/SKILL.md`**, not by this skill. Plain language understandable by non-developers, in the two sections that skill renders on every target: *What changed* (Problem / Cause / Result / What I fixed, plus its two conditional fields) and *How to test*, followed by the closing links line. No file paths, line numbers, code snippets, or severity jargon.
+- Bugsnag gets **no reduced shape** — it renders the same structure as GitHub and JIRA, only in plain text with no markup at all. Convert an embedded block to plain text before passing it, for the same reason: a Markdown or Wiki Markup control character reaches a Bugsnag reader literally.
 
 ---
 
