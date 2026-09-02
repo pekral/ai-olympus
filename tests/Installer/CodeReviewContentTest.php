@@ -228,7 +228,10 @@ test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template
     expect($prSummary)->toContain('no target gets a reduced shape');
     expect($prSummary)->toContain('No leaked markup on JIRA');
     expect($skill)->toContain('Clarifying questions block (conditional)');
-    expect($skill)->toContain('only `How to test`');
+    // JIRA lost its reduced shape with the metadata lines that justified it. Pinned as an
+    // absence — the wrapper carried this literal on the base branch, so it fails there.
+    expect($skill)->not->toContain('only `How to test`');
+    expect($skill)->toContain('There is **no reduced JIRA shape**');
     expect($skill)->toContain('no leaked Markdown');
     expect($template)->toContain('h2. Clarifying questions');
 });
