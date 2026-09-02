@@ -1527,10 +1527,15 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     expect($rule)->toContain('substitutes `{"comments": []}` whenever the `acli` call fails');
     expect($rule)->toContain('**An empty JIRA `comments[]` is therefore indistinguishable from a failed fetch**');
 
-    // GitHub and Bugsnag fail hard instead, so the contrast that makes the JIRA case readable is
-    // pinned on both sides rather than left to the reader to infer from one bullet.
-    expect($rule)->toContain('A failed fetch exits 3, so an empty list here does mean the item carries no comments.');
+    // The item's own comments on GitHub, and Bugsnag's request, fail hard instead, so the contrast
+    // that makes the JIRA case readable is pinned on both sides rather than left to the reader.
+    expect($rule)->toContain('The item\'s own comments exit 3 on a failed fetch, so an empty list there is a real one.');
     expect($rule)->toContain('The request itself exits 3 on failure');
+
+    // GitHub's sub-issue tree is the other half and degrades exactly as JIRA does: any GraphQL
+    // failure falls back to an empty array, so the qualified wording is pinned rather than assumed.
+    expect($rule)->toContain('The sub-issue tree is the other half: any GraphQL failure falls back to an empty array');
+    expect($rule)->toContain('an empty `subIssues[]` is indistinguishable from a failed sub-issue fetch');
 
     // The mandatory disclosure covers both shapes, or a JIRA run has no cap to name and says nothing.
     expect($rule)->toContain('Name which cap was hit, or which fetch degraded.');
@@ -1541,6 +1546,9 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
 
     // Nor may the JIRA bullet go back to framing pagination as completeness.
     expect($rule)->not->toContain('paginated in full, so no cap applies to either');
+
+    // Nor may the GitHub bullet go back to denying the sub-issue degradation the loader has.
+    expect($rule)->not->toContain('A failed fetch exits 3, so an empty list here does mean the item carries no comments.');
 });
 
 test('every comment-reading consumer cross-references the canonical rule instead of copying it', function (): void {
