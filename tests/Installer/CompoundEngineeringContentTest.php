@@ -1308,7 +1308,11 @@ test('the ready-to-merge phase names its owner, its revert, and the no-source-is
 
     // Phase 3 fires at convergence, before the merge, on both surfaces.
     expect($rule)->toContain('**Phase 3 — ready to merge.**');
-    expect($rule)->toContain('the moment the code review converges (zero Critical and zero Moderate findings), and before the merge itself');
+    expect($rule)->toContain('the moment the code review converges, and before the merge itself');
+    // Exactly one convergence definition exists in the package, and phase 3 cites it rather than
+    // restating an older one beside it.
+    expect($rule)->toContain('**Convergence has exactly one definition in this package, and it is not restated here:**');
+    expect($rule)->toContain('that wording is withdrawn rather than left standing beside the newer one');
 
     // Its owner differs from phases 1 and 2: the implementing agent never observes convergence.
     expect($rule)->toContain('**Phase 3 has a different owner than phases 1 and 2.**');
