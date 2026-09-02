@@ -2066,6 +2066,36 @@ test('process-code-review writes the review-waiting phase signal when it opens t
     expect($referenced)->toContain('### JIRA-specific follow-up');
 });
 
+test('process-code-review links the PR to its tracker issue when it opens the PR itself', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    // The Finalization bullet list carried a title rule and a body rule and said nothing about
+    // the link, so this second PR-opening path opened unlinked PRs by default.
+    expect($content)->toContain('**Link the PR to the tracker issue the branch resolves**');
+    expect($content)->toContain('`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*');
+    expect($content)->toContain('This is the only other path that opens the PR, so it owns the link on that path.');
+
+    // The GitHub keyword is literal and English, and lives in the body — the PR #43 lesson.
+    expect($content)->toContain('the literal English `Closes #<N>` in the **body**');
+    expect($content)->toContain('a translated keyword is not parsed');
+
+    // JIRA / Bugsnag reuse the resolve-issue mechanics rather than growing a second copy.
+    expect($content)->toContain(
+        'per `@skills/resolve-issue/references/tracker-follow-up.md` '
+        . '*JIRA-specific follow-up* / *Bugsnag-specific follow-up*',
+    );
+
+    // Apply-then-verify, and the described-task case stays inapplicable rather than failed.
+    expect($content)->toContain('confirm the link landed; report a failed write rather than assuming it');
+    expect($content)->toContain('When the branch resolves no tracker issue, there is nothing to link');
+
+    // The two sections the JIRA / Bugsnag pointer names must actually exist in that reference.
+    $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+    expect($followUp)->toContain('### JIRA-specific follow-up');
+    expect($followUp)->toContain('### Bugsnag-specific follow-up');
+});
+
 test('the resolve-issue per-tracker follow-up lives in a listed reference', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
