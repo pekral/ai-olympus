@@ -71,11 +71,17 @@ a reviewer cannot tell a deliberate seam from a forgotten wire-up, and whoever c
 - chore: Maintenance tasks
 
 ## Issue Linking
-- If a GitHub issue is provided, always link it in commits so it can be closed after merge (e.g. `Closes #123`).
+
+This section is the GitHub mechanic for `@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*. That section owns the invariant across every tracker; this one owns how GitHub carries it.
+
+- **Write the literal `Closes #<N>` into the pull request body.** GitHub derives `closingIssuesReferences` — the auto-close on merge and the backlink rendered on the issue — from the body of the pull request. A reference that lives only in a commit message leaves the pull request unlinked until the merge lands that commit on the default branch. Every skill in this package that reads `closingIssues[]` reads it off the pull request long before that merge, so the body is where the keyword belongs.
+- **The keyword is English, always.** GitHub parses only `close` / `closes` / `closed`, `fix` / `fixes` / `fixed`, and `resolve` / `resolves` / `resolved`. A translated keyword is not parsed, and `closingIssuesReferences` stays empty while the surrounding sentence still reads like a link. `Closes #<N>` is therefore exempt from the assignment-language rule for the PR body, exactly like a code identifier.
+- **Keep the reference in the commit too.** A commit that resolves the issue carries `Closes #<N>` in its body, which is what closes the issue on a rebase merge. The commit reference is additive. It never substitutes for the reference in the pull request body.
+- **Verify the link landed.** After opening the pull request, re-read it through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm `closingIssues[]` names the issue. An external write can be silently blocked in auto-mode, so `gh pr create` exiting zero is not evidence.
 
 ## Pull Requests
 - PR title must be in English.
-- PR description must be written in the same language as the assignment.
+- PR description must be written in the same language as the assignment. The literal `Closes #<N>` keyword is the one exception, because GitHub parses no other spelling — see *Issue Linking* above.
 - Format PR messages as Markdown.
 
 ### PR Content Requirements
