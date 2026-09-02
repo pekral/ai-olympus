@@ -78,7 +78,7 @@ test('the code-review rule raises deploy-safe schema changes with severities and
  * Issue #67 — the bullet fires on both engines, but its closing sentence names only
  * `mysql-problem-solver`, the lens a PostgreSQL project never runs. The sentence is the owner's
  * mandate from #20 and stays verbatim, so the fix is the explanation that follows it: the section
- * is one per review, and whichever DB lens ran is the one that fills it.
+ * is one per review, and every DB lens that ran folds its findings into it.
  */
 test('the code-review rule explains why the fold sentence stays MySQL-named on PostgreSQL (issue #67)', function (): void {
     $rule = codeReviewRuleContents();
@@ -99,7 +99,7 @@ test('the code-review rule explains why the fold sentence stays MySQL-named on P
     // One `## Database Analysis` section per review is the whole point of the explanation; a second
     // wording claiming a per-engine section would put the two sentences back in conflict.
     expect($rule)->toContain(
-        'A review has exactly one `## Database Analysis` section, and the lens that fills it is the one the engine resolution selected.',
+        'A review has exactly one `## Database Analysis` section, and every DB lens the engine resolution ran folds its findings into that one section.',
     );
 });
 
