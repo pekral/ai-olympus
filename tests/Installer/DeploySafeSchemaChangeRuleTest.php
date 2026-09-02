@@ -74,6 +74,35 @@ test('the code-review rule raises deploy-safe schema changes with severities and
     expect(substr_count($rule, '**Scope: MySQL / MariaDB.**'))->toBe(1);
 });
 
+/**
+ * Issue #67 — the bullet fires on both engines, but its closing sentence names only
+ * `mysql-problem-solver`, the lens a PostgreSQL project never runs. The sentence is the owner's
+ * mandate from #20 and stays verbatim, so the fix is the explanation that follows it: the section
+ * is one per review, and whichever DB lens ran is the one that fills it.
+ */
+test('the code-review rule explains why the fold sentence stays MySQL-named on PostgreSQL (issue #67)', function (): void {
+    $rule = codeReviewRuleContents();
+
+    // The explanation is appended, never a rewrite: the #20 mandate is still the sentence directly
+    // above it, so a later edit cannot swap the mandate out and keep this test green.
+    expect($rule)->toContain(
+        '`mysql-problem-solver` findings.' . "\n"
+        . 'That sentence names `mysql-problem-solver` because it quotes the issue #20 mandate verbatim, '
+        . 'not because the destination changes with the engine.',
+    );
+
+    // Without this, a reviewer on a PostgreSQL project is told to fold the finding alongside the
+    // findings of a lens that, by the mutually exclusive branching, never produced any.
+    expect($rule)->toContain('On a PostgreSQL project that lens is `postgres-patterns`, and `mysql-problem-solver` never runs at all');
+    expect($rule)->toContain('Read the sentence above as *alongside the findings of the DB lens this review actually ran*.');
+
+    // One `## Database Analysis` section per review is the whole point of the explanation; a second
+    // wording claiming a per-engine section would put the two sentences back in conflict.
+    expect($rule)->toContain(
+        'A review has exactly one `## Database Analysis` section, and the lens that fills it is the one the engine resolution selected.',
+    );
+});
+
 test('the code-review and mysql skills run the deploy-safety walk they inherit (issue #20)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
