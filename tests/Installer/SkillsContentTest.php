@@ -2218,6 +2218,42 @@ test('a run that produced no post-convergence report says so in its handoff (iss
     }
 });
 
+test('the round-3 deferral boundary triages every remaining finding into exactly one outcome', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/process-code-review/references/round-three-deferral.md');
+    $scriptPath = $packageDir . '/skills/process-code-review/scripts/file-deferred-moderate.sh';
+
+    expect(is_file($scriptPath))->toBeTrue();
+    expect(is_executable($scriptPath))->toBeTrue();
+
+    // Round 3 defers instead of failing, but only for a non-security Moderate.
+    expect($skill)->toContain('6. **Round 3 — the deferral boundary.**');
+    expect($skill)->toContain('**Critical → hard stop.** Never deferred, never filed as a sub-issue.');
+    expect($skill)->toContain('**Moderate meeting the S1–S3 security carve-out → hard stop.**');
+    expect($skill)->toContain('references/round-three-deferral.md');
+
+    // The filing bar is cross-referenced, never restated.
+    expect($reference)->toContain('## The filing bar is cross-referenced, never restated');
+    expect($reference)->toContain('`@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* → *The filing bar*');
+    expect($reference)->not->toContain('It blocks or materially complicates a planned capability');
+
+    // A Moderate that satisfies neither criterion blocks — it never silently vanishes.
+    expect($reference)->toContain('## A Moderate that satisfies neither criterion still blocks');
+    expect($reference)->toContain('Exactly one of *deferred* or *blocking* always applies to every non-security Moderate');
+
+    // GitHub attaches under any parent; the EPIC label is another skill's convention.
+    expect($reference)->toContain('**The parent needs no `EPIC` label.**');
+    expect($reference)->toContain('`AddSubIssueInput` takes only `issueId` and `subIssueId`');
+
+    // JIRA uses the native subtask; Bugsnag's absence is a stated limitation.
+    expect($reference)->toContain('`acli jira workitem create --parent <KEY>`');
+    expect($reference)->toContain('**Bugsnag — no sub-issue concept, stated as a limitation.**');
+
+    // A deferral that did not land is not a deferral.
+    expect($reference)->toContain('**A deferral that did not land is not a deferral.**');
+});
+
 test('process-code-review writes the ready-to-merge phase signal when the review converges', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');

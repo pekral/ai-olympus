@@ -130,7 +130,7 @@ Rules:
 
 This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, or **Completion** until the loop converges. The final report (technical and non-technical) is published only **once**, after convergence.
 
-1. Initialise `iteration = 1` and `maxIterations = 3`. Round 3 is the **deferral boundary**, not a failure line: a run that still carries findings there triages them under step 6 instead of iterating a fourth time. The cap is what makes the review converge in a bounded number of rounds; it never lowers the quality bar of anything that merges, because a Critical and a security-relevant Moderate stay hard blockers at round 3 exactly as at round 1.
+1. Initialise `iteration = 1` and `maxIterations = 3`. Round 3 is the **deferral boundary**, not a failure line: a run still carrying findings there triages them under step 6 instead of iterating again. A Critical and a security-relevant Moderate stay hard blockers at round 3 exactly as at round 1, so the bounded round count never lowers the bar of anything that merges.
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`
@@ -141,18 +141,13 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
    > The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred** — every Moderate is either fixed in the loop or, at round 3 only, filed as a tracker sub-issue under step 6. A Moderate that meets the **S1–S3** security carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* is **never** deferrable and blocks until it is fixed.
 
-   The condition is compound, not simply `criticalCount == 0`. Read it in three parts:
-   - **`criticalCount == 0`** — unchanged and unconditional. A Critical blocks at every round, including round 3.
-   - **`unfulfilledCount == 0`** — unchanged. The run may not converge while any reviewer comment is still not fulfilled; the change does not yet correspond to what the reviewer asked for.
-   - **No undeferred Moderate** — on rounds 1 and 2 this means `moderateCount == 0`, exactly as before, because nothing is deferrable yet. At round 3, step 6 resolves each remaining Moderate into `deferred` or `blocking`, and the gate reads the `blocking` count.
-
-   When the gate holds → **converged**, exit the loop.
+   The condition is compound, not simply `criticalCount == 0`. On rounds 1 and 2 its third part means `moderateCount == 0`, because nothing is deferrable yet. When the gate holds → **converged**, exit the loop.
 5. Otherwise, when `iteration < maxIterations`, apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
-6. **Round 3 — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again. Triage every remaining finding exactly once, per `references/round-three-deferral.md`:
-   - **Critical → hard stop.** Never deferred, never filed as a sub-issue. Stop, surface the findings, escalate to the user; the PR stays a Draft and nothing is published.
-   - **Moderate meeting the S1–S3 security carve-out → hard stop.** Same treatment as a Critical. This repository holds one constant across every filter — *"Security-lens findings are never suppressed, at any severity"* — and the deferral boundary does not become the exception to it.
-   - **Every other Moderate → deferred as a sub-issue, or blocking.** Run it through the filing bar in `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* → *The filing bar* (cross-referenced, never restated here). A Moderate that passes the bar is filed as a sub-issue of the source tracker item and the run converges on it. A Moderate that fails the bar **stays blocking** — see the resolution table in `references/round-three-deferral.md`; it never silently vanishes.
-   - A run that reaches this step with at least one blocking finding left **has not converged**: stop and surface the remaining findings to the user, exactly as before. Do not push or publish a partial report.
+6. **Round 3 — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again. Triage each one exactly once against `references/round-three-deferral.md`, which owns the resolution table, the per-tracker filing mechanics, and the reporting contract:
+   - **Critical → hard stop.** Never deferred, never filed as a sub-issue.
+   - **Moderate meeting the S1–S3 security carve-out → hard stop.** Identical treatment to a Critical, because a security finding is never suppressed at any severity.
+   - **Every other Moderate → deferred as a sub-issue, or blocking.** The filing bar in `@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* → *The filing bar* decides which (cross-referenced, never restated). Passing it files a sub-issue via `scripts/file-deferred-moderate.sh`; failing it leaves the finding **blocking**, so it never silently vanishes.
+   - A run reaching this step with a blocking finding left **has not converged**: stop, surface the findings, publish nothing.
 
 #### Quiet review runs and incremental review scope
 
@@ -193,6 +188,7 @@ Apply each fix, commit it, push it, and let the next review iteration read the n
   - JIRA-originated reviews that also mirror to a JIRA ticket: `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> - cr-status`. The helper POSTs a new comment on every run — it never edits a prior status comment in place. Fall back to the JIRA MCP server's `addCommentToJiraIssue` on exit code 2/3.
 - Do **not** quote / reply to a previous CR or status comment — the always-new-comment convention (both GitHub and JIRA) replaces the previous quoting / in-place edit flow entirely, and every converge run adds its own self-contained status comment so the chronological sequence is the audit trail. The CR comment (`cr-comment` namespace) stays untouched by this skill.
 - Mark resolved items (checkbox or inline) inside the freshly posted body in all cases.
+- When the **Review loop** deferred a Moderate at round 3, render a `## Deferred to sub-issues` section in the `cr-status` body — one entry per finding, each carrying `file:line`, the original severity, the reason, and the sub-issue URL (`references/round-three-deferral.md` *Reporting the deferral*). Omit the section when nothing was deferred.
 - When **Pre-fix phase** produced at least one pre-existing fix commit, render a dedicated `## Pre-existing fixes` section in the `cr-status` body listing each commit subject (`fix/refactor(<scope>): pre-existing — …`) with a one-line rationale derived from the commit body, so reviewers can review the pre-existing fixes independently of the CR thread. Omit the section entirely when no pre-existing fix landed (consistent with the always-omit-empty-section convention).
 
 #### Resolve addressed reviewer threads (GitHub)
@@ -249,9 +245,18 @@ Rules:
   - reviewer threads resolved (count) and any left unresolved with the rejection / deferral reason
   - reviewer comments fulfilled (the final `M/N fulfilled` verdict) — every actionable reviewer instruction satisfied, or rejected/deferred with its recorded reason
   - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
+  - Moderate findings deferred at round 3 with the sub-issue URL each was filed as, or `none` when the loop converged before the deferral boundary (`references/round-three-deferral.md`)
   - loop iteration count and final convergence status, plus the review scope the final publish carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
   - `report: not-published (no-orchestrator)` when the run ended with no `hermes` reporting step and the source is a tracker — this skill publishes no post-convergence report, it only refuses to leave a missing one silent
   - remaining blockers (if any — should be empty when convergence was reached)
+
+---
+
+## References
+
+- references/ready-to-merge-signal.md
+- references/review-loop-scope.md
+- references/round-three-deferral.md
 
 ---
 
