@@ -425,6 +425,15 @@ test('no code review skill invokes the retired refactoring lenses', function ():
     $packageDir = dirname(__DIR__, 2);
     expect(is_file($packageDir . '/skills/class-refactoring/SKILL.md'))->toBeTrue();
     expect(is_file($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md'))->toBeTrue();
+
+    // Their retained `MODE=cr` contract must not point a caller at the two sections this change
+    // retired, or the retirement reads as a copy that fell behind rather than a decision.
+    foreach (['class-refactoring', 'refactor-entry-point-to-action'] as $skill) {
+        $lens = (string) file_get_contents($packageDir . '/skills/' . $skill . '/SKILL.md');
+        expect($lens)->not->toContain('Refactoring (DRY / tech debt)');
+        expect($lens)->not->toContain('Refactoring proposals');
+        expect($lens)->toContain('No code review invokes this mode any more');
+    }
 });
 
 test('the refactoring and tech-debt pass is retired across every code review skill', function (): void {
