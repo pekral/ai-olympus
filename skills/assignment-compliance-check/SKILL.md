@@ -90,7 +90,7 @@ Assignment Compliance comment posted to the issue tracker (Markdown shown; conve
 #### 1. <short title in everyday language>
 - **What the task asked for:** <one sentence quoting or paraphrasing the requirement, with the source comment URL or "issue description">
 - **What the pull request does instead:** <one sentence describing the actual behavior implied by the diff>
-- **Example a tester would see:** <concrete input → expected output vs actual output, ideally taken from the example the reporter provided; when *Available behind* is set, the example must start by enabling the gating toggle>
+- **Example a tester would see:** <concrete input → expected output vs actual output, ideally taken from the example the reporter provided; when the change is reachable only behind a test parameter, the example must start by enabling the gating toggle>
 
 (Repeat for every Critical gap.)
 ```
