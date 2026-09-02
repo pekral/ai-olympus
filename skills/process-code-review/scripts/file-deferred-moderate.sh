@@ -126,8 +126,24 @@ if [[ "$TRACKER" == "github" ]]; then
   need gh
   need jq
 
+  # The `$owner` / `$repo` / `$n` / `$parent` / `$child` tokens below are GraphQL variables bound
+  # by the `-F` flags, never shell ones. A quoted heredoc keeps the shell out of them without a
+  # linter suppression.
+  ISSUE_ID_QUERY="$(cat <<'GRAPHQL'
+query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){id title url}}}
+GRAPHQL
+)"
+  SUBISSUES_QUERY="$(cat <<'GRAPHQL'
+query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){subIssues(first:100){nodes{number}}}}}
+GRAPHQL
+)"
+  ADD_SUBISSUE_MUTATION="$(cat <<'GRAPHQL'
+mutation($parent:ID!,$child:ID!){addSubIssue(input:{issueId:$parent,subIssueId:$child}){issue{number}}}
+GRAPHQL
+)"
+
   # A pull request is never a sub-issue parent; only issues carry the relation.
-  PARENT_JSON="$(gh api graphql -f query='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){id title url}}}' \
+  PARENT_JSON="$(gh api graphql -f query="$ISSUE_ID_QUERY" \
     -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" || {
     echo "file-deferred-moderate.sh: failed to read parent issue $PARENT" >&2
     exit 3
@@ -141,7 +157,7 @@ if [[ "$TRACKER" == "github" ]]; then
   if [[ "$DRY_RUN" == "1" ]]; then
     {
       echo "would run: gh issue create --repo $OWNER/$REPO --title <TITLE> --body-file - ${LABEL:+--label \"$LABEL\"}"
-      echo "would run: gh api graphql -f query='mutation(\$parent:ID!,\$child:ID!){addSubIssue(input:{issueId:\$parent,subIssueId:\$child}){issue{number}}}' -F parent=$PARENT_ID -F child=<CHILD_ID>"
+      echo "would run: gh api graphql -f query=<addSubIssue mutation> -F parent=$PARENT_ID -F child=<CHILD_ID>"
       echo "would run: skills/code-review-github/scripts/load-issue.sh $PARENT   # verify the relation landed"
       echo "action=dry-run parent=$PARENT parent_id=$PARENT_ID title=$TITLE label=${LABEL:-<none>}"
     } >&2
@@ -157,14 +173,14 @@ if [[ "$TRACKER" == "github" ]]; then
   }
   CHILD_NUMBER="$(printf '%s' "$CHILD_URL" | sed -nE 's#.*/issues/([0-9]+).*#\1#p')"
 
-  CHILD_ID="$(gh api graphql -f query='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){id}}}' \
+  CHILD_ID="$(gh api graphql -f query="$ISSUE_ID_QUERY" \
     -F owner="$OWNER" -F repo="$REPO" -F n="$CHILD_NUMBER" 2>/dev/null | jq -r '.data.repository.issue.id // empty')"
   if [[ -z "$CHILD_ID" ]]; then
     echo "file-deferred-moderate.sh: created $CHILD_URL but could not resolve its node id to attach it to $PARENT" >&2
     exit 4
   fi
 
-  gh api graphql -f query='mutation($parent:ID!,$child:ID!){addSubIssue(input:{issueId:$parent,subIssueId:$child}){issue{number}}}' \
+  gh api graphql -f query="$ADD_SUBISSUE_MUTATION" \
     -F parent="$PARENT_ID" -F child="$CHILD_ID" >/dev/null 2>&1 || {
     echo "file-deferred-moderate.sh: created $CHILD_URL but addSubIssue failed against $PARENT" >&2
     exit 4
@@ -172,7 +188,7 @@ if [[ "$TRACKER" == "github" ]]; then
 
   # An external write can be silently blocked in auto-mode, so a zero exit is
   # not evidence: re-read the parent and confirm the child is actually attached.
-  ATTACHED="$(gh api graphql -f query='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){subIssues(first:100){nodes{number}}}}}' \
+  ATTACHED="$(gh api graphql -f query="$SUBISSUES_QUERY" \
     -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null | jq -r --arg c "$CHILD_NUMBER" '[.data.repository.issue.subIssues.nodes[]?.number|tostring]|index($c)//empty')"
   if [[ -z "$ATTACHED" ]]; then
     echo "file-deferred-moderate.sh: created $CHILD_URL but $PARENT does not list it as a sub-issue" >&2
