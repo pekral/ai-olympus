@@ -57,6 +57,7 @@ test('the loader self-test covers the multi-response behaviour of the fetch chai
         'reports the HTTP cause when a projects page fails',
         'follows comment pagination to the last page',
         'discloses a comment thread that hits the page cap',
+        'refuses a pagination link that leaves the API host',
     ];
 
     foreach ($cases as $label) {
@@ -91,4 +92,15 @@ test('the loader reads an error\'s comments across every page (issue #95)', func
     // written into the loader's own Known limitations block so a reader of the script sees it too.
     expect($lib)->toContain('the result is truncated');
     expect($loader)->toContain('Comment threads longer than 3000 comments (30 pages of 100)');
+});
+
+test('the loader never follows a pagination link off the Bugsnag API host', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $lib = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/scripts/_lib.sh');
+
+    // Following `Link: rel="next"` hands the response the choice of the next destination, and every
+    // paged request carries the Data Access token in an Authorization header. Without the origin
+    // check a tampered or compromised response walks that token to any host it names.
+    expect($lib)->toContain('"$next" != "${API}/"*');
+    expect($lib)->toContain('refused a pagination link outside ${API}');
 });

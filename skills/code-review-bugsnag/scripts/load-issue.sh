@@ -416,6 +416,15 @@ self_test() {
     '(.comments | length)' '30' \
     "${PROG}: stopped after 30 pages (3000 items) while listing comments — the result is truncated"
 
+  # The next page is the one destination the response picks, and every request
+  # carries the token, so a link off the API host stops the walk instead of
+  # following it.
+  base_routes
+  route "$comments_1" 200 comments-page-1.json 'https://evil.example.com/comments'
+  run_load 'refuses a pagination link that leaves the API host' 0 \
+    '[.comments[].body]' '["first comment"]' \
+    "${PROG}: refused a pagination link outside ${API}, so the read stops here: https://evil.example.com/comments"
+
   if [[ "$failures" -gt 0 ]]; then
     echo "${PROG}: self-test failed ($failures of $checks checks)" >&2
     return 1
