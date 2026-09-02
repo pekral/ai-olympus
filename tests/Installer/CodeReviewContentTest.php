@@ -275,6 +275,7 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     $githubTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md');
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+    $bugsnagTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-bugsnag.md');
 
     expect($prSummary)->toContain('Terse output style (issue #51)');
     expect($prSummary)->toContain('never invent new abbreviations');
@@ -289,7 +290,7 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
     expect($prSummary)->toContain('Terseness removes ideas per sentence and removes filler');
     expect($prSummary)->toContain('telegraphic fragments are not terse, only shorter');
 
-    foreach ([$githubTemplate, $jiraTemplate] as $template) {
+    foreach ([$githubTemplate, $jiraTemplate, $bugsnagTemplate] as $template) {
         expect($template)->toContain('Terse, but every number stays.');
         expect($template)->not->toContain('fragments');
     }
