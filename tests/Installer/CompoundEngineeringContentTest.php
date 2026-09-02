@@ -373,11 +373,12 @@ test('newly created tracker issues get the single most relevant existing label (
     // the principle and the per-tracker mechanics (four executors, not one).
     expect($rule)->toContain('## Label newly created tracker issues');
 
-    // Select-only-from-loaded-list + never-create, with the EPIC exception named
-    // inline (rule<->skill parity: an absolute the skill legitimately violates
-    // must be named in the rule, not left to silently contradict it).
+    // Select-only-from-loaded-list + never-create, with both structural-label
+    // exceptions named inline (rule<->skill parity: an absolute the skill
+    // legitimately violates must be named in the rule, not left to silently
+    // contradict it). The phase label joined `EPIC` as the second one.
     expect($rule)->toContain('never create a new label');
-    expect($rule)->toContain('single sanctioned exception is the structural `EPIC` label');
+    expect($rule)->toContain('the `EPIC` label that `@skills/create-issues-from-text/SKILL.md` *EPIC parent & sub-issues* creates');
 
     // The three semantic exclusion classes stay generic (name/description-driven),
     // not hardcoded to this repository's own label set.
@@ -1240,4 +1241,70 @@ test('the Bash capability boundary names the .env.example read exception the ski
         'reading that one template is the named exception '
         . '`@rules/compound-engineering/orchestration.md` *Bash capability boundary* carves out of its `.env*` read ban',
     );
+});
+
+test('compound-engineering rule states the two-phase tracker status invariant', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+
+    // The section sits directly after the claim section, which owns the overlapping phase-1 write.
+    $claimPos = strpos($rule, '## Claim a tracker issue before working on it');
+    $phasePos = strpos($rule, '## Tracker status tracks the phase of work');
+    $deferredPos = strpos($rule, '## File deferred points as follow-up tracker issues');
+    expect($claimPos)->toBeInt();
+    expect($phasePos)->toBeInt();
+    expect($deferredPos)->toBeInt();
+
+    if (!is_int($claimPos) || !is_int($phasePos) || !is_int($deferredPos)) {
+        return;
+    }
+
+    expect($claimPos)->toBeLessThan($phasePos);
+    expect($phasePos)->toBeLessThan($deferredPos);
+
+    // Both phases, both mandatory.
+    expect($rule)->toContain('**Phase 1 — in progress.**');
+    expect($rule)->toContain('**Phase 2 — waiting for code review.**');
+    expect($rule)->toContain('**Both writes are unconditional.**');
+    expect($rule)->toContain('**Both writes are verified.**');
+    expect($rule)->toContain('**Both writes are idempotent.**');
+
+    // Mechanics stay in the skill, mirroring the claim section right above.
+    expect($rule)->toContain('@skills/resolve-issue/SKILL.md');
+});
+
+test('the tracker status invariant documents the Bugsnag limitation instead of omitting it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+
+    // A tracker that cannot express a phase is a stated limitation, never a silent gap — the same
+    // stance the claim section already takes with *Bugsnag has no auto-claim*.
+    expect($rule)->toContain('**A tracker that cannot express a phase says so inline.**');
+    expect($rule)->toContain('**Bugsnag is that tracker, and the exception is deliberate.**');
+    // The reason is named: the status field is a resolution enum with no phase value.
+    expect($rule)->toContain('`open`, `fixed`, `ignored`, `snoozed`');
+    expect($rule)->toContain('It carries no in-progress value and no in-review value');
+    // The substitute signal is named, so the exception is not a dead end.
+    expect($rule)->toContain('The substitute signal is the comment the run posts on the error');
+
+    // The PR opt-out is the second named exception; phase 2 has nothing to signal without a PR.
+    expect($rule)->toContain('**No pull request, no phase-2 write.**');
+
+    // The invariant lifts no gate: a resolution write stays human-only.
+    expect($rule)->toContain('**A phase write is never a resolution write.**');
+});
+
+test('the phase label is named as the second sanctioned label-creation exception', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // *Label newly created tracker issues* states "never create a new label" as an absolute, so a
+    // second mechanism that legitimately creates one has to be named inline in that same rule.
+    expect($rule)->toContain('Two sanctioned exceptions exist, and both are structural labels an existing mechanism creates on demand');
+    expect($rule)->toContain('the phase label that *Tracker status tracks the phase of work* above requires');
+
+    // The phase-2 write is externally visible, so it carries its own row in the consent inventory.
+    expect($orchestration)->toContain('Write the review-waiting phase signal on the source issue once the PR is open');
+    expect($orchestration)->toContain('*Tracker status tracks the phase of work* — mechanics in `@skills/resolve-issue/SKILL.md`');
 });
