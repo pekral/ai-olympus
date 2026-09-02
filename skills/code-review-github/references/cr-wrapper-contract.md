@@ -62,7 +62,7 @@ Before reviewing code, load and analyze the full assignment. The wrapper names *
    - **Edge cases and constraints** — mentioned by the reporter or in comments
    - **Test data** — any sample inputs, payloads, or scenarios provided
 3. Use this context to evaluate whether the implementation fully satisfies the assignment — not just whether the code is technically correct.
-4. If the assignment contains test data or test scenarios, verify they are covered by existing or new tests. Flag missing test coverage as a finding.
+4. Hand the extracted criteria, scenarios, and test data to the **Validation & Coverage Gate** (`@rules/code-review/review-process.md`). Its *Acceptance-criteria use-case coverage* bullet owns the whole contract — that a criterion is covered only when a test targets the scenario **and** uses the data the assignment states, what counts as data, when the data condition does not apply, what is and is not a deviation, the severity, and the gating against the Coverage gate and Test organization. Do not restate a weaker version of it here.
 
 #### Reviewer Comment Fulfillment Gate (mandatory)
 

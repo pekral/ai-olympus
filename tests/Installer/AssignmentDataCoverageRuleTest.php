@@ -155,3 +155,42 @@ test('issue context analysis reads the assignment when the run carries no tracke
     expect($skill)->toContain('Extract from the issue — or, under the fourth branch above, from the assignment the run carries');
     expect(assignmentDataGateRule())->toContain('**Criteria and data come from whichever source Issue Context Analysis resolved**');
 });
+
+function crWrapperContract(): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/skills/code-review-github/references/cr-wrapper-contract.md');
+}
+
+test('the cr-wrapper contract points at the gate instead of restating a weaker rule (issue #86)', function (): void {
+    $contract = crWrapperContract();
+
+    // Built from two halves on purpose: the package-wide sweep below counts occurrences of this
+    // string too, and a contiguous literal here would count itself and make the assertion
+    // unfalsifiable — the same reasoning the mirrored issue #69 enumeration assertion applies.
+    $retiredSentence = 'If the assignment contains test data or test scenarios, verify they are'
+        . ' covered by existing or new tests. Flag missing test coverage as a finding.';
+
+    // `origin/master` carries exactly one occurrence of the retired sentence; this run removes it
+    // from its last remaining home so every tracker wrapper shares the one, stronger instruction.
+    expect(substr_count($contract, $retiredSentence))->toBe(0);
+
+    expect($contract)->toContain('Hand the extracted criteria, scenarios, and test data to the **Validation & Coverage Gate**');
+    expect($contract)->toContain('*Acceptance-criteria use-case coverage* bullet owns the whole contract');
+    expect($contract)->toContain('Do not restate a weaker version of it here');
+});
+
+test('the retired coverage instruction cannot reappear undetected anywhere in the package (issue #86)', function (): void {
+    // Package-wide, not just inside the one file this run edits — the whole point of issue #86 is
+    // that a sibling copy of the retired sentence must never sit undetected next to the gate again.
+    // Split into two halves so this file's own occurrence of the phrase does not count itself.
+    $retiredSentence = 'If the assignment contains test data or test scenarios, verify they are'
+        . ' covered by existing or new tests. Flag missing test coverage as a finding.';
+
+    $occurrences = 0;
+
+    foreach (packageTextFiles() as $contents) {
+        $occurrences += substr_count($contents, $retiredSentence);
+    }
+
+    expect($occurrences)->toBe(0);
+});
