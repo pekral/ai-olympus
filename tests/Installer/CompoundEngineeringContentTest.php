@@ -479,8 +479,11 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
     // AC2 — the preserved-invariants list proves no mechanism reduces review depth.
     expect($rule)->toContain('### What never changes (preserved invariants)');
     expect($rule)->toContain(
-        '`prepare-issue-context`, `code-review`, `security-review`, `api-review`, `assignment-compliance-check`, `analyze-problem`, `class-refactoring`',
+        '`prepare-issue-context`, `code-review`, `security-review`, `api-review`, `assignment-compliance-check`, `analyze-problem`, the coverage gate',
     );
+    // The retired refactoring lens is no longer part of the always-run CR set, so the invariant
+    // list a reader consults to check savings mode dropped nothing must not still name it.
+    expect($rule)->not->toContain('`class-refactoring`');
     expect($rule)->toContain('the same reviewer runs (`athena`)');
     expect($rule)->toContain('the same convergence gate applies (`@skills/process-code-review/SKILL.md` *Review loop* step 4, `maxIterations = 3`)');
     expect($rule)->toContain(
