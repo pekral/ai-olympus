@@ -111,6 +111,31 @@ test('agents directory ships the hephaestus code-writing subagent with required 
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
 
+test('hephaestus grants the two tracker phase writes its consent-table rows assign it (issue #194)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $boundary = installerDocsSection($hephaestus, '## Bash boundary');
+
+    // The consent table assigns hephaestus both phase writes, and the phase-2 mechanics are two
+    // raw `gh` writes — so its own Bash boundary must name them, or the obligation contradicts
+    // the permission (the exact shape issue #194 forbids).
+    expect($orchestration)->toContain('Write the claim label (`Resolve_by_AI:in-progress`) on the source issue');
+    expect($orchestration)->toContain('Write the review-waiting phase signal on the source issue once the PR is open');
+
+    expect($boundary)->toContain('gh issue edit --add-label "Resolve_by_AI:in-progress"');
+    expect($boundary)->toContain('gh label create "ready for review"');
+    expect($boundary)->toContain('gh issue edit --add-label "ready for review"');
+
+    // Named as an exception to the wrapper rule, mirroring how daedalus names its own `gh label`
+    // surface — an unqualified ban next to a mandated write is what left the two disagreeing.
+    expect($boundary)->toContain('sanctioned exception to *never a raw `gh` write outside the canonical wrappers this package ships*');
+    expect($boundary)->toContain('every other raw `gh` write stays forbidden');
+
+    // The phase-2 write is externally visible, so it also owes its own audit line.
+    expect($boundary)->toContain('writing the review-waiting phase signal on the source issue once the PR is open');
+});
+
 test('the roster ships no general problem-analysis subagent and daedalus routes accordingly', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
