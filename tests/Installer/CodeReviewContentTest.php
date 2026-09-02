@@ -405,6 +405,29 @@ test('CR and resolution skills carry no live reference to the removed test-like-
     }
 });
 
+test('both review templates can render a round-3 deferred Moderate', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    foreach ([
+        'skills/code-review/templates/review-output.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+    ] as $relativePath) {
+        $template = (string) file_get_contents($packageDir . '/' . $relativePath);
+
+        // Without a field for it, a deferred Moderate renders as an outstanding blocker on a PR the
+        // loop just converged and promoted — the reader concludes the opposite of the gate.
+        expect($template)->toContain('- **Deferred:** `<sub-issue URL>`');
+        expect($template)->toContain('@skills/process-code-review/references/round-three-deferral.md');
+        expect($template)->toContain('the finding is recorded, not resolved');
+        // The field is a deferral-only field, so it never renders on an ordinary Moderate.
+        expect($template)->toContain('Omit this field entirely unless the finding was deferred.');
+
+        // And the Status line has to say which value a converged-with-deferrals run publishes.
+        expect($template)->toContain('every remaining Moderate carrying a `Deferred:` field');
+        expect($template)->toContain('A Moderate without that field is outstanding, so the status is `needs-fix`');
+    }
+});
+
 test('no code review skill invokes the retired refactoring lenses', function (): void {
     $reviewSkills = [
         'skills/code-review/SKILL.md',
