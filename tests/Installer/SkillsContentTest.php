@@ -2236,6 +2236,9 @@ test('the ready-to-merge reference carries every tracker, the no-op, and the rev
     expect($reference)->toContain('skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>');
     expect($reference)->toContain('the revert direction needs no new capability');
 
+    // A withdrawal that does not land is reported, exactly as a failed write is.
+    expect($reference)->toContain('report the stale phase-3 signal in the completion report and never report convergence');
+
     // Detecting the staleness and owning the write are different roles.
     expect($reference)->toContain('**The detector is not always the owner.**');
 });
