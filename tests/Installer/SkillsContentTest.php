@@ -146,6 +146,31 @@ test('merge-github-pr post-merge step includes conditional worktree cleanup with
     expect($merge)->toContain('git worktree prune');
 });
 
+test('the merge gate reads zero Critical with no undeferred Moderate, coherently everywhere', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $git = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    // One definition, stated the same way on every surface that gates a merge.
+    foreach ([$git, $merge] as $surface) {
+        expect($surface)->toContain('0 Critical, and no undeferred Moderate');
+        expect($surface)->not->toContain('0 Critical + 0 Moderate');
+    }
+
+    // A Critical never defers, and a security-relevant Moderate never defers either.
+    expect($git)->toContain('**A Critical always blocks**, at every round, with no deferral and no exception.');
+    expect($git)->toContain('**A security-relevant Moderate is never deferrable.**');
+    expect($merge)->toContain('**No deferred entry is security-relevant.**');
+
+    // The merge gate can actually verify the new condition from what the review publishes.
+    expect($merge)->toContain('**Every Moderate it reports is accounted for.**');
+    expect($merge)->toContain('`## Deferred to sub-issues`');
+
+    // The canonical definition lives in the loop that computes it.
+    expect($process)->toContain('canonical definition — every other file in this package cites this one and never restates it');
+});
+
 test('merge-github-pr billing exception honours an explicit merge-anytime request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
