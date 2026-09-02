@@ -26,7 +26,7 @@
 #     "title", "body", "state", "stateReason",
 #     "author", "assignees", "labels", "milestone",
 #     "createdAt", "updatedAt", "closedAt",
-#     "comments":     [ { "author", "body", "createdAt", "updatedAt", "url" } ],
+#     "comments":     [ { "author", "authorAssociation", "body", "createdAt", "updatedAt", "url" } ],
 #     "reactionsCount": <int>,
 #
 #     # issue-only (null / [] when kind == "pr")
@@ -231,6 +231,7 @@ def total_reactions:
 def map_comments:
   [ (. // [])[] | {
       author: (.author.login // null),
+      authorAssociation: (.authorAssociation // null),
       body: (.body // ""),
       createdAt: (.createdAt // null),
       updatedAt: (.updatedAt // null),
