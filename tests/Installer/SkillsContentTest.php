@@ -645,7 +645,7 @@ test('jira rule permits three sanctioned transitions and names every helper', fu
     // Every helper must be mentioned as a sanctioned exception.
     expect($content)->toContain('three exceptions');
     // The revert direction adds no fourth transition: it reuses the review helper.
-    expect($content)->toContain("needs no fourth helper: that move is exception (2)'s own transition, run again");
+    expect($content)->toContain('needs no fourth helper: that move is exception (2)\'s own transition, run again');
 });
 
 test('transition-to-ready-to-merge refuses non-merge targets, is idempotent, and catches false positives', function (): void {
