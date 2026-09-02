@@ -1337,6 +1337,12 @@ test('the ready-to-merge phase names its owner, its revert, and the no-source-is
     // JIRA now sanctions three transitions, so the L3 default and the L1 row both say three.
     expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
     expect($orchestration)->toContain('the three sanctioned helper scripts, `@rules/jira/general.md`');
+
+    // The JIRA rule states the trigger for the same phase-3 write, so it cites the one definition
+    // instead of restating the withdrawn one beside it.
+    $jira = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+    expect($jira)->not->toContain('zero Critical and zero Moderate');
+    expect($jira)->toContain('`@skills/process-code-review/SKILL.md` *Review loop* step 4');
 });
 
 test('compound-engineering rule requires every agent-opened PR to link back to its tracker item', function (): void {
