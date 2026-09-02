@@ -1473,6 +1473,7 @@ test('the comment-analysis rule gates scope refinement on the existing authorshi
 test('the comment-analysis rule resolves trust per tracker and names the JIRA limitation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
 
     // GitHub: the loader already carries the field, with the sub-issue gap named rather than assumed.
     expect($rule)->toContain('**GitHub — the loader already carries the field.**');
@@ -1493,7 +1494,6 @@ test('the comment-analysis rule resolves trust per tracker and names the JIRA li
 
     // The quoted half of the cited test must still read that way in the file that owns it, so the
     // two rule files cannot drift apart the way they had.
-    $codeReview = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     expect($codeReview)->toContain('JIRA — a project member / assignee, not an external reporter');
 
     // Bugsnag: trusted because the platform gates the surface, not because a per-comment check ran.
