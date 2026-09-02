@@ -2181,3 +2181,57 @@ test('a run that produced no post-convergence report says so in its handoff (iss
         expect($skill)->not->toContain('běh bez orchestrátoru');
     }
 });
+
+test('process-code-review writes the ready-to-merge phase signal when the review converges', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $referencePath = $packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md';
+
+    expect(is_file($referencePath))->toBeTrue();
+
+    // Convergence is the one moment phase 3 fires, so the skill owns both halves of the signal.
+    expect($skill)->toContain('#### Promote the PR out of Draft and signal ready to merge');
+    expect($skill)->toContain('phase 3 of `@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+    expect($skill)->toContain('**Write the ready-to-merge phase signal on the source tracker item in this same step**');
+    expect($skill)->toContain('live in `references/ready-to-merge-signal.md`');
+
+    // A behaviour-changing gate fix re-opens the review, so the signal is withdrawn again.
+    expect($skill)->toContain('`references/ready-to-merge-signal.md` *Revert when the review re-opens*');
+
+    // The extraction exists to hold the body under the skill-check limit, so the body must stay
+    // below it — measured on the same whitespace-token proxy resolve-issue is measured against.
+    $body = (string) preg_replace('/\A---\R.*?\R---\R/s', '', $skill);
+    expect(count((array) preg_split('/\s+/', trim($body))))->toBeLessThan(5_000);
+});
+
+test('the ready-to-merge reference carries every tracker, the no-op, and the revert', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md');
+
+    // Create-apply-verify on GitHub, mirroring the phase-2 label mechanics.
+    expect($reference)->toContain('gh label create "ready to merge"');
+    expect($reference)->toContain('gh issue edit <N> --add-label "ready to merge"');
+    expect($reference)->toContain('skills/code-review-github/scripts/load-issue.sh <URL>');
+
+    // JIRA runs the third sanctioned helper and nothing else.
+    expect($reference)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh <KEY|URL>');
+    expect($reference)->toContain('Perform no other status transition; all others remain human-only.');
+
+    // Bugsnag is a named limitation, never a silent omission.
+    expect($reference)->toContain('### Bugsnag-specific write');
+    expect($reference)->toContain('carrying no ready-to-merge value');
+
+    // A described task has no tracker item, so the issue-side half is an explicit no-op.
+    expect($reference)->toContain('### No source tracker item — explicit no-op');
+    expect($reference)->toContain('This is not a failure and not a partial success');
+
+    // The revert reuses the existing review transition and adds no fourth JIRA capability.
+    expect($reference)->toContain('### Revert when the review re-opens');
+    expect($reference)->toContain('gh pr ready --undo <PR-NUMBER|URL>');
+    expect($reference)->toContain('gh issue edit <N> --remove-label "ready to merge"');
+    expect($reference)->toContain('skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>');
+    expect($reference)->toContain('the revert direction needs no new capability');
+
+    // Detecting the staleness and owning the write are different roles.
+    expect($reference)->toContain('**The detector is not always the owner.**');
+});
