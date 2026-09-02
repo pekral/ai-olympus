@@ -277,7 +277,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
         'rules/jira/general.md' => 'a60a3950395478c2ae150ed93a4a2f6a384dd0338df353008530bbcdb0c79fcf',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
-        'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
+        // Re-baselined: the review stopped walking commit history, so the two commit-history
+        // steps of the Test Coverage Contract became authoring guidance and the rule now states
+        // what that costs — the proof that behaviour was preserved across a refactor.
+        'rules/refactoring/general.md' => '6a541ac80dd25fe355284a7b8c9ead0e9371d1888b703941a8f89139182a3fc0',
         'rules/reports/general.md' => 'aa0df08a4b77e387717b16c7bfdea1602e8698f565fdbf21322fc67fbb8d1a5f',
     ];
 
