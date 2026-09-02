@@ -58,7 +58,12 @@ Every comment opens with two metadata lines (in JIRA Wiki Markup), then the body
 
 **Metadata lines (always at the top of the comment, in this order):**
 
-- *Authors:* the real change author(s) — JIRA display name when the JIRA loader can match the committer, otherwise the GitHub handle `@handle`, otherwise the git `Name <email>` form. Comma-separated in commit order, deduped. Resolved exactly as `@skills/pr-summary/SKILL.md` resolves authors (`git log --pretty='%an <%ae>' base..HEAD`, plus PR `author.login` and `commits[].author.login`). Never list the agent / publishing identity. When authorship cannot be determined, write *Authors: unknown — git history did not yield a recognisable identity*.
+- *Authors:* the real change author(s), resolved here — this skill owns the algorithm, no other skill resolves authorship for it:
+    1. Collect the commit authors with `git log --pretty='%an <%ae>' base..HEAD | awk 'NF' | sort -u`.
+    2. When PR metadata is available, also collect `author.login` and the unique `commits[].author.login` set.
+    3. On a JIRA target, prefer the JIRA-account display name when the loader's user lookup — or `assignee` / `reporter` matching the committer — resolves one. Otherwise prefer the GitHub handle `@handle`. Otherwise fall back to the git `Name <email>` form.
+    4. List the identities comma-separated in commit order, deduped.
+  Never list the agent / publishing identity. When authorship cannot be determined, write *Authors: unknown — git history did not yield a recognisable identity*.
 - *Available behind:* present only when the verified change is reachable only behind a test parameter (admin switch label _NovaSMS API version_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature toggle, allow-listed account). Name the switch label exactly as it appears in the admin UI when one exists (per the forbidden-vocabulary rule — UI labels, not feature keys). When the change is reachable for every user unconditionally, omit the line entirely.
 
 **Body sections:**
@@ -87,7 +92,7 @@ Repeat until the body is clean. **Do not publish a comment that still contains f
 - Never change the JIRA task status.
 
 ## Related skills (to disambiguate)
-- `@skills/pr-summary/SKILL.md` — short, two-section business summary for PR / JIRA. Different audience (project managers, not QA testers).
+- `@skills/pr-summary/SKILL.md` — the non-technical *What changed* / *How to test* comment for a PR, JIRA ticket, or Bugsnag error. Different audience (project managers, not QA testers), and it credits no authors — this skill resolves its own.
 - **interactive-testing** (when available in the host environment, not shipped with this package) — interactive browser-driven validation. Different flow: an agent walks through scenarios live in a browser instead of producing written instructions for a human tester.
 
 ## Output
