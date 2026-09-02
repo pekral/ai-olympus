@@ -1902,6 +1902,10 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('- **Liveness checks:** rendered **only** when at least one liveness check came due this run');
     expect($content)->toContain('**Omit the item entirely on every other run**');
 
+    // The permitted PID probes are named by what they actually target, so the claim stays true of
+    // the stale-brief and worktree probes this file also carries, not only the lock holders.
+    expect($content)->toContain('a write-lock or sweep-lock holder, a stale brief\'s `## PID` line, a locked CR worktree');
+
     // The tail safety net never becomes a step of the golden path.
     expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
 });
