@@ -1960,10 +1960,10 @@ test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag
     expect($content)->toContain(
         'The same write is phase 1 of *Tracker status tracks the phase of work* in that file',
     );
-    expect($content)->toContain("It is JIRA's phase-1 write under `@rules/compound-engineering/general.md`");
+    expect($content)->toContain('It is JIRA\'s phase-1 write under `@rules/compound-engineering/general.md`');
 
     // Phase 2 on JIRA: the Code Review transition.
-    expect($content)->toContain("This is JIRA's phase-2 write under `@rules/compound-engineering/general.md`");
+    expect($content)->toContain('This is JIRA\'s phase-2 write under `@rules/compound-engineering/general.md`');
 
     // Bugsnag: both phases are a named exception with a stated reason, never a silent gap.
     expect($content)->toContain('no claim step, and no in-progress status write either');
@@ -2007,5 +2007,5 @@ test('the resolve-issue per-tracker follow-up lives in a listed reference', func
     // The extraction exists to hold the body under the skill-check limit, so the body must stay
     // below it — measured on the same whitespace-token proxy the limit was recorded against.
     $body = (string) preg_replace('/\A---\R.*?\R---\R/s', '', $skill);
-    expect(count((array) preg_split('/\s+/', trim($body))))->toBeLessThan(5000);
+    expect(count((array) preg_split('/\s+/', trim($body))))->toBeLessThan(5_000);
 });
