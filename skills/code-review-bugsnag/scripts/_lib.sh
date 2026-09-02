@@ -113,8 +113,20 @@ bsnag_get_page() {
 
 # bsnag_next_page_url <headers-file> -> echoes the URL the response's
 # `Link: rel="next"` header points at, or nothing when this was the last page.
+#
+# The next page is the one request whose destination the response chooses rather
+# than this script, and every paged request carries the Data Access token in an
+# Authorization header. A link pointing off ${API} is therefore refused: the
+# walk stops there and says so, instead of handing the token to whatever host
+# the header named.
 bsnag_next_page_url() {
-  grep -i '^link:' "$1" | sed -nE 's/.*<([^>]+)>; *rel="next".*/\1/p' || true
+  local next
+  next="$(grep -i '^link:' "$1" | sed -nE 's/.*<([^>]+)>; *rel="next".*/\1/p' || true)"
+  if [[ -n "$next" && "$next" != "${API}/"* ]]; then
+    echo "${PROG}: refused a pagination link outside ${API}, so the read stops here: $next" >&2
+    return 0
+  fi
+  printf '%s' "$next"
 }
 
 # bsnag_get_all_pages <url> <what> -> echoes one JSON array carrying the items of
