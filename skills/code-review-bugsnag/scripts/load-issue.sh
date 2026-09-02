@@ -67,6 +67,9 @@
 #     flags application frames, which is the entry point for a TDD reproduction.
 #
 # Known limitations (intentionally out of scope, fall back to Bugsnag MCP):
+#   - Comment threads longer than 3000 comments (30 pages of 100). The loader
+#     reads every page up to that cap and reports the truncation on stderr, so a
+#     short read is never returned as if it were the whole thread.
 #   - Per-event pivots / custom event fields beyond the latest event
 #   - Trend / stability time series
 #   - Attachment binary contents
@@ -235,6 +238,23 @@ write_comment_fixtures() {
   "updated_at": null
 }]
 JSON
+
+  cat >"$dir/comments-page-2.json" <<'JSON'
+[
+  {
+    "collaborator": {"name": "Bob", "email": "bob@example.com"},
+    "message": "second comment",
+    "created_at": "2026-01-02T00:00:00Z",
+    "updated_at": null
+  },
+  {
+    "collaborator": {"name": "Bob", "email": "bob@example.com"},
+    "message": "third comment",
+    "created_at": "2026-01-03T00:00:00Z",
+    "updated_at": null
+  }
+]
+JSON
 }
 
 # What this loader does across more than one HTTP response -- following a
@@ -266,6 +286,9 @@ self_test() {
   local projects_2="${API}/organizations/org-1/projects?per_page=100&page=2"
   local unrouted="${API}/organizations/org-1/projects?per_page=100&page=unrouted"
   local comments="${API}/projects/proj-1/errors/${error_id}/comments"
+  local comments_1="${comments}?per_page=${BSNAG_PAGE_SIZE}"
+  local comments_2="${comments}?per_page=${BSNAG_PAGE_SIZE}&page=2"
+  local page
 
   # Appends one route. The last line matching a URL is the one the stub serves.
   route() {
@@ -280,7 +303,7 @@ self_test() {
     route "$projects_1" 200 projects-page-1.json "$projects_2"
     route "$projects_2" 200 projects-page-2.json
     route "${API}/projects/proj-1/errors/${error_id}" 200 error.json
-    route "$comments" 200 comments-page-1.json
+    route "$comments_1" 200 comments-page-1.json
     route "${API}/projects/proj-1/errors/${error_id}/latest_event" 200 latest-event.json
   }
 
@@ -348,9 +371,9 @@ self_test() {
   # A failed comments request aborts. An empty comments list must never stand in
   # for a fetch that did not happen.
   base_routes
-  route "$comments" 401 unauthorized.json
+  route "$comments_1" 401 unauthorized.json
   run_load 'aborts when the comments request fails' 3 '' '' \
-    "${PROG}: Bugsnag API returned HTTP 401 for ${comments}"
+    "${PROG}: Bugsnag API returned HTTP 401 listing comments"
 
   # An organization the token cannot see is named, not silently resolved.
   base_routes
@@ -371,6 +394,27 @@ self_test() {
   route "$projects_1" 500 unauthorized.json
   run_load 'reports the HTTP cause when a projects page fails' 3 '' '' \
     "${PROG}: Bugsnag API returned HTTP 500 listing projects"
+
+  # The defect this loader shipped with: the comments were fetched in one
+  # request, so a thread longer than one API page came back silently short.
+  base_routes
+  route "$comments_1" 200 comments-page-1.json "$comments_2"
+  route "$comments_2" 200 comments-page-2.json
+  run_load 'follows comment pagination to the last page' 0 \
+    '[.comments[].body]' \
+    '["first comment","second comment","third comment"]' ''
+
+  # A thread longer than the page cap is named on stderr. Coming back short in
+  # silence is exactly what the cap must not reintroduce.
+  base_routes
+  route "$comments_1" 200 comments-page-1.json "${comments}?per_page=${BSNAG_PAGE_SIZE}&page=2"
+  for ((page = 2; page <= BSNAG_MAX_PAGES + 1; page++)); do
+    route "${comments}?per_page=${BSNAG_PAGE_SIZE}&page=${page}" 200 comments-page-1.json \
+      "${comments}?per_page=${BSNAG_PAGE_SIZE}&page=$((page + 1))"
+  done
+  run_load 'discloses a comment thread that hits the page cap' 0 \
+    '(.comments | length)' '30' \
+    "${PROG}: stopped after 30 pages (3000 items) while listing comments — the result is truncated"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "${PROG}: self-test failed ($failures of $checks checks)" >&2
@@ -411,7 +455,9 @@ PROJ_ID="$(printf '%s' "$PROJ_JSON" | jq -r '.id')"
 
 # --- fetch error, comments, latest event -----------------------------------
 ERROR_JSON="$(bsnag_get "${API}/projects/${PROJ_ID}/errors/${ERROR_ID}")"
-COMMENTS_JSON="$(bsnag_get "${API}/projects/${PROJ_ID}/errors/${ERROR_ID}/comments")"
+COMMENTS_JSON="$(bsnag_get_all_pages \
+  "${API}/projects/${PROJ_ID}/errors/${ERROR_ID}/comments?per_page=${BSNAG_PAGE_SIZE}" \
+  'listing comments')"
 
 # latest_event may legitimately 404 (event pruned); degrade to null rather than abort.
 EVENT_JSON='null'
