@@ -686,8 +686,14 @@ test('hermes builds How to test from the hephaestus handoff for the current head
         . 'the implementation run, the pre-convergence scoped pass, or the post-convergence scoped pass',
     );
 
-    // `Blocked` survives, narrowed to the one case that genuinely has nothing to build from.
-    expect($hermes)->toContain('**`Blocked` is reserved for the brief carrying no green `hephaestus` validation for the current head SHA at all**');
+    // `Blocked` survives, narrowed to the one case that genuinely has nothing to build from. The
+    // absolute is scoped to this step's own subject: later steps legitimately add `Blocked` states
+    // of their own (an external write refused in auto-mode, an unconfirmed publication), and an
+    // unqualified "reserved for" would keep reading as a false absolute over all of them.
+    expect($hermes)->toContain(
+        '**For the evidence this step assembles, `Blocked` is reserved for the brief carrying no green `hephaestus` '
+        . 'validation for the current head SHA at all**',
+    );
     expect($hermes)->toContain('never for the scoped-validation handoff alone being absent');
 
     // Step 6a has to name the same either-or source, or the orchestrator withholds a dispatch
@@ -2345,4 +2351,248 @@ test('athena points at the not-run section once and never restates its list (iss
     foreach ([...$groups[1], ...$groups[2]] as $excluded) {
         expect($athena)->not->toContain($excluded);
     }
+});
+
+test('hermes reads its published report back and never reports an unconfirmed write as published (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+
+    // A tracker write can be refused silently in auto-mode, so a zero exit from the wrapper is not
+    // evidence the reader will ever see the comment. Without the read-back the run reports a
+    // published report that does not exist, which is exactly the silence issue #71 removes.
+    expect($hermes)->toContain('**Confirm the comment landed before you call it published.**');
+    expect($hermes)->toContain('Re-read the target through the same deterministic loader and find the comment you just posted');
+    expect($hermes)->toContain('Retry the publish once when the comment is absent, then re-read again');
+    expect($hermes)->toContain('**An unconfirmed write is `Blocked: publication unconfirmed`, never `Reporting done`**');
+    expect($hermes)->toContain('never write a comment URL you did not read back');
+
+    // The new outcome has to reach both halves of the handoff contract, or the status exists in
+    // one list and is unreachable from the other.
+    expect($hermes)->toContain('`Blocked: publication unconfirmed` when applicable');
+    expect($hermes)->toContain('could not be published, or could not be confirmed');
+});
+
+test('hermes skips its own report only on content-proven coverage from an admissible author (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+
+    // The mandatory report must not force a third comment saying what two earlier ones already
+    // said. The skip is therefore allowed - but only against a comment the run itself read.
+    expect($hermes)->toContain('the mandatory report is never a duplicate comment');
+    expect($hermes)->toContain('a plain-language summary of what changed, **and** `How to test` steps a tester can follow');
+    expect($hermes)->toContain('A comment `athena` published counts when it carries both halves');
+    expect($hermes)->toContain('One half alone is not coverage either');
+
+    // The unqualified form let any account on a public repository suppress the mandatory report by
+    // posting a lookalike comment. Authorship trust has to gate the candidate set before the
+    // content test runs, so the content criterion only ever applies to admissible comments.
+    expect($hermes)->not->toContain('**The criterion is what the comment contains, never who wrote it.**');
+    expect($hermes)->toContain('**Admissibility runs first — a comment counts only when its author may be believed.**');
+    expect($hermes)->toContain('`author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`');
+    expect($hermes)->toContain('*Authorship trust* already puts in front of every tracker-comment-driven decision');
+    expect($hermes)->toContain('`comments[].authorAssociation`');
+    expect($hermes)->toContain('an association you cannot resolve deterministically means the comment is treated as absent');
+    expect($hermes)->toContain(
+        '**Within that admissible, current set the criterion is what the comment contains, not which trusted agent wrote it.**',
+    );
+
+    // The read-back used to confirm its own just-posted comment through step 4's authorship gate.
+    // Under an account outside OWNER / MEMBER / COLLABORATOR - a fork contributor, a service
+    // account, a GitHub App - that gate rejects the agent's own comment, so a write that visibly
+    // landed is reported as Blocked. Identity settles the forgery concern on its own.
+    expect($hermes)->not->toContain('match it under the same admissibility gate step 4 applies');
+    expect($hermes)->toContain('find the comment you just posted **by its identity, never by its author**');
+    expect($hermes)->toContain('`upsert-comment.sh` prints the new comment\'s URL on stdout');
+    expect($hermes)->toContain('and echoes `action=created id=<id>` on stderr');
+    expect($hermes)->not->toContain('Match the read-back against that URL, and fall back to the marker when the URL is unavailable');
+    expect($hermes)->toContain('fall back to the comment `id` parsed from that stderr line');
+    expect($hermes)->toContain('both are GitHub-assigned, per-comment identities');
+    expect($hermes)->toContain('**Never fall back to the hidden `<!-- cr-comment:actor=<login> -->` marker the script also stamps into the body**');
+    expect($hermes)->toContain('that marker is actor+namespace only, not per-comment');
+    expect($hermes)->toContain('**Step 4\'s admissibility gate never runs here.**');
+    expect($hermes)->toContain('That gate filters a *foreign* claim of coverage; this step confirms *your own* write');
+    expect($hermes)->toContain('the gate would reject the very comment you just posted and report a landed write as `Blocked`');
+    expect($hermes)->not->toContain('a planted lookalike carries neither the URL the API returned to you nor your own actor marker');
+    expect($hermes)->toContain('GitHub assigns the URL and the id to your comment alone, so no planted or pre-existing comment can carry either');
+
+    // Round 3: the marker upsert-comment.sh stamps is actor+namespace only, not per-comment -
+    // every CR comment the same account posts on the same issue carries the identical string, so
+    // a blocked write could read back as confirmed against an older, unrelated comment. The id
+    // upsert-comment.sh already echoes on stderr is a genuine per-comment identity; the marker
+    // must never be searched for as a confirmation fallback.
+
+    // The staleness rule used to carry a SHA qualifier on hermes's own comments only, so any
+    // foreign comment carrying both halves was admitted at any age. resolve-issue posts exactly
+    // such a comment when the PR opens - before the CR loop - so the loose reading would have made
+    // the mandate satisfiable by a pre-convergence comment on every single run.
+    expect($hermes)->not->toContain('a comment you published for an earlier head SHA does not');
+    expect($hermes)->toContain('**Recency runs next, and it runs over every comment alike.**');
+    expect($hermes)->toContain('compare its `createdAt` (the loader returns it as `comments[].createdAt`)');
+    expect($hermes)->toContain("head commit's own timestamp (`git show -s --format=%cI <head SHA>`)");
+    expect($hermes)->toContain(
+        "The test is the same for your own earlier comment and for a trusted agent's",
+    );
+    expect($hermes)->toContain(
+        '**When you cannot establish that a comment postdates the current head, it is not coverage — publish.**',
+    );
+    expect($hermes)->toContain('*Non-technical report → original task tracker* posts a **What changed** + **How to test** comment');
+    // ...but the absolute form of that sentence was untrue. When the loop converges without a
+    // single fix commit the head never moves, so the resolve-issue comment postdates it, passes
+    // the recency test, and legitimately is the coverage. The test decides, not the origin.
+    expect($hermes)->not->toContain('so its steps describe the pre-review head and it never covers a converged one');
+    expect($hermes)->toContain('Every fix commit the loop lands moves the head past that comment');
+    expect($hermes)->toContain('A loop that converges without a single fix commit leaves the head exactly where that comment already described it');
+    expect($hermes)->toContain('The recency test decides both cases; no blanket claim about where a comment came from overrides it');
+
+    // daedalus named the literal pr-summary headings while hermes described the two halves
+    // semantically, so a comment headed `What changed` passed one test and failed the other. The
+    // discriminator is defined once, here, and the acceptor cites it.
+    expect($hermes)->toContain('**This bullet is the discriminator, defined once here');
+    expect($hermes)->toContain('`agents/daedalus.md` step 6a cites this definition instead of restating it');
+    expect($hermes)->toContain('It is semantic, never a literal heading match');
+    expect($hermes)->toContain('a first half headed `What changed` satisfies it exactly as one headed `Summary of changes` does');
+
+    // The empirical case the skip must keep publishing on: three athena CR mirrors carried the
+    // convergence verdict and no How to test, so the report was still owed.
+    expect($hermes)->toContain('on issue #70 three such mirrors sat on the issue and publishing was still correct');
+
+    // ...and the half that stops the skip becoming a silent escape hatch: evidence this run read,
+    // recorded in the handoff and in the audit trail, with every soft reason to skip refused.
+    expect($hermes)->toContain('**Covered → publish nothing and return `Reporting done (already covered)`**');
+    expect($hermes)->toContain('naming the covering comment\'s URL and quoting the two halves you read in it');
+    expect($hermes)->toContain('Skipping the publish needs positive evidence you read yourself in this run');
+    expect($hermes)->toContain('because another agent reported one published');
+    expect($hermes)->toContain('An unreadable target is a reason to publish, never a reason to claim coverage');
+    expect($hermes)->toContain('Append a `note` line to `.claude/run/<source-slug>.audit` recording the publish you deliberately did not perform');
+    expect($hermes)->toContain('a coverage skip is stated in the handoff, never left silent');
+
+    // The handoff's `Audit:` bullet is the durable copy that outlives the deleted ledger, so it has
+    // to enumerate the reporting-mode publish and the `note` line step 4 creates - not only the
+    // announcement-mode publish it originally listed.
+    expect($hermes)->toContain(
+        'in reporting mode, the report you published or the `note` recording the publish you deliberately skipped '
+        . 'on `Reporting done (already covered)`',
+    );
+    expect($hermes)->toContain('Neither an announce-only run nor a reporting run opens a PR');
+});
+
+test('the new hermes reporting outcome reaches every surface that lists the old ones (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+
+    // Status, Result, Audit, the brief's handoff heading, the mode's own status line, step 4's
+    // covered branch, and the routing frontmatter each enumerate the reporting outcomes. A status
+    // added to one of them and missed in another is a contract that names an outcome the reader
+    // cannot get to.
+    expect(substr_count($hermes, 'Reporting done (already covered)'))->toBe(7);
+
+    // Each of the prose surfaces, pinned on a fragment unique to it.
+    expect($hermes)->toContain('or "Reporting done (already covered)" with the URL of a comment that already carries both halves');
+    expect($hermes)->toContain('or `Reporting done (already covered)` + the URL of the comment that already carries both halves');
+    expect($hermes)->toContain('`Reporting done` / `Reporting done (already covered)` / `Reporting done (no tracker)` — post-convergence reporting mode');
+    expect($hermes)->toContain('On `Reporting done (already covered)` it carries the covering comment\'s URL');
+    expect($hermes)->toContain(
+        '`Reporting done` / `Reporting done (already covered)` / `Reporting done (no tracker)` in reporting mode, never the other mode\'s',
+    );
+    expect($hermes)->toContain('the `note` recording the publish you deliberately skipped on `Reporting done (already covered)`');
+
+    // The reader-facing roster doc lists the same outcomes and must not keep the two-outcome set.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->not->toContain('Handoff: `Reporting done` or `Reporting done (no tracker)`.');
+    expect($docs)->toContain('Handoff: `Reporting done`, `Reporting done (already covered)` with the covering comment\'s URL');
+    expect($docs)->not->toContain('└─ Reporting done (tracker comment link) | Reporting done (no tracker) (inline)');
+    expect($docs)->toContain('Reporting done (comment link, read back) | Reporting done (already covered) (covering comment URL)');
+    expect($docs)->not->toContain('judged on the comment\'s content, never its author');
+    expect($docs)->toContain('is admissible evidence; inside that set the skip is judged on the comment\'s content');
+    expect($docs)->toContain('an unconfirmed write is `Blocked` rather than a reported success');
+});
+
+test('daedalus treats the tracker report as a mandatory run output, not a best-effort step (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // The report used to fall out silently while the run still reported success. Making it part of
+    // the definition of a finished run is what closes that gap, so the sentence has to say it.
+    expect($daedalus)->toContain('**Publikovaný report je součástí definice hotového běhu, ne best-effort krok.**');
+    expect($daedalus)->toContain('nehlas jako `Done`');
+    expect($daedalus)->toContain('Běh, který report nepublikoval a tracker měl');
+
+    // Publishing stays hermes's alone - the mandate must not be satisfiable by anyone else doing it.
+    expect($daedalus)->toContain('Reporting nikdy nedělá `hephaestus`, žádný jiný agent ani ty sám');
+
+    // ...and the mandate must not force a duplicate comment either. The escape hatch is closed by
+    // demanding the evidence, and by judging the comment on content rather than on its author.
+    expect($daedalus)->toContain('**Neduplicita není úniková cesta.**');
+    expect($daedalus)->toContain('jen s konkrétní URL komentáře');
+    expect($daedalus)->toContain('Bez té evidence to je nepublikovaný report, ne pokrytý');
+    expect($daedalus)->not->toContain('Rozhoduje obsah komentáře, ne jeho autor:');
+    expect($daedalus)->toContain('Uvnitř té přípustné množiny rozhoduje obsah komentáře, ne který důvěryhodný agent ho napsal');
+    expect($daedalus)->toContain('CR zrcadlo od `atheny` nese stav konvergence a počty nálezů');
+
+    // The acceptor has to demand the authorship evidence too - a skip it accepts without the
+    // declaring account is a skip taken on a comment anyone could have written.
+    expect($daedalus)->toContain('a s účtem, který ten komentář napsal, včetně jeho `author_association`');
+
+    // The acceptor must not carry a second, literal-heading spelling of the same discriminator.
+    expect($daedalus)->not->toContain('které dvě části (`Summary of changes` a `How to test`)');
+    expect($daedalus)->toContain(
+        '**Které dvě části to jsou, definuje `agents/hermes.md` *Post-convergence reporting mode* krok 4 — tu definici tady nepřepisuj.**',
+    );
+    expect($daedalus)->toContain('Kdybys tu držel vlastní seznam nadpisů, `hermes` by skip bral podle jednoho testu a ty ho přijímal podle jiného');
+
+    // The bullet forbade restating the definition and then restated its semantic clause verbatim
+    // from hermes step 4. The citation is the whole point, so the copy goes.
+    expect($daedalus)->not->toContain('Je významová, ne shoda nadpisu');
+    expect($daedalus)->not->toContain('takže první polovinu splní `What changed` stejně jako `Summary of changes`');
+    expect($daedalus)->toContain('**Přípustný je jen komentář od účtu s právem zápisu do repozitáře**');
+    expect($daedalus)->toContain('Repozitář může být veřejný, takže komentář od kohokoli jiného skip neodůvodní');
+});
+
+test('an unregistered hermes stops a tracker-sourced run with a named blocker and a remediation (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // The old fallback carried on to the final report without a published summary, which is the
+    // silent bypass `Blocked delegation is a hard stop` exists to forbid.
+    expect($daedalus)->not->toContain('Pokud dispatch selže, pokračuj k finálnímu reportu bez publikovaného shrnutí');
+    expect($daedalus)->not->toContain('„hermes není registrován — shrnutí v chatu"');
+
+    expect($daedalus)->toContain('**Závislost na registraci — neregistrovaný `hermes` je blokátor, ne poznámka.**');
+    expect($daedalus)->toContain('„hermes není registrován — report nelze publikovat"');
+    expect($daedalus)->toContain('doinstaluj `agents/hermes.md` do `.claude/agents/`');
+    expect($daedalus)->toContain('@rules/compound-engineering/general.md` *Blocked delegation is a hard stop*');
+    expect($daedalus)->toContain('**Report nikdy nepublikuj sám za `hermese`**');
+    expect($daedalus)->toContain('Před `Blocked` zastavením proběhne *Run cleanup*');
+
+    // A described-task run has nothing to publish, so it must keep behaving exactly as before.
+    expect($daedalus)->toContain('Bez trackerového zdroje se nic nepublikuje ani dnes, takže tam neregistrovaný `hermes` blokátor není');
+
+    // Both handoff surfaces carry the new outcome - a blocking state named in one list and absent
+    // from the other is a contract the reader cannot follow through.
+    expect($daedalus)->toContain('a tracker-sourced run whose post-convergence report never reached the tracker');
+
+    // Step 6a is deliberately Czech; the `Output — handoff` spec around this bullet is English and
+    // says two lines above never to mix two languages in one report. The reason renders in English
+    // here and daedalus translates it at report time like every other bullet.
+    expect($daedalus)->not->toContain('`hermes` není registrován, nebo jeho publikaci nešlo potvrdit');
+    expect($daedalus)->toContain('`hermes` is not registered, or its publication could not be confirmed');
+    expect($daedalus)->toContain('an unpublished report is a `Blocked` stop, never a note on a successful run');
+    expect($daedalus)->toContain('the URL of the comment that already carried the report');
+
+    // The roster doc states the same consequence of the registration dependency.
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    expect($docs)->toContain('an unregistered `hermes` stops the run `Blocked` with the remediation');
+    expect($docs)->toContain('no other agent publishes the report in its place');
+
+    // ...and so does hermes's own *Registration dependency* section, which the installer
+    // distributes. It kept the old soft wording while the derived doc and daedalus already carried
+    // the blocker, leaving the authoritative definition the stalest of the three.
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    expect($hermes)->not->toContain('Until then it is a documented future step');
+    expect($hermes)->toContain(
+        '**On a run whose source is a tracker this dependency is load-bearing rather than a documented future step:**',
+    );
+    expect($hermes)->toContain('stops the run `Blocked` with the remediation (`agents/daedalus.md` step 6a)');
+    expect($hermes)->toContain('and no other agent publishes the report in its place');
+    expect($hermes)->toContain('On a run with no tracker source nothing is published anyway');
 });

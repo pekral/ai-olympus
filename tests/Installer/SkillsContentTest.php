@@ -439,6 +439,13 @@ test('github load-issue script is shipped, executable, and documents the same sh
     // non-draft PR's false to null — the projection must not use it for isDraft.
     expect($content)->toContain('isDraft:     (if $kind == "pr" then $p.isDraft else null end)');
     expect($content)->not->toContain('$p.isDraft     // null');
+
+    // `hermes` decides whether the mandatory post-convergence report is already covered from the
+    // comments this loader returns, and that decision is gated on the commenter having write
+    // access (`agents/hermes.md` step 4). Without the association in the projection the gate has
+    // nothing to read, so any account could suppress the report with a lookalike comment.
+    expect($content)->toContain('authorAssociation: (.authorAssociation // null)');
+    expect($content)->toContain('"author", "authorAssociation", "body", "createdAt", "updatedAt", "url"');
 });
 
 test('jira load-issue embeds full subtask context (description, comments, attachments)', function (): void {
