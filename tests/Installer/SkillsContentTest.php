@@ -285,17 +285,24 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($rule)->toContain('Add missing tests in a dedicated commit before the refactor commit.');
     expect($rule)->toContain('The refactor commit must not modify pre-existing tests.');
     expect($rule)->toContain('`test(scope): cover <area> before refactor`');
-    expect($rule)->toContain('**Enforce the Test Coverage Contract above on every refactor PR.**');
+    expect($rule)->toContain('**Enforce the coverage half of the Test Coverage Contract above on every refactor PR.**');
+
+    // The two commit-history steps stay as authoring guidance and are labelled as unverified.
+    expect($rule)->toContain('### What the review no longer verifies — and what that costs');
+    expect($rule)->toContain('**Authoring guidance only; no longer verified by review**');
+    expect($rule)->toContain('**What is lost, stated rather than hidden: the proof that behaviour was preserved across the refactor.**');
+    expect($rule)->toContain('Steps 1 and 4 are unaffected.');
 
     expect($classRefactoring)->toContain('### Test Coverage Gate (mandatory pre-flight — issue #493)');
     expect($classRefactoring)->toContain('**If coverage is below 100% on the target lines, stop and write the missing tests first.**');
     expect($classRefactoring)->toContain('**Test assertion logic must not change during the refactor.**');
     expect($classRefactoring)->toContain('`@rules/refactoring/general.md` Test Coverage Contract');
 
+    // The review keeps the coverage-tool half and drops the commit-history half.
     expect($codeReview)->toContain('**Refactoring test-coverage contract (issue #493)**');
-    expect($codeReview)->toContain('Walk the PR commit history and verify the refactor commit is **preceded by a dedicated test commit**');
-    expect($codeReview)->toContain('Verify the refactor commit **modifies no pre-existing test file**');
-    expect($codeReview)->toContain('Verify the coverage of the refactor commit alone');
+    expect($codeReview)->toContain('**The two commit-history checks are retired.**');
+    expect($codeReview)->toContain('Verify the coverage of the refactored lines using the project\'s available coverage tooling');
+    expect($codeReview)->not->toContain('Walk the PR commit history and verify the refactor commit is **preceded by a dedicated test commit**');
 });
 
 test('readme reports the current skill count in the Why This Package bullet', function (): void {
