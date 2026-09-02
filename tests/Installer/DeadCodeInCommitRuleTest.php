@@ -37,18 +37,24 @@ test('the git rule forbids a commit that ships code nothing in it uses (issue #2
     expect($rule)->toContain('Cite the specific consumer surface when claiming this exemption.');
 });
 
-test('the dead-code-in-commit rule declares its severity and its gating (issue #251)', function (): void {
+test('the dead-code-in-commit rule is authoring guidance and no longer a review finding (issue #251)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
-    // A history defect, not a defect of the merged result — so it never blocks on correctness.
-    expect($rule)->toContain('a defect of the history, not of the merged result');
+    // The review no longer walks commit history, so the Moderate severity this bullet carried is
+    // withdrawn. The obligation on whoever writes the branch is unchanged.
+    expect($rule)->toContain('Not a code-review finding.');
+    expect($rule)->toContain('the review no longer walks commit history, so it raises nothing');
+    expect($rule)->toContain('The obligation on the author is unchanged.');
+    expect($rule)->not->toContain('**Gating — never both with the Minor dead-code nit.**');
 
-    // Without the carve-out this finding and the pre-existing Minor dead-code nit both fire on one
-    // symbol, and a reviewer reports the same line twice at two severities.
-    expect($rule)->toContain('**Gating — never both with the Minor dead-code nit.**');
-    expect($rule)->toContain('dead **at the commit that introduces it**');
-    expect($rule)->toContain('The same symbol is never reported under both.');
+    // The three granularity bullets are named together so a reader knows exactly which four are
+    // guidance and which three commit rules stay enforced.
+    expect($rule)->toContain('**The three bullets below are authoring guidance, not review criteria.**');
+    expect($rule)->toContain('**The code review no longer checks any of them and raises no finding from commit history for them.**');
+    expect($rule)->toContain('*A test and the change that makes it pass land in the same commit*');
+    expect($rule)->toContain('*The merged head is green*');
+    expect($rule)->toContain('*A history rewrite re-runs the gate*');
 });
 
 test('the surface that plans a commit split cites the rule (issue #251)', function (): void {
