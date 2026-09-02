@@ -188,7 +188,9 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     expect($process)->toContain('### Review loop (mandatory — convergence gate)');
     expect($process)->toContain('`maxIterations = 3`');
     expect($process)->toContain('The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred**');
-    expect($process)->toContain('do not publish; return findings as in-memory markdown for this loop iteration only');
+    expect($process)->toContain('`references/review-loop-scope.md`');
+    $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
+    expect($loopScope)->toContain('do not publish; return findings as in-memory markdown for this loop iteration only');
     expect($process)->toContain('### Finalization (only after Review loop converged)');
     expect($process)->toContain('### PR update (only after Review loop converged)');
     expect($process)->toContain('### Completion (final, single publish)');
@@ -1885,17 +1887,19 @@ test('process-code-review passes the iteration number to every CR wrapper invoca
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
 
-    expect($process)->toContain('#### Late-iteration report scope (iteration > 2)');
-    expect($process)->toContain('Pass `iteration = <N>` to the CR wrapper on **every** invocation');
+    $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
+
+    expect($loopScope)->toContain('#### Late-iteration report scope (iteration > 2)');
+    expect($loopScope)->toContain('Pass `iteration = <N>` to the CR wrapper on **every** invocation');
     // The loop's step 2 is the single line that makes the filter reachable during the loop;
     // without it the subsection documents a contract nothing ever passes.
-    expect($process)->toContain('**and the current `iteration` value** (see **Late-iteration report scope** below)');
+    expect($process)->toContain('**and the current `iteration` value** (see **Late-iteration report scope** in the reference)');
     // The final publish is the surface a human reads, so it must inherit the loop's final iteration number.
-    expect($process)->toContain('that one carries the loop\'s **final** iteration number');
+    expect($loopScope)->toContain('that one carries the loop\'s **final** iteration number');
     expect($process)->toContain('the loop\'s **final `iteration` value**');
     // Nothing actionable is lost: the loop only ever fixed Critical / Moderate findings.
-    expect($process)->toContain('the suppressed items were never part of the loop\'s fix set');
-    expect($process)->toContain('The narrowing never changes what the review **detects** — only what it renders.');
+    expect($loopScope)->toContain('the suppressed items were never part of the loop\'s fix set');
+    expect($loopScope)->toContain('The narrowing never changes what the review **detects** — only what it renders.');
     expect($process)->toContain('plus the report scope the final publish used');
 });
 
@@ -2338,18 +2342,21 @@ test('every CR skill and template carries the incremental review scope', functio
 test('process-code-review passes the reviewed revision baseline to every CR wrapper invocation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    // The subsection lives in the reference the skill points at; the skill keeps the pointer.
+    $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
 
-    expect($process)->toContain('#### Incremental review scope (iterations after the first)');
+    expect($process)->toContain('`references/review-loop-scope.md`');
+    expect($loopScope)->toContain('#### Incremental review scope (iterations after the first)');
     // The loop is quiet, so no published comment exists to resolve a baseline from.
-    expect($process)->toContain('The caller is therefore the only source, and it must supply one');
-    expect($process)->toContain('Pass it on the next invocation as `reviewedRevision = <SHA>`');
-    expect($process)->toContain('**Pass the previous iteration\'s findings with their disposition**');
-    expect($process)->toContain('**Iteration 1 passes neither**');
+    expect($loopScope)->toContain('The caller is therefore the only source, and it must supply one');
+    expect($loopScope)->toContain('Pass it on the next invocation as `reviewedRevision = <SHA>`');
+    expect($loopScope)->toContain('**Pass the previous iteration\'s findings with their disposition**');
+    expect($loopScope)->toContain('**Iteration 1 passes neither**');
     // The published run must carry the header lines the next CR run reads its baseline from.
-    expect($process)->toContain('**The final publishing run in Completion passes the last iteration\'s SHA too**');
+    expect($loopScope)->toContain('**The final publishing run in Completion passes the last iteration\'s SHA too**');
     expect($process)->toContain('the `reviewedRevision` baseline of the last iteration');
     // Narrowing detection must not narrow the gate.
-    expect($process)->toContain('**Narrowing the detection never narrows the convergence gate.**');
+    expect($loopScope)->toContain('**Narrowing the detection never narrows the convergence gate.**');
 });
 
 test('the CR database lens trigger resolves the engine and branches to one lens (issue #62)', function (): void {
