@@ -177,6 +177,8 @@ Every item the run knowingly deferred — the *Out of scope (deferred)* group fr
 
 ## Final report
 
+**A missing post-convergence report is stated, never left silent.** This skill publishes no `hermes` report of its own. When the run ends without that reporting step and the source is a tracker, the handoff carries the literal token `report: not-published (no-orchestrator)` — a machine token, identical in every handoff language — so a reader sees the gap instead of assuming it was covered (`agents/daedalus.md` step 6a owns the report itself).
+
 Reporting is split by audience and destination:
 
 ### Technical report → codebase tracker (GitHub PR)

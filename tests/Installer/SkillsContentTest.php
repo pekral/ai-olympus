@@ -2127,3 +2127,38 @@ test('the resolve-issue per-tracker follow-up lives in a listed reference', func
     $body = (string) preg_replace('/\A---\R.*?\R---\R/s', '', $skill);
     expect(count((array) preg_split('/\s+/', trim($body))))->toBeLessThan(5_000);
 });
+
+test('a run that produced no post-convergence report says so in its handoff (issue #71)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // Neither skill publishes the report - `hermes` does, dispatched by `daedalus` step 6a. A run
+    // outside that orchestration therefore ends with no report at all, and used to end silently,
+    // which reads exactly like a run whose report was published. The literal line is what a caller
+    // (and the next agent) greps for, so both skills carry the same one verbatim.
+    $marker = 'report: not-published (no-orchestrator)';
+
+    $resolve = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    expect($resolve)->toContain('**A missing post-convergence report is stated, never left silent.**');
+    expect($resolve)->toContain($marker);
+    expect($resolve)->toContain('a machine token, identical in every handoff language');
+    expect($resolve)->toContain('This skill publishes no `hermes` report of its own');
+    expect($resolve)->toContain('`agents/daedalus.md` step 6a owns the report itself');
+
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($process)->toContain($marker);
+    expect($process)->toContain('this skill publishes no post-convergence report, it only refuses to leave a missing one silent');
+
+    // The line is conditional on the source being a tracker: a described-task run has no tracker to
+    // publish to, so it must never be told a report is missing. Pin the condition in each skill's
+    // own wording - an unconditional line would fire on every described-task run.
+    expect($resolve)->toContain('When the run ends without that reporting step and the source is a tracker');
+    expect($process)->toContain('when the run ended with no `hermes` reporting step and the source is a tracker');
+
+    // The marker used to be a Czech sentence in two otherwise fully English skills, which is the
+    // mixed-language handoff `agents/hephaestus.md` forbids on every non-Czech assignment. Keeping
+    // it a machine token preserves the greppable line the assignment asked for without the clash.
+    foreach ([$resolve, $process] as $skill) {
+        expect($skill)->not->toContain('nepublikován');
+        expect($skill)->not->toContain('běh bez orchestrátoru');
+    }
+});
