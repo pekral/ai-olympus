@@ -1891,6 +1891,11 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('only when it has shown no progress signal since its last progressing check');
     expect($content)->not->toContain('regardless of the last observed state');
 
+    // The ledger's in-flight stop governs the same state, so the order between the two is stated
+    // rather than left to a literal reading that would fire the stop before the check ever runs.
+    expect($content)->toContain('**Precedence over the ledger\'s in-flight stop — this check runs first.**');
+    expect($content)->toContain('That stop is the last resort for an open round, never the first move:');
+
     // The tail safety net never becomes a step of the golden path.
     expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
 });
