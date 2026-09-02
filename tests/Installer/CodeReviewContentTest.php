@@ -318,18 +318,27 @@ test('GitHub PR comment templates use a compact AI-parseable header with severit
     }
 });
 
-test('code-review skill enforces strict rule compliance and architecture conformance', function (): void {
+test('the strict rule compliance walk is retired while architecture conformance still runs', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
-    expect($content)->toContain('**Strict rule compliance (mandatory walk-through)**');
-    expect($content)->toContain('scan the diff for any pattern that matches a numbered or bulleted rule');
-    expect($content)->toContain('raise one finding per matched violation');
+    // The blanket rule walk no longer runs and raises nothing.
+    expect($content)->toContain('**Strict rule compliance — retired, no longer walked.**');
+    expect($content)->toContain('**It no longer runs, and no finding is raised from it.**');
+    expect($content)->not->toContain('scan the diff for any pattern that matches a numbered or bulleted rule');
+
+    // What the retirement costs is stated, never hidden.
+    expect($content)->toContain('**What is lost, stated rather than hidden:**');
+
+    // Architecture conformance was always a separate walk and is untouched by the retirement.
     expect($content)->toContain('**Architecture conformance (Laravel)**');
     expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.md`');
     expect($content)->toContain('seven allowed homes including the Eloquent-model carve-out');
+    expect($content)->toContain('security, Critical Findings Verification, and the Architecture conformance walk are unaffected');
+
+    // The severity stratification survives the walk that defined it.
     expect($content)->toContain('Default severity for rule violations:');
-    expect($content)->toContain('apply the **Strict rule compliance** stratification');
+    expect($content)->toContain('## Default severity for a rule violation');
     expect($content)->not->toContain('Do not review formatting, linting, or trivial issues');
 });
 
@@ -945,7 +954,10 @@ test('code-review wires the API rule and api-review skill into every CR run (iss
 
     expect($content)->toContain('- Apply @rules/api/general.md');
     expect($content)->toContain('@skills/api-review/SKILL.md');
-    expect($content)->toContain('`@rules/php/core-standards.md`, `@rules/api/general.md`, `@rules/code-review/general.md`');
+    // The API rule reached the review through the retired Strict rule compliance walk's file list
+    // as well as through the Constraint above; with the walk gone, the Constraint and the lens are
+    // what wire it in, so those are what this pins.
+    expect($content)->toContain('walk it against the API contract pillars');
 });
 
 test('code-review skill flags request->DTO transformation called directly in the controller body (issue #698)', function (): void {
