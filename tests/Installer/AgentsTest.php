@@ -1841,6 +1841,48 @@ test('daedalus keeps a dispatch ledger keyed by role, head sha and round (issue 
     expect($content)->toContain('The key is `{role, pr-head-sha, round}`');
     expect($content)->toContain('Append-only lines, not a JSON document.');
     expect($content)->toContain('Blocked: kolo <role>/<round> je již dispatchnuté a nedoručilo výsledek');
+
+    // A liveness line records a check and must never close a round, or the in-flight guard above
+    // would read a still-running dispatch as finished.
+    expect($content)->toContain('<role>|<pr-head-sha or ->|<round>|liveness <n>/6 — <observed state>|<ISO-8601>');
+    expect($content)->toContain('Only `delivered`, `failed`, and `skipped` close a round.');
+});
+
+test('daedalus checks the liveness of a long-running dispatch without writing into its context', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    expect($content)->toContain('### Liveness check for a long-running dispatch');
+
+    // The mechanism is a state read. A question sent into the dispatched agent's own context would
+    // spend the context it was dispatched with, and the harness's own tool guidance forbids it.
+    expect($content)->toContain('non-intrusive state read, never a question sent into the running agent\'s context');
+    expect($content)->toContain('`ListAgents`');
+    expect($content)->toContain('`notify_when_idle: true` **and no `message` body**');
+
+    // Both tool-availability paths are named, including the one this roster is actually on today.
+    expect($content)->toContain('No such primitive is available — today\'s default on this roster, not a hypothetical.');
+    expect($content)->toContain('Never fabricate the check');
+
+    // "Every 10 minutes" is an elapsed-time gate, because daedalus holds no timer primitive.
+    expect($content)->toContain('is an elapsed-time gate, not a timer');
+    expect($content)->toContain('**≥ 10 minutes**');
+    expect($content)->toContain('Never describe it to the user as a background timer.');
+
+    // Stuck is a sustained absence of progress, never a single busy sample.
+    expect($content)->toContain('across **3 consecutive liveness checks**');
+    expect($content)->toContain('**30 minutes of zero externally visible movement**');
+
+    // Detection escalates, and never re-dispatches over an unconfirmed original.
+    expect($content)->toContain('Blocked: dispatch <role>/<round> nejeví známky života');
+    expect($content)->toContain('Never re-dispatch a stuck round without first confirming the original is dead.');
+
+    // The cap bounds the checks themselves, so an unbounded wait cannot masquerade as monitoring.
+    expect($content)->toContain('**Cap the checks at 6 per round**');
+    expect($content)->toContain('regardless of the last observed state');
+
+    // The tail safety net never becomes a step of the golden path.
+    expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
 });
 
 test('daedalus gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
