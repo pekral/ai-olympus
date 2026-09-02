@@ -489,6 +489,7 @@ test('new JIRA agent scripts are shipped, executable, and documented', function 
         'parse-comments.sh' => 'Usage: parse-comments.sh <KEY|URL>',
         'transition-to-code-review.sh' => 'Usage: transition-to-code-review.sh <KEY|URL> [<STATUS>]',
         'transition-to-in-progress.sh' => 'Usage: transition-to-in-progress.sh <KEY|URL> [<STATUS>]',
+        'transition-to-ready-to-merge.sh' => 'Usage: transition-to-ready-to-merge.sh <KEY|URL> [<STATUS>]',
     ];
 
     foreach ($scripts as $name => $usage) {
@@ -634,14 +635,32 @@ test('jira rule permits the single code-review transition via the helper only', 
     expect($content)->toContain('Never change JIRA issue status');
 });
 
-test('jira rule permits two sanctioned transitions and names both helpers (issue #704)', function (): void {
+test('jira rule permits three sanctioned transitions and names every helper', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     expect($content)->toContain('transition-to-in-progress.sh');
     expect($content)->toContain('transition-to-code-review.sh');
-    // Both helpers must be mentioned as sanctioned exceptions.
-    expect($content)->toContain('two exceptions');
+    expect($content)->toContain('transition-to-ready-to-merge.sh');
+    // Every helper must be mentioned as a sanctioned exception.
+    expect($content)->toContain('three exceptions');
+    // The revert direction adds no fourth transition: it reuses the review helper.
+    expect($content)->toContain("needs no fourth helper: that move is exception (2)'s own transition, run again");
+});
+
+test('transition-to-ready-to-merge refuses non-merge targets, is idempotent, and catches false positives', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/transition-to-ready-to-merge.sh');
+
+    // Guard: only a ready-to-merge status is allowed, so the helper cannot push work to Done.
+    expect($content)->toContain('is not a Ready to Merge status');
+    // Idempotent no-op when already in the target status.
+    expect($content)->toContain('already ready to merge');
+    // Post-transition re-read so an acli false-positive "looped transition" is caught.
+    expect($content)->toContain('acli jira workitem transition --key "$KEY" --status "$TARGET" --yes');
+    expect($content)->toContain('exit 5');
+    // Self-contained by design: no sourced shared library, because the installer ships skills/ verbatim.
+    expect($content)->not->toContain('source "$SCRIPT_DIR/lib.sh"');
 });
 
 test('resolve-issue moves the issue to code review via the transition helper after the PR is open', function (): void {
