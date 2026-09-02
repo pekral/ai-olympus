@@ -1947,3 +1947,23 @@ test('resolve-issue always signals the GitHub review-waiting phase once the PR i
     // The claim label stays: removing it would make the issue an unclaimed candidate again.
     expect($content)->toContain('Leave the `Resolve_by_AI:in-progress` claim label in place');
 });
+
+test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag included', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // Phase 1: the claim write is also the in-progress signal, for GitHub and JIRA alike.
+    expect($content)->toContain(
+        'The same write is phase 1 of *Tracker status tracks the phase of work* in that file',
+    );
+    expect($content)->toContain("It is JIRA's phase-1 write under `@rules/compound-engineering/general.md`");
+
+    // Phase 2 on JIRA: the Code Review transition.
+    expect($content)->toContain("This is JIRA's phase-2 write under `@rules/compound-engineering/general.md`");
+
+    // Bugsnag: both phases are a named exception with a stated reason, never a silent gap.
+    expect($content)->toContain('no claim step, and no in-progress status write either');
+    expect($content)->toContain('resolution enum (`open` / `fixed` / `ignored` / `snoozed`) with no in-progress value');
+    expect($content)->toContain('Bugsnag therefore has no review-waiting phase write');
+    expect($content)->toContain('the comment posted above on the error and on the linked GitHub issue is the substitute signal');
+});
