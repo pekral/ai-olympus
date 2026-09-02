@@ -157,7 +157,7 @@ finish before starting the next — every step feeds the one after it.
 
   3. /process-code-review <PR>
        ONLY when step 2 reported findings. Resolve them and iterate the CR loop to
-       0 Critical + 0 Moderate. Skip this step when step 2 was already clean.
+       0 Critical, no undeferred Moderate. Skip this step when step 2 was already clean.
 PLAN
 
     if [[ "$merge" == "true" ]]; then
@@ -165,7 +165,7 @@ PLAN
 
   4. /merge-github-pr <PR>
        Merge the PR into the base branch. Runs only because --merge was passed, and
-       only once the code review has converged (0 Critical + 0 Moderate).
+       only once the code review has converged (0 Critical, no undeferred Moderate).
 PLAN
     else
         cat <<'PLAN'

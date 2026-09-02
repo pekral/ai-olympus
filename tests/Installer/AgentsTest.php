@@ -578,7 +578,7 @@ test(
 
         // All four conditions, each one load-bearing on its own.
         expect($daedalus)->toContain('**Skip it exactly when all four conditions hold at once:**');
-        expect($daedalus)->toContain('the CR converged on **0 Critical + 0 Moderate** and the loop produced no fix commit');
+        expect($daedalus)->toContain('the CR converged on **0 Critical with no undeferred Moderate** and the loop produced no fix commit');
         expect($daedalus)->toContain('the PR\'s **head SHA is identical** to a SHA a green validation already covered in this run');
         expect($daedalus)->toContain(
             'the brief does **not** record `## Savings mode: on` together with a coverage gate `athena` deferred to `hephaestus`',

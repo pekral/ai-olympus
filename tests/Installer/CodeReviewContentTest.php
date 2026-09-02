@@ -1280,7 +1280,7 @@ test('rule defines the Two-Part CR Output — Technical & Functional Review cont
     expect($rule)->toContain('**`## Functional Review`**');
     expect($rule)->toContain('All stated assignment requirements are satisfied.');
     expect($rule)->toContain(
-        'never its count in the `Counts:` header line nor in the `criticalCount + moderateCount == 0` convergence gate',
+        'never its count in the `Counts:` header line nor in the convergence gate in `@skills/process-code-review/SKILL.md` *Review loop* step 4',
     );
     expect($rule)->toContain('the terse Summary-line token coexists with the new prose');
     expect($rule)->toContain(
