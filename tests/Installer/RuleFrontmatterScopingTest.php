@@ -237,6 +237,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // paragraph now names the lens, states which dimension each owner keeps, and states that the two
     // divide the dimensions of a hot-path change rather than its lines — so the hand-over never
     // suppresses a budget or freshness finding no other owner raises. Nothing else in the file moved.
+    // `rules/reports/general.md` carries one re-baseline of its own: the bullet naming what falls
+    // outside the English CR exception described `pr-summary`'s per-target field list (the four
+    // GitHub fields, JIRA's reduced "only How to test" shape), and `pr-summary` now renders one
+    // shape on every target. The bullet describes that shape instead, and states the consequence
+    // this rule owns — headings and field labels are prose, so they are translated with the rest of
+    // the comment. Nothing else in the file moved.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -252,7 +258,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
-        'rules/reports/general.md' => 'bdf0e939be095247bb3c9853ae166ea9603938e1bd0f0c9eb234220f99033ac8',
+        'rules/reports/general.md' => 'aa0df08a4b77e387717b16c7bfdea1602e8698f565fdbf21322fc67fbb8d1a5f',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
