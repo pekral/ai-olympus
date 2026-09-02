@@ -1504,7 +1504,7 @@ test('full-tree grep finds every CR skill/template/rule references the concrete 
 });
 
 test(
-    'core-standards Naming section flags a misleading name as Moderate, gated against the naming-nit Minor bucket (issue #123)',
+    'core-standards Naming section flags a misleading name as Moderate, bounded against a mere readability nit (issue #123)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $phpRule = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
@@ -1559,10 +1559,9 @@ test(
         expect($phpRule)->toContain(
             'a real maintainability hazard a fixer cannot catch, but not an architectural/structural violation',
         );
-        expect($phpRule)->toContain('**Gating — never both with the Minor naming-nit bucket on the same identifier:**');
+        expect($phpRule)->toContain('**Gating — a name that merely reads less clearly is not this finding:**');
         expect($phpRule)->toContain('is no longer "without a binding rule" and is always this Moderate finding instead');
-        expect($phpRule)->toContain('The same identifier is never reported under both **these two** severities.');
-        expect($phpRule)->toContain('This gating is scoped to the Minor naming-nit default only');
+        expect($phpRule)->toContain('That boundary never suppresses a finding another walk raises on the same identifier');
 
         // A misleading identifier that is itself a security control escalates to Critical instead of a flat
         // Moderate, and defers to security-review to avoid double-reporting the same identifier (PR #138 review —
@@ -1597,8 +1596,8 @@ test(
             'Escalate to **Critical** when the misleading identifier is itself a security control — an authn/authz '
             . 'predicate (`isAuthorized()`, `canAccess()`, `hasPermission()`)',
         );
-        expect($crRule)->toContain('**Gating — never both with the Minor naming-nit bucket on the same identifier:**');
-        expect($crRule)->toContain('This gating is scoped to the Minor naming-nit default only');
+        expect($crRule)->toContain('**Gating — a name that merely reads less clearly is not this finding:**');
+        expect($crRule)->toContain('That boundary never suppresses a finding another walk raises on the same identifier');
 
         // The code-review skill enumerates the concern so every CR wrapper inherits it via the shared walk-through.
         expect($skill)->toContain('misleading method/variable naming');
@@ -1840,72 +1839,50 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     expect($savings)->toContain('the two assignments are complementary');
 });
 
-test('code review rule narrows the report to Critical and Moderate from the third CR iteration on', function (): void {
+test('the Minor bucket is retired everywhere except a security-lens finding', function (): void {
     $rule = codeReviewRuleContents();
 
-    expect($rule)->toContain('## Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
-    // The trigger is an explicit caller-supplied value; absent it, nothing is narrowed.
-    expect($rule)->toContain('The narrowed scope applies when **`iteration > 2`**');
-    expect($rule)->toContain('treat the run as `iteration = 1` and render the full report; the narrowing never happens by default');
-    // Exactly what is dropped, and what survives because it is an audit record rather than a finding.
-    // The drop list itself must carry the security exemption — a reader who stops at the
-    // bullet list would otherwise suppress a finding the next paragraph exempts.
-    expect($rule)->toContain('**except** a security-lens finding, which is exempt at every severity');
-    expect($rule)->toContain('`## Excluded per assignment` stays because it is an **audit record**, not a finding');
-    // Suppressing the rendering must not suppress the detection, or the counts would start lying (issue #74).
-    expect($rule)->toContain('**Filter, not detection.**');
-    expect($rule)->toContain('No analysis step, walk-through, or specialized review is skipped or shortened because the iteration is late');
-    expect($rule)->toContain('**Truthful reporting is preserved (issue #74).**');
-    expect($rule)->toContain('never zeroed to match what is rendered');
-    expect($rule)->toContain('Report scope: Critical + Moderate only (iteration 3 — Minor findings and refactoring sections suppressed)');
-    // Security findings map Low/Info onto CR Minor, and the sibling Exclusion Gate's S1 clause
-    // guarantees they are never removed from the published review — the narrowing must not
-    // contradict it, or the two filters give the same finding opposite treatments.
-    expect($rule)->toContain('**Security-lens findings are never suppressed, at any severity.**');
-    expect($rule)->toContain('is rendered even at `iteration > 2`');
-    expect($rule)->toContain('never a security observation');
-    // The verdict math is unaffected because a traceability finding is never Minor.
-    expect($rule)->toContain('**The Assignment Conformance verdict is unaffected.**');
-    expect($rule)->toContain('nothing the narrowing drops ever fed `N`');
-    // The merge bar is unchanged: the gate reads the two severities the narrowed report keeps.
-    expect($rule)->toContain('**The convergence gate is untouched.**');
-    expect($rule)->toContain('The **final publishing run** after convergence carries the loop\'s final iteration number');
+    expect($rule)->toContain('## Minor findings are not detected');
+    expect($rule)->toContain('**The review no longer detects one, no longer raises one, and no longer renders one.**');
+    expect($rule)->toContain('**The whole bucket is gone, not merely hidden.**');
+
+    // The one absolute this package holds everywhere survives the cut.
+    expect($rule)->toContain('a security-lens finding is published at whatever severity its lens assigns, Minor included');
+    expect($rule)->toContain('Security-lens findings are never suppressed, at any severity');
+
+    // Removing a bucket no gate ever read lowers no bar.
+    expect($rule)->toContain('**Nothing about the gates changes.**');
+    expect($rule)->toContain('**What is lost, stated rather than hidden:**');
+
+    // The late-iteration narrowing suppressed exactly the two things now retired, so it goes too.
+    expect($rule)->toContain('### The late-iteration narrowing is retired with it');
+    expect($rule)->toContain('The filter therefore suppresses nothing at any iteration.');
+    expect($rule)->not->toContain('## Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
 });
 
-test('every CR skill and template carries the late-iteration report scope', function (): void {
+test('no CR skill or template carries the retired late-iteration narrowing', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    expect($canonical)->toContain('### Late-Iteration Report Scope (CR iteration > 2)');
-    expect($canonical)->toContain('Run this step **last** — after the Exclusion Gate above and immediately before the Output assembly.');
-    expect($canonical)->toContain('absent `iteration`, treat the run as iteration 1 and render everything');
-    expect($canonical)->toContain('This is a rendering filter only — every analysis step still runs in full.');
+    expect($canonical)->not->toContain('Late-Iteration Report Scope');
+    expect($canonical)->toContain('- **Minor findings are not detected.**');
 
     foreach (['code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
         $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
-        expect($skill)->toContain('**Late-iteration report scope (iteration > 2):**');
-        expect($skill)->toContain('the caller passes `iteration = <N>` on every invocation, quiet or publishing');
-        expect($skill)->toContain('**Critical and Moderate findings only**');
-        // A wrapper read in isolation must not suppress a security Minor the canonical rule exempts.
-        expect($skill)->toContain('but **security-lens findings stay at every severity**');
-        expect($skill)->toContain('- **Late-iteration report scope.**');
-        expect($skill)->toContain('Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)');
+        expect($skill)->not->toContain('Late-iteration report scope');
+        expect($skill)->toContain('> **Minor findings are not detected.**');
+        // The security exemption travels with it, so a wrapper read alone never drops a security Minor.
+        expect($skill)->toContain('a **security-lens** finding is published at whatever severity its own scale assigns');
     }
 
     foreach ([
         'code-review/templates/review-output.md',
         'code-review-github/templates/pr-comment-output.md',
         'code-review-jira/templates/github-output.md',
-        'code-review-bugsnag/templates/github-output.md',
-    ] as $path) {
-        $template = crContractText($packageDir . '/skills/' . $path);
-        expect($template)->toContain('**Late-iteration report scope (CR iteration > 2).**');
-        expect($template)->toContain('**Report scope:** Critical + Moderate only (iteration {n}');
-        expect($template)->toContain('*(always the real detected counts — never zeroed to match a narrowed report scope)*');
-        // Both Minor sub-headings (Findings + Architecture) carry the suppression note. The two
-        // refactoring sections that used to carry the other half are retired.
-        expect(substr_count($template, '*(suppressed entirely when the report scope is narrowed — `iteration > 2`)*'))->toBe(2);
-        expect(substr_count($template, 'omit it entirely when the report scope is narrowed (`iteration > 2`)'))->toBe(0);
+    ] as $relativePath) {
+        $template = crContractText($packageDir . '/skills/' . $relativePath);
+        expect($template)->not->toContain('**Report scope:**');
+        expect($template)->toContain('*(security-lens findings only — no other walk raises a Minor)*');
     }
 });
 
@@ -1935,24 +1912,19 @@ test('the acceptance-criteria gate runs first and names its no-criteria fallback
     expect($template)->toContain('This is where the **Acceptance-Criteria Gate** result lands');
 });
 
-test('process-code-review passes the iteration number to every CR wrapper invocation', function (): void {
+test('process-code-review passes no iteration number, because nothing consumes it', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-
     $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
 
-    expect($loopScope)->toContain('#### Late-iteration report scope (iteration > 2)');
-    expect($loopScope)->toContain('Pass `iteration = <N>` to the CR wrapper on **every** invocation');
-    // The loop's step 2 is the single line that makes the filter reachable during the loop;
-    // without it the subsection documents a contract nothing ever passes.
-    expect($process)->toContain('**and the current `iteration` value** (see **Late-iteration report scope** in the reference)');
-    // The final publish is the surface a human reads, so it must inherit the loop's final iteration number.
-    expect($loopScope)->toContain('that one carries the loop\'s **final** iteration number');
-    expect($process)->toContain('the loop\'s **final `iteration` value**');
-    // Nothing actionable is lost: the loop only ever fixed Critical / Moderate findings.
-    expect($loopScope)->toContain('the suppressed items were never part of the loop\'s fix set');
-    expect($loopScope)->toContain('The narrowing never changes what the review **detects** — only what it renders.');
-    expect($process)->toContain('plus the report scope the final publish used');
+    // The value existed only for the late-iteration narrowing, which is retired with the Minor bucket.
+    expect($process)->not->toContain('iteration = <N>');
+    expect($process)->not->toContain('Late-iteration report scope');
+    expect($loopScope)->not->toContain('Late-iteration report scope');
+
+    // The loop still counts its own iterations and still caps them at three.
+    expect($process)->toContain('`maxIterations = 3`');
+    expect($process)->toContain('increment `iteration`, and go back to step 2');
 });
 
 test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose (issue #254)', function (): void {
@@ -2166,12 +2138,12 @@ test('the three CR tracker wrappers share one contract instead of three drifting
         expect($wrapper)->toContain('## References');
     }
 
-    // The drift issue #279 names: `Late-iteration report scope` sat in all three wrappers at three
-    // slightly different lengths (704 / 769 / 769 B) while each claimed the same canonical
-    // contract, so a reader could not tell a deliberate difference from a copy that fell behind.
-    // Every statement below is now stated once and referenced three times.
+    // The drift issue #279 names: a report-scope blurb sat in all three wrappers at three slightly
+    // different lengths while each claimed the same canonical contract, so a reader could not tell
+    // a deliberate difference from a copy that fell behind. Every statement below is now stated
+    // once and referenced three times.
     $sharedStatements = [
-        '**Late-iteration report scope (iteration > 2):**',
+        '> **Minor findings are not detected.**',
         '#### Reviewer Comment Fulfillment Gate (mandatory)',
         '#### Repository ownership (hard gate)',
         '#### Branch checkout gate (mandatory, always)',
@@ -2336,9 +2308,9 @@ test('code review rule scopes a later round to the diff since the last reviewed 
     expect($rule)->toContain('`regression — introduced in this revision`');
     expect($rule)->toContain('`pre-existing — carried from round N`');
     expect($rule)->toContain('**Provenance changes nothing about severity, counting, or the gate.**');
-    // The sibling filter narrows rendering while this one narrows detection — they compose.
-    expect($rule)->toContain('### Filter on detection — the sibling filter is on rendering');
-    expect($rule)->toContain('Neither filter ever lowers the convergence bar');
+    // With the late-iteration rendering filter retired, this is the only scope filter left.
+    expect($rule)->toContain('### Filter on detection');
+    expect($rule)->toContain('It never lowers the convergence bar and never removes a security finding.');
     // The header line is the anchor the next round resolves its baseline from.
     expect($rule)->toContain('### The two header lines');
     expect($rule)->toContain('Omitting it costs the next round its baseline');
