@@ -255,6 +255,7 @@ Rules:
   - reviewer comments fulfilled (the final `M/N fulfilled` verdict) — every actionable reviewer instruction satisfied, or rejected/deferred with its recorded reason
   - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
   - loop iteration count and final convergence status, plus the report scope the final publish used (`full` on 1–2 iterations, `Critical + Moderate only` above 2) and the review scope it carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
+  - `report: not-published (no-orchestrator)` when the run ended with no `hermes` reporting step and the source is a tracker — this skill publishes no post-convergence report, it only refuses to leave a missing one silent
   - remaining blockers (if any — should be empty when convergence was reached)
 
 ---
