@@ -203,7 +203,9 @@ The non-technical report must be understandable by non-technical testers and pro
 
 ### Per-tracker follow-up
 
-Once the PR is open, signal the review-waiting phase on the source tracker (phase 2 of `@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*): GitHub applies the `ready for review` label unconditionally, creating it when the repository lacks it; JIRA runs `skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>`; Bugsnag has no phase status to set and relies on the comment above as the substitute signal, which is that rule's named exception. The full per-tracker procedure — the create-apply-verify steps, the PR link-back, and the claim label that stays in place — lives in `references/tracker-follow-up.md`.
+Once the PR is open, signal the review-waiting phase on the source tracker (phase 2 of `@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*): GitHub applies the `ready for review` label unconditionally, creating it when the repository lacks it; JIRA runs `skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>`; Bugsnag has no phase status to set and relies on the comment above as the substitute signal, which is that rule's named exception.
+The run also writes the PR link-back on the source tracker (`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*): on GitHub the `Closes #<N>` already in the PR body is that link, while JIRA and Bugsnag expose no structured link write at all, so on both a comment carrying the PR URL is the mechanism. Every one of these writes is verified by re-reading the item through its deterministic loader.
+The full per-tracker procedure — the create-apply-verify steps, the PR link-back, and the claim label that stays in place — lives in `references/tracker-follow-up.md`.
 
 ## References
 

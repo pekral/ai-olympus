@@ -1976,6 +1976,51 @@ test('resolve-issue puts a concrete tracker reference in the PR itself and verif
     expect($pullRequest)->toContain('report the failed link write in the handoff');
 });
 
+test('the JIRA and Bugsnag PR link-backs have a mechanism and a named limitation, not a sentence', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+
+    // "Link the created PR back to the JIRA issue." was the entire JIRA instruction: no script,
+    // no command, no comment content — nothing a run could execute or verify.
+    expect($followUp)->not->toContain('- Link the created PR back to the JIRA issue.');
+    expect($followUp)->toContain('**Write the PR link-back on the JIRA issue**');
+
+    // The comment is the mechanism because the structured alternative does not exist in acli.
+    expect($followUp)->toContain('`acli jira workitem link create` links a work item only to another work item');
+    expect($followUp)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
+    expect($followUp)->toContain('**Re-read and verify the PR URL is on the issue**');
+    expect($followUp)->toContain('skills/code-review-jira/scripts/load-issue.sh <KEY|URL>');
+
+    // The native Development panel is additive infrastructure, never the guarantee.
+    expect($followUp)->toContain('**The JIRA key travels in the PR title**');
+    expect($followUp)->toContain('`devSummary.pullRequestCount > 0` is a second confirmation');
+    expect($followUp)->toContain('never a substitute for step 1');
+
+    // Bugsnag: the API limitation is named, and the comment is required even when no mirrored
+    // GitHub issue exists — that is the case where nothing else connects the error to the PR.
+    expect($followUp)->toContain('**Write the PR link-back on the Bugsnag error**');
+    expect($followUp)->toContain('carries no field that connects an error to a pull request');
+    expect($followUp)->toContain('With no `linkedIssues[]` entry this comment is the only connection');
+    expect($followUp)->toContain('skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>');
+
+    // GitHub needs no extra step here, and says why rather than staying silent about it.
+    expect($followUp)->toContain('The PR link-back needs no step here.');
+});
+
+test('the resolve-issue skill body names the link-back obligation it delegates', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // The skill body keeps the decision (which mechanism per tracker, and that every write is
+    // verified); the reference keeps the procedure — the split its other sections already use.
+    expect($skill)->toContain(
+        'The run also writes the PR link-back on the source tracker '
+        . '(`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*)',
+    );
+    expect($skill)->toContain('JIRA and Bugsnag expose no structured link write at all');
+    expect($skill)->toContain('verified by re-reading the item through its deterministic loader');
+});
+
 test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag included', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md')
