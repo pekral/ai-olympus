@@ -183,8 +183,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
-        // hands a merely-less-descriptive name to a Minor default that no longer exists.
-        'rules/php/core-standards.md' => '390e8b2336be515cb0b3b3a4602900979a8654b20d8bfedce6687ec20bd98b46',
+        // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
+        // stratification citation now names the section that carries the default after the retired
+        // walk was removed.
+        'rules/php/core-standards.md' => '0be4e40d317b3da4933d1be4e3c3ab391ac76db725fe76b11b5d05ff18d8d605',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -266,6 +268,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // merge, written when the code review converges — so the ban now lists three and names
     // `transition-to-ready-to-merge.sh`. The revert direction adds no fourth exception: moving back
     // to the review column is the second transition, run again. Nothing else in the file moved.
+    // `rules/code-review/general.md` and `rules/jira/general.md` each carry one final re-baseline
+    // from the same sweep's second pass: the JIRA rule still stated the phase-3 trigger in the
+    // withdrawn `zero Critical and zero Moderate` words, so the package held two definitions of
+    // convergence for one write, and the Two-Part output contract still routed direction-2 findings
+    // to the retired strict rule compliance walk. Both now cite the section that survived; nothing
+    // else in either file moved.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -276,9 +284,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '8bbab6658cef950a613587a29089560bd6a2f297ea50cabb176bc04c41ac50c9',
+        'rules/code-review/general.md' => '0e8c55004bd9b7aa894d9426b908cad11f016e211e851ee11d5541674515fec5',
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
-        'rules/jira/general.md' => 'a60a3950395478c2ae150ed93a4a2f6a384dd0338df353008530bbcdb0c79fcf',
+        'rules/jira/general.md' => '7dcebba2554139310f60b3b69e07fe73be610ae20cf2e1812eea0723b8e3c82e',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
