@@ -1983,6 +1983,17 @@ test('process-code-review writes the review-waiting phase signal when it opens t
     );
     expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
     expect($content)->toContain('This is the only other path that opens the PR, so it owns the phase-2 write on that path.');
+
+    // The mechanics pointer must resolve to the file that actually carries the two sections —
+    // they live in the resolve-issue reference, not in its skill body, so a pointer at the body
+    // would be a dead link.
+    expect($content)->toContain(
+        'mechanics in `@skills/resolve-issue/references/tracker-follow-up.md` *GitHub-specific follow-up* / *JIRA-specific follow-up*',
+    );
+
+    $referenced = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+    expect($referenced)->toContain('### GitHub-specific follow-up');
+    expect($referenced)->toContain('### JIRA-specific follow-up');
 });
 
 test('the resolve-issue per-tracker follow-up lives in a listed reference', function (): void {
