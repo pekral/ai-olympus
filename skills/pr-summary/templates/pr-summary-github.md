@@ -1,21 +1,29 @@
-{assignment_verdict}
+## What changed
 
-**Authors:** [@github-handle-1, @github-handle-2 — or `Name <email>` when no GitHub handle is known, comma-separated in commit order; never the agent / CR identity]
-**Available behind:** [optional — present only when the change is reachable only behind a test parameter; name the toggle (e.g. `config('feature.new_pricing')`, ENV `BETA_PRICING=1`, query `?preview=1`, admin switch *New pricing preview*) and the value required to reach it; omit this line entirely when the change is reachable unconditionally]
+**Problem:** [Who hit it, on what, and what they saw instead. Name the scale when it is known — how many attempts, over how long, how many accounts. Terse, but every number stays.]
 
-## Summary of changes
+**Cause:** [One mechanism, stated so a non-developer follows it. A missing or partially met acceptance criterion is named here in prose — never as a verdict field.]
 
-**[Short headline naming the change — one line, terse]**
+**Result:** [What the cause actually cost: the number, the runtime, the failure it produced. When the failure was silent, say why it was silent.]
 
-[Terse paragraph — 1–3 short sentences or fragments: business reason, affected area, just enough technical context (integration, payload, table, endpoint, …) to locate the change without reading the diff. No filler, no hedging, drop articles where the language has them; all substance stays. Phrase impersonally — never first person.]
+**What I fixed:**
+
+- [One change the reader can observe. State the new behaviour and, where a number exists, the before-and-after.]
+- [Next observable change.]
+
+**Side benefit:** [Optional — an improvement the fix produces that the assignment never asked for. Omit this field entirely when there is none.]
+
+**Filed separately:** [Optional — a genuinely unrelated defect found during the work and filed on its own ticket. Name the ticket and state that it is linked. Omit this field entirely when there is none.]
 
 ## How to test
 
-1. [If *Available behind* is set, this step **must** enable the toggle / supply the parameter / switch the admin flag — naming the exact value]
-2. [Next action the tester performs — short imperative, no filler; exact names / values / URLs verbatim]
-3. [Outcome the tester verifies — terse but complete; keep every word needed for unambiguous verification]
+1. [The scenario's starting point, with concrete inputs — account, URL, entity name, value typed in. When the change is reachable only behind a test parameter, this step enables it, naming the exact toggle and value. Then the must-hold outcome: what the tester must see for the step to pass.]
+2. [Next scenario step — concrete input, then its must-hold outcome. Say so in the step when this is the important one.]
+3. [Regression: the neighbouring flows the tester exercises to confirm nothing else moved, and the outcome that must stay unchanged.]
 
 {embedded_blocks}
+
+[PR #123](PR_URL) · [ISSUE-KEY](ISSUE_URL)
 
 <!-- ─────────────────────────────────────────────────────────────────────────────
      TEMPLATE GUIDANCE — never part of the published comment.
@@ -26,31 +34,34 @@
      blockquote (`>`) would render as a visible, official-looking quotation, which
      is exactly how meta-instructions leak unnoticed.
 
+     Headings and field labels
+       Translate them into the assignment language per `@rules/reports/general.md`
+       — a Czech assignment renders `## Co se změnilo`, `**Problém:**`,
+       `**Příčina:**`, `**Výsledek:**`, `**Co jsem opravil:**`,
+       `**Vedlejší přínos:**`, `**Na jiný ticket:**`, `## Jak otestovat`. Never mix
+       an English heading with assignment-language prose.
+
+     Length
+       There is no word budget. The report is as long as the facts it carries and
+       no longer — see `@skills/pr-summary/SKILL.md` *Length follows the facts*.
+
      {embedded_blocks}
        Render this slot only when the calling CR wrapper passes one or more markdown
        blocks (typically the `## Assignment Compliance` block returned by
        `@skills/assignment-compliance-check/SKILL.md`). Each block is appended
        verbatim, in the order received, separated by a single blank line. When no
        blocks are passed, omit this slot entirely — including the surrounding blank
-       lines — so the comment ends right after `How to test`.
+       lines — so the comment runs straight from `How to test` to the closing links
+       line. This slot is the only route an assignment gap takes into this comment:
+       the template renders no verdict, no banner, and no positive
+       "satisfies the assignment" line of its own.
 
-     {assignment_verdict}
-       Render this slot at the very top only when the calling CR wrapper passes an
-       `## Assignment Compliance` block — i.e. the changes do not satisfy the
-       assignment. It is a single bold line in the assignment language stating
-       non-compliance and the gap count `N` (taken from the block's
-       `Critical gaps found: N` verdict / count of gap entries), pointing the reader
-       to the detail below — e.g.
-       `⚠️ **Changes do not satisfy the assignment — N gap(s). See Assignment Compliance below.**`
-       (Czech assignment → `⚠️ **Změny nesplňují zadání — N nedostatk(ů). Viz Assignment Compliance níže.**`).
+     Closing links line
+       One line, the pull request and the source tracker item, separated by ` · `.
+       Render whichever of the two links exists; omit the line when neither does.
 
-       When the changes satisfy the assignment (no Assignment Compliance block
-       passed) or no tracker is linked, omit this slot entirely — including the
-       surrounding blank line — so the comment begins at `Authors`. Never render a
-       positive "satisfies the assignment" line; only non-compliance is surfaced.
-
-     The canonical statement of both rules lives in `@skills/pr-summary/SKILL.md`
-     (*Embedded blocks* and *Assignment non-compliance verdict (top banner)*). This
-     block restates the slot mechanics for whoever is filling the template in; the
-     skill is the source of truth if the two ever disagree.
+     The canonical statement of every rule above lives in
+     `@skills/pr-summary/SKILL.md`. This block restates the slot mechanics for
+     whoever is filling the template in; the skill is the source of truth if the
+     two ever disagree.
      ───────────────────────────────────────────────────────────────────────────── -->
