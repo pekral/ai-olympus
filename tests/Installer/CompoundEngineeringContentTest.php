@@ -1528,7 +1528,7 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     expect($rule)->toContain('### Truncated input is disclosed, never absorbed in silence');
     expect($rule)->toContain('The deterministic loaders cap what they return, and the caps differ per tracker.');
     expect($rule)->toContain('100 comments per **sub-issue**, the first 50 sub-issues, and one level of nesting');
-    expect($rule)->toContain('**Bugsnag.** The error\'s comments are fetched in one unpaginated request');
+    expect($rule)->toContain('**Bugsnag.** The error\'s comments are paginated in full up to a cap of 30 pages of 100');
     expect($rule)->toContain('**A silent truncation is worse than a missing feature**');
 
     // A cap is not the only way the read set comes back short: the JIRA loader substitutes an empty
@@ -1556,6 +1556,10 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     // The old single-list wording claimed a 100-comment cap on the item's own comments that no
     // loader applies — `gh issue view --json comments` paginates. It must not come back.
     expect($rule)->not->toContain('100 comments per issue and per sub-issue');
+
+    // Issue #95 closed the Bugsnag loader gap: the comments are paged in full now, so the bullet
+    // must never go back to describing a single unpaginated request as the state of that loader.
+    expect($rule)->not->toContain('fetched in one unpaginated request');
 
     // Nor may the JIRA bullet go back to framing pagination as completeness.
     expect($rule)->not->toContain('paginated in full, so no cap applies to either');

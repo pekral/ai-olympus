@@ -117,6 +117,31 @@ bsnag_next_page_url() {
   grep -i '^link:' "$1" | sed -nE 's/.*<([^>]+)>; *rel="next".*/\1/p' || true
 }
 
+# bsnag_get_all_pages <url> <what> -> echoes one JSON array carrying the items of
+# every page, following `Link: rel="next"` from the first page onwards. A
+# collection that outgrows the page cap is named on stderr and the pages already
+# read are still returned: a short answer nobody was told about reads exactly like
+# a complete one, which is the failure this helper exists to prevent.
+bsnag_get_all_pages() {
+  local url="$1" what="$2"
+  local next="$url" pages=0 headers page items='[]'
+  while [[ -n "$next" && "$pages" -lt "$BSNAG_MAX_PAGES" ]]; do
+    pages=$((pages + 1))
+    headers="$(mktemp)"
+    if ! page="$(bsnag_get_page "$next" "$headers" "$what")"; then
+      rm -f "$headers"
+      exit 3
+    fi
+    items="$(jq -c -n --argjson acc "$items" --argjson page "$page" '$acc + $page')"
+    next="$(bsnag_next_page_url "$headers")"
+    rm -f "$headers"
+  done
+  if [[ -n "$next" ]]; then
+    echo "${PROG}: stopped after ${BSNAG_MAX_PAGES} pages ($((BSNAG_MAX_PAGES * BSNAG_PAGE_SIZE)) items) while ${what} — the result is truncated" >&2
+  fi
+  printf '%s' "$items"
+}
+
 # bsnag_resolve_project_json <org-id> <project-slug> -> echoes the matching project
 # JSON object; aborts on failure. The walk stops at the first page carrying the
 # slug, so a large organization costs one request in the common case, and a hit on

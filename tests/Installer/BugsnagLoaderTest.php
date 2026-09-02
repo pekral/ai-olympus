@@ -55,6 +55,8 @@ test('the loader self-test covers the multi-response behaviour of the fetch chai
         'reports an unknown organization slug',
         'reports a project slug that is on no page',
         'reports the HTTP cause when a projects page fails',
+        'follows comment pagination to the last page',
+        'discloses a comment thread that hits the page cap',
     ];
 
     foreach ($cases as $label) {
@@ -71,4 +73,22 @@ test('the loader self-test runs as part of the project build', function (): void
 
     expect($scripts['shell-self-tests'])->toContain('bash skills/code-review-bugsnag/scripts/load-issue.sh --self-test');
     expect($scripts['check'])->toContain('@shell-self-tests');
+});
+
+test('the loader reads an error\'s comments across every page (issue #95)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $loader = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/scripts/load-issue.sh');
+    $lib = (string) file_get_contents($packageDir . '/skills/code-review-bugsnag/scripts/_lib.sh');
+
+    // The defect: one unpaginated request returned the first page and nothing said so, which
+    // reads exactly like a complete thread. The fetch must ask for a page size and follow the
+    // next link, so the single-request form must not come back.
+    expect($loader)->toContain('bsnag_get_all_pages');
+    expect($loader)->toContain('/comments?per_page=${BSNAG_PAGE_SIZE}');
+    expect($loader)->not->toContain('bsnag_get "${API}/projects/${PROJ_ID}/errors/${ERROR_ID}/comments"');
+
+    // Hitting the cap is disclosed rather than returned as a whole thread, and the same cap is
+    // written into the loader's own Known limitations block so a reader of the script sees it too.
+    expect($lib)->toContain('the result is truncated');
+    expect($loader)->toContain('Comment threads longer than 3000 comments (30 pages of 100)');
 });
