@@ -1243,7 +1243,7 @@ test('the Bash capability boundary names the .env.example read exception the ski
     );
 });
 
-test('compound-engineering rule states the two-phase tracker status invariant', function (): void {
+test('compound-engineering rule states the three-phase tracker status invariant', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
@@ -1262,19 +1262,21 @@ test('compound-engineering rule states the two-phase tracker status invariant', 
     expect($claimPos)->toBeLessThan($phasePos);
     expect($phasePos)->toBeLessThan($deferredPos);
 
-    // Both phases, both mandatory.
+    // All three phases, all mandatory.
     expect($rule)->toContain('**Phase 1 — in progress.**');
     expect($rule)->toContain('**Phase 2 — waiting for code review.**');
-    expect($rule)->toContain('**Both writes are unconditional.**');
-    expect($rule)->toContain('**Both writes are verified.**');
-    expect($rule)->toContain('**Both writes are idempotent.**');
+    expect($rule)->toContain('**Phase 3 — ready to merge.**');
+    expect($rule)->toContain('**Every phase write is unconditional.**');
+    expect($rule)->toContain('**Every phase write is verified.**');
+    expect($rule)->toContain('**Every phase write is idempotent.**');
 
     // Mechanics stay in the skill, mirroring the claim section right above. Assert the whole
     // sentence: a bare `@skills/resolve-issue/SKILL.md` also occurs in sections this change never
     // touched, so it would pass without the new section existing at all.
     expect($rule)->toContain(
         'The per-tracker mechanics — the label names, the helper scripts, and the create-if-missing step — '
-        . 'live in `@skills/resolve-issue/SKILL.md`. This section owns the principle; that skill owns the execution.',
+        . 'live in `@skills/resolve-issue/SKILL.md` for phases 1 and 2, and in `@skills/process-code-review/SKILL.md` '
+        . 'for phase 3. This section owns the principle; those skills own the execution.',
     );
 });
 
@@ -1288,15 +1290,49 @@ test('the tracker status invariant documents the Bugsnag limitation instead of o
     expect($rule)->toContain('**Bugsnag is that tracker, and the exception is deliberate.**');
     // The reason is named: the status field is a resolution enum with no phase value.
     expect($rule)->toContain('`open`, `fixed`, `ignored`, `snoozed`');
-    expect($rule)->toContain('It carries no in-progress value and no in-review value');
+    expect($rule)->toContain('It carries no in-progress value, no in-review value, and no ready-to-merge value');
     // The substitute signal is named, so the exception is not a dead end.
     expect($rule)->toContain('The substitute signal is the comment the run posts on the error');
 
-    // The PR opt-out is the second named exception; phase 2 has nothing to signal without a PR.
-    expect($rule)->toContain('**No pull request, no phase-2 write.**');
+    // The PR opt-out is the second named exception; phases 2 and 3 have nothing to signal without a PR.
+    expect($rule)->toContain('**No pull request, no phase 2 and no phase 3.**');
 
     // The invariant lifts no gate: a resolution write stays human-only.
     expect($rule)->toContain('**A phase write is never a resolution write.**');
+});
+
+test('the ready-to-merge phase names its owner, its revert, and the no-source-issue no-op', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // Phase 3 fires at convergence, before the merge, on both surfaces.
+    expect($rule)->toContain('**Phase 3 — ready to merge.**');
+    expect($rule)->toContain('the moment the code review converges (zero Critical and zero Moderate findings), and before the merge itself');
+
+    // Its owner differs from phases 1 and 2: the implementing agent never observes convergence.
+    expect($rule)->toContain('**Phase 3 has a different owner than phases 1 and 2.**');
+    expect($rule)->toContain('`@skills/process-code-review/SKILL.md`, run by the reviewing agent');
+
+    // A reopened review withdraws the signal, symmetrically with how it was written.
+    expect($rule)->toContain('**A reopened review reverts phase 3.**');
+    expect($rule)->toContain('A fix commit carrying only verbatim tool-generated output re-opens nothing');
+    expect($rule)->toContain('the detector reports the staleness, the review runs again');
+
+    // A described task carries no tracker item, so the issue-side half is an explicit no-op.
+    expect($rule)->toContain('**No source tracker item, no issue-side phase-3 write.**');
+    expect($rule)->toContain('an explicit no-op — nothing is missing, and nothing is reported as a failure');
+
+    // Ready to merge is not a resolution: it never merges and never closes.
+    expect($rule)->toContain('Phase 3 says the work is *ready* to merge; it never merges, and it never closes anything.');
+
+    // The phase-3 write is externally visible, so it carries its own row in the consent inventory,
+    // attributed to the reviewing agent rather than the implementer.
+    expect($orchestration)->toContain('| `athena` | Write the ready-to-merge phase signal on the source issue when the review converges');
+    expect($orchestration)->toContain('mechanics in `@skills/process-code-review/SKILL.md`');
+    // JIRA now sanctions three transitions, so the L3 default and the L1 row both say three.
+    expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
+    expect($orchestration)->toContain('the three sanctioned helper scripts, `@rules/jira/general.md`');
 });
 
 test('compound-engineering rule requires every agent-opened PR to link back to its tracker item', function (): void {
@@ -1381,7 +1417,7 @@ test('the phase label is named as the second sanctioned label-creation exception
     // *Label newly created tracker issues* states "never create a new label" as an absolute, so a
     // second mechanism that legitimately creates one has to be named inline in that same rule.
     expect($rule)->toContain('Two sanctioned exceptions exist, and both are structural labels an existing mechanism creates on demand');
-    expect($rule)->toContain('the phase label that *Tracker status tracks the phase of work* above requires');
+    expect($rule)->toContain('the phase labels that *Tracker status tracks the phase of work* above requires');
 
     // The phase-2 write is externally visible, so it carries its own row in the consent inventory.
     expect($orchestration)->toContain('Write the review-waiting phase signal on the source issue once the PR is open');

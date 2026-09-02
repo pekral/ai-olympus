@@ -136,6 +136,33 @@ test('hephaestus grants the two tracker phase writes its consent-table rows assi
     expect($boundary)->toContain('writing the review-waiting phase signal on the source issue once the PR is open');
 });
 
+test('athena grants the phase-3 ready-to-merge write its consent-table row assigns it (issue #194)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $boundary = installerDocsSection($athena, '## Bash boundary');
+
+    // The consent table assigns athena the phase-3 write, and its GitHub mechanics are raw `gh`
+    // writes — so athena's own Bash boundary must name them, or the obligation contradicts the
+    // permission (the exact shape issue #194 forbids).
+    expect($orchestration)->toContain('| `athena` | Write the ready-to-merge phase signal on the source issue when the review converges');
+
+    expect($boundary)->toContain('gh label create "ready to merge"');
+    expect($boundary)->toContain('gh issue edit --add-label "ready to merge"');
+    expect($boundary)->toContain('gh issue edit --remove-label "ready to merge"');
+    // The revert direction returns the PR to Draft and reuses the existing review transition.
+    expect($boundary)->toContain('gh pr ready --undo');
+    expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh');
+    expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-code-review.sh');
+
+    // Named as an exception to the wrapper rule, mirroring how hephaestus names its own surface.
+    expect($boundary)->toContain('sanctioned exception to *never a raw `gh` write outside the canonical wrappers this package ships*');
+    expect($boundary)->toContain('every other raw `gh` write stays forbidden');
+
+    // The phase-3 write is externally visible, so it also owes its own audit line.
+    expect($boundary)->toContain('writing or withdrawing the ready-to-merge phase signal on the source issue');
+});
+
 test('hephaestus grants the PR link-back write its consent-table row assigns it (issue #194)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
