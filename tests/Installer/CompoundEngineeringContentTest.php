@@ -1534,6 +1534,10 @@ test('every comment-reading consumer cross-references the canonical rule instead
 
     // The rule names its three executing consumers, so the ownership split is readable from it.
     expect($rule)->toContain('`agents/daedalus.md` in its gather phase');
+    // …and says out loud that the list is not every comment-reading path, so the CR-side gap that
+    // the gate does not cover is visible instead of implied by an enumeration that reads complete.
+    expect($rule)->toContain('**Those three are the assignment-reading path, not every path that reads a comment.**');
+    expect($rule)->toContain('*Issue Context Analysis* derives requirements, acceptance criteria, edge cases, and test data from them, and applies no trust gate today');
     expect($rule)->toContain('`@skills/resolve-issue/references/comment-analysis.md` in its thread classification');
     expect($rule)->toContain('`@skills/prepare-issue-context/SKILL.md` when it loads the assignment');
 

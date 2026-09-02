@@ -140,7 +140,9 @@ A run that hits a cap holds incomplete context **and cannot see that it does**.
 - **A silent truncation is worse than a missing feature**, because it looks exactly like complete context. Never report a comment analysis as complete over a truncated read set.
 - **When the missing part could carry the decision, fetch it or stop.** Use the tracker's MCP fallback for what the loader does not return, or stop and say what could not be read. Do not proceed on the part that happened to fit.
 
-The consumers apply this section: `agents/daedalus.md` in its gather phase, `@skills/resolve-issue/references/comment-analysis.md` in its thread classification, and `@skills/prepare-issue-context/SKILL.md` when it loads the assignment. This section owns the principle; those own the execution. The trust test itself stays owned by `@rules/code-review/general.md`.
+Three consumers apply this section today: `agents/daedalus.md` in its gather phase, `@skills/resolve-issue/references/comment-analysis.md` in its thread classification, and `@skills/prepare-issue-context/SKILL.md` when it loads the assignment. This section owns the principle; those own the execution. The trust test itself stays owned by `@rules/code-review/general.md`.
+
+**Those three are the assignment-reading path, not every path that reads a comment.** The review side reads comments too: `@skills/code-review/SKILL.md` *Issue Context Analysis* derives requirements, acceptance criteria, edge cases, and test data from them, and applies no trust gate today. Name that gap rather than reading the list above as complete — an acceptance criterion this gate would have filtered still becomes a finding there. Closing it is a separate change, so this section does not claim it yet.
 
 ## Claim a tracker issue before working on it
 
