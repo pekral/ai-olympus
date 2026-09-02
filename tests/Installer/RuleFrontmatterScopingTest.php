@@ -243,6 +243,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // shape on every target. The bullet describes that shape instead, and states the consequence
     // this rule owns — headings and field labels are prose, so they are translated with the rest of
     // the comment. Nothing else in the file moved.
+    // `rules/jira/general.md` carries one re-baseline of its own: the status-transition ban listed
+    // two sanctioned exceptions, and the tracker phase invariant gained a third phase — ready to
+    // merge, written when the code review converges — so the ban now lists three and names
+    // `transition-to-ready-to-merge.sh`. The revert direction adds no fourth exception: moving back
+    // to the review column is the second transition, run again. Nothing else in the file moved.
     // The pin is scoped to the issue #277 rename, which was allowed to change
     // the extension and the frontmatter keys and nothing else — it is not a freeze on the rule
     // corpus.
@@ -255,7 +260,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         'rules/code-review/general.md' => 'c6460e032a7a6322b23b69816207d6da626d39b73a9fc211e557898c97487376',
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
-        'rules/jira/general.md' => '3c5da06c4fa49351085ec24230d4bf3c2adc5f44f0a03d85bf57b51755eb325a',
+        'rules/jira/general.md' => 'a60a3950395478c2ae150ed93a4a2f6a384dd0338df353008530bbcdb0c79fcf',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         'rules/refactoring/general.md' => '6de4456d6cbaf108a7083e407d47bf06d8bf6890ba7e2ae8489fe1e6fef50175',
         'rules/reports/general.md' => 'aa0df08a4b77e387717b16c7bfdea1602e8698f565fdbf21322fc67fbb8d1a5f',
