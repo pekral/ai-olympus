@@ -1299,6 +1299,80 @@ test('the tracker status invariant documents the Bugsnag limitation instead of o
     expect($rule)->toContain('**A phase write is never a resolution write.**');
 });
 
+test('compound-engineering rule requires every agent-opened PR to link back to its tracker item', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+
+    // The section sits between the phase invariant it extends and the deferral section, so the
+    // three tracker-write sections read as one family in the order they happen during a run.
+    $phasePos = strpos($rule, '## Tracker status tracks the phase of work');
+    $linkPos = strpos($rule, '## Every pull request links back to its tracker issue');
+    $deferredPos = strpos($rule, '## File deferred points as follow-up tracker issues');
+    expect($phasePos)->toBeInt();
+    expect($linkPos)->toBeInt();
+    expect($deferredPos)->toBeInt();
+
+    if (!is_int($phasePos) || !is_int($linkPos) || !is_int($deferredPos)) {
+        return;
+    }
+
+    expect($phasePos)->toBeLessThan($linkPos);
+    expect($linkPos)->toBeLessThan($deferredPos);
+
+    // Both directions, or it is not a link.
+    expect($rule)->toContain('**Every pull request an agent opens references its source tracker item.**');
+    expect($rule)->toContain('**The tracker gains a pointer back to the pull request.**');
+
+    // A commit message is not the PR: `closingIssuesReferences` keys off the PR itself.
+    expect($rule)->toContain('A commit message alone does not satisfy this');
+
+    // Both PR-opening paths, named, so neither can be silently exempt.
+    expect($rule)->toContain('**Every path that opens a pull request carries this obligation.**');
+    expect($rule)->toContain('`@skills/resolve-issue/SKILL.md` and the Finalization step of `@skills/process-code-review/SKILL.md`');
+
+    // Apply-then-verify, the same discipline the phase writes above already use.
+    expect($rule)->toContain('**Both directions are verified.**');
+    expect($rule)->toContain('a zero exit code is not evidence');
+    expect($rule)->toContain('**A link that did not land is reported, never assumed.**');
+
+    // Mechanics stay in the skill, mirroring the two sections above it. Assert the whole sentence:
+    // a bare skill path also occurs in sections this change never touched.
+    expect($rule)->toContain(
+        'The per-tracker mechanics — the closing keyword, the comment wrappers, and the verification reads — '
+        . 'live in `@skills/resolve-issue/SKILL.md`. This section owns the principle; that skill owns the execution.',
+    );
+});
+
+test('the PR linking invariant states the no-tracker case and both tracker limitations', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // A described task has no tracker item, so the obligation must be inapplicable rather than
+    // unsatisfiable — every run of this package on a described task would otherwise fail it.
+    expect($rule)->toContain('**No tracker item, no link.**');
+    expect($rule)->toContain('The step is then inapplicable.');
+
+    // GitHub keeps its mechanic in the git rules, so the two files do not carry it twice.
+    expect($rule)->toContain('**GitHub\'s mechanic lives with the git rules.**');
+    expect($rule)->toContain('`@rules/git/general.md` *Issue Linking* owns the literal closing keyword');
+
+    // JIRA: no structured raw-URL link exists through acli, so the comment is the mechanism and
+    // the Development panel is additive infrastructure, never the guarantee.
+    expect($rule)->toContain('**JIRA carries the link as a comment, because no structured write exists.**');
+    expect($rule)->toContain('`acli` links a work item only to another work item');
+    expect($rule)->toContain('That panel is opt-in infrastructure on the JIRA side, so it never replaces the comment.');
+
+    // Bugsnag: named limitation with its substitute signal, never a silent omission.
+    expect($rule)->toContain('**Bugsnag has no link relationship at all, and that is the documented limitation.**');
+    expect($rule)->toContain('It carries no field that connects an error to a pull request.');
+    expect($rule)->toContain('the substitute signal is the comment on the error carrying the pull request URL');
+
+    // The link-back write is externally visible, so it carries its own row in the consent inventory.
+    expect($orchestration)->toContain('Write the PR link-back on the source tracker item once the PR is open');
+    expect($orchestration)->toContain('*Every pull request links back to its tracker issue* — mechanics in `@skills/resolve-issue/SKILL.md`');
+});
+
 test('the phase label is named as the second sanctioned label-creation exception', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
