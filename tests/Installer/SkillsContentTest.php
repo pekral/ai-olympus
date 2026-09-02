@@ -654,6 +654,10 @@ test('transition-to-ready-to-merge refuses non-merge targets, is idempotent, and
 
     // Guard: only a ready-to-merge status is allowed, so the helper cannot push work to Done.
     expect($content)->toContain('is not a Ready to Merge status');
+    // A phase write is never a resolution write: "merge" also matches the terminal
+    // columns many boards use ("Merged", "Done - merged"), so those are denied too.
+    expect($content)->toContain('names a resolution status');
+    expect($content)->toContain('(done|closed|resolved|completed?|fixed|merged)');
     // Idempotent no-op when already in the target status.
     expect($content)->toContain('already ready to merge');
     // Post-transition re-read so an acli false-positive "looped transition" is caught.

@@ -5,8 +5,8 @@
 # Status transitions are otherwise human-only (rules/jira/general.md). This
 # script is the third sanctioned exception: it can ONLY land an issue in a
 # ready-to-merge status. It structurally refuses any other target (Done, In
-# Progress, Code Review, Closed, …) so an AI agent cannot use it to push work
-# through the board.
+# Progress, Code Review, Closed, Merged, …) so an AI agent cannot use it to push
+# work through the board.
 #
 # This is phase 3 of rules/compound-engineering/general.md *Tracker status
 # tracks the phase of work*. It says the review converged and the work waits on
@@ -31,9 +31,18 @@
 #   is listed in $JIRA_READY_TO_MERGE_SYNONYMS (comma-separated). Anything else
 #   is refused with exit 1 and the issue is left untouched.
 #
+# Resolution deny check:
+#   "merge" is also a substring of the terminal columns many boards use
+#   ("Merged", "Merged to master", "Done - merged"), and a phase write is never
+#   a resolution write. A second check therefore refuses every target naming a
+#   resolution state. It runs AFTER the accept check, so a
+#   $JIRA_READY_TO_MERGE_SYNONYMS entry cannot re-open the hole either.
+#   "Ready to Merge" and "Ready for merge" still pass; "Merged" does not.
+#
 # Behavior:
 #   1. Normalise the KEY.
-#   2. Validate the requested target against the merge-name guard.
+#   2. Validate the requested target against the merge-name guard, then refuse
+#      it when it names a resolution state.
 #   3. Read the current status via load-issue.sh. If already in the target
 #      status, no-op (idempotent) and exit 0.
 #   4. Run `acli jira workitem transition --key <KEY> --status <target> --yes`.
@@ -56,7 +65,8 @@
 #   on stderr.
 #
 # Exit codes:
-#   1  usage / argument error, or refused target (not a ready-to-merge status)
+#   1  usage / argument error, or refused target (not a ready-to-merge status,
+#      or a resolution status)
 #   2  missing required tool (acli, jq)
 #   3  JIRA API call failed (read or transition, for reasons other than 5)
 #   5  target status not available in this project — discover via MCP / ask
@@ -69,7 +79,8 @@ Usage: transition-to-ready-to-merge.sh <KEY|URL> [<STATUS>]
   KEY     JIRA issue key (e.g. ACME-1234)
   URL     /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   STATUS  optional exact target status name (default: $JIRA_READY_TO_MERGE_STATUS
-          or "Ready to Merge"); must be a ready-to-merge status per the merge-name guard
+          or "Ready to Merge"); must be a ready-to-merge status per the merge-name
+          guard, and never a resolution status ("Merged", "Done - merged", …)
 EOF
 }
 
@@ -122,6 +133,16 @@ fi
 
 if [[ "$is_ready_to_merge" != true ]]; then
   echo "transition-to-ready-to-merge.sh: refused — '$TARGET' is not a Ready to Merge status. This script only transitions to a ready-to-merge status; every other transition is human-only (rules/jira/general.md)." >&2
+  exit 1
+fi
+
+# Resolution deny check. Runs after the accept check so it also overrides a
+# JIRA_READY_TO_MERGE_SYNONYMS entry: a phase write is never a resolution write,
+# and "merge" is a substring of the terminal column names many boards use
+# ("Merged", "Merged to master", "Done - merged"). "Ready to Merge" and "Ready
+# for merge" carry "merge", not "merged", so they still pass.
+if [[ "$target_lower" =~ (^|[^a-z])(done|closed|resolved|completed?|fixed|merged)([^a-z]|$) ]]; then
+  echo "transition-to-ready-to-merge.sh: refused — '$TARGET' names a resolution status. Phase 3 says the work is ready to merge; closing or merging stays human-only (rules/jira/general.md)." >&2
   exit 1
 fi
 
