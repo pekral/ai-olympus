@@ -18,9 +18,3 @@ A disposition this skill asserts is a claim, and `@rules/code-review/general.md`
 - **Iteration 1 passes neither** — with no baseline it is round 1 over the whole PR diff, which is what a first review is.
 - **The final publishing run in Completion passes the last iteration's SHA too**, so the published comment carries the same `Reviewed revision:` / `Review scope:` header lines a standalone run would, and the next CR run days later resolves its baseline from them.
 - **Narrowing the detection never narrows the convergence gate.** The gate still counts carried-over findings, so an iteration cannot converge by scoping an unresolved Critical — or an undeferred Moderate — out of view.
-
-#### Late-iteration report scope (iteration > 2)
-
-- Pass `iteration = <N>` to the CR wrapper on **every** invocation — the quiet loop runs above and the final publishing run in **Completion** below (that one carries the loop's **final** iteration number, so a loop that needed more than two rounds publishes the narrowed report and one that converged sooner publishes the full one).
-- From `iteration = 3` onward the wrapper reports **Critical and Moderate findings only** per `@rules/code-review/general.md` *Late-Iteration Report Scope — Critical & Moderate Only (CR iteration > 2)*: no Minor findings, no refactoring sections. Nothing actionable is lost — step 5 above already applies fixes for Critical / Moderate findings only, so the suppressed items were never part of the loop's fix set, and the convergence condition in step 4 reads exactly the two severities the narrowed report keeps.
-- The narrowing never changes what the review **detects** — only what it renders. The wrapper still reports the real `Counts:` numbers and an explicit `Report scope:` line, so a suppressed Minor is visible as a number and never reads as a clean result.

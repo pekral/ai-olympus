@@ -182,7 +182,9 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
         'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
-        'rules/php/core-standards.md' => '26aef9a085f29a5b7005f17f0dddaebbfcdf9b143af6b9d9befa06b2da31d917',
+        // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
+        // hands a merely-less-descriptive name to a Minor default that no longer exists.
+        'rules/php/core-standards.md' => '390e8b2336be515cb0b3b3a4602900979a8654b20d8bfedce6687ec20bd98b46',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -245,6 +247,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `rules/code-review/general.md` carries one more re-baseline: both refactoring sections of the
     // published review are retired, so the Two-Part output contract no longer lists them and the
     // late-iteration drop list no longer names them. Nothing else in the file moved.
+    // `rules/code-review/general.md` carries one last re-baseline: the Minor bucket is retired, so
+    // *Late-Iteration Report Scope* — a filter whose whole job was suppressing Minor findings and
+    // the two now-retired refactoring sections — is replaced by *Minor findings are not detected*,
+    // which keeps the one exception the package holds everywhere: a security-lens finding is
+    // published at whatever severity its own scale assigns.
     // `rules/reports/general.md` carries one re-baseline of its own: the bullet naming what falls
     // outside the English CR exception described `pr-summary`'s per-target field list (the four
     // GitHub fields, JIRA's reduced "only How to test" shape), and `pr-summary` now renders one
@@ -266,7 +273,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '51ecbf12352d8c54a4e43465c591f3ffe4db6b786345a8b6da84a56fd8092311',
+        'rules/code-review/general.md' => '122b0b5e2c0696cef49f1237b67ae0aab0df409e4039a6b89e540eb470bcdb93',
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
         'rules/jira/general.md' => 'a60a3950395478c2ae150ed93a4a2f6a384dd0338df353008530bbcdb0c79fcf',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
