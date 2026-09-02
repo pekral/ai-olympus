@@ -1873,13 +1873,23 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('across **3 consecutive liveness checks**');
     expect($content)->toContain('**30 minutes of zero externally visible movement**');
 
+    // The two counters carry distinct names, so no rule can say "the counter" and leave the reader
+    // guessing which of them a reset or a cap applies to.
+    expect($content)->toContain('**Two counters run per round, and they are different numbers.**');
+    expect($content)->toContain('**no-progress streak**');
+    expect($content)->toContain('**check count**');
+    expect($content)->toContain('Never write "the counter" for either of them.');
+
     // Detection escalates, and never re-dispatches over an unconfirmed original.
     expect($content)->toContain('Blocked: dispatch <role>/<round> nejeví známky života');
     expect($content)->toContain('Never re-dispatch a stuck round without first confirming the original is dead.');
 
-    // The cap bounds the checks themselves, so an unbounded wait cannot masquerade as monitoring.
-    expect($content)->toContain('**Cap the checks at 6 per round**');
-    expect($content)->toContain('regardless of the last observed state');
+    // The cap bounds the checks themselves, so an unbounded wait cannot masquerade as monitoring —
+    // but elapsed time alone never escalates a round the checks watched make progress.
+    expect($content)->toContain('**Cap the check count at 6 per round**');
+    expect($content)->toContain('**The cap escalates a round without progress, never a round that is moving.**');
+    expect($content)->toContain('only when it has shown no progress signal since its last progressing check');
+    expect($content)->not->toContain('regardless of the last observed state');
 
     // The tail safety net never becomes a step of the golden path.
     expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
