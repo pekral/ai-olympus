@@ -2428,9 +2428,9 @@ test('hermes skips its own report only on content-proven coverage from an admiss
     expect($hermes)->not->toContain('a comment you published for an earlier head SHA does not');
     expect($hermes)->toContain('**Recency runs next, and it runs over every comment alike.**');
     expect($hermes)->toContain('compare its `createdAt` (the loader returns it as `comments[].createdAt`)');
-    expect($hermes)->toContain("head commit's own timestamp (`git show -s --format=%cI <head SHA>`)");
+    expect($hermes)->toContain('head commit\'s own timestamp (`git show -s --format=%cI <head SHA>`)');
     expect($hermes)->toContain(
-        "The test is the same for your own earlier comment and for a trusted agent's",
+        'The test is the same for your own earlier comment and for a trusted agent\'s',
     );
     expect($hermes)->toContain(
         '**When you cannot establish that a comment postdates the current head, it is not coverage — publish.**',
@@ -2489,7 +2489,9 @@ test('the new hermes reporting outcome reaches every surface that lists the old 
     // Each of the prose surfaces, pinned on a fragment unique to it.
     expect($hermes)->toContain('or "Reporting done (already covered)" with the URL of a comment that already carries both halves');
     expect($hermes)->toContain('or `Reporting done (already covered)` + the URL of the comment that already carries both halves');
-    expect($hermes)->toContain('`Reporting done` / `Reporting done (already covered)` / `Reporting done (no tracker)` — post-convergence reporting mode');
+    expect($hermes)->toContain(
+        '`Reporting done` / `Reporting done (already covered)` / `Reporting done (no tracker)` — post-convergence reporting mode',
+    );
     expect($hermes)->toContain('On `Reporting done (already covered)` it carries the covering comment\'s URL');
     expect($hermes)->toContain(
         '`Reporting done` / `Reporting done (already covered)` / `Reporting done (no tracker)` in reporting mode, never the other mode\'s',
