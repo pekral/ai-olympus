@@ -1883,6 +1883,32 @@ test('every CR skill and template carries the late-iteration report scope', func
     }
 });
 
+test('the acceptance-criteria gate runs first and names its no-criteria fallback', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = crContractText('skills/code-review/SKILL.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
+    $template = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
+
+    // The gate exists, runs first, and anchors the verdict.
+    expect($skill)->toContain('### Acceptance-Criteria Gate (mandatory, runs first)');
+    expect($skill)->toContain('its result is the review\'s primary pass/fail signal');
+    expect($skill)->toContain('before the Assignment Conformance Gate, before Core Analysis, and before every Specialized Review');
+
+    // An assignment with no explicit criteria falls back to the existing gate, not to a new mechanism.
+    expect($skill)->toContain('**No explicit criteria → fall back to the Assignment Conformance Gate below, unchanged.**');
+    expect($skill)->toContain('This is not a second mechanism and introduces no new behaviour');
+
+    // Running first orders the review; it never excuses a finding raised elsewhere.
+    expect($skill)->toContain('**Running first orders the review; it never excuses a finding.**');
+
+    // The rule keeps ownership of what is checked; the skill owns when it runs.
+    expect($rule)->toContain('**Ordering — the acceptance criteria are walked first.**');
+    expect($rule)->toContain('the skill owns **when** it runs');
+
+    // The verdict renders in the always-present Functional Review section.
+    expect($template)->toContain('This is where the **Acceptance-Criteria Gate** result lands');
+});
+
 test('process-code-review passes the iteration number to every CR wrapper invocation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');

@@ -156,7 +156,9 @@
 
 ## Functional Review
 
-> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). Computed from the same Assignment Conformance Gate direction 1 already behind the `assignment conformance:` token on the Summary line below — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
+> Always rendered — never omitted, the one exception to the omit-empty-section convention that governs `## Technical Review` above (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*).
+>
+> This is where the **Acceptance-Criteria Gate** result lands: when the assignment enumerates explicit criteria, render one line per criterion (`satisfied` / `unsatisfied`) and every `unsatisfied` one as a Critical gap below; when it enumerates none, the section carries the Assignment Conformance Gate verdict exactly as before. Computed from the same Assignment Conformance Gate direction 1 already behind the `assignment conformance:` token on the Summary line below — no new analysis, only this explicit, always-present placement. Direction 2 (changes → requirements traceability / scope-creep) stays in `## Findings` above — it is diff hygiene, not "did the code satisfy the requirement".
 
 {conformant → "All stated assignment requirements are satisfied." | gaps → list every Critical functional / business-logic gap below — still counted in the Counts line above}
 
