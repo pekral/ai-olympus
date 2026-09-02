@@ -28,7 +28,7 @@ A commit landing after the promotion can re-open the review (*Finalization* — 
 1. `gh pr ready --undo <PR-NUMBER|URL>` returns the PR to Draft when it had already been promoted.
 2. `gh issue edit <N> --remove-label "ready to merge"` removes the GitHub signal. The still-present `ready for review` label is again the active phase-2 signal, which is what is true — the work waits on a reviewer.
 3. `skills/code-review-jira/scripts/transition-to-code-review.sh <KEY|URL>` moves JIRA back to the review column. That is the **existing** second sanctioned transition, so the revert direction needs no new capability.
-4. Verify each withdrawal by re-reading through the deterministic loader, exactly as the write was verified.
+4. Verify each withdrawal by re-reading through the deterministic loader, exactly as the write was verified. When a withdrawal does not land — a write silently blocked in auto-mode, or exit 5 because the review column is not reachable from the ready-to-merge column — report the stale phase-3 signal in the completion report and never report convergence. The tracker then still claims *ready to merge* over a re-opened review, so a human has to reset it. The PR stays in Draft either way.
 
 A fix commit carrying only the verbatim output of the project's fixers re-opens nothing, so it never triggers this revert — the converged verdict stands and the signal stays.
 
