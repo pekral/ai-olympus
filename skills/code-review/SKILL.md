@@ -121,7 +121,7 @@ Apply this subsection only when the source issue is flagged as **highest priorit
 3. **Keep the resolution gate at Critical and Moderate.** No widening, no narrowing — those two severities still block the merge, exactly as in the default flow. State this explicitly in the review header so the caller does not have to infer it.
 4. **There is no longer a non-blocking bucket to demote.** Minor findings and both refactoring sections are retired package-wide (`@rules/code-review/general.md` *Minor findings are not detected*, `@rules/code-review/review-process.md` *Refactoring & Tech Debt (DRY) Analysis — retired*), so the fast track has nothing left to defer. Out-of-scope work a reviewer notices travels in the handoff and is filed only when it clears the filing bar.
    Critical and Moderate findings, the **Architecture conformance** walk-through, the **Coverage gate**, the **Database Analysis** section, and every **Specialized Review** that the diff triggers stay mandatory and blocking — fast-track never skips them.
-5. **Record the fast-track decision** in the review output: the matched signal (label name or JIRA priority value), the deferred sections, and a one-line reminder that the gate remained Critical + Moderate.
+5. **Record the fast-track decision** in the review output: the matched signal (label name or JIRA priority value) and a one-line reminder that the gate remained Critical + Moderate.
 
 ### Named Arguments Review
 - Would positional arguments be ambiguous?
