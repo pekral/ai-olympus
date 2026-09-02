@@ -48,7 +48,7 @@ Then point the front-door agent at real work, inside Claude Code:
 ## Why This Package
 
 - **Ship an issue without writing the boilerplate** — one agent takes the ticket, implements it, and hands back a reviewed pull request
-- **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical and Moderate before anything merges
+- **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical with no undeferred Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
 - **53 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent

@@ -171,6 +171,50 @@ test('the merge gate reads zero Critical with no undeferred Moderate, coherently
     expect($process)->toContain('canonical definition — every other file in this package cites this one and never restates it');
 });
 
+test('no shipped surface restates the withdrawn convergence wording', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // Every spelling of the withdrawn gate, so a sweep cannot miss one by rephrasing it.
+    $withdrawn = '/0 Critical \+ 0 Moderate'
+        . '|zero Critical and zero Moderate'
+        . '|zero critical and zero moderate'
+        . '|0 Critical\/0 Moderate'
+        . '|criticalCount \+ moderateCount'
+        . '|Critical \+ Moderate == 0'
+        . '|zero Critical and Moderate/';
+
+    // The only surfaces allowed to carry it, each with the exact count it is allowed to carry, so a
+    // new occurrence in an allowed file still fails. CHANGELOG.md is out of scope: it is history.
+    $allowed = [
+        // The pre-PR self-check is deliberately stricter than the merge gate and says so inline.
+        'skills/resolve-issue/SKILL.md' => 2,
+        'skills/resolve-issue/references/code-quality-self-check.md' => 1,
+        // The one place that withdraws the wording has to quote it to withdraw it.
+        'rules/compound-engineering/general.md' => 1,
+        // Reports of past runs, true as history and never a statement of the current gate.
+        'docs/marketing/launch-article.en.md' => 1,
+        'docs/memory/PROJECT_MEMORY.md' => 1,
+    ];
+
+    $files = ['README.md', 'CONTRIBUTING.md'];
+
+    foreach (['rules', 'skills', 'agents', 'docs'] as $dir) {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageDir . '/' . $dir));
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && $file->getExtension() === 'md') {
+                $files[] = substr((string) $file->getPathname(), strlen($packageDir) + 1);
+            }
+        }
+    }
+
+    foreach ($files as $relative) {
+        $matches = preg_match_all($withdrawn, (string) file_get_contents($packageDir . '/' . $relative));
+
+        expect($matches)->toBe($allowed[$relative] ?? 0, $relative . ' restates the withdrawn convergence wording');
+    }
+});
+
 test('merge-github-pr billing exception honours an explicit merge-anytime request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');

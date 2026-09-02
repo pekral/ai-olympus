@@ -119,7 +119,7 @@ with `--min=100`. Nothing gets pushed until it exits zero. The 100% figure is on
 it is the reason a fix arrives with the test that proves it.
 
 **Nothing merges on its own.** A pull request opens as a Draft, and it stays a Draft until the review
-converges to zero critical and zero moderate findings. The merge itself is a separate step that only
+converges to zero critical findings with no undeferred moderate. The merge itself is a separate step that only
 runs when I asked for it in that run — not implied by "resolve this issue".
 
 ## One complete run, start to finish
