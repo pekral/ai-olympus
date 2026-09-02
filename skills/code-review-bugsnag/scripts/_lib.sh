@@ -15,6 +15,12 @@
 API="https://api.bugsnag.com"
 : "${PROG:=${0##*/}}"
 
+# The shape of every paged read: 100 items per request, and at most 30 requests.
+# The cap exists so a runaway `Link: rel="next"` chain terminates; hitting it is
+# reported, never returned as a short answer that reads like a complete one.
+BSNAG_PAGE_SIZE=100
+BSNAG_MAX_PAGES=30
+
 bsnag_require_tools() {
   local bin
   for bin in curl jq; do
@@ -80,26 +86,51 @@ bsnag_resolve_org_id() {
   printf '%s' "$id"
 }
 
+# bsnag_get_page <url> <headers-file> <what> -> echoes the response body and
+# leaves the response headers in <headers-file> for bsnag_next_page_url; fails
+# with status 3 on a network error or any non-2xx, naming <what> so each caller's
+# message reads as its own. The failing paths remove <headers-file> themselves,
+# because they never return to the caller that would otherwise clean it up.
+#
+# Every caller tests the call rather than leaning on `set -e`: this helper runs
+# inside a command substitution that is itself inside one, and bash carries an
+# `exit` out of the inner substitution only as a status, so an unchecked call
+# leaves the caller running on an empty body.
+bsnag_get_page() {
+  local url="$1" headers="$2" what="$3" body http
+  body="$(curl -sS -w $'\n%{http_code}' -D "$headers" \
+    -H "Authorization: token ${TOKEN}" -H "X-Version: 2" "$url")" \
+    || { rm -f "$headers"; echo "${PROG}: network error $what" >&2; exit 3; }
+  http="${body##*$'\n'}"
+  body="${body%$'\n'*}"
+  if [[ "$http" -lt 200 || "$http" -ge 300 ]]; then
+    rm -f "$headers"
+    echo "${PROG}: Bugsnag API returned HTTP $http $what" >&2
+    exit 3
+  fi
+  printf '%s' "$body"
+}
+
+# bsnag_next_page_url <headers-file> -> echoes the URL the response's
+# `Link: rel="next"` header points at, or nothing when this was the last page.
+bsnag_next_page_url() {
+  grep -i '^link:' "$1" | sed -nE 's/.*<([^>]+)>; *rel="next".*/\1/p' || true
+}
+
 # bsnag_resolve_project_json <org-id> <project-slug> -> echoes the matching project
-# JSON object; aborts on failure. The pagination loop is status-checked (a transient
-# 429/500 or expired token surfaces the real HTTP cause instead of a misleading
-# "slug not found"), and a hit on the page cap is reported distinctly rather than
-# silently collapsing into "not found".
+# JSON object; aborts on failure. The walk stops at the first page carrying the
+# slug, so a large organization costs one request in the common case, and a hit on
+# the page cap is reported distinctly rather than silently collapsing into
+# "not found".
 bsnag_resolve_project_json() {
   local org_id="$1" proj_slug="$2"
-  local next="${API}/organizations/${org_id}/projects?per_page=100&sort=created_at&direction=asc"
-  local pages=0 headers page http match
-  while [[ -n "$next" && "$pages" -lt 30 ]]; do
+  local next="${API}/organizations/${org_id}/projects?per_page=${BSNAG_PAGE_SIZE}&sort=created_at&direction=asc"
+  local pages=0 headers page match
+  while [[ -n "$next" && "$pages" -lt "$BSNAG_MAX_PAGES" ]]; do
     pages=$((pages + 1))
     headers="$(mktemp)"
-    page="$(curl -sS -w $'\n%{http_code}' -D "$headers" \
-      -H "Authorization: token ${TOKEN}" -H "X-Version: 2" "$next")" \
-      || { rm -f "$headers"; echo "${PROG}: network error listing projects" >&2; exit 3; }
-    http="${page##*$'\n'}"
-    page="${page%$'\n'*}"
-    if [[ "$http" -lt 200 || "$http" -ge 300 ]]; then
+    if ! page="$(bsnag_get_page "$next" "$headers" 'listing projects')"; then
       rm -f "$headers"
-      echo "${PROG}: Bugsnag API returned HTTP $http listing projects" >&2
       exit 3
     fi
     match="$(printf '%s' "$page" | jq -c --arg s "$proj_slug" 'map(select(.slug == $s)) | .[0] // empty' 2>/dev/null || true)"
@@ -108,11 +139,11 @@ bsnag_resolve_project_json() {
       printf '%s' "$match"
       return 0
     fi
-    next="$(grep -i '^link:' "$headers" | sed -nE 's/.*<([^>]+)>; *rel="next".*/\1/p' || true)"
+    next="$(bsnag_next_page_url "$headers")"
     rm -f "$headers"
   done
-  if [[ "$pages" -ge 30 && -n "$next" ]]; then
-    echo "${PROG}: stopped after 30 pages (3000 projects) without finding slug: $proj_slug" >&2
+  if [[ "$pages" -ge "$BSNAG_MAX_PAGES" && -n "$next" ]]; then
+    echo "${PROG}: stopped after ${BSNAG_MAX_PAGES} pages ($((BSNAG_MAX_PAGES * BSNAG_PAGE_SIZE)) projects) without finding slug: $proj_slug" >&2
   else
     echo "${PROG}: project slug not found in organization: $proj_slug" >&2
   fi
