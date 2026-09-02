@@ -13,8 +13,8 @@ The write is unconditional, idempotent, and verified — the same apply-then-ver
 4. **Leave the `ready for review` label in place.** It is no longer the active signal, and the revert below falls back to it.
 
 ### JIRA-specific write
-- Run `skills/code-review-jira/scripts/transition-to-ready-to-merge.sh <KEY|URL>`. This is the third sanctioned status transition (`@rules/jira/general.md`); the helper refuses any non-merge target and reports success only after confirming the issue actually reached the column.
-- On exit 5 the project names that column differently and it could not be auto-resolved: discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human. Perform no other status transition; all others remain human-only.
+- Run `skills/code-review-jira/scripts/transition-to-ready-to-merge.sh <KEY|URL>`. This is the third sanctioned status transition (`@rules/jira/general.md`); the helper refuses any non-merge target, refuses every resolution name (`Merged`, `Done - merged`) even when it is listed as a synonym, and reports success only after confirming the issue actually reached the column.
+- On exit 5 the project names that column differently and it could not be auto-resolved: discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human. A discovered name that turns out to be a resolution column is refused with exit 1 — that board has no ready-to-merge column, so leave the status alone and say so in the completion report. Perform no other status transition; all others remain human-only.
 
 ### Bugsnag-specific write
 - There is none. Bugsnag's `status` field is a resolution enum (`open` / `fixed` / `ignored` / `snoozed`) carrying no ready-to-merge value, so no status write exists to make — the same documented limitation the phase-1 and phase-2 writes already carry. The substitute signal is the comment on the error and its mirror on the linked GitHub issue in `linkedIssues[]`.
