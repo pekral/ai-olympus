@@ -136,6 +136,24 @@ test('hephaestus grants the two tracker phase writes its consent-table rows assi
     expect($boundary)->toContain('writing the review-waiting phase signal on the source issue once the PR is open');
 });
 
+test('hephaestus grants the PR link-back write its consent-table row assigns it (issue #194)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $boundary = installerDocsSection($hephaestus, '## Bash boundary');
+
+    // The consent table assigns hephaestus the link-back write, so its own Bash boundary must
+    // permit the call that performs it — the same obligation/permission parity as the phase writes.
+    expect($orchestration)->toContain('Write the PR link-back on the source tracker item once the PR is open');
+
+    expect($boundary)->toContain('*Every pull request links back to its tracker issue*');
+    expect($boundary)->toContain('canonical `upsert-comment.sh` wrappers');
+    expect($boundary)->toContain('never a raw `gh issue comment` or `acli … comment create`');
+
+    // Externally visible, so it owes its own audit line beside the two phase writes.
+    expect($boundary)->toContain('writing the PR link-back on the source tracker item once the PR is open');
+});
+
 test('the roster ships no general problem-analysis subagent and daedalus routes accordingly', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
