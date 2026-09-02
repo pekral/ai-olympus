@@ -306,7 +306,7 @@ test('GitHub PR comment templates use a compact AI-parseable header with severit
 
         expect($content)->toContain('# Code Review');
         expect($content)->toContain('**Status:** clean / needs-fix');
-        expect($content)->toContain('**Counts:** Critical {n} · Moderate {n} · Minor {n} · Refactoring {n}');
+        expect($content)->toContain('**Counts:** Critical {n} · Moderate {n} · Minor {n}');
         expect($content)->toContain('### 🔴 Critical 1.');
         expect($content)->toContain('### 🟠 Moderate 1.');
         expect($content)->toContain('### 🟡 Minor 1.');
@@ -405,20 +405,29 @@ test('CR and resolution skills carry no live reference to the removed test-like-
     }
 });
 
-test('every code review skill references class-refactoring skill', function (): void {
-    $needle = '@skills/class-refactoring/SKILL.md';
+test('no code review skill invokes the retired refactoring lenses', function (): void {
     $reviewSkills = [
         'skills/code-review/SKILL.md',
         'skills/code-review-github/SKILL.md',
         'skills/code-review-jira/SKILL.md',
+        'skills/code-review-bugsnag/SKILL.md',
     ];
 
+    // Both lenses only ever filled the two retired refactoring sections, so a review that still
+    // ran them would spend a lens on output nothing renders.
     foreach ($reviewSkills as $relativePath) {
-        expect(crContractText($relativePath))->toContain($needle);
+        $content = crContractText($relativePath);
+        expect($content)->not->toContain('@skills/class-refactoring/SKILL.md** with `MODE=cr`');
+        expect($content)->not->toContain('@skills/refactor-entry-point-to-action/SKILL.md** with `MODE=cr`');
     }
+
+    // Both skills stay shipped for a caller that asks for a refactor.
+    $packageDir = dirname(__DIR__, 2);
+    expect(is_file($packageDir . '/skills/class-refactoring/SKILL.md'))->toBeTrue();
+    expect(is_file($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md'))->toBeTrue();
 });
 
-test('code review skills constrain refactoring lens to PR diff', function (): void {
+test('the refactoring and tech-debt pass is retired across every code review skill', function (): void {
     $reviewSkills = [
         'skills/code-review/SKILL.md',
         'skills/code-review-github/SKILL.md',
@@ -428,9 +437,14 @@ test('code review skills constrain refactoring lens to PR diff', function (): vo
 
     foreach ($reviewSkills as $relativePath) {
         $content = crContractText($relativePath);
-        expect($content)->toContain('Refactoring & Tech Debt (DRY)');
-        expect($content)->toContain('untouched code');
+        expect($content)->toContain('Refactoring & Tech Debt (DRY) Analysis — retired');
+        // The reuse-first gate is what survives it: a parallel implementation is a rule violation.
+        expect($content)->toContain('reuse-first gate');
     }
+
+    $rule = codeReviewRuleContents();
+    expect($rule)->toContain('**Neither section is produced any more, and neither lens runs on a CR.**');
+    expect($rule)->toContain('**What is lost, stated rather than hidden:**');
 });
 
 test('reuse-first gate asks whether new logic is necessary before reusing existing logic (issue #722)', function (): void {
@@ -457,7 +471,7 @@ test('reuse-first gate asks whether new logic is necessary before reusing existi
     expect($bugsnag)->toContain('reuse-first gate');
 });
 
-test('code review templates include refactoring tech debt section', function (): void {
+test('code review templates render neither refactoring section', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $templates = [
         $packageDir . '/skills/code-review/templates/review-output.md',
@@ -467,8 +481,11 @@ test('code review templates include refactoring tech debt section', function ():
 
     foreach ($templates as $template) {
         $content = crContractText($template);
-        expect($content)->toContain('## Refactoring (DRY / tech debt)');
-        expect($content)->toContain('{n} Refactoring');
+        expect($content)->not->toContain('## Refactoring (DRY / tech debt)');
+        expect($content)->not->toContain('## Refactoring proposals');
+        // The Counts and Summary lines lose the slot they counted into.
+        expect($content)->not->toContain('{n} Refactoring');
+        expect($content)->not->toContain('Refactoring {n}');
     }
 });
 
@@ -485,8 +502,6 @@ test('code review output omits empty sections instead of rendering placeholders'
         $content = crContractText($template);
         expect($content)->toContain('Section visibility — render only sections that have content.');
         expect($content)->toContain('Render only when at least one Critical, Moderate, or Minor finding exists.');
-        expect($content)->toContain('Render only when at least one in-scope refactoring item exists.');
-        expect($content)->toContain('Render only when at least one out-of-scope structural improvement is justified by a rule.');
     }
 
     $skills = [
@@ -1757,9 +1772,9 @@ test('every CR wrapper publishes the blocking documentation request on the surfa
         expect($skill)->toContain('**`## Documentation Requests` section (issue #151).**');
         expect($skill)->toContain('Omit the heading entirely when no request exists.');
 
-        // The technical PR comment template renders it between Findings and Refactoring.
+        // The technical PR comment template renders it after Findings and before Database Analysis.
         expect($rendered)->toContain('## Documentation Requests');
-        expect(strpos($rendered, '## Documentation Requests'))->toBeLessThan((int) strpos($rendered, '## Refactoring'));
+        expect(strpos($rendered, '## Documentation Requests'))->toBeLessThan((int) strpos($rendered, '## Database Analysis'));
         expect((int) strpos($rendered, '## Findings'))->toBeLessThan((int) strpos($rendered, '## Documentation Requests'));
     }
 
@@ -1836,8 +1851,6 @@ test('code review rule narrows the report to Critical and Moderate from the thir
     // The drop list itself must carry the security exemption — a reader who stops at the
     // bullet list would otherwise suppress a finding the next paragraph exempts.
     expect($rule)->toContain('**except** a security-lens finding, which is exempt at every severity');
-    expect($rule)->toContain('The entire `## Refactoring (DRY / tech debt)` section.');
-    expect($rule)->toContain('The entire `## Refactoring proposals` section.');
     expect($rule)->toContain('`## Excluded per assignment` stays because it is an **audit record**, not a finding');
     // Suppressing the rendering must not suppress the detection, or the counts would start lying (issue #74).
     expect($rule)->toContain('**Filter, not detection.**');
@@ -1889,9 +1902,10 @@ test('every CR skill and template carries the late-iteration report scope', func
         expect($template)->toContain('**Late-iteration report scope (CR iteration > 2).**');
         expect($template)->toContain('**Report scope:** Critical + Moderate only (iteration {n}');
         expect($template)->toContain('*(always the real detected counts — never zeroed to match a narrowed report scope)*');
-        // Both Minor sub-headings (Findings + Architecture) and both refactoring sections carry the suppression note.
+        // Both Minor sub-headings (Findings + Architecture) carry the suppression note. The two
+        // refactoring sections that used to carry the other half are retired.
         expect(substr_count($template, '*(suppressed entirely when the report scope is narrowed — `iteration > 2`)*'))->toBe(2);
-        expect(substr_count($template, 'omit it entirely when the report scope is narrowed (`iteration > 2`)'))->toBe(2);
+        expect(substr_count($template, 'omit it entirely when the report scope is narrowed (`iteration > 2`)'))->toBe(0);
     }
 });
 
@@ -2733,16 +2747,20 @@ test('the frontend lenses are gated against the Blade layout-splitting walk (iss
     expect($contract)->toContain('Gating decides **who** raises a finding, never **at what severity**');
 });
 
-test('the layout-splitting walk carries its own half of the frontend gating (issue #60)', function (): void {
-    // A boundary written on one side only is a boundary the other side never reads. The walk lives
-    // in the rule file, the lenses in the skill reference, so both have to state it.
+test('the layout-splitting walk is retired and the three frontend lenses are unaffected', function (): void {
+    // The walk was a Refactoring (DRY / tech debt) entry producer, so it went with that section.
+    // Nothing is left to gate against: the three lenses now own their surface outright.
     $rule = codeReviewRuleContents();
 
-    expect($rule)->toContain('**Gating against the three frontend lenses — one finding per violation, never two.**');
-    expect($rule)->toContain('fires `frontend-patterns`, `frontend-a11y`, and `design-system` (each with `MODE=cr`)');
-    expect($rule)->toContain('**This walk owns where the markup is split**');
-    expect($rule)->toContain('**Those three lenses own what is inside the component.**');
-    expect($rule)->toContain('Never raise both sides on the same line.');
+    expect($rule)->not->toContain('**Gating against the three frontend lenses — one finding per violation, never two.**');
+    expect($rule)->toContain('the Livewire / Blade layout-splitting walk');
+    expect($rule)->toContain('**The three frontend lenses are unaffected.**');
+
+    // The lenses themselves still run on a frontend diff.
+    $contract = crContractText('skills/code-review/SKILL.md');
+    expect($contract)->toContain('frontend-patterns');
+    expect($contract)->toContain('frontend-a11y');
+    expect($contract)->toContain('design-system');
 });
 
 test('a cache or rate-limit diff triggers the redis-patterns lens (issue #61)', function (): void {

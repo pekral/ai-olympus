@@ -242,6 +242,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // and the severity stratification it defined moved into this file as *Default severity for a
     // rule violation* — surviving bullets still need a default when their own rule file declares
     // none. Nothing else in the file moved.
+    // `rules/code-review/general.md` carries one more re-baseline: both refactoring sections of the
+    // published review are retired, so the Two-Part output contract no longer lists them and the
+    // late-iteration drop list no longer names them. Nothing else in the file moved.
     // `rules/reports/general.md` carries one re-baseline of its own: the bullet naming what falls
     // outside the English CR exception described `pr-summary`'s per-target field list (the four
     // GitHub fields, JIRA's reduced "only How to test" shape), and `pr-summary` now renders one
@@ -263,7 +266,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => 'bfaa3e23f651609f21af3f34e8d7bd8d7d0b4496242e2e68e122d35d0a16d3b1',
+        'rules/code-review/general.md' => '51ecbf12352d8c54a4e43465c591f3ffe4db6b786345a8b6da84a56fd8092311',
         'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
         'rules/jira/general.md' => 'a60a3950395478c2ae150ed93a4a2f6a384dd0338df353008530bbcdb0c79fcf',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',

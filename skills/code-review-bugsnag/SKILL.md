@@ -44,7 +44,7 @@ The baseline resolves from the **linked GitHub PR's** CR comments (`@skills/code
 - If the error has no linked PR yet → report `no linked PR — review skipped` and stop.
 
 ### 3. Run Reviews
-Run the always-run set, the conditional set, and the Refactoring & Tech Debt (DRY) analysis exactly as `@skills/code-review-github/references/cr-wrapper-contract.md` *3. Run Reviews* defines them, against the linked PR. A Bugsnag-sourced review adds no sub-review of its own and skips none.
+Run the always-run set, the conditional set, and the reuse-first gate exactly as `@skills/code-review-github/references/cr-wrapper-contract.md` *3. Run Reviews* defines them, against the linked PR. A Bugsnag-sourced review adds no sub-review of its own and skips none.
 
 ### 4. Publish Results
 
