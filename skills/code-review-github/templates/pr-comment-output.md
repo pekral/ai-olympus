@@ -8,7 +8,7 @@
 >
 > **Minor findings are not detected.** The review raises Critical and Moderate findings only (`@rules/code-review/general.md` *Minor findings are not detected*). The `🟡 Minor` sub-headings and the `Minor` slot of the `Counts:` line below exist for the one exception — a **security-lens** finding published at whatever severity its own scale assigns — and render nothing on a review that found none.
 
-**Status:** clean / needs-fix
+**Status:** clean / needs-fix  *(`clean` when the run converged — no Critical, no unfulfilled reviewer comment, and every remaining Moderate carrying a `Deferred:` field. A Moderate without that field is outstanding, so the status is `needs-fix`.)*
 **Counts:** Critical {n} · Moderate {n} · Minor {n}  *(always the real detected counts; `Minor` counts security-lens findings only)*
 **Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
 **Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
@@ -45,7 +45,9 @@
 
 ### 🟠 Moderate 1. <short title>
 
-(same fields as Critical, Provenance included)
+(same fields as Critical, Provenance included, plus one field that renders only on a round-3 deferral)
+
+- **Deferred:** `<sub-issue URL>` — filed as a sub-issue of the source tracker item per `@skills/process-code-review/references/round-three-deferral.md`; the finding is recorded, not resolved. *(Omit this field entirely unless the finding was deferred.)*
 
 ### 🟡 Minor 1. <short title>  *(security-lens findings only — no other walk raises a Minor)*
 
@@ -92,7 +94,9 @@
 
 ### 🟠 Moderate 1. <short title>
 
-(same fields as Critical, Provenance included)
+(same fields as Critical, Provenance included, plus one field that renders only on a round-3 deferral)
+
+- **Deferred:** `<sub-issue URL>` — filed as a sub-issue of the source tracker item per `@skills/process-code-review/references/round-three-deferral.md`; the finding is recorded, not resolved. *(Omit this field entirely unless the finding was deferred.)*
 
 ### 🟡 Minor 1. <short title>  *(security-lens findings only — no other walk raises a Minor)*
 
