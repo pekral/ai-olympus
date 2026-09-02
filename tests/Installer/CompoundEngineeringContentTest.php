@@ -1269,8 +1269,13 @@ test('compound-engineering rule states the two-phase tracker status invariant', 
     expect($rule)->toContain('**Both writes are verified.**');
     expect($rule)->toContain('**Both writes are idempotent.**');
 
-    // Mechanics stay in the skill, mirroring the claim section right above.
-    expect($rule)->toContain('@skills/resolve-issue/SKILL.md');
+    // Mechanics stay in the skill, mirroring the claim section right above. Assert the whole
+    // sentence: a bare `@skills/resolve-issue/SKILL.md` also occurs in sections this change never
+    // touched, so it would pass without the new section existing at all.
+    expect($rule)->toContain(
+        'The per-tracker mechanics — the label names, the helper scripts, and the create-if-missing step — '
+        . 'live in `@skills/resolve-issue/SKILL.md`. This section owns the principle; that skill owns the execution.',
+    );
 });
 
 test('the tracker status invariant documents the Bugsnag limitation instead of omitting it', function (): void {
