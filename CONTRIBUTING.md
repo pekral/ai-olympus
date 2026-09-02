@@ -50,7 +50,7 @@ Follow `rules/git/general.md`:
 - Commit format: `type(scope): description` (`feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`), lowercase `type`/`scope`, no trailing period.
 - Commit messages and PR titles are always in **English**, regardless of the language the issue or PR description is written in.
 - Never include AI co-author trailers (no `Co-Authored-By:` lines, no "Generated with …" notes).
-- Link the issue you are resolving (e.g. `Closes #123`) so it closes automatically on merge.
+- Put the literal `Closes #123` in the **pull request body**, not only in a commit message — GitHub reads the link off the body, and every review skill here reads it long before the merge.
 - Open the PR as a **Draft** until the code review has converged (0 Critical + 0 Moderate findings) — this repository's review/fix loop promotes it out of Draft once it's ready to merge.
 - The merge strategy is rebase-and-merge.
 
