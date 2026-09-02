@@ -1515,13 +1515,32 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     expect($rule)->toContain('### Truncated input is disclosed, never absorbed in silence');
     expect($rule)->toContain('The deterministic loaders cap what they return, and the caps differ per tracker.');
     expect($rule)->toContain('100 comments per **sub-issue**, the first 50 sub-issues, and one level of nesting');
-    expect($rule)->toContain('**JIRA.** The issue\'s comments and each subtask\'s comments are paginated in full');
     expect($rule)->toContain('**Bugsnag.** The error\'s comments are fetched in one unpaginated request');
     expect($rule)->toContain('**A silent truncation is worse than a missing feature**');
+
+    // A cap is not the only way the read set comes back short: the JIRA loader substitutes an empty
+    // list for a failed `acli` call, so an empty `comments[]` there reads as unverified rather than
+    // as an empty thread. Framing incompleteness as a cap alone would let a JIRA run conclude there
+    // was nothing to disclose, which is exactly the silent truncation this section exists to catch.
+    expect($rule)->toContain('**A cap is not the only way the read set comes back short**');
+    expect($rule)->toContain('**JIRA — no size cap, but the fetch can degrade to empty in silence.**');
+    expect($rule)->toContain('substitutes `{"comments": []}` whenever the `acli` call fails');
+    expect($rule)->toContain('**An empty JIRA `comments[]` is therefore indistinguishable from a failed fetch**');
+
+    // GitHub and Bugsnag fail hard instead, so the contrast that makes the JIRA case readable is
+    // pinned on both sides rather than left to the reader to infer from one bullet.
+    expect($rule)->toContain('A failed fetch exits 3, so an empty list here does mean the item carries no comments.');
+    expect($rule)->toContain('The request itself exits 3 on failure');
+
+    // The mandatory disclosure covers both shapes, or a JIRA run has no cap to name and says nothing.
+    expect($rule)->toContain('Name which cap was hit, or which fetch degraded.');
 
     // The old single-list wording claimed a 100-comment cap on the item's own comments that no
     // loader applies — `gh issue view --json comments` paginates. It must not come back.
     expect($rule)->not->toContain('100 comments per issue and per sub-issue');
+
+    // Nor may the JIRA bullet go back to framing pagination as completeness.
+    expect($rule)->not->toContain('paginated in full, so no cap applies to either');
 });
 
 test('every comment-reading consumer cross-references the canonical rule instead of copying it', function (): void {

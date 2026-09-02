@@ -128,15 +128,15 @@ A requester refining their own request therefore reads as untrusted here. That i
 
 ### Truncated input is disclosed, never absorbed in silence
 
-The deterministic loaders cap what they return, and the caps differ per tracker. State the caps of the tracker the run actually reads, never a single list for all three.
+The deterministic loaders cap what they return, and the caps differ per tracker. State the caps of the tracker the run actually reads, never a single list for all three. **A cap is not the only way the read set comes back short**: one of the three loaders also degrades a failed fetch to an empty list, so a run that only looks for a cap misses that case entirely.
 
-- **GitHub.** The item's own comments are paginated in full, so an issue with 400 comments returns 400. The caps sit on the sub-issue tree: 100 comments per **sub-issue**, the first 50 sub-issues, and one level of nesting. Line-anchored pull-request review comments are not fetched at all.
-- **JIRA.** The issue's comments and each subtask's comments are paginated in full, so no cap applies to either.
-- **Bugsnag.** The error's comments are fetched in one unpaginated request, so only the API's first page comes back. This one is not a designed cap — it is a loader gap, and it is the silent truncation this section exists to catch.
+- **GitHub.** The item's own comments are paginated in full, so an issue with 400 comments returns 400. The caps sit on the sub-issue tree: 100 comments per **sub-issue**, the first 50 sub-issues, and one level of nesting. Line-anchored pull-request review comments are not fetched at all. A failed fetch exits 3, so an empty list here does mean the item carries no comments.
+- **JIRA — no size cap, but the fetch can degrade to empty in silence.** The issue's comments and each subtask's comments are paginated in full, so no size cap applies to either. The failure mode is the other one: `skills/code-review-jira/scripts/load-issue.sh` substitutes `{"comments": []}` whenever the `acli` call fails — on the issue's own comments and on each subtask's — and skips a subtask whose own view fails, dropping that subtask's comments with it. The loader documents the degradation itself. **An empty JIRA `comments[]` is therefore indistinguishable from a failed fetch**: read it as *unverified*, never as *no comments*, and disclose it as a truncation until a second read shows the thread is genuinely empty.
+- **Bugsnag.** The error's comments are fetched in one unpaginated request, so only the API's first page comes back. This one is not a designed cap — it is a loader gap. The request itself exits 3 on failure, so what is missing here is the pages after the first, never an empty list standing in for a failure.
 
-A run that hits a cap holds incomplete context **and cannot see that it does**.
+A run that hits a cap, or reads a list that degraded to empty, holds incomplete context **and cannot see that it does**.
 
-- **Compare the returned count against the cap and write down every truncation** where the next agent reads it — the shared brief on an orchestrated run, the handoff and the analysis output otherwise. Name which cap was hit.
+- **Compare the returned count against the cap and write down every truncation** where the next agent reads it — the shared brief on an orchestrated run, the handoff and the analysis output otherwise. Name which cap was hit, or which fetch degraded.
 - **A silent truncation is worse than a missing feature**, because it looks exactly like complete context. Never report a comment analysis as complete over a truncated read set.
 - **When the missing part could carry the decision, fetch it or stop.** Use the tracker's MCP fallback for what the loader does not return, or stop and say what could not be read. Do not proceed on the part that happened to fit.
 
