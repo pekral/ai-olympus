@@ -55,7 +55,7 @@ function contentPinDecodeString(string $literal): string
         return stripcslashes($body);
     }
 
-    return str_replace(['\\\\', "\\'"], ['\\', "'"], $body);
+    return str_replace(['\\\\', '\\\''], ['\\', '\''], $body);
 }
 
 /**
@@ -492,4 +492,3 @@ test('the walk resolves a corpus concatenated from several loaders (issue #75)',
     // first top-level `.` resolves it to null and drops every pin asserted against it.
     expect(array_unique($corpora))->toContain('skills/code-review/SKILL.md . literal . codeReviewRuleContents()');
 });
-
