@@ -34,7 +34,7 @@ function contentPinTokens(string $absolutePath): array
             continue;
         }
 
-        if (in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+        if (in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], strict: true)) {
             continue;
         }
 
@@ -63,7 +63,7 @@ function contentPinDecodeString(string $literal): string
  */
 function contentPinDepthDelta(string $text): int
 {
-    return (int) in_array($text, ['(', '['], true) - (int) in_array($text, [')', ']'], true);
+    return (int) in_array($text, ['(', '['], strict: true) - (int) in_array($text, [')', ']'], strict: true);
 }
 
 /**
@@ -313,7 +313,7 @@ function contentPinIsAssignment(array $tokens, int $index): bool
  */
 function contentPinIsTestHead(array $tokens, int $index): bool
 {
-    return in_array($tokens[$index]['text'], ['it', 'test'], true)
+    return in_array($tokens[$index]['text'], ['it', 'test'], strict: true)
         && $tokens[$index]['id'] === T_STRING
         && ($tokens[$index + 1]['text'] ?? '') === '('
         && ($tokens[$index + 2]['id'] ?? 0) === T_CONSTANT_ENCAPSED_STRING
@@ -340,7 +340,7 @@ function contentPinForgetLoopVariables(array $tokens, int $index, array $corpora
             continue;
         }
 
-        if ($tokens[$cursor]['id'] !== T_DOUBLE_ARROW && !in_array($tokens[$cursor]['text'], [',', '[', ']'], true)) {
+        if ($tokens[$cursor]['id'] !== T_DOUBLE_ARROW && !in_array($tokens[$cursor]['text'], [',', '[', ']'], strict: true)) {
             break;
         }
     }
