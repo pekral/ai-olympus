@@ -43,13 +43,14 @@ The rebase replayed every commit onto a new base; the resulting head is gated on
           pageInfo{ hasNextPage endCursor }
           nodes{
             id isResolved path line
-            comments(first:100){ nodes{ author{login} body url createdAt } }
+            comments(first:100){ nodes{ author{login} authorAssociation body url createdAt } }
           }
         }
       }
     }
   }' -F owner=<owner> -F repo=<repo> -F number=<number>
   ```
+  **Keep `authorAssociation` in the selection.** `@skills/code-review-github/references/cr-wrapper-contract.md` *Delegation of a reviewer comment to another account* reads that field on every thread comment to decide whether a trusted reviewer addressed the comment to another account. An association this run cannot resolve is treated as absent, so dropping the field from this selection silently turns every line-anchored comment untrusted and disables the disposition for exactly the case it was written for.
   **Do not accept a truncated list** — the "every unresolved thread" guarantee depends on completeness. When `reviewThreads.pageInfo.hasNextPage` is `true`, repeat the query with `-F cursor=<endCursor>` until it is `false`; when any thread's `comments.nodes` reaches the page size, page that thread's comments the same way. If `gh api graphql` is unavailable, fall back to the GitHub MCP server for the same thread list plus its resolved state.
 - Build the checklist from **both** sources:
   1. Structured CR findings published by the review skills (general comments come from `comments[]`).
