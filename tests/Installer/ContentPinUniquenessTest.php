@@ -466,7 +466,7 @@ function contentPinDuplicateBaseline(): array
     return array_values(array_filter(explode("\n", $file), $isEntry));
 }
 
-test('every content pin in CodeReviewContentTest matches its corpus exactly once (issue #75)', function (): void {
+test('no content pin outside the duplicate baseline matches its corpus more than once (issue #75)', function (): void {
     $duplicates = contentPinDuplicateKeys('tests/Installer/CodeReviewContentTest.php');
 
     // A pin listed here matches its corpus twice or more, so it is satisfied by a sibling
