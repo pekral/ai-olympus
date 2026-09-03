@@ -1,0 +1,47 @@
+# Content pins of tests/Installer/CodeReviewContentTest.php that already matched their corpus
+# more than once when the guard in ContentPinUniquenessTest.php was introduced (issue #75).
+# One `<corpus> :: <literal>` per line. The list only ever shrinks — see the test for how.
+
+codeReviewRuleContents() :: **Expected Behavior:**
+codeReviewRuleContents() :: **Faulty Example:**
+codeReviewRuleContents() :: **Test Hint:**
+codeReviewRuleContents() :: **What is lost, stated rather than hidden:**
+codeReviewRuleContents() :: @rules/code-testing/general.md
+codeReviewRuleContents() :: @skills/code-review/SKILL.md
+codeReviewRuleContents() :: Security-lens findings are never suppressed, at any severity
+codeReviewRuleContents() :: domain glossary
+codeReviewRuleContents() :: isEligibleForDiscount
+codeReviewRuleContents() :: navigation markers
+codeReviewRuleContents() :: reuse-first gate
+codeReviewRuleContents() :: {ClassName}Test.php
+crContractText(skills/code-review-bugsnag/SKILL.md) :: reuse-first gate
+crContractText(skills/code-review-github/SKILL.md) :: @skills/pr-summary/SKILL.md
+crContractText(skills/code-review-github/SKILL.md) :: closingIssues[]
+crContractText(skills/code-review-github/SKILL.md) :: every linked issue
+crContractText(skills/code-review-github/SKILL.md) :: render `Coverage: deferred to hephaestus (isolated worktree, no vendor/)`
+crContractText(skills/code-review-github/SKILL.md) :: skills/code-review-github/scripts/upsert-comment.sh
+crContractText(skills/code-review-jira/SKILL.md) :: #### Linked GitHub issues (consolidated mirror — always-new comment per CR run)
+crContractText(skills/code-review-jira/SKILL.md) :: @skills/pr-summary/SKILL.md
+crContractText(skills/code-review-jira/SKILL.md) :: @skills/pr-summary/templates/pr-summary-jira.md
+crContractText(skills/code-review-jira/SKILL.md) :: The non-technical tracker comment never includes this section
+crContractText(skills/code-review-jira/SKILL.md) :: no leaked Markdown
+crContractText(skills/code-review-jira/SKILL.md) :: skills/code-review-github/scripts/upsert-comment.sh
+crContractText(skills/code-review-jira/templates/github-output.md) :: ## Architecture
+crContractText(skills/code-review-jira/templates/github-output.md) :: only when the walk produces at least one finding
+crContractText(skills/code-review/SKILL.md) :: design-system
+crContractText(skills/code-review/SKILL.md) :: frontend-a11y
+crContractText(skills/code-review/SKILL.md) :: frontend-patterns
+rules/code-testing/general.md :: ## Test Organization
+rules/code-testing/general.md :: {ClassName}{Scenario}Test.php
+skills/code-review-github/templates/pr-comment-output.md :: ## Architecture
+skills/code-review-github/templates/pr-comment-output.md :: only when the walk produces at least one finding
+skills/code-review/SKILL.md :: @skills/pr-summary/SKILL.md
+skills/code-review/SKILL.md :: Incremental Review Scope — Diff Since the Last Reviewed Revision
+skills/code-review/SKILL.md :: Truthful reporting (issue #74)
+skills/code-review/templates/review-output.md :: ## Architecture
+skills/code-review/templates/review-output.md :: only when the walk produces at least one finding
+skills/pr-summary/SKILL.md :: No leaked markup on JIRA
+skills/pr-summary/templates/pr-summary-github.md :: {embedded_blocks}
+skills/pr-summary/templates/pr-summary-jira.md :: {embedded_blocks}
+skills/process-code-review/SKILL.md :: `references/review-loop-scope.md`
+skills/process-code-review/SKILL.md :: cr-status
