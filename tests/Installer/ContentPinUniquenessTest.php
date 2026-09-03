@@ -12,9 +12,10 @@ declare(strict_types = 1);
  * in the corpus the pin is asserted against, and reports every pin that matches more than once.
  *
  * It resolves the three corpus loaders this package's content tests use — `file_get_contents()`
- * over a `$packageDir`-relative path, `crContractText()`, and `codeReviewRuleContents()`. A pin
- * whose corpus comes from anywhere else (a `foreach` variable, a computed string) is not counted:
- * the walk reports what it can prove, never a guess.
+ * over a `$packageDir`-relative path, `crContractText()`, and `codeReviewRuleContents()` — each on
+ * its own and concatenated with the others and with string literals. A pin whose corpus comes from
+ * anywhere else (a `foreach` variable, a computed path, a nested call the pin head does not see) is
+ * not counted: the walk reports what it can prove, never a guess.
  */
 
 /**
@@ -180,15 +181,49 @@ function contentPinFileCorpus(string $loader, string $path): ?array
 }
 
 /**
- * The corpus a `$var = ...;` assignment loads, or null when the right-hand side is not one of the
- * loaders this walk understands.
+ * The tokens of each top-level `.` operand of a concatenation, in source order.
  *
  * @param array<int, array{id: int, line: int, text: string}> $tail
+ * @return array<int, array<int, array{id: int, line: int, text: string}>>
+ */
+function contentPinConcatTerms(array $tail): array
+{
+    $terms = [];
+    $current = [];
+    $depth = 0;
+
+    foreach ($tail as $token) {
+        $depth += contentPinDepthDelta($token['text']);
+
+        if ($depth === 0 && $token['text'] === '.') {
+            $terms[] = $current;
+            $current = [];
+
+            continue;
+        }
+
+        $current[] = $token;
+    }
+
+    $terms[] = $current;
+
+    return $terms;
+}
+
+/**
+ * The corpus one operand of the concatenation contributes.
+ *
+ * @param array<int, array{id: int, line: int, text: string}> $term
  * @return array{name: string, text: string}|null
  */
-function contentPinCorpus(array $tail): ?array
+function contentPinCorpusTerm(array $term): ?array
 {
-    $call = ($tail[0]['id'] ?? 0) === T_STRING_CAST ? array_slice($tail, 1) : $tail;
+    $call = ($term[0]['id'] ?? 0) === T_STRING_CAST ? array_slice($term, 1) : $term;
+
+    if (count($call) === 1 && $call[0]['id'] === T_CONSTANT_ENCAPSED_STRING) {
+        return ['name' => 'literal', 'text' => contentPinDecodeString($call[0]['text'])];
+    }
+
     $loader = $call[0]['text'] ?? '';
 
     if ($loader === 'codeReviewRuleContents') {
@@ -197,11 +232,33 @@ function contentPinCorpus(array $tail): ?array
 
     $path = contentPinConstantString(array_slice($call, 2, -1));
 
-    if ($path === null) {
-        return null;
+    return $path === null ? null : contentPinFileCorpus($loader, $path);
+}
+
+/**
+ * The corpus a `$var = ...;` assignment loads, across every operand of a concatenation. Null when
+ * any operand is not one of the loaders this walk understands.
+ *
+ * @param array<int, array{id: int, line: int, text: string}> $tail
+ * @return array{name: string, text: string}|null
+ */
+function contentPinCorpus(array $tail): ?array
+{
+    $names = [];
+    $text = '';
+
+    foreach (contentPinConcatTerms($tail) as $term) {
+        $resolved = contentPinCorpusTerm($term);
+
+        if ($resolved === null) {
+            return null;
+        }
+
+        $names[] = $resolved['name'];
+        $text .= $resolved['text'];
     }
 
-    return contentPinFileCorpus($loader, $path);
+    return ['name' => implode(' . ', $names), 'text' => $text];
 }
 
 /**
@@ -413,3 +470,13 @@ test('the duplicate content pin baseline carries no stale entry (issue #75)', fu
     // entry so the baseline keeps shrinking and never turns into a permanent exemption list.
     expect(array_values(array_diff(contentPinDuplicateBaseline(), $duplicates)))->toBe([]);
 });
+
+test('the walk resolves a corpus concatenated from several loaders (issue #75)', function (): void {
+    $corpora = array_column(contentPinOccurrences('tests/Installer/CodeReviewContentTest.php'), 'corpus');
+
+    // `$content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" .
+    // codeReviewRuleContents();` is the dominant corpus shape of that file. A walk that stops at the
+    // first top-level `.` resolves it to null and drops every pin asserted against it.
+    expect(array_unique($corpora))->toContain('skills/code-review/SKILL.md . literal . codeReviewRuleContents()');
+});
+

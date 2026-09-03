@@ -1,6 +1,8 @@
 # Content pins of tests/Installer/CodeReviewContentTest.php that already matched their corpus
 # more than once when the guard in ContentPinUniquenessTest.php was introduced (issue #75).
-# One `<corpus> :: <literal>` per line. The list only ever shrinks — see the test for how.
+# One `<corpus> :: <literal>` per line. Anchoring a pin removes its entry, so the list shrinks as
+# the work proceeds. It grew once, from 43 to 60, when the walk learned to resolve a concatenated
+# corpus: those 17 pins were already vacuous and the walk simply could not see them.
 
 codeReviewRuleContents() :: **Expected Behavior:**
 codeReviewRuleContents() :: **Faulty Example:**
@@ -35,6 +37,23 @@ rules/code-testing/general.md :: ## Test Organization
 rules/code-testing/general.md :: {ClassName}{Scenario}Test.php
 skills/code-review-github/templates/pr-comment-output.md :: ## Architecture
 skills/code-review-github/templates/pr-comment-output.md :: only when the walk produces at least one finding
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Architecture conformance (Laravel)**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **New storage reuse analysis**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Request → DTO transformation belongs in the FormRequest, not the controller**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Test organization (issue #528)**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **What is lost, stated rather than hidden:**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: @rules/code-testing/general.md
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: @skills/process-code-review/SKILL.md
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Applies only when `pekral/arch-app-services` is installed
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Escalate to **Critical**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Http::fake()
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Process::fake()
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Schema::create(...)
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Severity: **Moderate**
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Severity: **Moderate** by default
+skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Test isolation — no real HTTP, no real system processes
+skills/code-review/SKILL.md . literal . skills/code-review/references/third-party-api-analysis.md :: Run this section only when the diff integrates with, modifies, or depends on a third-party API or external service
+skills/code-review/SKILL.md . literal . skills/code-review/references/third-party-api-analysis.md :: raise a **Moderate** finding
 skills/code-review/SKILL.md :: @skills/pr-summary/SKILL.md
 skills/code-review/SKILL.md :: Incremental Review Scope — Diff Since the Last Reviewed Revision
 skills/code-review/SKILL.md :: Truthful reporting (issue #74)
