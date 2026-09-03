@@ -106,7 +106,7 @@ test('the install-rules command copies what the plugin channel cannot load by it
     expect($command)->toContain('writes no `.claude/settings.local.json` entry');
 });
 
-test('the finalize-tasks command carries its argument and its own-comments guard', function (): void {
+test('the finalize-tasks command pins its argument, its consolidation contract and its additive guard', function (): void {
     $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
 
     // The tracker link is the one input the command cannot work without, and Claude Code passes it
@@ -116,17 +116,56 @@ test('the finalize-tasks command carries its argument and its own-comments guard
     expect($command)->toContain('$ARGUMENTS');
     expect($command)->toContain('stop and ask me for it');
 
-    // The consolidation step edits and deletes tracker comments, so the guard that keeps it off
-    // somebody else's comment is the safety-relevant half of the file. Nothing else in the suite
-    // reads it, and a destructive write is not a failure a later run can undo.
-    expect($command)->toContain('Never edit and never delete a comment written by anybody else');
+    // The consolidation is the command's whole reason to exist: ONE comment carrying the TLDR, the
+    // acceptance-criteria status and the merge-vs-review recommendation. An edit that drops any of
+    // the four changes what the command delivers, and nothing else in the suite reads this file.
+    expect($command)->toContain('into a **single** new tracker comment');
+    expect($command)->toContain('states the assignment as a TLDR');
+    expect($command)->toContain('status of the acceptance criteria');
+    expect($command)->toContain('whether a direct merge is recommended or a');
+
+    // The consolidation is additive because no agent in the roster can be anything else: the only
+    // comment wrapper the package ships posts and never patches, and there is no delete wrapper at
+    // all. A rewrite that reintroduces an edit or a delete mandates a write nobody can perform, and
+    // a deleted comment is not a failure a later run can undo.
+    expect($command)->toContain('The consolidation posts one new comment.');
+    expect($command)->toContain('Never edit and never delete a comment written by anybody');
+    expect($command)->toContain('never edit or delete one of your own either');
+    expect($command)->toContain('posts a comment and never patches one');
+    expect($command)->toContain('Do not compose a raw `gh` or `acli` write to work around that');
+
+    // The publish routes through the roster's only publishing agent, which is what keeps the
+    // command inside the consent inventory it now carries a row in.
+    expect($command)->toContain('`daedalus` does not publish the comment itself');
+    expect($command)->toContain('`hermes`, the roster\'s only');
+
+    // The account resolution selects which comments the summary speaks for; it authorises nothing.
+    // JIRA hands back a display name where GitHub hands back a login, so the guard fails safe.
     expect($command)->toContain('gh api user --jq .login');
     expect($command)->toContain('acli jira auth status');
-
-    // JIRA hands back a display name where GitHub hands back a login, so the guard fails safe
-    // instead of matching on the weaker of the two.
+    expect($command)->toContain('it authorises no write on any of them');
     expect($command)->toContain('corroboration and never proof');
-    expect($command)->toContain('delete nothing');
+
+    // The file reads every comment on a tracker task, so it names the boundary that keeps an
+    // imperative sentence inside one of them from reading as an instruction to the agent.
+    expect($command)->toContain('rules/security/general.md');
+    expect($command)->toContain('untrusted data');
+
+    // The template ships the shape the assignment asked for — the three headings and the
+    // plain-text layout — filled with placeholders instead of a past run's real facts. The real
+    // account name is deliberately NOT asserted here: pinning it would put the identifier this
+    // template was anonymised to remove back into the repository.
+    expect($command)->toContain('HOW TO TEST');
+    expect($command)->toContain('OPEN QUESTION');
+    expect($command)->toContain('ASSIGNMENT COMPLIANCE');
+    expect($command)->toContain('never ship a placeholder in a published comment');
+    expect($command)->toContain('<the account or data set the test needs>');
+    expect($command)->toContain('<acceptance criterion>: still missing.');
+
+    // An externally-visible action gets its row in the consent inventory in the same change that
+    // introduces it, so the publish this command asks for must be listed there with a level.
+    $inventory = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/orchestration.md');
+    expect($inventory)->toContain('when `/finalize-tasks` runs | L2 |');
 });
 
 test('both installation paths are documented with the difference between them', function (): void {
