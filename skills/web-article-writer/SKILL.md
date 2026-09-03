@@ -128,7 +128,7 @@ Perform a final pass for:
 - removal of placeholders, unsupported hype, and duplicated conclusions
 - removal of the machine register step 5 names: opening throat-clearing, hollow bridge phrases, uniform paragraph and list rhythm, and a closing question added only to invite a reply
 
-Rewrite what this pass finds. Never route the finished article through an external rewriting or "humanizing" tool: it runs after verification, so nothing checks what it changed, and a tool that alters wording to change how the text reads can also alter what the text claims.
+Rewrite what this pass finds. Run any external rewriting or "humanizing" tool before this step, never after it: a tool that alters wording to change how the text reads can also alter what the text claims, and a pass that lands after verification leaves nothing to check it. When any tool rewrites the article once this step is done, run this step again over the result.
 
 ## Output Format
 When editing a website project, write only the files requested and follow the verified project structure. Do not place delivery notes inside the published article.
