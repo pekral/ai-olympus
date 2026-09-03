@@ -1,11 +1,11 @@
 ---
-description: Drive the tracker tasks at the supplied link to a merge-ready state and consolidate the review and testing comments into one
+description: Drive the pull requests of the tracker tasks at the supplied link to a merge-ready state and consolidate the review and testing comments into one
 argument-hint: [issue or PR link(s)]
 ---
 
 Delegate this run to the `daedalus` agent.
 
-Prepare for merge the issue-tracker tasks at this link: $ARGUMENTS
+Prepare for merge the pull requests of the issue-tracker tasks at this link: $ARGUMENTS
 
 Do exactly this, in order:
 
@@ -16,7 +16,14 @@ Do exactly this, in order:
    result of step 6.
 4. Rebase the task's pull request onto the current code base of the main branch, and install the
    project's current dependencies.
-5. Drive the task to a merge-ready state.
+5. Drive the task's pull request to a merge-ready state. Work the code-review findings on that
+   pull request instead of only reporting what they say. Run
+   `@skills/process-code-review/SKILL.md` on it: that skill runs the review, applies a fix for
+   every finding, repeats until its own convergence gate holds, and takes the pull request out of
+   Draft at that moment. Read that gate in the skill and never restate it here. Run the skill even
+   when the pull request carries no review yet — its review loop runs the review itself on every
+   iteration, so a pull request without one is that loop's first iteration and never a reason to
+   stop.
 6. Consolidate into a **single** new tracker comment every comment of mine on that task that is
    about code review or testing. That comment states the assignment as a TLDR, it carries the
    status of the acceptance criteria, and it says whether a direct merge is recommended or a
@@ -26,6 +33,14 @@ Do exactly this, in order:
 Whenever you are unsure about anything, ask me.
 
 Reply in the issue tracker in the language the assignment was written in.
+
+## "Prepare for merge" is not "merge"
+
+This command brings the pull request to a merge-ready state and stops there. It never merges the
+pull request, whatever step 5 reports. The consolidated comment carries the verdict itself — a
+direct merge, or a review by the person who solved the task — and that verdict is for a person to
+act on. A command that merged on its own would settle the very question it was asked to put in
+front of somebody.
 
 ## The consolidation is additive — it adds one comment and removes none
 

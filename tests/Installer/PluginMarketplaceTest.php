@@ -180,6 +180,34 @@ test(
     },
 );
 
+test('the finalize-tasks command pins the merge-ready loop it drives and the merge it never performs', function (): void {
+    $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
+
+    // The deliverable is the task's pull request brought to a merge-ready state, not the tracker
+    // item in the abstract. A rewrite that drops the pull request from the sentence leaves the
+    // command asking for something none of its steps produces.
+    expect($command)->toContain('description: Drive the pull requests of the tracker tasks');
+    expect($command)->toContain('Prepare for merge the pull requests of the issue-tracker tasks');
+    expect($command)->toContain('Drive the task\'s pull request to a merge-ready state');
+
+    // The command works the findings instead of reporting them, and the loop that does that work
+    // already exists in one skill. The command cites that skill's convergence gate rather than
+    // carrying a second copy, because a second copy is a second answer to the same question.
+    expect($command)->toContain('Work the code-review findings on that');
+    expect($command)->toContain('`@skills/process-code-review/SKILL.md`');
+    expect($command)->toContain('Read that gate in the skill and never restate it here');
+
+    // A pull request carrying no review yet is that loop's first iteration, because the loop runs
+    // the review itself. Leaving this open would let a run stop on a task it could have driven.
+    expect($command)->toContain('when the pull request carries no review yet');
+    expect($command)->toContain('first iteration and never a reason to');
+
+    // Merge-ready is where the command stops. The consolidated comment's verdict is for a person,
+    // so a command that merged on its own would settle the question it was asked to raise.
+    expect($command)->toContain('## "Prepare for merge" is not "merge"');
+    expect($command)->toContain('and stops there. It never merges the');
+});
+
 test('both installation paths are documented with the difference between them', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
