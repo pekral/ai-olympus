@@ -51,7 +51,7 @@ Then point the front-door agent at real work, inside Claude Code:
 - **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical with no undeferred Moderate before anything merges
 - **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **53 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **54 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 - **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
 ## Installation
@@ -73,7 +73,7 @@ There are two ways in. **Composer** is the complete one and stays the recommenda
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 53 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+That loads all 54 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
 /ai-olympus:install-rules
@@ -240,7 +240,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 ## Skill Catalog
 
-All 53 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 54 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -310,6 +310,12 @@ All 53 skills, grouped by what you reach for them for. Each description is the s
 | [`diagram-design`](skills/diagram-design/) | A change, analysis, or document needs a diagram |
 | [`design-system`](skills/design-system/) | Generating, auditing, or reviewing the visual design system of a Laravel app |
 | [`seo`](skills/seo/) | Auditing, planning, or implementing SEO in a Laravel app |
+
+### Content & writing
+
+| Skill | What it is for |
+|-------|----------------|
+| [`web-article-writer`](skills/web-article-writer/) | Writing, rewriting, or adapting a publication-ready article for a website or blog |
 
 ### Infrastructure & performance
 
