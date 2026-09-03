@@ -67,6 +67,29 @@ function contentPinDepthDelta(string $text): int
 }
 
 /**
+ * The value one token of a constant string expression contributes, or null when the token is not
+ * part of one.
+ *
+ * @param array{id: int, line: int, text: string} $token
+ */
+function contentPinConstantToken(array $token): ?string
+{
+    if ($token['id'] === T_CONSTANT_ENCAPSED_STRING) {
+        return contentPinDecodeString($token['text']);
+    }
+
+    if ($token['text'] === '.') {
+        return '';
+    }
+
+    if ($token['id'] === T_VARIABLE && $token['text'] === '$packageDir') {
+        return dirname(__DIR__, 2);
+    }
+
+    return null;
+}
+
+/**
  * The value of a constant string expression — string literals concatenated with each other and
  * with `$packageDir`. Null when the expression carries anything else, which is how this walk says
  * it cannot resolve the expression statically.
@@ -78,23 +101,13 @@ function contentPinConstantString(array $tokens): ?string
     $value = '';
 
     foreach ($tokens as $token) {
-        if ($token['id'] === T_CONSTANT_ENCAPSED_STRING) {
-            $value .= contentPinDecodeString($token['text']);
+        $piece = contentPinConstantToken($token);
 
-            continue;
+        if ($piece === null) {
+            return null;
         }
 
-        if ($token['text'] === '.') {
-            continue;
-        }
-
-        if ($token['id'] === T_VARIABLE && $token['text'] === '$packageDir') {
-            $value .= dirname(__DIR__, 2);
-
-            continue;
-        }
-
-        return null;
+        $value .= $piece;
     }
 
     return $value === '' ? null : $value;
