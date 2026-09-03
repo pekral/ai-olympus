@@ -185,8 +185,12 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
-        // walk was removed.
-        'rules/php/core-standards.md' => '0be4e40d317b3da4933d1be4e3c3ab391ac76db725fe76b11b5d05ff18d8d605',
+        // walk was removed. Re-baselined once more: the >4-parameter rule's exemption list was an
+        // absolute that could not accommodate a second category, so it now names exactly two —
+        // the signature fixed outside the project, and the data carrier's own constructor, whose
+        // prescribed fix was circular. `tests/Installer/DtoConstructorParamExemptionTest.php`
+        // pins the new wording.
+        'rules/php/core-standards.md' => 'f10ef28dfe8f11728b295ed7a4810d1a14f8a888ba29701dc617ea7315e394d9',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
