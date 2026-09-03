@@ -57,6 +57,19 @@
 
 ---
 
+## Delegated to another person
+
+> Render only when the **Reviewer Comment Fulfillment Gate** (`@skills/code-review-github/references/cr-wrapper-contract.md` *Delegation of a reviewer comment to another account*) classified at least one reviewer comment as delegated. Omit the entire section — no `None.` placeholder — when nothing was delegated. Entries here are not actionable findings: they block no merge, they count toward `M` in the `reviewer comments: M/N fulfilled` verdict rather than toward the Counts line, and they are never turned into a reproducer test or a fix.
+
+1. **Reviewer comment:** `<comment URL>` — targets `path/to/file.php:42`
+   **Addressed to:** `@<mentioned account>`
+   **Mention:** "verbatim quote of the mention as written in the comment"
+   **Declared by:** `<@author>` (`authorAssociation: OWNER|MEMBER|COLLABORATOR`)
+   **Instruction:** one sentence describing what the reviewer asked for.
+   **Note:** delegated — not this run's work, not resolved.
+
+---
+
 ## Documentation Requests
 
 > Render only when **Third-Party API & Service Analysis** step 7 in `@skills/code-review/SKILL.md` produced at least one blocking documentation request — i.e. the ordered source walk in step 2 resolved no reference for a third-party contract the diff touches. Each entry accompanies (never replaces) the Moderate finding raised for that contract; it is what lets the author close it with a single link. Omit the entire section when every affected contract resolved a reference — no `None.` placeholder.

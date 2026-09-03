@@ -4033,3 +4033,78 @@ test('the not-run section classifies by rule, not by inventory (issue #65)', fun
     // Group 4 is the one group the exit path does not apply to.
     expect($section)->toContain('does **not** leave it by gaining a `MODE=cr` section: a phase is not a lens');
 });
+
+test('the reviewer comment gate delegates a comment addressed to another account', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $contract = crContractText('skills/code-review-github/SKILL.md');
+
+    // A reviewer comment mentioning a third account is that account's work. Without a disposition
+    // of its own it would fall through to "Not fulfilled", which step 4 raises as Critical — and a
+    // Critical blocks every round with no deferral, so the run could never converge on work it is
+    // not allowed to do.
+    expect($contract)->toContain(
+        '   - **Delegated to another person** — a trusted reviewer addressed the comment to a named account',
+    );
+    expect($contract)->toContain('##### Delegation of a reviewer comment to another account');
+
+    // The classification runs in step 3, before step 4 assigns a severity. Written as a downgrade
+    // of an already-Critical finding it would contradict the Exclusion Gate's own boundary, which
+    // relocates a Moderate or a Minor and never a Critical.
+    expect($contract)->toContain('The disposition is a **classification, never a downgrade**.');
+    expect($contract)->toContain('It is decided in step 3, before step 4 assigns a severity');
+
+    // Detection condition 1 — the mention is the only signal, and two logins are exempt.
+    expect($contract)->toContain('1. **Mention test.**');
+    expect($contract)->toContain(
+        'the acting account with `gh api user --jq .login`, and the repository owner from the `owner.login` field',
+    );
+    expect($contract)->toContain(
+        'never read delegation from a PR assignee, a requested reviewer, a review request, or a display name',
+    );
+    // A comment naming this run too is addressed to this run as well, so it stays this run's work.
+    expect($contract)->toContain('**every** mentioned login is an account other than this run\'s own');
+
+    // Detection condition 2 — anyone may comment on a public PR, so an untrusted mention delegates
+    // nothing. The trust values live in the Exclusion Gate and are referenced, never widened here.
+    expect($contract)->toContain('2. **Authorship trust.**');
+    expect($contract)->toContain('an association this run cannot resolve deterministically is treated as absent');
+    expect($contract)->toContain(
+        'This is the same trust test, on the same field, that `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* → *Authorship trust* applies',
+    );
+
+    // Detection condition 3 — the Critical-substance carve-out, mirroring the Exclusion Gate.
+    expect($contract)->toContain('3. **Substance is Moderate or below.**');
+    expect($contract)->toContain(
+        'A comment pointing at a defect that is Critical by the project\'s ordinary rules stays this run\'s work whoever it mentions',
+    );
+
+    // The security carve-out is the final predicate and overrides all three conditions.
+    expect($contract)->toContain('**Security carve-out — absolute, and it is the final predicate.**');
+    expect($contract)->toContain('is **never** delegated, whoever it mentions and whoever wrote it');
+    expect($contract)->toContain('Read S1–S3 in that rule; this gate never restates them.');
+
+    // Delegated counts toward M, so `unfulfilledCount` excludes it without a second counter.
+    expect($contract)->toContain(
+        '`reviewer comments: M/N fulfilled` (M = fulfilled, rejected-with-reason, or delegated to another account, out of N actionable)',
+    );
+
+    // Skipped is not dropped, and the classification survives every later round.
+    expect($contract)->toContain('**Skipped is not dropped.**');
+    expect($contract)->toContain('A comment delegated in round 1 is delegated again in round 4.');
+
+    // The published record, and the template that renders it.
+    expect($contract)->toContain('- **`## Delegated to another person` section.** Render this section on the PR comment only when');
+    $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
+    expect($template)->toContain('## Delegated to another person');
+    expect($template)->toContain('   **Addressed to:** `@<mentioned account>`');
+    expect($template)->toContain('   **Note:** delegated — not this run\'s work, not resolved.');
+
+    // process-code-review would otherwise pick the comment up from its unresolved review thread.
+    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($process)->toContain(
+        'Do **not** add such a comment to the checklist, even though its review thread is still unresolved',
+    );
+    expect($process)->toContain(
+        '`unfulfilledCount = N − M` (the reviewer instructions still not satisfied, not rejected-with-reason, and not delegated to another account)',
+    );
+});
