@@ -4085,13 +4085,20 @@ test('the reviewer comment gate delegates a comment addressed to another account
     // on the line-anchored thread comments, every one of them is untrusted and the disposition
     // never fires for the canonical case the subsection opens with.
     expect($contract)->toContain(
-        'All three comment classes step 1 loads carry that field: `comments[]` and `reviews[]` from `skills/code-review-github/scripts/load-issue.sh`, and the line-anchored thread comments from the `reviewThreads` GraphQL query',
+        'All three comment classes step 1 loads carry that field: `comments[]` and `reviews[]` '
+        . 'from `skills/code-review-github/scripts/load-issue.sh`, and the line-anchored thread '
+        . 'comments from the `reviewThreads` GraphQL query',
     );
     $loader = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/load-issue.sh');
-    expect($loader)->toContain("def map_reviews:\n  [ (. // [])[] | {\n      author: (.author.login // null),\n      authorAssociation: (.authorAssociation // null),");
+    expect($loader)->toContain(
+        "def map_reviews:\n  [ (. // [])[] | {\n      author: (.author.login // null),\n"
+        . "      authorAssociation: (.authorAssociation // null),",
+    );
     expect($loader)->toContain('"reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ]');
     expect($contract)->toContain(
-        'This is the same trust test, on the same field, that `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* → *Authorship trust* applies',
+        'This is the same trust test, on the same field, that `@rules/code-review/general.md` '
+        . '*Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* → '
+        . '*Authorship trust* applies',
     );
 
     // Detection condition 3 — the Critical-substance carve-out, mirroring the Exclusion Gate.
