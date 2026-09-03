@@ -4,8 +4,8 @@ declare(strict_types = 1);
 
 /**
  * The package is distributed twice — as a Composer plugin and as a Claude Code plugin (issue #261).
- * The second channel is two JSON manifests plus one command file, none of which the Composer
- * installer touches, so nothing else in the suite would notice them breaking.
+ * The second channel is two JSON manifests plus the files under `commands/`, none of which the
+ * Composer installer touches, so nothing else in the suite would notice them breaking.
  *
  * Each reader decodes the manifest itself and narrows the result before returning, so no
  * unconstrained value reaches an assertion or a signature.
@@ -104,6 +104,29 @@ test('the install-rules command copies what the plugin channel cannot load by it
 
     // The opt-in security switches stay bound to the Composer path (issue #261, owner's answer).
     expect($command)->toContain('writes no `.claude/settings.local.json` entry');
+});
+
+test('the finalize-tasks command carries its argument and its own-comments guard', function (): void {
+    $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
+
+    // The tracker link is the one input the command cannot work without, and Claude Code passes it
+    // only through `$ARGUMENTS`. A rewrite that drops the placeholder still reads like a working
+    // command while silently discarding the link the caller typed.
+    expect($command)->toContain('argument-hint: [issue or PR link(s)]');
+    expect($command)->toContain('$ARGUMENTS');
+    expect($command)->toContain('stop and ask me for it');
+
+    // The consolidation step edits and deletes tracker comments, so the guard that keeps it off
+    // somebody else's comment is the safety-relevant half of the file. Nothing else in the suite
+    // reads it, and a destructive write is not a failure a later run can undo.
+    expect($command)->toContain('Never edit and never delete a comment written by anybody else');
+    expect($command)->toContain('gh api user --jq .login');
+    expect($command)->toContain('acli jira auth status');
+
+    // JIRA hands back a display name where GitHub hands back a login, so the guard fails safe
+    // instead of matching on the weaker of the two.
+    expect($command)->toContain('corroboration and never proof');
+    expect($command)->toContain('delete nothing');
 });
 
 test('both installation paths are documented with the difference between them', function (): void {
