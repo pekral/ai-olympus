@@ -1961,6 +1961,27 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
 });
 
+test('daedalus names the outer recovery for a hung dispatch that leaves no turn to check it (issue #103)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // The paragraph above this one states the limit — a strictly blocking round gives the session no
+    // turn to check in — and then stops. Without the answer below, a reader takes "that is a limit of
+    // this mechanism" to mean the run waits forever with nobody ever told, which is exactly the
+    // iteration-6 incident this section was written for.
+    expect($content)->toContain('What recovers the run when no turn ever resumes at all.');
+
+    // The recovery is the next run reading the state files this one leaves behind, and it lands on
+    // one of two outcomes — never on silence.
+    expect($content)->toContain('it reclaims a **confirmed-dead** holder\'s artifacts and proceeds');
+    expect($content)->toContain('`brief pro tento slug drží živý běh` in step 2');
+    expect($content)->toContain('never an indefinite silent wait');
+
+    // It must never be read as a replacement for the liveness check: a PID probe answers whether a
+    // process is dead, never whether an open round is progressing.
+    expect($content)->toContain('the **complement** of this check, never a substitute for it');
+});
+
 test('daedalus gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
