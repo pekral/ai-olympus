@@ -1977,6 +1977,18 @@ test('daedalus names the outer recovery for a hung dispatch that leaves no turn 
     expect($content)->toContain('`brief pro tento slug drží živý běh` in step 2');
     expect($content)->toContain('never an indefinite silent wait');
 
+    // Only two artifacts are named, because only two are read here: step 2 probes the brief's
+    // `## PID` and step 5 probes the write-lock holder. The round's unterminated `dispatched` line
+    // outlives the session too, but its readers sit elsewhere in the file, so claiming this
+    // paragraph reads it would be false.
+    expect($content)->toContain('reads **both** — step 2\'s startup sweep probes the brief\'s `## PID`');
+
+    // The stopping branch quotes the fail-safe default of those two steps, which is wider than
+    // "live": an EPERM probe, a missing or malformed `## PID`, and a failed format check all stop
+    // the run as well.
+    expect($content)->toContain('it stops on one that is **not confirmed dead**');
+    expect($content)->toContain('*Not confirmed dead* is deliberately wider than *live*');
+
     // It must never be read as a replacement for the liveness check: a PID probe answers whether a
     // process is dead, never whether an open round is progressing.
     expect($content)->toContain('the **complement** of this check, never a substitute for it');
