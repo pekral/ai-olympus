@@ -15,7 +15,14 @@ Do exactly this, in order:
    in the order they are given. Never start the next task before the current one reaches the
    result of step 7.
 4. Rebase the task's pull request onto the current code base of the main branch, and install the
-   project's current dependencies.
+   project's current dependencies. `daedalus` performs neither itself: it holds read-only `git` and
+   no write tool at all. The dispatch in step 5 covers both. Before it reviews anything,
+   `@skills/process-code-review/SKILL.md` switches to the pull request's branch and follows
+   `@rules/git/general.md` *Pull Policy* — fetch, `git pull --rebase`, rebase onto the default
+   branch, push with `--force-with-lease` — and it runs `composer install` whenever that rebase
+   changed the lockfile. Read both back out of `athena`'s handoff rather than assuming them. When
+   the rebase hits a conflict it cannot resolve cleanly, that skill stops and reports it; pass that
+   on to me and leave the pull request where it is.
 5. Drive the task's pull request to a merge-ready state. Work the code-review findings on that
    pull request instead of only reporting what they say. `daedalus` does not run that loop
    itself. It dispatches `athena`, the roster's single code-review agent, which runs

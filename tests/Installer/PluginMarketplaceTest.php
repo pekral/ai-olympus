@@ -220,6 +220,13 @@ test('the finalize-tasks command pins the merge-ready loop it drives and the mer
     expect($command)->toContain('`daedalus` does not run that loop');
     expect($command)->toContain('It dispatches `athena`, the roster\'s single code-review agent');
 
+    // The rebase onto the main branch and the dependency install are `process-code-review`'s own
+    // Pull Policy step, not a separate action: `daedalus` holds read-only `git` and no write tool,
+    // so a step that ordered it to rebase would order a run no agent in the roster may perform.
+    expect($command)->toContain('`daedalus` performs neither itself');
+    expect($command)->toContain('switches to the pull request\'s branch and follows');
+    expect($command)->toContain('`composer install` whenever that rebase');
+
     // The loop is capped at three rounds, so it can end unconverged. A command whose deliverable is
     // a merge-ready pull request has to say what happens on the branch that produces none.
     expect($command)->toContain('When that loop ends without converging');
