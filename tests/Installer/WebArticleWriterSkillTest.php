@@ -23,20 +23,19 @@ test('web-article-writer names the boundary against every neighbour that also pr
     );
 });
 
-test('web-article-writer keeps the natural-prose intent in its own steps and mandates no external rewriting tool', function (): void {
+test('web-article-writer keeps the natural-prose intent in its own steps and orders any external rewriting pass before verification', function (): void {
     $skill = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/web-article-writer/SKILL.md');
 
     // The submitted draft closed with an `## Output Humanization` section mandating an external
-    // `blader/humanizer` repository for "all skill outputs". It named no invocation mechanism, no
-    // install step and no fallback, reached past its own skill, and sat after the skill's own
-    // verification pass — so a tool that rewrites finished prose could change what the article
-    // claims with nothing left to check it. The section is not shipped.
+    // `blader/humanizer` repository for "all skill outputs". The source file does not carry it —
+    // though `InstallerHumanizer` appends that same section to every installed `SKILL.md`, this one
+    // included, which is the pre-existing package-wide behaviour tracked in issue #111.
     expect($skill)->not->toContain('## Output Humanization');
     expect($skill)->not->toContain('blader/humanizer');
 
     // Dropping the section without keeping its intent would be a silent scope cut, so the two
     // steps that own prose quality carry it: step 5 names the machine register while drafting,
-    // step 8 re-checks the same list and states why an external pass is not the fix.
+    // step 8 re-checks the same list and orders any external pass ahead of itself.
     expect($skill)->toContain('Write prose a human editor would keep.');
     expect($skill)->toContain(
         'Break each of them deliberately as you draft, rather than fixing the text afterwards.',
@@ -46,7 +45,16 @@ test('web-article-writer keeps the natural-prose intent in its own steps and man
         . 'phrases, uniform paragraph and list rhythm, and a closing question added only to invite '
         . 'a reply',
     );
+
+    // The one objection to the draft's directive that survived verification is ordering: it landed
+    // after the step that checks what the article claims. Step 8 therefore orders an external
+    // rewriting pass instead of banning it, and sends the article back through verification when
+    // one runs late — so the shipped file no longer contradicts the section the installer appends.
     expect($skill)->toContain(
-        'Never route the finished article through an external rewriting or "humanizing" tool',
+        'Run any external rewriting or "humanizing" tool before this step, never after it',
+    );
+    expect($skill)->toContain(
+        'When any tool rewrites the article once this step is done, run this step again over the '
+        . 'result.',
     );
 });
