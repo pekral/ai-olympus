@@ -13,18 +13,27 @@ Do exactly this, in order:
 2. When no link is there, stop and ask me for it. This command never guesses a link.
 3. When the link names more than one task, work through them systematically: one task at a time,
    in the order they are given. Never start the next task before the current one reaches the
-   result of step 6.
+   result of step 7.
 4. Rebase the task's pull request onto the current code base of the main branch, and install the
    project's current dependencies.
 5. Drive the task's pull request to a merge-ready state. Work the code-review findings on that
-   pull request instead of only reporting what they say. Run
-   `@skills/process-code-review/SKILL.md` on it: that skill runs the review, applies a fix for
-   every finding, repeats until its own convergence gate holds, and takes the pull request out of
-   Draft at that moment. Read that gate in the skill and never restate it here. Run the skill even
-   when the pull request carries no review yet — its review loop runs the review itself on every
-   iteration, so a pull request without one is that loop's first iteration and never a reason to
+   pull request instead of only reporting what they say. `daedalus` does not run that loop
+   itself. It dispatches `athena`, the roster's single code-review agent, which runs
+   `@skills/process-code-review/SKILL.md` on that pull request: the skill runs the review, applies
+   a fix for every finding, and takes the pull request out of Draft the moment its convergence
+   gate holds. Read that gate in the skill and never restate it here. Dispatch `athena` even
+   when the pull request carries no review yet — that skill's review loop runs the review on every
+   iteration, so a pull request without one is the loop's first iteration and never a reason to
    stop.
-6. Consolidate into a **single** new tracker comment every comment of mine on that task that is
+6. When that loop ends without converging, tell me and leave the pull request where it is. The
+   loop is bounded — the skill caps it at three rounds — so a finding still blocking at the last
+   round ends the run unconverged. The pull request then stays a Draft, the skill publishes
+   nothing, and the findings it could not resolve come back with it; pass those on to me. That
+   pull request is not merge-ready, only a person decides what happens to it next, and no other
+   step of this command makes it ready by another route. Do step 7 for the task anyway: the
+   consolidated comment then reports the state the task is really in, which here is a review by
+   the person who solved it.
+7. Consolidate into a **single** new tracker comment every comment of mine on that task that is
    about code review or testing. That comment states the assignment as a TLDR, it carries the
    status of the acceptance criteria, and it says whether a direct merge is recommended or a
    review by the person who solved the task. Follow the summary template below, and obey the

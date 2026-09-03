@@ -197,6 +197,18 @@ test('the finalize-tasks command pins the merge-ready loop it drives and the mer
     expect($command)->toContain('`@skills/process-code-review/SKILL.md`');
     expect($command)->toContain('Read that gate in the skill and never restate it here');
 
+    // `agents/daedalus.md` forbids `daedalus` from invoking `process-code-review` itself, so the
+    // command dispatches the agent that owns it. A rewrite that hands the skill back to `daedalus`
+    // orders a run no agent in the roster may perform.
+    expect($command)->toContain('`daedalus` does not run that loop');
+    expect($command)->toContain('It dispatches `athena`, the roster\'s single code-review agent');
+
+    // The loop is capped at three rounds, so it can end unconverged. A command whose deliverable is
+    // a merge-ready pull request has to say what happens on the branch that produces none.
+    expect($command)->toContain('When that loop ends without converging');
+    expect($command)->toContain('stays a Draft, the skill publishes');
+    expect($command)->toContain('is not merge-ready, only a person decides');
+
     // A pull request carrying no review yet is that loop's first iteration, because the loop runs
     // the review itself. Leaving this open would let a run stop on a task it could have driven.
     expect($command)->toContain('when the pull request carries no review yet');
