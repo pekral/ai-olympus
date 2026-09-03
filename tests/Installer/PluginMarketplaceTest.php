@@ -106,7 +106,7 @@ test('the install-rules command copies what the plugin channel cannot load by it
     expect($command)->toContain('writes no `.claude/settings.local.json` entry');
 });
 
-test('the finalize-tasks command pins its argument, its consolidation contract and its additive guard', function (): void {
+test('the finalize-tasks command pins its argument, its consolidation contract, its additive guard and its per-tracker wrapper routing', function (): void {
     $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
 
     // The tracker link is the one input the command cannot work without, and Claude Code passes it
@@ -124,7 +124,7 @@ test('the finalize-tasks command pins its argument, its consolidation contract a
     expect($command)->toContain('status of the acceptance criteria');
     expect($command)->toContain('whether a direct merge is recommended or a');
 
-    // The consolidation is additive because no agent in the roster can be anything else: the only
+    // The consolidation is additive because no agent in the roster can be anything else: every
     // comment wrapper the package ships posts and never patches, and there is no delete wrapper at
     // all. A rewrite that reintroduces an edit or a delete mandates a write nobody can perform, and
     // a deleted comment is not a failure a later run can undo.
@@ -133,6 +133,15 @@ test('the finalize-tasks command pins its argument, its consolidation contract a
     expect($command)->toContain('never edit or delete one of your own either');
     expect($command)->toContain('posts a comment and never patches one');
     expect($command)->toContain('Do not compose a raw `gh` or `acli` write to work around that');
+
+    // The package ships one comment wrapper per tracker, and the command supports JIRA explicitly.
+    // Naming only the GitHub wrapper leaves the publish unperformable on a JIRA task, because the
+    // sentence above closes the raw-CLI escape at the same time.
+    expect($command)->toContain('Publish through the wrapper for the task\'s own tracker');
+    expect($command)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
+    expect($command)->toContain('skills/code-review-jira/scripts/upsert-comment.sh');
+    expect($command)->toContain('skills/code-review-bugsnag/scripts/upsert-comment.sh');
+    expect($command)->toContain('skills/resolve-issue/references/source-detection.md');
 
     // The publish routes through the roster's only publishing agent, which is what keeps the
     // command inside the consent inventory it now carries a row in.
