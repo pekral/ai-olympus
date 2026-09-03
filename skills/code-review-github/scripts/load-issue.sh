@@ -44,7 +44,7 @@
 #     "additions", "deletions", "changedFiles",
 #     "files":             [ { "path", "additions", "deletions" } ],
 #     "commits":           [ { "oid", "messageHeadline", "authoredDate", "authors" } ],
-#     "reviews":           [ { "author", "state", "body", "submittedAt", "url" } ],
+#     "reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ],
 #     "reviewRequests":    [ <login> ],
 #     "reviewDecision":    <string|null>,
 #     "statusCheckRollup": [ { "context", "state", "description", "targetUrl" } ],
@@ -251,6 +251,7 @@ def map_commits:
 def map_reviews:
   [ (. // [])[] | {
       author: (.author.login // null),
+      authorAssociation: (.authorAssociation // null),
       state: (.state // null),
       body: (.body // ""),
       submittedAt: (.submittedAt // null),

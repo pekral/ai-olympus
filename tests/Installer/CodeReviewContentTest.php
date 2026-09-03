@@ -4054,20 +4054,42 @@ test('the reviewer comment gate delegates a comment addressed to another account
     expect($contract)->toContain('It is decided in step 3, before step 4 assigns a severity');
 
     // Detection condition 1 — the mention is the only signal, and two logins are exempt.
-    expect($contract)->toContain('1. **Mention test.**');
+    expect($contract)->toContain('1. **Explicit address test.**');
     expect($contract)->toContain(
-        'the acting account with `gh api user --jq .login`, and the repository owner from the `owner.login` field',
+        'the acting account with `gh api user --jq .login`, and the repository owner from the `repo.owner` field',
     );
+    // The loader emits `repo.owner` as the login string; `owner.login` is not a field it returns.
+    expect($contract)->toContain('the loader emits that field as the owner login string itself, never as an object');
+    expect($contract)->not->toContain('`owner.login` field of the PR JSON');
     expect($contract)->toContain(
         'never read delegation from a PR assignee, a requested reviewer, a review request, or a display name',
     );
     // A comment naming this run too is addressed to this run as well, so it stays this run's work.
     expect($contract)->toContain('**every** mentioned login is an account other than this run\'s own');
 
+    // Naming an account is not addressing one. Without the anchor and purpose parts, a comment that
+    // only cites another account ("this duplicates what @alice landed in #12, please align") would
+    // be delegated away while its instruction is for this run.
+    expect($contract)->toContain('The comment must **address** its instruction to another account. Naming one is not addressing one.');
+    expect($contract)->toContain('- **Anchor.** The mentioned account is the **addressee** of the instruction the comment carries.');
+    expect($contract)->toContain('`this duplicates what @alice landed in #12, please align` instructs this run and only references `@alice`');
+    expect($contract)->toContain('- **Purpose.** The comment states in words that the mentioned account is to do the work');
+    expect($contract)->toContain('**A mention in a later reply never delegates an earlier comment.**');
+    expect($contract)->toContain('**Ambiguity stays this run\'s work.**');
+
     // Detection condition 2 — anyone may comment on a public PR, so an untrusted mention delegates
     // nothing. The trust values live in the Exclusion Gate and are referenced, never widened here.
     expect($contract)->toContain('2. **Authorship trust.**');
     expect($contract)->toContain('an association this run cannot resolve deterministically is treated as absent');
+    // The field must reach all three comment classes the gate loads. Without it on `reviews[]` and
+    // on the line-anchored thread comments, every one of them is untrusted and the disposition
+    // never fires for the canonical case the subsection opens with.
+    expect($contract)->toContain(
+        'All three comment classes step 1 loads carry that field: `comments[]` and `reviews[]` from `skills/code-review-github/scripts/load-issue.sh`, and the line-anchored thread comments from the `reviewThreads` GraphQL query',
+    );
+    $loader = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/load-issue.sh');
+    expect($loader)->toContain("def map_reviews:\n  [ (. // [])[] | {\n      author: (.author.login // null),\n      authorAssociation: (.authorAssociation // null),");
+    expect($loader)->toContain('"reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ]');
     expect($contract)->toContain(
         'This is the same trust test, on the same field, that `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* → *Authorship trust* applies',
     );
@@ -4107,4 +4129,7 @@ test('the reviewer comment gate delegates a comment addressed to another account
     expect($process)->toContain(
         '`unfulfilledCount = N − M` (the reviewer instructions still not satisfied, not rejected-with-reason, and not delegated to another account)',
     );
+    // The GraphQL selection is where the association reaches a line-anchored comment at all.
+    expect($process)->toContain('comments(first:100){ nodes{ author{login} authorAssociation body url createdAt } }');
+    expect($process)->toContain('**Keep `authorAssociation` in the selection.**');
 });
