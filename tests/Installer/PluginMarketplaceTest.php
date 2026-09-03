@@ -157,6 +157,13 @@ test(
         expect($command)->toContain('it authorises no write on any of them');
         expect($command)->toContain('corroboration and never proof');
 
+        // The review the command drives publishes under the very login the selection resolves, so
+        // the run's own review and `cr-status` comments leave the set before the account is
+        // matched. Without that, the summary reports the run's own machine output as the user's
+        // own notes about the code review.
+        expect($command)->toContain('those first, then match the account');
+        expect($command)->toContain('cr-status:actor=');
+
         // The file reads every comment on a tracker task, so it names the boundary that keeps an
         // imperative sentence inside one of them from reading as an instruction to the agent.
         expect($command)->toContain('rules/security/general.md');
