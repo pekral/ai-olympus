@@ -81,13 +81,23 @@ it is, and the new comment carries the summary and points at what it summarises.
    tell which comments are mine, because it is the account I write them under. It decides which
    comments the summary speaks for, and it authorises no write on any of them.
 5. That same account also signs the comments this run posts itself, so matching on it alone picks
-   the wrong set. Step 5 runs a code review under that very login, and the review comment and the
-   `cr-status` comment that review publishes land in the set you are about to select from. Drop
-   those first, then match the account. On GitHub they carry the wrapper's own hidden marker —
-   `<!-- cr-comment:actor=... -->` or `<!-- cr-status:actor=... -->`. On JIRA and on Bugsnag the
-   wrapper appends no marker, so recognise them by the shape a published code review has instead:
-   a `Status:` and `Counts:` header, severity-labelled findings, a resolved-items list. Nothing is
-   lost by dropping them, because step 5 already handed you what they say. What is left under that
+   the wrong set. Step 5 runs a code review under that very login, and everything that review
+   publishes lands in the set you are about to select from.
+   Drop those first, then match the account. On GitHub the wrapper's own hidden marker catches
+   every one of them — `<!-- cr-comment:actor=... -->` or `<!-- cr-status:actor=... -->` — so that
+   path needs nothing more. On JIRA and on Bugsnag the wrapper appends no marker, so recognise them
+   by their shape instead, and there are three shapes there rather than one:
+   - the technical review: a `Status:` and `Counts:` header, severity-labelled findings, a
+     resolved-items list;
+   - the non-technical summary the same run posts there, headed `What changed` / `How to test` /
+     `Assignment Compliance`, which carries no severity label and no file path at all;
+   - a consolidated comment an earlier run of this command left behind, headed `HOW TO TEST` /
+     `OPEN QUESTION` / `ASSIGNMENT COMPLIANCE`.
+
+   When you cannot tell whether a comment under that account is one of your own, treat it as your
+   own and drop it. A comment dropped by mistake is still quoted from the thread it sits in, while
+   a comment kept by mistake is reported back to its own writer as my note. Nothing is lost by
+   dropping any of them, because step 5 already handed you what they say. What is left under that
    account is what I wrote myself, and that is what the summary speaks for.
 6. Summarise the comments whose author matches that account. Quote or cite every other comment
    that carries a fact the reader needs, and name its author. GitHub carries a login on both

@@ -164,6 +164,16 @@ test(
         expect($command)->toContain('those first, then match the account');
         expect($command)->toContain('cr-status:actor=');
 
+        // The GitHub marker catches every comment the run posts, but the JIRA and Bugsnag wrappers
+        // append none, so the shape list there has to name all three shapes the run leaves behind:
+        // the technical review, the non-technical `pr-summary` comment `process-code-review`
+        // publishes through `code-review-jira`, and this command's own consolidated comment from an
+        // earlier run. A list that stops at the technical review lets the other two through the
+        // filter and reports the run's own generated summary back as the user's note.
+        expect($command)->toContain('headed `What changed` / `How to test`');
+        expect($command)->toContain('a consolidated comment an earlier run of this command left behind');
+        expect($command)->toContain('A comment dropped by mistake is still quoted from the thread it sits in');
+
         // The file reads every comment on a tracker task, so it names the boundary that keeps an
         // imperative sentence inside one of them from reading as an instruction to the agent.
         expect($command)->toContain('rules/security/general.md');
