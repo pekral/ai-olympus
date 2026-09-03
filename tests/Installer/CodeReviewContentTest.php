@@ -4092,7 +4092,7 @@ test('the reviewer comment gate delegates a comment addressed to another account
     $loader = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/load-issue.sh');
     expect($loader)->toContain(
         "def map_reviews:\n  [ (. // [])[] | {\n      author: (.author.login // null),\n"
-        . "      authorAssociation: (.authorAssociation // null),",
+        . '      authorAssociation: (.authorAssociation // null),',
     );
     expect($loader)->toContain('"reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ]');
     expect($contract)->toContain(
