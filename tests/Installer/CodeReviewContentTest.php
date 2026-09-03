@@ -1260,7 +1260,14 @@ test('code-review rule and skill enforce backward-compatible data/storage change
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the gating.
-    expect($rule)->toContain('**Backward-compatible data / storage changes (issue #38)**');
+    // Anchored on the bullet's own opening clause: the bold heading alone also appears in the two
+    // gating paragraphs of the same corpus, so a bare `toContain` stayed green with this bullet
+    // deleted (issue #75).
+    expect(substr_count(
+        $rule,
+        '**Backward-compatible data / storage changes (issue #38)** — when the diff changes how '
+        . '**already-stored** data is written or interpreted',
+    ))->toBe(1);
     expect($rule)->toContain('unless the linked assignment explicitly authorizes ignoring data compatibility');
     expect($rule)->toContain('the **New storage reuse analysis** bullet owns *net-new* storage surfaces');
 
@@ -1274,7 +1281,14 @@ test('code-review rule and skill enforce storage relocation / migration complete
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     // The canonical Core Analysis walk-through bullet defines the concern, the assignment waiver, and the 3-way gating.
-    expect($rule)->toContain('**Storage relocation / migration completeness (issue #55)**');
+    // Anchored on the bullet's own opening clause: the bold heading alone also appears in the
+    // deploy-safe gating paragraph of the same corpus, so a bare `toContain` stayed green with this
+    // bullet deleted (issue #75).
+    expect(substr_count(
+        $rule,
+        '**Storage relocation / migration completeness (issue #55)** — when the diff '
+        . '**moves where an existing kind of data lives**',
+    ))->toBe(1);
     expect($rule)->toContain('unless the linked assignment explicitly authorizes leaving the old data behind');
     expect($rule)->toContain('a data migration / backfill command that copies or moves the existing data from the old storage into the new one');
     expect($rule)->toContain('the **New storage reuse analysis** bullet owns the *introduction* of the net-new storage surface itself');
@@ -2628,7 +2642,10 @@ test('every frontend-trigger outcome lands in exactly one branch (issue #60)', f
 
     expect($contract)->toContain('- **Project is not Laravel → skip all three, silently.**');
     expect($contract)->toContain('`laravel/framework` is absent from `composer.json` `require`');
-    expect($contract)->toContain('*Architecture conformance (Laravel)*');
+    // Anchored on the citation, not on the bare section name: the name also appears in the Core
+    // Analysis enumeration of `skills/code-review/SKILL.md`, which is part of the same corpus, so a
+    // bare `toContain` stayed green with this citation deleted (issue #75).
+    expect(substr_count($contract, '(`@rules/code-review/core-analysis.md` *Architecture conformance (Laravel)*)'))->toBe(1);
 
     // Past defect: a new rule introduced an output slot no render template carried. This skip is
     // deliberately invisible, so nothing has to be added to any template for it.
