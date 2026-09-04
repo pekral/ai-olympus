@@ -357,3 +357,44 @@ test('architecture rules collapse an Action that only forwards to another Action
     expect(substr_count($content, '- **Action-to-Action pass-through rule (Action pattern):**'))->toBe(1);
     expect(substr_count($content, '**Action-to-Action pass-through rule**'))->toBe(2);
 });
+
+test('architecture rules cap an Action __invoke() at exactly one DTO parameter', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+
+    // The rule itself: one payload per use case, carried by one typed DTO.
+    expect($content)->toContain('- **One DTO per `__invoke()` — when the Action needs a DTO, it takes exactly one.**');
+    expect($content)->toContain('merge them into one DTO named after the use case');
+    expect($content)->toContain('belongs as a property of that DTO, not beside it');
+
+    // The rule caps DTO count; it never mandates a DTO where none is warranted.
+    expect($content)->toContain('**The rule fires only when a DTO is used at all.**');
+    expect($content)->toContain('it only caps how many appear once one is warranted');
+
+    // The three shapes that are not a second payload.
+    expect($content)->toContain('**Not a second DTO:**');
+    expect($content)->toContain('`__invoke(OrderModel $order, UpdateOrderData $data)` is one payload plus its subject');
+    expect($content)->toContain('the DTO the Action **returns**, which is a separate type by design');
+
+    // Declared Moderate, so the default stratification cannot push it to Critical, and gated
+    // against the >4-parameter rule that prescribes the same fix.
+    expect($content)->toContain('an Action `__invoke()` that declares **more than one DTO parameter**');
+    expect($content)->toContain('**Gating — one finding per signature, never two:**');
+
+    // Exactly one rule definition; a second copy is how two severities drift apart.
+    expect(substr_count($content, '- **One DTO per `__invoke()`'))->toBe(1);
+});
+
+test('the Action-pattern CR walk and refactor skill both carry the one-DTO signature rule', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The mandatory Architecture conformance walk names it, so a reviewer actually checks it.
+    $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    expect($walk)->toContain('**one DTO per `__invoke()`**');
+    expect($walk)->toContain('merges into one carrier named after the use case');
+
+    // The skill that designs the extracted signature applies it at that decision point.
+    $skill = (string) file_get_contents($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md');
+    expect($skill)->toContain('needs a DTO to carry its input, give it **exactly one**');
+    expect($skill)->toContain('*One DTO per `__invoke()`*');
+});

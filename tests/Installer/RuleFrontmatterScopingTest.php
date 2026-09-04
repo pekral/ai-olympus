@@ -283,7 +283,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // corpus.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
-        'rules/laravel/architecture.md' => '789dfe6021375eb9cc8280be8e41e55ff9f6d9f82a5928763ca3288f255e5f1d',
+        // Re-baselined: Action Rules gained the one-DTO-per-`__invoke()` cap and CR Severity
+        // Rules its matching Moderate entry, so a use case carries one payload in one typed
+        // carrier. Nothing else in the file moved.
+        'rules/laravel/architecture.md' => '00b4a1ab528f49643b3c326191b6f79663cc062eea8b470ef7d9f0c75cd5d351',
         'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
