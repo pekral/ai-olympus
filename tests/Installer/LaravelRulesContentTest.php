@@ -436,3 +436,48 @@ test('the CR walk and refactoring skill carry the fluent collection pipeline rul
     expect($skill)->toContain('**Chain collection operations into one fluent pipeline.**');
     expect($skill)->toContain('In `MODE=cr`, emit the chained rewrite as a written proposal rather than applying it.');
 });
+
+test('architecture rules keep the HTTP request out of an Action __invoke()', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+
+    // The rule, stated as the input-side mirror of the HTTP-response ban.
+    expect($content)->toContain('- **accept the HTTP request** — no `Illuminate\Http\Request` parameter');
+    expect($content)->toContain("no reach for the request from inside `__invoke()` (`request()`, the `Request` facade, `app('request')`)");
+    expect($content)->toContain('the controller owns client↔server communication in **both** directions');
+
+    // The three costs the rule names, so a reader sees why it is Critical.
+    expect($content)->toContain('**binds the use case to HTTP**');
+    expect($content)->toContain('**hides the input contract**');
+    expect($content)->toContain('**reopens the trust boundary**');
+
+    // The fix, and the values that are not the request.
+    expect($content)->toContain('The controller converts the request into the payload first');
+    expect($content)->toContain('Concrete values extracted from the request are not the request');
+
+    // Critical, matching its output-side mirror.
+    expect($content)->toContain('an Action `__invoke()` that **accepts the HTTP request**');
+    expect($content)->toContain('This is the input-side mirror of the HTTP-response finding below and carries its severity for the same reason');
+
+    // Exactly one rule definition; the severity entry cross-references it rather than restating
+    // it, which is how the two would otherwise drift into disagreeing severities.
+    expect(substr_count($content, '- **accept the HTTP request**'))->toBe(1);
+    expect($content)->toContain('(see **Action Rules** → *accept the HTTP request*)');
+});
+
+test('the CR walk and refactor skill keep the request out of the extracted Action signature', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    expect($walk)->toContain('- **Action accepts the HTTP request (Action pattern)**');
+    expect($walk)->toContain('Severity: **Critical**');
+    expect($walk)->toContain('no HTTP request, no `Request::create()`, no route dispatch');
+    // The walk's Action Rules checklist names it, so the mandatory walk actually checks it.
+    expect($walk)->toContain('**no `Request` / `FormRequest` parameter and no `request()` reach inside the body**');
+    // Gated against the one-DTO rule that owns the other half of the same signature.
+    expect($walk)->toContain('the request is this finding, the second DTO is that one');
+
+    $skill = (string) file_get_contents($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md');
+    expect($skill)->toContain('- **Never pass the HTTP request into the Action.**');
+    expect($skill)->toContain('the entry point keeps both ends of client↔server communication');
+});
