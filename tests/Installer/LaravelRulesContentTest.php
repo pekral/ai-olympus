@@ -443,7 +443,7 @@ test('architecture rules keep the HTTP request out of an Action __invoke()', fun
 
     // The rule, stated as the input-side mirror of the HTTP-response ban.
     expect($content)->toContain('- **accept the HTTP request** — no `Illuminate\Http\Request` parameter');
-    expect($content)->toContain("no reach for the request from inside `__invoke()` (`request()`, the `Request` facade, `app('request')`)");
+    expect($content)->toContain('no reach for the request from inside `__invoke()` (`request()`, the `Request` facade, `app(\'request\')`)');
     expect($content)->toContain('the controller owns client↔server communication in **both** directions');
 
     // The three costs the rule names, so a reader sees why it is Critical.
