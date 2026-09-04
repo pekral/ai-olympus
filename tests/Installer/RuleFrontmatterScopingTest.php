@@ -181,7 +181,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
         'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
-        'rules/laravel/laravel.md' => 'bdaad58b083bb0fb2ab27105c8caf5d9b943e5ff296c36d159b57e4ffa997a37',
+        // Re-baselined: the file gained a `## Collections` section — a sequence of collection
+        // transformations is chained into one fluent pipeline instead of being reassigned
+        // through a single variable. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => '51d3e93b8fd6451a2f56b06dbe5a060df8fb818a756f66d86232621afcd061af',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired

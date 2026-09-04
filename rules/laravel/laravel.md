@@ -194,3 +194,18 @@ The only exception is a process the test itself owns end-to-end (e.g. the projec
 ## String Emptiness Checks
 - In conditions, prefer the Laravel `filled()` / `blank()` helpers over `!== ''` / `=== ''` comparisons. Write `filled($value)` instead of `$value !== ''` and `blank($value)` instead of `$value === ''`.
 - Keep the raw `!== ''` / `=== ''` form only when the exact PHP semantics matter (e.g. a `null`, whitespace-only, or empty-collection value must be treated as non-empty).
+
+## Collections
+- **Chain collection operations into one fluent pipeline.** A `Collection` method returns a `Collection`, so a sequence of transformations reads as a single expression that states what the data becomes. Write the pipeline, not a running tally of intermediate variables:
+```php
+$results = $coupons->chunk(
+        config()->integer('coupons.import.chunk_size'),
+    )->map(
+        fn (Collection $chunk): CouponImportResult => $this->processChunk($chunk, $folderId),
+    );
+```
+- **Reassigning one variable step by step is the shape to replace.** `$x = $c->filter(...); $x = $x->map(...); $x = $x->values();` names the same value three times, and each name says only *step 2 of something* — the reader reconstructs the pipeline the code took apart. Chain the calls instead. The same applies to a `foreach` that walks a collection only to accumulate into an array a `map()` / `filter()` / `groupBy()` / `sum()` call already expresses.
+- **Never leave the collection mid-pipeline.** A `->toArray()` (or `->all()`) followed by an array function and a `collect()` back re-materializes the whole set twice to reach a method the collection already has. Stay on the collection until the pipeline's final value is what the caller consumes. Convert once, at the boundary that requires an array.
+- **Break a long chain across lines, one operation per line**, as in the example above, so the pipeline reads top to bottom. Length is not what makes a chain unreadable — a step whose closure needs more than one statement is, and that step becomes a named method the chain calls (`->map($this->toImportResult(...))`), which is also where the Action / Data Builder boundary already puts it.
+- **Name an intermediate result when it genuinely has more than one consumer.** A collection two later statements both read is a value with a name, not a broken chain, and forcing it back into two pipelines computes it twice. This rule replaces reassignment of a single-use temporary; it never mandates one expression per method.
+- **A chain is not permission to load the set.** How much the pipeline holds at once is owned by `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*, and what the database should have done instead by `@rules/sql/optimalize.md` — a fluent `->get()->filter()` over a whole table is that finding, at that severity, never this one's.

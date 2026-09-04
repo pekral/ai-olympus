@@ -398,3 +398,41 @@ test('the Action-pattern CR walk and refactor skill both carry the one-DTO signa
     expect($skill)->toContain('needs a DTO to carry its input, give it **exactly one**');
     expect($skill)->toContain('*One DTO per `__invoke()`*');
 });
+
+test('laravel rules prefer a fluent collection pipeline over reassigned intermediates', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
+
+    expect($content)->toContain('## Collections');
+    expect($content)->toContain('**Chain collection operations into one fluent pipeline.**');
+
+    // The three shapes the rule replaces.
+    expect($content)->toContain('**Reassigning one variable step by step is the shape to replace.**');
+    expect($content)->toContain('accumulate into an array a `map()` / `filter()` / `groupBy()` / `sum()` call already expresses');
+    expect($content)->toContain('**Never leave the collection mid-pipeline.**');
+
+    // Formatting, and the two limits that keep the rule from distorting readable code.
+    expect($content)->toContain('**Break a long chain across lines, one operation per line**');
+    expect($content)->toContain('a step whose closure needs more than one statement is');
+    expect($content)->toContain('**Name an intermediate result when it genuinely has more than one consumer.**');
+    expect($content)->toContain('it never mandates one expression per method');
+
+    // Volume and query shape stay with the rules that already own them.
+    expect($content)->toContain('**A chain is not permission to load the set.**');
+    expect($content)->toContain('*Bulk Data & Batch Processing (issue #223)*');
+});
+
+test('the CR walk and refactoring skill carry the fluent collection pipeline rule at Moderate', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    expect($walk)->toContain('- **Collection pipelines are fluent (Laravel)**');
+    expect($walk)->toContain('Severity: **Moderate**');
+    expect($walk)->toContain('The **Suggested Fix** is the chained rewrite itself, written out.');
+    // Owns the pipeline's shape only; volume, per-row queries and query shape keep their owners.
+    expect($walk)->toContain('this bullet owns the *shape* of the pipeline and nothing else');
+
+    $skill = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
+    expect($skill)->toContain('**Chain collection operations into one fluent pipeline.**');
+    expect($skill)->toContain('In `MODE=cr`, emit the chained rewrite as a written proposal rather than applying it.');
+});
