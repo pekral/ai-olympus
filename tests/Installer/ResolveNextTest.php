@@ -73,6 +73,7 @@ test('options default to the package claim label and to leaving the pull request
     expect($options->repository)->toBeNull();
     expect($options->merge)->toBeFalse();
     expect($options->dryRun)->toBeFalse();
+    expect($options->codex)->toBeFalse();
 });
 
 test('options collect every repeated label and keep one containing spaces intact', function (): void {
@@ -82,11 +83,12 @@ test('options collect every repeated label and keep one containing spaces intact
 });
 
 test('options read the repository and the merge and dry-run switches', function (): void {
-    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next', '--repo=owner/name', '--merge', '--dry-run']);
+    $options = AgenticOptions::fromArgv(['ai-olympus', 'resolve-next', '--repo=owner/name', '--merge', '--dry-run', '--codex']);
 
     expect($options->repository)->toBe('owner/name');
     expect($options->merge)->toBeTrue();
     expect($options->dryRun)->toBeTrue();
+    expect($options->codex)->toBeTrue();
 });
 
 test('an empty option value is ignored rather than becoming a blank label', function (): void {
@@ -189,6 +191,30 @@ test('the prompt appends the merge step only when merging was requested', functi
 
 test('the agent command hands the prompt to Claude Code in print mode', function (): void {
     expect(AgenticIssueResolver::agentCommand('do the thing'))->toBe(['claude', '-p', 'do the thing']);
+});
+
+test('the Codex command uses non-interactive exec mode and Codex skill mentions', function (): void {
+    $prompt = AgenticIssueResolver::buildPrompt('https://github.com/o/r/issues/5', merge: true, codex: true);
+
+    expect($prompt)->toContain('$resolve-issue https://github.com/o/r/issues/5');
+    expect($prompt)->toContain('$code-review-github https://github.com/o/r/issues/5');
+    expect($prompt)->toContain('$process-code-review https://github.com/o/r/issues/5');
+    expect($prompt)->toContain('$merge-github-pr https://github.com/o/r/issues/5');
+    expect(AgenticIssueResolver::agentCommand('do the thing', codex: true))->toBe(['codex', 'exec', 'do the thing']);
+});
+
+test('a Codex run invokes codex exec instead of Claude Code', function (): void {
+    $listing = resolveNextListing(resolveNextIssue(11, '2026-01-01T00:00:00Z'));
+    $spy = new ResolveNextExecutorSpy([new CommandResult(0, $listing), new CommandResult(0, '')]);
+    $resolver = new AgenticIssueResolver($spy(...));
+
+    ob_start();
+    $resolver->run(new AgenticOptions(['bug'], repository: null, merge: false, dryRun: false, codex: true));
+    ob_end_clean();
+
+    expect($spy->calls()[1][0][0])->toBe('codex');
+    expect($spy->calls()[1][0][1])->toBe('exec');
+    expect($spy->calls()[1][0][2])->toContain('$resolve-issue');
 });
 
 test('a failing issue listing stops the run without starting an agent', function (): void {

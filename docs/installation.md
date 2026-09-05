@@ -6,7 +6,7 @@ Everything on this page describes the **Composer** path. A project without Compo
 
 ## How the Installer Works
 
-The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It then mirrors the `rules/` directory into `.claude/rules` and the `skills/` directory into `.claude/skills`, copying every file into the target project — or symlinking it when you pass `--symlink` and the operating system permits it.
+The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It mirrors the same source artifacts into both supported harnesses: rules into `.claude/rules` and `.codex/rules`, skills into `.claude/skills` and Codex's native `.agents/skills`, and the five roles into each harness's agent format. Files are copied by default or symlinked when you pass `--symlink` and the operating system permits it.
 
 When the package is required via Composer, sources are read from `vendor/pekral/ai-olympus/rules` and `vendor/pekral/ai-olympus/skills`.
 
@@ -34,24 +34,25 @@ If you prefer manual control, simply call `vendor/bin/ai-olympus install` in you
 
 ```bash
 vendor/bin/ai-olympus help                                  # print help
-vendor/bin/ai-olympus install                                # install for Claude Code
+vendor/bin/ai-olympus install                                # install for Claude Code and Codex
 vendor/bin/ai-olympus install --force                        # overwrite existing files
 vendor/bin/ai-olympus install --symlink                      # prefer symlinks (fallback to copy)
 vendor/bin/ai-olympus install --prune                        # remove files in target that no longer exist in source
-vendor/bin/ai-olympus install --global                       # also install skills to ~/.claude/skills (off by default)
-vendor/bin/ai-olympus install --prune-global                 # remove this package's skills from ~/.claude/skills
+vendor/bin/ai-olympus install --global                       # also install skills to ~/.claude/skills and ~/.agents/skills
+vendor/bin/ai-olympus install --prune-global                 # remove this package's skills from both home locations
 vendor/bin/ai-olympus install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/ai-olympus install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
+vendor/bin/ai-olympus resolve-next --codex                     # resolve the next issue through codex exec instead of Claude Code
 ```
 
 ## Installer Flow
 
 1. Determine the project root by walking up from the current directory until `composer.json` is found.
 2. Resolve the rules source (local `rules/` or `vendor/pekral/ai-olympus/rules`).
-3. Install rules into `.claude/rules`.
-4. If present, resolve the skills source and install into `.claude/skills` (and additionally into `~/.claude/skills` when `--global` is passed and `HOME`/`USERPROFILE` is set).
-5. Copy `agents/` to `.claude/agents` and `CLAUDE.md` to the project root (never overwrites existing).
+3. Install rules into `.claude/rules` and `.codex/rules`.
+4. Install skills into `.claude/skills` and `.agents/skills` (and additionally into `~/.claude/skills` and `~/.agents/skills` when `--global` is passed and `HOME`/`USERPROFILE` is set).
+5. Copy `agents/` to `.claude/agents` and `.codex/agent-instructions`, install the Codex TOML adapters into `.codex/agents`, and copy `CLAUDE.md` / `AGENTS.md` to the project root. Neither root instruction file is overwritten once it exists.
 6. Remove any leftover handler under `hooks` in `.claude/settings.local.json` that points at the removed `bash-guard` validator, so a project that once opted into the deleted `--enforce-agent-bash-boundary` flag stops seeing a `PreToolUse` hook error on every Bash call. Only that handler is removed; every other key in the file is preserved, and a project that has no such handler is not written to at all. The file is **read** on every `install` to make this check, so a `.claude/settings.local.json` file that is not valid JSON now ends the install with `Cannot parse Claude settings file <path>: Syntax error.` and exit `1` instead of being skipped. Restart the session afterwards — hooks are read once, at session start. See [`SECURITY.md`](../SECURITY.md#agent-capability-model--residual-risk).
 7. Optionally overwrite existing files with `--force`; use `--symlink` to prefer symlinks (fallback to copy on Windows).
 8. Surface explicit errors for missing directories, removal failures, and copy/symlink failures.
@@ -63,16 +64,17 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 | `--force`                 | Overwrite files that already exist in the target directory.                                                                                                 |
 | `--symlink`               | Create symlinks when the OS permits; automatically falls back to copy.                                                                                      |
 | `--prune`                 | Remove files in target that no longer exist in source.                                                                                                       |
-| `--global`                | Opt-in. Also install skills into `~/.claude/skills`. Off by default — see [Where skills are installed](#where-skills-are-installed). No effect when `HOME` / `USERPROFILE` is not set. |
-| `--prune-global`          | Remove this package's skills from `~/.claude/skills` so the project copy is the one Claude Code loads. Matches by skill name; skills under other names are left untouched, and a symlinked install is removed as the link only. Irreversible — see the warning under [Where skills are installed](#where-skills-are-installed). Cannot be combined with `--global`. |
+| `--global`                | Opt-in. Also install skills into `~/.claude/skills` and `~/.agents/skills`. Off by default — see [Where skills are installed](#where-skills-are-installed). No effect when `HOME` / `USERPROFILE` is not set. |
+| `--prune-global`          | Remove this package's skills from both home locations so project copies load. Matches by skill name; skills under other names are left untouched, and a symlinked install is removed as the link only. Irreversible — see the warning under [Where skills are installed](#where-skills-are-installed). Cannot be combined with `--global`. |
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `hephaestus`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
+| `--codex`                | `resolve-next` only. Run the unattended workflow with the documented `codex exec` command and Codex `$skill-name` mentions. Without it, `resolve-next` keeps using Claude Code. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ## Where skills are installed
 
-Skills go to the project's `.claude/skills` and nowhere else unless you ask for more. That default follows from how Claude Code resolves a name collision — [its documentation](https://code.claude.com/docs/en/skills) states it plainly:
+Skills go to the project's `.claude/skills` and `.agents/skills` and nowhere else unless you ask for more. Codex's [official skill documentation](https://developers.openai.com/codex/skills/) defines `.agents/skills` as its repository location. The project-first default also follows from how Claude Code resolves a name collision — [its documentation](https://code.claude.com/docs/en/skills) states it plainly:
 
 > When skills share the same name across levels, enterprise overrides personal, and personal overrides project.
 
@@ -86,7 +88,7 @@ Upgrading from a version that always installed globally (every release before th
 vendor/bin/ai-olympus install --prune-global
 ```
 
-It removes only the skill directories this package ships and leaves everything else in `~/.claude/skills` alone.
+It removes only the skill directories this package ships and leaves everything else in `~/.claude/skills` and `~/.agents/skills` alone.
 
 > [!WARNING]
 > The match is by skill **name**, and the removal is immediate and irreversible — there is no dry run and no backup. If you hand-edited a home skill that shares a name with one this package ships, `--prune-global` deletes your edited copy too, because a customised copy and a stale one are indistinguishable from the outside. Move such a skill to a name this package does not use before running the flag.

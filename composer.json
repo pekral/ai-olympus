@@ -1,6 +1,6 @@
 {
   "name": "pekral/ai-olympus",
-  "description": "AI Olympus — a Composer plugin for PHP and Laravel projects that installs Claude Code rules and agent skills: coding standards, testing, and conventions",
+  "description": "AI Olympus — a Composer plugin for PHP and Laravel projects that installs Claude Code and Codex rules, agent skills, and custom agents",
   "license": "MIT",
   "type": "composer-plugin",
   "keywords": [
@@ -8,6 +8,8 @@
     "ai-olympus",
     "claude",
     "claude-code",
+    "codex",
+    "openai-codex",
     "ai-agents",
     "llm",
     "php-ai-olympus",

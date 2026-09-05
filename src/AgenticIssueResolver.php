@@ -8,11 +8,11 @@ use Closure;
 use JsonException;
 
 /**
- * Picks the oldest open issue carrying the configured labels and hands it to Claude Code
+ * Picks the oldest open issue carrying the configured labels and hands it to Claude Code or Codex
  * as one agent run. Built for `cron` / Task Scheduler: one invocation resolves one issue.
  *
  * The process layer is injected as a closure so the whole flow is exercised in tests
- * without ever spawning `gh` or `claude` — `bin/ai-olympus` supplies the real one.
+ * without ever spawning `gh`, `claude`, or `codex` — `bin/ai-olympus` supplies the real one.
  */
 final readonly class AgenticIssueResolver
 {
@@ -50,7 +50,7 @@ final readonly class AgenticIssueResolver
             return 0;
         }
 
-        $prompt = self::buildPrompt($issue->url, $options->merge);
+        $prompt = self::buildPrompt($issue->url, $options->merge, $options->codex);
 
         if ($options->dryRun) {
             echo sprintf('Would resolve #%d (%s) with:%s%s%s', $issue->number, $issue->url, PHP_EOL, $prompt, PHP_EOL);
@@ -60,7 +60,7 @@ final readonly class AgenticIssueResolver
 
         echo sprintf('Resolving #%d (%s).%s', $issue->number, $issue->url, PHP_EOL);
 
-        return ($this->executor)(self::agentCommand($prompt), false)->exitCode;
+        return ($this->executor)(self::agentCommand($prompt, $options->codex), false)->exitCode;
     }
 
     /**
@@ -86,22 +86,26 @@ final readonly class AgenticIssueResolver
     /**
      * @return list<string>
      */
-    public static function agentCommand(string $prompt): array
+    public static function agentCommand(string $prompt, bool $codex = false): array
     {
-        return ['claude', '-p', $prompt];
+        return $codex ? ['codex', 'exec', $prompt] : ['claude', '-p', $prompt];
     }
 
     /**
      * The chain the run performs, and the one boundary it must not cross on its own:
      * merging stays opt-in, so an unattended run leaves the pull request for a human.
      */
-    public static function buildPrompt(string $issueUrl, bool $merge): string
+    public static function buildPrompt(string $issueUrl, bool $merge, bool $codex = false): string
     {
+        $invocationPrefix = $codex ? '$' : '/';
         $prompt = sprintf(
-            'Run /resolve-issue %s. When it finishes, run /code-review-github %s, and if the review'
-                . ' reports findings, run /process-code-review %s until it converges.',
+            'Run %sresolve-issue %s. When it finishes, run %scode-review-github %s, and if the review'
+                . ' reports findings, run %sprocess-code-review %s until it converges.',
+            $invocationPrefix,
             $issueUrl,
+            $invocationPrefix,
             $issueUrl,
+            $invocationPrefix,
             $issueUrl,
         );
 
@@ -109,7 +113,7 @@ final readonly class AgenticIssueResolver
             return $prompt . ' Leave the pull request open for human review — do not merge it.';
         }
 
-        return $prompt . sprintf(' Once the review has converged, run /merge-github-pr %s.', $issueUrl);
+        return $prompt . sprintf(' Once the review has converged, run %smerge-github-pr %s.', $invocationPrefix, $issueUrl);
     }
 
     public static function selectOldest(string $issueListJson): ?AgenticIssue

@@ -10,7 +10,7 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 /**
- * Removes this package's skills from the user home skills directory.
+ * Removes this package's skills from the Claude Code and Codex home skill directories.
  *
  * Claude Code resolves a same-name collision as personal-overrides-project, so a leftover
  * copy in ~/.claude/skills shadows the project's own .claude/skills in every project on the
@@ -28,29 +28,48 @@ final class InstallerGlobalSkills
      */
     public static function prune(string $skillsSource, string $projectRoot): array
     {
-        $homeSkills = InstallerPath::resolveHomeSkillsDirectory();
-
-        if ($homeSkills === null || !is_dir($homeSkills) || !is_dir($skillsSource)) {
-            return [];
-        }
-
-        // A project checked out inside the home skills directory would otherwise have its own
-        // freshly installed target deleted by the same walk.
-        if (self::isSameDirectory($homeSkills, $projectRoot . '/.claude/skills')) {
+        if (!is_dir($skillsSource)) {
             return [];
         }
 
         $removed = [];
+        $skillNames = self::listShippedSkillNames($skillsSource);
 
-        foreach (self::listShippedSkillNames($skillsSource) as $name) {
+        foreach (InstallerPath::resolveHomeSkillsDirectories() as $homeSkills) {
+            if (!is_dir($homeSkills) || self::isProjectSkillsDirectory($homeSkills, $projectRoot)) {
+                continue;
+            }
+
+            $removed = [...$removed, ...self::pruneDirectory($homeSkills, $skillNames)];
+        }
+
+        $removed = array_values(array_unique($removed));
+        sort($removed);
+
+        return $removed;
+    }
+
+    /**
+     * @param array<int, string> $skillNames
+     * @return array<int, string>
+     */
+    private static function pruneDirectory(string $homeSkills, array $skillNames): array
+    {
+        $removed = [];
+
+        foreach ($skillNames as $name) {
             if (self::removeEntry($homeSkills . '/' . $name)) {
                 $removed[] = $name;
             }
         }
 
-        sort($removed);
-
         return $removed;
+    }
+
+    private static function isProjectSkillsDirectory(string $homeSkills, string $projectRoot): bool
+    {
+        return self::isSameDirectory($homeSkills, $projectRoot . '/.claude/skills')
+            || self::isSameDirectory($homeSkills, $projectRoot . '/.agents/skills');
     }
 
     /**

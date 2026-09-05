@@ -5,6 +5,16 @@ declare(strict_types = 1);
 use Pekral\AiOlympus\Installer;
 use Pekral\AiOlympus\InstallerPath;
 
+/**
+ * @param array<int, string> $targets
+ */
+function installerExpectFileCount(array $targets, int $expected, string $label): void
+{
+    foreach ($targets as $target) {
+        expect(installerCountFiles($target))->toBe($expected, $label . ': all source files in ' . $target);
+    }
+}
+
 test('package directory points to correct location', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rulesDir = $packageDir . '/rules';
@@ -16,11 +26,13 @@ test('package directory points to correct location', function (): void {
     expect(is_dir($securityRulesDir))->toBeTrue();
 });
 
-test('gitignore ignores local cursor and claude directories', function (): void {
+test('gitignore ignores generated harness directories', function (): void {
     $gitignore = file_get_contents(dirname(__DIR__, 2) . '/.gitignore');
 
     expect($gitignore)->toContain('/.cursor/');
     expect($gitignore)->toContain('/.claude/');
+    expect($gitignore)->toContain('/.codex/');
+    expect($gitignore)->toContain('/.agents/');
 });
 
 test('install ignores rules directory in project root and uses package source', function (): void {
@@ -267,7 +279,7 @@ test('install copies nested directories', function (): void {
     }
 });
 
-test('install never creates .cursor or .codex directories', function (): void {
+test('install creates Claude and Codex directories but never Cursor', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -280,8 +292,11 @@ test('install never creates .cursor or .codex directories', function (): void {
 
         expect(is_file($root . '/.claude/rules/php/core-standards.md'))->toBeTrue();
         expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/rules/php/core-standards.md'))->toBeTrue();
+        expect(is_file($root . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/agents/daedalus.toml'))->toBeTrue();
+        expect(is_file($root . '/.codex/agent-instructions/daedalus.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor'))->toBeFalse();
-        expect(is_dir($root . '/.codex'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -390,12 +405,17 @@ test('install copies all files to every rule, skill, and agent directory', funct
     $rulesTargets = InstallerPath::resolveRulesTargetDirectories($root);
     $skillTargets = InstallerPath::resolveSkillsTargetDirectories($root);
     $agentTargets = InstallerPath::resolveAgentsTargetDirectories($root);
+    $codexAgentTargets = InstallerPath::resolveCodexAgentsTargetDirectories($root);
     $expectedAgentsCount = installerCountFiles($packageDir . '/agents');
+    $expectedCodexAgentsCount = installerCountFiles($packageDir . '/codex/agents');
     $claudeMdCount = InstallerPath::resolveClaudeMdSource() !== null ? 1 : 0;
+    $agentsMdCount = InstallerPath::resolveAgentsMdSource() !== null ? 1 : 0;
     $expectedTotalFiles = $expectedRulesCount * count($rulesTargets)
         + $expectedSkillsCount * count($skillTargets)
         + $expectedAgentsCount * count($agentTargets)
-        + $claudeMdCount;
+        + $expectedCodexAgentsCount * count($codexAgentTargets)
+        + $claudeMdCount
+        + $agentsMdCount;
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
 
@@ -407,20 +427,10 @@ test('install copies all files to every rule, skill, and agent directory', funct
 
         expect($exitCode)->toBe(0);
 
-        foreach ($rulesTargets as $rulesTarget) {
-            $actualRulesCount = installerCountFiles($rulesTarget);
-            expect($actualRulesCount)->toBe($expectedRulesCount, 'Rules: all source files in ' . $rulesTarget);
-        }
-
-        foreach ($skillTargets as $skillsTarget) {
-            $actualSkillsCount = installerCountFiles($skillsTarget);
-            expect($actualSkillsCount)->toBe($expectedSkillsCount, 'Skills: all source files in ' . $skillsTarget);
-        }
-
-        foreach ($agentTargets as $agentsTarget) {
-            $actualAgentsCount = installerCountFiles($agentsTarget);
-            expect($actualAgentsCount)->toBe($expectedAgentsCount, 'Agents: all source files in ' . $agentsTarget);
-        }
+        installerExpectFileCount($rulesTargets, $expectedRulesCount, 'Rules');
+        installerExpectFileCount($skillTargets, $expectedSkillsCount, 'Skills');
+        installerExpectFileCount($agentTargets, $expectedAgentsCount, 'Agents');
+        installerExpectFileCount($codexAgentTargets, $expectedCodexAgentsCount, 'Codex agents');
 
         expect($output)->toContain(sprintf('(%d files,', $expectedTotalFiles));
     } finally {

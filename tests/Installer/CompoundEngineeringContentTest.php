@@ -1158,7 +1158,7 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     // Six real issue/PR references the first pass dropped (verified not ordinals, e.g. "mandate #2")
     // — pinned in their own restored context, not as a bare `#N` a coincidentally-numbered
     // unrelated entry could satisfy.
-    expect($memory)->toContain('installer targets Claude Code only since issue #16 — the `--editor` flag was removed in PR #33');
+    expect($memory)->toContain('The `--editor` flag was removed in issue #16 / PR #33; the installer now targets Claude Code and Codex automatically');
     expect($memory)->toContain('The `gh-71` run (issue #71, already shipped via merged PR #72');
     expect($memory)->toContain('the `gh-69` run (issue #69) and concurrent `gh-57` run (issue #57)');
 

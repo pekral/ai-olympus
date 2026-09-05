@@ -47,8 +47,10 @@ function globalSkillsRunInstall(array $arguments, ?callable $seedHome, callable 
 test('install writes skills only to the project directory by default', function (): void {
     globalSkillsRunInstall([], seedHome: null, assert: function (array $result): void {
         expect(is_file($result['root'] . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_file($result['root'] . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
         // A home copy would override the project one in every project on the machine.
         expect(is_dir($result['home'] . '/.claude/skills'))->toBeFalse();
+        expect(is_dir($result['home'] . '/.agents/skills'))->toBeFalse();
         expect($result['exitCode'])->toBe(0);
     });
 });
@@ -57,9 +59,11 @@ test('install --global writes skills to both the project and the home directory'
     globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
         expect(is_file($result['root'] . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
         expect(is_file($result['home'] . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
+        expect(is_file($result['home'] . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
         // The report names the real target path, so it cannot claim a copy that was not written.
         expect($result['output'])->toContain($result['home'] . '/.claude/skills');
-        expect($result['output'])->toContain('overrides the project copy');
+        expect($result['output'])->toContain($result['home'] . '/.agents/skills');
+        expect($result['output'])->toContain('override the project copy');
     });
 });
 
@@ -68,11 +72,15 @@ test('install --prune-global removes this package\'s skills from home and keeps 
         installerWriteFile($home . '/.claude/skills/code-review/SKILL.md', 'shadowing copy');
         installerWriteFile($home . '/.claude/skills/code-review/scripts/run.sh', 'echo shadow');
         installerWriteFile($home . '/.claude/skills/foreign-skill/SKILL.md', 'another source');
+        installerWriteFile($home . '/.agents/skills/code-review/SKILL.md', 'shadowing Codex copy');
+        installerWriteFile($home . '/.agents/skills/foreign-skill/SKILL.md', 'another Codex source');
     };
 
     globalSkillsRunInstall(['--prune-global'], $seed, function (array $result): void {
         expect(is_dir($result['home'] . '/.claude/skills/code-review'))->toBeFalse();
         expect(is_file($result['home'] . '/.claude/skills/foreign-skill/SKILL.md'))->toBeTrue();
+        expect(is_dir($result['home'] . '/.agents/skills/code-review'))->toBeFalse();
+        expect(is_file($result['home'] . '/.agents/skills/foreign-skill/SKILL.md'))->toBeTrue();
         expect(is_file($result['root'] . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
         expect($result['output'])->toContain('code-review');
         expect($result['exitCode'])->toBe(0);

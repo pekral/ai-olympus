@@ -169,10 +169,10 @@ jestli dokumentace říká pravdu o důsledku. Přesně tu review bych v pátek 
 
 ## Co to neumí
 
-- **Jen Claude Code.** Žádný Cursor, Copilot ani Windsurf. Přepínač `--editor` byl odstraněn, místo
-  aby zůstal napůl podporovaný.
-- **Potřebuje placený plán Claude.** Pět agentů, opravná smyčka až o třech iteracích a plný
-  lokální build před každým pushem není zátěž pro free tier.
+- **Jen Claude Code a Codex.** Žádný Cursor, Copilot ani Windsurf. Oba podporované nástroje se
+  instalují automaticky; starý přepínač `--editor` zůstává odstraněný.
+- **Běhy agentů čerpají tarif nebo API limit zvoleného nástroje.** Pět agentů, opravná smyčka až o
+  třech iteracích a plný lokální build před každým pushem není zátěž pro free tier.
 - **Bash hranice je advisory, ne vynucená.** Každý agent drží `Bash` a `Bash` v sobě obsahuje
   zápis i síť bez ohledu na to, co říká `disallowedTools`. Vlastní instrukce „read-only" agenta
   nezastaví `cat > file`. Balíček to píše v `SECURITY.md`, místo aby předstíral opak — a pull

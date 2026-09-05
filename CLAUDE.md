@@ -66,6 +66,5 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **The quality gate runs once, immediately before the merge — not before every push.** Do not run `composer build`, fixers, or checkers while implementing or while working through a code review; author the change, commit it, push it. `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* runs the full build on the exact head commit being merged, commits the fixes it produces as their own commit, and never merges without it green — never ignore its errors. See `@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*.
 
 - This project supports git worktrees. Isolating a work unit in its own worktree (`git worktree add`) is a supported way of working here. The default stays unchanged: per `@rules/git/general.md` an agent works in the current tree and creates a worktree only when the user explicitly asks for one, then removes it once the work unit's PR is merged.
-- Files in the .claude/ and .cursor/ directories are not tracked by Git (they are likely listed in .gitignore). You only need to commit changes in the skills/ directory.
+- Files in the generated `.claude/`, `.codex/`, and `.agents/` directories are not tracked by Git. Edit the tracked `rules/`, `skills/`, `agents/`, and `codex/` sources instead.
 - See `docs/memory/PROJECT_MEMORY.md` for durable, project-specific lessons from past work — read the entries relevant to your role before starting a new task.
-  

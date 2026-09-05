@@ -20,7 +20,7 @@ The strategic sentinel and **the roster's only code-review agent**, named after 
 - **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis` (plus `analyze-problem` in analysis mode).
 - **Rules applied:** `@rules/security/backend.md`, `@rules/security/frontend.md`, `@rules/security/mobile.md`, `@rules/security/general.md`.
 - **Safety:** read-only — never edits, commits, pushes, or merges (`hephaestus` implements what it analyses and fixes what it finds).
-- **Registration dependency:** dispatchable only after the installer copies `agents/athena.md` to `.claude/agents/`. Until then, the review runs inline in `code-review-github` (the continuity fallback), and the pre-implementation analysis mode is skipped — `hephaestus`'s pre-PR self-check still runs `code-review` + `security-review` over its own diff.
+- **Registration dependency:** dispatchable only after the installer copies `agents/athena.md` to `.claude/agents/`, or installs its adapter in `.codex/agents/`. Until then, the review runs inline in `code-review-github` (the continuity fallback), and the pre-implementation analysis mode is skipped — `hephaestus`'s pre-PR self-check still runs `code-review` + `security-review` over its own diff.
 
 ### <img src="../assets/agents/hephaestus.png" alt="hephaestus avatar" width="48" align="left"> `hephaestus` — code-writing implementer
 
@@ -63,7 +63,7 @@ The messenger who carries the message after the work is done, named after **Herm
   - **Post-convergence reporting** — `daedalus` dispatches `hermes` as the final step of a full-delivery run, after the CR converges and `hephaestus`'s scoped validation confirms `Tests done (scoped)` — or `daedalus` skipped that pass over an already-validated head, leaving the earlier handoff for the same SHA in the brief. It composes the human-readable, non-technical summary (what changed + how to test) in the language from the brief `## Language` and publishes it to the source tracker via `@skills/pr-summary/SKILL.md`. Publishing is the deliverable of this dispatch, so it is pre-approved (L1). Before it publishes it reads the target's existing comments and skips its own only when one already carries **both** halves of the report — the summary and the `How to test` steps. Only a comment from an account with write access to the repository (`author_association` `OWNER` / `MEMBER` / `COLLABORATOR`) is admissible evidence; inside that set the skip is judged on the comment's content rather than on which trusted agent wrote it. After it publishes it reads the comment back through the same loader, so an unconfirmed write is `Blocked` rather than a reported success. With no linked tracker it returns the summary inline and `daedalus` passes it to the user. Handoff: `Reporting done`, `Reporting done (already covered)` with the covering comment's URL, or `Reporting done (no tracker)`.
 - **Why `model: haiku` is the right tier.** In both modes `hermes` composes prose from evidence other agents already produced — the brief's `## Gathered context`, the converged PR, and `hephaestus`'s handoff for the current head SHA (the executed tests, the coverage verdict, the acceptance-criteria statuses). It runs no suite, authors no test, and derives no new fact, so the job is summarisation of existing text rather than reasoning about code. Raising the tier would buy nothing; if a future change makes `hermes` derive facts of its own, revisit the tier in the same change.
 - **Safety:** read-only — never edits, commits, pushes, or merges. Publishes only through the canonical `upsert-comment.sh` wrapper — never raw `gh ... comment`.
-- **Registration dependency:** dispatchable only after the installer copies `agents/hermes.md` to `.claude/agents/`. On a run whose source is a tracker that registration is load-bearing: the published report is part of the definition of a finished run, so an unregistered `hermes` stops the run `Blocked` with the remediation, and no other agent publishes the report in its place.
+- **Registration dependency:** dispatchable only after the installer copies `agents/hermes.md` to `.claude/agents/`, or installs its adapter in `.codex/agents/`. On a run whose source is a tracker that registration is load-bearing: the published report is part of the definition of a finished run, so an unregistered `hermes` stops the run `Blocked` with the remediation, and no other agent publishes the report in its place.
 
 ## Retired agents
 
@@ -283,12 +283,12 @@ This is the permanent, recommended fix: a dispatched subagent then writes the wo
 
 ## Distribution
 
-The installer always copies `agents/` to `.claude/agents/` — Claude Code is the only editor this package targets.
+The installer copies the canonical `agents/*.md` definitions to `.claude/agents/` and `.codex/agent-instructions/`. Small project-scoped TOML adapters in `.codex/agents/` teach Codex the path and collaboration-tool mappings, so both harnesses execute the same role definitions instead of maintaining two prompt copies.
 
 ## Adding a new agent
 
 1. Pick a Greek figure whose myth matches the job; use the lowercase name.
 2. Create `agents/<name>.md` with the frontmatter + an orchestration-only system prompt that delegates to skills and returns a handoff.
-3. Add it to the README *Claude Code Subagents* roster (an avatar + role card).
+3. Add it to the README *Claude Code and Codex Subagents* roster (an avatar + role card).
 4. Add a test asserting the file ships with its required frontmatter (mirror the `athena` test in `tests/Installer/AgentsTest.php`).
 5. Run `vendor/bin/pest tests/Installer` — the installer file-count tests pick up the new agent automatically. The full build runs once at the merge boundary, not here.

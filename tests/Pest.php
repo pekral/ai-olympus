@@ -816,7 +816,7 @@ function packageTextFiles(): array
     // `build/` is gitignored tooling output, and PHPStan's result cache echoes the source of every
     // analysed line back as a PHP string — so an absence guard that walks it matches its own
     // assertion and fails on a name the tree no longer carries (issue #231).
-    $skipped = ['vendor', 'node_modules', '.git', '.claude', '.idea', 'build'];
+    $skipped = ['vendor', 'node_modules', '.git', '.claude', '.codex', '.agents', '.idea', 'build'];
     $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml'];
 
     $iterator = new RecursiveIteratorIterator(

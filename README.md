@@ -13,7 +13,7 @@
   <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
 </p>
 
-**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` and the ad-hoc prompt library every project otherwise reinvents.
+**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code and Codex** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` / `AGENTS.md` and the ad-hoc prompt library every project otherwise reinvents.
 
 > [!WARNING]
 > **Experimental, and under active development.** This package is being built in the open and is not stable yet. Agent definitions, skills, and rules are added, renamed, and removed between releases, and a change to any of them can alter how the agents behave in your project. While the package is on `0.x`, breaking changes ship in minor versions and are recorded in [`CHANGELOG.md`](CHANGELOG.md).
@@ -29,7 +29,7 @@ vendor/bin/ai-olympus install --force
 
 No Composer in the project? Add it as a Claude Code plugin instead — see [Installation](#installation).
 
-Then point the front-door agent at real work, inside Claude Code:
+Then point the front-door agent at real work in Claude Code, or ask Codex to use the `daedalus` custom agent:
 
 ```text
 @daedalus resolve https://github.com/owner/repo/issues/123
@@ -41,9 +41,9 @@ Then point the front-door agent at real work, inside Claude Code:
 
 | Layer      | What it is                                                            | Installed into   |
 |------------|-----------------------------------------------------------------------|------------------|
-| **Rules**  | Long-lived project standards Claude Code applies to every edit        | `.claude/rules`  |
-| **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills` |
-| **Agents** | Orchestration roles that combine skills into an issue-to-PR pipeline  | `.claude/agents` |
+| **Rules**  | Long-lived project standards loaded by the harness                    | `.claude/rules`, `.codex/rules` |
+| **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
+| **Agents** | Orchestration roles that combine skills into an issue-to-PR pipeline  | `.claude/agents`, `.codex/agents` |
 
 ## Why This Package
 
@@ -85,22 +85,27 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 
 ### Via Composer
 
-The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project — the installer targets **Claude Code only**:
+The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project for **Claude Code and Codex**:
 
 - `.claude/rules` and `.claude/skills` in the project
 - `.claude/agents` (the five subagents)
 - `CLAUDE.md` in the project root
+- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the five custom-agent adapters)
+- `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
+- `AGENTS.md` in the project root
 
-Skills install into the project only. Claude Code lets a personal skill (`~/.claude/skills`) override a project one, so a home copy would shadow this checkout in every project on the machine — `--global` opts into that deliberately, and `--prune-global` clears copies an earlier version left behind. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
+Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
 
 > [!IMPORTANT]
 > By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/ai-olympus install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
+
+`AGENTS.md` has the same protection: the installer creates it only when the project has none. If a project already owns that file, merge the **Codex integration** section from this repository's `AGENTS.md` into it so Codex knows when to load `.codex/rules` and how to translate the shared role definitions.
 
 Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
 
 ---
 
-## Claude Code Subagents
+## Claude Code and Codex Subagents
 
 Agents are a thin orchestration layer over the existing skills — they don't replace them and they don't duplicate their prompts. The roster is named after **Greek mythology** by function (see [`docs/agents.md`](docs/agents.md)).
 
@@ -177,13 +182,13 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 ### How to use `athena` in practice
 
-1. Install for Claude Code:
+1. Install for Claude Code and Codex:
 
    ```bash
    vendor/bin/ai-olympus install
    ```
 
-   Agents land in `.claude/agents/`.
+   Agents land in `.claude/agents/` and `.codex/agents/`.
 
 2. Invoke it with a **source** — a GitHub PR/issue, a JIRA key, a Bugsnag error, or just the current branch/PR:
 
@@ -199,7 +204,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 ### How to use `hephaestus` in practice
 
-1. Install for Claude Code, exactly as for `athena` — agents land in `.claude/agents/`.
+1. Install exactly as for `athena` — agents land in `.claude/agents/` and `.codex/agents/`.
 
 2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
 
@@ -220,7 +225,7 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 
 `daedalus` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
 
-1. Install for Claude Code, exactly as for the other agents.
+1. Install exactly as for the other agents.
 
 2. Invoke it with a request — it resolves the source and chooses the route:
 
@@ -355,16 +360,17 @@ Writing the README itself is not in this catalog. [`pekral/github-readme-generat
 
 ## Unattended Runs
 
-`resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler.
+`resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code or Codex as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler. Claude Code remains the default; pass `--codex` to use `codex exec` and Codex-style `$skill` invocations.
 
 ```bash
 vendor/bin/ai-olympus resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
 vendor/bin/ai-olympus resolve-next                    # resolve it and leave the pull request for review
 vendor/bin/ai-olympus resolve-next --merge            # ...and merge once the review converges
 vendor/bin/ai-olympus resolve-next --label=bug --repo=owner/name
+vendor/bin/ai-olympus resolve-next --codex             # run the same workflow through codex exec
 ```
 
-The run chains `/resolve-issue` → `/code-review-github` → `/process-code-review` on the issue it picked. **Merging is opt-in:** without `--merge` the prompt explicitly tells the agent to leave the pull request open, so an unattended schedule never merges on its own.
+The run chains `resolve-issue` → `code-review-github` → `process-code-review` on the issue it picked, using `/skill` mentions in Claude Code and `$skill` mentions in Codex. **Merging is opt-in:** without `--merge` the prompt explicitly tells the agent to leave the pull request open, so an unattended schedule never merges on its own.
 
 An issue already carrying `Resolve_by_AI:in-progress` is skipped, so two overlapping ticks cannot pick the same issue. An empty backlog exits `0` — a quiet schedule is not a failure.
 

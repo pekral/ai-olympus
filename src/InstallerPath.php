@@ -103,6 +103,13 @@ final class InstallerPath
         return is_file($source) ? $source : null;
     }
 
+    public static function resolveAgentsMdSource(): ?string
+    {
+        $source = self::getPackageDirectory() . '/AGENTS.md';
+
+        return is_file($source) ? $source : null;
+    }
+
     public static function resolveAgentsSource(): ?string
     {
         $packageSource = self::getPackageDirectory() . '/agents';
@@ -117,13 +124,29 @@ final class InstallerPath
     }
 
     /**
-     * Claude Code subagents always install to .claude/agents.
-     *
      * @return array<int, string>
      */
     public static function resolveAgentsTargetDirectories(string $root): array
     {
-        return [$root . '/.claude/agents'];
+        return [
+            $root . '/.claude/agents',
+            $root . '/.codex/agent-instructions',
+        ];
+    }
+
+    public static function resolveCodexAgentsSource(): ?string
+    {
+        $packageSource = self::getPackageDirectory() . '/codex/agents';
+
+        return is_dir($packageSource) ? $packageSource : null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function resolveCodexAgentsTargetDirectories(string $root): array
+    {
+        return [$root . '/.codex/agents'];
     }
 
     /**
@@ -134,19 +157,28 @@ final class InstallerPath
         return $root . '/CLAUDE.md';
     }
 
+    public static function resolveAgentsMdTarget(string $root): string
+    {
+        return $root . '/AGENTS.md';
+    }
+
     /**
-     * Rules target directory: always .claude/rules.
+     * Rules remain native Claude Code rule files. Codex receives the same tree as a
+     * reference library whose applicable files are loaded through AGENTS.md.
      *
      * @return array<int, string>
      */
     public static function resolveRulesTargetDirectories(string $root): array
     {
-        return [$root . '/.claude/rules'];
+        return [
+            $root . '/.claude/rules',
+            $root . '/.codex/rules',
+        ];
     }
 
     /**
-     * Skill target directories: always .claude/skills, plus the user home skills
-     * directory when $global is requested and HOME or USERPROFILE is set.
+     * Project skills install to both harnesses. Codex follows the open Agent Skills
+     * convention and discovers repository skills below .agents/skills.
      *
      * The project directory is the default because Claude Code resolves a name collision
      * the other way round: personal (~/.claude/skills) overrides project (.claude/skills),
@@ -157,33 +189,35 @@ final class InstallerPath
      */
     public static function resolveSkillsTargetDirectories(string $root, bool $global = false): array
     {
-        $targets = [$root . '/.claude/skills'];
+        $targets = [
+            $root . '/.claude/skills',
+            $root . '/.agents/skills',
+        ];
 
         if (!$global) {
             return $targets;
         }
 
-        $home = self::resolveHomeSkillsDirectory();
-
-        if ($home !== null) {
-            $targets[] = $home;
-        }
+        $targets = [...$targets, ...self::resolveHomeSkillsDirectories()];
 
         return array_values(array_unique($targets));
     }
 
     /**
-     * The user home skills directory, or null when neither HOME nor USERPROFILE is set.
+     * @return array<int, string>
      */
-    public static function resolveHomeSkillsDirectory(): ?string
+    public static function resolveHomeSkillsDirectories(): array
     {
-        $home = self::resolveHomeDirectory();
+        $home = self::resolveHomeDirectoryOrNull();
 
-        if ($home === false || $home === '') {
-            return null;
+        if ($home === null) {
+            return [];
         }
 
-        return $home . '/.claude/skills';
+        return [
+            $home . '/.claude/skills',
+            $home . '/.agents/skills',
+        ];
     }
 
     private static function resolveHomeDirectory(): string|false
