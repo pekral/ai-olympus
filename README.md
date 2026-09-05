@@ -1,24 +1,30 @@
-<p align="center">
+<div align="center">
   <img src="assets/logo.png" alt="AI Olympus" width="280">
-</p>
 
-# AI Olympus — An AI Development Team for Laravel
+<h1>AI Olympus — An AI Development Team for Laravel</h1>
 
-<p align="center">
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/v/pekral/ai-olympus" alt="Packagist Version"></a>
-  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
-  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/php-v/pekral/ai-olympus" alt="PHP Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square" alt="MIT Licensed"></a>
   <a href="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml"><img src="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml/badge.svg" alt="Quality Checks"></a>
-  <a href="https://github.com/pekral/ai-olympus/blob/master/LICENSE"><img src="https://img.shields.io/packagist/l/pekral/ai-olympus" alt="License"></a>
-  <a href="https://pekral.cz"><img src="https://img.shields.io/badge/by-pekral.cz-blue" alt="by pekral.cz"></a>
-</p>
+  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
+</div>
 
-**AI Olympus** gives a Laravel/PHP team an **AI development team inside Claude Code and Codex** — five specialized subagents that resolve GitHub issues, open pull requests, review code, audit security, write Pest tests, and report the result back to the tracker. One `composer require --dev` installs the whole roster together with the coding-standard rules and agent skills they run on. It replaces the hand-maintained `CLAUDE.md` / `AGENTS.md` and the ad-hoc prompt library every project otherwise reinvents.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 54 reusable skills, and five specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 > [!WARNING]
-> **Experimental, and under active development.** This package is being built in the open and is not stable yet. Agent definitions, skills, and rules are added, renamed, and removed between releases, and a change to any of them can alter how the agents behave in your project. While the package is on `0.x`, breaking changes ship in minor versions and are recorded in [`CHANGELOG.md`](CHANGELOG.md).
->
-> No tagged release exists yet, so `composer require pekral/ai-olympus --dev` fails on a project with the default `minimum-stability: stable` — install the development branch explicitly, as the Quickstart below does. Every `composer update` then pulls the latest `master` and can change agent behaviour. Read the changelog before upgrading, pin an exact version once the first release is tagged, and review what the agents propose rather than merging it unread. Issues and pull requests are welcome — that is what this stage is for.
+> Experimental. Updates can change agent behaviour. The example below follows `dev-master`; review the [changelog](CHANGELOG.md) and proposed changes before upgrading or merging.
+
+## Requirements
+
+PHP and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
+
+## Installation
+
+Run the two commands in [Quickstart](#quickstart) from your Composer project root. Composer installs the package; the second command installs its Claude Code and Codex integration.
+
+## Configuration
+
+Existing `CLAUDE.md` and `AGENTS.md` are preserved. For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
 
 ## Quickstart
 
@@ -27,42 +33,47 @@ composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
 
-No Composer in the project? Add it as a Claude Code plugin instead — see [Installation](#installation).
-
-Then point the front-door agent at real work in Claude Code, or ask Codex to use the `daedalus` custom agent:
+Restart the agent session after installation. In Claude Code:
 
 ```text
 @daedalus resolve https://github.com/owner/repo/issues/123
 ```
 
-`daedalus` picks the route, `hephaestus` implements it, `athena` reviews it to convergence, and you get a pull request back.
+In Codex, request the role by name:
+
+```text
+Use the daedalus agent to resolve https://github.com/owner/repo/issues/123
+```
+
+`daedalus` routes implementation to `hephaestus`, review to `athena`, acceptance testing to `argus` when needed, and the final report to `hermes`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
 | Layer      | What it is                                                            | Installed into   |
 |------------|-----------------------------------------------------------------------|------------------|
-| **Rules**  | Long-lived project standards loaded by the harness                    | `.claude/rules`, `.codex/rules` |
+| **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
 | **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
-| **Agents** | Orchestration roles that combine skills into an issue-to-PR pipeline  | `.claude/agents`, `.codex/agents` |
+| **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
+
+The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
 
 ## Why This Package
 
-- **Ship an issue without writing the boilerplate** — one agent takes the ticket, implements it, and hands back a reviewed pull request
-- **Reviews that block on real findings** — one review pass covers quality and security together and must reach zero Critical with no undeferred Moderate before anything merges
-- **Tests you did not have to remember to write** — a change lands with Pest coverage for the lines it touched
+- **Issue-to-PR workflow** — separate roles implement, review, test, and report
+- **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
+- **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
 - **54 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
-- **Onboarding measured in one command** — a fresh checkout gets the whole team from `composer require --dev`
 
-## Installation
+## Installation Details
 
-There are two ways in. **Composer** is the complete one and stays the recommendation for a PHP project. The **plugin marketplace** exists for everyone else — most of this package is stack-agnostic, and a project without Composer had no way to reach it at all.
+Use Composer for the dual Claude Code/Codex installation and CLI. The plugin marketplace is a separate **Claude Code-only** distribution channel.
 
 | | Composer | Plugin marketplace |
 |---|---|---|
 | Requires | PHP + Composer | Claude Code only |
-| Skills, agents | ✅ installed into `.claude/` | ✅ loaded from the plugin |
-| Rules, `CLAUDE.md` | ✅ installed into the project | ⚠️ one extra command — see below |
+| Skills, agents | Both Claude Code and Codex locations | Claude Code plugin only |
+| Project instructions | Rules, `CLAUDE.md`, `AGENTS.md` | Rules and `CLAUDE.md` via an extra command |
 | `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
 | Unattended runs (`ai-olympus resolve-next`) | ✅ | ❌ Composer only |
 
@@ -97,9 +108,9 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
 
 > [!IMPORTANT]
-> By default, the installer only copies missing files and keeps existing content untouched. Use the `--force` flag to overwrite existing files: `vendor/bin/ai-olympus install --force`. This is particularly useful when you want to update rules to their latest versions or when you've made local changes that should be replaced. The file `CLAUDE.md` is never overwritten once it exists in the target project, so you can safely customize it.
+> `install` normally copies only missing files; security rule files are refreshed even without `--force`. The Quickstart's `--force` also replaces other installed rules, skills, and agents, so save local customizations first. Neither root instruction file is overwritten. Use `--prune` when upgrading to remove files the package no longer ships.
 
-`AGENTS.md` has the same protection: the installer creates it only when the project has none. If a project already owns that file, merge the **Codex integration** section from this repository's `AGENTS.md` into it so Codex knows when to load `.codex/rules` and how to translate the shared role definitions.
+Installation also sets `includeCoAuthoredBy: false` in `~/.claude/settings.json` when absent and removes this package's obsolete `bash-guard` hook from project settings. These Claude settings apply even when you intend to use Codex. The opt-in `--allow-subagent-writes`, `--allow-bundled-scripts`, and `--deny-network-bash` switches configure Claude Code only; they do not grant Codex permissions. See the [trust model](SECURITY.md).
 
 Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
 
@@ -124,7 +135,7 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 **`hephaestus` — code-writing implementer**
 
-Implements an issue from context or a tracker link, authors its test coverage, runs the tests covering the change, then opens a PR. Also runs as the fast scoped validation gate after a landing step. Stops at the PR — it never reviews its own work, merges, or publishes to a tracker.
+Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `athena`, and final tracker reporting belongs to `hermes`. An explicitly requested merge must use the separate `merge-github-pr` skill.
 
 **Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
 
@@ -136,7 +147,7 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 
 **`argus` — acceptance tester** · read-only
 
-The only agent that **runs the application**. It starts a local instance and tests it like a real tester — the API through a real HTTP client, the UI in a real browser (the project's own automation, or the bundled `browser-drive.sh` runner that needs nothing installed in the project) — then returns a per-criterion Met / Not met / Blocked verdict with the exact request/response or clicks it performed. A UI criterion it cannot drive in a browser is `Blocked`, never satisfied by calling the endpoint behind the page. Dispatched only when the change alters observable behaviour — a refactor or a docs change is skipped — and the browser starts only when the diff actually touched a UI surface, so an API-only task is still exercised over HTTP without paying for a browser run. Its input is the running system, which is where a missing migration or an unstarted queue worker hides from both the diff and a green test suite. It never edits code, authors tests, merges, or publishes.
+Exercises changed behaviour on a local running application: APIs over HTTP and UI scenarios in a real browser. Uses the project's `interactive-testing` skill when available. Returns a per-criterion Met / Not met / Blocked verdict with observed evidence; an untested criterion is never Met. Pure refactors and documentation changes do not need this pass. It never edits code, authors tests, merges, or publishes.
 
 **Orchestrates:** `tester-cookbook`, `e2e-testing`
 
@@ -148,9 +159,9 @@ The only agent that **runs the application**. It starts a local instance and tes
 
 **`daedalus` — engineering-workflow orchestrator** · the front door
 
-The entry point for a free-form request. Resolves a concrete source, then dispatches `athena` (security-risk analysis, on demand), `hephaestus` (implementation, then scoped validation), `athena` (the single CR pass) and `hermes` (the post-convergence report) through the Task tool, planning a dependency-aware resolve order. Delegates every engineering step — never implements or reviews itself. It also owns the **backlog tier** and runs it inline: triage over the open issues, and splitting a subject too broad for one PR into deliverable issues, after which the run ends there.
+Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request security analysis before implementation. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `hephaestus`, `athena`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `hephaestus`, `athena`, `argus`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
@@ -172,7 +183,7 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 
 **`hermes` — release announcer & reporter** · read-only
 
-The roster's only publishing agent — anything that reaches a tracker audience routes through it. Turns a merged change or release into announcement content: a Twitter/X tweet (≤280 chars) + thread, release notes, and a marketing summary with pekral.cz promotion. It also publishes the post-convergence report (what changed + how to test) on the source tracker at the end of a `daedalus` run, composed from the shared brief and `hephaestus`'s validation handoff.
+Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. It uses the shared brief and validation handoff. This reporting role is separate from `athena` publishing the code review. It does not change implementation code.
 
 **Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
@@ -180,68 +191,20 @@ The roster's only publishing agent — anything that reaches a tracker audience 
 </tr>
 </table>
 
-### How to use `athena` in practice
+### Using the roles and skills
 
-1. Install for Claude Code and Codex:
+After the [Quickstart](#quickstart), choose a specialist when you do not need the full pipeline. Claude Code examples:
 
-   ```bash
-   vendor/bin/ai-olympus install
-   ```
+```text
+@athena review the current diff
+@hephaestus implement the failing upload validation
+```
 
-   Agents land in `.claude/agents/` and `.codex/agents/`.
+In Codex, ask it to use the corresponding agent by name, as in the `daedalus` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
-2. Invoke it with a **source** — a GitHub PR/issue, a JIRA key, a Bugsnag error, or just the current branch/PR:
+Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default.
 
-   ```text
-   @athena review PR #123
-   @athena review https://your.atlassian.net/browse/PROJ-42
-   @athena review the current diff
-   ```
-
-3. `athena` detects the tracker, runs the matching `code-review-*` skill (which drives the full CR skill set), adds the security skills that wrapper does not run, lets it **post one consolidated review to the PR**, then returns a handoff: `CR done` + PR link + source link + Critical/Moderate/Minor counts + assignment-conformance verdict.
-
-`athena` is **read-only** — it never applies fixes, commits, pushes, or merges. Those belong to separate agents.
-
-### How to use `hephaestus` in practice
-
-1. Install exactly as for `athena` — agents land in `.claude/agents/` and `.codex/agents/`.
-
-2. Invoke it with a **source** — a GitHub issue/PR, a JIRA key, a Bugsnag error, or just the task you want implemented:
-
-   ```text
-   @hephaestus implement #123
-   @hephaestus implement https://your.atlassian.net/browse/PROJ-42
-   @hephaestus implement the failing upload validation
-   ```
-
-3. `hephaestus` detects the source, runs `resolve-issue` to implement the change, runs the tests covering it, then opens a PR and returns a handoff: `Impl done` + PR link + source link + branch + a summary of what changed and the local-checks result.
-
-`hephaestus` **stops at the PR** — it never reviews its own work or merges. The whole code review — quality, architecture, optimisation and security — belongs to `athena`. Hand the PR to `athena` for review next.
-
-> [!NOTE]
-> **If `hephaestus` reports `Blocked: sandbox denied file write`:** dispatched subagents run non-interactively, so a write is denied unless the path is pre-allowed. Add scoped `Edit` / `Write` entries for the project tree to `permissions.allow` in `.claude/settings.local.json` (`"Edit(//Users/me/Projects/my-app/**)"`, `"Write(//Users/me/Projects/my-app/**)"`) — or run the installer with `--allow-subagent-writes` to add them for you — then re-run. See [`docs/agents.md`](docs/agents.md) *Troubleshooting — subagent file writes blocked*. The run correctly stops instead of silently finishing the work in the main thread.
-
-### How to use `daedalus` in practice
-
-`daedalus` is the **front door** — the agent you address with a free-form request when you don't want to pick a specialist yourself.
-
-1. Install exactly as for the other agents.
-
-2. Invoke it with a request — it resolves the source and chooses the route:
-
-   ```text
-   @daedalus resolve a random Resolve_by_AI issue
-   @daedalus resolve https://github.com/owner/repo/issues/123
-   @daedalus implement a dark-mode toggle for the settings page
-   ```
-
-3. `daedalus` resolves a concrete source, then **dispatches the matching specialist agent through the Task tool**: a security-focused task → `athena` (security-risk analysis → remediation plan) → `hephaestus`; everything else → `hephaestus` directly; then `athena` for the review-and-fix loop to convergence. A subject too broad for one PR is not pushed into a single PR: `daedalus` splits it into deliverable issues itself, inline, and the run ends there, so you re-run it per issue. A pure backlog request (*"triage the open issues"*, *"what should we work on next"*) is answered the same way — inline, no PR. It returns a handoff naming the chosen route and reason, written in the same language as your request.
-
-   Ask explicitly for **savings mode** (*"run this in savings/token-efficient mode"*, *"úsporný režim"*) to opt into a token-efficient variant of the exact same pipeline — same agents, same convergence gate, same PR/review/feedback artifacts, just less duplicate context re-derivation. It is off by default; see [`docs/agents.md`](docs/agents.md) *Savings mode* for how it works.
-
-`daedalus` is a **read-only orchestrator** — it never analyses, implements, or reviews itself; it delegates every step by dispatching the matching specialist agent, and (per the one-level subagent-nesting rule) it runs as the top-level agent you talk to, spending that single nesting level on the dispatch rather than being a nested subagent itself. It owns the backlog tier too — deciding what is worked on and in what order — and runs that part **inline** rather than delegating it: the same nesting rule leaves no level to spend on a peer backlog agent, which is why the one this roster used to ship (`zeus`) was folded into `daedalus` instead.
-
----
+Role boundaries, handoffs, savings mode, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
 ## Skill Catalog
 
@@ -360,7 +323,7 @@ Writing the README itself is not in this catalog. [`pekral/github-readme-generat
 
 ## Unattended Runs
 
-`resolve-next` hands the **oldest unclaimed** issue carrying the configured labels to Claude Code or Codex as one agent run. One invocation resolves one issue, which makes it a natural fit for `cron` or Task Scheduler. Claude Code remains the default; pass `--codex` to use `codex exec` and Codex-style `$skill` invocations.
+`resolve-next` selects the oldest eligible issue from up to 100 open issues returned by `gh issue list` for the configured labels. It starts one workflow per invocation. Claude Code remains the default; pass `--codex` to use `codex exec` and Codex-style `$skill` invocations.
 
 ```bash
 vendor/bin/ai-olympus resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
@@ -370,9 +333,9 @@ vendor/bin/ai-olympus resolve-next --label=bug --repo=owner/name
 vendor/bin/ai-olympus resolve-next --codex             # run the same workflow through codex exec
 ```
 
-The run chains `resolve-issue` → `code-review-github` → `process-code-review` on the issue it picked, using `/skill` mentions in Claude Code and `$skill` mentions in Codex. **Merging is opt-in:** without `--merge` the prompt explicitly tells the agent to leave the pull request open, so an unattended schedule never merges on its own.
+The prompt chains `resolve-issue` → `code-review-github` → `process-code-review` on the selected issue. **Merging is opt-in:** without `--merge`, it tells the agent to leave the pull request open. This is a workflow instruction, not a permission boundary enforced by the CLI.
 
-An issue already carrying `Resolve_by_AI:in-progress` is skipped, so two overlapping ticks cannot pick the same issue. An empty backlog exits `0` — a quiet schedule is not a failure.
+Issues already carrying `Resolve_by_AI:in-progress` are skipped. Selection does not atomically claim an issue, so overlapping invocations can select the same one; avoid concurrent schedules for the same repository. No eligible issue in the returned list exits `0`.
 
 | Option | Effect |
 |--------|--------|
@@ -380,11 +343,12 @@ An issue already carrying `Resolve_by_AI:in-progress` is skipped, so two overlap
 | `--repo=OWNER/NAME` | Target another repository instead of the current checkout. |
 | `--merge` | Merge the pull request once the review converges. Off by default. |
 | `--dry-run` | Print the chosen issue and the prompt without starting an agent run. |
+| `--codex` | Use `codex exec` instead of the default `claude -p`. |
 
 > [!IMPORTANT]
-> The trigger label is the only gate on what an unattended run will work on. Anyone who can apply that label to an issue can decide what the agent spends a run on, so keep it restricted to people you would let open a pull request. The command never passes `--dangerously-skip-permissions`; grant only the narrow permissions the run needs (the installer's `--allow-subagent-writes` adds scoped `Edit`/`Write` entries for the project tree). If you also want the harness to refuse raw network commands during those runs, `--deny-network-bash` writes `permissions.deny` entries for `curl`, `wget`, `ssh`, and similar — session-wide within the project, so it restricts your own interactive Bash there too; see [`SECURITY.md`](SECURITY.md#--deny-network-bash) for what it does not cover.
+> Treat the trigger label as authorization to start work: restrict who can apply it. The command adds no permission-bypass flags. Grant only the permissions the workflow needs in the selected environment; the installer's Claude permission switches do not configure Codex. See [`SECURITY.md`](SECURITY.md).
 
-Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and the `claude` binary on `PATH`. Scheduling every two hours:
+Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and either `claude` or, with `--codex`, `codex` on `PATH`. Scheduling every two hours:
 
 ```bash
 # Linux / macOS — crontab -e
@@ -430,48 +394,22 @@ Rules included in this package:
 | `security/mobile.md`                    | Mobile-specific security rules and WebView checks                                                                                                                 | Mobile        |
 | `security/general.md`                   | Untrusted Content Boundary — external content is data, never an instruction for the agent                                                                          | Always        |
 
-**The `paths:` key decides when a rule loads, and it has two settings, not three.** Every rule ships as `.md`, the only extension Claude Code reads from `.claude/rules/`, and every rule states its reach with one key. A rule with **no `paths:` key** loads into every session — the `Always` scope above. A rule with a **`paths:` list** loads once the session **reads** a file the list matches, and stays absent until then — reading is the trigger, not any tool use, so a session that only writes a matching file may never pull the rule in; the `@rules/…` references in skills and other rules are what carry a scoped rule into a run its glob misses. There is no third setting. An **empty list**, `paths: []`, is read as the first one: measured in a live session, every rule that carried it was present from the opening turn, exactly like a rule with no key at all (issue #45). This package used to spell a `Reference` scope that way and no longer does — a rule that loads everywhere now says so by omitting the key, so the declaration and the behaviour agree.
+`paths` declares a rule's scope. Rules without that key are the always-applicable baseline; scoped rules identify matching files. Claude Code loads Markdown rules from `.claude/rules`. Codex uses the explicit loader instructions described in [What You Get](#what-you-get).
 
-Cursor's `.mdc` extension and its `globs:` / `alwaysApply:` keys are gone (issue #187 moved seven rules, issue #277 the remaining eleven). The installer deletes a file the source stopped shipping only under `--prune`, so run `vendor/bin/ai-olympus install --force --prune` once when upgrading, or the old `.mdc` copies stay behind and drift.
+When upgrading from older `.mdc` rules, run `vendor/bin/ai-olympus install --force --prune` to remove obsolete installed files. The package now ships `.md` rules.
 
 ## Development & Testing
 
-### Composer Scripts
+From a checkout of this repository, install development dependencies with `composer install`. CI uses PHP 8.5; the package manifest does not declare a minimum PHP runtime version.
 
 ```bash
-composer check              # run full quality check (skill-check, normalize, phpcs, pint, rector, phpstan, audit, tests)
-composer fix                # run all automatic fixes (skill-check-fix, normalize, rector, pint, phpcs)
-composer build              # install (ai-olympus install --force) then fix then check
-                            # runs once at the end of the work, not before every push
-composer analyse            # run PHPStan static analysis
-composer test:coverage      # run tests with 100% coverage (compact output — failures only)
-composer coverage           # same gate with the full per-file coverage report
-composer security-audit     # run security audit of dependencies
+vendor/bin/pest tests        # run the test suite
+composer test:coverage       # require 100% coverage (PCOV)
+composer analyse             # PHPStan
+composer security-audit      # dependency audit
 ```
 
-### Individual Commands
-
-```bash
-composer skill-check                # SKILL.md linter (diagnostics only — silent when every skill passes)
-composer skill-check-fix            # SKILL.md linter with auto-fix
-composer composer-normalize-check   # validate composer.json normalization (dry-run)
-composer composer-normalize-fix     # apply composer.json normalization
-composer phpcs-check                # PHP CodeSniffer check
-composer phpcs-fix                  # PHP CodeSniffer fix
-composer pint-check                 # Laravel Pint check
-composer pint-fix                   # Laravel Pint fix
-composer rector-check               # Rector check (dry-run)
-composer rector-fix                 # Rector fix
-```
-
-### Testing
-
-```bash
-./vendor/bin/pest           # run all tests
-composer test:coverage      # run tests with coverage (min. 100%)
-```
-
-Remove `coverage.xml` before committing if it was produced locally.
+`composer build` is the full pre-merge gate: it runs the installer with `--force --prune`, automatic fixes, then checks. It changes files, so use it at the merge boundary, not as a read-only verification command. See [`composer.json`](composer.json) for individual scripts and [contributor setup](CONTRIBUTING.md) for the contribution process.
 
 ## Contributing
 
