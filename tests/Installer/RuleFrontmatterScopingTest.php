@@ -301,7 +301,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '0e8c55004bd9b7aa894d9426b908cad11f016e211e851ee11d5541674515fec5',
+        // Re-baselined: *Two-Part CR Output* gained the tracker-side counterpart of the always-
+        // rendered `## Functional Review` — the consolidated tracker comment now states the
+        // assignment verdict in all three cases, the affirmative one included, so a met
+        // assignment and an unchecked one no longer look identical to the ticket owner.
+        'rules/code-review/general.md' => 'c38816a4183fd9fc3ce1b5433483e590e77818cce5833fba18b486fc649aa833',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

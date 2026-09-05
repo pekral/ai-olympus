@@ -62,9 +62,13 @@ Length
   verbatim, in the order received, separated by a single blank line. When no
   blocks are passed, omit this slot entirely — including the surrounding blank
   lines — so the comment runs straight from the test steps to the closing links
-  line. This slot is the only route an assignment gap takes into this comment:
-  the template renders no verdict, no banner, and no positive "satisfies the
-  assignment" line of its own.
+  line; that is the shape of a non-CR invocation, never of a clean CR result.
+  This slot is the only route the assignment verdict takes into this comment, and
+  a CR run with a linked tracker always passes it — met, not met, or no criteria
+  stated (@rules/code-review/general.md, Two-Part CR Output, "The tracker comment
+  carries the same verdict — in all three cases"). The template itself still
+  renders no verdict, no banner, and no "satisfies the assignment" line of its
+  own; it appends the passed block verbatim.
 
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of

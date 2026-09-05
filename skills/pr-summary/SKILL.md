@@ -93,7 +93,7 @@ There is no word budget and no "fits on one screen" rule. The report is as long 
 
 - Focus on the "why" and business impact, not on implementation details — but keep enough technical context (which integration, payload, table, endpoint, etc.) that a developer can still follow what changed.
 - Do not include code snippets, file paths, line numbers, or diff fragments. The summary is for humans, not for static analysis.
-- Do not restate the acceptance criteria as a checklist and do not publish a coverage verdict. Whether the assignment was met is legible from the prose, and `@skills/assignment-compliance-check/SKILL.md` owns the verdict — it reaches this comment through the `{embedded_blocks}` slot when there is a gap.
+- Do not restate the acceptance criteria as a checklist and do not publish a coverage verdict. `@skills/assignment-compliance-check/SKILL.md` owns the assignment verdict, and it reaches this comment through the `{embedded_blocks}` slot. On a CR run that slot always carries it — met, not met, or no criteria stated (`@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases*). This skill still authors no verdict sentence of its own: it renders the block it was passed.
 
 ### Terse output style (issue #51)
 
@@ -141,8 +141,8 @@ When the calling CR wrapper passes extra markdown blocks (the `Clarifying questi
 
 - Each embedded block must already be in the target tracker's markup (GitHub Markdown for GitHub, JIRA Wiki Markup for JIRA, plain text for Bugsnag — the wrapper converts before passing).
 - The resulting comment is published once per linked tracker target — that single consolidated comment is the only non-technical artifact a CR run posts on each linked issue, JIRA ticket, or Bugsnag error.
-- When no embedded blocks are passed, the template renders without that slot exactly as before.
-- This slot is how an assignment gap reaches the reader. This skill renders no verdict of its own, no banner, and no positive "satisfies the assignment" line — the passed block is the verdict, and its absence is the clean signal.
+- When no embedded blocks are passed, the template renders without that slot exactly as before. This is the shape of a non-CR invocation (for example `hermes` in post-convergence reporting mode), never of a clean CR result.
+- This slot is how the assignment verdict reaches the reader, and on a CR run it carries that verdict on **every** run with a linked tracker — the affirmative one included. Silence is no longer the clean signal: a tracker comment in which "every criterion is met" and "nobody checked" look identical is the defect `@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases* removes. This skill authors no verdict, no banner, and no "satisfies the assignment" sentence of its own — it renders the passed block verbatim, and the block is the verdict.
 
 ---
 

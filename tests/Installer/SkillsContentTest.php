@@ -315,24 +315,46 @@ test('assignment-compliance-check returns markdown to the caller without publish
     expect($jira)->not->toContain('**do not duplicate** its Critical gaps inside the JIRA non-technical summary');
 });
 
-test('assignment-compliance-check omits the block on clean assignments and removes "what is satisfied" / "open questions" lists', function (): void {
+test('assignment-compliance-check states the tracker verdict in all three cases', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
     $canonical = crContractText('skills/code-review/SKILL.md');
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
-    expect($compliance)->toContain('no critical gaps — assignment compliance block omitted');
-    expect($compliance)->toContain('**only when at least one Critical gap exists**');
-    expect($compliance)->not->toContain('No critical gaps identified — implementation satisfies every stated requirement');
+    expect($compliance)->toContain('every run that has a linked tracker');
+    expect($compliance)->toContain('All stated acceptance criteria are met.');
+    expect($compliance)->toContain('Critical gaps found: N');
+    expect($compliance)->toContain('The assignment states no explicit acceptance criteria.');
+    expect($compliance)->toContain('**Judged against:**');
+    expect($compliance)->not->toContain('no critical gaps — assignment compliance block omitted');
+    expect($compliance)->not->toContain('**only when at least one Critical gap exists**');
     expect($compliance)->not->toContain('### What is satisfied');
     expect($compliance)->not->toContain('### Open questions for the reviewer');
     expect($compliance)->not->toContain('one bullet per requirement the PR clearly meets');
-    expect($compliance)->not->toContain('No critical gaps>');
 
     foreach ([$canonical, $github, $jira] as $wrapper) {
-        expect($wrapper)->toContain('no critical gaps — assignment compliance block omitted');
-        expect($wrapper)->toContain('**only when a block is returned**');
+        expect($wrapper)->toContain('The tracker comment carries the same verdict — in all three cases');
+        expect($wrapper)->not->toContain('no critical gaps — assignment compliance block omitted');
+        expect($wrapper)->not->toContain('**only when a block is returned**');
+    }
+});
+
+test('the tracker comment always carries the assignment verdict, the affirmative one included', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($rule)->toContain('### The tracker comment carries the same verdict — in all three cases');
+    expect($rule)->toContain('**Every consolidated tracker comment a CR run publishes carries an `Assignment Compliance` block');
+    expect($rule)->toContain('The assignment states no explicit acceptance criteria');
+    expect($prSummary)->toContain('The tracker comment carries the same verdict — in all three cases');
+    expect($prSummary)->not->toContain('the passed block is the verdict, and its absence is the clean signal');
+
+    foreach (['github', 'jira', 'bugsnag'] as $target) {
+        $template = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
+        expect($template)->toContain('a CR run with a linked tracker always passes it');
+        expect($template)->not->toContain('the only route an assignment gap takes into this comment');
     }
 });
 

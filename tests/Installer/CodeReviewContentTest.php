@@ -46,8 +46,10 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
 
     // What replaces it: the compliance block still reaches the reader, through the one slot that
     // was always the delivery mechanism — so removing the banner drops a duplicate, not a check.
-    expect($prSummary)->toContain('This slot is how an assignment gap reaches the reader.');
-    expect($prSummary)->toContain('no verdict of its own, no banner');
+    // That slot now carries the verdict on every CR run with a linked tracker, the affirmative
+    // one included, so a clean assignment is stated rather than reported by silence.
+    expect($prSummary)->toContain('This slot is how the assignment verdict reaches the reader');
+    expect($prSummary)->toContain('authors no verdict, no banner');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');

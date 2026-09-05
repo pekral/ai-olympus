@@ -95,6 +95,25 @@ This heading always renders, even when every subsection beneath it is empty (a f
 Two invariants hold across both parts: **counting is unaffected** — relocating a Critical functional finding from `## Findings` into `## Functional Review` changes only its displayed location, never its count in the `Counts:` header line nor in the convergence gate in `@skills/process-code-review/SKILL.md` *Review loop* step 4; and **the terse Summary-line token coexists with the new prose** — `assignment conformance:
 conformant | N gap(s) | no linked issue` keeps rendering on the Summary line (the machine-greppable signal) alongside `## Functional Review`'s prose (the human-readable one), additive, never a replacement — **uniformly across all four wrappers**, including `@skills/code-review-bugsnag`, whose Summary line renders the same `assignment conformance:` token as the other three.
 
+### The tracker comment carries the same verdict — in all three cases
+
+`## Functional Review` above makes the verdict always present on the **pull request**. The person who owns the ticket reads the **tracker**, and there the same verdict used to be absent whenever it was positive. Two packaged behaviours composed into that silence: `@skills/assignment-compliance-check/SKILL.md` returned a skip status when every requirement was satisfied, so the wrapper embedded nothing, and `@skills/pr-summary/SKILL.md` rendered no verdict of its own. The result was a tracker comment in which *"every criterion is met"* and *"nobody checked"* looked identical. The reader of that comment decides whether the change ships, and silence does not help them decide.
+
+Both behaviours are therefore overridden **for the tracker comment**. This is the tracker-side counterpart of the `## Functional Review` decision above, not a second mechanism: the same Assignment Conformance Gate direction 1 result is rendered on a second surface, in non-technical prose.
+
+**Every consolidated tracker comment a CR run publishes carries an `Assignment Compliance` block, and that block always states one of exactly three verdicts:**
+
+1. **Every acceptance criterion is met** → one explicit positive sentence, in the assignment's own language. This is the case the tracker used to lose, and the reason this rule exists. The sentence is the whole report: never a checklist of satisfied requirements, never a "what is working" list.
+2. **Something is not met** → which criterion, and what concretely is missing. This is the block the tracker already carried, unchanged — one entry per Critical gap, each with its plain-language example.
+3. **The assignment states no explicit acceptance criteria** → say that too, plus the basis the state was judged on (the described expected behaviour, the reporter's example, the reproduction steps). Otherwise the absence of criteria is indistinguishable from the absence of a check.
+
+Four boundaries keep this narrow:
+
+- **The block stays non-technical.** No file paths, no line numbers, no code snippets, no severity counts — exactly as before. The verdict sentence is prose a product owner reads.
+- **The block stays on the tracker.** It is never embedded into the GitHub PR comment, which carries technical findings and its own `## Functional Review`.
+- **One comment, not two.** The block reaches the reader only through the `{embedded_blocks}` slot of the single consolidated `pr-summary` comment per tracker destination (issue #498). A CR run never posts a separate compliance comment.
+- **No linked tracker, nothing to render.** When the PR has no linked issue / ticket at all, there is no tracker comment and no verdict to publish; the wrapper surfaces `no linked issue` on the PR comment summary line, as it already does. That is the one remaining skip, and it is a property of the missing destination — never of a clean result.
+
 ## Default severity for a rule violation
 
 The retired *Strict rule compliance* walk (`@rules/code-review/core-analysis.md`) used to define the stratification other bullets cite when a rule file declares no severity of its own. The walk is gone; the stratification stays, because a finding a **surviving** bullet raises still needs a default severity when its own rule file names none.
