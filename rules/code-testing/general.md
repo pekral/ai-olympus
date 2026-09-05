@@ -51,6 +51,25 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
     - The same sentence covers the sibling assertions that accept the same closure — `Queue::assertNotPushed()`, `Queue::assertPushedOn()`, `Bus::assertDispatched()`, `Bus::assertNotDispatched()`, `Bus::assertDispatchedSync()` — because the rule is about *where* a payload is asserted, not about which facade spells the assertion.
     - A second argument that is an **integer count** (`Queue::assertPushed(ProcessPayment::class, 2)`) is not a payload assertion and stays allowed: it is still a fact about the dispatch, not about the job's contents.
     - When a test genuinely needs to prove *which* record the job was dispatched for, that is a signal the assertion is at the wrong level — assert the observable outcome the job produces, or move the check into the job's own test. Do not reintroduce the closure to get the fidelity back.
+- **Run the job's own test through `app()->call([$job, 'handle'])` — this is the preferred invocation, and it needs no mocks.** Construct the job with the payload the test controls, then let the container invoke `handle()`:
+
+    ```php
+    it('marks the order as paid', function (): void {
+        $order = Order::factory()->create(['paid_at' => null]);
+        $job = new ProcessPayment(orderId: $order->id);
+
+        app()->call([$job, 'handle']);
+
+        expect($order->refresh()->paid_at)->not->toBeNull();
+    });
+    ```
+
+    A job declares its collaborators as parameters of `handle()`, and the container resolves each one. `app()->call()` performs that resolution, so the test never builds a double just to satisfy the signature. It is also the production call path: the queue worker reaches `handle()` through `Illuminate\Bus\Dispatcher::dispatchNow()`, which calls `$container->call([$job, 'handle'])`. The test therefore runs the same wiring the worker runs.
+    - **Never call `$job->handle($mockRepository, $mockService)`.** Passing the arguments by hand forces a double for every dependency, asserts the job against those doubles instead of against real behavior, and breaks the test the moment `handle()` gains, loses, or re-types a parameter — a change that alters no behavior the test was written for.
+    - **Replace a dependency in the container, never at the call site.** When a collaborator genuinely cannot run in the test, the *Mocking* section above defines when that holds. Swap its binding before the call — `$this->app->instance(PaymentGateway::class, $fake)`, `Http::fake()`, `Process::fake()`, `Storage::fake()` — and leave the invocation as `app()->call([$job, 'handle'])`. The call site reads the same whether or not a collaborator is faked.
+    - **The constructor payload stays the test's own.** `app()->call()` resolves the `handle()` parameters only, so build the job with the identifiers the test created (`new ProcessPayment(orderId: $order->id)`), per the Laravel rule against dispatching hydrated models.
+    - **Use `dispatch_sync($job)` only when the test is about the bus pipeline** — job middleware, batch callbacks, or the dispatch events. It reaches `handle()` the same way and wraps that pipeline around it, which is noise in a test of the job's own behavior.
+    - This bullet covers the **job's own** test. The caller's test still asserts only the dispatch, per the bullet above.
 
 ## External Calls
 - Tests must not call external services.

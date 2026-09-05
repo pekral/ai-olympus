@@ -108,6 +108,7 @@ The only exception is a process the test itself owns end-to-end (e.g. the projec
 - Prefer storing real data in the database and using it in tests over mocking ModelManager or Repository classes. Only mock external services that cannot run in test environment.
 - Add or update tests for every meaningful behavior change.
 - Use `Artisan::call(CommandClass::class)` for console command execution in tests.
+- Use `app()->call([$job, 'handle'])` to invoke a job under test. The container resolves the `handle()` dependencies, so the test needs no doubles and runs the same wiring the queue worker runs. See `@rules/code-testing/general.md` *Jobs* for the full contract, including when to swap a container binding instead.
 
 ## Queue and Jobs
 - Queue long-running or external-dependent work.

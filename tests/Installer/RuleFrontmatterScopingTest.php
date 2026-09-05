@@ -184,7 +184,11 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: the file gained a `## Collections` section — a sequence of collection
         // transformations is chained into one fluent pipeline instead of being reassigned
         // through a single variable. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => '51d3e93b8fd6451a2f56b06dbe5a060df8fb818a756f66d86232621afcd061af',
+        // Re-baselined again: `## Testing` gained the one-line job counterpart to its
+        // `Artisan::call()` sibling — a job under test is invoked through
+        // `app()->call([$job, 'handle'])`, pointing at `rules/code-testing/general.md` *Jobs* for
+        // the contract. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => '49c04940b9853abf0e681c613105b808e2c5d8899916b30c3a2a0fcbe1609915',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -298,7 +302,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         'rules/code-review/general.md' => '0e8c55004bd9b7aa894d9426b908cad11f016e211e851ee11d5541674515fec5',
-        'rules/code-testing/general.md' => 'b8639bbf6a0535f83d70836e9d1c42cb5790465db9b4a75dd8d62ccf8b2c5d15',
+        // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
+        // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
+        // and the test builds no double just to satisfy the signature. Nothing else in the file
+        // moved; the sibling *assert the dispatch, never the payload* bullet is untouched.
+        'rules/code-testing/general.md' => 'acd2885e6a1bbc7aa81e5191a3b47878238d73b302ace17b4e50449af1267c9b',
         'rules/jira/general.md' => '7dcebba2554139310f60b3b69e07fe73be610ae20cf2e1812eea0723b8e3c82e',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
