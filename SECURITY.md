@@ -143,8 +143,11 @@ The five shipped subagents (`agents/*.md`) each declare a `tools:` allow-list an
 | `.claude/settings.local.json` — appends `permissions.deny` network-command entries | `--deny-network-bash` | always |
 | `.claude/settings.local.json` — deletes hook handlers pointing at the removed `bash-guard` | `install` (unconditional) | read on every run (invalid JSON fails the install); rewritten only when a matching handler is present |
 | `.claude/rules/` | `install` | always |
-| `.claude/skills/` (and `~/.claude/skills/` when `HOME`/`USERPROFILE` is set) | `install` | always |
+| `.claude/skills/` (and `~/.claude/skills/` with `--global`) | `install` | always |
 | `.claude/agents/` | `install` | always |
+| `.codex/rules/`, `.codex/agent-instructions/`, `.codex/agents/` | `install` | always |
+| `.agents/skills/` (and `~/.agents/skills/` with `--global`) | `install` | always |
+| `AGENTS.md` | `install` | only when the project has none; never overwritten |
 | `CLAUDE.md` | `install` | always; never overwrites an existing file |
 
 The installer never writes outside the project directory and the user's home directory, and it never modifies `composer.json` or any project source file.

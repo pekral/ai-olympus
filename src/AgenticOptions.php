@@ -15,7 +15,7 @@ final readonly class AgenticOptions
     /**
      * @param list<string> $labels
      */
-    public function __construct(public array $labels, public ?string $repository, public bool $merge, public bool $dryRun) {
+    public function __construct(public array $labels, public ?string $repository, public bool $merge, public bool $dryRun, public bool $codex = false) {
     }
 
     /**
@@ -35,6 +35,7 @@ final readonly class AgenticOptions
             repository: self::optionValues($argv, '--repo=')[0] ?? null,
             merge: in_array('--merge', $argv, strict: true),
             dryRun: in_array('--dry-run', $argv, strict: true),
+            codex: in_array('--codex', $argv, strict: true),
         );
     }
 

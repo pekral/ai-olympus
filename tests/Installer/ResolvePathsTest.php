@@ -79,10 +79,10 @@ test('resolveProjectRoot returns current working directory', function (): void {
     expect(strlen($result))->toBeGreaterThan(0);
 });
 
-test('resolveRulesTargetDirectories always returns .claude/rules', function (): void {
+test('resolveRulesTargetDirectories returns the Claude and Codex rule libraries', function (): void {
     $targets = InstallerPath::resolveRulesTargetDirectories('/project');
 
-    expect($targets)->toBe(['/project/.claude/rules']);
+    expect($targets)->toBe(['/project/.claude/rules', '/project/.codex/rules']);
 });
 
 test('resolveSkillsTargetDirectories returns only the project path when --global is not requested', function (): void {
@@ -96,7 +96,7 @@ test('resolveSkillsTargetDirectories returns only the project path when --global
         // so it is never installed unless the caller asks for it.
         $targets = InstallerPath::resolveSkillsTargetDirectories('/project');
 
-        expect($targets)->toBe(['/project/.claude/skills']);
+        expect($targets)->toBe(['/project/.claude/skills', '/project/.agents/skills']);
     } finally {
         if ($homeBefore !== false) {
             putenv('HOME=' . $homeBefore);
@@ -121,7 +121,7 @@ test('resolveSkillsTargetDirectories returns only the project path when --global
     try {
         $targets = InstallerPath::resolveSkillsTargetDirectories('/project', global: true);
 
-        expect($targets)->toBe(['/project/.claude/skills']);
+        expect($targets)->toBe(['/project/.claude/skills', '/project/.agents/skills']);
     } finally {
         if ($homeBefore !== false) {
             putenv('HOME=' . $homeBefore);
@@ -142,7 +142,12 @@ test('resolveSkillsTargetDirectories adds the home skills directory when --globa
     try {
         $targets = InstallerPath::resolveSkillsTargetDirectories('/project', global: true);
 
-        expect($targets)->toBe(['/project/.claude/skills', '/fake/home/.claude/skills']);
+        expect($targets)->toBe([
+            '/project/.claude/skills',
+            '/project/.agents/skills',
+            '/fake/home/.claude/skills',
+            '/fake/home/.agents/skills',
+        ]);
     } finally {
         if ($homeBefore !== false) {
             putenv('HOME=' . $homeBefore);
@@ -155,6 +160,31 @@ test('resolveSkillsTargetDirectories adds the home skills directory when --globa
         } else {
             putenv('USERPROFILE');
         }
+    }
+});
+
+test('resolveAgentsTargetDirectories returns native Claude agents and Codex role instructions', function (): void {
+    expect(InstallerPath::resolveAgentsTargetDirectories('/project'))->toBe([
+        '/project/.claude/agents',
+        '/project/.codex/agent-instructions',
+    ]);
+});
+
+test('resolveCodexAgentsTargetDirectories returns project-scoped Codex agents', function (): void {
+    expect(InstallerPath::resolveCodexAgentsTargetDirectories('/project'))->toBe(['/project/.codex/agents']);
+});
+
+test('resolveHomeSkillsDirectories returns both harness paths', function (): void {
+    $homeBefore = getenv('HOME');
+    putenv('HOME=/fake/home');
+
+    try {
+        expect(InstallerPath::resolveHomeSkillsDirectories())->toBe([
+            '/fake/home/.claude/skills',
+            '/fake/home/.agents/skills',
+        ]);
+    } finally {
+        $homeBefore === false ? putenv('HOME') : putenv('HOME=' . $homeBefore);
     }
 });
 

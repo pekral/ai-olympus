@@ -11,9 +11,9 @@ test('resolveAgentsSource returns the package agents directory when it exists', 
     expect(InstallerPath::resolveAgentsSource())->toBe($packageDir . '/agents');
 });
 
-test('resolveAgentsTargetDirectories always returns .claude/agents', function (): void {
+test('resolveAgentsTargetDirectories returns Claude agents and Codex role instructions', function (): void {
     expect(InstallerPath::resolveAgentsTargetDirectories('/project'))
-        ->toBe(['/project/.claude/agents']);
+        ->toBe(['/project/.claude/agents', '/project/.codex/agent-instructions']);
 });
 
 test('install copies the athena agent to .claude/agents', function (): void {
@@ -37,8 +37,9 @@ test('install copies the athena agent to .claude/agents', function (): void {
 
         expect(is_file($root . '/.claude/agents/athena.md'))->toBeTrue();
         expect(is_file($root . '/.claude/agents/hephaestus.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/agents/athena.toml'))->toBeTrue();
+        expect(is_file($root . '/.codex/agent-instructions/athena.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor/agents'))->toBeFalse();
-        expect(is_dir($root . '/.codex/agents'))->toBeFalse();
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
@@ -2426,7 +2427,7 @@ test('every agents/*.md file is documented in docs/agents.md and the readme rost
     $docsRosterSection = installerDocsSection($docsAgents, '## Agent roster');
 
     $readme = (string) file_get_contents($packageDir . '/README.md');
-    $readmeSubagentsSection = installerDocsSection($readme, '## Claude Code Subagents');
+    $readmeSubagentsSection = installerDocsSection($readme, '## Claude Code and Codex Subagents');
 
     // Scope to the <table> block only: the section also carries "How to use `athena`/`hephaestus`/
     // `daedalus` in practice" subsections that mention agent names in prose, which must not count
@@ -2444,7 +2445,7 @@ test('every agents/*.md file is documented in docs/agents.md and the readme rost
         );
 
         expect(str_contains($readmeRosterTable, '`' . $agentName . '`'))->toBeTrue(
-            'README.md `## Claude Code Subagents` roster table is missing a card for agent: ' . $agentName,
+            'README.md subagent roster table is missing a card for agent: ' . $agentName,
         );
     }
 });

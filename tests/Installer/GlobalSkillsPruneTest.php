@@ -104,3 +104,13 @@ test('prune returns nothing when the home skills directory does not exist', func
         },
     );
 });
+
+test('prune returns nothing when the skills source directory does not exist', function (): void {
+    $root = installerCreateProjectRoot();
+
+    try {
+        expect(InstallerGlobalSkills::prune($root . '/missing-skills', $root))->toBe([]);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});

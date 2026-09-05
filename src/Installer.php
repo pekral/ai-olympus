@@ -28,7 +28,10 @@ final class Installer
             }
 
             if (self::hasEditorArgument($normalizedArgv)) {
-                fwrite(STDERR, 'The --editor option has been removed; the installer now targets Claude Code only. Re-run without --editor.' . PHP_EOL);
+                fwrite(
+                    STDERR,
+                    'The --editor option has been removed; the installer targets Claude Code and Codex automatically. Re-run without --editor.' . PHP_EOL,
+                );
 
                 return 1;
             }
@@ -60,10 +63,10 @@ final class Installer
         echo "Usage:\n";
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
-        echo "  vendor/bin/ai-olympus resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run]\n\n";
+        echo "  vendor/bin/ai-olympus resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run] [--codex]\n\n";
         echo "Commands:\n";
-        echo "  install                 Install rules, skills, and agents for Claude Code.\n";
-        echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code as one agent run.\n\n";
+        echo "  install                 Install rules, skills, and agents for Claude Code and Codex.\n";
+        echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code or Codex as one agent run.\n\n";
         self::showInstallOptions();
         self::showResolveNextOptions();
 
@@ -75,9 +78,9 @@ final class Installer
         echo "Options:\n  --force                 Overwrite existing files.\n";
         echo "  --symlink               Create symlinks instead of copying (falls back to copy on Windows).\n";
         echo "  --prune                 Remove files in target that no longer exist in source.\n";
-        echo "  --global                Also install skills to ~/.claude/skills. Off by default: Claude Code lets a personal\n";
-        echo "                          skill override a project one, so a home copy shadows this checkout everywhere.\n";
-        echo "  --prune-global          Remove this package's skills from ~/.claude/skills so the project copy loads.\n";
+        echo "  --global                Also install skills to ~/.claude/skills and ~/.agents/skills. Off by default: a home\n";
+        echo "                          skill can override a project copy and shadow this checkout everywhere.\n";
+        echo "  --prune-global          Remove this package's skills from both home locations so project copies load.\n";
         echo "                          Leaves skills from other sources untouched. Cannot be combined with --global.\n";
         echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in.\n";
         echo "  --allow-subagent-writes Allow dispatched-subagent file writes by adding scoped Edit/Write entries for the project\n";
@@ -96,6 +99,7 @@ final class Installer
         echo "  --merge                 resolve-next: merge the pull request once review converges. Off by default, so an\n";
         echo "                          unattended run leaves it for a human.\n";
         echo "  --dry-run               resolve-next: print the issue and the prompt without starting an agent run.\n";
+        echo "  --codex                 resolve-next: run with `codex exec` instead of Claude Code.\n";
     }
 
     private static function install(InstallOptions $options): int
@@ -109,10 +113,7 @@ final class Installer
         $root = InstallerPath::resolveProjectRoot();
         $syncCounts = self::runAllSyncs(self::collectSyncPayloads($root, $options->global), $options->force, $options->symlink, $options->prune);
 
-        $copied = $syncCounts->copied + InstallerFileCopier::installSingleFile(
-            InstallerPath::resolveClaudeMdSource(),
-            InstallerPath::resolveClaudeMdTarget($root),
-        );
+        $copied = $syncCounts->copied + self::installRootInstructions($root);
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
         $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
@@ -133,6 +134,19 @@ final class Installer
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
         return 0;
+    }
+
+    private static function installRootInstructions(string $root): int
+    {
+        $copied = InstallerFileCopier::installSingleFile(
+            InstallerPath::resolveClaudeMdSource(),
+            InstallerPath::resolveClaudeMdTarget($root),
+        );
+
+        return $copied + InstallerFileCopier::installSingleFile(
+            InstallerPath::resolveAgentsMdSource(),
+            InstallerPath::resolveAgentsMdTarget($root),
+        );
     }
 
     /**
@@ -172,13 +186,17 @@ final class Installer
             return;
         }
 
-        $homeSkills = InstallerPath::resolveHomeSkillsDirectory();
+        $homeSkills = InstallerPath::resolveHomeSkillsDirectories();
 
         // Reporting the home install unconditionally would claim a copy that was never written:
         // with neither HOME nor USERPROFILE set there is no home skills directory to install to.
-        echo $homeSkills === null
+        echo $homeSkills === []
             ? sprintf('--global had no effect: neither HOME nor USERPROFILE is set, so there is no home skills directory.%s', PHP_EOL)
-            : sprintf('Skills also installed to %s; a home skill overrides the project copy in every project.%s', $homeSkills, PHP_EOL);
+            : sprintf(
+                'Skills also installed to %s; a home skill can override the project copy in every project.%s',
+                implode(' and ', $homeSkills),
+                PHP_EOL,
+            );
     }
 
     private static function pruneGlobalSkillsIfRequested(bool $pruneGlobal, string $root): void
@@ -217,6 +235,12 @@ final class Installer
             $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root)];
         }
 
+        $codexAgentsSource = InstallerPath::resolveCodexAgentsSource();
+
+        if ($codexAgentsSource !== null) {
+            $payloads[] = [$codexAgentsSource, InstallerPath::resolveCodexAgentsTargetDirectories($root)];
+        }
+
         return $payloads;
     }
 
@@ -236,7 +260,7 @@ final class Installer
 
     private static function reportInstallSummary(InstallSummary $summary): void
     {
-        echo sprintf('Rules and skills installed (%d files, %d pruned).%s', $summary->copied, $summary->pruned, PHP_EOL);
+        echo sprintf('Rules, skills, and agents installed (%d files, %d pruned).%s', $summary->copied, $summary->pruned, PHP_EOL);
 
         if ($summary->orphaned > 0) {
             $targetsSuffix = $summary->orphanedTargets === [] ? '' : sprintf(' (%s)', implode(', ', $summary->orphanedTargets));

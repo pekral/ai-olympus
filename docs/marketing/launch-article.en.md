@@ -177,10 +177,10 @@ review I would have skipped at 6pm on a Friday.
 
 ## What it does not do
 
-- **Claude Code only.** There is no Cursor, Copilot, or Windsurf target. The `--editor` flag was
-  removed rather than left half-supported.
-- **It needs a paid Claude plan.** Five agents, a review loop that can run up to three iterations, and
-  a full local build per push is not a free-tier workload.
+- **Claude Code and Codex only.** There is no Cursor, Copilot, or Windsurf target. Both supported
+  harnesses are installed automatically; the old `--editor` switch remains removed.
+- **Agent runs consume your selected harness plan or API allowance.** Five agents, a review loop that
+  can run up to three iterations, and a full local build per push is not a free-tier workload.
 - **The Bash boundary is advisory, not enforced.** Every agent holds `Bash`, and `Bash` subsumes both
   write access and network access no matter what `disallowedTools` says. A "read-only" agent's own
   instructions do not stop `cat > file`. The package documents this in `SECURITY.md` rather than

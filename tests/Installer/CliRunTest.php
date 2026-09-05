@@ -146,7 +146,7 @@ test('readme keeps the quickstart install command and links out to the installat
     expect($readme)->not->toContain('### Automatic Installation via Composer Plugin');
 });
 
-test('install without any flags succeeds and targets Claude Code only', function (): void {
+test('install without any flags succeeds and targets Claude Code and Codex', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -159,8 +159,9 @@ test('install without any flags succeeds and targets Claude Code only', function
 
         expect($exitCode)->toBe(0);
         expect(is_dir($root . '/.claude/rules'))->toBeTrue();
+        expect(is_dir($root . '/.codex/rules'))->toBeTrue();
+        expect(is_dir($root . '/.agents/skills'))->toBeTrue();
         expect(is_dir($root . '/.cursor'))->toBeFalse();
-        expect(is_dir($root . '/.codex'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
