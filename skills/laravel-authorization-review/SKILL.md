@@ -16,6 +16,19 @@ metadata:
 
 ---
 
+## Modes
+
+This skill runs in one of two modes, selected by the caller via `MODE` (default `audit`):
+
+- **`audit` (default)** — the full walk below: every application route in the inventory, the per-route coverage map, and the whole report template. Every section behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff touches an authorization surface)** — **never modify a route, a controller, a policy, or any other file, never author a test, never stage / commit / push, never run a fixer or a checker, and never chain a follow-up review.** The one command the lens runs stays the read-only `php artisan route:list --json` of step 1. Scope the walk to the routes the PR diff touches — step 1.3's intersection with the changed files is mandatory here, not optional — and return the findings as markdown carrying the reproducer fields the CR folds into its standard Critical / Moderate / Minor buckets. Emit every fix as a written snippet, never applied.
+
+> **What this lens owns in a CR:** object-level authorization — whether the record a changed route reads, returns, or writes is scoped to the actor who asked for it (**IDOR / BOLA**), and whether that route's middleware → policy / gate → scoping → Resource-output chain authorizes at all. It reports on the routes the diff touched and never on a pre-existing route it did not.
+> **What it does not render on a CR:** the per-route coverage map and the standalone report header of `templates/report.md`. A CR carries findings, and the coverage map is an audit artifact.
+> **Confidence still governs severity.** A route the lens cannot prove either way is reported at the severity its confidence supports and is never promoted to close the gap — *Confidence & honesty* below is unchanged by this mode. When `route:list` will not boot, the lens runs on the static fallback of step 1.4, says so, and drops every finding one confidence level.
+
+---
+
 ## Scope
 > SAST tells you where data flows. This tells you where it flows to the **wrong user**.
 

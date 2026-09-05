@@ -398,28 +398,40 @@ test('athena also runs a pre-implementation security-analysis mode that feeds he
     expect($content)->toContain('CR done');
 });
 
-test('athena runs the broken-object-level-authorization lens the CR rule already exempts (issue #285)', function (): void {
+test('the CR itself runs the broken-object-level-authorization lens athena used to run (issue #285)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
 
     // `rules/code-review/general.md` builds a full Exclusion-Gate exemption around this lens's
-    // findings, but no agent ever invoked the skill — the rule protected output nothing produced.
-    // Both athena modes must name it, or the OWASP A01 surface goes unreviewed again.
+    // findings, so the OWASP A01 surface must actually be walked. The CR's own conditional set now
+    // runs it, so every CR run covers IDOR / BOLA — not only the ones athena drives. Athena names
+    // it twice: once as an analysis lens, once as the wrapper-run lens she must not repeat.
     expect($athena)->toContain('@skills/laravel-authorization-review/SKILL.md');
     expect(substr_count($athena, '@skills/laravel-authorization-review/SKILL.md'))->toBe(2);
 
     // The counts around the security set must move with it, or the handoff under-reports the pass.
     expect($athena)->toContain('five security skills as analysis lenses');
-    expect($athena)->toContain('Run the remaining four yourself over the same diff');
-    expect($athena)->toContain('the four security skills\' outputs');
+    expect($athena)->toContain('Run the remaining three yourself over the same diff');
+    expect($athena)->toContain('the three security skills\' outputs');
+    expect($athena)->toContain('**Do not run the authorization lens a second time.**');
     expect($athena)->toContain('which of the five security skills executed');
 
     // A lens that cannot run is reported as skipped, never as a clean pass.
-    expect($athena)->toContain('rather than reporting a clean authorization pass you never ran');
+    expect($athena)->toContain('rather than reporting a clean authorization pass nobody ran');
 
-    // The rule this closes the loop with still carries its side of the contract.
+    // The rule this closes the loop with still carries its side of the contract, and the CR's
+    // conditional set carries the trigger that actually runs the lens.
     $rule = codeReviewRuleContents();
     expect($rule)->toContain('@skills/laravel-authorization-review/SKILL.md');
+
+    $specialized = crContractText('skills/code-review/SKILL.md');
+    expect($specialized)->toContain('Authorization surface detected in the diff');
+    expect($specialized)->toContain('@skills/laravel-authorization-review/SKILL.md` with `MODE=cr`');
+    expect($specialized)->toContain('broken object-level authorization (IDOR / BOLA)');
+
+    $lens = (string) file_get_contents($packageDir . '/skills/laravel-authorization-review/SKILL.md');
+    expect($lens)->toContain('## Modes');
+    expect($lens)->toContain('`cr` (read-only lens');
 });
 
 test('athena references the laravel security audit workflow for existing-app audits', function (): void {
