@@ -28,7 +28,9 @@ Only a zero exit permits the flow to continue — every non-zero exit is a hard 
 - Find all open pull requests for the task
   - If multiple PRs exist, process each independently
 - Before processing a PR, switch to the PR branch and pull latest changes following `@rules/git/general.md` *Pull Policy*, in order: resolve the default branch (`DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"` — never hardcode `origin/main`), `git fetch origin`, `git pull --rebase` to take the PR branch's own remote first, then `git rebase "origin/$DEFAULT_BRANCH"` to bring the default branch in, resolve any conflicts, and `git push --force-with-lease`. Do not `git pull` again after the rebase — it would undo the sync.
-The rebase replayed every commit onto a new base; the resulting head is gated once at the merge boundary (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*), so no range replay is required here before the `git push --force-with-lease`. Use `git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"` only when a bisectable history is explicitly wanted. If the rebase changed `composer.lock`, run `composer install` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
+Record the effective-PR-diff fingerprint before and after the rebase using `@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision*. Matching fingerprints mean history-only change and no CR round; differing or missing values require review.
+The resulting head is still gated once at the merge boundary (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*), so no range replay is required here before the `git push --force-with-lease`. Use `git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"` only when a bisectable history is explicitly wanted.
+If the rebase changed `composer.lock`, run `composer install` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
 
 ### For each PR:
 
@@ -136,7 +138,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`
-   The invocation **must** include the explicit quiet-mode instruction, and from the second iteration on the `reviewedRevision` baseline plus the previous iteration's finding dispositions (`references/review-loop-scope.md`).
+   The invocation **must** include the explicit quiet-mode instruction, and from the second iteration on the `reviewedRevision` plus `reviewedDiffFingerprint` baseline and the previous iteration's finding dispositions (`references/review-loop-scope.md`).
    The review run **must not** publish to the PR or to the issue tracker during loop iterations — capture findings in memory only. Each iteration's CR wrapper runs its **Reviewer Comment Fulfillment Gate** (canonically defined in `@skills/code-review-github/references/cr-wrapper-contract.md`), so the review reloads every reviewer comment / thread and re-verifies that the fixes applied in the previous iteration actually satisfy each reviewer instruction.
 3. Count `criticalCount` and `moderateCount` in the latest review, and read the `reviewer comments: M/N fulfilled` verdict the wrapper records. Let `unfulfilledCount = N − M` (the reviewer instructions still not satisfied, not rejected-with-reason, and not delegated to another account). Each not-fulfilled instruction is already raised by the gate as a Critical finding, so it is included in `criticalCount` — `unfulfilledCount` is tracked separately only to make the convergence condition and the loop report explicit.
 4. Evaluate the **convergence gate** (canonical definition — every other file in this package cites this one and never restates it):
@@ -153,7 +155,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
 #### Quiet review runs and incremental review scope
 
-Loop iterations run **quiet** — the review is invoked with the explicit instruction "do not publish; return findings as in-memory markdown for this loop iteration only", and only the final iteration's output is published, by **PR update** + **Completion** below. Iterations after the first also carry a `reviewedRevision` baseline and the previous iteration's finding dispositions, so each round reviews the delta rather than the whole PR again — while the convergence gate keeps counting carried-over findings. Both subsections in full: `references/review-loop-scope.md`.
+Loop iterations run **quiet** — the review is invoked with the explicit instruction "do not publish; return findings as in-memory markdown for this loop iteration only", and only the final iteration's output is published, by **PR update** + **Completion** below. Iterations after the first also carry `reviewedRevision`, `reviewedDiffFingerprint`, and the previous iteration's finding dispositions, so each round reviews the delta while a content-identical history rewrite creates no redundant CR round — and the convergence gate keeps counting carried-over findings. Both subsections in full: `references/review-loop-scope.md`.
 
 ---
 
@@ -237,7 +239,7 @@ Rules:
 **Precondition:** Review loop has converged (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate).
 
 - **Run the final publishing run inline.** Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker. The invocation must include the PR URL, the converged state (`criticalCount == 0`, no undeferred Moderate),
-  the `reviewedRevision` baseline of the last iteration (per **Incremental review scope**, so the published comment carries the `Reviewed revision:` and `Review scope:` header lines), and the instruction to post the final PR comment + linked-issue / JIRA mirror per the CR wrapper's contract.
+  the `reviewedRevision` and `reviewedDiffFingerprint` baseline of the last iteration (per **Incremental review scope**, so the published comment carries the `Reviewed revision:`, `Reviewed diff fingerprint:`, and `Review scope:` header lines), and the instruction to post the final PR comment + linked-issue / JIRA mirror per the CR wrapper's contract.
   Do not dispatch as a subagent — run it sequentially in the current context:
   - GitHub: `@skills/code-review-github/SKILL.md`
   - JIRA: `@skills/code-review-jira/SKILL.md`

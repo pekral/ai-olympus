@@ -32,4 +32,4 @@ A commit landing after the promotion can re-open the review (*Finalization* — 
 
 A fix commit carrying only the verbatim output of the project's fixers re-opens nothing, so it never triggers this revert — the converged verdict stands and the signal stays.
 
-**The detector is not always the owner.** The role that notices the invalidation may sit outside this skill (typically the implementing agent, during the pre-merge quality gate). It reports the staleness; it does not write or withdraw the phase-3 signal itself. The review then runs again, and that fresh run either re-writes the signal idempotently (it re-converges) or leaves it withdrawn (it does not).
+**The detector is not always the owner.** The role that notices that the effective PR diff fingerprint changed may sit outside this skill (typically the implementing agent, during the pre-merge quality gate). It reports the staleness; it does not write or withdraw the phase-3 signal itself. A content-identical history rewrite preserves the signal and starts no CR round. A genuinely changed diff runs review again, and that fresh run either re-writes the signal idempotently or leaves it withdrawn.

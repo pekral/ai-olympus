@@ -243,11 +243,11 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/47   Added: 2026-07-13
 - Role:    hephaestus
 
-### load-issue-top-level-comment-updated-at-always-null — `load-issue.sh` never returns `updatedAt` for a PR's top-level comments; use an equivalent staleness check
-- Trigger: a staleness check (`@skills/merge-github-pr/SKILL.md` step 2, or `@skills/code-review-github/SKILL.md`'s upsert-in-place convergence check) needs a PR-level top-level comment's `updatedAt`.
-- Rule:    This is a structural loader limitation, not the [[jq-alternative-operator-false-collapse]] bug — the field is simply absent from `gh`'s `--json comments` projection for top-level PR comments (present only for `subIssues[].comments[].updatedAt` via GraphQL). Do not assume staleness from a `null` `updatedAt`. Use an equivalent check: `createdAt` is after the head commit's `authoredDate`, `commits` count/list unchanged since, and the comment body names the reviewed head SHA.
-- Example: PR #47 (issue #41) — `updatedAt` was `null`; `talos` verified currency via `createdAt` (`2026-07-13T18:10:01Z`) after the commit's `authoredDate`, unchanged commit count, and the comment naming head `568e2ae`.
-- Source:  https://github.com/pekral/ai-olympus/pull/47   Added: 2026-07-13
+### load-issue-top-level-comment-updated-at-always-null — `load-issue.sh` never returns `updatedAt` for a PR's top-level comments; use content evidence
+- Trigger: deciding whether a top-level CR comment still covers the effective PR diff after the head SHA changes.
+- Rule:    `gh`'s `--json comments` projection omits top-level `updatedAt` (it exists only for `subIssues[].comments[].updatedAt` via GraphQL), so neither `null` nor a timestamp proves review freshness. Trust a CR only when its recorded `Reviewed revision:` equals the current head or its trusted `Reviewed diff fingerprint:` equals the locally recomputed effective-PR-diff fingerprint. An identical fingerprint preserves review across a history-only rebase; a missing or different one requires review.
+- Example: PR #47 exposed `updatedAt: null`; PR #115 replaced the timestamp proxy in `@skills/merge-github-pr/SKILL.md` with the fingerprint contract in `@rules/code-review/general.md`.
+- Source:  https://github.com/pekral/ai-olympus/pull/47, https://github.com/pekral/ai-olympus/pull/115   Added: 2026-07-13   Updated: 2026-09-06
 - Role:    shared
 
 ### repo-empty-review-decision-non-blocking-verify-precedent — An empty `reviewDecision` doesn't block merge-github-pr's approval check here — verify via precedent
