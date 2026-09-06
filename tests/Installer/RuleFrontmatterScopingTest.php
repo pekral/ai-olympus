@@ -296,7 +296,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // ...and once more: the request now stops at the controller, so an Action `__invoke()`
         // takes neither an `Illuminate\Http\Request` nor a `FormRequest` — the input-side
         // mirror of the HTTP-response ban, at the same Critical severity.
-        'rules/laravel/architecture.md' => 'df4fa2803d09bdab6d022c9375c8274030efdce451b3d2465e4762768dbfbdc7',
+        // ...and once more: `## Actions` now opens with the reuse-first gate, so a new Action is
+        // written only after `app/Actions/**` was searched for one that already orchestrates the
+        // same use case. Nothing else in the file moved.
+        'rules/laravel/architecture.md' => '48a8c65167ae2a63a66541d570b9a4f5ab9ed775e59a06ae77a33f1ee730f10b',
         'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',

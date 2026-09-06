@@ -41,6 +41,7 @@ Example input:
 
 ## Required architecture
 - Entry point must become thin and delegate directly to an Action via `$action(...)`.
+- **Reuse before you create: an Action that already covers the use case is the target of the extraction.** Search `app/Actions/**` before you write a new class — read the `__invoke()` of every Action in the target domain folder and grep for the collaborators the extracted orchestration would compose. Point the entry point at that Action, or widen it, instead of adding a second Action for one use case. Match on the flow, never on the class name; two Actions that share collaborators while orchestrating different use cases stay two Actions (see `@rules/laravel/architecture.md` **Actions** → *Before you create an Action*).
 - Create one dedicated Action per use case under `app/Actions/<Domain>/`.
 - Action class must be `final readonly`.
 - Action must expose exactly one public business method: `__invoke(...)` with an explicit return type.
@@ -66,7 +67,7 @@ split <view> into reusable components` commit that follows the Action-extraction
 Reading, mapping, and verifying come first; refactoring comes last. This pre-flight is **blocking** — do not edit a single line of production code until all three steps pass, and never act on an assumption you have not confirmed by reading the code.
 
 1. **Read** — open and read the actual entry point and the code it orchestrates (called Services / Repositories / ModelManagers, the Blade view for Livewire components, related tests, configuration). Confirm what the orchestration does by reading it, not by guessing from names.
-2. **Map** — map the change's blast radius: the entry point's response contract and signature, its callers and routes, the orchestration that must move into the Action, and the existing Actions / Data Validators / `app/Concerns/` traits to reuse instead of reinventing.
+2. **Map** — map the change's blast radius: the entry point's response contract and signature, its callers and routes, the orchestration that must move into the Action, and the existing Actions / Data Validators / `app/Concerns/` traits to reuse instead of reinventing. **Reading the existing Actions is mandatory, not optional context.** Open the `__invoke()` of every Action in the target domain folder and decide, per Action, whether it already orchestrates this use case. That decision drives Execution step 4, and skipping it is how a second Action for one use case gets written.
    Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, route, signature, and convention the extraction moves or redefines, and every call site, test, and public API consumer bound to them — never only the files the assignment names, and never only the files you have already opened.
    Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you move a single line into the Action, then classify each match as in scope for this extraction or as a stated exception. An incomplete sweep leaves a caller, a route, or a documented contract still bound to the entry point's old shape, and that binding surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior so the extraction preserves behavior, signatures, and tenant/account scope. If reading and mapping contradict the task framing, stop and surface the discrepancy instead of refactoring on a wrong premise.
@@ -80,7 +81,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 1. Inspect the target entry point and identify orchestration responsibilities.
 2. Scan touched files for obvious pre-existing issues that would block or compromise the refactor. Fix only safe, relevant issues; keep unrelated cleanup out of scope.
 3. **Test Coverage Gate (blocking pre-flight).** Verify coverage of the *current* entry-point method that the refactor will touch, using the project's available coverage tooling scoped to that file (per `@rules/php/core-standards.md` Testing section). Every line, branch, and condition must already be at 100%. If coverage is below 100% on the target lines, **stop and write the missing tests first** via `@skills/create-test/SKILL.md`, then commit them in a dedicated `test(scope): cover <area> before refactor` commit per `@rules/git/general.md` Allowed Types. The pre-refactor coverage commit and the refactor commit are **always two separate commits**. Only after the gate is green may the refactor proceed.
-4. Create or reuse a dedicated Action in the correct domain folder.
+4. **Reuse-or-create decision (blocking).** Search `app/Actions/**` for an Action that already orchestrates this use case, as the Map step required. Reuse that Action when one exists — point the entry point at it, or widen it. Create a new Action in the correct domain folder only when the search finds none, and record in the refactor plan which Actions you read and why none of them fits.
 5. Move orchestration from the entry point into the Action `__invoke(...)`.
 6. Extract inline validation into a dedicated Data Validator (using validation traits from `app/Concerns/`) if needed.
 7. Preserve repository/service/manager boundaries and multitenancy/account scope.
@@ -94,6 +95,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 ## Do not
 - Do not leave business orchestration in the entry point.
 - Do not place Actions outside `app/Actions/**`.
+- Do not add a second Action for a use case an existing Action already orchestrates — reuse or widen that Action instead.
 - Do not add multiple public business methods to an Action.
 - Do not place validation logic directly inside an Action (incl. `instanceof` / null / amount skip-guards and `throw_if()` / `throw_unless()`) — extract into a Data Validator.
 - Do not place data mapping/transformation directly inside an Action — extract into a Data Builder.
@@ -106,6 +108,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 
 **`MODE=apply`:**
 - The target entry point is thin and delegates to a dedicated Action.
+- `app/Actions/**` was searched before the Action was written, and the refactor plan records either the existing Action that was reused or the Actions that were read and why none of them fits.
 - The Action follows project Action-pattern rules.
 - Validation is delegated to a dedicated Data Validator (using validation traits from `app/Concerns/`) when applicable.
 - Behavior, signatures, and response format remain unchanged.
