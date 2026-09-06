@@ -238,11 +238,15 @@ A pull request under a multi-round review is re-read from its first commit on ev
 
 ### Baseline resolution — three sources, in this order
 
-1. **The caller's value.** `@skills/process-code-review/SKILL.md` runs its loop iterations quiet, so no comment exists to read; the caller therefore passes `reviewedRevision = <SHA>` — the head the previous iteration reviewed — together with the previous round's finding set and each finding's disposition. When the caller passes it, use it.
-2. **The newest published CR comment on the PR.** It carries a `Reviewed revision:` header line naming the head SHA that round reviewed. Read the SHA off that line. This is the cross-run path: a fresh CR run days later, with no caller state.
+1. **The caller's value.** `@skills/process-code-review/SKILL.md` runs its loop iterations quiet, so no comment exists to read; the caller therefore passes `reviewedRevision = <SHA>` and `reviewedDiffFingerprint = <patch-id>` — the head and effective PR diff the previous iteration reviewed — together with the previous round's finding set and each finding's disposition. When the caller passes them, use them.
+2. **The newest published CR comment on the PR.** It carries `Reviewed revision:` and `Reviewed diff fingerprint:` header lines naming the head SHA and effective PR diff that round reviewed. Read both. This is the cross-run path: a fresh CR run days later, with no caller state.
 3. **Neither resolves → this is round 1.** Review the whole PR diff (`origin/$DEFAULT_BRANCH...HEAD`) and say so on the `Review scope:` line. Absent a baseline the delta is undefined, and a review that guesses one reviews the wrong range.
 
-**The baseline must be an ancestor of the current head.** Verify it with `git merge-base --is-ancestor <baseline> HEAD` before diffing against it. A force-push, a rebase, a squash, or an amend detaches the recorded SHA from the branch's history, and a diff against a SHA that is not in that history is not "what changed since the last review" — it is noise that reads like a finding list. When the check fails, fall back to source 3, review the whole PR diff, and state the reason on the `Review scope:` line.
+**Fingerprint the effective PR diff before deciding that a new round exists.** Resolve the default-branch base and compute the first field produced by `git diff --binary --full-index --no-color --no-ext-diff --no-renames <base>...<head> | git patch-id --verbatim`. `--verbatim` keeps whitespace significant; the binary/full-index/no-renames form includes additions, deletions, paths, modes, and binary changes while remaining independent of commit IDs and hunk line numbers. The fingerprint is comparison evidence, never an authorship signal: accept it only from the trusted caller state or newest trusted CR comment, and recompute the current value locally.
+
+**Use ancestry for a delta, and the fingerprint for a history rewrite.** Verify the baseline with `git merge-base --is-ancestor <baseline> HEAD`. When it is an ancestor, review `git diff <baseline>..HEAD` as usual.
+A force-push, rebase, squash, or amend can detach the recorded SHA; in that case compare the recorded and current effective-PR-diff fingerprints before starting another review. A matching fingerprint means the effective PR diff is content-identical: preserve the converged verdict and prior finding dispositions, and do not run another code-review round solely because the head SHA changed.
+A missing or different fingerprint requires a new review of the whole PR diff and the `Review scope:` line states that reason. New actionable reviewer feedback remains a separate whole-PR gate and still requires processing even when the source diff is unchanged.
 
 ### What the delta scopes, and what it never scopes
 
@@ -280,11 +284,12 @@ The field exists because the two mean different things to whoever reads the repo
 
 This section narrows **what the round examines** and reports everything the examination produces. It is now the only such filter — the late-iteration rendering narrowing is retired (*Minor findings are not detected* below) — so a later round renders the delta's Critical and Moderate findings plus every carried-over Critical and Moderate finding. It never lowers the convergence bar and never removes a security finding.
 
-### The two header lines
+### The three header lines
 
 Every published review carries both, and the first is what makes the next round's baseline resolvable:
 
-- `**Reviewed revision:** <head SHA this round reviewed>` — always rendered, always the full SHA. Omitting it costs the next round its baseline and silently drops it back to a full-PR review.
+- `**Reviewed revision:** <head SHA this round reviewed>` — always rendered, always the full SHA. It anchors an incremental delta when it remains an ancestor.
+- `**Reviewed diff fingerprint:** <patch-id of the effective PR diff>` — always rendered. It preserves the verdict across a content-identical history rewrite; a missing value fails closed and requires review.
 - `**Review scope:** delta since <baseline SHA> (round {n}) — carried-over findings re-reported` — or `**Review scope:** full PR (<reason: no prior reviewed revision | baseline <sha> not an ancestor of HEAD after a history rewrite>)`.
 
 ## Minor findings are not detected

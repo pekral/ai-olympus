@@ -1873,12 +1873,12 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     $packageDir = dirname(__DIR__, 2);
     $content = codeReviewRuleContents();
 
-    expect($content)->toContain('## Remediation-conformance ownership — derive once, not once per reviewer (issue #174)');
-    expect($content)->toContain('**Exactly one reviewer derives the remediation-conformance verdict per PR head SHA.**');
+    expect($content)->toContain('## Remediation-conformance ownership — derive once per effective PR diff, not once per reviewer (issue #174)');
+    expect($content)->toContain('**Exactly one reviewer derives the remediation-conformance verdict per effective PR diff fingerprint.**');
     expect($content)->toContain('**The non-owner does not re-derive it.**');
     // The saving must not cost the second pair of eyes where a wrong verdict would go unchallenged.
     expect($content)->toContain('Doubt is a licence to re-verify one entry, not the whole table.');
-    expect($content)->toContain('Keyed to the head SHA.');
+    expect($content)->toContain('Keyed to the effective PR diff fingerprint.');
     // Removing the second derivation must not turn a redundant check into a single point of failure.
     expect($content)->toContain('An absent verdict falls back to the non-owner, it never silently disappears.');
 
@@ -2336,11 +2336,11 @@ test('code review rule scopes a later round to the diff since the last reviewed 
     // value is the only one available there, and absent every source the round is a full review.
     expect($rule)->toContain('### Baseline resolution — three sources, in this order');
     expect($rule)->toContain('the caller therefore passes `reviewedRevision = <SHA>`');
-    expect($rule)->toContain('It carries a `Reviewed revision:` header line naming the head SHA that round reviewed');
+    expect($rule)->toContain('It carries `Reviewed revision:` and `Reviewed diff fingerprint:` header lines');
     expect($rule)->toContain('**Neither resolves → this is round 1.**');
     // A rewritten history detaches the recorded SHA, and a diff against it is noise, not a delta.
     expect($rule)->toContain('git merge-base --is-ancestor <baseline> HEAD');
-    expect($rule)->toContain('A force-push, a rebase, a squash, or an amend detaches the recorded SHA');
+    expect($rule)->toContain('A force-push, rebase, squash, or amend can detach the recorded SHA');
     // Narrowing detection must never narrow the gate that decides the merge.
     expect($rule)->toContain('**Carry-over is unconditional.**');
     expect($rule)->toContain('would converge a PR that still carries it');
@@ -2362,11 +2362,53 @@ test('code review rule scopes a later round to the diff since the last reviewed 
     expect($rule)->toContain('### Filter on detection');
     expect($rule)->toContain('It never lowers the convergence bar and never removes a security finding.');
     // The header line is the anchor the next round resolves its baseline from.
-    expect($rule)->toContain('### The two header lines');
-    expect($rule)->toContain('Omitting it costs the next round its baseline');
+    expect($rule)->toContain('### The three header lines');
+    expect($rule)->toContain('a missing value fails closed and requires review.');
     // One canonical home, cross-referenced from the vague "do not repeat" bullet it makes concrete.
     expect(substr_count($rule, '## Incremental Review Scope — Diff Since the Last Reviewed Revision'))->toBe(1);
     expect($rule)->toContain('*Incremental Review Scope — Diff Since the Last Reviewed Revision* below defines what "already reported" means');
+});
+
+test('content-identical history rewrites preserve the converged code review verdict', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = codeReviewRuleContents();
+    $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $wrapper = crContractText('skills/code-review-github/references/cr-wrapper-contract.md');
+    $loopScope = (string) file_get_contents(
+        $packageDir . '/skills/process-code-review/references/review-loop-scope.md',
+    );
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $gitRule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    $fingerprintCommand = 'git diff --binary --full-index --no-color --no-ext-diff --no-renames '
+        . '<base>...<head> | git patch-id --verbatim';
+
+    foreach ([$rule, $canonical, $wrapper, $loopScope, $merge] as $contract) {
+        expect($contract)->toContain('Reviewed diff fingerprint');
+    }
+
+    expect($rule)->toContain($fingerprintCommand);
+    expect($rule)->toContain('A matching fingerprint means the effective PR diff is content-identical');
+    expect($rule)->toContain('do not run another code-review round solely because the head SHA changed');
+    expect($rule)->toContain('A missing or different fingerprint requires a new review');
+
+    expect($loopScope)->toContain('Pass it on the next invocation as `reviewedDiffFingerprint = <patch-id>`');
+    expect($merge)->toContain('A content-identical history rewrite keeps the review current');
+    expect($gitRule)->toContain('A rebase that preserves the reviewed diff fingerprint does not stale code review');
+    expect($athena)->toContain('once per effective PR diff fingerprint');
+    expect($daedalus)->toContain('compare the current effective PR diff fingerprint with the latest trusted CR');
+
+    foreach ([
+        'code-review/templates/review-output.md',
+        'code-review-github/templates/pr-comment-output.md',
+        'code-review-jira/templates/github-output.md',
+        'code-review-bugsnag/templates/github-output.md',
+    ] as $path) {
+        $template = crContractText($packageDir . '/skills/' . $path);
+        expect($template)->toContain('**Reviewed diff fingerprint:** {patch-id of the effective PR diff}');
+    }
 });
 
 test('every CR skill and template carries the incremental review scope', function (): void {
@@ -2374,9 +2416,9 @@ test('every CR skill and template carries the incremental review scope', functio
 
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     expect($canonical)->toContain('### Incremental review scope gate (mandatory, after the Branch checkout gate)');
-    expect($canonical)->toContain('Resolve the baseline (the caller\'s `reviewedRevision`');
-    expect($canonical)->toContain('New findings then come from `git diff <baseline>..HEAD`');
-    expect($canonical)->toContain('every unsettled finding from an earlier round is carried over at its original severity');
+    expect($canonical)->toContain('Resolve the baseline and its `Reviewed diff fingerprint`');
+    expect($canonical)->toContain('new findings come from `git diff <baseline>..HEAD`');
+    expect($canonical)->toContain('every unsettled finding is carried over at its original severity');
     expect($canonical)->toContain('Incremental Review Scope — Diff Since the Last Reviewed Revision');
     // The cross-run history section used to forbid reading prior CR comments outright; the gate
     // needs them for the baseline, so it now permits the read while still forbidding the re-publish.
@@ -2391,7 +2433,7 @@ test('every CR skill and template carries the incremental review scope', functio
         $skill = crContractText('skills/' . $wrapper . '/SKILL.md');
         expect($skill)->toContain('#### Incremental review scope (mandatory, after the checkout)');
         expect($skill)->toContain('#### Incremental review scope — where the round history lives');
-        expect($skill)->toContain('**Prove the baseline is in the current history**');
+        expect($skill)->toContain('**Compute the current effective-PR-diff fingerprint**');
         expect($skill)->toContain('**Carry over every unsettled finding**');
         expect($skill)->toContain('- **Incremental review scope header lines.**');
         // Every finding carries provenance, not only the two severities with reproducer fields.
@@ -2413,7 +2455,7 @@ test('every CR skill and template carries the incremental review scope', functio
     }
 });
 
-test('process-code-review passes the reviewed revision baseline to every CR wrapper invocation', function (): void {
+test('process-code-review passes the reviewed revision and diff fingerprint to every CR wrapper invocation', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     // The subsection lives in the reference the skill points at; the skill keeps the pointer.
@@ -2423,12 +2465,13 @@ test('process-code-review passes the reviewed revision baseline to every CR wrap
     expect($loopScope)->toContain('#### Incremental review scope (iterations after the first)');
     // The loop is quiet, so no published comment exists to resolve a baseline from.
     expect($loopScope)->toContain('The caller is therefore the only source, and it must supply one');
-    expect($loopScope)->toContain('Pass it on the next invocation as `reviewedRevision = <SHA>`');
+    expect($loopScope)->toContain('Pass the SHA on the next invocation as `reviewedRevision = <SHA>`');
+    expect($loopScope)->toContain('Pass it on the next invocation as `reviewedDiffFingerprint = <patch-id>`');
     expect($loopScope)->toContain('**Pass the previous iteration\'s findings with their disposition**');
     expect($loopScope)->toContain('**Iteration 1 passes neither**');
     // The published run must carry the header lines the next CR run reads its baseline from.
-    expect($loopScope)->toContain('**The final publishing run in Completion passes the last iteration\'s SHA too**');
-    expect($process)->toContain('the `reviewedRevision` baseline of the last iteration');
+    expect($loopScope)->toContain('**The final publishing run in Completion passes the last iteration\'s SHA and fingerprint too**');
+    expect($process)->toContain('the `reviewedRevision` and `reviewedDiffFingerprint` baseline of the last iteration');
     // Narrowing detection must not narrow the gate.
     expect($loopScope)->toContain('**Narrowing the detection never narrows the convergence gate.**');
 });

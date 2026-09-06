@@ -280,8 +280,8 @@ test('daedalus repairs an unmet code-review merge gate instead of escalating it'
     expect($daedalus)->toContain('dispatch the step-6 review-and-fix loop on the current diff');
     expect($daedalus)->toContain('re-enter the merge');
 
-    // The repaired gate is re-checked against the post-fix head, since the fixes themselves move it.
-    expect($daedalus)->toContain('Re-run the gate against the new head commit, never against the pre-fix one');
+    // The repaired gate is re-checked against the post-fix content, since fixes can change it.
+    expect($daedalus)->toContain('Recompute the fingerprint after fixes');
 
     // The repair never becomes a licence to merge unreviewed, and a non-converging loop still escalates.
     expect($daedalus)->toContain('never a reason to merge without one');
@@ -2176,9 +2176,9 @@ test('the remediation-conformance verdict is derived once, by the single reviewe
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
     expect($athena)->toContain('**Remediation-conformance agenda:**');
     expect($athena)->toContain('you own it whenever a plan exists');
-    expect($athena)->toContain('Derive it exactly once per head SHA');
-    // A stale verdict from an earlier head is never carried over.
-    expect($athena)->toContain('a verdict from an earlier head is stale and is re-derived, never carried over');
+    expect($athena)->toContain('Derive it exactly once per diff fingerprint');
+    // A history-only rewrite keeps the verdict; changed content re-runs it.
+    expect($athena)->toContain('a history-only rebase with the same fingerprint keeps the verdict');
     // Step 7 joins the numbered review sequence rather than dangling outside it.
     expect($athena)->toContain('7. **Record the remediation-conformance verdict**');
 });

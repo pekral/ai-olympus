@@ -102,20 +102,17 @@ test('draft-PR-until-review-converges policy is wired through the rule and the P
     expect($merge)->toContain('isDraft == false');
 });
 
-test('the CR staleness gate reads createdAt, matching the always-new-comment convention', function (): void {
+test('the CR staleness gate matches reviewed SHA or effective diff fingerprint', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    // The gate used to justify reading `updatedAt` by claiming the CR comment is upserted in
-    // place. Every CR run now POSTs a fresh comment, so `createdAt` is when the review actually
-    // ran — and it is the stricter of the two, since a later body edit must not refresh a
-    // verdict produced against an older diff.
-    expect($merge)->toContain('Because every CR run **POSTs a fresh comment** and never edits a prior one');
-    expect($merge)->toContain('use `createdAt` (not `updatedAt`) for the staleness check');
-    expect($merge)->toContain('a later edit to that comment\'s body never refreshes the verdict');
-    expect($merge)->toContain('its `createdAt` must be at or after the newest `commits[].authoredDate`');
+    expect($merge)->toContain('Every CR run **POSTs a fresh comment** and never edits a prior one');
+    expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');
+    expect($merge)->toContain('its `Reviewed diff fingerprint:` equals a freshly recomputed fingerprint');
+    expect($merge)->toContain('A content-identical history rewrite keeps the review current');
+    expect($merge)->toContain('A missing or different fingerprint on a different head fails closed');
     expect($merge)->not->toContain('upserted in place');
     expect($merge)->not->toContain('follow-up runs edit the same comment');
     expect($merge)->not->toContain('`updatedAt` predates the head commit');
@@ -125,8 +122,8 @@ test('the CR staleness gate reads createdAt, matching the always-new-comment con
     expect($codeReview)->toContain('preserved by the chronological sequence of always-new comments');
     expect($codeReview)->not->toContain('edit history on the upserted comment');
 
-    // The orchestrator quotes the gate, so it must not re-introduce the stale field.
-    expect($daedalus)->toContain('whose `createdAt` predates the head commit');
+    // The orchestrator quotes the content gate, not timestamp-based staleness.
+    expect($daedalus)->toContain('whose reviewed diff fingerprint is missing or differs');
     expect($daedalus)->not->toContain('whose `updatedAt` predates the head commit');
 });
 

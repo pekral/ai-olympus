@@ -11,6 +11,7 @@
 **Status:** clean / needs-fix  *(`clean` when the run converged — no Critical, no unfulfilled reviewer comment, and every remaining Moderate carrying a `Deferred:` field. A Moderate without that field is outstanding, so the status is `needs-fix`.)*
 **Counts:** Critical {n} · Moderate {n} · Minor {n}  *(always the real detected counts; `Minor` counts security-lens findings only)*
 **Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
+**Reviewed diff fingerprint:** {patch-id of the effective PR diff}  *(always rendered — preserves the verdict across a content-identical history rewrite)*
 **Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
