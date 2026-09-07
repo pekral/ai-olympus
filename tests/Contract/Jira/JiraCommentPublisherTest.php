@@ -17,6 +17,14 @@ if [[ "$1" == "jira" && "$2" == "auth" && "$3" == "status" ]]; then
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "create" ]]; then
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--body-file" ]]; then
+      cp "$2" "$FAKE_ACLI_CREATE_BODY"
+      break
+    fi
+    shift
+  done
+
   printf '%s\n' "$FAKE_ACLI_CREATE_JSON"
   exit 0
 fi
@@ -194,7 +202,7 @@ function jiraCommentSystemPath(): string
 }
 
 /**
- * @return array{adf: string, bin: string, calls: string, directory: string}
+ * @return array{adf: string, bin: string, calls: string, created: string, directory: string}
  */
 function createJiraCommentPublisherFixture(): array
 {
@@ -202,10 +210,12 @@ function createJiraCommentPublisherFixture(): array
     $bin = $directory . '/bin';
     $adf = $directory . '/comment.adf.json';
     $calls = $directory . '/calls';
+    $created = $directory . '/created-comment.json';
 
     mkdir($bin, 0o700, recursive: true);
     file_put_contents($adf, '');
     file_put_contents($calls, '');
+    file_put_contents($created, '');
     file_put_contents($bin . '/acli', JIRA_COMMENT_ACLI_SCRIPT);
     chmod($bin . '/acli', 0o700);
 
@@ -213,18 +223,20 @@ function createJiraCommentPublisherFixture(): array
         'adf' => $adf,
         'bin' => $bin,
         'calls' => $calls,
+        'created' => $created,
         'directory' => $directory,
     ];
 }
 
 /**
- * @param array{adf: string, bin: string, calls: string, directory: string} $fixture
+ * @param array{adf: string, bin: string, calls: string, created: string, directory: string} $fixture
  */
 function removeJiraCommentPublisherFixture(array $fixture): void
 {
     unlink($fixture['bin'] . '/acli');
     unlink($fixture['adf']);
     unlink($fixture['calls']);
+    unlink($fixture['created']);
     rmdir($fixture['bin']);
     rmdir($fixture['directory']);
 }
@@ -256,6 +268,7 @@ WIKI;
     ], $packageDir, [
         'FAKE_ACLI_ADF' => $fixture['adf'],
         'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
@@ -265,11 +278,13 @@ WIKI;
         $process->run();
         $adf = (string) file_get_contents($fixture['adf']);
         $calls = (string) file_get_contents($fixture['calls']);
+        $created = (string) file_get_contents($fixture['created']);
 
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain('focusedCommentId=10001')
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10001 --body-adf')
+            ->and($created)->toBe(JIRA_COMMENT_EXPECTED_ADF . "\n")
             ->and($adf)->toBe(JIRA_COMMENT_EXPECTED_ADF . "\n");
     } finally {
         removeJiraCommentPublisherFixture($fixture);
@@ -287,6 +302,7 @@ test('JIRA ADF publishing fails closed when create omits the new comment ID', fu
     ], $packageDir, [
         'FAKE_ACLI_ADF' => $fixture['adf'],
         'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{}',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
@@ -316,6 +332,7 @@ test('JIRA publication fails when the newly created comment cannot receive ADF',
     ], $packageDir, [
         'FAKE_ACLI_ADF' => $fixture['adf'],
         'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10003"}',
         'FAKE_ACLI_UPDATE_OK' => '0',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,

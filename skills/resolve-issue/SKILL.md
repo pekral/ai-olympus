@@ -62,7 +62,7 @@ Before starting the resolution flow:
 the apply-then-verify is not perfectly atomic (GitHub has no CAS on labels), but it collapses the race window to the gap between two loader reads — adequate to stop two long-running agent pipelines from colliding.
      - **JIRA:** run `skills/code-review-jira/scripts/transition-to-in-progress.sh <KEY|URL>`.
        The helper moves the issue to the project's In Progress status (`Rozpracováno` on Czech boards), assigns it to the account currently authenticated in `acli` with `--assignee "@me"`, and verifies that assignment through `assignee = currentUser()`. It completes before the first code change.
-       Exit 0 = claimed and assigned (or an idempotent status no-op followed by verified self-assignment).
+       Exit 0 = a verified new claim or `currentUser()`-owned re-entry. Any other in-progress issue exits 4 without reassignment.
        Exit 4 = issue is already past In Progress from another run → **abort** with the message `Issue <KEY> is already past In Progress — another run may be working on it`.
        Exit 5 = target status name differs for this project — discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human.
        Any other non-zero exit, including a failed or unverified self-assignment, stops the run before implementation. This is the second sanctioned status transition (the first is the Code Review transition on PR open); all others remain human-only.

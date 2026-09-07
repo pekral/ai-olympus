@@ -19,9 +19,9 @@
 # Behavior:
 #   1. Detect the site from `acli jira auth status` to build the output URL.
 #   2. Convert the Wiki Markup source to Atlassian Document Format (ADF).
-#   3. Create a fresh comment and immediately update that same new comment via
-#      `acli jira workitem comment update --body-adf`. The update is required
-#      because `comment create --body-file` stores rich markup as plain text.
+#   3. Create a fresh comment from the ADF file and immediately update that same
+#      new comment via `acli jira workitem comment update --body-adf`. Passing
+#      ADF to both calls ensures a failed update never leaves Wiki Markup behind.
 #
 # Output:
 #   The published comment URL on stdout. `action=created` on stderr
@@ -101,17 +101,16 @@ if [[ -z "$SITE" ]]; then
   exit 3
 fi
 
-# Build valid ADF before the external write. The create call has no reliable
-# `--body-adf` flag, so it creates the comment first and the update call applies
-# the ADF payload to that exact new comment ID.
+# Build valid ADF before the external write. The create call has no dedicated
+# `--body-adf` flag, but `--body-file` accepts an ADF document. The update call
+# then applies the same payload to that exact new comment ID through the
+# explicitly requested `--body-adf` path.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BODY_FILE_TMP="$(mktemp)"
 ADF_FILE_TMP="$(mktemp)"
 CREATE_STDERR="$(mktemp)"
-trap 'rm -f "$BODY_FILE_TMP" "$ADF_FILE_TMP" "$CREATE_STDERR"' EXIT
-printf '%s' "$BODY" > "$BODY_FILE_TMP"
+trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR"' EXIT
 
-if ! php "$SCRIPT_DIR/wiki-markup-to-adf.php" < "$BODY_FILE_TMP" > "$ADF_FILE_TMP"; then
+if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
   exit 3
 fi
@@ -121,7 +120,7 @@ if ! jq -e '.version == 1 and .type == "doc" and (.content | type == "array")' "
   exit 3
 fi
 
-if ! CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$BODY_FILE_TMP" --json 2>"$CREATE_STDERR")"; then
+if ! CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")"; then
   echo "upsert-comment.sh: acli comment create failed on $KEY: $(<"$CREATE_STDERR")" >&2
   exit 3
 fi

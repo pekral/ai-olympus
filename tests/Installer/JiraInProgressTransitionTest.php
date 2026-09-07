@@ -114,7 +114,7 @@ test('the JIRA In Progress claim assigns and verifies the authenticated acli use
     }
 });
 
-test('an already In Progress JIRA issue is still assigned to the authenticated acli user', function (): void {
+test('an already In Progress JIRA issue owned by the authenticated user is an idempotent no-op', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
     file_put_contents($fixture['state'], 'In Progress');
@@ -134,9 +134,36 @@ test('an already In Progress JIRA issue is still assigned to the authenticated a
         $process->run();
 
         expect($process->getExitCode())->toBe(0)
-            ->and(file_get_contents($fixture['assigned']))->toBe('@me')
+            ->and(file_get_contents($fixture['assigned']))->toBe('')
             ->and($process->getErrorOutput())->toContain('action=noop')
             ->and($process->getErrorOutput())->toContain('assignee=@me');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('an already In Progress JIRA issue not owned by the authenticated user is not stolen', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'In Progress');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '0',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['assigned']))->toBe('')
+            ->and($process->getErrorOutput())->toContain('claimed by another run');
     } finally {
         removeJiraClaimFixture($fixture);
     }
