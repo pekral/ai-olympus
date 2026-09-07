@@ -41,6 +41,13 @@ fi
 exit 1
 BASH;
 
+function jiraClaimSystemPath(): string
+{
+    $systemPath = getenv('PATH');
+
+    return $systemPath === false ? '/usr/bin:/bin' : $systemPath;
+}
+
 /**
  * @return array{assigned: string, bin: string, directory: string, state: string}
  */
@@ -83,7 +90,7 @@ function removeJiraClaimFixture(array $fixture): void
 test('the JIRA In Progress claim assigns and verifies the authenticated acli user', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraClaimSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
         'TEAM-42',
@@ -111,7 +118,7 @@ test('an already In Progress JIRA issue is still assigned to the authenticated a
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
     file_put_contents($fixture['state'], 'In Progress');
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraClaimSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
         'TEAM-42',
@@ -138,7 +145,7 @@ test('an already In Progress JIRA issue is still assigned to the authenticated a
 test('the JIRA claim accepts the Czech Rozpracováno status without extra configuration', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraClaimSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
         'TEAM-42',
@@ -165,7 +172,7 @@ test('the JIRA claim accepts the Czech Rozpracováno status without extra config
 test('the JIRA In Progress claim stops when current-user assignment cannot be verified', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraClaimSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
         'TEAM-42',
