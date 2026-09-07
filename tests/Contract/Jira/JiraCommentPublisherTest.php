@@ -38,6 +38,161 @@ fi
 exit 1
 BASH;
 
+const JIRA_COMMENT_EXPECTED_ADF = <<<'JSON'
+{
+    "version": 1,
+    "type": "doc",
+    "content": [
+        {
+            "type": "heading",
+            "attrs": {
+                "level": 2
+            },
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What changed"
+                }
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Problem:",
+                    "marks": [
+                        {
+                            "type": "strong"
+                        }
+                    ]
+                },
+                {
+                    "type": "text",
+                    "text": " Jira displayed "
+                },
+                {
+                    "type": "text",
+                    "text": "h2.",
+                    "marks": [
+                        {
+                            "type": "code"
+                        }
+                    ]
+                },
+                {
+                    "type": "text",
+                    "text": " as plain text."
+                }
+            ]
+        },
+        {
+            "type": "bulletList",
+            "content": [
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "The "
+                                },
+                                {
+                                    "type": "text",
+                                    "text": "pull request",
+                                    "marks": [
+                                        {
+                                            "type": "link",
+                                            "attrs": {
+                                                "href": "https://github.com/pekral/ai-olympus/pull/117"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "text",
+                                    "text": " fixes "
+                                },
+                                {
+                                    "type": "text",
+                                    "text": "formatting",
+                                    "marks": [
+                                        {
+                                            "type": "em"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "text",
+                                    "text": "."
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "orderedList",
+            "content": [
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Verify the comment."
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "blockquote",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "The comment must render."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "codeBlock",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "echo 'formatted';"
+                }
+            ],
+            "attrs": {
+                "language": "php"
+            }
+        },
+        {
+            "type": "rule"
+        }
+    ]
+}
+JSON;
+
+function jiraCommentSystemPath(): string
+{
+    $systemPath = getenv('PATH');
+
+    return $systemPath === false ? '/usr/bin:/bin' : $systemPath;
+}
+
 /**
  * @return array{adf: string, bin: string, calls: string, directory: string}
  */
@@ -77,7 +232,7 @@ function removeJiraCommentPublisherFixture(array $fixture): void
 test('JIRA comments are published as rendered ADF instead of literal Wiki Markup', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraCommentSystemPath();
     $body = <<<'WIKI'
 h2. What changed
 
@@ -108,38 +263,14 @@ WIKI;
 
     try {
         $process->run();
-        $adf = json_decode(
-            (string) file_get_contents($fixture['adf']),
-            associative: true,
-            depth: 512,
-            flags: JSON_THROW_ON_ERROR,
-        );
+        $adf = (string) file_get_contents($fixture['adf']);
         $calls = (string) file_get_contents($fixture['calls']);
 
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain('focusedCommentId=10001')
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10001 --body-adf')
-            ->and($adf['version'])->toBe(1)
-            ->and($adf['type'])->toBe('doc')
-            ->and(array_column($adf['content'], 'type'))->toBe([
-                'heading',
-                'paragraph',
-                'bulletList',
-                'orderedList',
-                'blockquote',
-                'codeBlock',
-                'rule',
-            ])
-            ->and($adf['content'][0]['attrs']['level'])->toBe(2)
-            ->and($adf['content'][0]['content'][0]['text'])->toBe('What changed')
-            ->and($adf['content'][1]['content'][0]['marks'][0]['type'])->toBe('strong')
-            ->and($adf['content'][2]['content'][0]['content'][0]['content'][1]['marks'][0]['type'])->toBe('link')
-            ->and($adf['content'][2]['content'][0]['content'][0]['content'][1]['marks'][0]['attrs']['href'])
-            ->toBe('https://github.com/pekral/ai-olympus/pull/117')
-            ->and($adf['content'][4]['content'][0]['content'][0]['text'])->toBe('The comment must render.')
-            ->and($adf['content'][5]['attrs']['language'])->toBe('php')
-            ->and($adf['content'][5]['content'][0]['text'])->toBe('echo \'formatted\';');
+            ->and($adf)->toBe(JIRA_COMMENT_EXPECTED_ADF . "\n");
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
@@ -148,7 +279,7 @@ WIKI;
 test('JIRA ADF publishing fails closed when create omits the new comment ID', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraCommentSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
         'TEAM-42',
@@ -177,7 +308,7 @@ test('JIRA ADF publishing fails closed when create omits the new comment ID', fu
 test('JIRA publication fails when the newly created comment cannot receive ADF', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
-    $systemPath = getenv('PATH') ?: '/usr/bin:/bin';
+    $systemPath = jiraCommentSystemPath();
     $process = new Process([
         $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
         'TEAM-42',
