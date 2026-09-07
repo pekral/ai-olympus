@@ -33,7 +33,8 @@
 #   1. Normalise the KEY.
 #   2. Validate the requested target against the progress-name guard.
 #   3. Read the current status via load-issue.sh. If already in the target
-#      status, skip the transition.
+#      status, continue only when currentUser() already owns it; otherwise abort
+#      instead of stealing another run's claim.
 #   4. If already in a status that is lexically past In Progress (contains
 #      "review", "done", "closed", "resolved", "cancelled"), treat it as
 #      claimed-by-another-run and exit 4 (caller should abort).
@@ -128,22 +129,36 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 assign_to_current_user() {
-  local assignment_error assignment_json
+  local assignment_error assignment_status
 
   if ! assignment_error="$(acli jira workitem assign --key "$KEY" --assignee "@me" --yes --json 2>&1 >/dev/null)"; then
     echo "transition-to-in-progress.sh: could not assign $KEY to the current acli user: $assignment_error" >&2
     return 3
   fi
 
-  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields key --limit 1 --json 2>/dev/null)"; then
+  if current_user_owns_issue; then
+    return 0
+  else
+    assignment_status=$?
+  fi
+
+  if [[ "$assignment_status" -eq 3 ]]; then
     echo "transition-to-in-progress.sh: could not verify the current acli user assignment for $KEY" >&2
     return 3
   fi
 
-  if ! printf '%s' "$assignment_json" | jq -e --arg key "$KEY" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null; then
-    echo "transition-to-in-progress.sh: acli reported success but $KEY is not assigned to currentUser()" >&2
+  echo "transition-to-in-progress.sh: acli reported success but $KEY is not assigned to currentUser()" >&2
+  return 3
+}
+
+current_user_owns_issue() {
+  local assignment_json
+
+  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields key --limit 1 --json 2>/dev/null)"; then
     return 3
   fi
+
+  printf '%s' "$assignment_json" | jq -e --arg key "$KEY" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null
 }
 
 # Read current status for the idempotence check and past-In-Progress guard.
@@ -161,10 +176,21 @@ fi
 
 # Idempotent no-op: already in the target status.
 if [[ -n "$CURRENT_STATUS" && "$(printf '%s' "$CURRENT_STATUS" | tr '[:upper:]' '[:lower:]')" == "$target_lower" ]]; then
-  assign_to_current_user
-  echo "https://${SITE:-}/browse/${KEY}"
-  echo "action=noop status=${CURRENT_STATUS} assignee=@me (already in progress)" >&2
-  exit 0
+  if current_user_owns_issue; then
+    echo "https://${SITE:-}/browse/${KEY}"
+    echo "action=noop status=${CURRENT_STATUS} assignee=@me (already in progress)" >&2
+    exit 0
+  else
+    ownership_status=$?
+  fi
+
+  if [[ "$ownership_status" -eq 3 ]]; then
+    echo "transition-to-in-progress.sh: could not verify who owns the existing claim on $KEY" >&2
+    exit 3
+  fi
+
+  echo "transition-to-in-progress.sh: $KEY is already in '${CURRENT_STATUS}' and is not assigned to currentUser() — claimed by another run; abort." >&2
+  exit 4
 fi
 
 # Past-In-Progress guard: if the issue is already in a review/done/closed status,
