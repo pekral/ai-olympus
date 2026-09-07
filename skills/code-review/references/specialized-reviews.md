@@ -181,6 +181,7 @@ Criterion: the skill produces or advances the very artifact under review, rather
 
 - `resolve-issue` — the implementation phase that produced the diff under review.
 - `process-code-review` — drives the convergence loop this review feeds, and promotes the pull request out of Draft.
+- `prepare-issue-for-merge` — drives the issue and pull request to a merge-ready state without merging it.
 - `pr-summary` — publishes the run's non-technical tracker summary.
 - `merge-github-pr` — merges the pull request after the review converges.
 
