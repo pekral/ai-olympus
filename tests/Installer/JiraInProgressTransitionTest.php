@@ -51,7 +51,7 @@ function createJiraClaimFixture(): array
     $state = $directory . '/state';
     $assigned = $directory . '/assigned';
 
-    mkdir($bin, 0o700, true);
+    mkdir($bin, 0o700, recursive: true);
     file_put_contents($state, 'To Do');
     file_put_contents($assigned, '');
     file_put_contents($bin . '/acli', JIRA_CLAIM_ACLI_SCRIPT);
