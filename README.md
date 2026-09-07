@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 54 reusable skills, and five specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 55 reusable skills, and five specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 > [!WARNING]
 > Experimental. Updates can change agent behaviour. The example below follows `dev-master`; review the [changelog](CHANGELOG.md) and proposed changes before upgrading or merging.
@@ -63,7 +63,7 @@ The Markdown files in `.codex/rules` are an instruction library, **not native Co
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **54 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **55 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 
 ## Installation Details
 
@@ -84,7 +84,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 54 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
+That loads all 55 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
 
 ```text
 /ai-olympus:install-rules
@@ -159,7 +159,7 @@ Exercises changed behaviour on a local running application: APIs over HTTP and U
 
 **`daedalus` — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request security analysis before implementation. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request security analysis before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
 **Orchestrates:** `hephaestus`, `athena`, `argus`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
@@ -183,7 +183,7 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 
 **`hermes` — release announcer & reporter** · read-only
 
-Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. It uses the shared brief and validation handoff. This reporting role is separate from `athena` publishing the code review. It does not change implementation code.
+Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. For merge preparation, it publishes one verified source-issue TL;DR and removes only superseded comments owned by the authenticated actor while preserving current review evidence. This reporting role is separate from `athena` publishing the code review. It does not change implementation code.
 
 **Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
@@ -202,13 +202,25 @@ After the [Quickstart](#quickstart), choose a specialist when you do not need th
 
 In Codex, ask it to use the corresponding agent by name, as in the `daedalus` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
+To prepare an existing GitHub issue's PR for merge without merging it, use the shared workflow:
+
+```text
+# Claude Code
+/prepare-issue-for-merge https://github.com/owner/repository/issues/123
+
+# Codex
+$prepare-issue-for-merge https://github.com/owner/repository/issues/123
+```
+
+The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when the effective diff is content-identical, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
+
 Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default.
 
 Role boundaries, handoffs, savings mode, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
 ## Skill Catalog
 
-All 54 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
+All 55 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
 
 ### Issue → PR workflow
 
@@ -216,6 +228,7 @@ All 54 skills, grouped by what you reach for them for. Each description is the s
 |-------|----------------|
 | [`resolve-issue`](skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
 | [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
+| [`prepare-issue-for-merge`](skills/prepare-issue-for-merge/) | Bringing one GitHub issue or pull request to merge-ready state without merging, then safely consolidating preparation comments |
 | [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
