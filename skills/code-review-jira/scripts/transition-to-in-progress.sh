@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# transition-to-in-progress.sh — move a JIRA issue to the project's In Progress
-# status at the start of work (the "claim" transition).
+# transition-to-in-progress.sh — claim a JIRA issue for the authenticated acli
+# user and move it to the project's In Progress status before work starts.
 #
 # Status transitions are otherwise human-only (rules/jira/general.md). This
-# script is the second sanctioned exception: it can ONLY land an issue in an
+# script is one of three sanctioned exceptions: it can ONLY land an issue in an
 # In Progress (start-of-work) status. It structurally refuses any other target
 # (Done, Closed, Review, …) so an AI agent cannot use it to push work through
 # the board in unintended directions.
@@ -24,19 +24,22 @@
 #            hardcoded.
 #
 # Progress-name guard:
-#   The target is accepted only when it case-insensitively contains "progress" OR
-#   is listed in $JIRA_IN_PROGRESS_SYNONYMS (comma-separated). Anything else is
+#   The target is accepted only when it case-insensitively contains "progress",
+#   equals the built-in Czech name "Rozpracováno" (diacritics optional), OR is
+#   listed in $JIRA_IN_PROGRESS_SYNONYMS (comma-separated). Anything else is
 #   refused with exit 1 and the issue is left untouched.
 #
 # Behavior:
 #   1. Normalise the KEY.
 #   2. Validate the requested target against the progress-name guard.
 #   3. Read the current status via load-issue.sh. If already in the target
-#      status, no-op (idempotent) and exit 0.
+#      status, skip the transition.
 #   4. If already in a status that is lexically past In Progress (contains
 #      "review", "done", "closed", "resolved", "cancelled"), treat it as
 #      claimed-by-another-run and exit 4 (caller should abort).
 #   5. Run `acli jira workitem transition --key <KEY> --status <target> --yes`.
+#   6. Run `acli jira workitem assign --key <KEY> --assignee "@me" --yes` and
+#      verify it with JQL `key = <KEY> AND assignee = currentUser()`.
 #
 # acli cannot list a project's available transitions (see load-issue.sh "Known
 # limitations"). When the transition fails because the target status does not
@@ -48,12 +51,13 @@
 #
 # Output:
 #   The issue URL on stdout. `action=transitioned|noop` plus the resolved status
-#   on stderr.
+#   and `assignee=@me` on stderr.
 #
 # Exit codes:
 #   1  usage / argument error, or refused target (not a progress status)
 #   2  missing required tool (acli, jq)
-#   3  JIRA API call failed (read or transition, for reasons other than 4/5)
+#   3  JIRA API call failed (read, transition, assignment, or verification;
+#      transition failures classified as 4/5 retain those exit codes)
 #   4  issue is already past In Progress — treat as claimed-by-another, abort
 #   5  target status not available in this project — discover via MCP / ask
 set -euo pipefail
@@ -103,7 +107,7 @@ fi
 # project whose in-progress column has no "progress" in its name.
 target_lower="$(printf '%s' "$TARGET" | tr '[:upper:]' '[:lower:]')"
 is_progress=false
-if [[ "$target_lower" == *progress* ]]; then
+if [[ "$target_lower" == *progress* || "$target_lower" == "rozpracováno" || "$target_lower" == "rozpracovano" ]]; then
   is_progress=true
 elif [[ -n "${JIRA_IN_PROGRESS_SYNONYMS:-}" ]]; then
   IFS=',' read -ra SYNONYMS <<<"$JIRA_IN_PROGRESS_SYNONYMS"
@@ -123,6 +127,25 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+assign_to_current_user() {
+  local assignment_error assignment_json
+
+  if ! assignment_error="$(acli jira workitem assign --key "$KEY" --assignee "@me" --yes --json 2>&1 >/dev/null)"; then
+    echo "transition-to-in-progress.sh: could not assign $KEY to the current acli user: $assignment_error" >&2
+    return 3
+  fi
+
+  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields key --limit 1 --json 2>/dev/null)"; then
+    echo "transition-to-in-progress.sh: could not verify the current acli user assignment for $KEY" >&2
+    return 3
+  fi
+
+  if ! printf '%s' "$assignment_json" | jq -e --arg key "$KEY" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null; then
+    echo "transition-to-in-progress.sh: acli reported success but $KEY is not assigned to currentUser()" >&2
+    return 3
+  fi
+}
+
 # Read current status for the idempotence check and past-In-Progress guard.
 if ! ISSUE_JSON="$("$SCRIPT_DIR/load-issue.sh" "$KEY")"; then
   echo "transition-to-in-progress.sh: failed to read current status of $KEY" >&2
@@ -138,8 +161,9 @@ fi
 
 # Idempotent no-op: already in the target status.
 if [[ -n "$CURRENT_STATUS" && "$(printf '%s' "$CURRENT_STATUS" | tr '[:upper:]' '[:lower:]')" == "$target_lower" ]]; then
+  assign_to_current_user
   echo "https://${SITE:-}/browse/${KEY}"
-  echo "action=noop status=${CURRENT_STATUS} (already in progress)" >&2
+  echo "action=noop status=${CURRENT_STATUS} assignee=@me (already in progress)" >&2
   exit 0
 fi
 
@@ -172,8 +196,9 @@ TRANSITION_ERR="$(acli jira workitem transition --key "$KEY" --status "$TARGET" 
 if [[ "$TRANSITION_OK" == true ]]; then
   NEW_STATUS="$("$SCRIPT_DIR/load-issue.sh" "$KEY" 2>/dev/null | jq -r '.status // empty')"
   if [[ "$(printf '%s' "$NEW_STATUS" | tr '[:upper:]' '[:lower:]')" == "$target_lower" ]]; then
+    assign_to_current_user
     echo "https://${SITE:-}/browse/${KEY}"
-    echo "action=transitioned from=${CURRENT_STATUS:-?} to=${NEW_STATUS}" >&2
+    echo "action=transitioned from=${CURRENT_STATUS:-?} to=${NEW_STATUS} assignee=@me" >&2
     exit 0
   fi
   echo "transition-to-in-progress.sh: acli reported success but $KEY is still '${NEW_STATUS:-?}', not '$TARGET' (likely a looped transition or a name mismatch)." >&2

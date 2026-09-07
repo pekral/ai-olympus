@@ -1344,6 +1344,9 @@ test('the ready-to-merge phase names its owner, its revert, and the no-source-is
     // The JIRA rule states the trigger for the same phase-3 write, so it cites the one definition
     // instead of restating the withdrawn one beside it.
     $jira = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+    expect($jira)->toContain('acli jira workitem assign --key <KEY> --assignee "@me" --yes');
+    expect($jira)->toContain('assignee = currentUser()');
+    expect($jira)->toContain('blocks implementation');
     expect($jira)->not->toContain('zero Critical and zero Moderate');
     expect($jira)->toContain('`@skills/process-code-review/SKILL.md` *Review loop* step 4');
 });

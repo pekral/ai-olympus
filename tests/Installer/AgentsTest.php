@@ -127,6 +127,9 @@ test('hephaestus grants the two tracker phase writes its consent-table rows assi
     expect($boundary)->toContain('gh issue edit --add-label "Resolve_by_AI:in-progress"');
     expect($boundary)->toContain('gh label create "ready for review"');
     expect($boundary)->toContain('gh issue edit --add-label "ready for review"');
+    expect($orchestration)->toContain('Assign a JIRA issue to the account currently authenticated in `acli`');
+    expect($boundary)->toContain('--assignee "@me"');
+    expect($boundary)->toContain('assignee = currentUser()');
 
     // Named as an exception to the wrapper rule, mirroring how daedalus names its own `gh label`
     // surface — an unqualified ban next to a mandated write is what left the two disagreeing.
@@ -135,6 +138,7 @@ test('hephaestus grants the two tracker phase writes its consent-table rows assi
 
     // The phase-2 write is externally visible, so it also owes its own audit line.
     expect($boundary)->toContain('writing the review-waiting phase signal on the source issue once the PR is open');
+    expect($boundary)->toContain('assigning the JIRA issue to the current `acli` user during that phase-1 claim');
 });
 
 test('athena grants the phase-3 ready-to-merge write its consent-table row assigns it (issue #194)', function (): void {
@@ -286,6 +290,16 @@ test('daedalus repairs an unmet code-review merge gate instead of escalating it'
     // The repair never becomes a licence to merge unreviewed, and a non-converging loop still escalates.
     expect($daedalus)->toContain('never a reason to merge without one');
     expect($daedalus)->toContain('Escalate to the user only when the repair loop itself cannot converge');
+});
+
+test('daedalus requires a verified JIRA self-assignment before implementation', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    expect($daedalus)->toContain('For a JIRA source');
+    expect($daedalus)->toContain('transition-to-in-progress.sh');
+    expect($daedalus)->toContain('assign it to the current `acli` user');
+    expect($daedalus)->toContain('a failed claim or self-assignment blocks the implementation');
 });
 
 test('agents directory ships the athena security-CR subagent with required frontmatter', function (): void {
