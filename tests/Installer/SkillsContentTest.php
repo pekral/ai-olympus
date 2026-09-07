@@ -615,7 +615,7 @@ test('transition-to-code-review refuses non-review targets and re-verifies the l
     expect($content)->toContain('exit 5');
 });
 
-test('transition-to-in-progress refuses non-progress targets, is idempotent, and catches false positives (issue #704)', function (): void {
+test('transition-to-in-progress claims the current acli user and catches false positives (issue #704)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh');
 
@@ -628,6 +628,10 @@ test('transition-to-in-progress refuses non-progress targets, is idempotent, and
     expect($content)->toContain('past In Progress');
     // Post-transition re-read so an acli false-positive "looped transition" is caught.
     expect($content)->toContain('acli jira workitem transition --key "$KEY" --status "$TARGET" --yes');
+    // The authenticated acli account owns the issue before implementation begins.
+    expect($content)->toContain('acli jira workitem assign --key "$KEY" --assignee "@me" --yes --json');
+    expect($content)->toContain('assignee = currentUser()');
+    expect($content)->toContain('not assigned to currentUser()');
     expect($content)->toContain('exit 5');
 });
 
@@ -644,6 +648,9 @@ test('resolve-issue claims the GitHub issue before implementation and releases o
     expect($content)->toContain('re-read and verify');
     // JIRA claim via the new helper.
     expect($content)->toContain('skills/code-review-jira/scripts/transition-to-in-progress.sh');
+    expect($content)->toContain('--assignee "@me"');
+    expect($content)->toContain('assignee = currentUser()');
+    expect($content)->toContain('failed or unverified self-assignment');
     // Release on Blocked/abort before PR.
     expect($content)->toContain('Release on Blocked');
     expect($content)->toContain('--remove-label');
