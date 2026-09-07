@@ -217,7 +217,9 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     expect($rule)->toContain('`{code:php} ... {code}`');
     expect($rule)->toContain('`[label|https://example.com]`');
     expect($rule)->toContain('valid ADF only');
-    expect($rule)->toContain('comment update --body-adf');
+    $adfPublicationRule = 'The final `acli` write must use `comment update --body-adf`; a successful plain-text create is not publication success.';
+    expect($rule)->toContain($adfPublicationRule);
+    expect(substr_count($rule, $adfPublicationRule))->toBe(1);
 
     expect($skill)->toContain('Delegate the JIRA comment to `@skills/pr-summary/SKILL.md`');
     expect($skill)->toContain('@skills/pr-summary/templates/pr-summary-jira.md');

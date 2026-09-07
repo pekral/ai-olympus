@@ -26,7 +26,6 @@ crContractText(skills/code-review-jira/SKILL.md) :: #### Linked GitHub issues (c
 crContractText(skills/code-review-jira/SKILL.md) :: @skills/pr-summary/SKILL.md
 crContractText(skills/code-review-jira/SKILL.md) :: @skills/pr-summary/templates/pr-summary-jira.md
 crContractText(skills/code-review-jira/SKILL.md) :: The non-technical tracker comment never includes this section
-crContractText(skills/code-review-jira/SKILL.md) :: no leaked Markdown
 crContractText(skills/code-review-jira/SKILL.md) :: skills/code-review-github/scripts/upsert-comment.sh
 crContractText(skills/code-review-jira/templates/github-output.md) :: ## Architecture
 crContractText(skills/code-review-jira/templates/github-output.md) :: only when the walk produces at least one finding
@@ -59,7 +58,6 @@ skills/code-review/SKILL.md :: Incremental Review Scope — Diff Since the Last 
 skills/code-review/SKILL.md :: Truthful reporting (issue #74)
 skills/code-review/templates/review-output.md :: ## Architecture
 skills/code-review/templates/review-output.md :: only when the walk produces at least one finding
-skills/pr-summary/SKILL.md :: No leaked markup on JIRA
 skills/pr-summary/templates/pr-summary-github.md :: {embedded_blocks}
 skills/pr-summary/templates/pr-summary-jira.md :: {embedded_blocks}
 skills/process-code-review/SKILL.md :: `references/review-loop-scope.md`
