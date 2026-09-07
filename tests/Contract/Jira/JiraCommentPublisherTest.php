@@ -134,7 +134,7 @@ WIKI;
             ->toBe('https://github.com/pekral/ai-olympus/pull/117')
             ->and($adf['content'][4]['content'][0]['content'][0]['text'])->toBe('The comment must render.')
             ->and($adf['content'][5]['attrs']['language'])->toBe('php')
-            ->and($adf['content'][5]['content'][0]['text'])->toBe("echo 'formatted';");
+            ->and($adf['content'][5]['content'][0]['text'])->toBe('echo \'formatted\';');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
