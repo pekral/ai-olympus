@@ -106,14 +106,142 @@ test('the install-rules command copies what the plugin channel cannot load by it
     expect($command)->toContain('writes no `.claude/settings.local.json` entry');
 });
 
-test('the legacy finalize-tasks command remains a thin alias', function (): void {
+test(
+    'the finalize-tasks command pins its argument, its consolidation contract, its additive guard and its per-tracker wrapper routing',
+    function (): void {
+        $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
+
+        // The tracker link is the one input the command cannot work without, and Claude Code passes it
+        // only through `$ARGUMENTS`. A rewrite that drops the placeholder still reads like a working
+        // command while silently discarding the link the caller typed.
+        expect($command)->toContain('argument-hint: [issue or PR link(s)]');
+        expect($command)->toContain('$ARGUMENTS');
+        expect($command)->toContain('stop and ask me for it');
+
+        // The consolidation is the command's whole reason to exist: ONE comment carrying the TLDR, the
+        // acceptance-criteria status and the merge-vs-review recommendation. An edit that drops any of
+        // the four changes what the command delivers, and nothing else in the suite reads this file.
+        expect($command)->toContain('into a **single** new tracker comment');
+        expect($command)->toContain('states the assignment as a TLDR');
+        expect($command)->toContain('status of the acceptance criteria');
+        expect($command)->toContain('whether a direct merge is recommended or a');
+
+        // The consolidation is additive because no agent in the roster can be anything else: every
+        // comment wrapper the package ships posts and never patches, and there is no delete wrapper at
+        // all. A rewrite that reintroduces an edit or a delete mandates a write nobody can perform, and
+        // a deleted comment is not a failure a later run can undo.
+        expect($command)->toContain('The consolidation posts one new comment.');
+        expect($command)->toContain('Never edit and never delete a comment written by anybody');
+        expect($command)->toContain('never edit or delete one of your own either');
+        expect($command)->toContain('posts a comment and never patches one');
+        expect($command)->toContain('Do not compose a raw `gh` or `acli` write to work around that');
+
+        // The package ships one comment wrapper per tracker, and the command supports JIRA explicitly.
+        // Naming only the GitHub wrapper leaves the publish unperformable on a JIRA task, because the
+        // sentence above closes the raw-CLI escape at the same time.
+        expect($command)->toContain('Publish through the wrapper for the task\'s own tracker');
+        expect($command)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
+        expect($command)->toContain('skills/code-review-jira/scripts/upsert-comment.sh');
+        expect($command)->toContain('skills/code-review-bugsnag/scripts/upsert-comment.sh');
+        expect($command)->toContain('skills/resolve-issue/references/source-detection.md');
+
+        // The publish routes through the roster's only publishing agent, which is what keeps the
+        // command inside the consent inventory it now carries a row in.
+        expect($command)->toContain('`daedalus` does not publish the comment itself');
+        expect($command)->toContain('`hermes`, the roster\'s only');
+
+        // The account resolution selects which comments the summary speaks for; it authorises nothing.
+        // JIRA hands back a display name where GitHub hands back a login, so the guard fails safe.
+        expect($command)->toContain('gh api user --jq .login');
+        expect($command)->toContain('acli jira auth status');
+        expect($command)->toContain('it authorises no write on any of them');
+        expect($command)->toContain('corroboration and never proof');
+
+        // The review the command drives publishes under the very login the selection resolves, so
+        // the run's own review and `cr-status` comments leave the set before the account is
+        // matched. Without that, the summary reports the run's own machine output as the user's
+        // own notes about the code review.
+        expect($command)->toContain('those first, then match the account');
+        expect($command)->toContain('cr-status:actor=');
+
+        // The GitHub marker catches every comment the run posts, but the JIRA and Bugsnag wrappers
+        // append none, so the shape list there has to name all three shapes the run leaves behind:
+        // the technical review, the non-technical `pr-summary` comment `process-code-review`
+        // publishes through `code-review-jira`, and this command's own consolidated comment from an
+        // earlier run. A list that stops at the technical review lets the other two through the
+        // filter and reports the run's own generated summary back as the user's note.
+        expect($command)->toContain('headed `What changed` / `How to test`');
+        expect($command)->toContain('a consolidated comment an earlier run of this command left behind');
+        expect($command)->toContain('A comment dropped by mistake is still quoted from the thread it sits in');
+
+        // The file reads every comment on a tracker task, so it names the boundary that keeps an
+        // imperative sentence inside one of them from reading as an instruction to the agent.
+        expect($command)->toContain('rules/security/general.md');
+        expect($command)->toContain('untrusted data');
+
+        // The template ships the shape the assignment asked for — the three headings and the
+        // plain-text layout — filled with placeholders instead of a past run's real facts. The real
+        // account name is deliberately NOT asserted here: pinning it would put the identifier this
+        // template was anonymised to remove back into the repository.
+        expect($command)->toContain('HOW TO TEST');
+        expect($command)->toContain('OPEN QUESTION');
+        expect($command)->toContain('ASSIGNMENT COMPLIANCE');
+        expect($command)->toContain('never ship a placeholder in a published comment');
+        expect($command)->toContain('<the account or data set the test needs>');
+        expect($command)->toContain('<acceptance criterion>: still missing.');
+
+        // An externally-visible action gets its row in the consent inventory in the same change that
+        // introduces it, so the publish this command asks for must be listed there with a level.
+        $inventory = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/orchestration.md');
+        expect($inventory)->toContain('when `/finalize-tasks` runs | L2 |');
+    },
+);
+
+test('the finalize-tasks command pins the merge-ready loop it drives and the merge it never performs', function (): void {
     $command = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/finalize-tasks.md');
 
-    expect($command)->toContain('Compatibility alias');
-    expect($command)->toContain('/prepare-issue-for-merge $ARGUMENTS');
-    expect($command)->toContain('@skills/prepare-issue-for-merge/SKILL.md');
-    expect($command)->toContain('never merges the pull request');
-    expect($command)->not->toContain('The consolidation is additive');
+    // The deliverable is the task's pull request brought to a merge-ready state, not the tracker
+    // item in the abstract. A rewrite that drops the pull request from the sentence leaves the
+    // command asking for something none of its steps produces.
+    expect($command)->toContain('description: Drive the pull requests of the tracker tasks');
+    expect($command)->toContain('Prepare for merge the pull requests of the issue-tracker tasks');
+    expect($command)->toContain('Drive the task\'s pull request to a merge-ready state');
+
+    // The command works the findings instead of reporting them, and the loop that does that work
+    // already exists in one skill. The command cites that skill's convergence gate rather than
+    // carrying a second copy, because a second copy is a second answer to the same question.
+    expect($command)->toContain('Work the code-review findings on that');
+    expect($command)->toContain('`@skills/process-code-review/SKILL.md`');
+    expect($command)->toContain('Read that gate in the skill and never restate it here');
+
+    // `agents/daedalus.md` forbids `daedalus` from invoking `process-code-review` itself, so the
+    // command dispatches the agent that owns it. A rewrite that hands the skill back to `daedalus`
+    // orders a run no agent in the roster may perform.
+    expect($command)->toContain('`daedalus` does not run that loop');
+    expect($command)->toContain('It dispatches `athena`, the roster\'s single code-review agent');
+
+    // The rebase onto the main branch and the dependency install are `process-code-review`'s own
+    // Pull Policy step, not a separate action: `daedalus` holds read-only `git` and no write tool,
+    // so a step that ordered it to rebase would order a run no agent in the roster may perform.
+    expect($command)->toContain('`daedalus` performs neither itself');
+    expect($command)->toContain('switches to the pull request\'s branch and follows');
+    expect($command)->toContain('`composer install` whenever that rebase');
+
+    // The loop is capped at three rounds, so it can end unconverged. A command whose deliverable is
+    // a merge-ready pull request has to say what happens on the branch that produces none.
+    expect($command)->toContain('When that loop ends without converging');
+    expect($command)->toContain('stays a Draft, the skill publishes');
+    expect($command)->toContain('is not merge-ready, only a person decides');
+
+    // A pull request carrying no review yet is that loop's first iteration, because the loop runs
+    // the review itself. Leaving this open would let a run stop on a task it could have driven.
+    expect($command)->toContain('when the pull request carries no review yet');
+    expect($command)->toContain('first iteration and never a reason to');
+
+    // Merge-ready is where the command stops. The consolidated comment's verdict is for a person,
+    // so a command that merged on its own would settle the question it was asked to raise.
+    expect($command)->toContain('## "Prepare for merge" is not "merge"');
+    expect($command)->toContain('and stops there. It never merges the');
 });
 
 test('both installation paths are documented with the difference between them', function (): void {
