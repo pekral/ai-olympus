@@ -1,6 +1,6 @@
 ---
 name: pr-summary
-description: "Use when summarizing current PR changes for the development and product team. Analyzes all commits in the current branch, explains what broke and what the fix changes, and produces a human-readable report that can be posted as a GitHub PR comment (Markdown), a JIRA comment (Wiki Markup), or a Bugsnag comment (plain text)."
+description: "Use when summarizing current PR changes for the development and product team. Analyzes all commits in the current branch, explains what broke and what the fix changes, and produces a human-readable report that can be posted as a GitHub PR comment (Markdown), a JIRA comment (ADF), or a Bugsnag comment (plain text)."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -14,7 +14,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - **`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.
 - **`How to test`** → a scenario a human follows: every step names a concrete input and a must-hold outcome.
 - **A closing line** links the PR and the source issue.
-- Only the markup differs per target: GitHub Markdown, JIRA Wiki Markup, Bugsnag plain text.
+- Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
 - Prose is terse. Business "why" first, enough technical context to locate the change, nothing more.
 - No code snippets, file paths, line numbers, diff fragments.
 - Length follows the facts the report carries. There is no word budget.
@@ -31,7 +31,7 @@ Each line states what the rule actually decides here, so its relevance is clear 
 - Apply @rules/php/core-standards.md — the package-wide prose and code standards every skill is held to.
 - Apply @rules/git/general.md — how the base branch is resolved and what the commit history this skill reads is expected to look like.
 - Apply @rules/writing/general.md — the sentence shape of every line this skill authors, and the rule that decides how long the report is: one idea per sentence, active voice, one term per concept, no marketing register.
-- Apply @rules/jira/general.md when the target is a JIRA issue — the Markdown → Wiki Markup mapping and the ban on leaked Markdown control characters, both applied in *No leaked markup on JIRA* below.
+- Apply @rules/jira/general.md when the target is a JIRA issue. The template uses a constrained Wiki Markup source format. The canonical helper converts that source to ADF and publishes it through `--body-adf`.
 - Apply @rules/reports/general.md — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md` — they tell the summary what a change to an Action, a Livewire component, or a Filament resource means in business terms.
 
@@ -45,7 +45,7 @@ The three targets carry the **same** structure. Only the markup and the template
 | `How to test` | yes | yes | yes |
 | `{embedded_blocks}` | conditional — exactly as the wrapper passed them | conditional — same rule | conditional — same rule |
 | Closing links line | yes | yes | yes |
-| Markup | GitHub Markdown | JIRA Wiki Markup only; no Markdown control character may leak | plain text; no markup at all |
+| Markup | GitHub Markdown | ADF at the API boundary; the template's Wiki Markup is intermediate input only | plain text; no markup at all |
 | Template | `templates/pr-summary-github.md` | `templates/pr-summary-jira.md` | `templates/pr-summary-bugsnag.md` |
 
 ### The section names are translated, the concepts are not
@@ -118,7 +118,7 @@ Every sentence this skill authors into the rendered comment — the `What change
 
 ### No leaked markup on JIRA
 
-When the target is JIRA, the rendered body must contain **only** JIRA Wiki Markup — never a Markdown control character that JIRA would show as literal text. Before publishing, scan the body and convert or reject each of these per `@rules/jira/general.md`:
+When the target is JIRA, the template body uses only the helper's supported Wiki Markup subset. It is never sent to JIRA directly. Before publishing, scan the source and convert or reject each leaked Markdown construct per `@rules/jira/general.md`:
 
 | Markdown | JIRA Wiki Markup |
 |---|---|
@@ -139,7 +139,7 @@ Bugsnag renders a comment as plain text, so every markup character reaches the r
 
 When the calling CR wrapper passes extra markdown blocks (the `Clarifying questions` block and/or the `Assignment Compliance` block returned by `@skills/assignment-compliance-check/SKILL.md`), append them **verbatim** after `How to test` and **before** the closing links line.
 
-- Each embedded block must already be in the target tracker's markup (GitHub Markdown for GitHub, JIRA Wiki Markup for JIRA, plain text for Bugsnag — the wrapper converts before passing).
+- Each embedded block must already use the target tracker's source format (GitHub Markdown for GitHub, the supported intermediate Wiki Markup subset for JIRA, plain text for Bugsnag).
 - The resulting comment is published once per linked tracker target — that single consolidated comment is the only non-technical artifact a CR run posts on each linked issue, JIRA ticket, or Bugsnag error.
 - When no embedded blocks are passed, the template renders without that slot exactly as before. This is the shape of a non-CR invocation (for example `hermes` in post-convergence reporting mode), never of a clean CR result.
 - This slot is how the assignment verdict reaches the reader, and on a CR run it carries that verdict on **every** run with a linked tracker — the affirmative one included. Silence is no longer the clean signal: a tracker comment in which "every criterion is met" and "nobody checked" look identical is the defect `@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases* removes. This skill authors no verdict, no banner, and no "satisfies the assignment" sentence of its own — it renders the passed block verbatim, and the block is the verdict.
@@ -164,7 +164,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 ### Decide the target (5)
 
 5. Detect the **target tracker** for the comment by following the table in `@skills/resolve-issue/references/source-detection.md` (branch name / PR description / linked issue trail):
-   - **JIRA** — the branch or PR description matches a JIRA issue-key regex (e.g. `^[A-Z][A-Z0-9_]+-\d+$`), or the JIRA loader from step 4 returns a non-empty document. Use `templates/pr-summary-jira.md` (JIRA Wiki Markup).
+   - **JIRA** — the branch or PR description matches a JIRA issue-key regex (e.g. `^[A-Z][A-Z0-9_]+-\d+$`), or the JIRA loader from step 4 returns a non-empty document. Use `templates/pr-summary-jira.md` as intermediate source for the ADF publisher.
    - **Bugsnag** — the caller named a Bugsnag error URL or `organization/project/error` triple, or the Bugsnag loader from step 4 returns a non-empty document. Use `templates/pr-summary-bugsnag.md` (plain text).
    - **GitHub** — otherwise, or when the user explicitly asks for a PR comment. Use `templates/pr-summary-github.md` (GitHub Markdown).
    - If several signals match (a cross-tracker PR), prefer the tracker named in the user's invocation. Absent that, prefer the tracker the assignment itself came from, so the reporter reads the answer where they asked the question.
@@ -180,7 +180,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 ## Output format
 
 - **GitHub PR comments** — `templates/pr-summary-github.md`, in GitHub Markdown.
-- **JIRA issue comments** — `templates/pr-summary-jira.md`, in JIRA Wiki Markup. Do **not** translate the Wiki Markup back to Markdown when posting via `acli` / JIRA MCP server — the JIRA UI does not render Markdown, and no raw Markdown control character may leak into the body.
+- **JIRA issue comments** — `templates/pr-summary-jira.md`, converted to ADF by the JIRA helper. Never pass the intermediate Wiki Markup directly to `acli` or the JIRA MCP server.
 - **Bugsnag error comments** — `templates/pr-summary-bugsnag.md`, in plain text.
 
 All three carry the same two sections and the same closing line; they differ only in markup.
@@ -192,7 +192,7 @@ All three carry the same two sections and the same closing line; they differ onl
 Post the summary as a comment to the related PR or issue if available, using the template that matches the target tracker. Publish through the shared helpers so each tracker receives its tracker-native markup — never via raw `gh issue comment` / `gh pr comment` / `acli jira workitem comment add` calls.
 
 - **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->` for traceability, and **POSTs a fresh comment on every run** (it never PATCHes a prior comment in place). Fall back to the GitHub MCP server's `addIssueComment` only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post; never call `updateIssueComment` to edit a previous CR / pr-summary comment.
-- **JIRA target**: pipe the rendered body into `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`. The helper POSTs a new comment on every run — it never edits a prior comment in place. Fall back to the JIRA MCP server's `addCommentToJiraIssue` only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
+- **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`. The helper converts it to ADF, creates a new comment, and updates only that newly created comment through `--body-adf`. It never edits a comment from a prior run. Fall back to the JIRA MCP server's `addCommentToJiraIssue` only when the helper exits with code 2 (missing tool) or 3 (API failure), passing an ADF document rather than Wiki Markup.
 - **Bugsnag target**: pipe the rendered body into `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -`. The helper POSTs a new comment on every run. Fall back to the Bugsnag MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
 - Pre-existing comments published before these conventions were introduced are left untouched.
 - Log the action (`created`) plus the resulting comment URL in the CR wrapper's summary line.
@@ -205,7 +205,7 @@ Post the summary as a comment to the related PR or issue if available, using the
 - Focus on business impact, not technical detail — but keep enough "what" that a developer can locate the change without reading the diff
 - Every sentence carries a fact; the report is as long as its facts and no longer
 - Make the test scenario reproducible by a non-developer tester, with concrete inputs and explicit must-hold outcomes
-- Match the formatting to the target tracker (Markdown for GitHub, Wiki Markup for JIRA, plain text for Bugsnag)
+- Match the formatting to the target tracker (Markdown for GitHub, ADF for JIRA, plain text for Bugsnag)
 
 ## Output Humanization
 - Use [blader/humanizer](https://github.com/blader/humanizer) for all skill outputs to keep the text natural and human-friendly.

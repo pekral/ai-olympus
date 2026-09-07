@@ -102,7 +102,7 @@ This is the **authoritative** review of the change — the one the convergence g
 
 8. **Consolidate and publish one review.** Deduplicate across the wrapper's output — its always-run set plus the authorization lens its conditional set runs — and the three security skills' outputs, and severity-label each finding (severity labels stay verbatim: `Critical`, `Moderate`, `Minor`). A `Critical` finding blocks convergence. There is **one** review comment per run and it carries both lenses; you never wait for, merge in, or annotate anyone else's findings. The tracker wrapper publishes it as part of step 3 — when you publish directly instead (a standalone run whose wrapper produced findings without publishing), route through the **tracker-matching** canonical CR channel:
    - **GitHub** source → `skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> -` (body on stdin)
-   - **JIRA** source → `skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -` (body on stdin)
+   - **JIRA** source → `skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -` (body on stdin in the supported JIRA intermediate source; the helper converts it to ADF and applies it through `--body-adf`)
    - **Bugsnag** source → publish through the Bugsnag CR channel equivalent (per `@skills/code-review-bugsnag/SKILL.md`)
    - **No resolvable source** → findings travel back in the handoff inline; nothing is published.
 

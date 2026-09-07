@@ -11,16 +11,17 @@
 # Inputs:
 #   KEY|URL     Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL,
 #               or any URL containing ?selectedIssue=<KEY>.
-#   BODY_FILE   Path to a file holding the JIRA Wiki Markup body, or `-` to
-#               read from stdin.
+#   BODY_FILE   Path to a file holding the JIRA Wiki Markup source, or `-` to
+#               read from stdin. The helper converts it to ADF before publish.
 #   MARKER_KEY  Optional. Accepted for backward compatibility but ignored —
 #               no anchor marker is appended to the body.
 #
 # Behavior:
 #   1. Detect the site from `acli jira auth status` to build the output URL.
-#   2. Always create a fresh comment (`acli jira workitem comment create`).
-#      No lookup, no update — every CR run adds a new comment so the
-#      chronological sequence of comments is the audit trail.
+#   2. Convert the Wiki Markup source to Atlassian Document Format (ADF).
+#   3. Create a fresh comment and immediately update that same new comment via
+#      `acli jira workitem comment update --body-adf`. The update is required
+#      because `comment create --body-file` stores rich markup as plain text.
 #
 # Output:
 #   The published comment URL on stdout. `action=created` on stderr
@@ -28,7 +29,7 @@
 #
 # Exit codes:
 #   1  usage / argument error
-#   2  missing required tool (acli, jq)
+#   2  missing required tool (acli, jq, php)
 #   3  JIRA API call failed
 set -euo pipefail
 
@@ -52,7 +53,7 @@ INPUT="$1"
 BODY_SRC="$2"
 # $3 (MARKER_KEY) accepted for backward compatibility but not used.
 
-for bin in acli jq; do
+for bin in acli jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     echo "upsert-comment.sh: required tool not found: $bin" >&2
     exit 2
@@ -100,54 +101,42 @@ if [[ -z "$SITE" ]]; then
   exit 3
 fi
 
-# acli reads the comment body from a file (no stdin flag in the current build).
+# Build valid ADF before the external write. The create call has no reliable
+# `--body-adf` flag, so it creates the comment first and the update call applies
+# the ADF payload to that exact new comment ID.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BODY_FILE_TMP="$(mktemp)"
-trap 'rm -f "$BODY_FILE_TMP"' EXIT
+ADF_FILE_TMP="$(mktemp)"
+CREATE_STDERR="$(mktemp)"
+trap 'rm -f "$BODY_FILE_TMP" "$ADF_FILE_TMP" "$CREATE_STDERR"' EXIT
 printf '%s' "$BODY" > "$BODY_FILE_TMP"
 
-# Always post a fresh comment — never look up or edit a prior one. The
-# chronological sequence of comments is the audit trail across CR runs.
-if ! acli jira workitem comment create --key "$KEY" --body-file "$BODY_FILE_TMP" --json >/dev/null 2>&1; then
-  echo "upsert-comment.sh: acli comment create failed on $KEY" >&2
+if ! php "$SCRIPT_DIR/wiki-markup-to-adf.php" < "$BODY_FILE_TMP" > "$ADF_FILE_TMP"; then
+  echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
   exit 3
 fi
 
-# Re-list comments to resolve the new comment id so stdout carries a deep-link
-# URL. The `create --json` shape varies across acli builds, so we find the
-# most recently created comment after the fact.
-list_comments() {
-  local raw
-  raw="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null)" || return 1
-  printf '%s' "$raw" | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null
-}
-
-find_latest_id() {
-  # Note: there is an inherent TOCTOU window between `create` and `list` —
-  # a concurrent comment from another actor could win the "latest" slot and
-  # produce a deep-link URL pointing to their comment instead of ours.
-  # This is a cosmetic accuracy issue only (graceful degradation falls back
-  # to the plain issue URL); it is the accepted trade-off of removing the
-  # anchor marker.
-  printf '%s' "$1" \
-    | jq -r '
-        (.comments // [])
-        | sort_by(.created // "")
-        | last
-        | (.id // empty)
-      ' 2>/dev/null || true
-}
-
-if ! COMMENTS_JSON="$(list_comments)"; then
-  echo "upsert-comment.sh: failed to list comments on $KEY after create — returning issue URL" >&2
-  echo "https://${SITE}/browse/${KEY}"
-  echo "action=created" >&2
-  exit 0
+if ! jq -e '.version == 1 and .type == "doc" and (.content | type == "array")' "$ADF_FILE_TMP" >/dev/null; then
+  echo "upsert-comment.sh: converter produced invalid ADF" >&2
+  exit 3
 fi
 
-NEW_ID="$(find_latest_id "$COMMENTS_JSON")"
-if [[ -n "$NEW_ID" ]]; then
-  echo "https://${SITE}/browse/${KEY}?focusedCommentId=${NEW_ID}"
-else
-  echo "https://${SITE}/browse/${KEY}"
+if ! CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$BODY_FILE_TMP" --json 2>"$CREATE_STDERR")"; then
+  echo "upsert-comment.sh: acli comment create failed on $KEY: $(<"$CREATE_STDERR")" >&2
+  exit 3
 fi
+
+NEW_ID="$(printf '%s' "$CREATE_JSON" | jq -r '(.id // .comment.id // .comments[0].id // empty) | tostring' 2>/dev/null || true)"
+
+if [[ -z "$NEW_ID" ]]; then
+  echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
+  exit 3
+fi
+
+if ! acli jira workitem comment update --key "$KEY" --id "$NEW_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>&1; then
+  echo "upsert-comment.sh: created comment $NEW_ID on $KEY but the ADF update failed" >&2
+  exit 3
+fi
+
+echo "https://${SITE}/browse/${KEY}?focusedCommentId=${NEW_ID}"
 echo "action=created id=${NEW_ID}" >&2
