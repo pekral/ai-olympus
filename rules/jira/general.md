@@ -15,12 +15,13 @@ Reverting exception (3) — a later commit re-opens the review, so the issue mov
 - If no JIRA tool is available, stop and report that JIRA access is not available.
 
 ## Comments Format
-- Always use JIRA Wiki Markup so the JIRA web UI renders the comment as formatted text. Posting Markdown leaves raw `#`, `**`, `[label](url)`, and ``` ``` ``` characters visible in the UI, which is unreadable. Convert before sending via `acli` / JIRA MCP server.
+- Every JIRA comment must reach the API as an Atlassian Document Format (ADF) document. JIRA Cloud stores comments as ADF. `acli comment create --body-file` stores Wiki Markup such as `h2.` and `*bold*` as flat text instead of rendering it.
+- Publish only through `skills/code-review-jira/scripts/upsert-comment.sh`. The helper accepts the Wiki Markup subset below as an intermediate authoring format, converts it to real ADF, creates a fresh comment, and applies the ADF with `acli jira workitem comment update --body-adf <file>`. Never send Wiki Markup directly to `acli` or the JIRA MCP server.
 - Do not use Markdown syntax:
     - no fenced code blocks
     - no `#` headings
     - no markdown tables
-- Wiki markup conversion cheatsheet (apply to every JIRA comment):
+- Intermediate Wiki Markup cheatsheet (the helper converts these constructs to ADF nodes and marks):
     - Heading: `## Heading` → `h2. Heading` (`### Heading` → `h3. Heading`)
     - Bold: `**bold**` → `*bold*`
     - Italic: `*italic*` or `_italic_` → `_italic_`
@@ -30,4 +31,4 @@ Reverting exception (3) — a later commit re-opens the review, so the issue mov
     - Numbered list: `1. item` → `# item`
     - Link: `[label](https://example.com)` → `[label|https://example.com]`
     - Quote: `> text` → `{quote}text{quote}`
-- **Verify before posting — no leaked Markdown.** After converting, scan the final comment body and confirm it contains **zero** Markdown control characters that JIRA would render literally: no `**` / `__` (bold), no leading `#` / `##` / `###` (ATX headings), no `` ` `` / ```` ``` ```` (inline / fenced code), no `- ` / `+ ` bullets, no `[label](url)` links. If any remain, convert them per the cheatsheet above before sending. The reader must never see a raw `**` or `#` in the rendered JIRA comment.
+- **Verify before posting — valid ADF only.** Scan the intermediate source for leaked Markdown. Then require the helper to validate an ADF root with `version: 1`, `type: doc`, and a `content` array before the first external write. The final `acli` write must use `comment update --body-adf`; a successful plain-text create is not publication success.

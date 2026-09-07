@@ -9,7 +9,7 @@ metadata:
 ## Constraints
 - Apply `@rules/php/core-standards.md`
 - Apply `@rules/git/general.md`
-- Apply `@rules/jira/general.md` — JIRA comments must be in Wiki Markup, never Markdown
+- Apply `@rules/jira/general.md` — compose with the supported intermediate source and publish real ADF through the canonical helper
 - Apply `@rules/reports/general.md` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
 - Read-only relative to the codebase. The skill never modifies code; it only publishes a JIRA comment.
 - Never change the JIRA task status — per `@rules/jira/general.md`, status transitions are handled by humans only.
@@ -24,7 +24,7 @@ metadata:
 
 ## Use when
 - A JIRA task plus one or more linked GitHub pull requests need a short, tester-facing QA report.
-- The expected delivery is a single JIRA comment in Wiki Markup posted to the originating task.
+- The expected delivery is a single ADF-formatted JIRA comment posted to the originating task.
 - The dev team needs a clear, concrete list of symptoms the tester should report back if observed; the tester optionally needs a brief click-path to reach the affected area.
 
 ## Inputs
@@ -54,7 +54,7 @@ For each impact identified in step 2, look up the corresponding visible label in
 - **Internal-only changes (no UI footprint)** — surface them in the dev-team report ("ask dev team to confirm X"); do not invent UI steps the tester cannot perform.
 
 ### 4. Compose the comment
-Every comment opens with two metadata lines (in JIRA Wiki Markup), then the body sections. The body skips the first section when it does not add value (for example when the change is verifiable purely from the dev-team report — a notification text change, a label rename in the report).
+Every comment opens with two metadata lines, then the body sections. Compose them in the supported intermediate source format. The canonical helper converts the result to ADF. The body skips the first section when it does not add value (for example when the change is verifiable purely from the dev-team report — a notification text change, a label rename in the report).
 
 **Metadata lines (always at the top of the comment, in this order):**
 
@@ -71,7 +71,7 @@ Every comment opens with two metadata lines (in JIRA Wiki Markup), then the body
 - **Brief steps to reach the result** (optional) — at most a handful of bullets, each one a single click-path line, just enough for the tester to land on the affected screen. No precondition tables, no scenario enumeration, no edge-case matrices. When *Available behind* is set, the **first** bullet must be the click-path that enables the gating switch. Example: *"Open Administration → switches → enable *NovaSMS API version v2* → Campaigns → new SMS campaign → send to test number `+420600000000` → open *Recipient status* on the campaign detail."*
 - **What to report back to the dev team** (required) — concrete visible symptoms the tester should flag if observed, written so the tester only needs to recognise them in the UI. Each bullet is one symptom, framed in plain language: *"contacts stuck in status *Waiting* for over an hour"*, *"credits charged even for contacts marked *Invalid number*"*, *"the SMS arrived but the report shows *Not delivered*"*, *"the *NovaSMS API version* switch is missing from the admin screen"*. Never list error codes, never mention Bugsnag, never reference internal class or queue names.
 
-### 5. Convert to JIRA Wiki Markup
+### 5. Compose the JIRA source for ADF conversion
 - Headings: `h2.`, `h3.` (never `#`).
 - Bullets: `*`. Numbered lists: `#`.
 - Bold: `*bold*`. Italic: `_italic_`.
@@ -87,7 +87,7 @@ Before sending the comment, scan the body for every forbidden token listed in **
 Repeat until the body is clean. **Do not publish a comment that still contains forbidden vocabulary.**
 
 ### 7. Publish the comment
-- Send via `acli` (primary): `acli jira comment <KEY> --noedit --comment="$(cat <report-file>)"`.
+- Send through `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> <report-file>`. The helper converts the source to ADF and applies it through `acli jira workitem comment update --body-adf`.
 - Fall back to the JIRA MCP server only when `acli` is unavailable.
 - Never change the JIRA task status.
 
@@ -96,7 +96,7 @@ Repeat until the body is clean. **Do not publish a comment that still contains f
 - **interactive-testing** (when available in the host environment, not shipped with this package) — interactive browser-driven validation. Different flow: an agent walks through scenarios live in a browser instead of producing written instructions for a human tester.
 
 ## Output
-- A single JIRA comment, in Wiki Markup, posted to the originating task.
+- A single ADF-formatted JIRA comment posted to the originating task.
 - A short chat summary listing the JIRA task URL, whether the *Brief steps* section was included, and the number of dev-team-report bullets.
 
 ## Example

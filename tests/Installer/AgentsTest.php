@@ -464,6 +464,8 @@ test('athena standalone publishing routes to the tracker-matching CR channel, no
     // Standalone mode must route to the tracker-specific publish channel, not always GitHub.
     expect($content)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
     expect($content)->toContain('skills/code-review-jira/scripts/upsert-comment.sh');
+    expect($content)->toContain('supported JIRA intermediate source');
+    expect($content)->toContain('converts it to ADF');
     expect($content)->toContain('@skills/code-review-bugsnag/SKILL.md');
     // Must not hardcode GitHub as the only standalone publish channel.
     expect($content)->not->toContain('a GitHub PR URL is available does it publish directly');

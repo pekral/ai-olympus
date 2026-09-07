@@ -108,28 +108,22 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     // Issue #695: no hidden anchor marker is appended to the JIRA comment body.
     expect($jiraScriptBody)->not->toContain('{anchor:');
     expect($jiraScriptBody)->not->toContain('ACTOR_SLUG');
-    // Issue #569: the helper was written against an acli build that no longer
-    // matches the installed one. Actor/site come from `acli jira auth status`
-    // (no `acli jira me --json`), and comments are posted via the current
-    // `comment create` subcommand (not `add` / `edit` / `update`).
-    // Per user request (always-new convention): the helper no longer looks up
-    // or edits prior comments — every CR run posts a fresh JIRA comment.
+    // Actor/site come from `acli jira auth status`. Every run creates a new
+    // comment, then updates only that new ID with actual ADF. Prior comments
+    // stay immutable, so the chronological audit trail remains intact.
     expect($jiraScriptBody)->toContain('acli jira auth status');
     expect($jiraScriptBody)->not->toContain('acli jira me --json');
-    expect($jiraScriptBody)->not->toContain('acli jira workitem comment update');
     expect($jiraScriptBody)->toContain('acli jira workitem comment create');
+    expect($jiraScriptBody)->toContain('acli jira workitem comment update --key "$KEY" --id "$NEW_ID" --body-adf "$ADF_FILE_TMP"');
+    expect($jiraScriptBody)->toContain('wiki-markup-to-adf.php');
+    expect($jiraScriptBody)->toContain('.version == 1 and .type == "doc"');
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment edit');
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment add');
     expect($jiraScriptBody)->not->toContain('acli jira config get');
-    expect($jiraScriptBody)->toContain('acli jira workitem comment list --key "$KEY" --json --paginate');
-    // The list call now runs after create to resolve the new comment id for the
-    // deep-link URL; the acli exit status is still captured separately so a
-    // failed re-list degrades gracefully (returns the plain issue URL, exit 0).
-    expect($jiraScriptBody)->toContain('raw="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null)" || return 1');
-    expect($jiraScriptBody)->toContain('if ! COMMENTS_JSON="$(list_comments)"; then');
-    // Issue #695: the new comment is found by most-recent created timestamp, not by marker.
-    expect($jiraScriptBody)->toContain('find_latest_id');
-    expect($jiraScriptBody)->toContain('sort_by(.created');
+    // A missing create-response ID must fail closed. Looking up the latest
+    // comment could race with another author and update their comment instead.
+    expect($jiraScriptBody)->not->toContain('acli jira workitem comment list');
+    expect($jiraScriptBody)->toContain('its ID is missing; ADF update aborted');
 
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
@@ -205,24 +199,25 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     expect($jira)->toContain('skip the entire Publish Results step');
 });
 
-test('JIRA non-technical CR summary delegates to pr-summary Wiki Markup template', function (): void {
+test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing flow', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $template = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
     $skill = crContractText('skills/code-review-jira/SKILL.md');
 
-    // JIRA renders the same two sections as every target, under Wiki Markup headings — and none
-    // of the metadata the old shape carried, on any target.
+    // The intermediate template carries the same two sections as every target. The helper turns
+    // its supported source constructs into ADF before JIRA receives the body.
     expect($template)->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
     expect($template)->not->toContain('h2. Authors');
     expect($template)->not->toContain('```');
 
-    expect($rule)->toContain('Wiki markup conversion cheatsheet');
+    expect($rule)->toContain('Intermediate Wiki Markup cheatsheet');
     expect($rule)->toContain('`{code:php} ... {code}`');
     expect($rule)->toContain('`[label|https://example.com]`');
-    expect($rule)->toContain('no leaked Markdown');
+    expect($rule)->toContain('valid ADF only');
+    expect($rule)->toContain('comment update --body-adf');
 
     expect($skill)->toContain('Delegate the JIRA comment to `@skills/pr-summary/SKILL.md`');
     expect($skill)->toContain('@skills/pr-summary/templates/pr-summary-jira.md');
@@ -1986,7 +1981,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('Read the branch\'s commits and its linked tracker. Write one non-technical comment. Publish it.');
     expect($prSummary)->toContain('**Every target renders the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
-    expect($prSummary)->toContain('Only the markup differs per target: GitHub Markdown, JIRA Wiki Markup, Bugsnag plain text.');
+    expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
     // Every normative block is its own heading, so a reader can jump to the one they need.
     foreach ([

@@ -313,9 +313,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and the test builds no double just to satisfy the signature. Nothing else in the file
         // moved; the sibling *assert the dispatch, never the payload* bullet is untouched.
         'rules/code-testing/general.md' => 'acd2885e6a1bbc7aa81e5191a3b47878238d73b302ace17b4e50449af1267c9b',
-        // Re-baselined: the In Progress claim accepts the Czech `Rozpracováno` status, self-assigns
-        // the issue to the current `acli` account, and verifies it. No other JIRA rule moved.
-        'rules/jira/general.md' => 'd62d91c24cc573d9c050df3426829f7abb1943a63d566e03d485e95f14e930ef',
+        // Re-baselined: JIRA comments now use actual ADF through `--body-adf`; the intermediate
+        // Wiki Markup source is never sent to JIRA directly. The self-assignment rule remains.
+        'rules/jira/general.md' => '8aef69e8427b720a89a7f8049c90bce0188aff12bfe1f0e71c0aad6f62601c6e',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
