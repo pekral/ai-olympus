@@ -4,20 +4,7 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-/**
- * @return array{directory: string, bin: string, adf: string, calls: string}
- */
-function createJiraCommentPublisherFixture(): array
-{
-    $directory = sys_get_temp_dir() . '/ai-olympus-jira-comment-' . bin2hex(random_bytes(6));
-    $bin = $directory . '/bin';
-    $adf = $directory . '/comment.adf.json';
-    $calls = $directory . '/calls';
-
-    mkdir($bin, 0o700, true);
-    file_put_contents($adf, '');
-    file_put_contents($calls, '');
-    file_put_contents($bin . '/acli', <<<'BASH'
+const JIRA_COMMENT_ACLI_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -49,19 +36,34 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "upda
 fi
 
 exit 1
-BASH);
+BASH;
+
+/**
+ * @return array{adf: string, bin: string, calls: string, directory: string}
+ */
+function createJiraCommentPublisherFixture(): array
+{
+    $directory = sys_get_temp_dir() . '/ai-olympus-jira-comment-' . bin2hex(random_bytes(6));
+    $bin = $directory . '/bin';
+    $adf = $directory . '/comment.adf.json';
+    $calls = $directory . '/calls';
+
+    mkdir($bin, 0o700, true);
+    file_put_contents($adf, '');
+    file_put_contents($calls, '');
+    file_put_contents($bin . '/acli', JIRA_COMMENT_ACLI_SCRIPT);
     chmod($bin . '/acli', 0o700);
 
     return [
-        'directory' => $directory,
-        'bin' => $bin,
         'adf' => $adf,
+        'bin' => $bin,
         'calls' => $calls,
+        'directory' => $directory,
     ];
 }
 
 /**
- * @param array{directory: string, bin: string, adf: string, calls: string} $fixture
+ * @param array{adf: string, bin: string, calls: string, directory: string} $fixture
  */
 function removeJiraCommentPublisherFixture(array $fixture): void
 {

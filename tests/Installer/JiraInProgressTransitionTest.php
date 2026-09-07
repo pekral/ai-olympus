@@ -4,20 +4,7 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-/**
- * @return array{directory: string, state: string, assigned: string, bin: string}
- */
-function createJiraClaimFixture(): array
-{
-    $directory = sys_get_temp_dir() . '/ai-olympus-jira-claim-' . bin2hex(random_bytes(6));
-    $bin = $directory . '/bin';
-    $state = $directory . '/state';
-    $assigned = $directory . '/assigned';
-
-    mkdir($bin, 0o700, true);
-    file_put_contents($state, 'To Do');
-    file_put_contents($assigned, '');
-    file_put_contents($bin . '/acli', <<<'BASH'
+const JIRA_CLAIM_ACLI_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -52,21 +39,36 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "search" ]]; then
 fi
 
 exit 1
-BASH);
+BASH;
+
+/**
+ * @return array{assigned: string, bin: string, directory: string, state: string}
+ */
+function createJiraClaimFixture(): array
+{
+    $directory = sys_get_temp_dir() . '/ai-olympus-jira-claim-' . bin2hex(random_bytes(6));
+    $bin = $directory . '/bin';
+    $state = $directory . '/state';
+    $assigned = $directory . '/assigned';
+
+    mkdir($bin, 0o700, true);
+    file_put_contents($state, 'To Do');
+    file_put_contents($assigned, '');
+    file_put_contents($bin . '/acli', JIRA_CLAIM_ACLI_SCRIPT);
     file_put_contents($bin . '/gh', "#!/usr/bin/env bash\nprintf '%s\\n' '[]'\n");
     chmod($bin . '/acli', 0o700);
     chmod($bin . '/gh', 0o700);
 
     return [
-        'directory' => $directory,
-        'state' => $state,
         'assigned' => $assigned,
         'bin' => $bin,
+        'directory' => $directory,
+        'state' => $state,
     ];
 }
 
 /**
- * @param array{directory: string, state: string, assigned: string, bin: string} $fixture
+ * @param array{assigned: string, bin: string, directory: string, state: string} $fixture
  */
 function removeJiraClaimFixture(array $fixture): void
 {
