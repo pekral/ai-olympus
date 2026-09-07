@@ -228,7 +228,7 @@ All 55 skills, grouped by what you reach for them for. Each description is the s
 |-------|----------------|
 | [`resolve-issue`](skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
 | [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
-| [`prepare-issue-for-merge`](skills/prepare-issue-for-merge/) | Bringing one GitHub issue or pull request to merge-ready state without merging, then safely consolidating preparation comments |
+| [`prepare-issue-for-merge`](skills/prepare-issue-for-merge/) | A GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
 | [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
