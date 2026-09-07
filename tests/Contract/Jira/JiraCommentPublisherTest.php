@@ -48,7 +48,7 @@ function createJiraCommentPublisherFixture(): array
     $adf = $directory . '/comment.adf.json';
     $calls = $directory . '/calls';
 
-    mkdir($bin, 0o700, true);
+    mkdir($bin, 0o700, recursive: true);
     file_put_contents($adf, '');
     file_put_contents($calls, '');
     file_put_contents($bin . '/acli', JIRA_COMMENT_ACLI_SCRIPT);
@@ -108,7 +108,12 @@ WIKI;
 
     try {
         $process->run();
-        $adf = json_decode((string) file_get_contents($fixture['adf']), true, 512, JSON_THROW_ON_ERROR);
+        $adf = json_decode(
+            (string) file_get_contents($fixture['adf']),
+            associative: true,
+            depth: 512,
+            flags: JSON_THROW_ON_ERROR,
+        );
         $calls = (string) file_get_contents($fixture['calls']);
 
         expect($process->getExitCode())->toBe(0)
