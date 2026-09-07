@@ -8,14 +8,14 @@ PROG="${0##*/}"
 
 usage() {
   cat >&2 <<EOF
-Usage: $PROG <GitHub issue-or-PR URL> <comment-id> <protected-id> [<protected-id> ...]
+Usage: $PROG <GitHub issue-or-PR URL> <comment-id> <final-tldr-id> <current-cr-id> <current-cr-status-id>
 
 Deletes only an authenticated actor-owned top-level issue/PR comment. The final
 TL;DR and current CR evidence must be passed as protected IDs.
 EOF
 }
 
-if [[ "$#" -lt 3 ]]; then
+if [[ "$#" -ne 5 ]]; then
   usage
   exit 1
 fi
@@ -24,6 +24,7 @@ TARGET_URL="$1"
 COMMENT_ID="$2"
 shift 2
 PROTECTED_IDS=("$@")
+PROTECTED_MARKERS=("merge-readiness" "cr-comment" "cr-status")
 
 if [[ ! "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]; then
   printf '%s\n' "$PROG: comment id must be a positive integer" >&2
@@ -62,6 +63,32 @@ if [[ "$ACTUAL_NAME" != "$EXPECTED_NAME" ]]; then
 fi
 
 ACTOR="$(gh api user --jq .login)"
+EXPECTED_REPOSITORY_URL="https://api.github.com/repos/$OWNER/$REPOSITORY"
+
+for index in "${!PROTECTED_IDS[@]}"; do
+  protected_id="${PROTECTED_IDS[$index]}"
+  protected_json="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$protected_id")"
+  protected_actor="$(printf '%s' "$protected_json" | jq -r '.user.login // empty')"
+  protected_repository_url="$(printf '%s' "$protected_json" | jq -r '.repository_url // empty')"
+  protected_body="$(printf '%s' "$protected_json" | jq -r '.body // empty')"
+  expected_marker="<!-- ${PROTECTED_MARKERS[$index]}:actor=$ACTOR -->"
+
+  if [[ "$protected_actor" != "$ACTOR" ]]; then
+    printf '%s\n' "$PROG: protected comment $protected_id is not owned by the authenticated actor" >&2
+    exit 4
+  fi
+
+  if [[ "$(printf '%s' "$protected_repository_url" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$EXPECTED_REPOSITORY_URL" | tr '[:upper:]' '[:lower:]')" ]]; then
+    printf '%s\n' "$PROG: protected comment $protected_id belongs to a different repository" >&2
+    exit 4
+  fi
+
+  if [[ "$protected_body" != *"$expected_marker"* ]]; then
+    printf '%s\n' "$PROG: protected comment $protected_id does not carry the required ${PROTECTED_MARKERS[$index]} marker" >&2
+    exit 4
+  fi
+done
+
 COMMENT_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID")"
 COMMENT_ACTOR="$(printf '%s' "$COMMENT_JSON" | jq -r '.user.login // empty')"
 COMMENT_ISSUE_URL="$(printf '%s' "$COMMENT_JSON" | jq -r '.issue_url // empty')"

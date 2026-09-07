@@ -26,8 +26,9 @@ test('prepare-issue-for-merge is one shared workflow for Claude Code and Codex',
     expect($command)->toContain('@skills/prepare-issue-for-merge/SKILL.md');
     expect($command)->toContain('$ARGUMENTS');
 
-    expect($legacy)->toContain('Compatibility alias');
-    expect($legacy)->toContain('/prepare-issue-for-merge $ARGUMENTS');
+    expect($legacy)->toContain('Drive the pull requests of the tracker tasks');
+    expect($legacy)->toContain('skills/code-review-jira/scripts/upsert-comment.sh');
+    expect($legacy)->not->toContain('Compatibility alias');
 });
 
 test('prepare-issue-for-merge skips content-identical review rounds but fails closed on changed content', function (): void {
@@ -80,6 +81,8 @@ test('the GitHub comment delete helper protects retained ids before contacting G
         'https://github.com/pekral/ai-olympus/issues/84',
         '123',
         '123',
+        '998',
+        '999',
     ], $packageDir);
 
     $process->run();
@@ -88,7 +91,7 @@ test('the GitHub comment delete helper protects retained ids before contacting G
     expect($process->getErrorOutput())->toContain('protected final comment');
 });
 
-test('the GitHub comment delete helper rejects foreign comments and verifies a successful deletion', function (): void {
+test('the GitHub comment delete helper validates protection, rejects foreign comments, and verifies deletion', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $helper = $packageDir . '/skills/_shared/delete-owned-github-comment.sh';
     $fixtureRoot = installerCreateProjectRoot();
@@ -117,7 +120,27 @@ if [[ "$1" == "api" && "$2" == "--include" ]]; then
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/123 ]]; then
-  printf '{"user":{"login":"%s"},"issue_url":"https://api.github.com/repos/pekral/ai-olympus/issues/84"}\n' "${FAKE_COMMENT_ACTOR:-pekral}"
+  printf '{"user":{"login":"%s"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","issue_url":"https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"stale"}\n' "${FAKE_COMMENT_ACTOR:-pekral}"
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/997 ]]; then
+  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- merge-readiness:actor=pekral -->"}'
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/996 ]]; then
+  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"not merge evidence"}'
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/998 ]]; then
+  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- cr-comment:actor=pekral -->"}'
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/999 ]]; then
+  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- cr-status:actor=pekral -->"}'
   exit 0
 fi
 
@@ -131,10 +154,26 @@ BASH);
             'FAKE_GH_STATE' => $state,
         ];
 
+        $unprotected = new Process([
+            $helper,
+            'https://github.com/pekral/ai-olympus/issues/84',
+            '123',
+            '996',
+            '998',
+            '999',
+        ], $packageDir, $baseEnvironment);
+        $unprotected->run();
+
+        expect($unprotected->getExitCode())->toBe(4);
+        expect($unprotected->getErrorOutput())->toContain('does not carry the required merge-readiness marker');
+        expect(is_file($state))->toBeFalse();
+
         $foreign = new Process([
             $helper,
             'https://github.com/pekral/ai-olympus/issues/84',
             '123',
+            '997',
+            '998',
             '999',
         ], $packageDir, $baseEnvironment + ['FAKE_COMMENT_ACTOR' => 'someone-else']);
         $foreign->run();
@@ -147,6 +186,8 @@ BASH);
             $helper,
             'https://github.com/pekral/ai-olympus/issues/84',
             '123',
+            '997',
+            '998',
             '999',
         ], $packageDir, $baseEnvironment + ['FAKE_COMMENT_ACTOR' => 'pekral']);
         $owned->run();
