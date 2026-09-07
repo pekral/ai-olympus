@@ -120,12 +120,17 @@ if [[ "$1" == "api" && "$2" == "--include" ]]; then
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/123 ]]; then
-  printf '{"user":{"login":"%s"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","issue_url":"https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"stale"}\n' "${FAKE_COMMENT_ACTOR:-pekral}"
+  printf '%s%s%s\n' \
+    '{"user":{"login":"'"${FAKE_COMMENT_ACTOR:-pekral}"'"},"repository_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus","issue_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"stale"}'
   exit 0
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/997 ]]; then
-  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- merge-readiness:actor=pekral -->"}'
+  printf '%s%s\n' \
+    '{"user":{"login":"pekral"},"repository_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus","body":"<!-- merge-readiness:actor=pekral -->"}'
   exit 0
 fi
 
@@ -150,8 +155,8 @@ BASH);
 
     try {
         $baseEnvironment = [
-            'PATH' => $fakeBin . PATH_SEPARATOR . $systemPath,
             'FAKE_GH_STATE' => $state,
+            'PATH' => $fakeBin . PATH_SEPARATOR . $systemPath,
         ];
 
         $unprotected = new Process([
