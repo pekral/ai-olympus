@@ -145,6 +145,25 @@ When the next action is to dispatch a subagent for a step the orchestrator has a
 Every agent that dispatches other agents through the Task tool (today: `daedalus`) references this section from its own definition and applies it to every step of its run.
 
 
+## Batch independent reads — preamble dominates the cost of a round
+
+Every round of tool calls in an agent conversation carries a fixed overhead that does not depend on how many tools that round invokes: the accumulated context is re-sent, the model re-reads it, and the harness pays one more round-trip. On a small independent read — a tracker payload, a file, `git status`, `git diff` — that fixed overhead dominates the cost of the read itself. An agent that issues N independent reads across N rounds pays the overhead N times. The same N reads issued in one round pay it once. Half the rounds therefore cost roughly half as much, and nothing is skipped: the same reads happen, over the same files, in the same run.
+
+**The rule.** Whenever an agent or a skill in this package is about to issue two or more **independent** calls inside one step of its own procedure — a file read, a read-only `git` command, a deterministic tracker loader, a memory-file read, a `grep` / `glob` search — it issues them in **one** round (one message carrying one batched set of tool calls), never one after another across several rounds. *Independent* means no call's input depends on another call's output.
+
+**Where it pays off most in this package:**
+
+- `agents/daedalus.md` *Shared task brief* → *What to gather* — the resolved source, the tracker payload through the deterministic loaders, `docs/memory/PROJECT_MEMORY.md`, and the relevant files or symbols are four independent reads of one gather step.
+- `agents/hephaestus.md` *How to run* steps 0–1 — the per-role memory read, the source detection, and the deterministic loader call.
+- `agents/athena.md` *Code review mode* steps 1–2 — the per-role memory read, the source detection, `skills/code-review-github/scripts/load-issue.sh`, the `reviewThreads` GraphQL query, and `gather-issue-context.sh` (`@skills/code-review-github/SKILL.md` step 1).
+- `agents/hermes.md` *How to run* steps 0–1 — the per-role memory read and the source detection.
+
+**Where it does not apply:**
+
+- **A call whose input is another call's output.** It stays sequential, because there is nothing to batch.
+- **A write that must observe an earlier write's result.** The apply-then-verify discipline this package uses everywhere — write, re-read through the deterministic loader, confirm it landed — is sequential by construction, and this section never collapses it.
+- **A `Task` dispatch to a subagent.** A dispatch is not a read, and it always blocks until the handoff returns (`agents/daedalus.md` *Dispatch blocking, not fire-and-forget*, which references this file). Putting two dispatches in one round does not make them concurrent; it only hides which one the orchestrator waits on.
+
 ## Savings mode (opt-in, token-efficient orchestration)
 
 A full `daedalus`-orchestrated run (`daedalus → hephaestus → athena → hephaestus → hermes → merge`) costs roughly the same subagent-token budget regardless of the diff's size, because most of the cost is orchestration overhead — repeated context re-derivation and duplicated review work — not effort proportional to the change. **Savings mode** is an opt-in variant of the same pipeline that removes that overhead **without changing the process or the quality bar**. The design rationale for why each mechanism below actually reduces tokens (not just moves the cost elsewhere) is documented in `docs/agents.md` *Savings mode*; this section is the normative contract every agent applies.

@@ -1624,3 +1624,29 @@ test('resolve-issue thread classification is trust-gated, closing the ungated pa
     // Truncation of the read set is reported, matching the canonical rule.
     expect($commentAnalysis)->toContain('**Record every truncation of the read set**');
 });
+
+test('orchestration rule batches independent reads into one round and every reader agent points at it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // The section states why batching pays: the per-round overhead, not the read, dominates.
+    expect($rule)->toContain('## Batch independent reads — preamble dominates the cost of a round');
+    expect($rule)->toContain('it issues them in **one** round');
+    expect($rule)->toContain("*Independent* means no call's input depends on another call's output.");
+
+    // The three exclusions keep the rule from collapsing a sequential dependency, an
+    // apply-then-verify write, or a blocking subagent dispatch.
+    expect($rule)->toContain("**A call whose input is another call's output.**");
+    expect($rule)->toContain("**A write that must observe an earlier write's result.**");
+    expect($rule)->toContain('**A `Task` dispatch to a subagent.**');
+
+    // Each agent whose context load is a batchable step references the rule from that step.
+    foreach (['daedalus', 'hephaestus', 'athena', 'hermes'] as $agent) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        expect($content)->toContain('*Batch independent reads*');
+    }
+
+    // athena carries it in both modes — code review and pre-implementation security analysis.
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect(substr_count($athena, '*Batch independent reads*'))->toBe(2);
+});
