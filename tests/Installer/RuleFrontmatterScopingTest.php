@@ -304,20 +304,20 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        // Re-baselined: the review now decides *whether* another round runs at all — only changed
-        // business logic or a changed assignment re-opens a converged verdict — and a run publishes
-        // one comment per destination, a TL;DR rather than a systematic report.
-        'rules/code-review/general.md' => '8df8b5d0c823b2b97e8f5e1fed92fa4d51d8734ebf8aea66c1a8e09f2012f34e',
+        // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
+        // marker instead of re-posted, and the rule states what that costs (the comment chain is no
+        // longer the cross-run history) and what it preserves (the header block every gate reads).
+        'rules/code-review/general.md' => 'fb4801460b63b456b00c2e66edbfaf81fa9a041908b9cacc5ca7a0c1371e8e41',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
         // moved; the sibling *assert the dispatch, never the payload* bullet is untouched.
         'rules/code-testing/general.md' => 'acd2885e6a1bbc7aa81e5191a3b47878238d73b302ace17b4e50449af1267c9b',
-        // Re-baselined: JIRA comments now use actual ADF through `--body-adf`; the intermediate
-        // Wiki Markup source is never sent to JIRA directly. A failing helper is no licence to
-        // improvise a raw `acli` write, and a GitHub-shaped publish instruction on a JIRA source is
-        // re-routed to this rule's own helper. The self-assignment rule remains.
-        'rules/jira/general.md' => '37d1ebd4d90d24d331ba79b5966d8259f7229219bd37f4fefb795a40727220af',
+        // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
+        // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
+        // applies that ADF to the existing marker-carrying comment, creating one only when none
+        // exists. The ADF-only write path and the self-assignment rule are unchanged.
+        'rules/jira/general.md' => 'c5625e95c41371c76ecb5f4dc08e41ca54134677ca2b57b47ae4b438726265e3',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states

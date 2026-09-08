@@ -18,9 +18,8 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
     expect($github)->toContain('Consolidation contract (issue #498)');
     expect($github)->toContain('exactly one comment per linked issue');
 
-    expect($jira)->toContain('#### JIRA (consolidated non-technical comment — fresh comment per CR run)');
+    expect($jira)->toContain('#### JIRA (consolidated non-technical comment — one comment per issue, updated in place)');
     expect($jira)->toContain('Consolidation contract (issue #498)');
-    expect($jira)->toContain('fresh comment per CR run');
 
     expect($githubTemplate)->toContain('{embedded_blocks}');
     expect($githubTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
@@ -59,7 +58,7 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     }
 });
 
-test('CR skills publish through the publish helper — GitHub always-new, JIRA always-new comment per CR run', function (): void {
+test('CR skills publish through the publish helper — GitHub and JIRA both update their own comment in place', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     $githubScript = $packageDir . '/skills/code-review-github/scripts/upsert-comment.sh';
@@ -80,20 +79,27 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     // now retries up to three times, captures the underlying stderr, and
     // surfaces the real error to the caller.
     expect($githubScriptBody)->toContain('ACTOR_STDERR="$(mktemp)"');
-    expect($githubScriptBody)->toContain('trap \'rm -f "$ACTOR_STDERR"\' EXIT');
+    expect($githubScriptBody)->toContain('trap \'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR"\' EXIT');
     expect($githubScriptBody)->toContain('for attempt in 1 2 3; do');
     expect($githubScriptBody)->toContain('gh api user --jq .login 2>"$ACTOR_STDERR"');
     expect($githubScriptBody)->toContain('failed to resolve current GitHub actor after 3 attempts');
     expect($githubScriptBody)->toContain('(run: gh auth status)');
     expect($githubScriptBody)->not->toContain('gh api user --jq .login 2>/dev/null');
-    // Always-new comment on GitHub: the PATCH branch was removed by user
-    // request — every CR run POSTs a fresh comment so the PR thread keeps a
-    // chronological audit trail. The marker stays for per-actor traceability.
-    expect($githubScriptBody)->not->toContain('-X PATCH');
-    expect($githubScriptBody)->not->toContain('action=updated');
-    expect($githubScriptBody)->not->toContain('repos/${NWO}/issues/comments/${EXISTING_ID}');
-    expect($githubScriptBody)->toContain('action=created');
+    // Update in place on GitHub: the helper looks the marker-carrying comment up
+    // and PATCHes it, so a PR carries one permanent cr-comment per actor. The
+    // POST branch survives as the no-match case only.
+    expect($githubScriptBody)->toContain('-X PATCH');
+    expect($githubScriptBody)->toContain('repos/${NWO}/issues/comments/${EXISTING_ID}');
+    expect($githubScriptBody)->toContain('ACTION="updated"');
+    expect($githubScriptBody)->toContain('ACTION="created"');
+    expect($githubScriptBody)->toContain('action=${ACTION} id=${NEW_ID}');
     expect($githubScriptBody)->toContain('repos/${NWO}/issues/${NUMBER}/comments');
+    // The lookup is scoped to this actor's own marker, so a concurrent author's
+    // comment can never be the match.
+    expect($githubScriptBody)->toContain('select(.body // "" | contains($marker))');
+    // A failed lookup warns and falls back to a new comment — it never aborts
+    // the publish and never silently swallows the error.
+    expect($githubScriptBody)->toContain('comment lookup failed on ${NWO}#${NUMBER}, publishing a new comment instead');
     // Issue #519: `gh api -f body=@-` published a comment whose body was the
     // literal string `@-` because only the typed `-F/--field` flag expands
     // `@-` to stdin. The script now builds a JSON payload via jq and feeds
@@ -108,21 +114,34 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     // Issue #695: no hidden anchor marker is appended to the JIRA comment body.
     expect($jiraScriptBody)->not->toContain('{anchor:');
     expect($jiraScriptBody)->not->toContain('ACTOR_SLUG');
-    // Actor/site come from `acli jira auth status`. Every run creates a new
-    // comment, then updates only that new ID with actual ADF. Prior comments
-    // stay immutable, so the chronological audit trail remains intact.
+    // Site and actor e-mail both come from `acli jira auth status`. The e-mail is
+    // the actor half of the visible marker JIRA needs in place of GitHub's hidden
+    // HTML comment.
     expect($jiraScriptBody)->toContain('acli jira auth status');
+    expect($jiraScriptBody)->toContain('tolower($0) ~ /email:/');
+    expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${EMAIL}"');
     expect($jiraScriptBody)->not->toContain('acli jira me --json');
     expect($jiraScriptBody)->toContain('acli jira workitem comment create');
-    expect($jiraScriptBody)->toContain('acli jira workitem comment update --key "$KEY" --id "$NEW_ID" --body-adf "$ADF_FILE_TMP"');
+    expect($jiraScriptBody)->toContain('acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP"');
     expect($jiraScriptBody)->toContain('wiki-markup-to-adf.php');
     expect($jiraScriptBody)->toContain('.version == 1 and .type == "doc"');
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment edit');
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment add');
     expect($jiraScriptBody)->not->toContain('acli jira config get');
-    // A missing create-response ID must fail closed. Looking up the latest
-    // comment could race with another author and update their comment instead.
-    expect($jiraScriptBody)->not->toContain('acli jira workitem comment list');
+    // The lookup exists, but it is scoped to this actor's own marker rather than
+    // to "the latest comment" — that scoping is what stops it racing with another
+    // author and updating their comment instead.
+    expect($jiraScriptBody)->toContain('acli jira workitem comment list --key "$KEY" --json --paginate');
+    expect($jiraScriptBody)->toContain('select(tojson | contains($marker))');
+    expect($jiraScriptBody)->toContain('if [[ -n "$MARKER_TEXT" ]]; then');
+    // Every lookup failure resolves to "no existing comment", so the helper
+    // creates one rather than guessing at a match.
+    expect($jiraScriptBody)->toContain('comment lookup failed on $KEY, publishing a new comment instead');
+    expect($jiraScriptBody)->toContain('could not resolve the acli account e-mail, publishing an unmarked new comment');
+    // A failed update deletes only a comment this run created — never one an
+    // earlier run published.
+    expect($jiraScriptBody)->toContain('if [[ "$ACTION" == "created" ]]; then');
+    expect($jiraScriptBody)->toContain('the existing comment was left unchanged');
     expect($jiraScriptBody)->toContain('its ID is missing; ADF update aborted');
 
     $github = crContractText('skills/code-review-github/SKILL.md');
@@ -142,9 +161,13 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     expect($prSummary)->not->toContain('{anchor:cr-comment-actor-<slug>}');
 
     foreach ([$github, $jira] as $skill) {
-        expect(stripos($skill, 'always-new comment'))->not->toBeFalse();
-        expect($skill)->toContain('POSTs a new comment');
-        expect($skill)->not->toContain('edit the existing comment in place');
+        // The wrapper contract states the update-in-place behaviour and the one
+        // case that still creates a comment; the retired always-new wording is
+        // gone from both wrappers.
+        expect(stripos($skill, 'updated in place'))->not->toBeFalse();
+        expect($skill)->toContain('updates the PR comment it already owns');
+        expect($skill)->toContain('POSTs a new comment only when no marker-carrying comment exists');
+        expect($skill)->not->toContain('always-new comment');
         expect($skill)->not->toContain('Replying to code review from');
     }
 
@@ -170,11 +193,14 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     }
 
     // Issue #695 follow-up: review-output.md must not mention the removed JIRA
-    // anchor marker or claim that follow-up runs edit the comment in place.
+    // anchor marker. It now states the update-in-place contract and both
+    // markers the lookup matches on.
     $reviewOutput = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
     expect($reviewOutput)->not->toContain('{anchor:');
-    expect($reviewOutput)->not->toContain('edit that comment in place');
-    expect($reviewOutput)->toContain('Always-new comment');
+    expect($reviewOutput)->not->toContain('Always-new comment');
+    expect($reviewOutput)->toContain('**Update in place:**');
+    expect($reviewOutput)->toContain('<!-- cr-comment:actor=<gh-login> -->');
+    expect($reviewOutput)->toContain('_cr-comment:actor=<acli-email>_');
 });
 
 test('process-code-review enforces a convergence loop with quiet iterations and a single final publish', function (): void {
@@ -361,7 +387,7 @@ test('code review skills delegate the non-technical issue-tracker summary to pr-
     expect($github)->toContain('@skills/pr-summary/SKILL.md');
     expect($github)->toContain('@skills/pr-summary/templates/pr-summary-github.md');
 
-    expect($jira)->toContain('#### Linked GitHub issues (consolidated mirror — always-new comment per CR run)');
+    expect($jira)->toContain('#### Linked GitHub issues (consolidated mirror — one comment per issue, updated in place)');
     expect($jira)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
     expect($jira)->toContain('no linked GitHub issue — mirror skipped');
     expect($jira)->toContain('cross-repo issue, lacking write access');

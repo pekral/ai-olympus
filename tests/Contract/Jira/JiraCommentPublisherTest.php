@@ -13,6 +13,18 @@ printf '\n' >> "$FAKE_ACLI_CALLS"
 
 if [[ "$1" == "jira" && "$2" == "auth" && "$3" == "status" ]]; then
   printf '%s\n' 'Site: example.atlassian.net'
+  if [[ -n "${FAKE_ACLI_EMAIL:-}" ]]; then
+    printf '%s\n' "Email: ${FAKE_ACLI_EMAIL}"
+  fi
+  exit 0
+fi
+
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "list" ]]; then
+  if [[ "${FAKE_ACLI_LIST_OK:-1}" != "1" ]]; then
+    exit 1
+  fi
+
+  printf '%s\n' "${FAKE_ACLI_LIST_JSON:-[]}"
   exit 0
 fi
 
@@ -241,7 +253,7 @@ function removeJiraCommentPublisherFixture(array $fixture): void
     rmdir($fixture['directory']);
 }
 
-test('JIRA comments are published as rendered ADF instead of literal Wiki Markup', function (): void {
+test('JIRA comments are published as rendered ADF instead of literal Wiki Markup (unmarked fallback, no acli e-mail)', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
@@ -270,6 +282,7 @@ WIKI;
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
+        'FAKE_ACLI_EMAIL' => '',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], $body);
@@ -304,6 +317,7 @@ test('JIRA ADF publishing fails closed when create omits the new comment ID', fu
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{}',
+        'FAKE_ACLI_EMAIL' => '',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], 'h2. Fallback');
@@ -334,6 +348,7 @@ test('JIRA publication fails when the newly created comment cannot receive ADF',
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10003"}',
+        'FAKE_ACLI_EMAIL' => '',
         'FAKE_ACLI_UPDATE_OK' => '0',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], 'h2. Must render');
@@ -343,6 +358,126 @@ test('JIRA publication fails when the newly created comment cannot receive ADF',
 
         expect($process->getExitCode())->toBe(3)
             ->and($process->getErrorOutput())->toContain('ADF update failed');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher updates the comment already carrying this actor\'s marker', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $listJson = json_encode([
+        ['id' => '9001', 'created' => '2026-01-01T00:00:00.000+0000', 'body' => ['content' => [['text' => 'someone else']]]],
+        ['id' => '9002', 'created' => '2026-01-02T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=bot@example.com']]]],
+        ['id' => '9003', 'created' => '2026-01-03T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=other@example.com']]]],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $adf = (string) file_get_contents($fixture['adf']);
+
+        expect($process->getExitCode())->toBe(0)
+            // The existing comment is updated in place; no second comment is created.
+            ->and($calls)->toContain('comment list --key TEAM-42 --json --paginate')
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9002 --body-adf')
+            ->and($calls)->not->toContain('comment create')
+            ->and($calls)->not->toContain('comment delete')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9002')
+            ->and($process->getOutput())->toContain('focusedCommentId=9002')
+            // The marker travels in the published ADF, so the next run finds this comment again.
+            ->and($adf)->toContain('cr-comment:actor=bot@example.com');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher creates a marked comment when no marker-carrying comment exists', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $listJson = json_encode([
+        'comments' => [
+            ['id' => '9001', 'created' => '2026-01-01T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=other@example.com']]]],
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10007"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round one');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $created = (string) file_get_contents($fixture['created']);
+
+        expect($process->getExitCode())->toBe(0)
+            // Another actor's marker is never a match, so this run creates its own comment.
+            ->and($calls)->toContain('comment list --key TEAM-42 --json --paginate')
+            ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 10007 --body-adf')
+            ->and($process->getErrorOutput())->toContain('action=created id=10007')
+            ->and($created)->toContain('cr-comment:actor=bot@example.com');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('a failed JIRA comment lookup falls back to creating a comment instead of blocking the publish', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10009"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_OK' => '0',
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Lookup down');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($process->getErrorOutput())->toContain('comment lookup failed on TEAM-42, publishing a new comment instead')
+            ->and($process->getErrorOutput())->toContain('action=created id=10009')
+            ->and($calls)->toContain('comment create --key TEAM-42 --body-file');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }

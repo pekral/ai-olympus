@@ -19,7 +19,7 @@
 **Last updated:** {ISO-8601 timestamp of this CR run}
 **Quality gate:** {command} — {green | reported: <what>} on {full head SHA the gate ran on}  *(rendered on a converged run; `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* reads this line off this comment. Omit it on a run that carries no gate record.)*
 
-> **Always-new comment:** the CR wrapper (`code-review-github` / `code-review-jira`) publishes this output as a **new comment on every run** — it never edits a prior comment in place. GitHub comments carry an actor marker (`<!-- cr-comment:actor=<gh-login> -->`); JIRA comments carry no marker. The chronological sequence of comments is the audit trail — never re-create a `Previous CR Status` section in the body.
+> **Update in place:** the CR wrapper (`code-review-github` / `code-review-jira`) publishes this output by **updating the comment it already owns on the destination**, creating one only when none exists. GitHub carries a hidden actor marker (`<!-- cr-comment:actor=<gh-login> -->`), JIRA a visible italic one (`_cr-comment:actor=<acli-email>_`); both are what the lookup matches on. The body must therefore stand on its own for the current head commit — never re-create a `Previous CR Status` section in it.
 
 ---
 

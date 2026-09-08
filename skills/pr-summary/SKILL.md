@@ -18,7 +18,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - Prose is terse. Business "why" first, enough technical context to locate the change, nothing more.
 - No code snippets, file paths, line numbers, diff fragments.
 - Length follows the facts the report carries. There is no word budget.
-- Publish through `upsert-comment.sh` — a fresh comment per run, never an edit of a previous one.
+- Publish through `upsert-comment.sh` — on GitHub and JIRA it updates this actor's existing comment in place, so one destination carries one permanent summary rather than a chain of them.
 
 ---
 
@@ -191,11 +191,11 @@ All three carry the same two sections and the same closing line; they differ onl
 
 Post the summary as a comment to the related PR or issue if available, using the template that matches the target tracker. Publish through the shared helpers so each tracker receives its tracker-native markup — never via raw `gh issue comment` / `gh pr comment` / `acli jira workitem comment add` calls.
 
-- **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->` for traceability, and **POSTs a fresh comment on every run** (it never PATCHes a prior comment in place). Fall back to the GitHub MCP server's `addIssueComment` only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post; never call `updateIssueComment` to edit a previous CR / pr-summary comment.
-- **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`. The helper converts it to ADF, creates a new comment, and updates only that newly created comment through `--body-adf`. It never edits a comment from a prior run. Fall back to the JIRA MCP server's `addCommentToJiraIssue` only when the helper exits with code 2 (missing tool) or 3 (API failure), passing an ADF document rather than Wiki Markup.
+- **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->`, and **PATCHes the newest comment already carrying that marker**, POSTing a new one only when none exists. Fall back to the GitHub MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure): `updateIssueComment` on the marker-carrying comment when you can resolve its ID, `addIssueComment` otherwise.
+- **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`. The helper appends the visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and updates the newest comment already carrying that marker through `--body-adf`; only when none exists does it create a new comment and then apply the ADF to it. Fall back to the JIRA MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), passing an ADF document rather than Wiki Markup.
 - **Bugsnag target**: pipe the rendered body into `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -`. The helper POSTs a new comment on every run. Fall back to the Bugsnag MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
 - Pre-existing comments published before these conventions were introduced are left untouched.
-- Log the action (`created`) plus the resulting comment URL in the CR wrapper's summary line.
+- Log the action (`created` or `updated`) plus the resulting comment URL in the CR wrapper's summary line.
 
 ---
 

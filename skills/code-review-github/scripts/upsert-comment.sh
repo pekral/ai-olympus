@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# upsert-comment.sh — append-only GitHub issue / PR comment publisher used by
-# CR-track skills. Every invocation POSTs a fresh comment, even when a prior
-# marker-carrying comment exists, so each CR run owns its own self-contained
-# entry instead of editing an earlier one in place. The hidden marker stays in
-# the body so previous comments remain identifiable per actor + namespace, but
-# the lookup-and-PATCH branch was removed by user request — see CHANGELOG.
+# upsert-comment.sh — update-in-place GitHub issue / PR comment publisher used
+# by CR-track skills. Each invocation looks for a comment already carrying this
+# actor's hidden marker on the target and PATCHes the newest match; only when
+# no match exists does it POST a new one. One destination therefore keeps one
+# permanent comment per actor + namespace instead of a growing chain.
+#
+# This reverses the append-only behaviour a previous explicit request
+# introduced (see CHANGELOG). The lookup-and-PATCH branch is restored on a
+# newer explicit request from the same owner; the older CHANGELOG entry stays
+# as history.
 #
 # Usage:
 #   upsert-comment.sh <NUMBER|URL> <BODY_FILE> [<MARKER_KEY>]
@@ -27,16 +31,24 @@
 #   1. Detect the actor login via `gh api user --jq .login`.
 #   2. Append a hidden marker `<!-- <MARKER_KEY>:actor=<login> -->` to the body
 #      (only when the body does not already carry the marker).
-#   3. POST a new comment via `gh api repos/<nwo>/issues/<N>/comments`. The
-#      script never edits prior comments; every CR run produces a new entry.
+#   3. List the target's comments and pick the newest one whose body carries
+#      that marker.
+#   4. When a match exists, PATCH it via
+#      `gh api repos/<nwo>/issues/comments/<id>`; otherwise POST a new comment
+#      via `gh api repos/<nwo>/issues/<N>/comments`.
+#
+# A failing lookup never blocks publication: the script warns on stderr and
+# falls back to POSTing a new comment, so a transient API error costs a
+# duplicate comment rather than a lost review.
 #
 # The marker stays at the bottom of the comment so it survives manual edits
-# at the top. It is rendered by GitHub as an invisible HTML comment.
+# at the top. It is rendered by GitHub as an invisible HTML comment, and it is
+# what the lookup in step 3 matches on.
 #
 # Output:
-#   The published comment URL on stdout. `action=created` on stderr for the
-#   calling skill to log in its summary line — the value is always `created`
-#   because the script no longer PATCHes existing comments.
+#   The published comment URL on stdout. `action=updated id=<id>` (an existing
+#   comment was PATCHed) or `action=created id=<id>` (a new one was POSTed) on
+#   stderr, for the calling skill to log in its summary line.
 #
 # Exit codes:
 #   1  usage / argument error
@@ -140,7 +152,8 @@ fi
 # and retry up to three times so a single transient API hiccup does not abort
 # the whole CR comment publish — see issue #519.
 ACTOR_STDERR="$(mktemp)"
-trap 'rm -f "$ACTOR_STDERR"' EXIT
+LOOKUP_STDERR="$(mktemp)"
+trap 'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR"' EXIT
 ACTOR=""
 ACTOR_ERR=""
 for attempt in 1 2 3; do
@@ -170,21 +183,49 @@ if ! grep -Fq "$MARKER" <<<"$BODY"; then
 ${MARKER}"
 fi
 
-# Always POST a fresh comment. The lookup-and-PATCH branch was removed by user
-# request — every CR run now owns its own self-contained comment so reviewers
-# see one entry per run instead of an edited-in-place history. `gh api` body
-# payloads are built via jq and fed through `--input -` so the body stays a
-# string regardless of its content (a body that happens to be `true` or an
-# integer would otherwise be coerced by `-F` type inference).
-RESPONSE="$(jq -n --arg body "$BODY" '{body:$body}' | gh api \
-  "repos/${NWO}/issues/${NUMBER}/comments" \
-  -X POST \
-  --input - \
-  || true)"
+# Look for a comment this actor already published under the same marker. A
+# failed lookup is a warning, never a blocker: the script falls back to POSTing
+# a new comment, so a transient API error costs a duplicate rather than a lost
+# review. `--paginate` emits one JSON array per page, so `jq -s 'add // []'`
+# flattens them into a single array before the marker match runs.
+ALL_COMMENTS=""
+if ! ALL_COMMENTS="$(gh api "repos/${NWO}/issues/${NUMBER}/comments" --paginate 2>"$LOOKUP_STDERR")"; then
+  echo "upsert-comment.sh: comment lookup failed on ${NWO}#${NUMBER}, publishing a new comment instead: $(cat "$LOOKUP_STDERR")" >&2
+  ALL_COMMENTS=""
+fi
+
+EXISTING_ID=""
+if [[ -n "$ALL_COMMENTS" ]]; then
+  EXISTING_ID="$(printf '%s' "$ALL_COMMENTS" \
+    | jq -s 'add // []' \
+    | jq -r --arg marker "$MARKER" \
+        '[.[] | select(.body // "" | contains($marker))] | sort_by(.created_at) | last | .id // empty' \
+        2>/dev/null || true)"
+fi
+
+# `gh api` body payloads are built via jq and fed through `--input -` so the
+# body stays a string regardless of its content (a body that happens to be
+# `true` or an integer would otherwise be coerced by `-F` type inference).
+if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
+  ACTION="updated"
+  RESPONSE="$(jq -n --arg body "$BODY" '{body:$body}' | gh api \
+    "repos/${NWO}/issues/comments/${EXISTING_ID}" \
+    -X PATCH \
+    --input - \
+    || true)"
+else
+  ACTION="created"
+  RESPONSE="$(jq -n --arg body "$BODY" '{body:$body}' | gh api \
+    "repos/${NWO}/issues/${NUMBER}/comments" \
+    -X POST \
+    --input - \
+    || true)"
+fi
+
 if [[ -z "$RESPONSE" ]]; then
-  echo "upsert-comment.sh: POST failed on ${NWO}#${NUMBER}" >&2
+  echo "upsert-comment.sh: ${ACTION} request failed on ${NWO}#${NUMBER}" >&2
   exit 3
 fi
 printf '%s' "$RESPONSE" | jq -r '.html_url'
 NEW_ID="$(printf '%s' "$RESPONSE" | jq -r '.id')"
-echo "action=created id=${NEW_ID}" >&2
+echo "action=${ACTION} id=${NEW_ID}" >&2

@@ -52,7 +52,7 @@ Run the always-run set, the conditional set, and the reuse-first gate exactly as
 - Invoke `@skills/pr-summary/SKILL.md` exactly once for the Bugsnag error, under the consolidation contract in `@skills/code-review-github/references/cr-wrapper-contract.md`. It renders `@skills/pr-summary/templates/pr-summary-bugsnag.md` in plain text and posts the comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (Bugsnag MCP server fallback on exit code 2/3).
 - Each CR run posts a fresh comment. Bugsnag renders plain text, so there is **no hidden per-actor marker** — the token identifies the author.
 
-#### Linked GitHub issues (consolidated mirror — always-new comment per CR run)
+#### Linked GitHub issues (consolidated mirror — one comment per issue, updated in place)
 - Publish the mirror per `@skills/code-review-github/references/cr-wrapper-contract.md` *Linked GitHub issues*. If `closingIssues[]` is empty, note `no linked GitHub issue — mirror skipped` in the PR comment summary line.
 
 ---

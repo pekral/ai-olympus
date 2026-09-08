@@ -331,6 +331,12 @@ A converged run used to publish two comments on the pull request: the full techn
 
 **The merge gate reads this one comment.** Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
 
+**That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<acli-email>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
+
+**What is lost, stated rather than hidden:** the chain was the cross-run history. A reader used to scroll the thread and see what round 1 said, then round 2. Update-in-place overwrites the previous body, so only the current round's verdict is visible on the tracker; the tracker's own edit history holds the rest, and nothing in this package reads it.
+
+**What survives, because every gate depends on it:** the header block above carries each value a later round or the merge gate needs, and it is rewritten on every publish. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.
+
 ## Minor findings are not detected
 
 The review reports **Critical and Moderate findings only**. A Minor finding never blocked anything — `@skills/process-code-review/SKILL.md` fixes Critical and Moderate findings alone, and the convergence gate reads only those two — so every Minor entry cost a reader's attention on every round and changed no outcome. **The review no longer detects one, no longer raises one, and no longer renders one.**

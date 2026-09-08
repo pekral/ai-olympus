@@ -120,11 +120,11 @@ test('the JIRA publish helper never leaves an unformatted comment behind and for
 
     // A failed ADF update used to leave the created comment in place and exit 3, which is what
     // tempts a caller to improvise a raw plain-text `acli` write.
-    expect($helper)->toContain('acli jira workitem comment delete --key "$KEY" --id "$NEW_ID"');
+    expect($helper)->toContain('acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID"');
     expect($helper)->toContain('do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload');
     // A renamed envelope key in the create response must not abort the publish.
     expect($helper)->toContain('[.. | objects | .id? | select(type == "string" or type == "number")] | first');
-    expect($helper)->toContain('if [[ ! "$NEW_ID" =~ ^[0-9]+$ ]]; then');
+    expect($helper)->toContain('if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then');
 });
 
 test('the merge-readiness TL;DR is published through the helper that matches the source tracker', function (): void {

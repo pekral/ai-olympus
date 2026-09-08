@@ -108,7 +108,7 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    expect($merge)->toContain('Every CR run **POSTs a fresh comment** and never edits a prior one');
+    expect($merge)->toContain('Every CR run **updates the one `cr-comment` it owns** on the PR rather than adding another');
     expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');
     expect($merge)->toContain('its `Reviewed diff fingerprint:` equals a freshly recomputed fingerprint');
     expect($merge)->toContain('A content-identical history rewrite keeps the review current');
@@ -117,9 +117,13 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     expect($merge)->not->toContain('follow-up runs edit the same comment');
     expect($merge)->not->toContain('`updatedAt` predates the head commit');
 
-    // The premise's source of truth agrees: history lives in the comment sequence, not in a
-    // tracker's edit history.
-    expect($codeReview)->toContain('preserved by the chronological sequence of always-new comments');
+    // The premise's source of truth agrees: the baseline lives in the one comment's header lines,
+    // not in a comment chain and not in a tracker's edit history.
+    expect($codeReview)->toContain('updating the comment they already own on the destination');
+    expect($codeReview)->toContain(
+        'History across CR runs** lives in the one comment\'s header lines',
+    );
+    expect($codeReview)->not->toContain('chronological sequence of always-new comments');
     expect($codeReview)->not->toContain('edit history on the upserted comment');
 
     // The orchestrator quotes the content gate, not timestamp-based staleness.
