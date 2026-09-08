@@ -125,15 +125,31 @@ if ! CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "
   exit 3
 fi
 
-NEW_ID="$(printf '%s' "$CREATE_JSON" | jq -r '(.id // .comment.id // .comments[0].id // empty) | tostring' 2>/dev/null || true)"
+# Read the new comment's ID from whichever shape this acli build returns. The explicit paths come
+# first; the recursive search is the fallback so a renamed envelope key aborts nothing. An aborted
+# publish is not a neutral outcome — it is what tempts a caller to improvise a raw plain-text
+# `acli` write, which is the exact failure this helper exists to prevent.
+NEW_ID="$(printf '%s' "$CREATE_JSON" | jq -r '
+  ( .id? // .commentId? // .comment.id? // .comments[0].id? // .results[0].id?
+    // ([.. | objects | .id? | select(type == "string" or type == "number")] | first)
+    // empty
+  ) | tostring' 2>/dev/null || true)"
 
-if [[ -z "$NEW_ID" ]]; then
+if [[ ! "$NEW_ID" =~ ^[0-9]+$ ]]; then
   echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
+  echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
   exit 3
 fi
 
-if ! acli jira workitem comment update --key "$KEY" --id "$NEW_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>&1; then
-  echo "upsert-comment.sh: created comment $NEW_ID on $KEY but the ADF update failed" >&2
+UPDATE_STDERR="$(mktemp)"
+trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$UPDATE_STDERR"' EXIT
+
+if ! acli jira workitem comment update --key "$KEY" --id "$NEW_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR"; then
+  # The created comment may render as Wiki Markup. Remove it rather than leave an unformatted
+  # comment behind for a reader to find, then fail loudly.
+  acli jira workitem comment delete --key "$KEY" --id "$NEW_ID" >/dev/null 2>&1 || true
+  echo "upsert-comment.sh: ADF update failed on $KEY comment $NEW_ID: $(<"$UPDATE_STDERR")" >&2
+  echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
   exit 3
 fi
 

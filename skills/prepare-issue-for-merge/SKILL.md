@@ -59,8 +59,8 @@ Record in the shared brief:
 - base branch, current head SHA, and Draft/merge/check state;
 - every explicit acceptance criterion and its evidence;
 - the authenticated GitHub actor from `gh api user --jq .login`;
-- the newest trusted `cr-comment` and accompanying `cr-status`, including reviewed SHA, effective
-  diff fingerprint, finding counts, unresolved findings, and exact-head quality-gate evidence.
+- the newest trusted `cr-comment`, including reviewed SHA, effective diff fingerprint, finding
+  counts, unresolved findings, and the `Quality gate:` exact-head evidence it carries.
 
 ### 2. Rebase and decide whether review work exists
 
@@ -114,8 +114,9 @@ gate to manufacture a ready verdict.
 ### 4. Publish one TL;DR, then remove superseded comments
 
 Dispatch `hermes` in *Merge-preparation consolidation mode*. It must build the final comment from
-the verified brief and `@skills/pr-summary/SKILL.md`, using
-`@skills/pr-summary/templates/pr-summary-github.md`. The rendered GitHub comment contains:
+the verified brief and `@skills/pr-summary/SKILL.md`, using the template that matches the **source
+tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub issue,
+`@skills/pr-summary/templates/pr-summary-jira.md` for a JIRA ticket. The rendered comment contains:
 
 - a first-sentence TL;DR stating `ready for merge` or the exact blocker;
 - `What changed` and reproducible `How to test` sections;
@@ -123,9 +124,20 @@ the verified brief and `@skills/pr-summary/SKILL.md`, using
   `@skills/assignment-compliance-check/SKILL.md`;
 - the exact head SHA, effective diff fingerprint, quality-gate result, PR link, and issue link.
 
-Publish through `skills/code-review-github/scripts/upsert-comment.sh <ISSUE_URL> - merge-readiness`.
+Publish through the helper that matches the source tracker — never through another tracker's helper,
+and never through an improvised raw `acli` / `gh` write, which is how a JIRA ticket ends up carrying
+unformatted Wiki Markup instead of the ADF document JIRA Cloud stores (`@rules/jira/general.md`
+*Comments Format*):
+
+- **GitHub issue** → `skills/code-review-github/scripts/upsert-comment.sh <ISSUE_URL> - merge-readiness`
+- **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`, which converts the
+  Wiki Markup source to ADF and applies it through `--body-adf`; on exit code 2/3 the only sanctioned
+  fallback is the JIRA MCP server with an **ADF** payload.
+
 Publish and read back the final TL;DR before deleting anything. Protect its returned comment ID for
-every later delete call.
+every later delete call. The deletion pass below is **GitHub-only** — `delete-owned-github-comment.sh`
+is the only sanctioned deletion path and it speaks GitHub — so on a JIRA source the run publishes the
+TL;DR, deletes nothing, and reports that.
 
 Build an explicit deletion manifest from the complete issue and PR comment sets. A comment enters
 the manifest only when all conditions hold:
@@ -137,14 +149,14 @@ the manifest only when all conditions hold:
 
 Never delete another account's comment. Never delete an ambiguous or unrelated actor-owned
 comment. Never delete submitted reviews or line-thread comments. Preserve the newest trusted
-`cr-comment` and `cr-status` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence,
-even though older CR/status comments are superseded. Also preserve the new `merge-readiness`
+`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence, even though
+older CR comments are superseded. Also preserve the new `merge-readiness`
 comment.
 
 Delete each manifested top-level issue/PR comment only through:
 
 ```bash
-skills/_shared/delete-owned-github-comment.sh <ISSUE_OR_PR_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID> <CURRENT_CR_STATUS_ID>
+skills/_shared/delete-owned-github-comment.sh <ISSUE_OR_PR_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
 ```
 
 The helper re-checks repository ownership, comment ownership, target membership, and every

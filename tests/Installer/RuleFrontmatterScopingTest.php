@@ -314,8 +314,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // moved; the sibling *assert the dispatch, never the payload* bullet is untouched.
         'rules/code-testing/general.md' => 'acd2885e6a1bbc7aa81e5191a3b47878238d73b302ace17b4e50449af1267c9b',
         // Re-baselined: JIRA comments now use actual ADF through `--body-adf`; the intermediate
-        // Wiki Markup source is never sent to JIRA directly. The self-assignment rule remains.
-        'rules/jira/general.md' => '8cfafecb560e70c6e317f917d6467618521e94f2ae2260321291ef429da67807',
+        // Wiki Markup source is never sent to JIRA directly. A failing helper is no licence to
+        // improvise a raw `acli` write, and a GitHub-shaped publish instruction on a JIRA source is
+        // re-routed to this rule's own helper. The self-assignment rule remains.
+        'rules/jira/general.md' => '37d1ebd4d90d24d331ba79b5966d8259f7229219bd37f4fefb795a40727220af',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
