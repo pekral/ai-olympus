@@ -18,7 +18,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
 - Prose is terse. Business "why" first, enough technical context to locate the change, nothing more.
 - No code snippets, file paths, line numbers, diff fragments.
-- Length follows the facts the report carries. There is no word budget.
+- Length follows the facts the report carries. There is no word budget on GitHub and Bugsnag; JIRA caps the comment at 3 000 characters.
 - Publish through `upsert-comment.sh` — on GitHub and JIRA it updates this actor's existing comment in place, so one destination carries one permanent summary rather than a chain of them.
 
 ---
@@ -97,11 +97,13 @@ The comment ends with one line linking the pull request and the source tracker i
 
 ### Length follows the facts
 
-There is no word budget and no "fits on one screen" rule. The report is as long as the facts it carries, and no longer. `@rules/writing/general.md` decides the shape of every sentence in it.
+On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule. The report is as long as the facts it carries, and no longer. `@rules/writing/general.md` decides the shape of every sentence in it.
 
 - **Never pad.** Do not restate the process, do not narrate what the run did, do not add a closing summary of what was already said.
-- **Never truncate a fact** to hit a length. A dropped number, boundary, or must-hold outcome costs the reader the decision the report exists to support.
+- **Never truncate a fact** to hit a length. A dropped number, boundary, or must-hold outcome costs the reader the decision the report exists to support. On GitHub and Bugsnag there is no length to hit, so nothing ever forces the choice; on JIRA the cap below is met by carrying fewer facts, never by cutting one in half.
 - A one-line fix produces a short report. A change with a measured cause, a measured result, and four things to retest produces a long one. Both are correct.
+
+**JIRA is the one exception, and its cap is real.** That comment carries a 3 000-character limit, because its reader is a product manager rather than a developer (`@rules/reports/general.md` *A JIRA comment is written for a non-technical reader*). Meet the cap by carrying fewer facts, never by truncating one. When the body overflows, shorten `What changed` and drop its least consequential behaviour bullet whole; never shorten `How to test`, whose steps are what the reader acts on. A JIRA body that cannot fit within 3 000 characters without cutting a `How to test` step is carrying content the banned list already forbids.
 
 ### What the comment carries
 
