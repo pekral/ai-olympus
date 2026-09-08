@@ -137,7 +137,7 @@ final class InstallerPath
     /**
      * Slash-command prompts. Claude Code reads them from `.claude/commands`; Codex has no
      * user-defined slash-command directory at all — its `SlashCommandItem` carries only built-in
-     * and service-tier variants — so the same workflow reaches Codex as the `prepare-issue-for-merge`
+     * and service-tier variants — so the same workflow reaches Codex as the `verify-merge-readiness`
      * skill in `.agents/skills`, which `resolveSkillsTargetDirectories()` already installs.
      */
     public static function resolveCommandsSource(): ?string

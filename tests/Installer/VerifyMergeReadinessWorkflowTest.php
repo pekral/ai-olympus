@@ -4,9 +4,9 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-test('prepare-issue-for-merge is one shared workflow for Claude Code and Codex', function (): void {
+test('verify-merge-readiness is one shared workflow for Claude Code and Codex', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skillPath = $packageDir . '/skills/prepare-issue-for-merge/SKILL.md';
+    $skillPath = $packageDir . '/skills/verify-merge-readiness/SKILL.md';
     $commandPath = $packageDir . '/commands/prepare-issue-for-merge.md';
 
     expect(is_file($skillPath))->toBeTrue();
@@ -15,25 +15,25 @@ test('prepare-issue-for-merge is one shared workflow for Claude Code and Codex',
     $skill = (string) file_get_contents($skillPath);
     $command = (string) file_get_contents($commandPath);
 
-    expect($skill)->toContain('name: prepare-issue-for-merge');
+    expect($skill)->toContain('name: verify-merge-readiness');
     expect($skill)->toContain('Delegate the orchestration to `daedalus`');
     expect($skill)->toContain('It never merges the pull request');
     expect($skill)->toContain('@skills/pr-summary/SKILL.md');
     expect($skill)->toContain('templates/pr-summary-github.md');
 
     expect($command)->toContain('argument-hint: [GitHub issue or pull request URL]');
-    expect($command)->toContain('@skills/prepare-issue-for-merge/SKILL.md');
+    expect($command)->toContain('@skills/verify-merge-readiness/SKILL.md');
     expect($command)->toContain('$ARGUMENTS');
 
     // Codex carries no user-defined slash command at all — its `SlashCommandItem` has only
     // built-in and service-tier variants — so the command file names the skill mention that is
     // the Codex entry point instead of promising a slash command that harness cannot expose.
-    expect($command)->toContain('$prepare-issue-for-merge');
+    expect($command)->toContain('$verify-merge-readiness');
 });
 
-test('prepare-issue-for-merge skips content-identical review rounds but fails closed on changed content', function (): void {
+test('verify-merge-readiness skips content-identical review rounds but fails closed on changed content', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/prepare-issue-for-merge/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
 
     expect($skill)->toContain('git diff --binary --full-index --no-color --no-ext-diff --no-renames');
     expect($skill)->toContain('git patch-id --verbatim');
@@ -44,9 +44,9 @@ test('prepare-issue-for-merge skips content-identical review rounds but fails cl
     expect($skill)->toContain('@skills/process-code-review/SKILL.md');
 });
 
-test('prepare-issue-for-merge consolidates only owned comments and preserves merge evidence', function (): void {
+test('verify-merge-readiness consolidates only owned comments and preserves merge evidence', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/prepare-issue-for-merge/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
     $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
     $helperPath = $packageDir . '/skills/_shared/delete-owned-github-comment.sh';
     $inventory = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');

@@ -58,7 +58,7 @@ Use the daedalus agent to resolve https://github.com/owner/repo/issues/123
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
 
-Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill the command delegates to — mention `$prepare-issue-for-merge` and Codex loads it from `.agents/skills`.
+Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill the command delegates to — mention `$verify-merge-readiness` and Codex loads it from `.agents/skills`.
 
 ## Why This Package
 
@@ -100,7 +100,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 - `CLAUDE.md` in the project root
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the five custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
-- `.claude/commands` (the `/prepare-issue-for-merge` slash command; Codex reaches the same workflow as `$prepare-issue-for-merge`)
+- `.claude/commands` (the `/prepare-issue-for-merge` slash command; Codex reaches the same workflow as `$verify-merge-readiness`)
 - `AGENTS.md` in the project root
 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -207,7 +207,7 @@ To prepare an existing GitHub issue's PR for merge without merging it, use the s
 /prepare-issue-for-merge https://github.com/owner/repository/issues/123
 
 # Codex
-$prepare-issue-for-merge https://github.com/owner/repository/issues/123
+$verify-merge-readiness https://github.com/owner/repository/issues/123
 ```
 
 The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
@@ -226,7 +226,7 @@ All 55 skills, grouped by what you reach for them for. Each description is the s
 |-------|----------------|
 | [`resolve-issue`](skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
 | [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
-| [`prepare-issue-for-merge`](skills/prepare-issue-for-merge/) | A GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
+| [`verify-merge-readiness`](skills/verify-merge-readiness/) | A GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
 | [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |

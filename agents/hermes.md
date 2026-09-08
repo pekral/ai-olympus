@@ -63,7 +63,7 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 ## Merge-preparation consolidation mode
 
-`daedalus` dispatches this mode only from `@skills/prepare-issue-for-merge/SKILL.md`, after review,
+`daedalus` dispatches this mode only from `@skills/verify-merge-readiness/SKILL.md`, after review,
 acceptance criteria, the exact-head quality gate, CI, Draft state, and mergeability have been
 resolved. Invocation of that skill is the explicit L2 authorization for this mode's publish and
 qualified deletions. It is not authorization to merge or to delete anything outside this contract.

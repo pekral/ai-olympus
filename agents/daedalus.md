@@ -240,9 +240,9 @@ Absorbing the backlog tier never widens into the roles the roster deliberately k
 
 ## Prepare-only mode — `/prepare-issue-for-merge`
 
-When the user invokes `/prepare-issue-for-merge <URL>`, `$prepare-issue-for-merge`, or explicitly
+When the user invokes `/prepare-issue-for-merge <URL>`, `$verify-merge-readiness`, or explicitly
 asks you to prepare a GitHub issue's PR for merge without merging, follow
-`@skills/prepare-issue-for-merge/SKILL.md` in full. This is a specialization of the end-to-end run,
+`@skills/verify-merge-readiness/SKILL.md` in full. This is a specialization of the end-to-end run,
 not a second implementation of it.
 
 - Resolve and gather the source as usual, then record `## Preparation mode: merge-ready, no merge`

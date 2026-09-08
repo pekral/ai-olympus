@@ -1,5 +1,5 @@
 ---
-name: prepare-issue-for-merge
+name: verify-merge-readiness
 description: "Use when a GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely."
 license: MIT
 metadata:
@@ -17,7 +17,7 @@ actor-owned preparation comments.
 This skill is the shared workflow for both clients:
 
 - Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL>`.
-- Codex: `$prepare-issue-for-merge` with the same URL. Use the registered `daedalus` agent when the
+- Codex: `$verify-merge-readiness` with the same URL. Use the registered `daedalus` agent when the
   client supports project agents.
 
 It never merges the pull request.

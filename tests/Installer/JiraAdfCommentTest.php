@@ -130,7 +130,7 @@ test('the JIRA publish helper never leaves an unformatted comment behind and for
 test('the merge-readiness TL;DR is published through the helper that matches the source tracker', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/prepare-issue-for-merge/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     foreach ([$hermes, $skill] as $document) {

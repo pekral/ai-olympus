@@ -112,7 +112,7 @@ test('the surviving slash command installs into the Claude Code project director
         // service-tier variants — so the same workflow reaches Codex as the skill it delegates to,
         // which `.agents/skills` already installs. A `.codex` copy would be a file nothing reads.
         expect(is_dir($root . '/.codex/commands'))->toBeFalse();
-        expect(is_file($root . '/.agents/skills/prepare-issue-for-merge/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.agents/skills/verify-merge-readiness/SKILL.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);

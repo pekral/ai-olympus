@@ -4,7 +4,7 @@ argument-hint: [GitHub issue or pull request URL]
 ---
 
 Delegate this request to the `daedalus` agent and run
-`@skills/prepare-issue-for-merge/SKILL.md` with this reference:
+`@skills/verify-merge-readiness/SKILL.md` with this reference:
 
 $ARGUMENTS
 
@@ -13,5 +13,5 @@ ask for it. Follow the skill in full. Bring the linked pull request to a verifie
 publish and verify its single source-issue TL;DR, remove only the superseded actor-owned preparation
 comments the skill permits, and stop before merge.
 
-For Codex, invoke `$prepare-issue-for-merge` with the same URL and ask the registered `daedalus`
+For Codex, invoke `$verify-merge-readiness` with the same URL and ask the registered `daedalus`
 agent to orchestrate it.
