@@ -168,3 +168,23 @@ test('the merge-readiness TL;DR obeys the JIRA banned list on a JIRA source (iss
     expect($skill)->toContain('A JIRA comment is written for a non-technical reader');
     expect($skill)->toContain('On a GitHub issue publish all four items above unchanged.');
 });
+
+test('every remaining JIRA publish path renders the JIRA shape rather than another target\'s (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $jiraWrapper = (string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md');
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $trackerFollowUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+
+    // The linked-GitHub-issue mirror was documented as identical to the JIRA comment. The two
+    // targets render different shapes now, so copying one body onto the other publishes a shape
+    // the receiving target's contract does not define.
+    expect($jiraWrapper)->not->toContain('Both come from `pr-summary`, so they are guaranteed to match.');
+    expect($jiraWrapper)->toContain('carry the same facts, but **not the same shape**');
+    expect($jiraWrapper)->toContain('Do not copy one body onto the other target');
+
+    // resolve-issue posts its own non-technical report to the source tracker before any review
+    // runs, so it needs the same shape and the same content rules on a JIRA source.
+    expect($resolveIssue)->toContain('use the JIRA shape per `references/tracker-follow-up.md`');
+    expect($trackerFollowUp)->toContain('**The non-technical report on a JIRA issue takes the JIRA shape.**');
+    expect($trackerFollowUp)->toContain('travel **inside** the `How to test` steps they belong to');
+});
