@@ -94,9 +94,8 @@ Od tohohle týdne existuje druhá instalační cesta, pro projekty bez Composeru
 
 Ta má poctivou mezeru, kterou má cenu říct nahlas, ne obejít: Claude Code čte z adresáře pluginu
 `skills/` a `agents/`, ale nečte ani `rules/`, ani `CLAUDE.md`. Pro projektový instrukční soubor,
-který se načítá do každého sezení, žádný pluginový mechanismus neexistuje. Pravidla proto cestují
-jedním příkazem navíc, `/ai-olympus:install-rules`, a obě cesty nejsou rovnocenné. Na PHP
-projektu je Composer pořád ta lepší.
+který se načítá do každého sezení, žádný pluginový mechanismus neexistuje. Pravidla proto touhle
+cestou nedorazí vůbec a obě cesty nejsou rovnocenné. Na PHP projektu je Composer pořád ta lepší.
 
 ## Bezpečnostní návrh je hlavně o tom, co je odepřené
 

@@ -387,7 +387,7 @@ test('install does not duplicate output humanization directive in installed skil
     }
 });
 
-test('install copies all files to every rule, skill, and agent directory', function (): void {
+test('install copies all files to every rule, skill, agent, and command directory', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rulesSource = $packageDir . '/rules';
     $skillsSource = $packageDir . '/skills';
@@ -406,14 +406,17 @@ test('install copies all files to every rule, skill, and agent directory', funct
     $skillTargets = InstallerPath::resolveSkillsTargetDirectories($root);
     $agentTargets = InstallerPath::resolveAgentsTargetDirectories($root);
     $codexAgentTargets = InstallerPath::resolveCodexAgentsTargetDirectories($root);
+    $commandTargets = InstallerPath::resolveCommandsTargetDirectories($root);
     $expectedAgentsCount = installerCountFiles($packageDir . '/agents');
     $expectedCodexAgentsCount = installerCountFiles($packageDir . '/codex/agents');
+    $expectedCommandsCount = installerCountFiles($packageDir . '/commands');
     $claudeMdCount = InstallerPath::resolveClaudeMdSource() !== null ? 1 : 0;
     $agentsMdCount = InstallerPath::resolveAgentsMdSource() !== null ? 1 : 0;
     $expectedTotalFiles = $expectedRulesCount * count($rulesTargets)
         + $expectedSkillsCount * count($skillTargets)
         + $expectedAgentsCount * count($agentTargets)
         + $expectedCodexAgentsCount * count($codexAgentTargets)
+        + $expectedCommandsCount * count($commandTargets)
         + $claudeMdCount
         + $agentsMdCount;
     $cwd = getcwd();
@@ -431,6 +434,7 @@ test('install copies all files to every rule, skill, and agent directory', funct
         installerExpectFileCount($skillTargets, $expectedSkillsCount, 'Skills');
         installerExpectFileCount($agentTargets, $expectedAgentsCount, 'Agents');
         installerExpectFileCount($codexAgentTargets, $expectedCodexAgentsCount, 'Codex agents');
+        installerExpectFileCount($commandTargets, $expectedCommandsCount, 'Commands');
 
         expect($output)->toContain(sprintf('(%d files,', $expectedTotalFiles));
     } finally {

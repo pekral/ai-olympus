@@ -54,8 +54,11 @@ Use the daedalus agent to resolve https://github.com/owner/repo/issues/123
 | **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
 | **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
 | **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
+| **Commands** | `/prepare-issue-for-merge`, the one slash command the package ships | `.claude/commands` |
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
+
+Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill the command delegates to — mention `$prepare-issue-for-merge` and Codex loads it from `.agents/skills`.
 
 ## Why This Package
 
@@ -84,13 +87,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 55 skills and the five agents. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, so one command copies them into the project once.
-
-```text
-/ai-olympus:install-rules
-```
-
-It writes `.claude/rules/` and, when the project has none, a `CLAUDE.md` — it never overwrites one you already have. Restart the session afterwards; rules are read at session start.
+That loads all 55 skills, the five agents, and the `/prepare-issue-for-merge` command. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -103,6 +100,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 - `CLAUDE.md` in the project root
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the five custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
+- `.claude/commands` (the `/prepare-issue-for-merge` slash command; Codex reaches the same workflow as `$prepare-issue-for-merge`)
 - `AGENTS.md` in the project root
 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).

@@ -112,18 +112,15 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 |---|---|
 | 55 skills (`skills/*/SKILL.md`) | ✅ automatically |
 | 4 agents (`agents/*.md`) | ✅ automatically |
-| Rules (`rules/**`) | ❌ — `/ai-olympus:install-rules` copies them |
-| `CLAUDE.md` | ❌ — same command, and only when the project has none |
+| `/prepare-issue-for-merge` (`commands/*.md`) | ✅ automatically |
+| Rules (`rules/**`) | ❌ Composer only |
+| `CLAUDE.md` | ❌ Composer only |
 | `.claude/settings.local.json` switches (`--deny-network-bash`, …) | ❌ Composer only |
 | `ai-olympus resolve-next` | ❌ Composer only |
 
-```text
-/ai-olympus:install-rules
-```
+The package used to ship a `/ai-olympus:install-rules` command that copied `rules/` and `CLAUDE.md` out of the plugin directory. It no longer does: `commands/` now carries `prepare-issue-for-merge.md` alone. On this channel the rules and `CLAUDE.md` therefore do not arrive at all — install through Composer when you want them.
 
-The command copies `rules/` from the plugin directory into the project's `.claude/rules/`, overwriting what is there — they are package files, and a stale copy is exactly the drift the command prevents. It copies `CLAUDE.md` only when the project has none, the same guarantee the Composer installer carries. Rules are read at session start, so restart the session afterwards.
-
-Re-run it after `/plugin update` to pick up rule changes; the skills and agents update on their own.
+Skills, agents, and the command update on their own after `/plugin update`.
 
 ### Which path to choose
 

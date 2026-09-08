@@ -100,9 +100,9 @@ There is a second install path as of this week, for projects without Composer:
 
 That one has an honest gap, which is worth stating rather than glossing: Claude Code reads `skills/`
 and `agents/` out of a plugin directory, but it reads neither `rules/` nor a `CLAUDE.md`. There is no
-plugin mechanism for a project-scoped always-on instruction file. So the rules travel by one extra
-command, `/ai-olympus:install-rules`, and the two paths are not equivalent. Composer is
-still the better one on a PHP project.
+plugin mechanism for a project-scoped always-on instruction file. So the rules do not arrive on that
+path at all, and the two paths are not equivalent. Composer is still the better one on a PHP
+project.
 
 ## The safety design is mostly about what is refused
 

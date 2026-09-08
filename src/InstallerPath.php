@@ -134,6 +134,27 @@ final class InstallerPath
         ];
     }
 
+    /**
+     * Slash-command prompts. Claude Code reads them from `.claude/commands`; Codex has no
+     * user-defined slash-command directory at all — its `SlashCommandItem` carries only built-in
+     * and service-tier variants — so the same workflow reaches Codex as the `prepare-issue-for-merge`
+     * skill in `.agents/skills`, which `resolveSkillsTargetDirectories()` already installs.
+     */
+    public static function resolveCommandsSource(): ?string
+    {
+        $packageSource = self::getPackageDirectory() . '/commands';
+
+        return is_dir($packageSource) ? $packageSource : null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function resolveCommandsTargetDirectories(string $root): array
+    {
+        return [$root . '/.claude/commands'];
+    }
+
     public static function resolveCodexAgentsSource(): ?string
     {
         $packageSource = self::getPackageDirectory() . '/codex/agents';

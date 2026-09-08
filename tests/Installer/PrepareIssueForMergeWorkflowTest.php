@@ -14,7 +14,6 @@ test('prepare-issue-for-merge is one shared workflow for Claude Code and Codex',
 
     $skill = (string) file_get_contents($skillPath);
     $command = (string) file_get_contents($commandPath);
-    $legacy = (string) file_get_contents($packageDir . '/commands/finalize-tasks.md');
 
     expect($skill)->toContain('name: prepare-issue-for-merge');
     expect($skill)->toContain('Delegate the orchestration to `daedalus`');
@@ -26,9 +25,10 @@ test('prepare-issue-for-merge is one shared workflow for Claude Code and Codex',
     expect($command)->toContain('@skills/prepare-issue-for-merge/SKILL.md');
     expect($command)->toContain('$ARGUMENTS');
 
-    expect($legacy)->toContain('Drive the pull requests of the tracker tasks');
-    expect($legacy)->toContain('skills/code-review-jira/scripts/upsert-comment.sh');
-    expect($legacy)->not->toContain('Compatibility alias');
+    // Codex carries no user-defined slash command at all — its `SlashCommandItem` has only
+    // built-in and service-tier variants — so the command file names the skill mention that is
+    // the Codex entry point instead of promising a slash command that harness cannot expose.
+    expect($command)->toContain('$prepare-issue-for-merge');
 });
 
 test('prepare-issue-for-merge skips content-identical review rounds but fails closed on changed content', function (): void {

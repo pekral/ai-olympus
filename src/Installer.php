@@ -65,7 +65,7 @@ final class Installer
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
         echo "  vendor/bin/ai-olympus resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run] [--codex]\n\n";
         echo "Commands:\n";
-        echo "  install                 Install rules, skills, and agents for Claude Code and Codex.\n";
+        echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n";
         echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code or Codex as one agent run.\n\n";
         self::showInstallOptions();
         self::showResolveNextOptions();
@@ -235,6 +235,12 @@ final class Installer
             $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root)];
         }
 
+        $commandsSource = InstallerPath::resolveCommandsSource();
+
+        if ($commandsSource !== null) {
+            $payloads[] = [$commandsSource, InstallerPath::resolveCommandsTargetDirectories($root)];
+        }
+
         $codexAgentsSource = InstallerPath::resolveCodexAgentsSource();
 
         if ($codexAgentsSource !== null) {
@@ -260,7 +266,7 @@ final class Installer
 
     private static function reportInstallSummary(InstallSummary $summary): void
     {
-        echo sprintf('Rules, skills, and agents installed (%d files, %d pruned).%s', $summary->copied, $summary->pruned, PHP_EOL);
+        echo sprintf('Rules, skills, agents, and commands installed (%d files, %d pruned).%s', $summary->copied, $summary->pruned, PHP_EOL);
 
         if ($summary->orphaned > 0) {
             $targetsSuffix = $summary->orphanedTargets === [] ? '' : sprintf(' (%s)', implode(', ', $summary->orphanedTargets));
