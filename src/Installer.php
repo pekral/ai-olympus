@@ -62,13 +62,10 @@ final class Installer
     {
         echo "Usage:\n";
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
-        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
-        echo "  vendor/bin/ai-olympus resolve-next [--label=NAME] [--repo=OWNER/NAME] [--merge] [--dry-run] [--codex]\n\n";
+        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n\n";
         echo "Commands:\n";
-        echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n";
-        echo "  resolve-next            Hand the oldest unclaimed labelled issue to Claude Code or Codex as one agent run.\n\n";
+        echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n\n";
         self::showInstallOptions();
-        self::showResolveNextOptions();
 
         return 0;
     }
@@ -89,17 +86,6 @@ final class Installer
         echo "                          via permissions.deny in .claude/settings.local.json. Opt-in. The rule is session-wide\n";
         echo "                          and project-scoped: within this project it applies to every agent AND to your own\n";
         echo "                          interactive Bash, never per agent. Not an egress control - see SECURITY.md.\n";
-    }
-
-    private static function showResolveNextOptions(): void
-    {
-        echo "  --label=NAME            resolve-next: only consider issues carrying this label. Repeatable (all must match).\n";
-        echo '                          Defaults to ' . AgenticOptions::DEFAULT_LABEL . ".\n";
-        echo "  --repo=OWNER/NAME       resolve-next: target another repository instead of the current checkout.\n";
-        echo "  --merge                 resolve-next: merge the pull request once review converges. Off by default, so an\n";
-        echo "                          unattended run leaves it for a human.\n";
-        echo "  --dry-run               resolve-next: print the issue and the prompt without starting an agent run.\n";
-        echo "  --codex                 resolve-next: run with `codex exec` instead of Claude Code.\n";
     }
 
     private static function install(InstallOptions $options): int
