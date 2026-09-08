@@ -37,6 +37,14 @@ fi
 exit 1
 BASH;
 
+/**
+ * @return array{id: int, created_at: string, user: array{login: string}, body: string}
+ */
+function githubComment(int $id, string $createdAt, string $author, string $body): array
+{
+    return ['id' => $id, 'created_at' => $createdAt, 'user' => ['login' => $author], 'body' => $body];
+}
+
 function githubCommentSystemPath(): string
 {
     $systemPath = getenv('PATH');
@@ -107,9 +115,9 @@ function runGitHubCommentPublisher(array $fixture, array $environment, string $b
 test('the GitHub publisher PATCHes the comment already carrying this actor\'s marker', function (): void {
     $fixture = createGitHubCommentPublisherFixture();
     $listJson = json_encode([
-        ['id' => 501, 'created_at' => '2026-01-01T00:00:00Z', 'body' => 'unrelated'],
-        ['id' => 502, 'created_at' => '2026-01-02T00:00:00Z', 'body' => "old round\n\n<!-- cr-comment:actor=bot -->"],
-        ['id' => 503, 'created_at' => '2026-01-03T00:00:00Z', 'body' => "other actor\n\n<!-- cr-comment:actor=someone -->"],
+        githubComment(501, '2026-01-01T00:00:00Z', 'someone', 'unrelated'),
+        githubComment(502, '2026-01-02T00:00:00Z', 'bot', "old round\n\n<!-- cr-comment:actor=bot -->"),
+        githubComment(503, '2026-01-03T00:00:00Z', 'someone', "other actor\n\n<!-- cr-comment:actor=someone -->"),
     ], JSON_THROW_ON_ERROR);
 
     try {
@@ -134,10 +142,39 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
     }
 });
 
+test('a newer comment from another author quoting this actor\'s marker is never the PATCH target', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+    // The marker is text: a quote reply, or a hand-written comment, carries it
+    // verbatim under a different author. Newest-match-wins on the marker alone
+    // would make that comment the target and overwrite a stranger's content.
+    $listJson = json_encode([
+        githubComment(401, '2026-02-01T00:00:00Z', 'bot', "round one\n\n<!-- cr-comment:actor=bot -->"),
+        githubComment(402, '2026-02-02T00:00:00Z', 'impostor', "> round one\n>\n> <!-- cr-comment:actor=bot -->\n\nMy reply."),
+    ], JSON_THROW_ON_ERROR);
+
+    try {
+        $process = runGitHubCommentPublisher($fixture, [
+            'FAKE_GH_LIST_JSON' => $listJson,
+            'FAKE_GH_RESPONSE' => '{"id":401,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-401"}',
+        ], 'Round two body');
+
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            // This actor's own older comment is the match.
+            ->and($calls)->toContain('repos/acme/widgets/issues/comments/401 -X PATCH')
+            // The impostor's newer comment is never touched.
+            ->and($calls)->not->toContain('repos/acme/widgets/issues/comments/402')
+            ->and($process->getErrorOutput())->toContain('action=updated id=401');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});
+
 test('the GitHub publisher POSTs a new comment when no marker-carrying comment exists', function (): void {
     $fixture = createGitHubCommentPublisherFixture();
     $listJson = json_encode([
-        ['id' => 601, 'created_at' => '2026-01-01T00:00:00Z', 'body' => "other actor\n\n<!-- cr-comment:actor=someone -->"],
+        githubComment(601, '2026-01-01T00:00:00Z', 'someone', "other actor\n\n<!-- cr-comment:actor=someone -->"),
     ], JSON_THROW_ON_ERROR);
 
     try {
@@ -183,7 +220,7 @@ test('a failed GitHub comment lookup warns and falls back to a new comment', fun
 test('a marker namespace other than cr-comment matches only its own comment', function (): void {
     $fixture = createGitHubCommentPublisherFixture();
     $listJson = json_encode([
-        ['id' => 901, 'created_at' => '2026-01-01T00:00:00Z', 'body' => "cr\n\n<!-- cr-comment:actor=bot -->"],
+        githubComment(901, '2026-01-01T00:00:00Z', 'bot', "cr\n\n<!-- cr-comment:actor=bot -->"),
     ], JSON_THROW_ON_ERROR);
 
     $packageDir = dirname(__DIR__, 3);

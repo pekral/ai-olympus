@@ -32,8 +32,11 @@
 #   2. Append the marker line `_cr-comment:actor=<email>_` to the Wiki Markup
 #      source (only when the source does not already carry it).
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
-#   4. List the issue's comments and pick the newest one whose body carries that
-#      marker.
+#   4. List the issue's comments and pick the newest one this account authored
+#      whose body carries that marker. Both halves are load-bearing: the marker
+#      is visible text anyone can copy into their own comment, so the author
+#      must match too, and the marker is matched against the comment body alone
+#      rather than against the whole comment object.
 #   5. When a match exists, update it via
 #      `acli jira workitem comment update --body-adf`. Otherwise create a fresh
 #      comment from the ADF file and immediately update that same new comment
@@ -42,7 +45,11 @@
 #
 # The lookup is fail-safe, never fail-open: an unresolvable account e-mail, an
 # `acli` error, or an unexpected JSON shape falls back to creating a new comment
-# — the previous behaviour — rather than guessing at a match.
+# — the previous behaviour — rather than guessing at a match. An `acli` build
+# that omits `author.emailAddress` from the comment list resolves the same way:
+# the run creates a second comment instead of updating one it cannot prove it
+# owns. A duplicate comment is the cheap failure; overwriting a stranger's is
+# not.
 #
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
@@ -186,8 +193,9 @@ if [[ -n "$MARKER_TEXT" ]]; then
             elif type == "object" then (.comments // .results // .values // [])
             else [] end
           ) | add // []' \
-      | jq -r --arg marker "$MARKER_TEXT" '
-          map(select(tojson | contains($marker)))
+      | jq -r --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" '
+          map(select(((.author.emailAddress // "") == $marker_email)
+                     and ((.body | tojson) | contains($marker))))
           | sort_by((.updated? // .created? // "") | tostring)
           | last
           | (.id? // empty)

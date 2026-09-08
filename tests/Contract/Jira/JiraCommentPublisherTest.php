@@ -206,6 +206,14 @@ const JIRA_COMMENT_EXPECTED_ADF = <<<'JSON'
 }
 JSON;
 
+/**
+ * @return array{id: string, created: string, author: array{emailAddress: string}, body: array{content: array<int, array{text: string}>}}
+ */
+function jiraComment(string $id, string $created, string $author, string $text): array
+{
+    return ['id' => $id, 'created' => $created, 'author' => ['emailAddress' => $author], 'body' => ['content' => [['text' => $text]]]];
+}
+
 function jiraCommentSystemPath(): string
 {
     $systemPath = getenv('PATH');
@@ -368,9 +376,9 @@ test('the JIRA publisher updates the comment already carrying this actor\'s mark
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
     $listJson = json_encode([
-        ['id' => '9001', 'created' => '2026-01-01T00:00:00.000+0000', 'body' => ['content' => [['text' => 'someone else']]]],
-        ['id' => '9002', 'created' => '2026-01-02T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=bot@example.com']]]],
-        ['id' => '9003', 'created' => '2026-01-03T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=other@example.com']]]],
+        jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
+        jiraComment('9002', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'cr-comment:actor=bot@example.com'),
+        jiraComment('9003', '2026-01-03T00:00:00.000+0000', 'other@example.com', 'cr-comment:actor=other@example.com'),
     ], JSON_THROW_ON_ERROR);
 
     $process = new Process([
@@ -408,13 +416,55 @@ test('the JIRA publisher updates the comment already carrying this actor\'s mark
     }
 });
 
+test('a newer comment from another author carrying this account\'s marker is never the update target', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    // The JIRA marker is a visible line anyone can copy into their own comment.
+    // Matching on the marker alone would make the newer foreign comment the
+    // target and overwrite a stranger's content.
+    $listJson = json_encode([
+        jiraComment('9101', '2026-03-01T00:00:00.000+0000', 'bot@example.com', 'round one _cr-comment:actor=bot@example.com_'),
+        jiraComment('9102', '2026-03-02T00:00:00.000+0000', 'impostor@example.com', 'quoting _cr-comment:actor=bot@example.com_ back at you'),
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10011"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            // This account's own older comment is the match.
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9101 --body-adf')
+            // The impostor's newer comment is never touched.
+            ->and($calls)->not->toContain('--id 9102')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9101');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
 test('the JIRA publisher creates a marked comment when no marker-carrying comment exists', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
     $listJson = json_encode([
         'comments' => [
-            ['id' => '9001', 'created' => '2026-01-01T00:00:00.000+0000', 'body' => ['content' => [['text' => 'cr-comment:actor=other@example.com']]]],
+            jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'cr-comment:actor=other@example.com'),
         ],
     ], JSON_THROW_ON_ERROR);
 

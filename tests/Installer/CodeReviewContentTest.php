@@ -94,8 +94,11 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($githubScriptBody)->toContain('ACTION="created"');
     expect($githubScriptBody)->toContain('action=${ACTION} id=${NEW_ID}');
     expect($githubScriptBody)->toContain('repos/${NWO}/issues/${NUMBER}/comments');
-    // The lookup is scoped to this actor's own marker, so a concurrent author's
-    // comment can never be the match.
+    // The lookup matches on two things at once — the comment's author and the
+    // marker in its body — so a stranger who copies the marker into a comment of
+    // their own is never the match.
+    expect($githubScriptBody)->toContain('--arg actor "$ACTOR"');
+    expect($githubScriptBody)->toContain('select((.user.login // "") == $actor)');
     expect($githubScriptBody)->toContain('select(.body // "" | contains($marker))');
     // A failed lookup warns and falls back to a new comment — it never aborts
     // the publish and never silently swallows the error.
@@ -128,11 +131,14 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment edit');
     expect($jiraScriptBody)->not->toContain('acli jira workitem comment add');
     expect($jiraScriptBody)->not->toContain('acli jira config get');
-    // The lookup exists, but it is scoped to this actor's own marker rather than
-    // to "the latest comment" — that scoping is what stops it racing with another
-    // author and updating their comment instead.
+    // The lookup matches on the comment's author and on the marker inside its
+    // body — never on "the latest comment", and never on the whole comment
+    // object, which would match the marker in any field.
     expect($jiraScriptBody)->toContain('acli jira workitem comment list --key "$KEY" --json --paginate');
-    expect($jiraScriptBody)->toContain('select(tojson | contains($marker))');
+    expect($jiraScriptBody)->toContain('--arg marker_email "$EMAIL"');
+    expect($jiraScriptBody)->toContain('(.author.emailAddress // "") == $marker_email');
+    expect($jiraScriptBody)->toContain('((.body | tojson) | contains($marker))');
+    expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
     expect($jiraScriptBody)->toContain('if [[ -n "$MARKER_TEXT" ]]; then');
     // Every lookup failure resolves to "no existing comment", so the helper
     // creates one rather than guessing at a match.

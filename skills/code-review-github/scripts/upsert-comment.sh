@@ -31,8 +31,10 @@
 #   1. Detect the actor login via `gh api user --jq .login`.
 #   2. Append a hidden marker `<!-- <MARKER_KEY>:actor=<login> -->` to the body
 #      (only when the body does not already carry the marker).
-#   3. List the target's comments and pick the newest one whose body carries
-#      that marker.
+#   3. List the target's comments and pick the newest one this actor authored
+#      whose body carries that marker. The author filter is load-bearing: a
+#      marker is visible text anyone can copy into their own comment, so a
+#      lookup matching on the marker alone could PATCH a stranger's comment.
 #   4. When a match exists, PATCH it via
 #      `gh api repos/<nwo>/issues/comments/<id>`; otherwise POST a new comment
 #      via `gh api repos/<nwo>/issues/<N>/comments`.
@@ -43,7 +45,7 @@
 #
 # The marker stays at the bottom of the comment so it survives manual edits
 # at the top. It is rendered by GitHub as an invisible HTML comment, and it is
-# what the lookup in step 3 matches on.
+# what the lookup in step 3 matches on, together with the comment's author.
 #
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
@@ -198,8 +200,8 @@ EXISTING_ID=""
 if [[ -n "$ALL_COMMENTS" ]]; then
   EXISTING_ID="$(printf '%s' "$ALL_COMMENTS" \
     | jq -s 'add // []' \
-    | jq -r --arg marker "$MARKER" \
-        '[.[] | select(.body // "" | contains($marker))] | sort_by(.created_at) | last | .id // empty' \
+    | jq -r --arg marker "$MARKER" --arg actor "$ACTOR" \
+        '[.[] | select((.user.login // "") == $actor) | select(.body // "" | contains($marker))] | sort_by(.created_at) | last | .id // empty' \
         2>/dev/null || true)"
 fi
 
