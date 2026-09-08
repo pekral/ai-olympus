@@ -1527,13 +1527,16 @@ test('a gate fix commit re-opens the code review unless it is pure tool output (
     expect($merge)->toContain('**Re-derive the code-review gate against the new head — only when step 5 produced a fix commit.**');
     // The accept-the-recorded-run path produces no fix commit, so it must not enter this step.
     expect($merge)->toContain('there is no fix commit and the head has not moved, so this step does not apply');
-    expect($merge)->toContain('**Tool-generated output only**');
-    expect($merge)->toContain('this is the one sanctioned staleness exemption, and it is narrow');
-    expect($merge)->toContain('carried forward under this exemption, so the decision is auditable');
+    // The canonical trigger lives in the rule; the skill names the two outcomes it produces here.
+    expect($merge)->toContain('When another review round runs at all — changed business logic, or a changed assignment');
+    expect($merge)->toContain('**No business-logic change**');
+    expect($merge)->toContain('The converged review carries forward.');
+    expect($merge)->toContain('that the review was carried forward, so the decision is auditable');
 
     // Everything else is a real change on a reviewed diff and blocks the merge.
+    expect($merge)->toContain('**Business logic changed**');
     expect($merge)->toContain('This is a real code change on a reviewed diff: **do not merge.**');
-    expect($merge)->toContain('treat the commit as behaviour-changing and require the re-review');
+    expect($merge)->toContain('the commit counts as business logic and requires the re-review');
     // The classification is read from the diff, never from a subject line an author chose.
     expect($merge)->toContain('never from its subject line');
 

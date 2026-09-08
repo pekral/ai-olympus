@@ -149,11 +149,13 @@ test('CR skills publish through the publish helper — GitHub always-new, JIRA a
     }
 
     $processCodeReview = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($processCodeReview)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
-    expect($processCodeReview)->toContain('cr-status');
-    expect($processCodeReview)->toContain('<!-- cr-status:actor=<gh-login> -->');
-    // Issue #695: anchor references removed from process-code-review skill documentation.
-    expect($processCodeReview)->not->toContain('{anchor:cr-status-actor-<slug>}');
+    // One comment per review run: the `cr-status` namespace is retired, so the skill publishes
+    // nothing itself — it assembles the body and lets Completion drive the wrapper's single
+    // `cr-comment` publish through the helper.
+    expect($processCodeReview)->toContain('This step **assembles** the comment body; **Completion** publishes it.');
+    expect($processCodeReview)->toContain('The retired `cr-status` namespace has no publisher left');
+    expect($processCodeReview)->not->toContain('<!-- cr-status:actor=<gh-login> -->');
+    expect($processCodeReview)->not->toContain('- cr-status');
     expect($processCodeReview)->not->toContain('Replying to code review from');
     expect($processCodeReview)->not->toContain('Post resolved items and status updates as a new PR comment');
 
@@ -190,7 +192,7 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
     expect($loopScope)->toContain('do not publish; return findings as in-memory markdown for this loop iteration only');
     expect($process)->toContain('### Finalization (only after Review loop converged)');
-    expect($process)->toContain('### PR update (only after Review loop converged)');
+    expect($process)->toContain('### PR update — assemble the one CR comment (only after Review loop converged)');
     expect($process)->toContain('### Completion (final, single publish)');
 
     expect($github)->toContain('Quiet mode (loop iterations from `@skills/process-code-review/SKILL.md`)');

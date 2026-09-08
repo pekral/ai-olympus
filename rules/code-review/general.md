@@ -292,6 +292,45 @@ Every published review carries both, and the first is what makes the next round'
 - `**Reviewed diff fingerprint:** <patch-id of the effective PR diff>` — always rendered. It preserves the verdict across a content-identical history rewrite; a missing value fails closed and requires review.
 - `**Review scope:** delta since <baseline SHA> (round {n}) — carried-over findings re-reported` — or `**Review scope:** full PR (<reason: no prior reviewed revision | baseline <sha> not an ancestor of HEAD after a history rewrite>)`.
 
+## When another review round runs at all — changed business logic, or a changed assignment
+
+The section above scopes **what** a round examines once it runs. This one decides **whether** it runs. The two used to be one decision: any head commit whose effective PR diff fingerprint differed from the reviewed one required another round. That reads every byte of the diff as reviewable content, so a reworded docblock, a CHANGELOG line, or a hand-resolved static-analysis error re-opened a converged review and spent a full round re-deriving the verdict it already held.
+
+Another round runs only when one of exactly two things changed since the reviewed revision:
+
+- **Business logic changed.** The new commits alter what the application does: production code whose behaviour changes, a test whose assertions change, a migration, a route, a config value the code reads at runtime, a dependency constraint, or a user-visible locale string. This is the reviewable content, and a verdict derived before it changed says nothing about it.
+- **The assignment changed.** The tracker item's body was edited, or a **trusted** author posted a comment that refines the scope, after the reviewed revision. Trusted means exactly what *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* → *Authorship trust* already defines. Here the diff may be untouched and the verdict still wrong, because the criteria it was measured against moved.
+
+**Neither changed → the converged verdict carries forward.** Name the carry-forward and its reason in the report. Never run another round to be safe, and never present a carried-forward verdict as a fresh one. None of these re-opens a review on its own:
+
+- a commit carrying only the verbatim output of the project's fixers — code style, import order, normalisation,
+- a comment-only, docblock-only, README-only, or CHANGELOG-only change,
+- a content-identical history rewrite — a rebase, squash, amend, or force-push, already covered by the diff fingerprint above,
+- a reviewer comment that asks for nothing actionable.
+
+**Three things this never relaxes.** A new **actionable reviewer comment** is unfulfilled feedback and keeps its own gate, unchanged. A finding still open from the previous round blocks exactly as before, because carrying a verdict forward carries its open findings with it. And **an unclear classification counts as business logic**: an unclear commit gets the round. This trigger narrows a decision that used to be *always*; it never converts an unexamined change into an examined one.
+
+**Who classifies, and from what.** The agent holding the new head commit classifies it from the **commit's own diff**, never from its subject line — a `chore(gate):` subject is not evidence of what the commit contains. It records the classification next to the carried-forward verdict, so a reader can disagree with it.
+
+## One published comment per review run — a TL;DR, not a systematic report
+
+A converged run used to publish two comments on the pull request: the full technical review template in the `cr-comment` namespace, and a resolved-items status report in a `cr-status` namespace of its own. Both described the same head commit. One listed findings and listed none, because the run had converged; the other repeated the same outcome as a checklist. A reader opening the pull request scrolled past both to reach the diff, and each further round added two more.
+
+**A review run publishes exactly one comment per destination, in the `cr-comment` namespace.** The `cr-status` namespace is retired and nothing publishes into it.
+
+**A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
+
+1. the header block — `Status:`, `Counts:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, and a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on,
+2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
+3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
+4. `## Deferred to sub-issues` and `## Pre-existing fixes`, each rendered only when it has an entry.
+
+**It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
+
+**A run that has not converged publishes nothing to the pull request.** Its findings go back into the loop as fixes (`@skills/process-code-review/SKILL.md` *Review loop*). The one exception is a **standalone** review a person invoked directly, outside that loop: there the findings *are* the deliverable, so the run publishes the findings report of *Two-Part CR Output* above, still as one comment.
+
+**The merge gate reads this one comment.** Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
+
 ## Minor findings are not detected
 
 The review reports **Critical and Moderate findings only**. A Minor finding never blocked anything — `@skills/process-code-review/SKILL.md` fixes Critical and Moderate findings alone, and the convergence gate reads only those two — so every Minor entry cost a reader's attention on every round and changed no outcome. **The review no longer detects one, no longer raises one, and no longer renders one.**

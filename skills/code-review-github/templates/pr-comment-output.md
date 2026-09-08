@@ -1,5 +1,7 @@
 # Code Review
 
+> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## TL;DR`, `## Functional Review`, and the conditional `## Deferred to sub-issues` / `## Pre-existing fixes` sections — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed. The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+>
 > **Section visibility — render only sections that have content.** Always render the header block (Status / Counts / Last updated / tracker-mirror field) and the final `Summary` line. The `Coverage:` header line, the `## Coverage` section, and the `coverage …` slot in the summary line are conditional — render them **only** when the coverage gate produced something to report (uncovered changed lines or unavailable / non-runnable tooling, both Critical findings per `@skills/code-review/SKILL.md` Coverage gate). When every changed line is at 100% coverage and the tool ran successfully, drop all three coverage surfaces; the Counts line is the clean signal. The `## Architecture` section follows the same conditional rule (issue #530):
 > on Laravel projects the walk runs on every CR run, but the heading is rendered **only when the walk produces at least one finding** — when the walk is clean, omit the heading entirely (no "walked, 0 findings" line, no "clean" placeholder, no confirmation that the check ran). On non-Laravel projects (`laravel/framework` not in `composer.json` `require`), omit the `## Architecture` section entirely. Every section is conditional: omit its heading and body entirely when it has no items. Never emit `None.` / `Not applicable.` / `n/a` / `100%` / `walked, 0 findings` placeholders for empty sections or omitted coverage surfaces — drop them entirely. The Counts line in the header is the single source of "zero" signal;
 > the goal is a clean, scannable PR comment a human can read at a glance — only items that still need action remain in the body.
@@ -15,13 +17,22 @@
 **Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
+**Quality gate:** {command} — {green | reported: <what>} on {full head SHA the gate ran on}  *(rendered on a converged run; `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* reads this line off this comment. Omit it on a run that carries no gate record.)*
 **{tracker-mirror field}:** {tracker-mirror status}  *(field name and status wording are defined per-wrapper in that skill's own Output Rules section — see `@skills/code-review-github/SKILL.md`, `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md` for the concrete values)*
+
+---
+
+## TL;DR
+
+> **The body of a converged run.** One plain-language line per change the review loop landed on the branch — the CR items it fixed, the pre-existing fixes, the gate commit, and the reason any reviewer point was rejected or deferred. When the run landed no change, one line stating the reviewed scope and the verdict. Render this section on every converged run and omit it on a run that still carries an outstanding finding, where `## Findings` below is the body instead. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+
+- {what changed, in one sentence}
 
 ---
 
 ## Technical Review
 
-> The technical half of the review — the Core Analysis bullets, the Architecture conformance walk, security, and the coverage gate. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading always renders, even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
+> The technical half of the review — the Core Analysis bullets, the Architecture conformance walk, security, and the coverage gate. Wraps `## Findings` through `## Coverage` below, unchanged in content and conditional-rendering behavior (see `@rules/code-review/general.md` *Two-Part CR Output — Technical & Functional Review*). This heading renders only on a run that still carries an outstanding finding; a converged run renders `## TL;DR` above instead. Where it does render, it renders even when every subsection beneath it is empty — the header block's `Status: clean` / `Counts: Critical 0 · Moderate 0 · Minor 0` above is the "nothing to fix" signal in that case.
 
 ## Findings
 

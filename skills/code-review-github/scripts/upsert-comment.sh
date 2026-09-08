@@ -17,11 +17,11 @@
 #   BODY_FILE   Path to a file holding the comment body, or `-` to read from
 #               stdin. The body must already be in the target tracker markup
 #               (GitHub Markdown).
-#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. CR
-#               wrappers (`code-review-github`, `code-review-jira`, `pr-summary`)
-#               leave it at the default; `process-code-review` passes
-#               `cr-status` so its resolved-items follow-up stays distinguishable
-#               from the CR comment even though every run is now a fresh post.
+#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`, which is
+#               the only namespace this package publishes into: a review run
+#               posts exactly one comment per destination. Every caller
+#               (`code-review-github`, `code-review-jira`, `pr-summary`,
+#               `process-code-review`) leaves it at the default.
 #
 # Behavior:
 #   1. Detect the actor login via `gh api user --jq .login`.
@@ -51,10 +51,9 @@ Usage: upsert-comment.sh <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
   NUMBER      bare GitHub issue or PR number (resolved against current git remote)
   URL         any github.com URL containing /issues/<N> or /pull/<N>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
-  MARKER_KEY  optional marker namespace (default: cr-comment).
-              Use `cr-status` from process-code-review so the resolved-items
-              comment keeps its own per-actor identification even though every
-              run is posted as a fresh comment.
+  MARKER_KEY  optional marker namespace (default: cr-comment, the only
+              namespace this package publishes into — one comment per
+              review run, per destination).
 EOF
 }
 

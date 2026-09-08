@@ -58,7 +58,7 @@ test('prepare-issue-for-merge consolidates only owned comments and preserves mer
     expect($skill)->toContain('Publish and read back the final TL;DR before deleting anything');
     expect($skill)->toContain('Never delete another account\'s comment');
     expect($skill)->toContain('Preserve the newest trusted');
-    expect($skill)->toContain('accompanying `cr-status`');
+    expect($skill)->toContain('`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence');
     expect($skill)->toContain('skills/_shared/delete-owned-github-comment.sh');
     expect($skill)->toContain('exactly one current `merge-readiness` comment');
 
@@ -82,7 +82,6 @@ test('the GitHub comment delete helper protects retained ids before contacting G
         '123',
         '123',
         '998',
-        '999',
     ], $packageDir);
 
     $process->run();
@@ -144,11 +143,6 @@ if [[ "$1" == "api" && "$2" == repos/*/issues/comments/998 ]]; then
   exit 0
 fi
 
-if [[ "$1" == "api" && "$2" == repos/*/issues/comments/999 ]]; then
-  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- cr-status:actor=pekral -->"}'
-  exit 0
-fi
-
 exit 90
 BASH);
     chmod($fakeBin . '/gh', 0755);
@@ -165,7 +159,6 @@ BASH);
             '123',
             '996',
             '998',
-            '999',
         ], $packageDir, $baseEnvironment);
         $unprotected->run();
 
@@ -179,7 +172,6 @@ BASH);
             '123',
             '997',
             '998',
-            '999',
         ], $packageDir, $baseEnvironment + ['FAKE_COMMENT_ACTOR' => 'someone-else']);
         $foreign->run();
 
@@ -193,7 +185,6 @@ BASH);
             '123',
             '997',
             '998',
-            '999',
         ], $packageDir, $baseEnvironment + ['FAKE_COMMENT_ACTOR' => 'pekral']);
         $owned->run();
 

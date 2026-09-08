@@ -61,4 +61,3 @@ skills/code-review/templates/review-output.md :: only when the walk produces at 
 skills/pr-summary/templates/pr-summary-github.md :: {embedded_blocks}
 skills/pr-summary/templates/pr-summary-jira.md :: {embedded_blocks}
 skills/process-code-review/SKILL.md :: `references/review-loop-scope.md`
-skills/process-code-review/SKILL.md :: cr-status

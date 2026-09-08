@@ -39,6 +39,6 @@ Use `scripts/file-deferred-moderate.sh <PARENT> <TITLE> <BODY-FILE|-> [<LABEL>]`
 
 ## Reporting the deferral
 
-- Every deferred finding appears in the published review and in the `cr-status` comment as a **deferred** entry carrying the created sub-issue URL — never as a resolved finding and never silently dropped. A reader must be able to tell a fix from a deferral at a glance.
+- Every deferred finding appears in the single published CR comment's `## Deferred to sub-issues` section as a **deferred** entry carrying the created sub-issue URL — never as a resolved finding and never silently dropped. A reader must be able to tell a fix from a deferral at a glance.
 - The `Counts:` line keeps the **real** detected numbers, per `@rules/code-review/review-process.md` *Output Rules — Truthful reporting (issue #74)*. A deferred Moderate was detected; the report says so and says where it went.
 - **A deferral that did not land is not a deferral.** When the script exits non-zero — creation blocked, the relation unverified, no parent available — the finding reverts to **blocking** and the run does not converge. Report the failed write rather than assuming it.

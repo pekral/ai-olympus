@@ -304,10 +304,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        // Re-baselined: incremental review now records an effective-diff fingerprint so a
-        // content-identical rebase preserves the converged verdict while changed content fails
-        // closed and requires another review round.
-        'rules/code-review/general.md' => '4c9fa3072718f13126cf911ff73135ff03c417f12b77db2711be4111d504948a',
+        // Re-baselined: the review now decides *whether* another round runs at all — only changed
+        // business logic or a changed assignment re-opens a converged verdict — and a run publishes
+        // one comment per destination, a TL;DR rather than a systematic report.
+        'rules/code-review/general.md' => '8df8b5d0c823b2b97e8f5e1fed92fa4d51d8734ebf8aea66c1a8e09f2012f34e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
