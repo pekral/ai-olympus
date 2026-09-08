@@ -12,7 +12,14 @@
 #
 # JIRA has no hidden-comment mechanism, so the marker is a visible but
 # unobtrusive italic line at the bottom of the body:
-#   _cr-comment:actor=<acli-email>_
+#   _cr-comment:actor=<actor-digest>_
+#
+# The actor half is the first 16 hex characters of the SHA-256 digest of the
+# authenticated account e-mail, never the address itself. The marker is readable
+# by everyone who can browse the issue, including an external customer on a
+# Service Management project, so publishing the address there would expose the
+# very field Jira Cloud hides from its own API responses for privacy. The digest
+# is stable across runs, which is all the lookup needs.
 #
 # Usage:
 #   upsert-comment.sh <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
@@ -29,8 +36,12 @@
 #
 # Behavior:
 #   1. Detect the site and the account e-mail from `acli jira auth status`.
-#   2. Append the marker line `_cr-comment:actor=<email>_` to the Wiki Markup
-#      source (only when the source does not already carry it).
+#      That status output is the only identity `acli` exposes — it carries no
+#      account ID, and no `acli` subcommand returns one for the current user.
+#   2. Derive the actor digest from that e-mail and append the marker line
+#      `_cr-comment:actor=<actor-digest>_` to the Wiki Markup source (only when
+#      the source does not already carry it). The raw address never leaves this
+#      process: it is used only for the local author comparison in step 4.
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
 #   4. List the issue's comments and pick the newest one this account authored
 #      whose body carries that marker. Both halves are load-bearing: the marker
@@ -45,11 +56,17 @@
 #
 # The lookup is fail-safe, never fail-open: an unresolvable account e-mail, an
 # `acli` error, or an unexpected JSON shape falls back to creating a new comment
-# — the previous behaviour — rather than guessing at a match. An `acli` build
-# that omits `author.emailAddress` from the comment list resolves the same way:
-# the run creates a second comment instead of updating one it cannot prove it
-# owns. A duplicate comment is the cheap failure; overwriting a stranger's is
-# not.
+# — the previous behaviour — rather than guessing at a match.
+#
+# A comment list that omits `author.emailAddress` resolves the same way, and it
+# is the common case rather than an exotic one: Jira Cloud hides that field
+# whenever the account sets its e-mail visibility to "Only you and admins", or
+# the instance hides it site-wide. The author half of the lookup then has
+# nothing to match on, so the run creates a second comment instead of updating
+# one it cannot prove it owns. A duplicate comment is the cheap failure;
+# overwriting a stranger's is not. The run says so on stderr whenever a
+# marker-carrying comment has an unresolvable author, so the operator reads a
+# degradation rather than a first run.
 #
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
@@ -130,22 +147,30 @@ if [[ -z "$SITE" ]]; then
   exit 3
 fi
 
-# The same status output carries the authenticated account e-mail, which is the
-# actor half of the marker. JIRA has no hidden-comment syntax, so the marker is
-# a visible italic line at the bottom of the body — the JIRA counterpart of the
-# GitHub helper's HTML comment. An unresolvable e-mail is not fatal: the script
-# then adds no marker and creates a new comment, exactly as it did before.
+# The same status output carries the authenticated account e-mail. The marker
+# publishes a digest of it rather than the address: JIRA has no hidden-comment
+# syntax, so the marker is a visible italic line at the bottom of the body that
+# every reader of the issue can see. `php` computes the digest because this
+# script already requires it for the ADF conversion, so no further tool has to
+# be present for the publisher to work.
 EMAIL="$(printf '%s' "$AUTH_STATUS" | awk -F': *' 'tolower($0) ~ /email:/ { gsub(/[[:space:]]+$/, "", $2); print $2; exit }')"
-MARKER_TEXT=""
+ACTOR_ID=""
 if [[ -n "$EMAIL" ]]; then
-  MARKER_TEXT="cr-comment:actor=${EMAIL}"
+  ACTOR_ID="$(printf '%s' "$EMAIL" | php -r 'echo substr(hash("sha256", (string) stream_get_contents(STDIN)), 0, 16);' 2>/dev/null || true)"
+fi
+
+# An unresolvable identity is not fatal: the script then adds no marker and
+# creates a new comment, exactly as it did before.
+MARKER_TEXT=""
+if [[ -n "$ACTOR_ID" ]]; then
+  MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"
   if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
     BODY="${BODY}
 
 _${MARKER_TEXT}_"
   fi
 else
-  echo "upsert-comment.sh: could not resolve the acli account e-mail, publishing an unmarked new comment" >&2
+  echo "upsert-comment.sh: could not resolve the acli account identity, publishing an unmarked new comment" >&2
 fi
 
 # Build valid ADF before the external write. The create call has no dedicated
@@ -174,6 +199,7 @@ fi
 # match — resolves to "no existing comment", so the script creates one instead
 # of claiming a match it is not sure of.
 EXISTING_ID=""
+COMMENTS_JSON=""
 if [[ -n "$MARKER_TEXT" ]]; then
   LIST_JSON=""
   if ! LIST_JSON="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>"$LIST_STDERR")"; then
@@ -187,12 +213,19 @@ if [[ -n "$MARKER_TEXT" ]]; then
     # a single-document response slurps to a one-element stream and behaves the
     # same. The envelope key differs between acli builds, hence the three
     # fallbacks and the `[]` default for a shape none of them matches.
-    EXISTING_ID="$(printf '%s' "$LIST_JSON" \
+    COMMENTS_JSON="$(printf '%s' "$LIST_JSON" \
       | jq -s 'map(
             if type == "array" then .
             elif type == "object" then (.comments // .results // .values // [])
             else [] end
-          ) | add // []' \
+          ) | add // []' 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$COMMENTS_JSON" ]]; then
+    # The author is compared on the raw e-mail this process already holds. The
+    # marker in the body carries only its digest, so it never identifies the
+    # account to a reader; the comparison here needs no digest of its own.
+    EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
       | jq -r --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" '
           map(select(((.author.emailAddress // "") == $marker_email)
                      and ((.body | tojson) | contains($marker))))
@@ -200,6 +233,21 @@ if [[ -n "$MARKER_TEXT" ]]; then
           | last
           | (.id? // empty)
           | tostring' 2>/dev/null || true)"
+  fi
+fi
+
+# Name the hidden-e-mail degradation instead of letting it pass for a first run.
+# A comment already carrying a `cr-comment` marker whose author this response
+# does not identify means the update target may well be there and be
+# unprovable, so the new comment below is a duplicate rather than a first one.
+if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ && -n "$COMMENTS_JSON" ]]; then
+  UNVERIFIABLE_MARKED="$(printf '%s' "$COMMENTS_JSON" \
+    | jq -r 'map(select(((.author.emailAddress // "") == "")
+                        and ((.body | tojson) | contains("cr-comment:actor="))))
+             | length' 2>/dev/null || true)"
+
+  if [[ "$UNVERIFIABLE_MARKED" =~ ^[1-9][0-9]*$ ]]; then
+    echo "upsert-comment.sh: no comment matched this actor's identity — author identity could not be verified from the acli response; posting a new comment instead of updating" >&2
   fi
 fi
 

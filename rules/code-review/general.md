@@ -331,7 +331,7 @@ A converged run used to publish two comments on the pull request: the full techn
 
 **The merge gate reads this one comment.** Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
 
-**That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<acli-email>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
+**That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
 
 **What is lost, stated rather than hidden:** the chain was the cross-run history. A reader used to scroll the thread and see what round 1 said, then round 2. Update-in-place overwrites the previous body, so only the current round's verdict is visible on the tracker; the tracker's own edit history holds the rest, and nothing in this package reads it.
 

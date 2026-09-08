@@ -117,12 +117,21 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // Issue #695: no hidden anchor marker is appended to the JIRA comment body.
     expect($jiraScriptBody)->not->toContain('{anchor:');
     expect($jiraScriptBody)->not->toContain('ACTOR_SLUG');
-    // Site and actor e-mail both come from `acli jira auth status`. The e-mail is
-    // the actor half of the visible marker JIRA needs in place of GitHub's hidden
-    // HTML comment.
+    // Site and actor e-mail both come from `acli jira auth status` — the only
+    // identity `acli` exposes, since it returns no account ID for the current
+    // user. The visible marker JIRA needs in place of GitHub's hidden HTML
+    // comment therefore carries a digest of that e-mail, never the address: the
+    // line is readable by everyone who can browse the issue, and Jira Cloud
+    // hides `author.emailAddress` from its own API responses for that reason.
     expect($jiraScriptBody)->toContain('acli jira auth status');
     expect($jiraScriptBody)->toContain('tolower($0) ~ /email:/');
-    expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${EMAIL}"');
+    expect($jiraScriptBody)->toContain('hash("sha256", (string) stream_get_contents(STDIN)), 0, 16');
+    expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"');
+    expect($jiraScriptBody)->not->toContain('cr-comment:actor=${EMAIL}');
+    // Jira Cloud commonly omits `author.emailAddress`, which the author half of
+    // the lookup needs. That degradation is named on stderr instead of passing
+    // for a first run.
+    expect($jiraScriptBody)->toContain('author identity could not be verified from the acli response');
     expect($jiraScriptBody)->not->toContain('acli jira me --json');
     expect($jiraScriptBody)->toContain('acli jira workitem comment create');
     expect($jiraScriptBody)->toContain('acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP"');
@@ -143,7 +152,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // Every lookup failure resolves to "no existing comment", so the helper
     // creates one rather than guessing at a match.
     expect($jiraScriptBody)->toContain('comment lookup failed on $KEY, publishing a new comment instead');
-    expect($jiraScriptBody)->toContain('could not resolve the acli account e-mail, publishing an unmarked new comment');
+    expect($jiraScriptBody)->toContain('could not resolve the acli account identity, publishing an unmarked new comment');
     // A failed update deletes only a comment this run created — never one an
     // earlier run published.
     expect($jiraScriptBody)->toContain('if [[ "$ACTION" == "created" ]]; then');
@@ -206,7 +215,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($reviewOutput)->not->toContain('Always-new comment');
     expect($reviewOutput)->toContain('**Update in place:**');
     expect($reviewOutput)->toContain('<!-- cr-comment:actor=<gh-login> -->');
-    expect($reviewOutput)->toContain('_cr-comment:actor=<acli-email>_');
+    expect($reviewOutput)->toContain('_cr-comment:actor=<actor-digest>_');
 });
 
 test('process-code-review enforces a convergence loop with quiet iterations and a single final publish', function (): void {

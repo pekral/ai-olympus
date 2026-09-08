@@ -16,7 +16,7 @@ Reverting exception (3) — a later commit re-opens the review, so the issue mov
 
 ## Comments Format
 - Every JIRA comment must reach the API as an Atlassian Document Format (ADF) document. JIRA Cloud stores comments as ADF. `acli comment create --body-file` stores Wiki Markup such as `h2.` and `*bold*` as flat text instead of rendering it.
-- Publish only through `skills/code-review-jira/scripts/upsert-comment.sh`. The helper accepts the Wiki Markup subset below as an intermediate authoring format, appends the marker line `_cr-comment:actor=<acli-email>_`, converts the source to real ADF, and applies that ADF with `acli jira workitem comment update --body-adf <file>` — to the existing marker-carrying comment when one exists, otherwise to a comment it creates first. Never send Wiki Markup directly to `acli` or the JIRA MCP server.
+- Publish only through `skills/code-review-jira/scripts/upsert-comment.sh`. The helper accepts the Wiki Markup subset below as an intermediate authoring format, appends the marker line `_cr-comment:actor=<actor-digest>_` — a digest of the account e-mail, never the address, since every reader of the issue sees that line — converts the source to real ADF, and applies that ADF with `acli jira workitem comment update --body-adf <file>` — to the existing marker-carrying comment when one exists, otherwise to a comment it creates first. Never send Wiki Markup directly to `acli` or the JIRA MCP server.
 - Do not use Markdown syntax:
     - no fenced code blocks
     - no `#` headings

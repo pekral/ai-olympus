@@ -307,7 +307,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
         // marker instead of re-posted, and the rule states what that costs (the comment chain is no
         // longer the cross-run history) and what it preserves (the header block every gate reads).
-        'rules/code-review/general.md' => 'fb4801460b63b456b00c2e66edbfaf81fa9a041908b9cacc5ca7a0c1371e8e41',
+        // Re-baselined once more, with `rules/jira/general.md`: the JIRA comment marker carries a
+        // digest of the account e-mail instead of the address, because that line is visible to
+        // everyone who can browse the issue. Nothing else in either file moved.
+        'rules/code-review/general.md' => 'd64ae9a153827e9fb81b9a41f5058870a751e9596cf47881ae509b2c2c544b70',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -317,7 +320,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
         // exists. The ADF-only write path and the self-assignment rule are unchanged.
-        'rules/jira/general.md' => 'c5625e95c41371c76ecb5f4dc08e41ca54134677ca2b57b47ae4b438726265e3',
+        'rules/jira/general.md' => 'c67c0aaa28882db8330f554f7c2769a511411191d1dba9a4986a3894583b059e',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states

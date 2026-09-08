@@ -207,11 +207,26 @@ const JIRA_COMMENT_EXPECTED_ADF = <<<'JSON'
 JSON;
 
 /**
- * @return array{id: string, created: string, author: array{emailAddress: string}, body: array{content: array<int, array{text: string}>}}
+ * Jira Cloud hides `author.emailAddress` whenever the account or the instance
+ * restricts e-mail visibility, so `$author === null` models the response shape
+ * the publisher meets on most real instances.
+ *
+ * @return array{id: string, created: string, author: array<string, string>, body: array{content: array<int, array{text: string}>}}
  */
-function jiraComment(string $id, string $created, string $author, string $text): array
+function jiraComment(string $id, string $created, ?string $author, string $text): array
 {
-    return ['id' => $id, 'created' => $created, 'author' => ['emailAddress' => $author], 'body' => ['content' => [['text' => $text]]]];
+    $authorField = $author === null ? ['displayName' => 'CR Bot'] : ['emailAddress' => $author];
+
+    return ['id' => $id, 'created' => $created, 'author' => $authorField, 'body' => ['content' => [['text' => $text]]]];
+}
+
+/**
+ * The marker the publisher writes into the comment body. It carries a digest of
+ * the account e-mail, never the address itself.
+ */
+function jiraActorMarker(string $email): string
+{
+    return 'cr-comment:actor=' . substr(hash('sha256', $email), 0, 16);
 }
 
 function jiraCommentSystemPath(): string
@@ -377,8 +392,8 @@ test('the JIRA publisher updates the comment already carrying this actor\'s mark
     $systemPath = jiraCommentSystemPath();
     $listJson = json_encode([
         jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
-        jiraComment('9002', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'cr-comment:actor=bot@example.com'),
-        jiraComment('9003', '2026-01-03T00:00:00.000+0000', 'other@example.com', 'cr-comment:actor=other@example.com'),
+        jiraComment('9002', '2026-01-02T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+        jiraComment('9003', '2026-01-03T00:00:00.000+0000', 'other@example.com', jiraActorMarker('other@example.com')),
     ], JSON_THROW_ON_ERROR);
 
     $process = new Process([
@@ -410,7 +425,7 @@ test('the JIRA publisher updates the comment already carrying this actor\'s mark
             ->and($process->getErrorOutput())->toContain('action=updated id=9002')
             ->and($process->getOutput())->toContain('focusedCommentId=9002')
             // The marker travels in the published ADF, so the next run finds this comment again.
-            ->and($adf)->toContain('cr-comment:actor=bot@example.com');
+            ->and($adf)->toContain(jiraActorMarker('bot@example.com'));
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
@@ -424,8 +439,8 @@ test('a newer comment from another author carrying this account\'s marker is nev
     // Matching on the marker alone would make the newer foreign comment the
     // target and overwrite a stranger's content.
     $listJson = json_encode([
-        jiraComment('9101', '2026-03-01T00:00:00.000+0000', 'bot@example.com', 'round one _cr-comment:actor=bot@example.com_'),
-        jiraComment('9102', '2026-03-02T00:00:00.000+0000', 'impostor@example.com', 'quoting _cr-comment:actor=bot@example.com_ back at you'),
+        jiraComment('9101', '2026-03-01T00:00:00.000+0000', 'bot@example.com', 'round one _' . jiraActorMarker('bot@example.com') . '_'),
+        jiraComment('9102', '2026-03-02T00:00:00.000+0000', 'impostor@example.com', 'quoting _' . jiraActorMarker('bot@example.com') . '_ back at you'),
     ], JSON_THROW_ON_ERROR);
 
     $process = new Process([
@@ -465,7 +480,7 @@ test('a failed ADF update on an existing JIRA comment never deletes it', functio
     // The delete branch exists to clean up a comment *this run* created. A
     // comment an earlier run published must survive a failed update untouched.
     $listJson = json_encode([
-        jiraComment('9201', '2026-04-01T00:00:00.000+0000', 'bot@example.com', 'round one _cr-comment:actor=bot@example.com_'),
+        jiraComment('9201', '2026-04-01T00:00:00.000+0000', 'bot@example.com', 'round one _' . jiraActorMarker('bot@example.com') . '_'),
     ], JSON_THROW_ON_ERROR);
 
     $process = new Process([
@@ -504,7 +519,7 @@ test('the JIRA publisher creates a marked comment when no marker-carrying commen
     $systemPath = jiraCommentSystemPath();
     $listJson = json_encode([
         'comments' => [
-            jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'cr-comment:actor=other@example.com'),
+            jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', jiraActorMarker('other@example.com')),
         ],
     ], JSON_THROW_ON_ERROR);
 
@@ -534,7 +549,7 @@ test('the JIRA publisher creates a marked comment when no marker-carrying commen
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10007 --body-adf')
             ->and($process->getErrorOutput())->toContain('action=created id=10007')
-            ->and($created)->toContain('cr-comment:actor=bot@example.com');
+            ->and($created)->toContain(jiraActorMarker('bot@example.com'));
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
@@ -568,6 +583,85 @@ test('a failed JIRA comment lookup falls back to creating a comment instead of b
             ->and($process->getErrorOutput())->toContain('comment lookup failed on TEAM-42, publishing a new comment instead')
             ->and($process->getErrorOutput())->toContain('action=created id=10009')
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher warns about a degraded lookup when the acli response hides the comment author', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    // Jira Cloud omits `author.emailAddress` whenever e-mail visibility is
+    // restricted, which is the default on many instances. The author half of the
+    // lookup then has nothing to match on, so the publisher creates a second
+    // comment — and must say so instead of letting the run read as a first one.
+    $listJson = json_encode([
+        jiraComment('9301', '2026-05-01T00:00:00.000+0000', author: null, text: 'round one _' . jiraActorMarker('bot@example.com') . '_'),
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10021"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($process->getErrorOutput())->toContain('author identity could not be verified from the acli response')
+            ->and($process->getErrorOutput())->toContain('action=created id=10021')
+            ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
+            // The unverifiable comment is never claimed as this actor's own.
+            ->and($calls)->not->toContain('--id 9301');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the published JIRA comment body carries the actor digest instead of the account e-mail', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    // The marker is visible text every reader with browse permission sees, so it
+    // must not carry the address Jira itself hides from its API responses.
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10023"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => '[]',
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round one');
+
+    try {
+        $process->run();
+        $created = (string) file_get_contents($fixture['created']);
+        $adf = (string) file_get_contents($fixture['adf']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($created)->toContain(jiraActorMarker('bot@example.com'))
+            ->and($adf)->toContain(jiraActorMarker('bot@example.com'))
+            // The source body carries no `@`, so neither published document may.
+            ->and($created)->not->toContain('@')
+            ->and($adf)->not->toContain('@');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
