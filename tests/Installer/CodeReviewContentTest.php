@@ -123,18 +123,18 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
 
         3 of 4 criteria are met.
 
-        * Bulk sending to more than 500 recipients is not verified yet. It needs a run on a real account with a list of that size, which only you can confirm.
+        * Bulk sending to more than 500 recipients is not verified yet. It needs a run on a real account with a list that size, which only you can confirm.
 
         h2. How to test
 
-        # Open the campaign _Spring newsletter_ on the account {{qa-demo}} and add the action _Send e-mail_ to the pipeline. The action must appear in the pipeline immediately, without reloading the page.
+        # On {{qa-demo}}, open the campaign _Spring newsletter_ and add the action _Send e-mail_. It must appear in the pipeline at once, without a reload.
         # Add a second action _Wait 2 days_ below it, then reorder the two by dragging the first one down. The new order must survive a page reload.
         # Delete the pipeline's last action. The pipeline must stay open, and the remaining actions must keep their order.
-        # Regression: send a single campaign to one recipient from the same account. It must arrive as before, and the pipeline screen must show the same delivery status it showed previously.
+        # Regression: send a single campaign to one recipient on the same account. It must arrive as before, and show the delivery status it showed before.
 
         h2. What changed
 
-        * Adding an action to a pipeline no longer empties the pipeline when two people edit the same campaign at once. Before, the second person's save discarded the first person's action.
+        * Adding an action no longer empties the pipeline when two people edit one campaign at once. Before, the second save discarded the first action.
         * A bulk send now reports the number of recipients it actually reached, instead of always reporting the number requested.
         * Reordering actions saves on the first attempt. Before, the order silently reverted for pipelines with more than ten actions.
 
@@ -155,7 +155,7 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     expect($closingLine)->toBeGreaterThan($whatChanged);
 
     // The cap the rule states, counted the way the rule states it: characters, not bytes.
-    expect(mb_strlen($filledIn))->toBeLessThan(3000);
+    expect(mb_strlen($filledIn))->toBeLessThan(3_000);
 });
 
 test('CR skills publish through the publish helper — GitHub and JIRA both update their own comment in place', function (): void {
@@ -2131,7 +2131,9 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('Read the branch\'s commits and its linked tracker. Write one non-technical comment. Publish it.');
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
-    expect($prSummary)->toContain('**JIRA renders three sections in its own order** → `Acceptance criteria`, `How to test`, `What changed`, under one status sentence.');
+    expect($prSummary)->toContain(
+        '**JIRA renders three sections in its own order** → `Acceptance criteria`, `How to test`, `What changed`, under one status sentence.',
+    );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
     // Every normative block is its own heading, so a reader can jump to the one they need.
@@ -4333,14 +4335,21 @@ test('the reviewer comment gate delegates a comment addressed to another account
 });
 
 test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     // The split was implied by the wrapper's Scope list and never stated as a constraint, so a
     // path that published a SHA or a severity count to the ticket broke no written rule.
-    expect($jira)->toContain('**The split is the point of this wrapper: technical findings go to the GitHub pull request, and the JIRA ticket receives the non-technical summary alone.**');
-    expect($jira)->toContain('Never publish severity labels, finding counts, code references, a head SHA, a diff fingerprint, a gate result, a CI status, or a coverage figure to JIRA.');
-    expect($jira)->toContain('the banned-content list, its two exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket');
+    expect($jira)->toContain(
+        '**The split is the point of this wrapper: technical findings go to the GitHub pull request, '
+        . 'and the JIRA ticket receives the non-technical summary alone.**',
+    );
+    expect($jira)->toContain(
+        'Never publish severity labels, finding counts, code references, a head SHA, a diff fingerprint, '
+        . 'a gate result, a CI status, or a coverage figure to JIRA.',
+    );
+    expect($jira)->toContain(
+        'the banned-content list, its two exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket',
+    );
 
     // The split is verified against what was published, not against what was intended.
     expect($jira)->toContain('### The split, verified per run');
