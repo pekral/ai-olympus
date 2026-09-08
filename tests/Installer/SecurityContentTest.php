@@ -83,10 +83,10 @@ test('security/backend.md carries the Malicious Code & Supply-Chain Indicators s
     $content = (string) file_get_contents($packageDir . '/rules/security/backend.md');
 
     expect($content)->toContain('## Malicious Code & Supply-Chain Indicators (issue #549)');
-    expect($content)->toContain('**Silent remote fetch ("tichý curl").**');
-    expect($content)->toContain('**Disabled TLS validation ("ignorování TLS validace").**');
-    expect($content)->toContain('**Suppressed error output ("potlačení chybového výstupu").**');
-    expect($content)->toContain('**Hidden file + detached background process ("skrytý soubor v /tmp a spuštění procesu na pozadí").**');
+    expect($content)->toContain('**Silent remote fetch.**');
+    expect($content)->toContain('**Disabled TLS validation.**');
+    expect($content)->toContain('**Suppressed error output.**');
+    expect($content)->toContain('**Hidden file plus a detached background process.**');
     expect($content)->toContain('CURLOPT_SSL_VERIFYPEER => false');
 });
 

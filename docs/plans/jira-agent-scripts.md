@@ -1,124 +1,123 @@
-# Plán: Bash scripty pro AI agenta nad JIRA
+# Plan: bash scripts for an AI agent working with JIRA
 
-Stav: **implementováno a ověřeno** proti reálnému JIRA ticketu (build 212 testů zelený). Vzniklo ze
-`/analyze-problem`, rozsah pak rozšířen uživatelem o komplexní context-loader.
+Status: **implemented and verified** against a real JIRA ticket (build green, 212 tests). It came out of
+`/analyze-problem`, and the user then widened the scope with a full context loader.
 
-Reálně dodáno (oproti původnímu návrhu níže přibyl `gather-issue-context.sh`):
+What was actually delivered (`gather-issue-context.sh` is the addition to the original proposal below):
 
-| Operace | Script | Stav |
+| Operation | Script | Status |
 |---|---|---|
-| Čtení issue | `load-issue.sh` (existoval) | beze změny |
-| Vkládání/úprava komentáře | `upsert-comment.sh` (existoval) | beze změny |
-| Parsování komentářů | `parse-comments.sh` (nový) | hotovo |
-| Komplexní kontext (issue + komentáře + přílohy + rekurzivně propojené issues + inventář URL → Markdown brief) | `gather-issue-context.sh` (nový) | hotovo |
-| Změna statusu → Code Review | `transition-to-code-review.sh` (nový) | hotovo |
+| Reading an issue | `load-issue.sh` (already existed) | unchanged |
+| Adding / editing a comment | `upsert-comment.sh` (already existed) | unchanged |
+| Parsing comments | `parse-comments.sh` (new) | done |
+| Full context (issue, comments, attachments, recursively linked issues, and a URL inventory rendered as a Markdown brief) | `gather-issue-context.sh` (new) | done |
+| Status change to Code Review | `transition-to-code-review.sh` (new) | done |
 
-Wiring do skillů: `rules/jira/general.md` (výjimka pro transition), `code-review-jira`
-(katalog scriptů), `resolve-issue` (gather + transition po PR), `prepare-issue-context`
-(gather), `tester-cookbook` (gather).
+Wiring into the skills: `rules/jira/general.md` (the transition exception), `code-review-jira` (the script
+catalog), `resolve-issue` (gather, plus the transition after the PR opens), `prepare-issue-context` (gather),
+and `tester-cookbook` (gather).
 
 ---
 
-Původní návrh (pro kontext):
+The original proposal, for context:
 
 ## Goal
 
-AI agent má mít k dispozici sadu deterministických bash scriptů pro čtyři operace nad
-JIRA: (1) čtení issue, (2) vkládání/úpravu komentáře, (3) parsování existujících
-komentářů do strukturované podoby, (4) jedinou povolenou změnu statusu — přechod na stav
-"Code Review". Po dokončení agent zvládne všechny čtyři operace jediným voláním scriptu,
-bez ad-hoc `acli` příkazů a bez rizika, že posune issue do jiného než review stavu.
+The AI agent needs a set of deterministic bash scripts for four JIRA operations: (1) reading an issue,
+(2) adding or editing a comment, (3) parsing the existing comments into a structured shape, and (4) the one
+permitted status change — the transition to "Code Review". Once they exist, the agent performs all four with
+a single script call, with no ad-hoc `acli` commands and no risk of moving the issue into any state other
+than review.
 
 ## Architecture
 
-Vše žije v **existujícím** domově JIRA nástrojů `skills/code-review-jira/scripts/`, vedle
-`load-issue.sh` a `upsert-comment.sh`. Nezavádíme nový adresář ani novou abstrakci —
-stavíme na tom, co už repo má (`acli` jako primární nástroj, JIRA MCP jako fallback,
-viz `rules/jira/general.md`).
+Everything lives in the **existing** home of the JIRA tooling, `skills/code-review-jira/scripts/`, beside
+`load-issue.sh` and `upsert-comment.sh`. No new directory and no new abstraction — this builds on what the
+repository already has (`acli` as the primary tool, the JIRA MCP as the fallback; see
+`rules/jira/general.md`).
 
-Mapování operace → script:
+Operation to script:
 
-| Operace | Řešení | Nový kód? |
+| Operation | Solution | New code? |
 |---|---|---|
-| Čtení issue | `load-issue.sh <KEY\|URL>` (už existuje) | ne |
-| Vkládání/úprava komentáře | `upsert-comment.sh <KEY\|URL> <BODY\|-> [MARKER]` (už existuje) | ne |
-| Parsování komentářů | `parse-comments.sh <KEY\|URL>` (nový, tenká vrstva nad `load-issue.sh`) | ano |
-| Změna statusu → Code Review | `transition-to-code-review.sh <KEY\|URL> [STATUS]` (nový) | ano |
+| Reading an issue | `load-issue.sh <KEY\|URL>` (already exists) | no |
+| Adding / editing a comment | `upsert-comment.sh <KEY\|URL> <BODY\|-> [MARKER]` (already exists) | no |
+| Parsing comments | `parse-comments.sh <KEY\|URL>` (new, a thin layer over `load-issue.sh`) | yes |
+| Status change to Code Review | `transition-to-code-review.sh <KEY\|URL> [STATUS]` (new) | yes |
 
-Proč tady a ne nová abstrakce: parsování komentářů je čistá projekce výstupu
-`load-issue.sh`, transition je tenký a bezpečnostně omezený wrapper nad
-`acli jira workitem transition`. Oba sdílí normalizaci KEY/URL, kterou už dělají
-stávající scripty — viz "Known debt" níže.
+Why here rather than a new abstraction: parsing comments is a pure projection of `load-issue.sh`'s output,
+and the transition is a thin, security-constrained wrapper over `acli jira workitem transition`. Both share
+the KEY/URL normalisation the existing scripts already perform — see "Known debt" below.
 
 ## Implementation steps
 
-1. **Úprava pravidla `rules/jira/general.md` (governance, vyžaduje souhlas člověka).**
-   Řádek 9 dnes říká "Never change JIRA issue status." Nahradit zněním s jedinou výjimkou:
+1. **Edit the `rules/jira/general.md` rule (governance; requires a human's consent).**
+   Line 9 currently reads "Never change JIRA issue status." Replace it with a wording that carries one
+   exception:
    > Never change JIRA issue status, with one exception: a single allowed transition to the
    > project's Code Review status, performed only via
    > `skills/code-review-jira/scripts/transition-to-code-review.sh`. Every other transition
    > (Done, In Progress, Closed, …) stays human-only.
-   Toto je změna **sdíleného** pravidla — dopadá na všechny skills, které ho importují
-   (`resolve-issue`, `tester-cookbook`, `code-review-jira`, `process-code-review`). Proto
-   krok 1 a s explicitním souhlasem.
+   This changes a **shared** rule, so it reaches every skill that imports it (`resolve-issue`,
+   `tester-cookbook`, `code-review-jira`, `process-code-review`). That is why it is step 1 and why it needs
+   explicit consent.
 
-2. **`parse-comments.sh <KEY|URL>`** — extrakce komentářů.
-   - Zavolá `load-issue.sh "$1"` a přes `jq` vyprojektuje `.comments[]` na pole objektů:
+2. **`parse-comments.sh <KEY|URL>`** — comment extraction.
+   - Calls `load-issue.sh "$1"` and projects `.comments[]` through `jq` into an array of objects:
      `{ index, author, created, visibility, body, charCount, lineCount }`.
-   - `index` je 0-based pořadí. `charCount`/`lineCount` slouží agentovi k rozhodnutí, jestli
-     komentář číst celý nebo po částech.
-   - Výstup: jedno JSON pole na stdout (deterministické, slurpovatelné `jq`). Žádný `--text`
-     mód — formátování pro člověka si udělá agent (YAGNI; přidá se, až bude reálný caller).
-   - Propaguje exit kódy z `load-issue.sh` (2 = chybí nástroj, 3 = fetch selhal).
+   - `index` is the 0-based position. `charCount` and `lineCount` let the agent decide whether to read a
+     comment whole or in parts.
+   - Output: one JSON array on stdout (deterministic, slurpable with `jq`). No `--text` mode — the agent
+     formats for a human itself (YAGNI; it gets added when a real caller needs it).
+   - Propagates the exit codes of `load-issue.sh` (2 = missing tool, 3 = fetch failed).
 
-3. **`transition-to-code-review.sh <KEY|URL> [STATUS]`** — jediný povolený přechod.
-   - Normalizuje KEY z arg (stejně jako stávající scripty).
-   - Cílový stav: `STATUS` arg → jinak env `JIRA_CODE_REVIEW_STATUS` → jinak default
-     `"Code Review"`.
-   - **Whitelist guard:** cílový stav musí (case-insensitive) odpovídat seznamu synonym
-     review stavu (`JIRA_CODE_REVIEW_SYNONYMS`, default
-     `Code Review,In Review,Review,Ready for Review,CR`). Cokoli mimo seznam → exit 1
-     ("refused: only the Code Review transition is allowed"). Script tak **strukturálně
-     nemůže** posunout issue na Done apod.
-   - Idempotence: přes `load-issue.sh` přečte aktuální `status`; pokud už je v cílovém stavu,
-     no-op a exit 0.
-   - Provede `acli jira workitem transition --key "$KEY" --status "$TARGET" --yes --json`.
-   - **Discovery / doptání (požadavek uživatele):** `acli` neumí vypsat dostupné přechody
-     (viz `load-issue.sh` Known limitations). Když transition selže proto, že cílový stav
-     v daném projektu neexistuje / není dostupný z aktuálního stavu, script skončí
-     vyhrazeným exit kódem 5 s instrukcí: agent zjistí skutečný název review stavu přes
-     JIRA MCP (available next transitions), ověří ho proti whitelistu a spustí script znovu
-     se správným `STATUS`; pokud nelze jednoznačně určit, **zeptá se člověka**. Ostatní
-     selhání API → exit 3, chybějící `acli` → exit 2.
+3. **`transition-to-code-review.sh <KEY|URL> [STATUS]`** — the one permitted transition.
+   - Normalises the KEY from the argument, exactly as the existing scripts do.
+   - Target state: the `STATUS` argument, otherwise the `JIRA_CODE_REVIEW_STATUS` env var, otherwise the
+     default `"Code Review"`.
+   - **Whitelist guard:** the target state must match (case-insensitively) the list of review-state synonyms
+     (`JIRA_CODE_REVIEW_SYNONYMS`, default `Code Review,In Review,Review,Ready for Review,CR`). Anything
+     outside the list exits 1 ("refused: only the Code Review transition is allowed"). The script is
+     therefore **structurally unable** to move an issue to Done or anywhere similar.
+   - Idempotence: it reads the current `status` through `load-issue.sh`; if the issue is already in the
+     target state, it is a no-op and exits 0.
+   - It then runs `acli jira workitem transition --key "$KEY" --status "$TARGET" --yes --json`.
+   - **Discovery and asking (the user's requirement):** `acli` cannot list the available transitions (see
+     `load-issue.sh`, Known limitations). When a transition fails because the target state does not exist in
+     that project, or is not reachable from the current state, the script exits with the reserved code 5 and
+     an instruction: the agent resolves the project's real review-state name through the JIRA MCP (available
+     next transitions), checks it against the whitelist, and re-runs the script with the correct `STATUS`;
+     when that cannot be settled unambiguously, it **asks a human**. Other API failures exit 3, and a
+     missing `acli` exits 2.
 
-4. **Dokumentace v `skills/code-review-jira/SKILL.md`** — doplnit do sekce o scriptech
-   krátký odstavec se vzory volání všech čtyř operací (vč. dvou stávajících), aby je agent
-   našel na jednom místě.
+4. **Documentation in `skills/code-review-jira/SKILL.md`** — add a short paragraph to the scripts section
+   with call patterns for all four operations (including the two that already exist), so the agent finds
+   them in one place.
 
-5. **Build gate.** Před pushnutím spustit `composer build` (a `composer skill-check`),
-   opravit vše. Viz CLAUDE.md.
+5. **Build gate.** Run `composer build` (and `composer skill-check`) before pushing, and fix everything it
+   reports. See CLAUDE.md.
 
-### Known debt (zapsat do compound-memory projektu)
+### Known debt (record it in the project's compound memory)
 
-Normalizace KEY/URL je teď duplikovaná ve `load-issue.sh` i `upsert-comment.sh` a přibude
-ve dvou nových scriptech (4×). Až bude třeba pátá kopie, vytáhnout sdílený
-`scripts/lib-jira-key.sh`. Teď ne — refaktor stávajícího kódu je mimo zadání (CLAUDE.md §3).
+The KEY/URL normalisation is duplicated across `load-issue.sh` and `upsert-comment.sh` today, and the two new
+scripts make four copies. Extract a shared `scripts/lib-jira-key.sh` when a fifth copy is needed. Not now —
+refactoring existing code is outside this assignment (CLAUDE.md §3).
 
 ## Sources
 
-- `skills/code-review-jira/scripts/load-issue.sh` — čtení issue + komentářů (`acli jira workitem view --json`, `comment list --json --paginate`), stabilní JSON shape vč. `.comments[]`.
-- `skills/code-review-jira/scripts/upsert-comment.sh` — idempotentní comment upsert (anchor podle aktora).
-- `rules/jira/general.md:9` — zákaz změny statusu (mění krok 1); řádky 16–31 — povinný Wiki Markup pro komentáře.
-- `acli jira workitem transition --help` — `--key`, `--status "<name>"`, `--yes`, `--json`; přechod podle **jména** cílového stavu.
+- `skills/code-review-jira/scripts/load-issue.sh` — reads the issue and its comments (`acli jira workitem view --json`, `comment list --json --paginate`), with a stable JSON shape including `.comments[]`.
+- `skills/code-review-jira/scripts/upsert-comment.sh` — idempotent comment upsert (anchored per actor).
+- `rules/jira/general.md:9` — the ban on status changes (step 1 changes it); lines 16–31 — the mandatory Wiki Markup for comments.
+- `acli jira workitem transition --help` — `--key`, `--status "<name>"`, `--yes`, `--json`; the transition targets the state's **name**.
 - `acli jira workitem comment list --help` — `--json --paginate`.
-- Požadavek uživatele: status smí jít **jen na "Code Review"**, název se liší projekt od projektu → najít nebo se doptat.
+- The user's requirement: the status may move **only to "Code Review"**, the name differs per project, so find it or ask.
 
 ## Success criteria
 
-- `parse-comments.sh <KEY>` vrátí validní JSON pole komentářů s poli `index, author, created, visibility, body, charCount, lineCount`; prázdné issue → `[]`.
-- `transition-to-code-review.sh <KEY>` posune issue do review stavu a je idempotentní (druhé spuštění = no-op, exit 0).
-- `transition-to-code-review.sh <KEY> "Done"` skončí exit 1 a issue nezmění (whitelist guard).
-- Při neznámém názvu review stavu skončí exit 5 s instrukcí pro MCP discovery / doptání, nikdy netipuje náhodný přechod.
-- Chybějící `acli` → exit 2; selhání API → exit 3 (konzistentní se stávajícími scripty).
-- `composer build` a `composer skill-check` prochází.
-- `rules/jira/general.md` obsahuje výjimku omezenou na jediný script a jediný cílový stav.
+- `parse-comments.sh <KEY>` returns a valid JSON array of comments carrying `index, author, created, visibility, body, charCount, lineCount`; an issue with no comments returns `[]`.
+- `transition-to-code-review.sh <KEY>` moves the issue into the review state and is idempotent (a second run is a no-op, exit 0).
+- `transition-to-code-review.sh <KEY> "Done"` exits 1 and leaves the issue unchanged (the whitelist guard).
+- An unknown review-state name exits 5 with the instruction for MCP discovery or asking, and never guesses at a transition.
+- A missing `acli` exits 2; an API failure exits 3 (consistent with the existing scripts).
+- `composer build` and `composer skill-check` pass.
+- `rules/jira/general.md` carries an exception limited to one script and one target state.

@@ -141,7 +141,7 @@ This agent applies the following rule sets as the authoritative cross-cutting po
 
 **Fallback (before registration):** the review runs inline inside the CR skills — `code-review-github` already invokes the whole CR skill set, security pass included, as part of its pipeline. That inline pass remains active regardless of whether `athena` is registered; it is the continuity path, not a replacement. Once registered, `athena` adds the three extra security skills, the security-rule lens, and the convergence loop on top of it.
 
-When `daedalus` attempts to dispatch `athena` and the agent is not yet registered, `daedalus` should note *„athena není registrována — CR běží inline v code-review-github"* and drive the review through the CR skill directly.
+When `daedalus` attempts to dispatch `athena` and the agent is not yet registered, `daedalus` should note *"athena is not registered — the review runs inline in code-review-github"* and drive the review through the CR skill directly.
 
 ## Single-reviewer dispatch model
 

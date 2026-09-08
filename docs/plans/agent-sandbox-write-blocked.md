@@ -1,36 +1,36 @@
-# Plán — sandbox blokuje zápis souborů u write-agentů (hephaestus)
+# Plan — the sandbox blocks file writes for write-agents (hephaestus)
 
 ## Goal
-Když je dispatchnutý write-agent (`hephaestus`) zablokován harness sandboxem / permission-mode při zápisu souborů, běh se **zastaví a nahlásí jasný blocker s remediací**, místo aby hlavní vlákno tiše dokončilo implementaci mimo delegovaný a reviewovaný pipeline. Zároveň je v dokumentaci jasně popsaný prerekvizitní předpoklad prostředí (povolit subagentům Edit/Write) a jak ho splnit.
+When a dispatched write-agent (`hephaestus`) is blocked by the harness sandbox / permission mode while writing files, the run **stops and reports a clear blocker with its remediation**, instead of the main thread quietly finishing the implementation outside the delegated, reviewed pipeline. The documentation states the environment prerequisite (allow subagents to Edit/Write) and how to satisfy it.
 
 ## Architecture
-Příčina je na úrovni Claude Code harnessu (sandbox / permission-mode pro neinteraktivní subagenty), **ne** v definicích agentů — `hephaestus` má `Write`/`Edit` v `tools`. Repozitář proto nemůže zápis „udělit", ale vlastní dvě věci, které tenhle případ řeší:
+The cause sits in the Claude Code harness (sandbox / permission mode for non-interactive subagents), **not** in the agent definitions — `hephaestus` declares `Write` / `Edit` in `tools`. The repository therefore cannot "grant" the write, but it owns two things that do resolve this case:
 
-- **`rules/compound-engineering/general.md`** (nebo nové `rules/agents/general.md`, bez klíče `paths:`) — chování hlavního vlákna a orchestrátora: write-blocked subagent = hard blocker → stop + report, nikdy tiché převzetí práce do hlavního vlákna.
-- **`agents/hephaestus.md` + `agents/daedalus.md`** — handoff contract: `hephaestus` při odmítnutém zápisu vrací `Blocked: sandbox denied file write` s remediací; `daedalus` ho eskaluje uživateli.
-- **`docs/agents.md` (Troubleshooting) + `README.md`** — prerekvizita prostředí: session musí povolit subagentům Edit/Write a jak to zapnout. **Poznatek (ověřeno proti oficiální dokumentaci):** `defaultMode: acceptEdits` + `permissions.allow: ["Edit","Write"]` jsou *nutné, ale ne dostatečné* — dispatchnutý subagent přesto narazí na dvě hranice, které hlavní vlákno nemá: (1) **background** subagent auto-zamítne každý zápis, který by jinak vyžadoval prompt, a (2) OS-level **filesystem sandbox** ve výchozím stavu povolí zápis jen do cwd + `$TMPDIR`. Skutečná remediace je tedy `sandbox` vrstva (`"sandbox": { "enabled": true, "filesystem": { "allowWrite": ["."] } }`) a/nebo re-dispatch agenta v *foreground*, ne permission-mode. Zdroje: https://code.claude.com/docs/en/sandboxing , https://code.claude.com/docs/en/sub-agents .
+- **`rules/compound-engineering/general.md`** (or a new `rules/agents/general.md` with no `paths:` key) — the behaviour of the main thread and the orchestrator: a write-blocked subagent is a hard blocker → stop and report, never a silent takeover of the work into the main thread.
+- **`agents/hephaestus.md` + `agents/daedalus.md`** — the handoff contract: on a refused write `hephaestus` returns `Blocked: sandbox denied file write` with its remediation, and `daedalus` escalates it to the user.
+- **`docs/agents.md` (Troubleshooting) + `README.md`** — the environment prerequisite: the session must allow subagents to Edit/Write, and how to enable it. **Finding (verified against the official documentation):** `defaultMode: acceptEdits` plus `permissions.allow: ["Edit","Write"]` are *necessary but not sufficient* — a dispatched subagent still meets two boundaries the main thread does not: (1) a **background** subagent auto-denies every write that would otherwise raise a prompt, and (2) the OS-level **filesystem sandbox** allows writes only into the cwd and `$TMPDIR` by default. The real remediation is therefore the `sandbox` layer (`"sandbox": { "enabled": true, "filesystem": { "allowWrite": ["."] } }`) and/or re-dispatching the agent in the *foreground*, not the permission mode. Sources: https://code.claude.com/docs/en/sandboxing , https://code.claude.com/docs/en/sub-agents .
 
-~~Záměrně se **nemění installer** tak, aby automaticky překlápěl bezpečnostní nastavení (sandbox off / allow všech editů) — to by bylo příliš široké a v rozporu s „jen na vyžádání" a security pravidly.~~
+~~The **installer is deliberately not changed** to flip security settings automatically (sandbox off, allow every edit) — that would be far too broad and would contradict both the "only on request" principle and the security rules.~~
 
-**Update (na vyžádání uživatele):** installer **smí** to nastavení doplnit, ale **jen jako opt-in flag** `--allow-subagent-writes` (vzor `--allow-bundled-scripts`), nikdy automaticky.
+**Update (at the user's request):** the installer **may** write that setting, but **only behind the opt-in flag** `--allow-subagent-writes` (following the `--allow-bundled-scripts` pattern), never automatically.
 
-**Korekce (ověřeno v praxi na reálném projektu):** `sandbox` blok subagentům zápis **neodblokoval**. Funkční „Možnost A" je přidat scoped permission entries `Edit(//<projekt>/**)` a `Write(//<projekt>/**)` na **začátek** pole `permissions.allow` v **projektovém `.claude/settings.local.json`** (ne `settings.json`, ne `sandbox` blok). Subagent (hephaestus) pak zapisuje bez interaktivního schválení. Installer `--allow-subagent-writes` proto generuje tyto dvě scoped entries (idempotentně, prepend, existující entries nechá být) do `settings.local.json` a výsledek validuje (`InstallerClaudeSettings::validateSubagentWritePermissions`). `settings.local.json` je správný domov, protože entries nesou absolutní cestu vázanou na konkrétní stroj. „Jen na vyžádání" zůstává splněné — výchozí chování nepřidává nic.
+**Correction (verified in practice on a real project):** the `sandbox` block did **not** unblock subagent writes. The working "option A" is to prepend the scoped permission entries `Edit(//<project>/**)` and `Write(//<project>/**)` to the `permissions.allow` array in the **project's `.claude/settings.local.json`** (not `settings.json`, and not the `sandbox` block). The subagent (`hephaestus`) then writes without interactive approval. The installer's `--allow-subagent-writes` therefore generates those two scoped entries (idempotently, prepended, leaving existing entries untouched) in `settings.local.json` and validates the result (`InstallerClaudeSettings::validateSubagentWritePermissions`). `settings.local.json` is the right home because the entries carry an absolute path bound to one machine. "Only on request" still holds — the default behaviour adds nothing.
 
 ## Implementation steps
-1. Přidat behaviorální pravidlo (alwaysApply): sandbox-write-blocked write-agent je hard blocker → stop + report + remediace; zákaz tichého dokončení v hlavním vlákně.
-2. Rozšířit handoff contract v `agents/hephaestus.md` o terminální stav `Blocked: sandbox denied file write` (+ remediace) a v `agents/daedalus.md` o jeho eskalaci.
-3. Přidat Troubleshooting sekci do `docs/agents.md` a krátkou poznámku do `README.md` s konkrétním návodem na povolení zápisu subagentům.
-4. `composer build` (sync `.claude/` + fixers + checks + skill-check + testy) musí být zelený.
+1. Add the behavioural rule (always applied): a sandbox-write-blocked write-agent is a hard blocker → stop, report, remediate; silently finishing the work in the main thread is forbidden.
+2. Extend the handoff contract in `agents/hephaestus.md` with the terminal state `Blocked: sandbox denied file write` (plus remediation), and `agents/daedalus.md` with its escalation.
+3. Add a Troubleshooting section to `docs/agents.md` and a short note to `README.md` with the concrete procedure for allowing subagent writes.
+4. `composer build` (sync `.claude/`, fixers, checks, skill-check, tests) must be green.
 
 ## Sources
-- `agents/hephaestus.md` (`tools: Read, Write, Edit, Glob, Grep, Bash`) — zápis povolen na úrovni agenta.
+- `agents/hephaestus.md` (`tools: Read, Write, Edit, Glob, Grep, Bash`) — the write is permitted at the agent level.
 - `agents/daedalus.md` — delegation model, one-level nesting, handoff contract.
-- `src/InstallerClaudeSettings.php` — installer spravuje jen `permissions.allow` (bundled scripts) + `includeCoAuthoredBy`, žádný sandbox klíč.
-- `.claude/settings.local.json` — pouze `permissions.allow`, žádný `sandbox` / `defaultMode`.
-- `docs/agents.md` — „Subagents of an agent" (one-level nesting), „Distribution".
+- `src/InstallerClaudeSettings.php` — the installer manages only `permissions.allow` (bundled scripts) and `includeCoAuthoredBy`; no sandbox key.
+- `.claude/settings.local.json` — `permissions.allow` only; no `sandbox` / `defaultMode`.
+- `docs/agents.md` — "Subagents of an agent" (one-level nesting), "Distribution".
 
 ## Success criteria
-- Při zablokovaném zápisu subagent vrací jednoznačný blocker a hlavní vlákno NEPokračuje tichou implementací.
-- Dokumentace popisuje prerekvizitu prostředí a postup, jak povolit zápis subagentům.
-- `composer build` zelený (0 errors), `composer skill-check` 0 errors.
-- Žádné automatické překlápění bezpečnostních nastavení v installeru.
+- On a blocked write the subagent returns an unambiguous blocker and the main thread does NOT continue with a silent implementation.
+- The documentation states the environment prerequisite and the procedure for allowing subagent writes.
+- `composer build` green (0 errors), `composer skill-check` 0 errors.
+- No automatic flipping of security settings in the installer.

@@ -68,9 +68,11 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // Re-baselined by issue #63, which adds the *Scope boundary* paragraph dividing this
         // section from the container lens, and again by its first CR round, which gives that
         // paragraph the *dimensions* half and the same conditionality the CR carrier states.
+        // Re-baselined once more when the Czech glosses were removed from the four
+        // Malicious Code & Supply-Chain Indicators bullet headings.
         // The digest records the current body; it never forbids a deliberate edit to it, only
         // an accidental one.
-        'backend.md' => 'bff59725a30dfdc77cf513fcd574caf8223a965a04b76ea8c922aaf7279658f7',
+        'backend.md' => '163d6d5e4b5e926675090079f36554b5e58ed9dd92a4775b7f60a7fcad204600',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         'mobile.md' => 'f72b824c6f6d23f0db84662ab7de8c54c5126b4d65d5118e44b169d2a4115fea',
     ];

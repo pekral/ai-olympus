@@ -293,9 +293,9 @@
 - Role:    shared
 
 ### unconditional-behavior-ask-defaults-not-opt-in — An assignment phrased as an unconditional statement about a skill's own output resolves to a default behavior change, not an opt-in toggle
-- Trigger: an issue asks a skill/feature to behave a certain way without conditional language ("volitelně", a flag/level list) — tempting to add an opt-in toggle so existing behavior stays reachable.
+- Trigger: an issue asks a skill/feature to behave a certain way without conditional language (no "optionally", no flag/level list) — tempting to add an opt-in toggle so existing behavior stays reachable.
 - Rule:    Read the absence of conditional language as intentional — an unconditional statement about a skill's own output is a default-behavior-change request; an opt-in flag/level is unrequested configurability CLAUDE.md's Simplicity First forbids. State this reading explicitly in the published plan so reviewers validate it rather than re-derive it from the diff.
-- Example: issue #51 ("aby tento skill měl podobné výstupy jako <tool>") resolved as `pr-summary`'s output becoming terse **by default**, not behind an intensity flag (the referenced tool ships several levels, which made the toggle reading tempting). PR #72 implemented it with zero configuration surface added.
+- Example: issue #51 (Czech: "aby tento skill měl podobné výstupy jako <tool>" — "make this skill produce output like <tool>") resolved as `pr-summary`'s output becoming terse **by default**, not behind an intensity flag (the referenced tool ships several levels, which made the toggle reading tempting). PR #72 implemented it with zero configuration surface added.
 - Source:  https://github.com/pekral/ai-olympus/pull/72   Added: 2026-07-19
 - Role:    shared
 
@@ -362,10 +362,10 @@
 - Source:  https://github.com/agentic-vibes/laravel-agent-skills/pull/245   Added: 2026-08-11
 - Role:    shared
 
-### worktree-standing-authorization — Worktree pro řešení issue v tomto repu je předschválený, smazání po mergi je povinné
-- Trigger: agent se chystá řešit GitHub issue v `ai-olympus` a zvažuje, jestli si smí založit `git worktree`, nebo se musí ptát.
-- Rule:    Povolení je **trvalé** pro tento repozitář — worktree pro issue work zakládej bez ptaní; podmínka „only when the user explicitly asks" z `CLAUDE.md` a `@rules/git/general.md` je tímto pro `ai-olympus` splněná natrvalo. Smazání po mergi PR je **povinné**, ne best-effort; mechaniku nemění — platí `@rules/git/general.md` *Worktrees / Workspaces* (ověřit, že worktree není aktivní tree a nemá necommitnuté změny, nikdy `--force`, pak `git worktree remove <path>` + `git worktree prune`), vlastník na merge cestě je `@skills/merge-github-pr/SKILL.md` §4, pro CR worktree `daedalus` *Run cleanup*. Povolení **nevytváří paralelismus** tam, kde ho design zakazuje: zápisová cesta `daedala` worktree nebere, takže druhý souběžný zápisový běh pořád blokuje na `.claude/run/.daedalus-write.lock`.
-- Example: Uživatelský pokyn 2026-08-24 při běhu na issue #11; viz [[pest-worktree-avoid-digit-leading-path]] pro past při umístění disposable worktree.
+### worktree-standing-authorization — A worktree for issue work in this repo is pre-approved, and removing it after the merge is mandatory
+- Trigger: an agent is about to work a GitHub issue in `ai-olympus` and is weighing whether it may create a `git worktree` or has to ask first.
+- Rule:    The authorization is **standing** for this repository — create a worktree for issue work without asking; the "only when the user explicitly asks" condition in `CLAUDE.md` and `@rules/git/general.md` is permanently satisfied for `ai-olympus`. Removing it after the PR merges is **mandatory**, not best-effort; the mechanics are unchanged — `@rules/git/general.md` *Worktrees / Workspaces* governs them (verify the worktree is not the active tree and carries no uncommitted changes, never `--force`, then `git worktree remove <path>` plus `git worktree prune`). The owner on the merge path is `@skills/merge-github-pr/SKILL.md` §4, and `daedalus` *Run cleanup* for a CR worktree. The authorization **creates no parallelism** where the design forbids it: `daedalus`'s writing path takes no worktree, so a second concurrent writing run still blocks on `.claude/run/.daedalus-write.lock`.
+- Example: the user's instruction on 2026-08-24 during the run on issue #11; see [[pest-worktree-avoid-digit-leading-path]] for the trap in where a disposable worktree is placed.
 - Source:  https://github.com/pekral/ai-olympus/pull/16   Added: 2026-08-24
 - Role:    shared
 

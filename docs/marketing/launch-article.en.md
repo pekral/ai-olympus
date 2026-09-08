@@ -16,7 +16,7 @@ findings.
 
 I wrote none of it. I wrote one sentence in a GitHub comment:
 
-> ai-olympus bash-guard chci úplně smazat z repa!
+> ai-olympus bash-guard — I want it deleted from the repo entirely!
 
 *(I want bash-guard deleted from the repo entirely.)*
 

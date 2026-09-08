@@ -234,7 +234,7 @@ test('the roster ships no general problem-analysis subagent and daedalus routes 
 
     // Only the security-focused analysis has a specialist (athena); a general analysis request stops.
     expect($daedalus)->toContain('There is no general (non-security) analysis agent in the roster');
-    expect($daedalus)->toContain('Blocked: roster nemá agenta pro obecnou analýzu');
+    expect($daedalus)->toContain('Blocked: the roster has no agent for general analysis');
     // A subject too broad for one PR is decomposed by `daedalus` itself — inline, in its own
     // context, because the peer agent that used to own the backlog tier (`zeus`) is retired and
     // there is nobody left to dispatch it to (issue #26). The run still ends at the created
@@ -530,9 +530,9 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
     expect($content)->toContain('Dependencies');
 
     // Every confirmed finding must carry a regression-test sketch.
-    expect($content)->toContain('regresní test');
+    expect($content)->toContain('regression-test sketch');
     // Defensive framing: audit, not attack.
-    expect($content)->toContain('autorizovaném prostředí');
+    expect($content)->toContain('authorized environment');
 });
 
 test('every dispatched agent reads and appends to the shared task brief', function (): void {
@@ -646,7 +646,7 @@ test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bar
     // documented in one place and ignored in the two places that actually append a ledger line.
     expect($daedalus)->toContain('Record the dispatch in the ledger as `hephaestus:scoped`, never bare `hephaestus`');
     expect($daedalus)->toContain('(ledger role `hephaestus:scoped`)');
-    expect($daedalus)->toContain('v ledgeru role `hermes:reporting`');
+    expect($daedalus)->toContain('ledger role `hermes:reporting`');
 });
 
 test(
@@ -721,7 +721,7 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
 
     // The two dependent steps stop asserting that the scoped handoff always came from a fresh pass.
     expect($daedalus)->toContain('or after you skipped it under the four conditions above — decide one question');
-    expect($daedalus)->toContain('nebo poté, co jsi ho podle čtyř podmínek v kroku 6 přeskočil');
+    expect($daedalus)->toContain('or once you have skipped it under the four conditions in step 6');
 });
 
 test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decision to daedalus (issue #70)', function (): void {
@@ -811,12 +811,12 @@ test('hermes builds How to test from the hephaestus handoff for the current head
     // Step 6a has to name the same either-or source, or the orchestrator withholds a dispatch
     // hermes is in fact able to serve.
     $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
-    expect($daedalus)->not->toContain('ze scoped-validation handoffu, který `hephaestus` do briefu zapsal v kroku 6');
+    expect($daedalus)->not->toContain('from the scoped-validation handoff `hephaestus` wrote into the brief in step 6');
     expect($daedalus)->toContain(
-        'z poslední zelené `hephaestus` validace pro **aktuální head SHA**: '
-        . 'scoped-validation handoffu z kroku 6, nebo implementačního handoffu, když jsi scoped pass podle čtyř podmínek přeskočil',
+        'from the last green `hephaestus` validation for the **current head SHA**: '
+        . 'the scoped-validation handoff from step 6, or the implementation handoff when you skipped the scoped pass under the four conditions',
     );
-    expect($daedalus)->toContain('dispatchni ho až když handoff pro aktuální head SHA v briefu skutečně je');
+    expect($daedalus)->toContain('dispatch it only once the handoff for the current head SHA really is in the brief');
 
     // The two descriptions of the brief's contents assumed a scoped-validation handoff is always
     // there. Neither gates a decision, but both are read as a description of what the brief holds.
@@ -1874,7 +1874,7 @@ test('daedalus validates the source-slug format before it reaches a path or a sh
 
     // The failure mode is the half a sanitizing implementation would silently get wrong.
     expect($content)->toContain('hard stop, never a sanitized fallback');
-    expect($content)->toContain('Blocked: neplatný formát source-slugu');
+    expect($content)->toContain('Blocked: invalid source-slug format');
     expect($content)->not->toContain('strip the offending characters and continue');
 
     // Run cleanup is owed by every terminating path, and building those paths needs the very slug
@@ -1893,7 +1893,7 @@ test('daedalus probes the same-slug brief before overwriting it, so a live peer 
     // The gate is the existing one reused, not a second mechanism invented beside it.
     expect($content)->toContain('^## PID[ \t]+([0-9]{1,7})[ \t]');
     expect($content)->toContain('LC_ALL=C kill -0 "$pid" 2>&1');
-    expect($content)->toContain('Blocked: brief pro tento slug drží živý běh');
+    expect($content)->toContain('Blocked: a live run holds the brief for this slug');
 
     // Anything short of confirmed-dead is a live peer — the fail-safe default used everywhere else.
     expect($content)->toContain('*not mine* is not the same fact as *not alive*');
@@ -1975,7 +1975,7 @@ test('daedalus dispatches every step blocking so a turn never ends mid-flight (i
     // to implement — but the turn still must not end on `dispatched` (issue #179).
     expect($content)->toContain('**The CR round is one blocking turn.**');
     expect($content)->not->toContain('two blocking Task calls in a single message');
-    expect($content)->toContain('Blocked: harness neumožňuje blokující dispatch');
+    expect($content)->toContain('Blocked: the harness does not allow a blocking dispatch');
 
     // Arithmetic from the issue's own table: reviewer passes total 1 362 135, so 838 024 is not more than
     // all of them combined -- only more than the largest single pass (428 897).
@@ -1995,7 +1995,7 @@ test('daedalus keeps a dispatch ledger keyed by role, head sha and round (issue 
     expect($content)->toContain('.claude/run/<source-slug>.dispatches');
     expect($content)->toContain('The key is `{role, pr-head-sha, round}`');
     expect($content)->toContain('Append-only lines, not a JSON document.');
-    expect($content)->toContain('Blocked: kolo <role>/<round> je již dispatchnuté a nedoručilo výsledek');
+    expect($content)->toContain('Blocked: round <role>/<round> is already dispatched and delivered no result');
 
     // A liveness line records a check and must never close a round, or the in-flight guard above
     // would read a still-running dispatch as finished.
@@ -2037,7 +2037,7 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
 
     // Detection escalates, and never re-dispatches over an unconfirmed original. The round is a
     // "kolo" here exactly as in the ledger's sibling Blocked string.
-    expect($content)->toContain('Blocked: kolo <role>/<round> nejeví známky života');
+    expect($content)->toContain('Blocked: round <role>/<round> shows no sign of life');
     expect($content)->toContain('Never re-dispatch a stuck round without first confirming the original is dead.');
 
     // The cap bounds the checks themselves, so an unbounded wait cannot masquerade as monitoring —
@@ -2078,7 +2078,7 @@ test('daedalus names the outer recovery for a hung dispatch that leaves no turn 
     // The recovery is the next run reading the state files this one leaves behind, and it lands on
     // one of two outcomes — never on silence.
     expect($content)->toContain('it reclaims a **confirmed-dead** holder\'s artifacts and proceeds');
-    expect($content)->toContain('`brief pro tento slug drží živý běh` in step 2');
+    expect($content)->toContain('`a live run holds the brief for this slug` in step 2');
     expect($content)->toContain('never an indefinite silent wait');
 
     // Only two artifacts are named, because only two are read here: step 2 probes the brief's
@@ -2682,39 +2682,39 @@ test('daedalus treats the tracker report as a mandatory run output, not a best-e
 
     // The report used to fall out silently while the run still reported success. Making it part of
     // the definition of a finished run is what closes that gap, so the sentence has to say it.
-    expect($daedalus)->toContain('**Publikovaný report je součástí definice hotového běhu, ne best-effort krok.**');
-    expect($daedalus)->toContain('nehlas jako `Done`');
-    expect($daedalus)->toContain('Běh, který report nepublikoval a tracker měl');
+    expect($daedalus)->toContain('**The published report is part of the definition of a finished run, not a best-effort step.**');
+    expect($daedalus)->toContain('is never reported as `Done`');
+    expect($daedalus)->toContain('A run that had a tracker and published no report');
 
     // Publishing stays hermes's alone - the mandate must not be satisfiable by anyone else doing it.
-    expect($daedalus)->toContain('Reporting nikdy nedělá `hephaestus`, žádný jiný agent ani ty sám');
+    expect($daedalus)->toContain('Reporting is never done by `hephaestus`, by any other agent, or by you');
 
     // ...and the mandate must not force a duplicate comment either. The escape hatch is closed by
     // demanding the evidence, and by judging the comment on content rather than on its author.
-    expect($daedalus)->toContain('**Neduplicita není úniková cesta.**');
-    expect($daedalus)->toContain('jen s konkrétní URL komentáře');
-    expect($daedalus)->toContain('Bez té evidence to je nepublikovaný report, ne pokrytý');
-    expect($daedalus)->not->toContain('Rozhoduje obsah komentáře, ne jeho autor:');
-    expect($daedalus)->toContain('Uvnitř té přípustné množiny rozhoduje obsah komentáře, ne který důvěryhodný agent ho napsal');
-    expect($daedalus)->toContain('CR zrcadlo od `atheny` nese stav konvergence a počty nálezů');
+    expect($daedalus)->toContain('**Non-duplication is not an escape hatch.**');
+    expect($daedalus)->toContain('only with the concrete comment URL');
+    expect($daedalus)->toContain('Without that evidence the report is unpublished, not covered');
+    expect($daedalus)->not->toContain('The comment\'s content decides, not its author:');
+    expect($daedalus)->toContain('Inside that permitted set the comment\'s content decides, never which trusted agent wrote it');
+    expect($daedalus)->toContain('the CR mirror from `athena` carries the convergence state and the finding counts');
 
     // The acceptor has to demand the authorship evidence too - a skip it accepts without the
     // declaring account is a skip taken on a comment anyone could have written.
-    expect($daedalus)->toContain('a s účtem, který ten komentář napsal, včetně jeho `author_association`');
+    expect($daedalus)->toContain('and with the account that wrote that comment, including its `author_association`');
 
     // The acceptor must not carry a second, literal-heading spelling of the same discriminator.
-    expect($daedalus)->not->toContain('které dvě části (`Summary of changes` a `How to test`)');
+    expect($daedalus)->not->toContain('which two parts (`Summary of changes` and `How to test`)');
     expect($daedalus)->toContain(
-        '**Které dvě části to jsou, definuje `agents/hermes.md` *Post-convergence reporting mode* krok 4 — tu definici tady nepřepisuj.**',
+        '**Which two parts those are is defined by `agents/hermes.md` *Post-convergence reporting mode* step 4 — never restate that definition here.**',
     );
-    expect($daedalus)->toContain('Kdybys tu držel vlastní seznam nadpisů, `hermes` by skip bral podle jednoho testu a ty ho přijímal podle jiného');
+    expect($daedalus)->toContain('If you kept your own list of headings, `hermes` would decide the skip by one test and you would accept it by another');
 
     // The bullet forbade restating the definition and then restated its semantic clause verbatim
     // from hermes step 4. The citation is the whole point, so the copy goes.
-    expect($daedalus)->not->toContain('Je významová, ne shoda nadpisu');
-    expect($daedalus)->not->toContain('takže první polovinu splní `What changed` stejně jako `Summary of changes`');
-    expect($daedalus)->toContain('**Přípustný je jen komentář od účtu s právem zápisu do repozitáře**');
-    expect($daedalus)->toContain('Repozitář může být veřejný, takže komentář od kohokoli jiného skip neodůvodní');
+    expect($daedalus)->not->toContain('It is by meaning, not by heading match');
+    expect($daedalus)->not->toContain('so `What changed` satisfies the first half exactly as `Summary of changes` does');
+    expect($daedalus)->toContain('**Only a comment from an account with write access to the repository qualifies**');
+    expect($daedalus)->toContain('The repository may be public, so a comment from anyone else justifies no skip');
 });
 
 test('an unregistered hermes stops a tracker-sourced run with a named blocker and a remediation (issue #71)', function (): void {
@@ -2723,27 +2723,23 @@ test('an unregistered hermes stops a tracker-sourced run with a named blocker an
 
     // The old fallback carried on to the final report without a published summary, which is the
     // silent bypass `Blocked delegation is a hard stop` exists to forbid.
-    expect($daedalus)->not->toContain('Pokud dispatch selže, pokračuj k finálnímu reportu bez publikovaného shrnutí');
-    expect($daedalus)->not->toContain('„hermes není registrován — shrnutí v chatu"');
+    expect($daedalus)->not->toContain('If the dispatch fails, continue to the final report without a published summary');
+    expect($daedalus)->not->toContain('"hermes is not registered — summary in chat"');
 
-    expect($daedalus)->toContain('**Závislost na registraci — neregistrovaný `hermes` je blokátor, ne poznámka.**');
-    expect($daedalus)->toContain('„hermes není registrován — report nelze publikovat"');
-    expect($daedalus)->toContain('doinstaluj `agents/hermes.md` do `.claude/agents/`');
+    expect($daedalus)->toContain('**Registration dependency — an unregistered `hermes` is a blocker, not a note.**');
+    expect($daedalus)->toContain('"hermes is not registered — the report cannot be published"');
+    expect($daedalus)->toContain('install `agents/hermes.md` into `.claude/agents/`');
     expect($daedalus)->toContain('@rules/compound-engineering/general.md` *Blocked delegation is a hard stop*');
-    expect($daedalus)->toContain('**Report nikdy nepublikuj sám za `hermese`**');
-    expect($daedalus)->toContain('Před `Blocked` zastavením proběhne *Run cleanup*');
+    expect($daedalus)->toContain('**Never publish the report yourself in place of `hermes`**');
+    expect($daedalus)->toContain('*Run cleanup* runs before that `Blocked` stop');
 
     // A described-task run has nothing to publish, so it must keep behaving exactly as before.
-    expect($daedalus)->toContain('Bez trackerového zdroje se nic nepublikuje ani dnes, takže tam neregistrovaný `hermes` blokátor není');
+    expect($daedalus)->toContain('With no tracker source nothing is published today either, so an unregistered `hermes` is no blocker there');
 
     // Both handoff surfaces carry the new outcome - a blocking state named in one list and absent
     // from the other is a contract the reader cannot follow through.
     expect($daedalus)->toContain('a tracker-sourced run whose post-convergence report never reached the tracker');
 
-    // Step 6a is deliberately Czech; the `Output — handoff` spec around this bullet is English and
-    // says two lines above never to mix two languages in one report. The reason renders in English
-    // here and daedalus translates it at report time like every other bullet.
-    expect($daedalus)->not->toContain('`hermes` není registrován, nebo jeho publikaci nešlo potvrdit');
     expect($daedalus)->toContain('`hermes` is not registered, or its publication could not be confirmed');
     expect($daedalus)->toContain('an unpublished report is a `Blocked` stop, never a note on a successful run');
     expect($daedalus)->toContain('the URL of the comment that already carried the report');

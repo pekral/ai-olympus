@@ -55,7 +55,7 @@ The hundred-eyed watchman who never closed every eye at once, named after **Argu
 
 ### <img src="../assets/agents/hermes.png" alt="hermes avatar" width="48" align="left"> `hermes` — release announcer / publicista
 
-The messenger who carries the message after the work is done, named after **Hermés (posel bohů / messenger of the gods)**, the swift divine messenger whose sole role was to deliver the official announcement. It is the roster's **only publishing agent**: every other agent hands its result back through the shared brief or its handoff, and anything that reaches a tracker audience routes through `hermes`. Give it a merged change, a release, or a shipped feature and it loads the source read-only, composes the announcement content (Twitter/X tweet ≤280 chars + thread, release notes, marketing summary with **pekral.cz** promotion), and hands back an `Announce done` summary with all drafts inline. It runs **post-delivery**, outside the CR loop.
+The messenger who carries the message after the work is done, named after **Hermes, the messenger of the gods**, the swift divine messenger whose sole role was to deliver the official announcement. It is the roster's **only publishing agent**: every other agent hands its result back through the shared brief or its handoff, and anything that reaches a tracker audience routes through `hermes`. Give it a merged change, a release, or a shipped feature and it loads the source read-only, composes the announcement content (Twitter/X tweet ≤280 chars + thread, release notes, marketing summary with **pekral.cz** promotion), and hands back an `Announce done` summary with all drafts inline. It runs **post-delivery**, outside the CR loop.
 
 - **Trigger:** a merged change or release needs announcement content — tweet, thread, release notes, or marketing summary — a converged run needs its post-convergence report published, or `verify-merge-readiness` needs its final source-issue TL;DR consolidated.
 - **Orchestrates:** `resolve-issue/references/source-detection` (source loading, read-only), `pr-summary` (post-convergence reporting to the source tracker).
@@ -109,7 +109,7 @@ Every agent is named after a figure from **Greek mythology**, chosen so the figu
 | `argus` | Argus Panoptes, the hundred-eyed watchman set to keep watch and never close every eye at once | all eyes on the running system → exercises the delivered behaviour a user will meet |
 | `daedalus` | Daedalus, the master craftsman who runs the workshop and directs the makers | head of production → routes engineering work to the right specialist |
 | `athena` | Athena, goddess of wisdom and strategic defence | wisdom + strategic vigilance → the roster's single code-review sentinel (quality, architecture, optimisation, security) and pre-implementation security analyst |
-| `hermes` | Hermés (posel bohů / messenger of the gods) | swift divine messenger, carries the message after the work is done → release announcer & the roster's only publishing agent |
+| `hermes` | Hermes (messenger of the gods) | swift divine messenger, carries the message after the work is done → release announcer & the roster's only publishing agent |
 
 Naming ideas for future agents: `themis` (order / verdict), `rhadamanthys` (fair judge), `iris` (delivery / merge). A retired name is **not** an idea: `zeus`, `argos`, and `apollon` stay out of this table and are never repurposed for a different role, or a stale reference in an old PR, brief, or memory entry would resolve to the wrong agent.
 
@@ -223,7 +223,7 @@ user → daedalus                                         (top-level; resolves s
        Task ▶ hephaestus    (fast scoped validation mode — final gate after convergence; skipped over an already-validated head)
          │        └─ Tests done (scoped) → proceed | Blocked → escalate to user
          ▼
-       Task ▶ hermes   (post-convergence reporting — publishes human-readable "co se změnilo + jak otestovat" to source tracker via pr-summary, built from the brief + hephaestus's scoped handoff; fallback: inline summary in handoff when no tracker)
+       Task ▶ hermes   (post-convergence reporting — publishes a human-readable "what changed + how to test" to the source tracker via pr-summary, built from the brief + hephaestus's scoped handoff; fallback: inline summary in handoff when no tracker)
          │        └─ Reporting done (comment link, read back) | Reporting done (already covered) (covering comment URL) | Reporting done (no tracker) (inline)
          ▼
        daedalus → reports result to the user   (merge stays a separate, explicit step — always via @skills/merge-github-pr/SKILL.md)
