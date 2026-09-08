@@ -224,10 +224,15 @@ else
     || true)"
 fi
 
-if [[ -z "$RESPONSE" ]]; then
-  echo "upsert-comment.sh: ${ACTION} request failed on ${NWO}#${NUMBER}" >&2
+# A failed request is not always an empty response: `gh api` prints the API's own
+# error JSON on stdout, so emptiness alone would let a 403 or a 422 report
+# `action=updated id=null` and exit 0. The published URL is the evidence the
+# write landed, so it is what the success check reads.
+NEW_URL="$(printf '%s' "$RESPONSE" | jq -r '.html_url // empty' 2>/dev/null || true)"
+if [[ -z "$NEW_URL" ]]; then
+  echo "upsert-comment.sh: ${ACTION} request failed on ${NWO}#${NUMBER}: $(printf '%s' "$RESPONSE" | jq -r '.message // "unknown error"' 2>/dev/null || echo 'unknown error')" >&2
   exit 3
 fi
-printf '%s' "$RESPONSE" | jq -r '.html_url'
+printf '%s\n' "$NEW_URL"
 NEW_ID="$(printf '%s' "$RESPONSE" | jq -r '.id')"
 echo "action=${ACTION} id=${NEW_ID}" >&2

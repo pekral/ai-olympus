@@ -27,10 +27,16 @@ if [[ "$1" == "api" && "$2" == *"/comments" && "$*" == *"--paginate"* ]]; then
   exit 0
 fi
 
-# Publish: either a PATCH on an existing comment or a POST of a new one.
+# Publish: either a PATCH on an existing comment or a POST of a new one. A
+# rejected write still prints the API's error JSON on stdout before exiting
+# non-zero, which is what `FAKE_GH_PUBLISH_OK=0` reproduces.
 if [[ "$1" == "api" ]]; then
   cat > "$FAKE_GH_BODY"
   printf '%s\n' "$FAKE_GH_RESPONSE"
+  if [[ "${FAKE_GH_PUBLISH_OK:-1}" != "1" ]]; then
+    exit 1
+  fi
+
   exit 0
 fi
 
@@ -190,6 +196,27 @@ test('the GitHub publisher POSTs a new comment when no marker-carrying comment e
             ->and($calls)->toContain('repos/acme/widgets/issues/42/comments -X POST')
             ->and($calls)->not->toContain('-X PATCH')
             ->and($process->getErrorOutput())->toContain('action=created id=700');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});
+
+test('a rejected GitHub publish fails loudly instead of reporting a null comment id', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+
+    try {
+        $process = runGitHubCommentPublisher($fixture, [
+            'FAKE_GH_PUBLISH_OK' => '0',
+            // `gh api` writes the API's error body to stdout, so the response is
+            // non-empty even though nothing was published.
+            'FAKE_GH_RESPONSE' => '{"message":"Resource not accessible by integration"}',
+        ], 'Rejected body');
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('created request failed on acme/widgets#42: Resource not accessible by integration')
+            // Never a success line carrying a missing id.
+            ->and($process->getErrorOutput())->not->toContain('action=created id=null')
+            ->and($process->getOutput())->toBe('');
     } finally {
         removeGitHubCommentPublisherFixture($fixture);
     }
