@@ -71,14 +71,6 @@ test('no tracker-publishing skill still carries the obsolete "must be in English
     }
 });
 
-test('readme rules overview lists the reports/general.md rule', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-
-    expect($readme)->toContain('`reports/general.md`');
-    expect($readme)->toContain('Language rule for reports published to issue trackers');
-});
-
 test('reports/general.md declares the GitHub-PR technical-CR English exception', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/reports/general.md');

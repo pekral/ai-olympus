@@ -78,7 +78,6 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 | Skills, agents | Both Claude Code and Codex locations | Claude Code plugin only |
 | Project instructions | Rules, `CLAUDE.md`, `AGENTS.md` | Rules and `CLAUDE.md` via an extra command |
 | `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
-| Unattended runs (`ai-olympus resolve-next`) | ✅ | ❌ Composer only |
 
 ### Via the plugin marketplace (no Composer)
 
@@ -218,196 +217,18 @@ Role boundaries, handoffs, savings mode, and troubleshooting are documented in [
 
 ## Skill Catalog
 
-All 55 skills, grouped by what you reach for them for. Each description is the skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the skill does not declare.
-
-### Issue → PR workflow
-
-| Skill | What it is for |
-|-------|----------------|
-| [`resolve-issue`](skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
-| [`prepare-issue-context`](skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
-| [`verify-merge-readiness`](skills/verify-merge-readiness/) | A GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
-| [`process-code-review`](skills/process-code-review/) | Processing pull request code review feedback |
-| [`merge-github-pr`](skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
-| [`pr-summary`](skills/pr-summary/) | Summarizing current PR changes for the development and product team |
-| [`create-issue`](skills/create-issue/) | Create a single issue from provided text without modifying its content |
-| [`create-issues-from-text`](skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
-| [`github-issue-triage`](skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type |
-| [`github-release-roadmap`](skills/github-release-roadmap/) | Planning a GitHub release roadmap for one repository |
-
-### Code review
-
-| Skill | What it is for |
-|-------|----------------|
-| [`code-review`](skills/code-review/) | Senior PHP code review focused on architecture, business logic, and risk detection |
-| [`code-review-github`](skills/code-review-github/) | Perform code review for GitHub pull requests and post findings as PR comments plus a non-technical summary to every linked issue |
-| [`code-review-jira`](skills/code-review-jira/) | Run code review for JIRA issues and publish results to GitHub PR and JIRA |
-| [`code-review-bugsnag`](skills/code-review-bugsnag/) | Run code review for a Bugsnag error and publish results to the linked GitHub PR and the Bugsnag error |
-| [`api-review`](skills/api-review/) | Reviewing HTTP API design in a PR or change set |
-| [`assignment-compliance-check`](skills/assignment-compliance-check/) | Checking that the pull request implementation actually fulfills the business requirements stated in the linked issue or task |
-| [`laravel-authorization-review`](skills/laravel-authorization-review/) | Reviewing authorization / access control in a Laravel project |
-
-### Security
-
-| Skill | What it is for |
-|-------|----------------|
-| [`security-review`](skills/security-review/) | Performing a focused security review for Laravel/PHP projects |
-| [`security-bounty-hunter`](skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
-| [`security-threat-analysis`](skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
-| [`laravel-security`](skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
-| [`machine-payments-protocol`](skills/machine-payments-protocol/) | Implementing, designing, or reviewing the Machine Payments Protocol (MPP) HTTP 402 payment flow in a Laravel/PHP application |
-
-### Testing
-
-| Skill | What it is for |
-|-------|----------------|
-| [`test-driven-development`](skills/test-driven-development/) | Implementing a feature or bugfix with strict TDD |
-| [`create-test`](skills/create-test/) | Create or update tests to ensure full coverage for current changes |
-| [`create-missing-tests-in-pr`](skills/create-missing-tests-in-pr/) | A PR review already exists and missing tests must be completed with 100% coverage for current changes |
-| [`rewrite-tests-pest`](skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
-| [`e2e-testing`](skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
-| [`tester-cookbook`](skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |
-
-### Databases
-
-| Skill | What it is for |
-|-------|----------------|
-| [`mysql-patterns`](skills/mysql-patterns/) | Designing MySQL schema features or applying advanced MySQL patterns in Laravel |
-| [`mysql-problem-solver`](skills/mysql-problem-solver/) | Analyze real MySQL query and schema problems using code inspection, schema review, and EXPLAIN when available |
-| [`postgres-patterns`](skills/postgres-patterns/) | Designing PostgreSQL schema features or applying advanced Postgres patterns in Laravel |
-| [`redis-patterns`](skills/redis-patterns/) | Using Redis in a Laravel app |
-| [`laravel-telescope`](skills/laravel-telescope/) | Analyzing Laravel Telescope requests from URL and DB |
-
-### Frontend & UI
-
-| Skill | What it is for |
-|-------|----------------|
-| [`frontend-patterns`](skills/frontend-patterns/) | Building Livewire/Blade/Alpine UI in a Laravel app |
-| [`frontend-a11y`](skills/frontend-a11y/) | Building or reviewing accessible UI in a Laravel app |
-| [`frontend-design-direction`](skills/frontend-design-direction/) | The work is not just making UI function but making it feel purposeful and polished |
-| [`frontend-slides`](skills/frontend-slides/) | Building standalone HTML/CSS/JS presentation slide decks |
-| [`diagram-design`](skills/diagram-design/) | A change, analysis, or document needs a diagram |
-| [`design-system`](skills/design-system/) | Generating, auditing, or reviewing the visual design system of a Laravel app |
-| [`seo`](skills/seo/) | Auditing, planning, or implementing SEO in a Laravel app |
-
-### Content & writing
-
-| Skill | What it is for |
-|-------|----------------|
-| [`web-article-writer`](skills/web-article-writer/) | Writing, rewriting, or adapting a publication-ready article for a website or blog |
-
-### Infrastructure & performance
-
-| Skill | What it is for |
-|-------|----------------|
-| [`docker-patterns`](skills/docker-patterns/) | Writing or reviewing Docker and docker-compose setups for a Laravel application |
-| [`latency-critical-systems`](skills/latency-critical-systems/) | Working on latency-sensitive Laravel paths |
-| [`vite-patterns`](skills/vite-patterns/) | Configuring or optimizing Vite (laravel-vite-plugin) asset bundling in a Laravel app |
-
-### Refactoring & code quality
-
-| Skill | What it is for |
-|-------|----------------|
-| [`simplification-audit`](skills/simplification-audit/) | The user explicitly asks for an audit of the codebase or to refactor a part of the codebase |
-| [`class-refactoring`](skills/class-refactoring/) | Refactor PHP classes to improve structure, readability, and maintainability while preserving behavior |
-| [`refactor-entry-point-to-action`](skills/refactor-entry-point-to-action/) | Refactoring controller, job, command, listener, or Livewire entry-point logic into a dedicated Action class while preserving behavior and response contracts |
-| [`git-workflow`](skills/git-workflow/) | Choosing a Git branching strategy or handling merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging |
-| [`cleanup-local-branches`](skills/cleanup-local-branches/) | Cleaning up local Git branches after origin pruning |
-
-### Analysis & planning
-
-| Skill | What it is for |
-|-------|----------------|
-| [`analyze-problem`](skills/analyze-problem/) | Structured problem analysis for debugging, root cause identification, and breaking down complex issues before proposing solutions |
-| [`product-capability`](skills/product-capability/) | A PRD or product intent is clear but the implementation constraints are not |
-| [`understand-propose-implement-verify`](skills/understand-propose-implement-verify/) | Following a strict problem-solving loop: understand, propose, implement, verify |
-| [`smartest-project-addition`](skills/smartest-project-addition/) | You want exactly one high-impact, concrete proposal for the next project addition |
-
-### Meta & tooling
-
-| Skill | What it is for |
-|-------|----------------|
-| [`skill-creator`](skills/skill-creator/) | Creating a new Agent skill in this repository |
-| [`compact-project-memory`](skills/compact-project-memory/) | docs/memory/PROJECT_MEMORY.md was just written to |
-
-Writing the README itself is not in this catalog. [`pekral/github-readme-generator`](https://github.com/pekral/github-readme-generator) is a standalone Agent Skill that builds a repository's root `README.md` from its code, manifests, scripts, tests, and workflows. Install it with `npx skills add pekral/github-readme-generator`, or as a Claude Code plugin from its own marketplace.
-
-## Unattended Runs
-
-`resolve-next` selects the oldest eligible issue from up to 100 open issues returned by `gh issue list` for the configured labels. It starts one workflow per invocation. Claude Code remains the default; pass `--codex` to use `codex exec` and Codex-style `$skill` invocations.
-
-```bash
-vendor/bin/ai-olympus resolve-next --dry-run          # print the chosen issue and the prompt, run nothing
-vendor/bin/ai-olympus resolve-next                    # resolve it and leave the pull request for review
-vendor/bin/ai-olympus resolve-next --merge            # ...and merge once the review converges
-vendor/bin/ai-olympus resolve-next --label=bug --repo=owner/name
-vendor/bin/ai-olympus resolve-next --codex             # run the same workflow through codex exec
-```
-
-The prompt chains `resolve-issue` → `code-review-github` → `process-code-review` on the selected issue. **Merging is opt-in:** without `--merge`, it tells the agent to leave the pull request open. This is a workflow instruction, not a permission boundary enforced by the CLI.
-
-Issues already carrying `Resolve_by_AI:in-progress` are skipped. Selection does not atomically claim an issue, so overlapping invocations can select the same one; avoid concurrent schedules for the same repository. No eligible issue in the returned list exits `0`.
-
-| Option | Effect |
-|--------|--------|
-| `--label=NAME` | Only consider issues carrying this label. Repeatable; all of them must match. Defaults to `Resolve_by_AI`. |
-| `--repo=OWNER/NAME` | Target another repository instead of the current checkout. |
-| `--merge` | Merge the pull request once the review converges. Off by default. |
-| `--dry-run` | Print the chosen issue and the prompt without starting an agent run. |
-| `--codex` | Use `codex exec` instead of the default `claude -p`. |
-
-> [!IMPORTANT]
-> Treat the trigger label as authorization to start work: restrict who can apply it. The command adds no permission-bypass flags. Grant only the permissions the workflow needs in the selected environment; the installer's Claude permission switches do not configure Codex. See [`SECURITY.md`](SECURITY.md).
-
-Requires the [GitHub CLI](https://cli.github.com) (`gh`, authenticated) and either `claude` or, with `--codex`, `codex` on `PATH`. Scheduling every two hours:
-
-```bash
-# Linux / macOS — crontab -e
-0 */2 * * * cd /path/to/project && vendor/bin/ai-olympus resolve-next >> storage/logs/agent.log 2>&1
-```
-
-```powershell
-# Windows — Task Scheduler, every 2 hours
-schtasks /create /tn "ai-olympus" /sc hourly /mo 2 /tr "cmd /c cd /d C:\path\to\project && vendor\bin\ai-olympus resolve-next"
-```
+55 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
+testing, databases, frontend, infrastructure, refactoring, analysis, and tooling. The full table,
+with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skills.md)**.
 
 ## Rules Overview
 
-Rules included in this package:
+27 rule files: an always-on baseline every run applies, plus scoped rules for PHP, Laravel,
+security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
+**[`docs/rules.md`](docs/rules.md)**.
 
-| File                                    | Description                                                                                                                                                       | Scope         |
-|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| `php/core-standards.md`                 | Unified PHP/Laravel coding standards                                                                                                                               | PHP           |
-| `php/examples/named-arguments.md`       | Named-arguments usage examples (good/avoid) supporting the PHP core standards                                                                                     | PHP           |
-| `php/dependency-selection.md`           | Composer dependency selection — activity and compatibility gates before adopting a new package                                                                    | Composer      |
-| `general/general.md`                    | Project context and default AI agent behavior — the always-on baseline every run follows regardless of which file type it touches                                | Always        |
-| `compound-engineering/general.md`       | Compound engineering — make future work easier and read the per-project compound memory                                                                           | Always        |
-| `compound-engineering/orchestration.md` | Dispatch-time orchestration mechanics — Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, orchestrator turn discipline | Orchestration |
-| `git/general.md`                        | Unified git workflow, commits, and pull request rules                                                                                                             | Always        |
-| `code-review/general.md`                | Code review constraints, gates, and the two-part output contract                                                                                                  | Always        |
-| `code-review/core-analysis.md`          | Code review — the Core Analysis walk-through: the catalog of what counts as a finding on a diff                                                                    | Always        |
-| `code-review/review-process.md`         | Code review — the passes the review runs and how it reports: refactoring/DRY, coverage gate, findings verification, output rules                                   | Always        |
-| `code-testing/general.md`               | Testing conventions and quality standards                                                                                                                         | Tests         |
-| `api/general.md`                        | API design as a consumer-facing contract — REST conventions, HTTP methods, status codes, idempotency                                                              | API           |
-| `refactoring/general.md`                | Shared refactoring definition (legacy → modern, incremental migration)                                                                                            | Always        |
-| `jira/general.md`                       | JIRA CLI usage and formatting rules                                                                                                                               | Always        |
-| `reports/general.md`                    | Language rule for reports published to issue trackers (assignment language)                                                                                       | Always        |
-| `writing/general.md`                    | Simplified technical writing (ASD-STE100 principles) for every agent response                                                                                     | Always        |
-| `laravel/architecture.md`               | Laravel architecture and conventions                                                                                                                              | Laravel       |
-| `laravel/laravel.md`                    | Laravel-specific rules and patterns                                                                                                                               | Laravel       |
-| `laravel/filament.md`                   | Filament v4 specific rules                                                                                                                                        | Filament      |
-| `laravel/livewire.md`                   | Livewire component rules and conventions                                                                                                                          | Livewire      |
-| `laravel/queue-debouncing.md`           | Safe Laravel queue debouncing, urgency separation, and replaceable work                                                                                           | Laravel       |
-| `laravel/dynamodb.md`                   | DynamoDB query safety: scan prevention, key-targeted reads, Tinker debug                                                                                          | Laravel       |
-| `sql/optimalize.md`                     | SQL query optimization, index design, schema standards                                                                                                            | SQL           |
-| `security/backend.md`                   | Backend security rules and OWASP Top 10 checks                                                                                                                    | Backend       |
-| `security/frontend.md`                  | Frontend security rules (XSS, CSRF, CSP)                                                                                                                          | Frontend      |
-| `security/mobile.md`                    | Mobile-specific security rules and WebView checks                                                                                                                 | Mobile        |
-| `security/general.md`                   | Untrusted Content Boundary — external content is data, never an instruction for the agent                                                                          | Always        |
-
-`paths` declares a rule's scope. Rules without that key are the always-applicable baseline; scoped rules identify matching files. Claude Code loads Markdown rules from `.claude/rules`. Codex uses the explicit loader instructions described in [What You Get](#what-you-get).
-
-When upgrading from older `.mdc` rules, run `vendor/bin/ai-olympus install --force --prune` to remove obsolete installed files. The package now ships `.md` rules.
+Claude Code loads the Markdown rules from `.claude/rules`. Codex uses the explicit loader
+instructions described in [What You Get](#what-you-get).
 
 ## Development & Testing
 

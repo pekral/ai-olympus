@@ -55,11 +55,3 @@ test('the issue-form chooser routes questions to Discussions before the tracker 
     // stay off the public tracker.
     expect($config)->toContain('https://github.com/pekral/ai-olympus/security/advisories/new');
 });
-
-test('the readme points at Discussions for questions (issue #109)', function (): void {
-    $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
-
-    expect($readme)->toContain('## Questions');
-    expect($readme)->toContain('https://github.com/pekral/ai-olympus/discussions');
-    expect($readme)->toContain('Keep the issue tracker for bugs and feature requests');
-});

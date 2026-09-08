@@ -390,27 +390,11 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($codeReview)->not->toContain('Walk the PR commit history and verify the refactor commit is **preceded by a dedicated test commit**');
 });
 
-test('readme reports the current skill count in the Why This Package bullet', function (): void {
+test('the rules overview lists every rule file exactly once with no phantom rows (issue #102)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-    $entries = scandir($packageDir . '/skills');
-    assert($entries !== false);
-    // A skill is a directory that ships a SKILL.md (matching `skill-check`'s own
-    // definition); shared helper dirs such as `_shared/` are not skills and must not
-    // inflate the count advertised in the README.
-    $skillCount = count(array_filter(
-        $entries,
-        static fn (string $entry): bool => $entry !== '.' && $entry !== '..'
-            && is_dir($packageDir . '/skills/' . $entry)
-            && is_file($packageDir . '/skills/' . $entry . '/SKILL.md'),
-    ));
-
-    expect($readme)->toContain($skillCount . ' comprehensive Agent skills');
-});
-
-test('readme rules overview table lists every rule file exactly once with no phantom rows (issue #102)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
+    // The overview moved out of README.md into a page of its own; the guarantee is
+    // unchanged, only its home is docs/rules.md now.
+    $overview = (string) file_get_contents($packageDir . '/docs/rules.md');
 
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($packageDir . '/rules', FilesystemIterator::SKIP_DOTS),
@@ -431,17 +415,12 @@ test('readme rules overview table lists every rule file exactly once with no pha
 
     sort($ruleFiles);
 
-    $sectionStart = strpos($readme, '## Rules Overview');
-    assert($sectionStart !== false);
-    $sectionEnd = strpos($readme, "\n## ", $sectionStart + 1);
-    assert($sectionEnd !== false);
-    $section = substr($readme, $sectionStart, $sectionEnd - $sectionStart);
-
-    // Every table row's File column is a backtick-wrapped path at the start of the line;
-    // comparing the sorted extracted tokens against the sorted real file list catches a
-    // missing row, a duplicate row, and a phantom row (referencing a file that no longer
-    // exists) in a single assertion.
-    preg_match_all('/^\|\s*`([^`]+)`\s*\|/m', $section, $matches);
+    // Every table row's Rule column is a linked, backtick-wrapped path at the start of the
+    // line; comparing the sorted extracted tokens against the sorted real file list catches
+    // a missing row, a duplicate row, and a phantom row (referencing a file that no longer
+    // exists) in a single assertion. The whole page is one table set, so no section slice
+    // is needed — a rule listed twice under two groups still fails here.
+    preg_match_all('/^\|\s*\[`([^`]+)`\]/m', $overview, $matches);
     $tableFiles = $matches[1];
     sort($tableFiles);
 
@@ -2416,4 +2395,20 @@ test('the ready-to-merge reference carries every tracker, the no-op, and the rev
 
     // Detecting the staleness and owning the write are different roles.
     expect($reference)->toContain('**The detector is not always the owner.**');
+});
+
+test('front-matter is readable for every shipped skill (issue #104)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $entries = scandir($packageDir . '/skills');
+    assert($entries !== false);
+
+    $skillDirectories = array_values(array_filter(
+        $entries,
+        static fn (string $entry): bool => is_file($packageDir . '/skills/' . $entry . '/SKILL.md'),
+    ));
+
+    // Without this, a skill whose front-matter stops parsing drops out of the expected
+    // set and out of the catalog at the same time — and every other test here still
+    // passes, because they compare the catalog against that same shrunken set.
+    expect(array_keys(skillFrontMatterDescriptions()))->toEqualCanonicalizing($skillDirectories);
 });

@@ -43,7 +43,6 @@ vendor/bin/ai-olympus install --prune-global                 # remove this packa
 vendor/bin/ai-olympus install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/ai-olympus install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
-vendor/bin/ai-olympus resolve-next --codex                     # resolve the next issue through codex exec instead of Claude Code
 ```
 
 ## Installer Flow
@@ -69,7 +68,6 @@ vendor/bin/ai-olympus resolve-next --codex                     # resolve the nex
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `hephaestus`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
-| `--codex`                | `resolve-next` only. Run the unattended workflow with the documented `codex exec` command and Codex `$skill-name` mentions. Without it, `resolve-next` keeps using Claude Code. |
 | *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
 
 ## Where skills are installed
@@ -116,7 +114,6 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 | Rules (`rules/**`) | ❌ Composer only |
 | `CLAUDE.md` | ❌ Composer only |
 | `.claude/settings.local.json` switches (`--deny-network-bash`, …) | ❌ Composer only |
-| `ai-olympus resolve-next` | ❌ Composer only |
 
 The package used to ship a `/ai-olympus:install-rules` command that copied `rules/` and `CLAUDE.md` out of the plugin directory. It no longer does: `commands/` now carries `prepare-issue-for-merge.md` alone. On this channel the rules and `CLAUDE.md` therefore do not arrive at all — install through Composer when you want them.
 

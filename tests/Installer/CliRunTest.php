@@ -129,23 +129,6 @@ test('installation docs document every InstallOptions flag in both the command l
     }
 });
 
-test('readme keeps the quickstart install command and links out to the installation reference (issue #105)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-
-    expect($readme)->toContain('[`docs/installation.md`](docs/installation.md)');
-
-    // Anchored to the Quickstart block, not to the whole file: the experimental warning quotes
-    // an install command verbatim to say it fails, so a file-wide match pins that prose instead.
-    expect(installerDocsSection($readme, '## Quickstart'))
-        ->toContain('composer require pekral/ai-olympus:dev-master --dev');
-
-    // The operational reference must not survive in both places, or the two copies drift.
-    expect($readme)->not->toContain('### Installer Flow');
-    expect($readme)->not->toContain('### CLI Switches');
-    expect($readme)->not->toContain('### Automatic Installation via Composer Plugin');
-});
-
 test('install without any flags succeeds and targets Claude Code and Codex', function (): void {
     $root = installerCreateProjectRoot();
     $cwd = getcwd();

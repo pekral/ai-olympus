@@ -136,11 +136,6 @@ test('commands ships exactly the one command the package still exposes', functio
 test('both installation paths are documented with the difference between them', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-    expect($readme)->toContain('/plugin marketplace add pekral/ai-olympus');
-    expect($readme)->toContain('### Via the plugin marketplace (no Composer)');
-    expect($readme)->toContain('### Via Composer');
-
     $docs = (string) file_get_contents($packageDir . '/docs/installation.md');
     $section = installerDocsSection($docs, '## Installing without Composer (plugin marketplace)');
 

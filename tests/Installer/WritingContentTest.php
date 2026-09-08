@@ -60,11 +60,3 @@ test('the writing and reports rules declare each other as scope boundaries', fun
     expect($reports)->toContain('@rules/writing/general.md');
     expect($reports)->toContain('This rule picks the language');
 });
-
-test('readme rules overview lists the writing/general.md rule', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-
-    expect($readme)->toContain('`writing/general.md`');
-    expect($readme)->toContain('Simplified technical writing (ASD-STE100 principles)');
-});

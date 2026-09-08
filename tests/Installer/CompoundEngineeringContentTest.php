@@ -22,10 +22,6 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
     // Pillar 2 — per-project compound memory, stored in the project, not this package.
     expect($content)->toContain('## Compound Memory (per project)');
     expect($content)->toContain('in the project being worked on, never in this shared rules package');
-
-    // The rule is listed in the README Rules Overview table.
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-    expect($readme)->toContain('`compound-engineering/general.md`');
 });
 
 test('analyze-problem skill requires pre-implementation research and a plan artifact (issue #564)', function (): void {
@@ -513,12 +509,6 @@ test('savings mode advertises no build reuse, since the build-gate dedup mechani
     // The surviving wording, pinned so a rewrite cannot drop the fix while still passing above.
     expect($section)->toContain('orchestration overhead — repeated context re-derivation and duplicated review work —');
     expect($section)->toContain('cheaper context propagation, a single coverage-verdict owner, leaner orchestration reasoning');
-
-    // The user-facing promise in README must not outlive the mechanism either.
-    $readme = (string) file_get_contents($packageDir . '/README.md');
-
-    expect($readme)->not->toContain('fewer repeated build runs');
-    expect($readme)->toContain('same PR/review/feedback artifacts, just less duplicate context re-derivation.');
 });
 
 test(
