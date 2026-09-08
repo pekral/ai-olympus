@@ -148,3 +148,43 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     expect($rule)->toContain('A helper that fails is never a licence to improvise.');
     expect($rule)->toContain('A GitHub-shaped instruction on a JIRA source is re-routed, never followed literally.');
 });
+
+test('hermes runs three publication checks before a JIRA comment counts as published (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+
+    expect($hermes)->toContain('**On a JIRA target, three publication checks are yours and nobody else\'s.**');
+
+    // 1. The banned-list walk, and the one thing it must not do instead of removing a hit.
+    expect($hermes)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
+    expect($hermes)->toContain('**Remove each hit — never annotate it**');
+    expect($hermes)->toContain('shorten `What changed` when it overflows, never `How to test`');
+
+    // 2. ADF publication.
+    expect($hermes)->toContain('**Publish as ADF.**');
+    expect($hermes)->toContain('acli jira workitem comment update --body-adf');
+
+    // 3. The structural read-back, and the verdict a flat body produces.
+    expect($hermes)->toContain('**Read the comment back and confirm its structure, not only that it exists.**');
+    expect($hermes)->toContain('real `heading`, `bulletList`, and `listItem` nodes');
+    expect($hermes)->toContain('**A single `paragraph` of flat text means the conversion failed**');
+    expect($hermes)->toContain('**publication failure, not a cosmetic one**');
+
+    // The read the check needs is granted in hermes's own Bash boundary, and it stays a read.
+    $boundary = installerDocsSection($hermes, '## Bash boundary');
+    expect($boundary)->toContain('acli jira workitem comment list --key <KEY> --json --paginate');
+    expect($boundary)->toContain('never an `acli` write');
+});
+
+test('the reporting headline goes where the target template opens, not into a Problem field JIRA no longer has (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // Both files instructed the headline into the `Problem` field on every target. The JIRA
+    // template has no such field now, and it does carry a slot of its own.
+    expect($hermes)->not->toContain('the same position on every target, because every target renders the same structure');
+    expect($hermes)->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
+    expect($daedalus)->not->toContain('the opening sentence of the `Problem` field is');
+    expect($daedalus)->toContain('the status sentence above `h2. Acceptance criteria` on JIRA');
+});
