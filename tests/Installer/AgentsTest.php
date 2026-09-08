@@ -379,9 +379,9 @@ test('athena files out-of-scope findings as issues on the resolved tracker (issu
     // Filed once per run, not once per loop iteration, and deduplicated against already-open issues.
     expect($content)->toContain('**Once per run, and never a duplicate.**');
     expect($content)->toContain('**Never** per loop iteration');
-    // In a loop-driven run the single publication is the one after convergence, since the earlier
-    // iterations run quiet -- naming that moment is what makes "once per run" actionable.
-    expect($content)->toContain('the single publication after convergence');
+    // In a loop-driven run the single publication is the one step 10 performs at convergence, since
+    // the earlier iterations run quiet -- naming that moment is what makes "once per run" actionable.
+    expect($content)->toContain('the single publication the step-10 loop performs at convergence');
     expect($content)->toContain('already filed: <link>');
 
     // Filing must never turn into public disclosure of an unfixed vulnerability: `code-review`
@@ -500,6 +500,15 @@ test('athena never runs the CR wrapper standalone before the fix loop gates it',
 
     // Step 10 is named as the single execution point of the wrapper.
     expect($athena)->toContain('**Drive the fix loop to convergence. This is the only point at which the wrapper actually executes.**');
+
+    // Every later step reads publication as step 10's, so none of them points back at step 8.
+    // A step-11 audit read ordered "before publishing" would in fact run after it, and a finding
+    // raised there would have no comment left to land on.
+    expect($athena)->not->toContain('11. **Read the audit trail ledger.** Before publishing,');
+    expect($athena)->toContain(
+        '11. **Read the audit trail ledger.** Inside the step-10 loop\'s final iteration, before that iteration publishes,',
+    );
+    expect($athena)->not->toContain('step 8');
 });
 
 test('laravel-security audit-workflow ships with all 7 areas, severity mapping, and regression-test requirement', function (): void {
