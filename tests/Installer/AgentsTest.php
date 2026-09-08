@@ -473,6 +473,35 @@ test('athena standalone publishing routes to the tracker-matching CR channel, no
     expect($content)->toContain('tracker-matching');
 });
 
+test('athena never runs the CR wrapper standalone before the fix loop gates it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    // Step 3 selects the wrapper; running it to completion there publishes an un-gated,
+    // possibly non-converged comment and produces a second comment for the same round.
+    expect($athena)->toContain('**Select the wrapper here; do not run it here.**');
+    expect($athena)->not->toContain('Run the chosen skill to completion.');
+    expect($athena)->toContain('a wrapper publishes unless the caller explicitly says "do not publish"');
+
+    // The no-source fallback publishes nothing, so it stays runnable inline.
+    expect($athena)->toContain('The **no-resolvable-source fallback** is this step\'s one exception');
+
+    // Step 8 points at the loop as the single publish site — never step 3.
+    expect($athena)->not->toContain('The tracker wrapper publishes it as part of step 3');
+    expect($athena)->toContain(
+        'Publishing happens exactly once, at convergence, inside the step-10 loop '
+        . '(`@skills/process-code-review/SKILL.md` *Completion*) — never here, and never in step 3.',
+    );
+
+    // Steps 5 and 7 fold into every loop iteration, so their findings gate convergence.
+    expect($athena)->toContain('Fold their findings into **every** iteration of the step-10 loop');
+    expect($athena)->toContain('a lens checked only once, outside the loop, cannot gate convergence');
+    expect($athena)->toContain("This derivation happens inside the step-10 loop's final, published iteration");
+
+    // Step 10 is named as the single execution point of the wrapper.
+    expect($athena)->toContain('**Drive the fix loop to convergence. This is the only point at which the wrapper actually executes.**');
+});
+
 test('laravel-security audit-workflow ships with all 7 areas, severity mapping, and regression-test requirement', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/laravel-security/references/audit-workflow.md');
