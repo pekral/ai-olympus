@@ -198,7 +198,7 @@ Post the technical report as a comment on the GitHub PR, since that is where the
 Post the non-technical report on the issue tracker where the task with the assignment was created (the original tracker, regardless of where the PR lives):
 
 - **GitHub** (task filed as a GitHub issue): post as a comment on the original issue
-- **JIRA** (task filed in JIRA): publish through the canonical JIRA helper, which converts the template source to ADF and applies it through `--body-adf` per `@rules/jira/general.md`
+- **JIRA** (task filed in JIRA): publish through the canonical JIRA helper, which converts the template source to ADF and applies it through `--body-adf` per `@rules/jira/general.md`; use the JIRA shape per `references/tracker-follow-up.md`
 - **Bugsnag** (task originated from a Bugsnag error): post the non-technical report as a comment directly on the Bugsnag error via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (requires `BUGSNAG_TOKEN`; falls back to a Bugsnag MCP server when the script is unavailable). Also mirror it as a comment on the linked GitHub issue from `linkedIssues[]` when one exists.
 
 The non-technical report must be understandable by non-technical testers and product managers and contain:

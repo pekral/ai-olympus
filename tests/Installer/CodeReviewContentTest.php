@@ -4331,3 +4331,37 @@ test('the reviewer comment gate delegates a comment addressed to another account
     expect($process)->toContain('comments(first:100){ nodes{ author{login} authorAssociation body url createdAt } }');
     expect($process)->toContain('**Keep `authorAssociation` in the selection.**');
 });
+
+test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $jira = crContractText('skills/code-review-jira/SKILL.md');
+
+    // The split was implied by the wrapper's Scope list and never stated as a constraint, so a
+    // path that published a SHA or a severity count to the ticket broke no written rule.
+    expect($jira)->toContain('**The split is the point of this wrapper: technical findings go to the GitHub pull request, and the JIRA ticket receives the non-technical summary alone.**');
+    expect($jira)->toContain('Never publish severity labels, finding counts, code references, a head SHA, a diff fingerprint, a gate result, a CI status, or a coverage figure to JIRA.');
+    expect($jira)->toContain('the banned-content list, its two exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket');
+
+    // The split is verified against what was published, not against what was intended.
+    expect($jira)->toContain('### The split, verified per run');
+    expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
+
+    // The ticket's own sections, restated where this wrapper describes its output.
+    expect($jira)->toContain('Its sections are `Acceptance criteria`, `How to test`, and `What changed`, under one status sentence');
+});
+
+test('a standalone athena review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+
+    // On the base branch a JIRA source routed the severity-sorted findings, with their counts and
+    // code references, straight onto the ticket — the one remaining path that bypassed the split.
+    expect($athena)->toContain('**two comments, and the split between them is not optional.**');
+    expect($athena)->toContain('The severity-sorted findings go to the **linked GitHub pull request**');
+    expect($athena)->toContain('**Never publish the severity-sorted findings, the counts, or the code references to the JIRA ticket**');
+
+    // The tracker-matching routing issue #691 added is preserved: the JIRA helper still publishes,
+    // it just publishes the non-technical summary rather than the findings.
+    expect($athena)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -');
+    expect($athena)->toContain('composed by `@skills/pr-summary/SKILL.md`');
+});
