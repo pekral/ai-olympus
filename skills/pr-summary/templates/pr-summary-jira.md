@@ -99,7 +99,9 @@ Headings and field labels
 Length
   3 000 characters, counted over the published body. When the comment overflows,
   shorten What changed — never How to test, whose steps a tester has to follow
-  literally. @rules/reports/general.md owns this cap.
+  literally. @rules/reports/general.md owns this cap, and
+  @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
+  one target it applies to.
 
 {embedded_blocks}
   Render this slot only when the calling CR wrapper passes the

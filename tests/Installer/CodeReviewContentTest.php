@@ -2165,6 +2165,38 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($longestLine)->toBeLessThan(800);
 });
 
+test('the pr-summary Length section names JIRA as its one capped target (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+
+    // The per-target table states a cap for JIRA. The canonical Length section used to state the
+    // opposite in the same file, so an agent reading that section alone concluded no cap applied.
+    expect($prSummary)->toContain('| Length cap | none | 3 000 characters | none |');
+    expect($prSummary)->toContain('**JIRA is the one exception, and its cap is real.**');
+    expect($prSummary)->toContain('That comment carries a 3 000-character limit');
+
+    // The two absolutes are scoped rather than deleted: both stay correct for the other targets.
+    expect($prSummary)->toContain(
+        'On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule.',
+    );
+    expect($prSummary)->toContain(
+        'There is no word budget on GitHub and Bugsnag; JIRA caps the comment at 3 000 characters.',
+    );
+    expect($prSummary)->toContain(
+        'On GitHub and Bugsnag there is no length to hit, so nothing ever forces the choice',
+    );
+
+    // The unscoped wording carried by the head this fix corrects, pinned as an absence.
+    expect($prSummary)->not->toContain(
+        'There is no word budget and no "fits on one screen" rule. The report is as long as',
+    );
+
+    // Overflow resolves in one section only, and the template points back at the same rule.
+    expect($prSummary)->toContain('never shorten `How to test`, whose steps are what the reader acts on');
+    expect($jiraTemplate)->toContain('@skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the');
+});
+
 test('the comment rules mandate deleting unnecessary comments and name what survives (issue #256)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
