@@ -139,7 +139,7 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/argus.svg" alt="argus avatar" width="80"></td>
+<td width="96" valign="top"><img src="assets/agents/argus.png" alt="argus avatar" width="80"></td>
 <td valign="top">
 
 **`argus` — acceptance tester** · read-only
