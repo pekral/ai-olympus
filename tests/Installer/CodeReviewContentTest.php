@@ -47,8 +47,12 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     // was always the delivery mechanism — so removing the banner drops a duplicate, not a check.
     // That slot now carries the verdict on every CR run with a linked tracker, the affirmative
     // one included, so a clean assignment is stated rather than reported by silence.
-    expect($prSummary)->toContain('This slot is how the assignment verdict reaches the reader');
+    expect($prSummary)->toContain('this slot is how the assignment verdict reaches the reader');
     expect($prSummary)->toContain('authors no verdict, no banner');
+
+    // Issue #118: on JIRA the same verdict renders as the first section instead of travelling
+    // through the slot. The verdict is relocated on that one target, never dropped.
+    expect($prSummary)->toContain('on JIRA the `Acceptance criteria` section carries the same verdict under the same rule');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');
@@ -56,6 +60,102 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
         expect($template)->toContain('omit this slot entirely');
         expect($template)->toContain('@skills/assignment-compliance-check/SKILL.md');
     }
+});
+
+/**
+ * Everything above the template's hard publication marker — the part a reader of the ticket sees.
+ */
+function jiraPublishedBody(string $template): string
+{
+    $marker = '=== END OF COMMENT BODY';
+    $end = mb_strpos($template, $marker);
+
+    return $end === false ? $template : mb_substr($template, 0, $end);
+}
+
+test('the JIRA pr-summary template opens with the verdict and drops the mechanism fields (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+    $body = jiraPublishedBody($jiraTemplate);
+
+    // The four Problem / Cause / Result / What I fixed labels were literally in this file on the
+    // base branch, so each absence fails there rather than passing vacuously. `Cause` is the one
+    // that mattered: it asked for a mechanism, and a mechanism is what put method names in a
+    // product manager's ticket.
+    foreach (['*Problem:*', '*Cause:*', '*Result:*', '*What I fixed:*', '*Side benefit:*', '*Filed separately:*'] as $droppedField) {
+        expect($jiraTemplate)->not->toContain($droppedField);
+    }
+
+    // The binding section order, asserted as an order and not merely as presence.
+    $statusSentence = mb_strpos($body, '[One status sentence:');
+    $criteria = mb_strpos($body, 'h2. Acceptance criteria');
+    $howToTest = mb_strpos($body, 'h2. How to test');
+    $whatChanged = mb_strpos($body, 'h2. What changed');
+    $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
+
+    expect($statusSentence)->toBe(0);
+    expect($criteria)->toBeGreaterThan($statusSentence);
+    expect($howToTest)->toBeGreaterThan($criteria);
+    expect($whatChanged)->toBeGreaterThan($howToTest);
+    expect($closingLine)->toBeGreaterThan($whatChanged);
+
+    // The verdict is a section now, not an optional slot, and the slot that remains carries the
+    // clarifying questions alone.
+    expect($jiraTemplate)->toContain('This section is the only route the assignment verdict takes into this comment');
+    expect($jiraTemplate)->toContain('The Assignment Compliance block does not travel through this slot on JIRA.');
+
+    // Scope confirmation (issue #118 is JIRA-only): the other two targets keep their own shape.
+    foreach (['github', 'bugsnag'] as $target) {
+        $other = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
+        expect($other)->toContain('Cause:');
+        expect($other)->not->toContain('h2. Acceptance criteria');
+    }
+});
+
+test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 characters (issue #118)', function (): void {
+    // The "Done when" criterion of issue #118: the template, filled in from a real assignment,
+    // fits the cap. The example below is the run behind that issue — a bulk-pipeline change whose
+    // published comment was 10 964 B of method names, SHAs, gate results, and coverage figures.
+    $filledIn = <<<'WIKI'
+        Done. The pull request is open and waiting for merge; nothing was merged.
+
+        h2. Acceptance criteria
+
+        3 of 4 criteria are met.
+
+        * Bulk sending to more than 500 recipients is not verified yet. It needs a run on a real account with a list of that size, which only you can confirm.
+
+        h2. How to test
+
+        # Open the campaign _Spring newsletter_ on the account {{qa-demo}} and add the action _Send e-mail_ to the pipeline. The action must appear in the pipeline immediately, without reloading the page.
+        # Add a second action _Wait 2 days_ below it, then reorder the two by dragging the first one down. The new order must survive a page reload.
+        # Delete the pipeline's last action. The pipeline must stay open, and the remaining actions must keep their order.
+        # Regression: send a single campaign to one recipient from the same account. It must arrive as before, and the pipeline screen must show the same delivery status it showed previously.
+
+        h2. What changed
+
+        * Adding an action to a pipeline no longer empties the pipeline when two people edit the same campaign at once. Before, the second person's save discarded the first person's action.
+        * A bulk send now reports the number of recipients it actually reached, instead of always reporting the number requested.
+        * Reordering actions saves on the first attempt. Before, the order silently reverted for pipelines with more than ten actions.
+
+        [PR #482|https://github.com/acme/pipelines/pull/482] · [ECOMAIL-6974|https://acme.atlassian.net/browse/ECOMAIL-6974]
+        WIKI;
+
+    // Structure first: a length check over a body in the wrong shape would prove nothing.
+    $statusSentence = mb_strpos($filledIn, 'Done. The pull request is open');
+    $criteria = mb_strpos($filledIn, 'h2. Acceptance criteria');
+    $howToTest = mb_strpos($filledIn, 'h2. How to test');
+    $whatChanged = mb_strpos($filledIn, 'h2. What changed');
+    $closingLine = mb_strpos($filledIn, '[PR #482|');
+
+    expect($statusSentence)->toBe(0);
+    expect($criteria)->toBeGreaterThan($statusSentence);
+    expect($howToTest)->toBeGreaterThan($criteria);
+    expect($whatChanged)->toBeGreaterThan($howToTest);
+    expect($closingLine)->toBeGreaterThan($whatChanged);
+
+    // The cap the rule states, counted the way the rule states it: characters, not bytes.
+    expect(mb_strlen($filledIn))->toBeLessThan(3000);
 });
 
 test('CR skills publish through the publish helper — GitHub and JIRA both update their own comment in place', function (): void {
@@ -336,8 +436,13 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
     expect($prSummary)->toContain('Terseness removes ideas per sentence and removes filler');
     expect($prSummary)->toContain('telegraphic fragments are not terse, only shorter');
 
-    foreach ([$githubTemplate, $jiraTemplate, $bugsnagTemplate] as $template) {
+    // Issue #118: the `Problem` placeholder this literal belongs to is gone from the JIRA
+    // template, which renders `Acceptance criteria` / `How to test` / `What changed` instead.
+    foreach ([$githubTemplate, $bugsnagTemplate] as $template) {
         expect($template)->toContain('Terse, but every number stays.');
+    }
+
+    foreach ([$githubTemplate, $jiraTemplate, $bugsnagTemplate] as $template) {
         expect($template)->not->toContain('fragments');
     }
 });
@@ -2024,8 +2129,9 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     // The reader learns both output shapes before reading a single constraint.
     expect($prSummary)->toContain('## TL;DR');
     expect($prSummary)->toContain('Read the branch\'s commits and its linked tracker. Write one non-technical comment. Publish it.');
-    expect($prSummary)->toContain('**Every target renders the same two sections** → `What changed`, then `How to test`.');
+    expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
+    expect($prSummary)->toContain('**JIRA renders three sections in its own order** → `Acceptance criteria`, `How to test`, `What changed`, under one status sentence.');
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
     // Every normative block is its own heading, so a reader can jump to the one they need.
