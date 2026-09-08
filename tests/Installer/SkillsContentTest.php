@@ -352,11 +352,17 @@ test('the tracker comment always carries the assignment verdict, the affirmative
     expect($prSummary)->toContain('The tracker comment carries the same verdict — in all three cases');
     expect($prSummary)->not->toContain('the passed block is the verdict, and its absence is the clean signal');
 
-    foreach (['github', 'jira', 'bugsnag'] as $target) {
+    foreach (['github', 'bugsnag'] as $target) {
         $template = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
         expect($template)->toContain('a CR run with a linked tracker always passes it');
         expect($template)->not->toContain('the only route an assignment gap takes into this comment');
     }
+
+    // Issue #118: JIRA carries the same verdict in its first section instead of the slot, so the
+    // "always" half of the contract holds there through the section rather than through a block.
+    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+    expect($jiraTemplate)->toContain('a CR run with a linked tracker always carries it');
+    expect($jiraTemplate)->not->toContain('the only route an assignment gap takes into this comment');
 });
 
 test('refactoring requires pre-refactor 100% coverage and unchanged tests in the refactor commit (issue #493)', function (): void {
