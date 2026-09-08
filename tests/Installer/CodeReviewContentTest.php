@@ -92,6 +92,7 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
     $howToTest = mb_strpos($body, 'h2. How to test');
     $whatChanged = mb_strpos($body, 'h2. What changed');
     $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
+    assert($statusSentence !== false && $criteria !== false && $howToTest !== false && $whatChanged !== false && $closingLine !== false);
 
     expect($statusSentence)->toBe(0);
     expect($criteria)->toBeGreaterThan($statusSentence);
@@ -147,6 +148,7 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     $howToTest = mb_strpos($filledIn, 'h2. How to test');
     $whatChanged = mb_strpos($filledIn, 'h2. What changed');
     $closingLine = mb_strpos($filledIn, '[PR #482|');
+    assert($statusSentence !== false && $criteria !== false && $howToTest !== false && $whatChanged !== false && $closingLine !== false);
 
     expect($statusSentence)->toBe(0);
     expect($criteria)->toBeGreaterThan($statusSentence);
