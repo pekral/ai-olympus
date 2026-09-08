@@ -458,6 +458,46 @@ test('a newer comment from another author carrying this account\'s marker is nev
     }
 });
 
+test('a failed ADF update on an existing JIRA comment never deletes it', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    // The delete branch exists to clean up a comment *this run* created. A
+    // comment an earlier run published must survive a failed update untouched.
+    $listJson = json_encode([
+        jiraComment('9201', '2026-04-01T00:00:00.000+0000', 'bot@example.com', 'round one _cr-comment:actor=bot@example.com_'),
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10013"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '0',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9201 --body-adf')
+            // The existing comment is left in place, not deleted.
+            ->and($calls)->not->toContain('comment delete')
+            ->and($process->getErrorOutput())->toContain('ADF update failed on TEAM-42 comment 9201')
+            ->and($process->getErrorOutput())->toContain('the existing comment was left unchanged');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
 test('the JIRA publisher creates a marked comment when no marker-carrying comment exists', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
