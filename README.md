@@ -169,7 +169,7 @@ Routes a free-form request to the specialists: `hephaestus` for implementation, 
 
 **`athena` — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `hephaestus` — code quality, architecture, optimisation **and** security in one pass, one published review, driven to convergence — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hephaestus`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `hephaestus` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hephaestus`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
@@ -210,7 +210,7 @@ To prepare an existing GitHub issue's PR for merge without merging it, use the s
 $prepare-issue-for-merge https://github.com/owner/repository/issues/123
 ```
 
-The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when the effective diff is content-identical, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
+The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
 
 Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default.
 
