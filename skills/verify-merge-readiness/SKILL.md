@@ -124,6 +124,15 @@ tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub i
   `@skills/assignment-compliance-check/SKILL.md`;
 - the exact head SHA, effective diff fingerprint, quality-gate result, PR link, and issue link.
 
+**On a JIRA ticket the last item is not published, and the first three take the JIRA shape.**
+`@rules/reports/general.md` *A JIRA comment is written for a non-technical reader* bans the head
+SHA, the diff fingerprint, and the quality-gate result from a JIRA comment, and it is binding on
+this TL;DR like on every other. The evidence is not lost: the merge gate reads those four values
+off the GitHub pull-request comment, which is the surface that consumes them. So on a JIRA source
+publish the status sentence, `Acceptance criteria`, `How to test`, `What changed`, and the closing
+links line — the order `@skills/pr-summary/templates/pr-summary-jira.md` renders — within that
+rule's 3 000-character cap. On a GitHub issue publish all four items above unchanged.
+
 Publish through the helper that matches the source tracker — never through another tracker's helper,
 and never through an improvised raw `acli` / `gh` write, which is how a JIRA ticket ends up carrying
 unformatted Wiki Markup instead of the ADF document JIRA Cloud stores (`@rules/jira/general.md`
