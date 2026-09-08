@@ -1632,12 +1632,12 @@ test('orchestration rule batches independent reads into one round and every read
     // The section states why batching pays: the per-round overhead, not the read, dominates.
     expect($rule)->toContain('## Batch independent reads — preamble dominates the cost of a round');
     expect($rule)->toContain('it issues them in **one** round');
-    expect($rule)->toContain("*Independent* means no call's input depends on another call's output.");
+    expect($rule)->toContain('*Independent* means no call\'s input depends on another call\'s output.');
 
     // The three exclusions keep the rule from collapsing a sequential dependency, an
     // apply-then-verify write, or a blocking subagent dispatch.
-    expect($rule)->toContain("**A call whose input is another call's output.**");
-    expect($rule)->toContain("**A write that must observe an earlier write's result.**");
+    expect($rule)->toContain('**A call whose input is another call\'s output.**');
+    expect($rule)->toContain('**A write that must observe an earlier write\'s result.**');
     expect($rule)->toContain('**A `Task` dispatch to a subagent.**');
 
     // Each agent whose context load is a batchable step references the rule from that step.

@@ -496,7 +496,7 @@ test('athena never runs the CR wrapper standalone before the fix loop gates it',
     // Steps 5 and 7 fold into every loop iteration, so their findings gate convergence.
     expect($athena)->toContain('Fold their findings into **every** iteration of the step-10 loop');
     expect($athena)->toContain('a lens checked only once, outside the loop, cannot gate convergence');
-    expect($athena)->toContain("This derivation happens inside the step-10 loop's final, published iteration");
+    expect($athena)->toContain('This derivation happens inside the step-10 loop\'s final, published iteration');
 
     // Step 10 is named as the single execution point of the wrapper.
     expect($athena)->toContain('**Drive the fix loop to convergence. This is the only point at which the wrapper actually executes.**');
