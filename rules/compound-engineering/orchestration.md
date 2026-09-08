@@ -162,7 +162,7 @@ Every round of tool calls in an agent conversation carries a fixed overhead that
 
 - **A call whose input is another call's output.** It stays sequential, because there is nothing to batch.
 - **A write that must observe an earlier write's result.** The apply-then-verify discipline this package uses everywhere — write, re-read through the deterministic loader, confirm it landed — is sequential by construction, and this section never collapses it.
-- **A `Task` dispatch to a subagent.** A dispatch is not a read, and it always blocks until the handoff returns (`agents/daedalus.md` *Dispatch blocking, not fire-and-forget*, which references this file). Putting two dispatches in one round does not make them concurrent; it only hides which one the orchestrator waits on.
+- **A `Task` dispatch to a subagent.** A dispatch is not a read, and it always blocks until the handoff returns (`agents/daedalus.md` *Dispatch blocking, not fire-and-forget*, which references this file). Two `Task` calls in one round **do** run concurrently, and that is exactly why they are never batched: it is the fan-out `agents/daedalus.md` *Sequential processing of multiple sources (no fan-out)* forbids, and it races the working-tree write-lock. Dispatch one round at a time, blocking.
 
 ## Savings mode (opt-in, token-efficient orchestration)
 

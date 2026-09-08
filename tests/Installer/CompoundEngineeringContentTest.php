@@ -1639,6 +1639,11 @@ test('orchestration rule batches independent reads into one round and every read
     expect($rule)->toContain('**A call whose input is another call\'s output.**');
     expect($rule)->toContain('**A write that must observe an earlier write\'s result.**');
     expect($rule)->toContain('**A `Task` dispatch to a subagent.**');
+    // Two dispatches in one round do run concurrently — the reason they are never batched is the
+    // forbidden fan-out and the working-tree write-lock, not a claim that they stay sequential.
+    expect($rule)->toContain('Two `Task` calls in one round **do** run concurrently');
+    expect($rule)->toContain('*Sequential processing of multiple sources (no fan-out)* forbids');
+    expect($rule)->not->toContain('does not make them concurrent');
 
     // Each agent whose context load is a batchable step references the rule from that step.
     foreach (['daedalus', 'hephaestus', 'athena', 'hermes'] as $agent) {
