@@ -328,7 +328,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
         // what that costs — the proof that behaviour was preserved across a refactor.
         'rules/refactoring/general.md' => '6a541ac80dd25fe355284a7b8c9ead0e9371d1888b703941a8f89139182a3fc0',
-        'rules/reports/general.md' => 'aa0df08a4b77e387717b16c7bfdea1602e8698f565fdbf21322fc67fbb8d1a5f',
+        // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
+        // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
+        // the sentence naming the pull-request comment as where the technical evidence moves
+        // to. The language rule above it is unchanged apart from the JIRA section order.
+        'rules/reports/general.md' => '83cbe17a46783d1fa48bba736bad03eee0ac57166b318549c90554ce188299ea',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

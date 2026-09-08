@@ -116,3 +116,55 @@ test('CR wrapper skills carry the GitHub-PR English exception in their constrain
         );
     }
 });
+
+test('reports/general.md bans developer content from a JIRA comment and names both exceptions (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/reports/general.md');
+
+    // The whole section is new on this branch, so every assertion below fails on the base branch.
+    expect($content)->toContain('## A JIRA comment is written for a non-technical reader');
+
+    // The banned list, item by item — a partial list would let the next agent publish the half
+    // that was dropped from the test rather than from the rule.
+    foreach ([
+        '- class, method, function, variable, enum, and file names',
+        '- file paths and line numbers',
+        '- commit SHAs, diff fingerprints, branch names',
+        '- quality-gate results, CI status, test / assertion counts, coverage figures',
+        '- severity labels, finding counts, rule references',
+        '- code blocks, and the names of internal layers (Action, Repository, Data Builder)',
+    ] as $bannedItem) {
+        expect($content)->toContain($bannedItem);
+    }
+
+    // Removed, never annotated: naming the omission spends the reader's attention anyway.
+    expect($content)->toContain('An item on this list is **removed, never annotated**.');
+
+    // Exactly two exceptions, written as exceptions rather than as room for interpretation.
+    expect($content)->toContain('### Two exceptions, and there is no third');
+    expect($content)->toContain('**A string the end user sees is quoted verbatim.**');
+    expect($content)->toContain('**One pull-request link at the end.**');
+
+    // The sentence without which the next agent reads the rule as a loss of information.
+    expect($content)->toContain('### The technical evidence moves to the pull request; it does not disappear');
+    expect($content)->toContain('which is where `@skills/merge-github-pr/SKILL.md` reads it');
+
+    // The cap, and the half of the comment that is never the one shortened.
+    expect($content)->toContain('A JIRA comment fits within **3 000 characters**, counted over the published body.');
+    expect($content)->toContain('**Never shorten *How to test***');
+
+    // Gating against the sibling section in this same file: the two destinations are disjoint, so
+    // no single comment is ever governed by both.
+    expect($content)->toContain('### Boundary — this section and the GitHub-PR English exception never fire on the same comment');
+});
+
+test('the merge-readiness TL;DR obeys the JIRA banned list on a JIRA source (issue #118)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+
+    // This path published the head SHA, the diff fingerprint, and the gate result to whichever
+    // tracker the source was — the one route that would have bypassed the new rule.
+    expect($skill)->toContain('**On a JIRA ticket the last item is not published, and the first three take the JIRA shape.**');
+    expect($skill)->toContain('A JIRA comment is written for a non-technical reader');
+    expect($skill)->toContain('On a GitHub issue publish all four items above unchanged.');
+});
