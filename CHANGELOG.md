@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-Next release: **0.1**, with the exact Git tag `0.1` (not published yet).
+## [0.1] - 2026-09-09
 
 - 📝 **Changed**: Use `composer build` for automatic PHP fixes in this repository. Preserve consumer instructions in `templates/CLAUDE.md` and keep repository maintenance guidance in the root `CLAUDE.md`. Per user request.
 - 🐛 **Fixed**: Recognize `--disable-co-author-attribution` when CLI flags arrive concatenated. Per user request.

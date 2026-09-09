@@ -8,7 +8,7 @@ Everything on this page describes the **Composer** path. A project without Compo
 
 The Composer installer requires PHP `^8.3` and Composer 2. Its distribution install is checked in CI on PHP 8.3, 8.4, and 8.5. Development dependencies and the full test suite require PHP 8.5.
 
-The first release is being prepared with the exact Git tag `0.1`. It has not been published yet; the current [Quickstart](../README.md#quickstart) uses `dev-master`. Once the tag is published and indexed by Packagist, install that version with:
+Release `0.1` uses the exact Git tag `0.1`. Install this version from Packagist with:
 
 ```bash
 composer require pekral/ai-olympus:0.1 --dev
