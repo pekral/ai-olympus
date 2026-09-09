@@ -911,7 +911,8 @@ test('global settings flags with HOME unset are a no-op', function (): void {
         Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts', '--disable-co-author-attribution']);
         $output = ob_get_clean();
 
-        expect($output)->not->toContain('Allowed')->not->toContain('Disabled AI co-author attribution');
+        expect($output)->not->toContain('Allowed');
+        expect($output)->not->toContain('Disabled AI co-author attribution');
     } finally {
         if ($homeBefore !== false && $homeBefore !== '') {
             putenv('HOME=' . $homeBefore);
