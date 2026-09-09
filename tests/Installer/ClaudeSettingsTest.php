@@ -790,10 +790,10 @@ test('default install preserves existing global Claude settings byte for byte', 
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
 })->with([
-    'enabled attribution' => '{"includeCoAuthoredBy": true}',
     'disabled attribution' => '{"includeCoAuthoredBy": false}',
-    'unrelated preferences' => '{"theme": "dark"}',
+    'enabled attribution' => '{"includeCoAuthoredBy": true}',
     'invalid JSON is not read' => '{invalid',
+    'unrelated preferences' => '{"theme": "dark"}',
 ]);
 
 test('install disables AI co-author attribution only when explicitly requested', function (): void {
