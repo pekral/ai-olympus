@@ -4,6 +4,29 @@ Operational reference for the `ai-olympus` installer. The two commands you need 
 
 Everything on this page describes the **Composer** path. A project without Composer installs through the [plugin marketplace](#installing-without-composer-plugin-marketplace) instead, which is deliberately narrower.
 
+## Versions and upgrades
+
+The Composer installer requires PHP `^8.3` and Composer 2. Its distribution install is checked in CI on PHP 8.3, 8.4, and 8.5. Development dependencies and the full test suite require PHP 8.5.
+
+The first release is being prepared with the exact Git tag `0.1`. It has not been published yet; the current [Quickstart](../README.md#quickstart) uses `dev-master`. Once the tag is published and indexed by Packagist, install that version with:
+
+```bash
+composer require pekral/ai-olympus:0.1 --dev
+vendor/bin/ai-olympus install --force --prune
+```
+
+Commit the consuming project's `composer.lock` to keep installations reproducible. The `0.1` constraint pins this version; `^0.1` permits subsequent `0.1.x` patches. During `0.x`, a new minor version may change workflow behavior or installer options. Review the [changelog](../CHANGELOG.md) before changing the constraint, save local customizations, and refresh installed files with `--force --prune` after an update.
+
+## Global settings and attribution
+
+A default install does not read or write `~/.claude/settings.json`. To opt into the package's AI co-author preference, run:
+
+```bash
+vendor/bin/ai-olympus install --disable-co-author-attribution
+```
+
+This sets `includeCoAuthoredBy: false` only when the key is absent and preserves all existing values and unrelated settings. It affects Claude Code across projects. Existing preferences written by older installations are left unchanged; remove the key manually to return to Claude Code's default. Without `HOME` or `USERPROFILE`, the flag has no effect. Automatic installation never enables this flag.
+
 ## How the Installer Works
 
 The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It mirrors the same source artifacts into both supported harnesses: rules into `.claude/rules` and `.codex/rules`, skills into `.claude/skills` and Codex's native `.agents/skills`, and the five roles into each harness's agent format. Files are copied by default or symlinked when you pass `--symlink` and the operating system permits it.
@@ -46,6 +69,7 @@ vendor/bin/ai-olympus install --symlink                      # prefer symlinks (
 vendor/bin/ai-olympus install --prune                        # remove files in target that no longer exist in source
 vendor/bin/ai-olympus install --global                       # also install skills to ~/.claude/skills and ~/.agents/skills
 vendor/bin/ai-olympus install --prune-global                 # remove this package's skills from both home locations
+vendor/bin/ai-olympus install --disable-co-author-attribution # opt into the global Claude co-author preference
 vendor/bin/ai-olympus install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/ai-olympus install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
@@ -71,10 +95,11 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 | `--prune`                 | Remove files in target that no longer exist in source.                                                                                                       |
 | `--global`                | Opt-in. Also install skills into `~/.claude/skills` and `~/.agents/skills`. Off by default — see [Where skills are installed](#where-skills-are-installed). No effect when `HOME` / `USERPROFILE` is not set. |
 | `--prune-global`          | Remove this package's skills from both home locations so project copies load. Matches by skill name; skills under other names are left untouched, and a symlinked install is removed as the link only. Irreversible — see the warning under [Where skills are installed](#where-skills-are-installed). Cannot be combined with `--global`. |
+| `--disable-co-author-attribution` | Opt-in. Sets `includeCoAuthoredBy: false` in `~/.claude/settings.json` only when absent. Preserves existing values. See [Global settings and attribution](#global-settings-and-attribution). |
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `hephaestus`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
-| *(default)*               | Only copy missing files and keep existing content untouched.                                                                                                |
+| *(default)*               | Copy missing files; refresh security rules and remove obsolete `bash-guard` hooks. Preserve root instruction files and global Claude settings.                                                                                                |
 
 ## Where skills are installed
 
@@ -115,7 +140,7 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 | | Loaded by the plugin |
 |---|---|
 | 55 skills (`skills/*/SKILL.md`) | ✅ automatically |
-| 4 agents (`agents/*.md`) | ✅ automatically |
+| 5 agents (`agents/*.md`) | ✅ automatically |
 | `/prepare-issue-for-merge` (`commands/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ Composer only |
 | `CLAUDE.md` | ❌ Composer only |

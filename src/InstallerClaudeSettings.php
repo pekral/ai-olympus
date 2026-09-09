@@ -59,11 +59,15 @@ final class InstallerClaudeSettings
     /**
      * Disables AI co-author attribution in Claude Code commits/PRs by writing
      * `includeCoAuthoredBy: false` into the user's settings, when a usable home
-     * directory is available. Returns true when the setting was newly written;
+     * directory is available and the user explicitly opted in. Returns true when the setting was newly written;
      * false in every other case.
      */
-    public static function applyCoAuthoredByPreference(): bool
+    public static function applyCoAuthoredByPreference(bool $requested = false): bool
     {
+        if (!$requested) {
+            return false;
+        }
+
         $home = InstallerPath::resolveHomeDirectoryOrNull();
 
         if ($home === null) {

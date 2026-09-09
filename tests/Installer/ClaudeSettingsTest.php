@@ -735,7 +735,7 @@ test('install --allow-bundled-scripts writes the permissions and reports them', 
     }
 });
 
-test('install without --allow-bundled-scripts still disables AI co-author attribution', function (): void {
+test('default install leaves global Claude settings absent', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -751,9 +751,71 @@ test('install without --allow-bundled-scripts still disables AI co-author attrib
     try {
         chdir($root);
         ob_start();
-        Installer::run(['ai-olympus', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install']);
         $output = ob_get_clean();
 
+        expect($exitCode)->toBe(0);
+        expect($output)->not->toContain('Disabled AI co-author attribution');
+        expect(is_file($root . '/.claude/settings.json'))->toBeFalse();
+    } finally {
+        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
+    }
+});
+
+test('default install preserves existing global Claude settings byte for byte', function (string $settings): void {
+    $root = installerCreateProjectRoot();
+    $homeEnv = getenv('HOME');
+    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
+    putenv('HOME=' . $root);
+
+    if (getenv('USERPROFILE') !== false) {
+        putenv('USERPROFILE=' . $root);
+    }
+
+    installerWriteFile($root . '/.claude/settings.json', $settings);
+
+    $cwd = getcwd();
+    $originalCwd = $cwd !== false ? $cwd : '';
+
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['ai-olympus', 'install']);
+        $output = ob_get_clean();
+
+        expect($exitCode)->toBe(0);
+        expect($output)->not->toContain('Disabled AI co-author attribution');
+        expect(file_get_contents($root . '/.claude/settings.json'))->toBe($settings);
+    } finally {
+        installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
+    }
+})->with([
+    'enabled attribution' => '{"includeCoAuthoredBy": true}',
+    'disabled attribution' => '{"includeCoAuthoredBy": false}',
+    'unrelated preferences' => '{"theme": "dark"}',
+    'invalid JSON is not read' => '{invalid',
+]);
+
+test('install disables AI co-author attribution only when explicitly requested', function (): void {
+    $root = installerCreateProjectRoot();
+    $homeEnv = getenv('HOME');
+    $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
+    putenv('HOME=' . $root);
+
+    if (getenv('USERPROFILE') !== false) {
+        putenv('USERPROFILE=' . $root);
+    }
+
+    $cwd = getcwd();
+    $originalCwd = $cwd !== false ? $cwd : '';
+
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['ai-olympus', 'install', '--disable-co-author-attribution']);
+        $output = ob_get_clean();
+
+        expect($exitCode)->toBe(0);
         expect($output)->not->toContain('Allowed');
         expect($output)->toContain('Disabled AI co-author attribution (includeCoAuthoredBy: false) in ~/.claude/settings.json.');
 
@@ -833,7 +895,7 @@ test('install without --allow-subagent-writes does not write settings.local.json
     }
 });
 
-test('install --allow-bundled-scripts with HOME unset is a no-op for settings.json', function (): void {
+test('global settings flags with HOME unset are a no-op', function (): void {
     $root = installerCreateProjectRoot();
     $homeBefore = getenv('HOME');
     $userProfileBefore = getenv('USERPROFILE');
@@ -846,10 +908,10 @@ test('install --allow-bundled-scripts with HOME unset is a no-op for settings.js
     try {
         chdir($root);
         ob_start();
-        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts']);
+        Installer::run(['ai-olympus', 'install', '--allow-bundled-scripts', '--disable-co-author-attribution']);
         $output = ob_get_clean();
 
-        expect($output)->not->toContain('Allowed');
+        expect($output)->not->toContain('Allowed')->not->toContain('Disabled AI co-author attribution');
     } finally {
         if ($homeBefore !== false && $homeBefore !== '') {
             putenv('HOME=' . $homeBefore);

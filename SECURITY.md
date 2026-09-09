@@ -135,9 +135,11 @@ The five shipped subagents (`agents/*.md`) each declare a `tools:` allow-list an
 
 ## Files this package writes
 
+Default installation does not read or write global `~/.claude/settings.json`. The `--disable-co-author-attribution` flag opts into setting `includeCoAuthoredBy: false` when absent; it preserves an existing value, including `true`, and all unrelated settings. The preference applies across Claude Code projects. To undo an earlier installation's preference, remove the key manually; upgrades do not infer whether an existing value was chosen by the user. Composer auto-install does not enable this flag.
+
 | Path | Created by | Condition |
 |------|-----------|-----------|
-| `~/.claude/settings.json` — sets `includeCoAuthoredBy: false` | `install` (unconditional) | `HOME`/`USERPROFILE` set; key absent — never overwrites an existing value |
+| `~/.claude/settings.json` — sets `includeCoAuthoredBy: false` | `--disable-co-author-attribution` (opt-in) | `HOME`/`USERPROFILE` set; key absent — never overwrites an existing value |
 | `~/.claude/settings.json` — adds `permissions.allow` bundled-script entries | `--allow-bundled-scripts` | `HOME`/`USERPROFILE` set |
 | `.claude/settings.local.json` — prepends `permissions.allow` scoped `Edit`/`Write` entries | `--allow-subagent-writes` | always |
 | `.claude/settings.local.json` — appends `permissions.deny` network-command entries | `--deny-network-bash` | always |

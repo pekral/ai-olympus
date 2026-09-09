@@ -62,7 +62,8 @@ final class Installer
     {
         echo "Usage:\n";
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
-        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n\n";
+        echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
+        echo "                                 [--disable-co-author-attribution]\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n\n";
         self::showInstallOptions();
@@ -80,6 +81,7 @@ final class Installer
         echo "  --prune-global          Remove this package's skills from both home locations so project copies load.\n";
         echo "                          Leaves skills from other sources untouched. Cannot be combined with --global.\n";
         echo "  --allow-bundled-scripts Whitelist bundled scripts (load-issue.sh) in ~/.claude/settings.json. Opt-in.\n";
+        echo "  --disable-co-author-attribution Set includeCoAuthoredBy: false in ~/.claude/settings.json when absent. Opt-in.\n";
         echo "  --allow-subagent-writes Allow dispatched-subagent file writes by adding scoped Edit/Write entries for the project\n";
         echo "                          tree to permissions.allow in .claude/settings.local.json. Opt-in.\n";
         echo "  --deny-network-bash     Deny outbound-network Bash commands (curl, wget, nc, ssh, scp, openssl s_client, ...)\n";
@@ -101,7 +103,7 @@ final class Installer
 
         $copied = $syncCounts->copied + self::installRootInstructions($root);
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
-        $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference();
+        $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference($options->disableCoAuthorAttribution);
         $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
         $networkBashDenied = InstallerProjectSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
         $orphanedHandlersRemoved = InstallerProjectSettings::removeOrphanedBashGuardHandlers($root);

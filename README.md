@@ -13,7 +13,7 @@
 
 ## Requirements
 
-PHP and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
+PHP 8.3 or newer (PHP 8.x) and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
 
 ## Installation
 
@@ -29,6 +29,8 @@ Existing `CLAUDE.md` and `AGENTS.md` are preserved. For an existing `AGENTS.md`,
 composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
+
+The first tagged version, `0.1`, is being prepared. Until it is published, the commands above install the development branch. See [versions and upgrades](docs/installation.md#versions-and-upgrades).
 
 Restart the agent session after installation. In Claude Code:
 
@@ -104,7 +106,7 @@ Skills install into the project only. Claude Code uses `.claude/skills`; Codex d
 > [!IMPORTANT]
 > `install` normally copies only missing files; security rule files are refreshed even without `--force`. The Quickstart's `--force` also replaces other installed rules, skills, and agents, so save local customizations first. Neither root instruction file is overwritten. Use `--prune` when upgrading to remove files the package no longer ships.
 
-Installation also sets `includeCoAuthoredBy: false` in `~/.claude/settings.json` when absent and removes this package's obsolete `bash-guard` hook from project settings. These Claude settings apply even when you intend to use Codex. The opt-in `--allow-subagent-writes`, `--allow-bundled-scripts`, and `--deny-network-bash` switches configure Claude Code only; they do not grant Codex permissions. See the [trust model](SECURITY.md).
+Installation leaves global Claude settings unchanged by default. Pass `--disable-co-author-attribution` to set `includeCoAuthoredBy: false` in `~/.claude/settings.json` when absent; existing values are preserved. The installer still removes this package's obsolete `bash-guard` hook from project settings. This cleanup and the opt-in settings switches configure Claude Code only, including when you intend to use Codex; they do not grant Codex permissions. See the [trust model](SECURITY.md).
 
 Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
 

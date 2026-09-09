@@ -5,8 +5,8 @@ Thank you for your interest in improving this project. This guide covers how to 
 ## Getting started
 
 1. Fork the repository and clone your fork.
-2. Install dependencies: `composer install`.
-3. (Optional, for Claude Code users) Sync this package's own rules/skills into the repository's `.claude/` directory: `vendor/bin/ai-olympus install --force`.
+2. Use PHP 8.5 and Composer 2 for the development dependencies, then install them: `composer install`.
+3. (Optional, for Claude Code and Codex users) Sync this package's own rules, skills, and agents into the repository: `bin/ai-olympus install --force --prune`.
 
 ## The quality gate: `composer build`
 
@@ -18,7 +18,7 @@ composer build
 
 This is the authoritative gate — see the `scripts` section of `composer.json` for the exact commands. It runs, in order:
 
-1. `bin/ai-olympus install --force --allow-subagent-writes` — reinstalls this package's own rules/skills (the repository dogfoods its own installer).
+1. `bin/ai-olympus install --force --prune` — reinstalls this package's own rules/skills (the repository dogfoods its own installer).
 2. `@fix` — auto-fixes: `skill-check-fix`, `composer-normalize-fix`, `rector-fix`, `pint-fix`, `phpcs-fix`.
 3. `@check` — the full check suite, which must pass with **zero errors**:
    - `skill-check` — the `SKILL.md` linter (`npx skill-check check skills --no-security-scan`); required whenever a change touches a `skills/**/SKILL.md` file.
@@ -29,11 +29,12 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
    - `analyse` — PHPStan static analysis.
    - `security-audit` — `composer audit`.
    - `shell-self-tests` — self-tests for the shared shell scripts under `skills/_shared/`.
+   - `shellcheck` — shell script analysis (enforced in CI; skipped locally when ShellCheck is unavailable).
    - `test:coverage` — the Pest test suite with **100% code coverage required** (`--min=100`, via PCOV).
 
-See `README.md` → *Development & Testing* for the individual commands (`composer check`, `composer fix`, `composer phpcs-check`, …) if you want to run a single step instead of the full gate.
+The individual commands are defined in `composer.json` (`composer check`, `composer fix`, `composer phpcs-check`, …). The skill linter also needs Node.js and npm (`npx`).
 
-**CI is not the same gate.** `.github/workflows/pr.yml` runs only a subset of `@check` — `security-audit`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, and `test:coverage`. It does **not** run `skill-check` or `composer-normalize-check`. A green CI check on your PR is therefore not proof that the full `composer build` passes — run it locally before you mark the pull request ready.
+**CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.5. It does not run `skill-check` or auto-fix files. A separate compatibility job installs the distribution as a dependency on PHP 8.3, 8.4, and 8.5 and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging.
 
 ## Adding or changing a skill
 
