@@ -10,7 +10,7 @@ test('resolveClaudeMdSource returns path to CLAUDE.md in package', function (): 
 
     expect($source)->not->toBeNull();
     expect($source)->toBeString();
-    expect($source)->toEndWith('/CLAUDE.md');
+    expect($source)->toEndWith('/templates/CLAUDE.md');
     expect(is_file((string) $source))->toBeTrue();
 });
 
@@ -33,7 +33,9 @@ test('install copies CLAUDE.md to project root', function (): void {
 
         $claudeMd = $root . '/CLAUDE.md';
         expect(is_file($claudeMd))->toBeTrue();
-        expect(file_get_contents($claudeMd))->toContain('Behavioral guidelines');
+        $content = file_get_contents($claudeMd);
+        expect($content)->toBe(file_get_contents(dirname(__DIR__, 2) . '/templates/CLAUDE.md'));
+        expect($content)->not->toContain('## AI Olympus repository maintenance');
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -91,7 +93,7 @@ test('install never overwrites existing CLAUDE.md even with force flag', functio
 
 test('CLAUDE.md source file exists in package', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $claudeMd = $packageDir . '/CLAUDE.md';
+    $claudeMd = $packageDir . '/templates/CLAUDE.md';
 
     expect(is_file($claudeMd))->toBeTrue();
     expect(file_get_contents($claudeMd))->toContain('Behavioral guidelines');

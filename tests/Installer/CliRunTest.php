@@ -100,6 +100,13 @@ test('a concatenated --deny-network-bash actually reaches InstallOptions (a secu
     expect(InstallOptions::fromArgv($normalized)->allowSubagentWrites)->toBeTrue();
 });
 
+test('a concatenated attribution flag reaches InstallOptions', function (): void {
+    $normalized = InstallerPath::normalizeCliArguments(['ai-olympus', 'install', '--force--disable-co-author-attribution']);
+
+    expect(InstallOptions::fromArgv($normalized)->disableCoAuthorAttribution)->toBeTrue();
+    expect(InstallOptions::fromArgv($normalized)->force)->toBeTrue();
+});
+
 test('installation docs document every InstallOptions flag in both the command list and the CLI switches table (issue #102)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     // Issue #105 moved the operational installer reference out of README.md; the

@@ -382,3 +382,10 @@
 - Example: the local 2026-09-05 Codex-support implementation added five TOML adapters, sourcing all role logic from the existing five `agents/*.md` files.
 - Source:  local user request   Added: 2026-09-05
 - Role:    shared
+
+### repository-php-autofix-build — Use the full build script for this repository's PHP fixes
+- Trigger: a PHP checker or CI reports an automatically fixable error while maintaining AI Olympus.
+- Rule:    Use `composer build` instead of manual formatting or individual fixers. It runs installer synchronization, fixers, and checks; resolve remaining errors and rerun until green. The user's repository-specific instruction permits this recovery before a push despite the generic deferred-gate rule. Keep this policy in root `CLAUDE.md`; `InstallerPath::resolveClaudeMdSource()` distributes `templates/CLAUDE.md` with consumer behavior preserved.
+- Example: preparation of tag `0.1` separated repository maintenance instructions from the installed template.
+- Source:  explicit user request   Added: 2026-09-09
+- Role:    shared

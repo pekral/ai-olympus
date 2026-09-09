@@ -31,11 +31,11 @@ This sets `includeCoAuthoredBy: false` only when the key is absent and preserves
 
 The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It mirrors the same source artifacts into both supported harnesses: rules into `.claude/rules` and `.codex/rules`, skills into `.claude/skills` and Codex's native `.agents/skills`, and the five roles into each harness's agent format. Files are copied by default or symlinked when you pass `--symlink` and the operating system permits it.
 
-When the package is required via Composer, sources are read from `vendor/pekral/ai-olympus/rules` and `vendor/pekral/ai-olympus/skills`.
+When the package is required via Composer, sources are read from `vendor/pekral/ai-olympus/rules` and `vendor/pekral/ai-olympus/skills`. The installed `CLAUDE.md` comes from `templates/CLAUDE.md`; this repository's root `CLAUDE.md` contains additional maintenance instructions that are not copied to consuming projects.
 
 ### Distribution contents
 
-GitHub distribution archives and `composer archive` omit `assets/` and `docs/`. The installer reads `src/`, `rules/`, `skills/`, `agents/`, `commands/`, `codex/agents/`, `CLAUDE.md`, and `AGENTS.md`; it does not require the artwork or this repository's documentation. A workflow's `docs/memory/PROJECT_MEMORY.md` refers to the consuming project's own memory, not the package's development history.
+GitHub distribution archives and `composer archive` omit `assets/` and `docs/`. The installer reads `src/`, `rules/`, `skills/`, `agents/`, `commands/`, `codex/agents/`, `templates/CLAUDE.md`, and `AGENTS.md`; it does not require the artwork or this repository's documentation. A workflow's `docs/memory/PROJECT_MEMORY.md` refers to the consuming project's own memory, not the package's development history.
 
 Composer uses distribution archives by default; `--prefer-dist` selects them explicitly. `--prefer-source` clones the Git repository and therefore includes its artwork and documentation. The originals and documentation remain available on [GitHub](https://github.com/pekral/ai-olympus). Existing locked revisions retain their original archive contents until the dependency is updated.
 

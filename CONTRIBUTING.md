@@ -10,7 +10,7 @@ Thank you for your interest in improving this project. This guide covers how to 
 
 ## The quality gate: `composer build`
 
-Once the work is finished and the review has converged, run:
+For automatic PHP fixes in this repository, use the full build script. When a PHP checker or CI reports an automatically fixable error, run it instead of individual fixers or manual formatting edits. It also serves as the final gate once work and review have converged:
 
 ```bash
 composer build
@@ -34,7 +34,7 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
 
 The individual commands are defined in `composer.json` (`composer check`, `composer fix`, `composer phpcs-check`, …). The skill linter also needs Node.js and npm (`npx`).
 
-**CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.5. It does not run `skill-check` or auto-fix files. A separate compatibility job installs the distribution as a dependency on PHP 8.3, 8.4, and 8.5 and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging.
+**CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.5. It does not run `skill-check` or auto-fix files. A separate compatibility job installs the distribution as a dependency on PHP 8.3, 8.4, and 8.5 and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging. The root `CLAUDE.md` also permits this build before a push when resolving PHP check failures. The consumer template at `templates/CLAUDE.md` retains its own workflow.
 
 ## Adding or changing a skill
 

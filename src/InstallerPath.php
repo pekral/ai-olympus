@@ -28,7 +28,7 @@ final class InstallerPath
     {
         $rawArguments = implode(' ', $argv);
         $parts = preg_split(
-            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|deny-network-bash|editor=))/',
+            '/\s+|(?=--(?:force|symlink|prune|allow-bundled-scripts|allow-subagent-writes|deny-network-bash|disable-co-author-attribution|editor=))/',
             trim($rawArguments),
             -1,
             PREG_SPLIT_NO_EMPTY,
@@ -98,7 +98,7 @@ final class InstallerPath
 
     public static function resolveClaudeMdSource(): ?string
     {
-        $source = self::getPackageDirectory() . '/CLAUDE.md';
+        $source = self::getPackageDirectory() . '/templates/CLAUDE.md';
 
         return is_file($source) ? $source : null;
     }

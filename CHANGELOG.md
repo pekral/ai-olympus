@@ -6,6 +6,9 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 Next release: **0.1**, with the exact Git tag `0.1` (not published yet).
 
+- 📝 **Changed**: Use `composer build` for automatic PHP fixes in this repository. Preserve consumer instructions in `templates/CLAUDE.md` and keep repository maintenance guidance in the root `CLAUDE.md`. Per user request.
+- 🐛 **Fixed**: Recognize `--disable-co-author-attribution` when CLI flags arrive concatenated. Per user request.
+
 - 🐛 **Fixed**: Declare PHP `^8.3` for the Composer installer and test distribution installation on PHP 8.3, 8.4, and 8.5. Per user request.
 - ⚡ **Changed**: Global Claude co-author attribution is now opt-in through `--disable-co-author-attribution`; default and automatic installation preserve global settings. Existing attribution preferences remain untouched. Per user request.
 - 📝 **Changed**: Correct contributor setup and CI documentation, document version constraints and upgrades for the planned `0.1` release, and align installer settings documentation with its defaults. Per user request.

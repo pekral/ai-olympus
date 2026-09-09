@@ -107,6 +107,7 @@ jobs:
           test -f .claude/skills/resolve-issue/SKILL.md
           test -f .codex/agents/daedalus.toml
           test -f .agents/skills/resolve-issue/SKILL.md
+          cmp vendor/pekral/ai-olympus/templates/CLAUDE.md CLAUDE.md
           test ! -d vendor/pekral/ai-olympus/assets
           test ! -d vendor/pekral/ai-olympus/docs
           test ! -f "$HOME/.claude/settings.json"
