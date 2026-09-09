@@ -11,9 +11,6 @@
 
 **AI Olympus** gives Laravel/PHP teams shared coding standards, 55 reusable skills, and five specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
-> [!WARNING]
-> Experimental. Updates can change agent behaviour. The example below follows `dev-master`; review the [changelog](CHANGELOG.md) and proposed changes before upgrading or merging.
-
 ## Requirements
 
 PHP and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
