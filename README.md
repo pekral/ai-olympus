@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="AI Olympus" width="280">
+  <img src="assets/logo.png" alt="AI Olympus — five AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
 
 <h1>AI Olympus — An AI Development Team for Laravel</h1>
 
@@ -127,7 +127,7 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 
 <table>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/hephaestus.png" alt="hephaestus avatar" width="80"></td>
+<td width="96" valign="top"><a href="assets/agents/hephaestus.png"><img src="assets/agents/thumbnails/hephaestus.jpg" alt="hephaestus avatar" width="80"></a></td>
 <td valign="top">
 
 **`hephaestus` — code-writing implementer**
@@ -139,7 +139,7 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/argus.png" alt="argus avatar" width="80"></td>
+<td width="96" valign="top"><a href="assets/agents/argus.png"><img src="assets/agents/thumbnails/argus.jpg" alt="argus avatar" width="80"></a></td>
 <td valign="top">
 
 **`argus` — acceptance tester** · read-only
@@ -151,7 +151,7 @@ Exercises changed behaviour on a local running application: APIs over HTTP and U
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/daedalus.png" alt="daedalus avatar" width="80"></td>
+<td width="96" valign="top"><a href="assets/agents/daedalus.png"><img src="assets/agents/thumbnails/daedalus.jpg" alt="daedalus avatar" width="80"></a></td>
 <td valign="top">
 
 **`daedalus` — engineering-workflow orchestrator** · the front door
@@ -163,7 +163,7 @@ Routes a free-form request to the specialists: `hephaestus` for implementation, 
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/athena.png" alt="athena avatar" width="80"></td>
+<td width="96" valign="top"><a href="assets/agents/athena.png"><img src="assets/agents/thumbnails/athena.jpg" alt="athena avatar" width="80"></a></td>
 <td valign="top">
 
 **`athena` — the code-review sentinel** · read-only
@@ -175,7 +175,7 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><img src="assets/agents/hermes.png" alt="hermes avatar" width="80"></td>
+<td width="96" valign="top"><a href="assets/agents/hermes.png"><img src="assets/agents/thumbnails/hermes.jpg" alt="hermes avatar" width="80"></a></td>
 <td valign="top">
 
 **`hermes` — release announcer & reporter** · read-only

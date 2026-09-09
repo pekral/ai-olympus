@@ -10,6 +10,12 @@ The installer discovers the project root by walking up from the current director
 
 When the package is required via Composer, sources are read from `vendor/pekral/ai-olympus/rules` and `vendor/pekral/ai-olympus/skills`.
 
+### Distribution contents
+
+GitHub distribution archives and `composer archive` omit `assets/` and `docs/`. The installer reads `src/`, `rules/`, `skills/`, `agents/`, `commands/`, `codex/agents/`, `CLAUDE.md`, and `AGENTS.md`; it does not require the artwork or this repository's documentation. A workflow's `docs/memory/PROJECT_MEMORY.md` refers to the consuming project's own memory, not the package's development history.
+
+Composer uses distribution archives by default; `--prefer-dist` selects them explicitly. `--prefer-source` clones the Git repository and therefore includes its artwork and documentation. The originals and documentation remain available on [GitHub](https://github.com/pekral/ai-olympus). Existing locked revisions retain their original archive contents until the dependency is updated.
+
 ## Automatic Installation via Composer Plugin
 
 By default, the Composer plugin does **not** auto-install rules on `composer install` or `composer update`. To enable automatic installation, add the following to your project's `composer.json`:

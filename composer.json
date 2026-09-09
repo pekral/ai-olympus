@@ -72,6 +72,8 @@
   ],
   "archive": {
     "exclude": [
+      "/assets",
+      "/docs",
       "/tests"
     ]
   },
