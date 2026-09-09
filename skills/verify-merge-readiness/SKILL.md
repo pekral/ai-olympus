@@ -9,10 +9,11 @@ metadata:
 ## TL;DR
 
 Delegate the orchestration to `daedalus`. Bring one linked pull request to a verified merge-ready
-state, but stop before merge. Reuse a trusted converged review when the effective PR diff is
-content-identical; review again only when content or actionable feedback changed. Then dispatch
-`hermes` to publish one current TL;DR on the source GitHub issue and remove only superseded,
-actor-owned preparation comments.
+state, but stop before merge. When the issue carries no pull request yet, `daedalus` resolves the
+task first, and this workflow prepares the pull request that delivery opens. Reuse a trusted
+converged review when the effective PR diff is content-identical; review again only when content or
+actionable feedback changed. Then dispatch `hermes` to publish one current TL;DR on the source
+GitHub issue and remove only superseded, actor-owned preparation comments.
 
 This skill is the shared workflow for both clients:
 
@@ -41,17 +42,36 @@ It never merges the pull request.
   foreign-repository references are a hard stop. Run `skills/_shared/assert-current-repo.sh <URL>`
   before any write.
 - An invocation explicitly authorizes the final TL;DR publish and deletion of qualifying
-  superseded comments (L2). It authorizes no merge, issue closure, review dismissal, native review
-  deletion, line-thread deletion, or deletion of comments outside the exact manifest below.
+  superseded comments (L2). When the source issue carries no pull request, it also authorizes the
+  delivery path that opens one; implementation, its tests, and the Draft PR stay L1 exactly as in a
+  normal `hephaestus` dispatch. It authorizes no merge, issue closure, review dismissal, native
+  review deletion, line-thread deletion, or deletion of comments outside the exact manifest below.
 
 ## Workflow
 
 ### 1. Resolve the source issue and pull request
 
 Load the supplied reference through `skills/code-review-github/scripts/load-issue.sh <URL>`. Resolve
-the source issue from the PR's closing issue, or resolve the open PR linked from the issue. Require
-exactly one PR; if none or several match, stop instead of guessing. Page every issue comment, PR
-comment, submitted review, and line thread needed by the preparation and consolidation decisions.
+the source issue from the PR's closing issue, or resolve the open PR linked from the issue. Page
+every issue comment, PR comment, submitted review, and line thread needed by the preparation and
+consolidation decisions.
+
+Then branch on how many pull requests the issue resolves to:
+
+- **Exactly one** — continue at step 2.
+- **Several** — stop. Never guess which pull request the issue means.
+- **None** — the issue is not implemented yet, so `daedalus` resolves it first. It runs its own
+  end-to-end delivery path (`agents/daedalus.md` *The end-to-end run*, steps 4 to 6: the optional
+  security-risk analysis, `hephaestus` for the implementation and its tests, then the
+  `hephaestus` ↔ `athena` review-and-fix loop to convergence). That path opens the Draft pull
+  request this workflow prepares. Re-resolve the pull request from the `Impl done` handoff, record
+  it in the brief, and continue at step 2. The converged review that path produced is the trusted
+  evidence step 2 compares the current fingerprint against, so a content-identical diff never buys
+  a second CR round.
+
+Two hard stops guard the delivery branch. A closed source issue is never implemented — stop and
+report it. A delivery path that returns `Blocked` stops here with that blocker; never open a
+pull request by another route and never prepare a pull request the loop did not converge on.
 
 Record in the shared brief:
 
@@ -191,6 +211,8 @@ Return:
 
 ## Done when
 
+- A source issue that carried no pull request was resolved first, and this workflow prepared the
+  pull request that delivery opened.
 - The current effective diff has a trusted converged review, reused only when content-identical.
 - Every acceptance criterion and the exact-head quality gate are green.
 - The PR is non-Draft and GitHub reports it mergeable and current with its base.

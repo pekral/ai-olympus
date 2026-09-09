@@ -44,6 +44,22 @@ test('verify-merge-readiness skips content-identical review rounds but fails clo
     expect($skill)->toContain('@skills/process-code-review/SKILL.md');
 });
 
+test('verify-merge-readiness delivers the task first when the issue carries no pull request', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $command = (string) file_get_contents($packageDir . '/commands/prepare-issue-for-merge.md');
+
+    expect($skill)->toContain('the issue is not implemented yet, so `daedalus` resolves it first');
+    expect($skill)->toContain('Several** — stop. Never guess which pull request the issue means');
+    expect($skill)->toContain('A closed source issue is never implemented');
+    expect($skill)->toContain('never prepare a pull request the loop did not converge on');
+    expect($skill)->toContain('it also authorizes the');
+    expect($daedalus)->toContain('When the source issue resolves to no pull request, deliver it first');
+    expect($daedalus)->toContain('run steps 4 to 6 of *The end-to-end run*');
+    expect($command)->toContain('`daedalus` resolves the task first');
+});
+
 test('verify-merge-readiness consolidates only owned comments and preserves merge evidence', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');

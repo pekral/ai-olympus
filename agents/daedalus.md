@@ -247,6 +247,13 @@ not a second implementation of it.
 
 - Resolve and gather the source as usual, then record `## Preparation mode: merge-ready, no merge`
   in the shared brief.
+- **When the source issue resolves to no pull request, deliver it first.** The issue is not
+  implemented yet, so run steps 4 to 6 of *The end-to-end run* on it — the optional security-risk
+  analysis, `hephaestus` for the implementation, then the `hephaestus` ↔ `athena` review-and-fix
+  loop to convergence — and prepare the Draft pull request that path opens. Take the working-tree
+  write-lock in step 5 exactly as a full-delivery run does; prepare-only mode is not read-only once
+  it delivers. Several matching pull requests remain a hard stop, a closed source issue is never
+  implemented, and a delivery path that returns `Blocked` stops the preparation with that blocker.
 - Dispatch `athena` for `@skills/process-code-review/SKILL.md`. Before a CR round, require the
   canonical effective-diff fingerprint decision. A trusted matching fingerprint means the diff is
   content-identical and the round is recorded as skipped; a missing or different fingerprint or
