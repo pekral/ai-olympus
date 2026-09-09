@@ -869,3 +869,26 @@ function deliberatelyNotRunGroups(string $section): array
 
     return $groups;
 }
+
+/**
+ * Reads a dot-separated path out of a decoded JSON document, or null when any segment is missing.
+ *
+ * The contract tests assert against the JSON a loader script prints. `json_decode()` returns
+ * `mixed`, which PHPStan cannot narrow, and the project forbids `assert()` and inline `@var` to
+ * override it — so the narrowing happens here, once, instead of at every assertion.
+ */
+function decodedJsonField(string $json, string $path): mixed
+{
+    $value = json_decode($json, associative: true);
+
+    foreach (explode('.', $path) as $segment) {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $key = ctype_digit($segment) ? (int) $segment : $segment;
+        $value = $value[$key] ?? null;
+    }
+
+    return $value;
+}
