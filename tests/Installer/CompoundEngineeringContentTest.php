@@ -1569,21 +1569,23 @@ test('every comment-reading consumer cross-references the canonical rule instead
     $prepare = (string) file_get_contents($packageDir . '/skills/prepare-issue-context/SKILL.md');
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
 
-    // The rule names its three executing consumers, so the ownership split is readable from it.
+    // The rule names its executing consumers, so the ownership split is readable from it.
     expect($rule)->toContain('`agents/daedalus.md` in its gather phase');
-    // …and says out loud that the list is not every comment-reading path, so the CR-side gap that
-    // the gate does not cover is visible instead of implied by an enumeration that reads complete.
-    expect($rule)->toContain('**Those three are the assignment-reading path, not every path that reads a comment.**');
-    expect($rule)->toContain(
-        '*Issue Context Analysis* derives requirements, acceptance criteria, edge cases, and test data from them, and applies no trust gate today',
-    );
     expect($rule)->toContain('`@skills/resolve-issue/references/comment-analysis.md` in its thread classification');
     expect($rule)->toContain('`@skills/prepare-issue-context/SKILL.md` when it loads the assignment');
 
+    // The review side is the fourth, and the rule must state that it now applies the same test —
+    // never go back to describing that path as ungated, which it was until the CR skill gained
+    // step 2a.
+    expect($rule)->toContain('**A fourth consumer sits on the review side.**');
+    expect($rule)->toContain('its own step 2a');
+    expect($rule)->not->toContain('applies no trust gate today');
+
     // Each consumer points back at the one canonical section, by name.
+    $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $pointer = '*Analyze every comment before you act on a tracker assignment*';
 
-    foreach ([$daedalus, $commentAnalysis, $prepare, $docs] as $consumer) {
+    foreach ([$daedalus, $commentAnalysis, $prepare, $docs, $codeReview] as $consumer) {
         expect($consumer)->toContain($pointer);
     }
 });
