@@ -563,32 +563,49 @@ test('every agent definition declares a model in frontmatter', function (): void
 });
 
 test(
-    'every agent definition sets the model effort to high in frontmatter (issue #179)',
+    'every agent declares the reasoning effort its role calls for',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
+
+        // Effort is set per agent by what the role actually decides. `daedalus` routes the whole
+        // run and `athena` is the roster's single reviewer, so a shallow pass there costs a round
+        // for everybody downstream — both stay at `high`. The three that execute against an
+        // already-decided brief run at `medium`. `max` was dropped from the whole roster in issue
+        // #179 and never came back.
+        $expected = [
+            'argus' => 'medium',
+            'athena' => 'high',
+            'daedalus' => 'high',
+            'hephaestus' => 'medium',
+            'hermes' => 'medium',
+        ];
+
         $globResult = glob($packageDir . '/agents/*.md');
         $agentFiles = $globResult !== false ? $globResult : [];
 
         expect($agentFiles)->not->toBeEmpty();
 
-        foreach ($agentFiles as $agentFile) {
-            // Anchor to a frontmatter line starting with `effort:` so a stray prose substring
-            // cannot satisfy the assertion. Every agent runs at high reasoning depth — `max` was
-            // lowered to `high` in issue #179, superseding the issue #40 mandate. The single
-            // `low`-effort exception left the roster with `apollon` (docs/agents.md *Retired agents*).
-            $content = (string) file_get_contents($agentFile);
+        $actual = [];
 
-            expect($content)->toMatch('/^effort:\s*high$/m');
+        foreach ($agentFiles as $agentFile) {
+            $content = (string) file_get_contents($agentFile);
+            $matched = preg_match('/^effort:\s*(\S+)$/m', $content, $matches) === 1;
+
+            $actual[basename($agentFile, '.md')] = $matched ? $matches[1] : null;
 
             // `max` must not survive anywhere in frontmatter, on any agent.
             expect($content)->not->toMatch('/^effort:\s*max$/m');
         }
 
-        // The anatomy doc must document the same level it ships, example included.
+        ksort($actual);
+
+        expect($actual)->toBe($expected);
+
+        // The anatomy doc must document the same levels the roster ships.
         $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-        expect($docs)->toContain('effort: high');
-        expect($docs)->toContain('set to `high` on every agent (issue #179)');
+        expect($docs)->toContain('`hephaestus`, `argus` and `hermes` run at `medium`');
         expect($docs)->not->toContain('set to `max` on every agent');
+        expect($docs)->not->toContain('set to `high` on every agent');
     },
 );
 
