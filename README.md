@@ -235,7 +235,7 @@ with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skil
 
 ## Rules Overview
 
-27 rule files: an always-on baseline every run applies, plus scoped rules for PHP, Laravel,
+29 rule files: an always-on baseline every run applies, plus scoped rules for PHP, Laravel,
 security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
 **[`docs/rules.md`](docs/rules.md)**.
 

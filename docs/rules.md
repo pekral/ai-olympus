@@ -45,6 +45,8 @@ Applies to a run that dispatches subagents rather than doing the work itself.
 | Rule | What it governs | Scope |
 |---|---|---|
 | [`compound-engineering/orchestration.md`](../rules/compound-engineering/orchestration.md) | Dispatch-time mechanics — savings mode, consent levels, the Bash capability boundary, audit trail, temporary-file hygiene, orchestrator turn discipline | Orchestration |
+| [`compound-engineering/concurrency.md`](../rules/compound-engineering/concurrency.md) | Concurrency on the shared git working tree — the scope-conditioned write-lock and its stale-reclaim probe, the worktree stance, sequential processing of multiple sources | Orchestration |
+| [`compound-engineering/backlog.md`](../rules/compound-engineering/backlog.md) | The backlog tier run inline — triage mode, decomposition mode, their consent levels, and what a backlog run never does | Orchestration |
 
 ## PHP & Composer
 
