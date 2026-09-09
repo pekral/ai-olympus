@@ -162,7 +162,13 @@ if [[ -z "$VIEW_JSON" ]] || ! printf '%s' "$VIEW_JSON" | jq -e . >/dev/null 2>&1
   exit 3
 fi
 
-COMMENTS_JSON="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || printf '{"comments": []}')"
+# `|| printf` would append the fallback to whatever jq had already written, leaving two JSON
+# documents in one variable and failing `--argjson` below with exit 2 — the load died where it was
+# documented to degrade. Take whatever the pipeline produced, then validate it.
+COMMENTS_JSON="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || true)"
+if [[ -z "$COMMENTS_JSON" ]] || ! printf '%s' "$COMMENTS_JSON" | jq -e . >/dev/null 2>&1; then
+  COMMENTS_JSON='{"comments": []}'
+fi
 
 # Fetch the full context of every subtask (description, comments, attachments).
 # The parent issue only embeds a shallow subtask reference, so each subtask is
@@ -178,7 +184,10 @@ if [[ -n "$SUBTASK_KEYS" ]]; then
     if [[ -z "$SUBTASK_VIEW" ]] || ! printf '%s' "$SUBTASK_VIEW" | jq -e . >/dev/null 2>&1; then
       continue
     fi
-    SUBTASK_COMMENTS="$(acli jira workitem comment list --key "$SUBTASK_KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || printf '{"comments": []}')"
+    SUBTASK_COMMENTS="$(acli jira workitem comment list --key "$SUBTASK_KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || true)"
+    if [[ -z "$SUBTASK_COMMENTS" ]] || ! printf '%s' "$SUBTASK_COMMENTS" | jq -e . >/dev/null 2>&1; then
+      SUBTASK_COMMENTS='{"comments": []}'
+    fi
     SUBTASK_DETAILS="$(jq -c -n \
       --arg key "$SUBTASK_KEY" \
       --argjson acc "$SUBTASK_DETAILS" \
