@@ -187,6 +187,19 @@ Writes release announcements and publishes the final tracker report after review
 </tr>
 </table>
 
+### How agents hand work over
+
+Agents never share a conversation. Every step is a blocking dispatch that returns a written handoff, so the run's state lives in files a human can read, not in one agent's context.
+
+- **Shared task brief** — `.claude/run/<source-slug>.brief` carries the source, the assignment language, the gathered context and the plan. Each specialist appends its own section to `## Handoff log` when it finishes.
+- **Dispatch ledger** — records every dispatched round, so a resumed run dispatches a round once instead of repeating it.
+- **Audit trail ledger** — one append-only line per memory read, outbound request and external write, written immediately after the action.
+- **Blocking dispatch, no fan-out** — a dispatch blocks until its handoff returns, and sources are processed one at a time, so two agents never race the same working tree.
+- **Per-dispatch memory slice** — project memory is filtered per recipient role into the dispatch prompt itself, never folded into the shared brief that every later agent reads.
+- **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
+
+The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `daedalus` owns the brief and both ledgers.
+
 ### Using the roles and skills
 
 After the [Quickstart](#quickstart), choose a specialist when you do not need the full pipeline. Claude Code examples:
