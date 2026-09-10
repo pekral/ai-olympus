@@ -4,6 +4,24 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-10
+
+- 🔒 **Security**: An acceptance criterion carried by a tracker comment is now gated on author trust. `skills/code-review/SKILL.md` *Issue Context Analysis* derived requirements, acceptance criteria, edge cases and test data from every comment on the linked item, with no trust test. The Acceptance-Criteria Gate turns an unsatisfied criterion into a Critical finding that blocks the merge. On a public tracker anyone can comment, so a stranger could write a merge gate, or ask for one to be dropped. Step 2a now applies the test `rules/compound-engineering/general.md` already owned, and that rule records the path as closed. The gate filters authority, not input: every comment is still read, and the facts it reports still feed the review. An untrusted comment carries no criterion on its own, and each one it proposes is recorded in the review's assumptions.
+
+- 🐛 **Fixed**: A failed JIRA comment fetch no longer kills the whole issue load. `acli … | jq … || printf '{"comments": []}'` appended the fallback to output `jq` had already written, so one variable held two JSON documents. The `--argjson` call below then rejected it and the load died with exit 2 — at the exact point the loader is documented to degrade to an empty list, which `rules/compound-engineering/general.md` relies on. The fallback now takes whatever the pipeline produced and then validates it, matching the pattern the GitHub loader already uses. The same shape applies to the subtask comment fetch.
+
+- ♻️ **Changed**: The concurrency and backlog contracts move out of `agents/daedalus.md`. `rules/compound-engineering/concurrency.md` takes the scope-conditioned write-lock, its stale-reclaim probe, the worktree stance, and sequential processing of multiple sources. `rules/compound-engineering/backlog.md` takes the triage and decomposition modes, their consent levels, and what a backlog run never does. Both were normative contracts rather than orchestration steps, and both now read in the third person, because a rule addresses whoever applies it rather than one named agent. `daedalus` keeps a pointer to each plus the consequences it acts on directly, and drops from 125 392 to 112 881 characters — 75 % of the 150 000-character limit Claude Code enforces per instruction file.
+
+- 🧪 **Tests**: Both deterministic issue loaders and the instruction-file size limit are now covered. Eight tests drive `skills/code-review-github/scripts/load-issue.sh` against a fake `gh` on an isolated PATH: URL parsing, the issue-vs-PR branch, the three exit codes, the `isDraft: false` special case, and the silent sub-issue degradation callers are told to disclose as unverified. Eight more drive the JIRA loader against a fake `acli`. No call leaves the machine. A separate guard measures every instruction file against the 150 000-character loader limit. That limit had lived only in a comment, after `rules/code-review/general.md` crossed it once and the whole code-review rule set went silently inactive.
+
+- ⚙️ **Changed**: `hephaestus`, `argus` and `hermes` now run at `medium` reasoning effort. `daedalus` and `athena` stay at `high`. Effort was pinned to `high` roster-wide, which treated it as one dial for everybody. It is not: `daedalus` routes the run and `athena` is the roster's single reviewer, so a shallow pass there costs a round for every agent downstream, while the other three execute against a brief that has already been decided. The guard now pins the level each agent declares rather than one shared value. `max` stays banned roster-wide.
+
+- 📝 **Documented**: `README.md` describes how agents hand work over: the shared task brief and its handoff log, the dispatch and audit-trail ledgers, blocking dispatch with no fan-out, the per-dispatch memory slice, and the untrusted-content boundary. The mechanism was implemented across three rule files and the `daedalus` definition, and a reader had to open the rules to find it.
+
+- 📝 **Changed**: The installation examples in `README.md` and `docs/installation.md` pin `0.1.1`.
+
+- 🔧 **Build**: Composer dependencies updated.
+
 ## [0.1] - 2026-09-09
 
 - 📝 **Changed**: Use `composer build` for automatic PHP fixes in this repository. Preserve consumer instructions in `templates/CLAUDE.md` and keep repository maintenance guidance in the root `CLAUDE.md`. Per user request.
