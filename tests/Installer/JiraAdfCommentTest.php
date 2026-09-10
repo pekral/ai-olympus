@@ -81,7 +81,7 @@ function jiraAdfLinkHref(mixed $node): string
 
 test('the converter turns the report markup into an ADF document rather than literal text', function (): void {
     $document = jiraAdfConvert(
-        "h2. Hlášení k mergi\n\nPR je připraven na headu {{d916d56}}.\n\nh3. Jak otestovat\n\n# Přihlas se.\n\n* Testy: 267\n",
+        "h2. Merge report\n\nThe PR is ready at head {{d916d56}}.\n\nh3. How to test\n\n# Sign in.\n\n* Tests: 267\n",
     );
     $encoded = json_encode($document, JSON_THROW_ON_ERROR);
 
@@ -96,11 +96,11 @@ test('the converter turns the report markup into an ADF document rather than lit
 });
 
 test('nested inline markup reaches ADF as its own mark instead of leaking as literal Wiki Markup', function (): void {
-    $document = jiraAdfConvert("*Ověřit, zda {{modify}} webhook posílá hlavičku.*\n");
+    $document = jiraAdfConvert("*Check whether the {{modify}} webhook sends the header.*\n");
     $paragraph = jiraAdfChildren($document);
     $nodes = jiraAdfChildren($paragraph[0] ?? null);
 
-    expect(array_column($nodes, 'text'))->toBe(['Ověřit, zda ', 'modify', ' webhook posílá hlavičku.']);
+    expect(array_column($nodes, 'text'))->toBe(['Check whether the ', 'modify', ' webhook sends the header.']);
     expect(jiraAdfMarkTypes($nodes[0] ?? null))->toBe(['strong']);
     expect(jiraAdfMarkTypes($nodes[1] ?? null))->toBe(['code', 'strong']);
 });
