@@ -54,7 +54,7 @@ test('the dead-code-in-commit rule is authoring guidance and no longer a review 
     expect($rule)->toContain('**The code review no longer checks any of them and raises no finding from commit history for them.**');
     expect($rule)->toContain('*A test and the change that makes it pass land in the same commit*');
     expect($rule)->toContain('*The merged head is green*');
-    expect($rule)->toContain('*A history rewrite re-runs the gate*');
+    expect($rule)->toContain('*A history rewrite re-runs the gate only when it resolved a conflict*');
 });
 
 test('the surface that plans a commit split cites the rule (issue #251)', function (): void {
