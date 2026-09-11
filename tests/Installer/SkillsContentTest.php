@@ -1494,8 +1494,8 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     // All four acceptance conditions — dropping any one reopens the bypass this predicate closed.
     expect($merge)->toContain('**The record is authentic.**');
     expect($merge)->toContain('`author_association` to be `OWNER`, `MEMBER`, or `COLLABORATOR`');
-    expect($merge)->toContain('**The record names this exact commit.**');
-    expect($merge)->toContain('Compare the SHA itself — **never a timestamp proxy.**');
+    expect($merge)->toContain('**The record covers the bytes being merged.**');
+    expect($merge)->toContain('Compare the SHA and the fingerprint themselves — **never a timestamp proxy.**');
     expect($merge)->toContain('**The record is a pass.**');
     expect($merge)->toContain('**The tree is clean**');
 
@@ -1549,6 +1549,67 @@ test('merge-anytime waives waiting for CI, never the pre-merge gate (issue #65, 
     expect($merge)->toContain('strictly **billing-only**');
     expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
     expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
+});
+
+test('a red gate is classified before it is fixed, and infrastructure failures never change code', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    // A red gate is not evidence about the diff, so the classification comes before the fix.
+    expect($gates)->toContain('## Classify a red gate before you fix it');
+    expect($gates)->toContain('**Classify first, fix second.**');
+
+    // The four environment messages an agent must never answer with a code change.
+    expect($gates)->toContain('`Too many connections`');
+    expect($gates)->toContain('`Unknown database`');
+    expect($gates)->toContain('`Base table or view not found`');
+    expect($gates)->toContain('`playwright-server.json`');
+    expect($gates)->toContain('**Never change code because of an infrastructure failure, and never commit a change made to silence one.**');
+
+    // Reporting and re-running is the whole remedy; an unrepairable environment is a human's call.
+    expect($gates)->toContain('then re-run the gate');
+    expect($gates)->toContain('**A gate that cannot be run is a hard stop**');
+
+    // The classification must not become a way to dismiss a real red.
+    expect($gates)->toContain('**The classification is never an escape hatch.**');
+    expect($gates)->toContain('treat it as a code defect and investigate');
+
+    // Both sites that actually run the gate route through the classification. process-code-review
+    // cites the file only — its body sits against a hard token budget the same suite pins below.
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain('*Classify a red gate before you fix it*');
+
+    $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    expect($loop)->toContain('Classify it first (`@skills/resolve-issue/references/quality-gates.md`)');
+
+    // The consumer-facing summary carries it too, in both copies the installer keeps in sync.
+    foreach (['CLAUDE.md', 'templates/CLAUDE.md'] as $relativePath) {
+        $body = (string) file_get_contents($packageDir . '/' . $relativePath);
+        expect($body)->toContain('**Classify a red gate before you fix it:**');
+    }
+});
+
+test('the push and the pull request never wait for a gate, and a rebase repeats none', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    // Nothing is released by a push, so nothing is held back for a gate run.
+    expect($gates)->toContain('Author the change, commit it, push it — and open the pull request.');
+    expect($gates)->toContain('Never hold the push or the pull request back waiting for a gate run');
+
+    // A rebase repeats no gate mid-branch; at the merge boundary the fingerprint decides.
+    expect($gates)->toContain('**A rebase repeats the gate only when it resolved a conflict.**');
+    expect($gates)->toContain('A cleanly replayed patch keeps its fingerprint however far the base moved');
+    expect($gates)->toContain('A resolved conflict is hand-written content');
+    expect($gates)->toContain('the carry-forward also requires green CI on that head');
+
+    // The merge gate is the site that actually applies the carry-forward, so it carries the predicate.
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain('**The record covers the bytes being merged.**');
+    expect($merge)->toContain('A branch rebased since the run is the one case where a different SHA still counts');
+    expect($merge)->toContain('It counts only when **all three** hold:');
+    expect($merge)->toContain('a conflict resolved during the rebase changes it');
+    expect($merge)->toContain('Either of the last two failing runs the gate here.');
 });
 
 test('the three build-dedup mechanisms are retired with the repeats they removed (issues #119, #124, #212)', function (): void {

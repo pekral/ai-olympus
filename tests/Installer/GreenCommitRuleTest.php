@@ -32,10 +32,16 @@ test('the git rule gates the merged head and states what deferring the gate trad
     expect($rule)->toContain('never commit a test written to fail');
     expect($rule)->toContain('it is a state of the **working tree**, never a commit');
 
-    // Obligation 2 — a reshaped branch never inherits the verdict of the history it replaced.
-    expect($rule)->toContain('A history rewrite re-runs the gate.');
-    expect($rule)->toContain('the pre-merge gate runs again on the new head');
-    expect($rule)->toContain('never inherits an earlier run\'s verdict');
+    // Obligation 2 — a reshaped branch inherits the verdict only for content a build has seen.
+    // A cleanly replayed patch keeps its fingerprint; a resolved conflict is hand-written and does not.
+    expect($rule)->toContain('A history rewrite re-runs the gate only when it resolved a conflict.');
+    expect($rule)->toContain('**Fingerprint unchanged → the recorded gate run carries forward.**');
+    expect($rule)->toContain('**Fingerprint changed → the gate runs again on the new head.**');
+    expect($rule)->toContain('a resolved conflict is hand-written content and changes it');
+
+    // A clean rebase still merges new upstream commits, so CI on the merge ref covers the combination.
+    expect($rule)->toContain('**CI is what covers the combination.**');
+    expect($rule)->toContain('the carry-forward is off and the gate runs on the new head');
     expect($rule)->toContain('git rebase --exec');
 
     // Obligation 3 — a hand-picked subset is what lets a broken commit through.
