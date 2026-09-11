@@ -4,9 +4,13 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-09-10
+## [0.1.2] - 2026-09-11
 
 - 🐛 **Fixed**: The repository ships in English again. `skills/code-review-jira/scripts/gather-issue-context.sh` rendered half its Markdown brief in Czech — `Stav`, `Typ`, `Priorita`, `Aktualizováno`, `Komponenty`, `### Popis`, `### Subtasky`, `### Odkazy na issues`, `### Pull requesty`, `# Kontext JIRA`, `## Pokyny pro agenta`, `(bez názvu)`, `_Bez popisu._` — beside English `Assignee`, `Reporter`, `Created`, `Labels`, and `### Comments`. That is the mixed-language output `rules/reports/general.md` forbids, in a script the installer ships to consumer projects. `agents/athena.md` named the agent `Athéna` in three places, and `skills/github-issue-triage/scripts/assign-priorities.sh` carried seven Czech sample titles in its self-test; its 40 checks pass unchanged on the translated titles, because the derivation reads the conventional-commit prefix, not the prose. Three verbatim Czech quotations in this changelog and the Czech fixtures in `JiraAdfCommentTest` follow. **Czech that is itself the content stays**, as the `0.1` translation pass recorded: the JIRA status name `Rozpracováno`, the untranslatable closing keyword `"Uzavírá #42"`, the Czech user phrasings a trigger matches, the `"Účet neexistuje."` enumeration leak, the `'můj-článek'` collation error, and the Czech heading examples that demonstrate the language rule.
+
+- 📝 **Changed**: `0.1.1` is superseded by this release on Packagist. Its Git tag was moved to carry the language fix below, but Packagist never re-reads a tag it has already indexed: it kept `0.1.1` pinned to the commit before that fix, so `composer require pekral/ai-olympus:0.1.1` still installs the Czech labels. The GitHub tag and the Packagist dist for `0.1.1` therefore differ. Use `0.1.2`.
+
+## [0.1.1] - 2026-09-10
 
 - 🔒 **Security**: An acceptance criterion carried by a tracker comment is now gated on author trust. `skills/code-review/SKILL.md` *Issue Context Analysis* derived requirements, acceptance criteria, edge cases and test data from every comment on the linked item, with no trust test. The Acceptance-Criteria Gate turns an unsatisfied criterion into a Critical finding that blocks the merge. On a public tracker anyone can comment, so a stranger could write a merge gate, or ask for one to be dropped. Step 2a now applies the test `rules/compound-engineering/general.md` already owned, and that rule records the path as closed. The gate filters authority, not input: every comment is still read, and the facts it reports still feed the review. An untrusted comment carries no criterion on its own, and each one it proposes is recorded in the review's assumptions.
 

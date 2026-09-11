@@ -26,11 +26,11 @@ Existing `CLAUDE.md` and `AGENTS.md` are preserved. For an existing `AGENTS.md`,
 ## Quickstart
 
 ```bash
-composer require pekral/ai-olympus:0.1.1 --dev
+composer require pekral/ai-olympus:0.1.2 --dev
 vendor/bin/ai-olympus install --force
 ```
 
-The commands above pin version `0.1.1`. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
+The commands above pin version `0.1.2`. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
 
 Restart the agent session after installation. In Claude Code:
 
