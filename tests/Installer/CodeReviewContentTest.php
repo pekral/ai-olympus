@@ -894,7 +894,7 @@ test(
         $packageDir = dirname(__DIR__, 2);
     
         $codeReview = codeReviewRuleContents();
-        expect($codeReview)->toContain('**Sanctioned exception — savings-mode isolated-worktree deferral.**');
+        expect($codeReview)->toContain('**Sanctioned exception — the isolated-worktree deferral.**');
         expect($codeReview)->toContain('reports the gate as `deferred to hephaestus` instead of the Critical finding the bullet above otherwise requires');
     
         $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
@@ -2032,7 +2032,7 @@ test('code review rule assigns the remediation-conformance verdict to exactly on
     // Savings-mode mechanism 1 splits invariants and is opt-in; this rule is always on. Cross-linked so
     // they cannot drift. Savings mode moved to orchestration.md by issue #275.
     $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    expect($savings)->toContain('is assigned to a single reviewer **always**, savings mode or not');
+    expect($savings)->toContain('is assigned to a single reviewer **always** by');
     expect($savings)->toContain('the two assignments are complementary');
 });
 
@@ -2562,7 +2562,7 @@ test('content-identical history rewrites preserve the converged code review verd
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $gitRule = (string) file_get_contents($packageDir . '/rules/git/general.md');
     $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     $fingerprintCommand = 'git diff --binary --full-index --no-color --no-ext-diff --no-renames '
         . '<base>...<head> | git patch-id --verbatim';

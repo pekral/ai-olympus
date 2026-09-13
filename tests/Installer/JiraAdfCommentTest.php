@@ -179,7 +179,7 @@ test('hermes runs three publication checks before a JIRA comment counts as publi
 test('the reporting headline goes where the target template opens, not into a Problem field JIRA no longer has (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // Both files instructed the headline into the `Problem` field on every target. The JIRA
     // template has no such field now, and it does carry a slot of its own.

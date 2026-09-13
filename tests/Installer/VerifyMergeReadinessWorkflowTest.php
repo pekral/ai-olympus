@@ -47,7 +47,7 @@ test('verify-merge-readiness skips content-identical review rounds but fails clo
 test('verify-merge-readiness delivers the task first when the issue carries no pull request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
     $command = (string) file_get_contents($packageDir . '/commands/prepare-issue-for-merge.md');
 
     expect($skill)->toContain('the issue is not implemented yet, so `daedalus` resolves it first');

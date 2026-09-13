@@ -106,7 +106,7 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     expect($merge)->toContain('Every CR run **updates the one `cr-comment` it owns** on the PR rather than adding another');
     expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');

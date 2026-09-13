@@ -206,7 +206,7 @@ test('hephaestus grants the PR link-back write its consent-table row assigns it 
 
 test('the roster ships no general problem-analysis subagent and daedalus routes accordingly', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // The analysis subagent and its avatar are gone from the package.
     expect(is_file($packageDir . '/agents/metis.md'))->toBeFalse();
@@ -277,8 +277,7 @@ test('agents directory ships the daedalus orchestrator subagent with required fr
 });
 
 test('daedalus repairs an unmet code-review merge gate instead of escalating it', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // A merge blocked solely by a missing/stale review is a prerequisite daedalus owns, not a hard stop.
     expect($daedalus)->toContain('An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.');
@@ -294,8 +293,7 @@ test('daedalus repairs an unmet code-review merge gate instead of escalating it'
 });
 
 test('daedalus requires a verified JIRA self-assignment before implementation', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     expect($daedalus)->toContain('For a JIRA source');
     expect($daedalus)->toContain('transition-to-in-progress.sh');
@@ -612,8 +610,7 @@ test(
 );
 
 test('daedalus delegates the end-to-end run by dispatching hephaestus and athena to convergence', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
     expect($content)->toContain('Dispatch `hephaestus` through the Task tool');
@@ -624,8 +621,7 @@ test('daedalus delegates the end-to-end run by dispatching hephaestus and athena
 });
 
 test('daedalus dispatches athena for a pre-implementation security-risk analysis that feeds hephaestus', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // Security-focused tasks are analysed by athena before hephaestus implements them.
     expect($content)->toContain('dispatch `athena` through the Task tool');
@@ -634,26 +630,29 @@ test('daedalus dispatches athena for a pre-implementation security-risk analysis
 });
 
 test(
-    'daedalus gates the pre-convergence scoped validation on high-risk changes and runs the post-convergence pass by default (issue #62, issue #70)',
+    'validation runs deterministically and dispatches a session only on escalation (issue #62, issue #70)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+        $daedalus = daedalusContractText();
 
-        // The pre-convergence scoped validation runs only on the CRITICAL tier. The prose heuristic it
-        // used to key off ("high-risk") was read differently at two steps of the same run; the
-        // deterministic classifier's verdict replaced it.
-        expect($daedalus)->toContain('Only on a final tier of `CRITICAL` dispatch `hephaestus` again through the Task tool');
-        expect($daedalus)->toContain('the post-convergence scoped pass validates the final diff and runs by default');
+        // Validation is deterministic work — run the commands, read the exit codes — so it no longer
+        // costs an agent session. The runner returns an explicit escalate verdict, and that verdict,
+        // not the orchestrator's judgment, is what buys an LLM.
+        expect($daedalus)->toContain('skills/_shared/run-validation.sh');
+        expect($daedalus)->toContain('**Dispatch `hephaestus` only when the runner escalates**');
+        expect($daedalus)->toContain('a green run needs no session at all');
+        expect($daedalus)->toContain('A `passed` verdict closes the stage with no dispatch.');
 
-        // hephaestus documents the same conditionality in its own scoped-mode contract.
-        $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-        expect($hephaestus)->toContain('only when `daedalus` classified the change as high-risk');
+        // The pre-review validation is still CRITICAL-only; what changed is who performs it.
+        expect($daedalus)->toContain('Only on a final tier of `CRITICAL` run the pre-review validation');
+
+        // The unconditional post-convergence validation survives, including on FAST where it is the
+        // tier's only gate.
+        expect($daedalus)->toContain('**On a `FAST` run the four skip conditions below never apply**');
     },
 );
 
 test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bare name', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // hephaestus is dispatched more than once per run (implementation, then scoped validation before and
     // after the CR). Keyed on the bare agent name, the second dispatch reads as a repeat of the
@@ -673,8 +672,7 @@ test('the dispatch ledger keys a re-dispatched agent by its mode, not by its bar
 test(
     'daedalus skips the post-convergence scoped pass only when all four conditions hold, and runs it by default (issue #70)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+        $daedalus = daedalusContractText();
 
         // The default has to be stated, not implied. A reader who only skims the four conditions
         // below would otherwise read them as a checklist to satisfy rather than an exception to
@@ -687,7 +685,7 @@ test(
         expect($daedalus)->toContain('the CR converged on **0 Critical with no undeferred Moderate** and the loop produced no fix commit');
         expect($daedalus)->toContain('the PR\'s **head SHA is identical** to a SHA a green validation already covered in this run');
         expect($daedalus)->toContain(
-            'the brief does **not** record `## Savings mode: on` together with a coverage gate `athena` deferred to `hephaestus`',
+            'the run does **not** carry a coverage gate `athena` deferred to `hephaestus`',
         );
         expect($daedalus)->toContain(
             'the brief already carries, **for that same head SHA**, the `hephaestus` handoff that `hermes` builds its `How to test` from',
@@ -713,8 +711,7 @@ test(
 );
 
 test('a skipped post-convergence scoped pass is recorded in the ledger and named in the report (issue #70)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // A skipped step that leaves no trace is indistinguishable from a step that fell over, which is
     // the exact ambiguity the dispatch ledger exists to remove — so `skipped` is a first-class
@@ -745,30 +742,29 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
     expect($daedalus)->toContain('or once you have skipped it under the four conditions in step 6');
 });
 
-test('hephaestus mirrors the scoped-mode dispatch condition and leaves the decision to daedalus (issue #70)', function (): void {
+test('hephaestus scoped mode is the escalation path, not the routine one (issue #70, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
 
-    // The mode description must match daedalus's actual dispatch condition — "every run" became
-    // false the moment the post-convergence pass gained a skip.
-    // Pin the shared substring, not one spelling: the body said `athena convergence, every run`
-    // while the frontmatter `description:` said `athena convergence — every run`, so a pin on
-    // either spelling alone leaves the other claim standing in the same file.
+    // Validation used to cost a session whether or not anything was wrong. The deterministic runner
+    // now executes the manifest, and this mode fires only on its escalate verdict — so a dispatch
+    // means something is already broken.
+    expect($hephaestus)->toContain('**the deterministic runner escalated**');
+    expect($hephaestus)->toContain('Routine validation no longer reaches you at all');
+    expect($hephaestus)->toContain('a green run closes its stage with no session');
+
+    // The frontmatter is the agent's routing surface, so it carries the same condition.
+    expect($hephaestus)->toContain('when the deterministic validation runner escalates');
     expect($hephaestus)->not->toContain('every run');
-    expect($hephaestus)->toContain('unless `daedalus` established that the converged head already carries a green validation from this run');
 
-    // The frontmatter is the agent's routing surface, so it has to carry the condition too.
-    expect($hephaestus)->toContain(
-        'athena convergence — unless daedalus established the converged head already carries a green validation from this run',
-    );
-
-    // The decision itself stays in the orchestrator. hephaestus never argues itself out of a pass:
-    // it holds neither the ledger nor the four conditions the skip rests on.
+    // The decision itself stays in the orchestrator: hephaestus holds neither the runner's verdict
+    // nor the ledger, so it never argues itself out of a pass.
     expect($hephaestus)->toContain('**`daedalus` owns that decision, never you.**');
-    expect($hephaestus)->toContain('when the dispatch arrives, you run it');
+    expect($hephaestus)->toContain('when the dispatch arrives, the runner has already said it is, so you run it');
 
-    // The pre-convergence half of the condition is unchanged (issue #62).
-    expect($hephaestus)->toContain('only when `daedalus` classified the change as high-risk');
+    // And it writes the manifest the runner executes — that is what makes the session unnecessary.
+    expect($hephaestus)->toContain('## Validation manifest (part of every implementation handoff)');
+    expect($hephaestus)->toContain('A manifest with no command is invalid, and that is deliberate.');
 });
 
 test('the roster stops claiming the post-convergence scoped pass runs unconditionally (issue #70)', function (): void {
@@ -797,7 +793,7 @@ test('the roster stops claiming the post-convergence scoped pass runs unconditio
     // absolute claimed more than condition 3 grants, so the invariant states the narrower fact.
     $savings = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($savings)->not->toContain('savings mode never lets it be skipped');
-    expect($savings)->toContain('savings mode neither introduces nor removes that skip');
+    expect($savings)->toContain('context efficiency neither introduces nor removes that skip');
     expect($savings)->toContain('a coverage gate deferred under mechanism 3 is itself one of the conditions that forces the pass to run');
 });
 
@@ -831,7 +827,7 @@ test('hermes builds How to test from the hephaestus handoff for the current head
 
     // Step 6a has to name the same either-or source, or the orchestrator withholds a dispatch
     // hermes is in fact able to serve.
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
     expect($daedalus)->not->toContain('from the scoped-validation handoff `hephaestus` wrote into the brief in step 6');
     expect($daedalus)->toContain(
         'from the last green `hephaestus` validation for the **current head SHA**: '
@@ -854,7 +850,7 @@ test('hermes builds How to test from the hephaestus handoff for the current head
 
 test('daedalus processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The concurrency section processes a single request's multiple sources strictly one at a time.
     // The contract moved to the rule; daedalus keeps the pointer that reaches it.
@@ -873,7 +869,7 @@ test('daedalus processes multiple resolved sources sequentially and never fans t
 
 test('daedalus keeps the writing path on the shared tree but lets read-only CR agents isolate in a worktree, and cleans them up', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The writing path (hephaestus) still never uses worktrees — concurrent writers serialise on the
     // shared tree. The contract lives in the rule; daedalus keeps the pointer that reaches it.
@@ -960,7 +956,7 @@ test('the zeus backlog subagent is retired and daedalus carries its tier inline 
     expect(is_file($packageDir . '/agents/zeus.md'))->toBeFalse();
     expect(is_file($packageDir . '/assets/agents/zeus.svg'))->toBeFalse();
 
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // Both of zeus's modes survive, in the successor, under their own section — deleting the file
     // without carrying the modes over would leave the backlog tier with no owner at all, which is
@@ -1121,7 +1117,7 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     // The publishing agent consumes the evidence, and the caller cleans the directory up.
     expect((string) file_get_contents($packageDir . '/agents/hermes.md'))
         ->toContain('carry each row\'s exact URL, viewport, and description of what the screenshot showed');
-    expect((string) file_get_contents($packageDir . '/agents/daedalus.md'))->toContain('.artifacts');
+    expect(daedalusContractText())->toContain('.artifacts');
     // The invariant survives the skip: an unexercised criterion still has no verdict.
     expect($content)->toContain('**`Blocked`, with that reason stated**, never `Met`');
 
@@ -1181,7 +1177,7 @@ test('agents directory ships the argus acceptance-tester subagent with required 
     expect($content)->toContain('never direct a request at a shared, staging, or production host');
 
     // daedalus gates the dispatch on the same question, and names the skip in the route.
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
     expect($daedalus)->toContain('**Acceptance pass (`argus`) — on demand, not every run.**');
     expect($daedalus)->toContain('skip it and say so in the route');
 
@@ -1193,7 +1189,7 @@ test('agents directory ships the argus acceptance-tester subagent with required 
 
 test('parallel agents share their split output through the brief under an append lock with a barrier before consolidation', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // The mechanism survives as the standing contract for a future parallel step, explicitly dormant
     // now that every dispatch is sequential (issue #179).
@@ -1218,50 +1214,24 @@ test('every agent keeps commit messages and PR titles in English regardless of t
     }
 });
 
-test('daedalus decides the opt-in savings mode once during gather and never narrates an undispatched plan (issue #119)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+test('daedalus needs no mode decision and executes the route plan (issue #119, revised)', function (): void {
+    $daedalus = daedalusContractText();
 
-    // Decided once, during gather, only on an explicit user request.
-    expect($daedalus)->toContain('**Savings mode (opt-in).** Decide once, here');
-    expect($daedalus)->toContain('## Savings mode: on` or `## Savings mode: off`');
+    // The opt-in savings mode is withdrawn: removing orchestration overhead trades nothing away, so
+    // there was nothing for an opt-in to protect and every run that forgot it paid for nothing.
+    expect($daedalus)->toContain('**Context efficiency needs no decision.**');
+    expect($daedalus)->toContain('## Context-efficient orchestration (default, no flag)');
+    expect($daedalus)->toContain('**Execute the route plan; do not re-derive the workflow.**');
 
-    // The dedicated section explains what the dispatcher does differently.
-    expect($daedalus)->toContain('## Savings mode (opt-in)');
-    expect($daedalus)->toContain('## Orchestration mode: thin');
-    expect($daedalus)->toContain('The dispatch sequence is unchanged.');
-
-    // Brief layout carries the new fields alongside the pre-existing ones.
-    expect($daedalus)->toContain('## Context pack');
-
-    // The build-gate cache the clause used to guard is retired (#119) — one gate run per branch
-    // leaves no second build to serve — so no brief section survives for daedalus to carry.
+    // The withdrawn control fields must be gone, not merely unused.
+    expect($daedalus)->not->toContain('## Savings mode: on');
+    expect($daedalus)->not->toContain('## Context pack');
     expect($daedalus)->not->toContain('## Build gate cache');
+
+    // What replaces them: one debugging field, off unless the caller asked for it by name.
+    expect($daedalus)->toContain('Record `## Verbose orchestration: on` only when the caller explicitly asked');
+    expect($daedalus)->toContain('never enable it because a task feels risky');
 });
-
-test(
-    'athena reads the shared context pack and defers an isolated-worktree coverage verdict to hephaestus when savings mode is on (issue #119)',
-    function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $content = (string) file_get_contents($packageDir . '/agents/athena.md');
-
-        expect($content)->toContain('@rules/compound-engineering/orchestration.md` *Savings mode*');
-        expect($content)->toContain('read the brief\'s `## Context pack`');
-        expect($content)->toContain('do not assert an *executed* coverage-gate verdict from a static read of the diff');
-        expect($content)->toContain('otherwise report the coverage gate as deferred to `hephaestus`');
-        // The CI-reuse escape hatch requires the actually-checked-out SHA, not just "the exact head
-        // SHA" (a pull_request-triggered run may check out a merge ref instead) (issue #119 CR fix).
-        expect($content)->toContain('a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume');
-        // Coverage ownership is a first-class handoff field, not folded into a status string
-        // (issue #119 CR fix — agent-new-mode-status-result-parity).
-        expect($content)->toContain('**Coverage:** `executed`');
-
-        // With one reviewer the disjoint split has no peer to split against, so no lens is narrowed
-        // away and every invariant in the pack is checked (issue #179).
-        expect($content)->toContain('The pack\'s **disjoint invariant split** no longer applies');
-        expect($content)->toContain('security-exclusive findings are never split');
-    },
-);
 
 test('hephaestus owns the executed coverage verdict and runs no build gate of its own (issue #119, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -1273,7 +1243,7 @@ test('hephaestus owns the executed coverage verdict and runs no build gate of it
     expect($hephaestus)->toContain('never a full build');
 
     // The coverage ownership it carries is unrelated to gate placement and survives unchanged.
-    expect($hephaestus)->toContain('**Own the coverage verdict when savings mode is on.**');
+    expect($hephaestus)->toContain('**Own the coverage verdict when the CR pass deferred it.**');
     expect($hephaestus)->toContain('you are the sole authoritative source for the executed coverage number in this run');
     expect($hephaestus)->toContain('- **Coverage:** the executed changed-lines coverage result and the command that produced it');
     expect($hephaestus)->toContain('coverage gate either executed here or explicitly taken over from a CR pass that deferred it');
@@ -1316,8 +1286,7 @@ test('athena frames a security remediation plan as a severity-prefixed GFM task 
 });
 
 test('daedalus sweeps stale briefs and worktrees at startup before writing its own brief (issue #148)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     expect($daedalus)->toContain('**Startup sweep, then gather context & write the shared brief');
     expect($daedalus)->toContain('other than the file this run is about to write (this run\'s own `<source-slug>.md`)');
@@ -1702,7 +1671,7 @@ test(
         // probe fails" (an EPERM probe IS a failed probe, yet must never reclaim) — it now defers to
         // the full ESRCH/EPERM + identity-corroboration logic documented there. That summary is the
         // orchestrator's own step, so it stays in the agent while the procedure lives in the rule.
-        $step5 = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+        $step5 = daedalusContractText();
         expect($step5)->toContain('probe the holder per that rule\'s *Stale reclaim*');
         expect($step5)->toContain('only on a confirmed-dead probe (ESRCH, not EPERM) **and** a failed identity corroboration');
         expect($step5)->not->toContain('reclaim a stale lock (`rm -rf` then re-acquire) when the probe fails');
@@ -1805,8 +1774,7 @@ test('daedalus startup-sweep worktree algorithm treats a locked EPERM pid as ali
 test(
     'daedalus startup sweep documents the fail-safe default, single PID source, format validation, and a dedicated sweep lock (PR #150 CR fix)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+        $daedalus = daedalusContractText();
 
         // Fail-safe by construction — absence of a signal is never proof of death.
         expect($daedalus)->toContain('it deletes only on positive proof of death, never on the mere absence of a liveness signal');
@@ -1895,8 +1863,7 @@ test(
 );
 
 test('daedalus validates the source-slug format before it reaches a path or a shell command (issue #220)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // Same guard athena already applies to its own slug — pinned there by the worktree test above.
     expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
@@ -1917,8 +1884,7 @@ test('daedalus validates the source-slug format before it reaches a path or a sh
 });
 
 test('daedalus probes the same-slug brief before overwriting it, so a live peer survives (issue #221)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The sweep skips this run's own slug, which is exactly the file the mv would overwrite.
     expect($content)->toContain('the one brief the sweep never probes is the one this run is about to overwrite');
@@ -1998,8 +1964,7 @@ test('the read-only CR agent carries the web tools the third-party documentation
 });
 
 test('daedalus dispatches every step blocking so a turn never ends mid-flight (issue #172)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     expect($content)->toContain('### Dispatch blocking, not fire-and-forget');
     expect($content)->toContain('pass `run_in_background: false`');
@@ -2021,8 +1986,7 @@ test('daedalus dispatches every step blocking so a turn never ends mid-flight (i
 });
 
 test('daedalus keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     expect($content)->toContain('### Dispatch ledger');
     expect($content)->toContain('.claude/run/<source-slug>.dispatches');
@@ -2037,8 +2001,7 @@ test('daedalus keeps a dispatch ledger keyed by role, head sha and round (issue 
 });
 
 test('daedalus checks the liveness of a long-running dispatch without writing into its context', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     expect($content)->toContain('### Liveness check for a long-running dispatch');
 
@@ -2099,8 +2062,7 @@ test('daedalus checks the liveness of a long-running dispatch without writing in
 });
 
 test('daedalus names the outer recovery for a hung dispatch that leaves no turn to check it (issue #103)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The paragraph above this one states the limit — a strictly blocking round gives the session no
     // turn to check in — and then stops. Without the answer below, a reader takes "that is a limit of
@@ -2132,8 +2094,7 @@ test('daedalus names the outer recovery for a hung dispatch that leaves no turn 
 });
 
 test('daedalus gates CR worktree cleanup on the same confirmed-dead probe as the startup sweep (issue #172)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     expect($content)->toContain('Probe liveness first — the same confirmed-dead gate the startup sweep uses');
     expect($content)->toContain('a live CR pass and a crashed one look **identical** on both signals');
@@ -2141,8 +2102,7 @@ test('daedalus gates CR worktree cleanup on the same confirmed-dead probe as the
 });
 
 test('daedalus anchors run cleanup to every terminal path instead of the step-7 number (issue #200)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The checklist carries a named, renumbering-proof anchor rather than living as "step 7's body".
     expect($content)->toContain('*Run cleanup* — a property of every terminating path, not of step 7');
@@ -2188,8 +2148,7 @@ test('daedalus anchors run cleanup to every terminal path instead of the step-7 
 });
 
 test('daedalus gates scratch-file cleanup on brief ownership via the ## PID field (issue #200)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $content = daedalusContractText();
 
     // The gate is stated once, inside the Run cleanup checklist.
     expect($content)->toContain('the `## PID` ownership gate.');
@@ -2254,7 +2213,7 @@ test('the remediation-conformance verdict is derived once, by the single reviewe
 
     // daedalus still states whether a plan exists — it is the only participant that knows whether
     // step 4 ran — but there is no owner to assign and no non-owner to hold back any more.
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
     expect($daedalus)->toContain('Name the remediation-conformance state in the dispatch prompt.');
     expect($daedalus)->toContain('remediation-conformance: derive it — plan at <link>');
     expect($daedalus)->toContain('remediation-conformance: no pre-implementation plan, step is empty');
@@ -2710,8 +2669,7 @@ test('the new hermes reporting outcome reaches every surface that lists the old 
 });
 
 test('daedalus treats the tracker report as a mandatory run output, not a best-effort step (issue #71)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // The report used to fall out silently while the run still reported success. Making it part of
     // the definition of a finished run is what closes that gap, so the sentence has to say it.
@@ -2752,7 +2710,7 @@ test('daedalus treats the tracker report as a mandatory run output, not a best-e
 
 test('an unregistered hermes stops a tracker-sourced run with a named blocker and a remediation (issue #71)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // The old fallback carried on to the final report without a published summary, which is the
     // silent bypass `Blocked delegation is a hard stop` exists to forbid.
