@@ -165,3 +165,24 @@ test('path signals read material files only, so a doc or test path cannot force 
     expect($content)->toContain('\'security doc is still FAST\'');
 });
 
+test('the merge gate qualifies the FAST exemption from evidence it produces itself', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $gitRules = (string) file_get_contents($packageDir . '/rules/git/general.md');
+
+    expect($merge)->toContain('#### `FAST`-tier PR exemption (code review not required)');
+    expect($merge)->toContain('skills/_shared/classify-risk.sh --files -');
+    expect($merge)->toContain('Require `tier=FAST` **and** `forced=none`');
+
+    // A tier read off the PR body would let the run that produced the PR grade its own homework.
+    expect($merge)->toContain('is a claim and is never accepted here');
+
+    // A consumer on an older install has no classifier; the gate must fail closed.
+    expect($merge)->toContain('A missing or non-executable classifier voids the exemption');
+
+    // The rule and the skill must agree on how many exemptions exist.
+    expect($gitRules)->toContain('### `FAST`-tier pull requests (code-review exemption)');
+    expect($gitRules)->toContain('Two exemptions from the code-review gate exist, and no others');
+    expect($merge)->toContain('two exemptions: `FAST`-tier PRs and dependency-only PRs');
+});
+

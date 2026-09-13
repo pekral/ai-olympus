@@ -1,15 +1,24 @@
-# Code quality self-check (single pass)
+# Pre-PR self-check (lightweight, deterministic)
 
-Referenced from `skills/resolve-issue/SKILL.md` *Code quality self-check (single pass)*. Extracted to keep the skill body under the skill-check token limit; the rules are unchanged, including the 0 Critical / 0 Moderate PR gate the skill states inline.
+Referenced from `skills/resolve-issue/SKILL.md` *Pre-PR self-check*. Extracted to keep the skill body under the skill-check token limit; the items themselves are stated inline there, and this file carries the procedure and the boundary.
 
-After implementation, and **before creating the pull request**, run one self-check pass on the local changes:
+## What this pass replaced, and why
 
-1. **Run the review inline.** Invoke `@skills/code-review/SKILL.md` directly in this skill's context, passing the current branch / diff context plus the instruction "run `@skills/code-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings with their reproducer fields (Faulty Example, Expected Behavior, Test Hint, Suggested Fix)". Do not dispatch the review as a subagent — run it sequentially in the current context.
-2. If **Critical** or **Moderate** findings exist:
-   - Apply the **Suggested Fix** snippet from each finding directly to the working tree
-   - Add or update a reproducer test for each finding using its **Faulty Example**, **Expected Behavior**, and **Test Hint**
-3. **Do not re-run the full review to convergence.** The full-diff review runs exactly once; after applying the fixes, re-verify each fixed finding in a targeted way — re-read the finding's code path — instead of re-invoking the full review over the whole diff. Full-diff convergence is owned exclusively by the authoritative post-PR review loop (`code-review-github` / `process-code-review` — the `athena` ↔ `hephaestus` loop), which reviews the complete diff again after the PR exists; duplicating that convergence here doubles the review cost without raising the quality bar of the merged result.
-4. **PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding surfaced by this pass is resolved (0 Critical + 0 Moderate remaining). When a surfaced finding cannot be resolved, stop as **Blocked** and surface it to the user instead of opening a PR that knowingly carries it.
-   **This is deliberately stricter than the merge gate, and it is not a leftover of the old one.** The merge gate accepts a Moderate deferred into a tracker sub-issue (`@rules/git/general.md` *Merging*), because that deferral is a round-3 outcome of the review loop. This pass is a single pass before any PR exists, so it has no round 3, no loop, and nothing to defer into — a finding it surfaces is either fixed here or the run stops.
+It used to run `@skills/code-review/SKILL.md` and `@skills/security-review/SKILL.md` inline over the implementer's own diff, gate PR creation on 0 Critical / 0 Moderate, and hand off to `athena`, who then ran the same two lenses over the same diff again. The second pass is the authoritative one, so the first bought a marginally cleaner starting point at the price of a complete duplicate LLM review on every run — the single largest avoidable cost in the pipeline. `@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two* removed it.
 
-PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR self-check because it requires an open PR to operate on.
+**What is lost, stated rather than hidden:** `athena` now reads a less pre-polished diff, so a finding the implementer would have caught and quietly fixed can instead cost one review round. That is the intended trade — one round is cheaper than one duplicated review on every run — and on a `FAST`-tier run, where no `athena` pass is dispatched at all, the deterministic gates below plus the classifier's sensitive-area force are what stand in its place.
+
+## Procedure
+
+1. **Walk the items in order** (the seven listed in the skill body) against the working tree and the diff that is about to become the pull request.
+2. **Fix what an item surfaces**, directly — a stray `dd()`, an uncommitted scratch file, a criterion with no test. These are defects with one obvious correction, not findings that need a severity.
+3. **Record each item's result in the handoff**, so the orchestrator and the reviewer see what was verified rather than assuming it. A self-check whose result nobody can read is indistinguishable from one that did not run.
+4. **Stop as `Blocked` when an item cannot be satisfied.** A failing test on the changed surface, a red static-analysis run, or an acceptance criterion with no implementation is a stop — never a PR opened knowingly carrying it.
+
+## The boundary
+
+- **It is not a review.** It invokes no review skill, produces no severity-graded findings, and gates nothing on a finding count. Judgment calls — architecture, reuse, security reasoning — belong to `athena`.
+- **It does not run the build.** The project's full gate runs once immediately before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*); this pass runs the diff-targeted tests and the static analysis for the changed files.
+- **It never claims a verdict it did not produce.** The technical report says what this pass checked, never "code review clean" or "security review passed".
+
+PR-comment processing via `@skills/process-code-review/SKILL.md` remains the path used **after** a PR exists; it is not part of this pre-PR pass because it requires an open PR to operate on.

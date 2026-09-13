@@ -43,36 +43,36 @@ test('dry review rule is referenced by process-code-review skill', function (): 
     expect($content)->toContain('DRY violations');
 });
 
-test('unified resolve-issue skill requires a single-pass code quality self-check before PR creation (issue #62)', function (): void {
+test('unified resolve-issue skill runs a lightweight self-check before PR creation (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect($content)->toContain('every surfaced Critical / Moderate finding was resolved (0 Critical + 0 Moderate)');
-    expect($content)->toContain('Security review completed');
-    expect($content)->toContain('Do not re-run the full review to convergence');
-    expect($content)->toContain('**PR gate — 0 Critical / 0 Moderate.**');
+
+    // The two full LLM review passes this skill used to run over its own diff are gone: `athena`
+    // reviewed the same diff again straight afterwards, so they were a complete duplicate review on
+    // every run. What remains is the deterministic set that must hold before work is handed off.
+    expect($content)->toContain('## Pre-PR self-check (lightweight, deterministic)');
+    expect($content)->toContain('It does **not** run `code-review` / `security-review` over its own diff');
+    expect($content)->toContain('**Blocked, not shipped.**');
     expect($content)->not->toContain('After checks pass, automatically push');
 
-    $reviewLoopPos = strpos($content, '## Code quality self-check (single pass)');
-    $testingPos = strpos($content, '## Testing');
+    $selfCheckPos = strpos($content, '## Pre-PR self-check (lightweight, deterministic)');
     $pullRequestPos = strpos($content, '## Pull request');
-    expect($reviewLoopPos)->not->toBeFalse();
-    expect($testingPos)->not->toBeFalse();
+    expect($selfCheckPos)->not->toBeFalse();
     expect($pullRequestPos)->not->toBeFalse();
 
-    if (!is_int($reviewLoopPos) || !is_int($testingPos) || !is_int($pullRequestPos)) {
+    if (!is_int($selfCheckPos) || !is_int($pullRequestPos)) {
         return;
     }
 
-    expect($reviewLoopPos)->toBeLessThan($pullRequestPos);
-    expect($testingPos)->toBeLessThan($pullRequestPos);
+    expect($selfCheckPos)->toBeLessThan($pullRequestPos);
 
     expect($content)->toContain('### Technical report → codebase tracker (GitHub PR)');
     expect($content)->toContain('### Non-technical report → original task tracker');
 
-    $reviewLoopSection = substr($content, $reviewLoopPos, $pullRequestPos - $reviewLoopPos);
-    expect($reviewLoopSection)->not->toContain('@skills/process-code-review/SKILL.md to apply');
-    expect($reviewLoopSection)->not->toContain('@skills/code-review-github/SKILL.md');
-    expect($reviewLoopSection)->not->toContain('@skills/code-review-jira/SKILL.md');
+    $selfCheckSection = substr($content, $selfCheckPos, $pullRequestPos - $selfCheckPos);
+    expect($selfCheckSection)->not->toContain('@skills/process-code-review/SKILL.md to apply');
+    expect($selfCheckSection)->not->toContain('@skills/code-review-github/SKILL.md');
+    expect($selfCheckSection)->not->toContain('@skills/code-review-jira/SKILL.md');
 });
 
 test('draft-PR-until-review-converges policy is wired through the rule and the PR-lifecycle skills', function (): void {
@@ -185,9 +185,8 @@ test('no shipped surface restates the withdrawn convergence wording', function (
     // The only surfaces allowed to carry it, each with the exact count it is allowed to carry, so a
     // new occurrence in an allowed file still fails. CHANGELOG.md is out of scope: it is history.
     $allowed = [
-        // The pre-PR self-check is deliberately stricter than the merge gate and says so inline.
-        'skills/resolve-issue/SKILL.md' => 2,
-        'skills/resolve-issue/references/code-quality-self-check.md' => 1,
+        // The pre-PR self-check no longer grades findings at all, so it no longer carries the wording:
+        // it is a deterministic checklist, not a review with a 0 Critical / 0 Moderate gate.
         // The one place that withdraws the wording has to quote it to withdraw it.
         'rules/compound-engineering/general.md' => 1,
         // Reports of past runs, true as history and never a statement of the current gate.
