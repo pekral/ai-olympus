@@ -1,5 +1,5 @@
 ---
-description: Compound engineering — dispatch-time orchestration mechanics: Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, and orchestrator turn discipline.
+description: Compound engineering — dispatch-time orchestration mechanics: adaptive routing and model escalation, Savings mode, consent levels, Bash capability boundary, audit trail, temporary-file hygiene, and orchestrator turn discipline.
 paths:
   - ".claude/run/**"
 ---
@@ -164,6 +164,82 @@ Every round of tool calls in an agent conversation carries a fixed overhead that
 - **A write that must observe an earlier write's result.** The apply-then-verify discipline this package uses everywhere — write, re-read through the deterministic loader, confirm it landed — is sequential by construction, and this section never collapses it.
 - **A `Task` dispatch to a subagent.** A dispatch is not a read, and it always blocks until the handoff returns (`agents/daedalus.md` *Dispatch blocking, not fire-and-forget*, which references this file). Two `Task` calls in one round **do** run concurrently, and that is exactly why they are never batched: it is the fan-out `@rules/compound-engineering/concurrency.md` *Sequential processing of multiple sources (no fan-out)* forbids, and it races the working-tree write-lock. Dispatch one round at a time, blocking.
 
+## Adaptive routing — the cheapest reliable execution path
+
+The pipeline used to cost the same for every task. A README typo paid for the same agent sessions, the same expensive models, and the same review passes as an authorization rewrite, because depth was a property of the pipeline rather than of the change. The default execution philosophy is therefore inverted: a run takes the **cheapest reliable execution path** and escalates only when evidence justifies the extra cost. Every additional agent dispatch and every expensive-model invocation needs a recorded justification.
+
+This changes **how much LLM reasoning** a run spends. It never changes which deterministic gates run — see *Deterministic gates are not part of the trade* below.
+
+### Three tiers
+
+| Tier | Pipeline |
+| --- | --- |
+| `FAST` | `daedalus → hephaestus (sonnet) → deterministic validation → done` |
+| `STANDARD` | `daedalus → hephaestus (sonnet) → athena (sonnet) → deterministic validation → done` |
+| `CRITICAL` | `daedalus → athena analysis (when the task carries a security question) → hephaestus (opus) → athena (opus) → deterministic validation → argus when runtime acceptance applies → done` |
+
+`FAST` covers documentation, README edits, typo fixes, formatting, tests-only changes, simple configuration changes, a rename with no behaviour change, and a small isolated bug fix. `STANDARD` is the default for ordinary application and business-logic work. `CRITICAL` covers authentication, authorization, security boundaries, secrets, payments, billing, migrations, data-loss risk, concurrency, queues, locking, cache consistency, public APIs, shared or core architecture, and large refactors.
+
+### The classifier is deterministic, and it is a script
+
+`skills/_shared/classify-risk.sh` decides the tier. It is a shell script, not a judgment call and not another LLM: a router that asks a model how risky a task is adds an LLM call to save LLM calls, and its answer is neither reproducible nor auditable. The script's own header owns the scoring table, the patterns, and the override precedence; that table is not restated here, so the two cannot drift apart.
+
+- **Run it, never re-derive it.** An agent that needs a tier runs the script and reads `tier=`. It never estimates a tier from its own reading of the diff, and it never overrides one it dislikes.
+- **The verdict carries its reasons.** Every point in `score=` is attributable to a printed `signal=` line, so *"why was this CRITICAL?"* is answered by the output rather than by reconstructing the run.
+- **A sensitive area forces `CRITICAL` regardless of the score.** Auth / secrets, migrations / data-loss, and payments / billing each force the top tier on their own, and a lower explicit override is refused rather than applied — a force an override can silence is not a force.
+- **Uncertainty escalates.** Where the classification is genuinely uncertain — no assignment text to read — the script scores the unclear-acceptance-criteria point, which can only move the tier up.
+
+### Re-classify against the actual diff, and never downwards
+
+Classifying once, before implementation, is not enough: a task that began as a FAST docs change and ended up touching authentication across a dozen files would otherwise skip the review stages its final diff needs.
+
+- **Classify twice.** Once before implementation, from the assignment text (`basis=assignment`), and once after it, from the actual changed files (`basis=diff`).
+- **The second classification carries the first as a floor** (`--floor <tier>`), so the tier is monotonically non-decreasing across a run. A task can rise from `FAST` to `CRITICAL`; it can never fall, or a follow-up commit could undo an escalation the run already paid for.
+- **A tier that rises runs the stages it skipped.** Escalating to `STANDARD` or `CRITICAL` after implementation puts `athena` back into the run; escalating to `CRITICAL` also puts the pre-convergence scoped validation back in. The stages are added, never waived because the run is already late.
+
+### Default model tier first, escalate with a recorded reason
+
+An agent role is not permanently coupled to an expensive model. The contract is written in **tiers**, not in model names, because this package runs on more than one platform and a rule naming one vendor's models cannot be applied on the other:
+
+- **Default tier** — the cheaper, fast model the agent runs at unless something justifies more. It is what a run pays for by default.
+- **Escalated tier** — the strongest reasoning available to that step.
+
+**Which model each tier means is declared in the specialist's own definition, per platform, and nowhere else.** On Claude Code that is the `model:` frontmatter of `agents/<name>.md` plus the tier `daedalus` dispatches at; on Codex / OpenAI it is `codex/agents/<name>.toml`. This rule owns *when* to escalate and *that* it is recorded; it never names a model, because a rule that did would be wrong on one platform the day it was written and wrong on both the first time a vendor renamed a model. A specialist whose definition declares no escalated tier runs at its default tier and says so in the escalation line.
+
+`daedalus` escalates a step to the escalated tier when:
+
+- the run is `CRITICAL`,
+- the default tier already attempted the step and returned `Blocked` or an unreliable result,
+- the step turns on complex architectural reasoning, or on security-sensitive reasoning,
+- significant uncertainty remains after the first attempt.
+
+Escalate **after** evidence, not before it — pay for the expensive tier when a cheaper attempt has failed or when the tier already says the change is high-risk, never as a precaution. Every escalation is recorded with its reason (see *Observability* below); an unrecorded escalation is indistinguishable from a default, which is how a default-tier-first pipeline silently becomes an expensive one again.
+
+**A platform that offers no per-dispatch model control never fakes one.** Where the escalated tier can only be selected for the whole session rather than for one dispatch, the run applies what it actually can — raising the reasoning effort, or asking the user to re-run the step on a stronger model — and records that in the escalation line: `escalation|<role>|<from>→<to>|<reason> (no per-dispatch override: <what was done instead>)`. Recording an escalation that did not happen is a false measurement, forbidden here for the same reason `@rules/code-review/review-process.md` *Output Rules — Truthful reporting* forbids it in a review.
+
+### One authoritative LLM review, not two
+
+The implementer used to run a full `code-review` **and** a full `security-review` over its own diff before opening the PR, after which `athena` ran the same two lenses again over the same diff. The second pass is the authoritative one, so the first bought a slightly cleaner starting point at the price of a complete duplicate review.
+
+- **`athena` is the authoritative LLM reviewer.** Where an LLM review is required, it is `athena`'s, and it happens once.
+- **The implementer runs a lightweight self-check instead** — deterministic, and scoped to what must hold before handing work off: the acceptance criteria are covered, the tests covering the change were executed, static analysis and the project's linters pass, no debug artifact or accidental file is in the diff, the diff matches the requested scope, and nothing obviously warrants escalation. It never runs the full `code-review` / `security-review` skills over its own diff when `athena` reviews afterwards.
+- **`FAST` finishes without `athena`.** A small, isolated change whose tests, static analysis, and lint all pass, whose diff is small, and which touches no sensitive area needs no LLM review pass at all. This is the saving the whole mechanism exists for, and it is stated as a deliberate trade: on a `FAST` run nothing reads the diff with a reviewer's eye, and the deterministic gates plus the classifier's sensitive-area force are what stand in its place.
+- **The skip is re-tested, never assumed.** If the post-implementation classification raises the tier, `athena` returns to the run automatically.
+
+### Observability — the routing decisions are answerable from the record
+
+A run must be able to answer *"why was `athena` executed?"*, *"why was opus used?"*, and *"why was this task `CRITICAL`?"* without reconstructing it by hand. `daedalus` keeps a routing ledger beside the shared brief; its mechanics live in `agents/daedalus.md` *Routing ledger*. It records the initial tier, the final tier, each tier's score and fired signals, every agent executed and every agent skipped with its reason, and every model escalation with its `from`, `to`, and reason.
+
+Counts are **derived from the existing ledgers, never tracked a second time**: the agent-dispatch count is the `dispatched` lines of the dispatch ledger, the escalation count is the `escalation` lines of the routing ledger, and the review-round count is the CR handoff's own iteration number. Exact token telemetry — input, output, and cache tokens — is recorded only where the runtime exposes it reliably; its absence never blocks the run, and a fabricated number is worse than an absent one.
+
+### Explicit overrides beat automatic routing
+
+A caller may state the tier: `--thorough` forces the complete pipeline regardless of classification, and `--fast` / `--standard` / `--critical` name a tier directly. The same intent expressed in prose ("run this thoroughly", "projeď to důkladně") is the same override. An escalating override always applies. A de-escalating override applies only when no sensitive-area force fired — the script reports the refusal as `override-refused=<tier>` rather than silently dropping it.
+
+### Deterministic gates are not part of the trade
+
+This mechanism reduces redundant LLM reasoning. It never removes or weakens a deterministic check: the tests, PHPStan, the linters, the project's own repository-specific validation, the required CI checks, and the pre-merge quality gate (`@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*) run exactly as before at **every** tier, `FAST` included. When a classification is genuinely uncertain, the safer tier wins.
+
 ## Savings mode (opt-in, token-efficient orchestration)
 
 A full `daedalus`-orchestrated run (`daedalus → hephaestus → athena → hephaestus → hermes → merge`) costs roughly the same subagent-token budget regardless of the diff's size, because most of the cost is orchestration overhead — repeated context re-derivation and duplicated review work — not effort proportional to the change. **Savings mode** is an opt-in variant of the same pipeline that removes that overhead **without changing the process or the quality bar**. The design rationale for why each mechanism below actually reduces tokens (not just moves the cost elsewhere) is documented in `docs/agents.md` *Savings mode*; this section is the normative contract every agent applies.
@@ -189,10 +265,14 @@ When a CR pass runs in such a worktree, it does not assert an *executed* coverag
 otherwise it reports the coverage gate as `deferred to hephaestus` instead of the Critical finding `@rules/code-review/review-process.md` *Validation & Coverage Gate* otherwise requires for tooling that cannot run — this is that rule's one sanctioned exception, scoped exactly to this isolated-worktree case, and `hephaestus`'s scoped validation pass remains the sole authoritative source for the executed coverage number when it fires.
 4. **Thin orchestration reasoning for a linear pipeline.** When `daedalus` determines the whole run is a linear pipeline with no branching decision left once dispatched (no analysis-only-vs-full-delivery ambiguity, no multi-source split, no A/B choice at any remaining step), it records `## Orchestration mode: thin` in the brief once, during the gather phase, next to the work-breakdown plan (the alternative, `full`, applies whenever a genuine branching decision remains at any step).
 In thin mode, at every step transition `daedalus`'s own turn is limited to reading the specialist's handoff, evaluating the one pre-named gating condition for that step, and issuing the next dispatch in the same turn (per *Orchestrator turns must end in a result or a hard blocker* above) — it does not re-narrate the whole plan or restate context the dispatched specialist already reads from the brief itself. This never skips, reorders, or removes a dispatch step: every specialist in the plan is still dispatched exactly as without savings mode, in the same order, to the same convergence gate — only `daedalus`'s own reasoning verbosity between dispatches shrinks.
-A genuine branching decision arising mid-run (a scoped validation returns `Blocked`, the risk classification changes) always gets full reasoning regardless of the recorded mode.
+A genuine branching decision arising mid-run (a scoped validation returns `Blocked`, the risk classification changes) always gets full reasoning regardless of the recorded mode. A re-classification that raises the tier is exactly such a decision.
 
 ### What never changes (preserved invariants)
 
-Every mechanism above removes duplicate **re-derivation** or duplicate **execution** of work already done once — none of them removes a check, a reviewer, or a gate. Regardless of the flag: the same CR skill set runs (`prepare-issue-context`, `code-review`, `security-review`, `api-review`, `assignment-compliance-check`, `analyze-problem`, the coverage gate, and every conditionally-triggered skill); the same reviewer runs (`athena`); the same convergence gate applies (`@skills/process-code-review/SKILL.md` *Review loop* step 4, `maxIterations = 3`); the same pre-implementation security analysis runs when the task is security-focused; the same post-convergence scoped validation by `hephaestus` runs whenever `agents/daedalus.md` step 6 calls for it, and
+**Savings mode and adaptive routing are orthogonal, and only one of them ever removes a step.** *Adaptive routing* above decides **which** stages this run needs, from the tier; savings mode decides **how cheaply** the stages that do run reach their result. So the invariants below are read at the tier the run was routed to: on a `FAST` run there is no CR dispatch for savings mode to preserve, and on every tier savings mode still removes no stage the tier called for.
+
+Every mechanism above removes duplicate **re-derivation** or duplicate **execution** of work already done once — none of them removes a check, a reviewer, or a gate.
+
+Regardless of the flag, at the run's tier: the same CR skill set runs (`prepare-issue-context`, `code-review`, `security-review`, `api-review`, `assignment-compliance-check`, `analyze-problem`, the coverage gate, and every conditionally-triggered skill); the same reviewer runs (`athena`, whenever the tier calls for one); the same convergence gate applies (`@skills/process-code-review/SKILL.md` *Review loop* step 4, `maxIterations = 3`); the same pre-implementation security analysis runs when the task is security-focused; the same post-convergence scoped validation by `hephaestus` runs whenever `agents/daedalus.md` step 6 calls for it, and
 savings mode neither introduces nor removes that skip — a coverage gate deferred under mechanism 3 is itself one of the conditions that forces the pass to run (`agents/daedalus.md` step 6);
-the same post-convergence report is published by `hermes`; the same pre-merge build evidence that `@skills/merge-github-pr/SKILL.md` requires is produced before merge exactly as without the flag; and documentation updates ship exactly as without the flag. A run with savings mode on and the identical run with it off must be able to converge with the same Critical / Moderate finding count on the same diff — the flag changes the token cost of reaching that result, never the result itself.
+the same post-convergence report is published by `hermes`; the same pre-merge build evidence that `@skills/merge-github-pr/SKILL.md` requires is produced before merge exactly as without the flag; and documentation updates ship exactly as without the flag. A run with savings mode on and the identical run with it off must be able to converge with the same Critical / Moderate finding count on the same diff, at the same tier — the flag changes the token cost of reaching that result, never the result itself.

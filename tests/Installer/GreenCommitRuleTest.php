@@ -24,7 +24,9 @@ test('the git rule gates the merged head and states what deferring the gate trad
     // The cost of the trade must be stated, not discovered later by whoever runs git bisect.
     expect($rule)->toContain('What this trades away, stated plainly:');
     expect($rule)->toContain('git bisect');
-    expect($rule)->toContain('Cherry-pick *independence* — disjoint file sets, groundwork ordered before its consumers — is unaffected');
+    // Cherry-pick independence used to be pinned here as surviving the deferral; the granularity
+    // mandate it belonged to is withdrawn, so what must be pinned now is that the rule says so.
+    expect($rule)->toContain('has since been withdrawn with the rest of the granularity mandate');
 
     // Obligation 1 — the RED state is real but never committed.
     expect($rule)->toContain('A test and the change that makes it pass land in the same commit.');
@@ -59,12 +61,11 @@ test('the green-commit rule declares its own review severity (issue #233)', func
 test('every skill that authors or reshapes branch history cites the merged-head rule (issue #233, revised)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // A rule nothing applies is documentation. These five are the surfaces that actually create a
-    // commit or move one: the two that plan the history, the cycle that produces the RED state, and
-    // the two that rebase a branch and push it.
+    // A rule nothing applies is documentation. These four are the surfaces that actually create a
+    // commit or move one: the skill that implements, the cycle that produces the RED state, and the
+    // two that rebase a branch and push it.
     $mustCite = [
         'skills/resolve-issue/SKILL.md',
-        'skills/resolve-issue/references/phase-planning.md',
         'skills/test-driven-development/SKILL.md',
         'skills/git-workflow/SKILL.md',
         'skills/process-code-review/SKILL.md',
@@ -93,7 +94,6 @@ test('no skill mandates the per-commit range replay any more (issue #233, revise
     // files, so it would have passed against the fully reverted change.
     $mustNotMandateReplay = [
         'skills/resolve-issue/SKILL.md' => 'that replay is available, not required',
-        'skills/resolve-issue/references/phase-planning.md' => 'remains available when a bisectable history is wanted, and is not required by default',
         'skills/git-workflow/SKILL.md' => 'is available when a bisectable history is wanted',
         'skills/process-code-review/SKILL.md' => 'no range replay is required here',
     ];
@@ -136,13 +136,13 @@ test('the TDD cycle keeps RED out of the commit history (issue #233)', function 
     expect($tdd)->toContain('The cycle below is unchanged; only the commit boundary is.');
 });
 
-test('cherry-pick independence is measured by the gate, not by compilation (issue #233)', function (): void {
+test('the withdrawn cherry-pick guarantee is named as withdrawn, not left implied (issue #233)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
 
-    // Independence survives the deferral; only the per-commit green guarantee is gone. The rule
-    // must say so explicitly, or a reader concludes the ordering discipline was dropped too.
-    expect($rule)->toContain('cherry-picked onto the default branch on its own and still pass the project\'s gate');
-    expect($rule)->not->toContain('on its own and still build');
-    expect($rule)->toContain('only the per-commit green guarantee is gone');
+    // This used to assert that cherry-pick independence survived the gate deferral. The granularity
+    // mandate it belonged to is now withdrawn too, so the rule must say both properties are gone
+    // rather than leave a reader to infer that the ordering discipline still holds.
+    expect($rule)->toContain('has since been withdrawn with the rest of the granularity mandate');
+    expect($rule)->toContain('neither property is guaranteed today');
 });

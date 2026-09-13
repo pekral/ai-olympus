@@ -105,14 +105,18 @@ Reading, mapping, and verifying come first; implementing comes last. This pre-fl
    Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you edit anything, then classify each match as in scope for this change or as a stated exception. An incomplete sweep leaves a stale reference in a file nobody opened, and that reference surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior (for bugs, reproduce the failure; for features, confirm the integration points exist as assumed). If reading and mapping contradict the issue framing or the scenario table, stop and surface the discrepancy instead of implementing on a wrong premise.
 
-Only after Read, Map, and Verify are complete may commit planning and implementation begin.
+Only after Read, Map, and Verify are complete may implementation begin.
 
-### Commit planning (one point = one commit)
+### Committing
 
-Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.md` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end.
-Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
+How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*). This skill used to require a commit plan table written before the first line of code, one commit per enumerated assignment point, ordered for cherry-pickability, reconciled against the table before the PR. None of it was ever a review criterion, and all of it cost a planning pass plus a rebase whenever the plan turned out wrong.
 
-Per `@rules/git/general.md` *Git Rules* (*The merged head is green; intermediate commits are not gated*), a point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed. Intermediate commits are not individually gated — the project's gate runs once on the head commit being merged. When a branch genuinely needs a bisectable history, replay the range with `git rebase --exec '<the project gate>' <base>`; that replay is available, not required.
+Two constraints remain, and neither is about granularity:
+
+- A point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*).
+- Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
+
+Intermediate commits are not individually gated; the project's gate runs once on the head commit being merged. When a branch genuinely needs a bisectable history, replay the range with `git rebase --exec '<the project gate>' <base>`; that replay is available, not required.
 
 ### Pre-existing issue handling
 
@@ -146,29 +150,33 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 Author the change, commit each planned point, and push. The self-checks below still run — they read the diff and cost no build.
 
-## Code quality self-check (single pass)
+## Pre-PR self-check (lightweight, deterministic)
 
-After implementation, and **before creating the pull request**, run `@skills/code-review/SKILL.md` inline on the local changes — once, over the whole diff — and apply the **Suggested Fix** plus a reproducer test for every Critical and Moderate finding it returns. Do not re-run the full review to convergence: full-diff convergence belongs to the authoritative post-PR loop (`code-review-github` / `process-code-review`), and repeating it here doubles the cost without raising the bar of the merged result.
+After implementation, and **before creating the pull request**, verify only what must hold before the work is handed off. The authoritative LLM review is `athena`'s and it happens once (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two*).
 
-**PR gate — 0 Critical / 0 Moderate.** The pull request may be created only when every Critical / Moderate finding this pass surfaced is resolved. When one cannot be resolved, stop as **Blocked** and surface it instead of opening a PR that knowingly carries it. The full procedure — the invocation contract, the targeted re-verification, and why PR-comment processing is not part of this pre-PR pass — lives in `references/code-quality-self-check.md`.
+Walk these items and record each one's result in the handoff:
 
-## Testing
+1. **Acceptance criteria are covered** — each maps to implemented behaviour and to a test exercising it with the data the assignment states.
+2. **The tests covering the change were executed** — the diff-targeted selection, not the full build.
+3. **Static analysis and the linters pass** for the changed files.
+4. **No debug artifact survives** — no `dd()` / `dump()` / `var_dump()` / `console.log`, no commented-out block, no temporary or editor-backup file.
+5. **No accidental file is staged** — no scratch file, no local config, no committed secret or `.env`.
+6. **The diff matches the requested scope** — anything else is removed or recorded as a deferred follow-up (*Deferred-item follow-up issues* below).
+7. **Nothing obviously warrants escalation** — say so in the handoff when the change turned out to touch a security boundary, a migration, or a payment path.
 
-After the code quality self-check pass, and **still before creating the pull request**, validate the change:
+**This is not a review, and it never substitutes for one.** It does **not** run `code-review` / `security-review` over its own diff, produces no severity-graded findings, and gates nothing on a finding count. Anything needing a reviewer's judgment belongs to `athena`, on a tier that dispatches it.
 
-1. **Run the security review inline.** Invoke `@skills/security-review/SKILL.md` directly in this skill's context, passing the current diff context plus the instruction "run `@skills/security-review/SKILL.md` on the local changes and return the Critical / Moderate / Minor findings". Do not dispatch the review as a subagent — run it sequentially in the current context.
-
-Apply the **Suggested Fix** for any **Critical** or **Moderate** finding from the security review. Like the code quality self-check, this is a single full pass — do not re-enter a full review loop; re-verify the fixed findings in a targeted way, and the authoritative post-PR convergence loop re-validates the full diff. The same **PR gate** applies: the pull request may be created only when every surfaced Critical / Moderate security finding is resolved (0 Critical + 0 Moderate remaining) — otherwise stop as **Blocked**.
+**Blocked, not shipped.** When an item cannot be satisfied — a criterion has no implementation, the tests covering the change fail, static analysis is red — stop as **Blocked** and surface it rather than opening a pull request that knowingly carries it. The procedure, the boundary, and what the removed duplicate review cost live in `references/pre-pr-self-check.md`.
 
 ## Security remediation checklist (when a pre-implementation security plan exists)
 
 **Applies only when a security remediation plan was passed into this run** — its link travels in the caller's instruction or in the shared task brief. When no plan was passed, this whole section is a **no-op — skip it**.
 
-When a plan does exist, it runs after the security review above and **still before the pull request is created**: load the plan through the deterministic loader, verify every *Success criteria* item against the diff and the tests, tick it with a one-line verification pointer, and block PR creation on any unticked `[Critical]` / `[Moderate]` item. The full procedure — plan-link provenance, the four steps, and the PR gate — lives in `references/security-remediation-checklist.md`.
+When a plan does exist, it runs after the self-check above and **still before the pull request is created**: load the plan through the deterministic loader, verify every *Success criteria* item against the diff and the tests, tick it with a one-line verification pointer, and block PR creation on any unticked `[Critical]` / `[Moderate]` item. The full procedure — plan-link provenance, the four steps, and the PR gate — lives in `references/security-remediation-checklist.md`.
 
 ## Pull request
 
-**Creating the pull request is the default, mandatory final step.** Once review and testing are clean, open the PR automatically — applying the valid git rules and PR definitions — **without asking the user for confirmation**. The skill is not finished until the PR exists.
+**Creating the pull request is the default, mandatory final step.** Once the self-check is clean, open the PR automatically — applying the valid git rules and PR definitions — **without asking the user for confirmation**. The skill is not finished until the PR exists.
 
 **Opt-out — the user must explicitly ask to skip the PR.** A silent or ambiguous request is **not** an opt-out — when in doubt, create the PR.
 
@@ -190,8 +198,7 @@ Reporting is split by audience and destination:
 
 Post the technical report as a comment on the GitHub PR, since that is where the codebase and testing state live. It must contain:
 
-- **Code review summary** — outcome of `@skills/code-review/SKILL.md` (findings addressed during the loop and the final clean state)
-- **Security review summary** — outcome of `@skills/security-review/SKILL.md`
+- **Self-check summary** — the result of each item of the *Pre-PR self-check* above. Report what this pass actually did — never a code-review or security-review verdict it did not produce (`@rules/code-review/review-process.md` *Output Rules — Truthful reporting*); those are `athena`'s, published by the review loop that runs after this skill.
 
 ### Non-technical report → original task tracker
 
@@ -218,11 +225,10 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 
 - references/source-detection.md
 - references/comment-analysis.md
-- references/code-quality-self-check.md
+- references/pre-pr-self-check.md
 - references/quality-gates.md
 - references/deferred-follow-up.md
 - references/pre-existing-issue-handling.md
-- references/phase-planning.md
 - references/security-remediation-checklist.md
 - references/pull-request.md
 - references/tracker-follow-up.md
@@ -233,8 +239,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 - Tests cover affected logic with 100% coverage and pass
 - Fixers and checkers are **not** run in this skill — the project's full gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*)
 - No sensitive data is exposed
-- Code quality self-check ran as a single full-diff pass and every surfaced Critical / Moderate finding was resolved (0 Critical + 0 Moderate) **before the PR was created**
-- Security review completed **before the PR was created**
+- The *Pre-PR self-check* ran and every one of its items holds **before the PR was created**, with each item's result recorded in the handoff
 - When a pre-implementation security plan was passed in: every `[Critical]` / `[Moderate]` item of its Success-criteria checklist was verified against the diff and ticked **before the PR was created**, and the verified checklist is rendered in the PR body under `## Security acceptance checklist` (no plan = step skipped)
 - A clean pull request is created with a summary **by default** — skipped only when the user explicitly opted out of PR creation (see *Pull request*), in which case the committed local branch and the ready-to-run `gh pr create --draft …` command are reported instead
 - Technical report posted on the GitHub PR (skipped on PR opt-out)

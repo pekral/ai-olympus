@@ -10,6 +10,8 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 - Reusable workflows live in `.agents/skills/`. Invoke a matching skill with `$skill-name`, and follow its `SKILL.md` in full.
 - Project-scoped custom agents live in `.codex/agents/`. Use the specialist named by the workflow and preserve the role boundaries in its instructions.
 - AI Olympus run state lives in `.codex/run/`. In imported role instructions, interpret `.claude/run/` as `.codex/run/`, `@skills/` as `.agents/skills/`, `@rules/` as `.codex/rules/`, and `agents/<name>.md` as `.codex/agent-instructions/<name>.md`.
+- A rule or skill that names a shipped script by a **bare** path — `skills/_shared/classify-risk.sh`, `skills/code-review-github/scripts/load-issue.sh` — means the matching file below `.agents/skills/`. Run it with the shell; these are deterministic helpers, not skills to invoke.
+- A **model tier** named in a rule (*default tier* / *escalated tier*) is a role, never a model. Which model each tier means for a given specialist is stated in that specialist's own definition for this platform — `.codex/agents/<name>.toml` — never here and never in the rule.
 
 ## 1. Think Before Coding
 
