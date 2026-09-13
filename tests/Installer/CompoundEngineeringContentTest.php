@@ -480,7 +480,10 @@ test('compound-engineering rule defines an opt-in savings mode that never reduce
     // The retired refactoring lens is no longer part of the always-run CR set, so the invariant
     // list a reader consults to check savings mode dropped nothing must not still name it.
     expect($rule)->not->toContain('`class-refactoring`');
-    expect($rule)->toContain('the same reviewer runs (`athena`)');
+    // Adaptive routing decides *which* stages a run needs; savings mode only decides how cheaply the
+    // stages that do run reach their result. On a FAST run there is no CR dispatch for savings mode to
+    // preserve, so the invariant is read at the run's tier.
+    expect($rule)->toContain('the same reviewer runs (`athena`, whenever the tier calls for one)');
     expect($rule)->toContain('the same convergence gate applies (`@skills/process-code-review/SKILL.md` *Review loop* step 4, `maxIterations = 3`)');
     expect($rule)->toContain(
         'the same pre-merge build evidence that `@skills/merge-github-pr/SKILL.md` requires is produced before merge exactly as without the flag',

@@ -105,9 +105,9 @@ test('agents directory ships the hephaestus code-writing subagent with required 
     $content = (string) file_get_contents($agentPath);
     expect($content)->toContain('name: hephaestus');
     expect($content)->toContain('tools: Read, Write, Edit, Glob, Grep, Bash');
-    // The implementer carries the whole change end to end and fixes what `composer build` reports,
-    // so it runs on the strongest model rather than the cheaper one it started on.
-    expect($content)->toContain('model: opus');
+    // Sonnet by default: adaptive routing pays for opus only when the tier or a failed cheaper
+    // attempt justifies it, and `daedalus` passes that override on the dispatch instead.
+    expect($content)->toContain('model: sonnet');
     expect($content)->toContain('@skills/resolve-issue/SKILL.md');
     expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
 });
@@ -312,7 +312,8 @@ test('agents directory ships the athena security-CR subagent with required front
     $content = (string) file_get_contents($agentPath);
     expect($content)->toContain('name: athena');
     expect($content)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
-    expect($content)->toContain('model: opus');
+    // Sonnet by default, escalated to opus per dispatch on a CRITICAL tier or a recorded reason.
+    expect($content)->toContain('model: sonnet');
     expect($content)->toContain('@skills/security-review/SKILL.md');
     expect($content)->toContain('@skills/laravel-security/SKILL.md');
     expect($content)->toContain('@skills/security-bounty-hunter/SKILL.md');
@@ -638,9 +639,11 @@ test(
         $packageDir = dirname(__DIR__, 2);
         $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-        // The pre-convergence scoped validation runs only for a high-risk change; low-risk runs skip it.
-        expect($daedalus)->toContain('Only for a high-risk change dispatch `hephaestus` again through the Task tool');
-        expect($daedalus)->toContain('the post-convergence scoped pass in step 6 validates the final diff and runs by default');
+        // The pre-convergence scoped validation runs only on the CRITICAL tier. The prose heuristic it
+        // used to key off ("high-risk") was read differently at two steps of the same run; the
+        // deterministic classifier's verdict replaced it.
+        expect($daedalus)->toContain('Only on a final tier of `CRITICAL` dispatch `hephaestus` again through the Task tool');
+        expect($daedalus)->toContain('the post-convergence scoped pass validates the final diff and runs by default');
 
         // hephaestus documents the same conditionality in its own scoped-mode contract.
         $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
@@ -2152,7 +2155,7 @@ test('daedalus anchors run cleanup to every terminal path instead of the step-7 
 
     // Step 3 (analysis-only) cleans up before it stops.
     expect($content)->toContain('run *Run cleanup* (the checklist written down in step 7, invoked here) and stop');
-    expect($content)->toContain('those three scratch files are the whole of what this stop owes');
+    expect($content)->toContain('those four scratch files are the whole of what this stop owes');
 
     // Step 5's two Blocked branches differ on the write-lock: a run that never acquired it must not
     // release a live holder's lock, while the run that did acquire it must give it back.
@@ -2211,7 +2214,7 @@ test('daedalus gates scratch-file cleanup on brief ownership via the ## PID fiel
     expect($content)->toContain('under *Run cleanup*\'s `## PID` ownership gate, never unconditionally');
     expect($content)->toContain('still subject to its `## PID` ownership gate');
     expect($content)->toContain('its `## PID` ownership gate is what clears them');
-    expect($content)->toContain('the three scratch files (under its `## PID` ownership gate)');
+    expect($content)->toContain('the four scratch files (under its `## PID` ownership gate)');
 });
 
 test('the Run cleanup anchor is cross-referenced by name from athena and the compound-engineering rule (issue #200)', function (): void {

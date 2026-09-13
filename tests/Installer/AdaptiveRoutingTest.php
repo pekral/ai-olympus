@@ -89,3 +89,69 @@ test('deterministic gates are explicitly outside the trade at every tier', funct
     expect($rule)->toContain('whenever the tier calls for one');
 });
 
+test('the implementer and the reviewer default to sonnet', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // Sonnet-first is the saving. A role permanently pinned to opus pays for the expensive tier on
+    // a README typo, which is exactly the fixed overhead adaptive routing exists to remove.
+    foreach (['hephaestus', 'athena'] as $agent) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        expect($content)->toContain("\nmodel: sonnet\n");
+        expect($content)->toContain('## Model tier — sonnet by default, opus on a recorded escalation');
+        expect($content)->toContain('Blocked: needs model escalation');
+    }
+});
+
+test('daedalus runs the classifier instead of estimating a tier itself', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    expect($daedalus)->toContain('skills/_shared/classify-risk.sh');
+    expect($daedalus)->toContain('## Risk tier');
+
+    // The ad-hoc heuristic this replaced lived only in prose, so two steps of the same run could
+    // (and did) read "high-risk" differently.
+    expect($daedalus)->not->toContain('the same broad-change heuristic the scoped mode uses');
+
+    // Re-classification against the real diff, with the previous tier as a floor.
+    expect($daedalus)->toContain('--floor <the initial tier>');
+    expect($daedalus)->toContain('re-classify the change against the actual diff');
+});
+
+test('the routing ledger records why the run spent what it spent', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    expect($daedalus)->toContain('### Routing ledger');
+    expect($daedalus)->toContain('.claude/run/<source-slug>.routing');
+
+    foreach (['|tier|initial|', '|tier|final|', '|escalation|', '|stage|executed|', '|stage|skipped|'] as $line) {
+        expect($daedalus)->toContain($line);
+    }
+
+    // Counts are derived from the ledgers that already exist. A second copy of a number is a
+    // second thing that can be wrong.
+    expect($daedalus)->toContain('Counts are derived, never tracked twice');
+
+    // The ledger is scratch state and must be cleaned up with its three siblings.
+    expect($daedalus)->toContain('rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit" "${BRIEF%.md}.routing"');
+});
+
+test('the implementer no longer runs a full duplicate review before handing off', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    expect($skill)->toContain('## Pre-PR self-check (lightweight, deterministic)');
+    expect($skill)->toContain('It does **not** run `code-review` / `security-review` over its own diff');
+
+    // The two inline invocations are what doubled the review bill on every run.
+    expect($skill)->not->toContain('Invoke `@skills/security-review/SKILL.md` directly in this skill\'s context');
+    expect($skill)->not->toContain('run `@skills/code-review/SKILL.md` inline on the local changes');
+
+    // The reference file follows the skill, and it states what the removal costs.
+    $reference = $packageDir . '/skills/resolve-issue/references/pre-pr-self-check.md';
+    expect(is_file($reference))->toBeTrue();
+    expect(is_file($packageDir . '/skills/resolve-issue/references/code-quality-self-check.md'))->toBeFalse();
+    expect((string) file_get_contents($reference))->toContain('What is lost, stated rather than hidden');
+});
+
