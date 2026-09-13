@@ -155,3 +155,13 @@ test('the implementer no longer runs a full duplicate review before handing off'
     expect((string) file_get_contents($reference))->toContain('What is lost, stated rather than hidden');
 });
 
+test('path signals read material files only, so a doc or test path cannot force a tier', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+
+    // Without the narrowing, `docs/security/threat-model.md` forced CRITICAL on a typo fix and
+    // `tests/Unit/AuthTest.php` did the same for a test-only change.
+    expect($content)->toContain('# Material files');
+    expect($content)->toContain('\'security doc is still FAST\'');
+});
+
