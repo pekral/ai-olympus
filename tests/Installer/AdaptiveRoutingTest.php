@@ -186,3 +186,21 @@ test('the merge gate qualifies the FAST exemption from evidence it produces itse
     expect($merge)->toContain('two exemptions: `FAST`-tier PRs and dependency-only PRs');
 });
 
+test('a FAST run finishes without athena and still reaches a mergeable state', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // Skipping the reviewer is only a saving if the run can still finish: nothing else would take
+    // the PR out of Draft, because `process-code-review` never ran.
+    expect($daedalus)->toContain('### Closing a `FAST` run');
+    expect($daedalus)->toContain('gh pr ready <PR>');
+    expect($daedalus)->toContain('stage|skipped|athena|tier FAST');
+
+    // The deterministic validation pass is what stands in for the review, so it is never skipped
+    // on this tier.
+    expect($daedalus)->toContain('**On a `FAST` run the four skip conditions below never apply**');
+
+    // The skip rests on the re-classified tier, never on the initial guess.
+    expect($daedalus)->toContain('The skip rests on the **final** tier, never the initial one');
+});
+
