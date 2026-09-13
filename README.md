@@ -62,6 +62,8 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 ## Why This Package
 
 - **Issue-to-PR workflow** — separate roles implement, review, test, and report
+- **Adaptive routing** — a deterministic classifier picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline per task, so a typo fix does not pay for an authorization rewrite's review
+- **Sonnet first** — the implementer and the reviewer default to Sonnet and escalate to Opus only on a recorded reason
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
@@ -194,11 +196,12 @@ Agents never share a conversation. Every step is a blocking dispatch that return
 - **Shared task brief** — `.claude/run/<source-slug>.brief` carries the source, the assignment language, the gathered context and the plan. Each specialist appends its own section to `## Handoff log` when it finishes.
 - **Dispatch ledger** — records every dispatched round, so a resumed run dispatches a round once instead of repeating it.
 - **Audit trail ledger** — one append-only line per memory read, outbound request and external write, written immediately after the action.
+- **Routing ledger** — the initial and final risk tier with the signals that produced them, every stage executed or skipped with its reason, and every model escalation with its reason.
 - **Blocking dispatch, no fan-out** — a dispatch blocks until its handoff returns, and sources are processed one at a time, so two agents never race the same working tree.
 - **Per-dispatch memory slice** — project memory is filtered per recipient role into the dispatch prompt itself, never folded into the shared brief that every later agent reads.
 - **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
 
-The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `daedalus` owns the brief and both ledgers.
+The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `daedalus` owns the brief and all three ledgers.
 
 ### Using the roles and skills
 
@@ -223,9 +226,26 @@ $verify-merge-readiness https://github.com/owner/repository/issues/123
 
 The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
 
-Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default.
+### Adaptive routing — how much pipeline a task gets
 
-Role boundaries, handoffs, savings mode, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
+Every `daedalus` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
+
+| Tier | Who runs | Typical change |
+|------|----------|----------------|
+| `FAST` | implementer (Sonnet) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
+| `STANDARD` | `+ athena` (Sonnet) | ordinary application and business-logic work |
+| `CRITICAL` | `+ athena` analysis where relevant, both on Opus, `argus` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
+
+- A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
+- The tier is recomputed against the real diff after implementation and can only rise, so a task that grows into an authorization change is reviewed like one.
+- Tests, static analysis, linting, CI, and the pre-merge quality gate run at **every** tier, `FAST` included. The tier buys LLM reasoning, never a deterministic gate.
+- Every decision is recorded, so *"why was `athena` executed?"*, *"why was Opus used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
+
+Override it when you disagree: ask for **thorough mode** (or `--thorough`) to run the complete pipeline regardless of the classification, or name a tier directly with `--fast` / `--standard` / `--critical`. An escalating override always applies; a de-escalating one is refused when a sensitive area forced the tier, and the refusal is reported rather than silent.
+
+Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default, and it is orthogonal to the tier above: routing decides *which* stages run, savings mode decides how cheaply the stages that do run reach their result.
+
+Role boundaries, handoffs, adaptive routing, savings mode, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
 ## Skill Catalog
 

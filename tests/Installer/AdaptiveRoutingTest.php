@@ -204,3 +204,12 @@ test('a FAST run finishes without athena and still reaches a mergeable state', f
     expect($daedalus)->toContain('The skip rests on the **final** tier, never the initial one');
 });
 
+test('composer check runs the classifier self-test', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $composer = (string) file_get_contents($packageDir . '/composer.json');
+
+    // A self-test nothing executes is dead weight: the guard it protects can be mutated to
+    // always-FAST and `composer build` stays green.
+    expect($composer)->toContain('skills/_shared/classify-risk.sh --self-test');
+});
+
