@@ -197,16 +197,25 @@ Classifying once, before implementation, is not enough: a task that began as a F
 - **The second classification carries the first as a floor** (`--floor <tier>`), so the tier is monotonically non-decreasing across a run. A task can rise from `FAST` to `CRITICAL`; it can never fall, or a follow-up commit could undo an escalation the run already paid for.
 - **A tier that rises runs the stages it skipped.** Escalating to `STANDARD` or `CRITICAL` after implementation puts `athena` back into the run; escalating to `CRITICAL` also puts the pre-convergence scoped validation back in. The stages are added, never waived because the run is already late.
 
-### Sonnet first, escalate with a recorded reason
+### Default model tier first, escalate with a recorded reason
 
-An agent role is not permanently coupled to an expensive model. `hephaestus` and `athena` both default to **sonnet** in their own frontmatter, and `daedalus` passes an explicit `model` override on the `Task` dispatch when escalation is justified:
+An agent role is not permanently coupled to an expensive model. The contract is written in **tiers**, not in model names, because this package runs on more than one platform and a rule naming one vendor's models cannot be applied on the other:
+
+- **Default tier** — the cheaper, fast model the agent runs at unless something justifies more. It is what a run pays for by default.
+- **Escalated tier** — the strongest reasoning available to that step.
+
+**Which model each tier means is declared in the specialist's own definition, per platform, and nowhere else.** On Claude Code that is the `model:` frontmatter of `agents/<name>.md` plus the tier `daedalus` dispatches at; on Codex / OpenAI it is `codex/agents/<name>.toml`. This rule owns *when* to escalate and *that* it is recorded; it never names a model, because a rule that did would be wrong on one platform the day it was written and wrong on both the first time a vendor renamed a model. A specialist whose definition declares no escalated tier runs at its default tier and says so in the escalation line.
+
+`daedalus` escalates a step to the escalated tier when:
 
 - the run is `CRITICAL`,
-- sonnet already attempted the step and returned `Blocked` or an unreliable result,
+- the default tier already attempted the step and returned `Blocked` or an unreliable result,
 - the step turns on complex architectural reasoning, or on security-sensitive reasoning,
 - significant uncertainty remains after the first attempt.
 
-Escalate **after** evidence, not before it — pay for opus when a cheaper attempt has failed or when the tier already says the change is high-risk, never as a precaution. Every escalation is recorded with its reason (see *Observability* below); an unrecorded escalation is indistinguishable from a default, which is how a "sonnet-first" pipeline silently becomes an opus pipeline again.
+Escalate **after** evidence, not before it — pay for the expensive tier when a cheaper attempt has failed or when the tier already says the change is high-risk, never as a precaution. Every escalation is recorded with its reason (see *Observability* below); an unrecorded escalation is indistinguishable from a default, which is how a default-tier-first pipeline silently becomes an expensive one again.
+
+**A platform that offers no per-dispatch model control never fakes one.** Where the escalated tier can only be selected for the whole session rather than for one dispatch, the run applies what it actually can — raising the reasoning effort, or asking the user to re-run the step on a stronger model — and records that in the escalation line: `escalation|<role>|<from>→<to>|<reason> (no per-dispatch override: <what was done instead>)`. Recording an escalation that did not happen is a false measurement, forbidden here for the same reason `@rules/code-review/review-process.md` *Output Rules — Truthful reporting* forbids it in a review.
 
 ### One authoritative LLM review, not two
 

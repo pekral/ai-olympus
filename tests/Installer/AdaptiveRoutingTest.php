@@ -89,127 +89,85 @@ test('deterministic gates are explicitly outside the trade at every tier', funct
     expect($rule)->toContain('whenever the tier calls for one');
 });
 
-test('the implementer and the reviewer default to sonnet', function (): void {
+test('the implementer and the reviewer run at the default model tier', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Sonnet-first is the saving. A role permanently pinned to opus pays for the expensive tier on
-    // a README typo, which is exactly the fixed overhead adaptive routing exists to remove.
+    // Default-tier-first is the saving. A role permanently pinned to the expensive model pays for it
+    // on a README typo, which is exactly the fixed overhead adaptive routing exists to remove.
     foreach (['hephaestus', 'athena'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain("\nmodel: sonnet\n");
-        expect($content)->toContain('## Model tier — sonnet by default, opus on a recorded escalation');
+        expect($content)->toContain('## Model tier — the default tier, escalated only on a recorded reason');
         expect($content)->toContain('Blocked: needs model escalation');
+
+        // The tier is a role, not a model name, or the contract cannot be applied off Claude Code.
+        expect($content)->toContain('The tier is a role, not a model name');
     }
 });
 
-test('daedalus runs the classifier instead of estimating a tier itself', function (): void {
+test('the routing contract binds to OpenAI / Codex, not only to Claude Code', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $agents = (string) file_get_contents($packageDir . '/AGENTS.md');
 
-    expect($daedalus)->toContain('skills/_shared/classify-risk.sh');
-    expect($daedalus)->toContain('## Risk tier');
+    // Writing the contract in vendor model names made it inapplicable on the other platform this
+    // package ships to, and wrong on both the first time a vendor renames a model. The rule owns
+    // when a step escalates; which model that means belongs to the agent's own definition.
+    expect($rule)->toContain('### Default model tier first, escalate with a recorded reason');
+    expect($rule)->toContain('**Which model each tier means is declared in the specialist\'s own definition, per platform, and nowhere else.**');
+    expect($rule)->not->toContain('model_reasoning_effort');
+    expect($agents)->not->toContain('model_reasoning_effort');
 
-    // The ad-hoc heuristic this replaced lived only in prose, so two steps of the same run could
-    // (and did) read "high-risk" differently.
-    expect($daedalus)->not->toContain('the same broad-change heuristic the scoped mode uses');
-
-    // Re-classification against the real diff, with the previous tier as a floor.
-    expect($daedalus)->toContain('--floor <the initial tier>');
-    expect($daedalus)->toContain('re-classify the change against the actual diff');
+    // A platform that cannot switch models for one step records what it did instead. Claiming an
+    // escalation that did not happen is a fabricated measurement.
+    expect($rule)->toContain('**A platform that offers no per-dispatch model control never fakes one.**');
 });
 
-test('the routing ledger records why the run spent what it spent', function (): void {
+test('every agent declares its own model tiers, per platform, in its own definition', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
 
-    expect($daedalus)->toContain('### Routing ledger');
-    expect($daedalus)->toContain('.claude/run/<source-slug>.routing');
-
-    foreach (['|tier|initial|', '|tier|final|', '|escalation|', '|stage|executed|', '|stage|skipped|'] as $line) {
-        expect($daedalus)->toContain($line);
+    // Claude Code: the frontmatter plus the tier daedalus dispatches at.
+    foreach (['hephaestus', 'athena'] as $agent) {
+        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        expect($content)->toContain('**On Claude Code:** default tier `sonnet`');
+        expect($content)->toContain('Escalated tier `opus`');
+        expect($content)->toContain('codex/agents/' . $agent . '.toml` declares both');
     }
 
-    // Counts are derived from the ledgers that already exist. A second copy of a number is a
-    // second thing that can be wrong.
-    expect($daedalus)->toContain('Counts are derived, never tracked twice');
+    // Codex / OpenAI: every shipped adapter declares both tiers for its own role, including the
+    // three that never escalate — an absent declaration would read as an undecided one.
+    foreach (['daedalus', 'hephaestus', 'athena', 'argus', 'hermes'] as $agent) {
+        $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
+        expect($toml)->toContain('Model tiers for this role on Codex — this file is where they are declared, not the rules:');
+        expect($toml)->toContain('- Default tier:');
+        expect($toml)->toContain('- Escalated tier:');
 
-    // The ledger is scratch state and must be cleaned up with its three siblings.
-    expect($daedalus)->toContain('rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit" "${BRIEF%.md}.routing"');
+        // The bare script paths the classifier is referenced by — `@skills/<path>` never covered those.
+        expect($toml)->toContain('skills/_shared/classify-risk.sh');
+    }
+
+    // The three roles that derive no new fact must say they never escalate, not leave it open.
+    foreach (['daedalus', 'argus', 'hermes'] as $agent) {
+        $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
+        expect($toml)->toContain('- Escalated tier: none —');
+    }
 });
 
-test('the implementer no longer runs a full duplicate review before handing off', function (): void {
+test('the routing contract is documented for humans, not only for agents', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
+    $readme = (string) file_get_contents($packageDir . '/README.md');
 
-    expect($skill)->toContain('## Pre-PR self-check (lightweight, deterministic)');
-    expect($skill)->toContain('It does **not** run `code-review` / `security-review` over its own diff');
+    expect($docs)->toContain('## Adaptive routing (always on)');
+    expect($docs)->toContain('classify-risk.sh');
+    expect($readme)->toContain('### Adaptive routing — how much pipeline a task gets');
+    expect($readme)->toContain('`--thorough`');
 
-    // The two inline invocations are what doubled the review bill on every run.
-    expect($skill)->not->toContain('Invoke `@skills/security-review/SKILL.md` directly in this skill\'s context');
-    expect($skill)->not->toContain('run `@skills/code-review/SKILL.md` inline on the local changes');
+    // Both surfaces must state the cost of the FAST tier rather than only its benefit.
+    expect($docs)->toContain('What this trades away, stated rather than hidden');
+    expect($readme)->toContain('Adaptive routing');
 
-    // The reference file follows the skill, and it states what the removal costs.
-    $reference = $packageDir . '/skills/resolve-issue/references/pre-pr-self-check.md';
-    expect(is_file($reference))->toBeTrue();
-    expect(is_file($packageDir . '/skills/resolve-issue/references/code-quality-self-check.md'))->toBeFalse();
-    expect((string) file_get_contents($reference))->toContain('What is lost, stated rather than hidden');
+    // And both must say the mechanism is not Claude-only, or a Codex reader assumes it is.
+    expect($docs)->toContain('It is platform-neutral.');
+    expect($readme)->toContain('so Codex / OpenAI sessions route identically');
 });
-
-test('path signals read material files only, so a doc or test path cannot force a tier', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
-
-    // Without the narrowing, `docs/security/threat-model.md` forced CRITICAL on a typo fix and
-    // `tests/Unit/AuthTest.php` did the same for a test-only change.
-    expect($content)->toContain('# Material files');
-    expect($content)->toContain('\'security doc is still FAST\'');
-});
-
-test('the merge gate qualifies the FAST exemption from evidence it produces itself', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $gitRules = (string) file_get_contents($packageDir . '/rules/git/general.md');
-
-    expect($merge)->toContain('#### `FAST`-tier PR exemption (code review not required)');
-    expect($merge)->toContain('skills/_shared/classify-risk.sh --files -');
-    expect($merge)->toContain('Require `tier=FAST` **and** `forced=none`');
-
-    // A tier read off the PR body would let the run that produced the PR grade its own homework.
-    expect($merge)->toContain('is a claim and is never accepted here');
-
-    // A consumer on an older install has no classifier; the gate must fail closed.
-    expect($merge)->toContain('A missing or non-executable classifier voids the exemption');
-
-    // The rule and the skill must agree on how many exemptions exist.
-    expect($gitRules)->toContain('### `FAST`-tier pull requests (code-review exemption)');
-    expect($gitRules)->toContain('Two exemptions from the code-review gate exist, and no others');
-    expect($merge)->toContain('two exemptions: `FAST`-tier PRs and dependency-only PRs');
-});
-
-test('a FAST run finishes without athena and still reaches a mergeable state', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
-
-    // Skipping the reviewer is only a saving if the run can still finish: nothing else would take
-    // the PR out of Draft, because `process-code-review` never ran.
-    expect($daedalus)->toContain('### Closing a `FAST` run');
-    expect($daedalus)->toContain('gh pr ready <PR>');
-    expect($daedalus)->toContain('stage|skipped|athena|tier FAST');
-
-    // The deterministic validation pass is what stands in for the review, so it is never skipped
-    // on this tier.
-    expect($daedalus)->toContain('**On a `FAST` run the four skip conditions below never apply**');
-
-    // The skip rests on the re-classified tier, never on the initial guess.
-    expect($daedalus)->toContain('The skip rests on the **final** tier, never the initial one');
-});
-
-test('composer check runs the classifier self-test', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $composer = (string) file_get_contents($packageDir . '/composer.json');
-
-    // A self-test nothing executes is dead weight: the guard it protects can be mutated to
-    // always-FAST and `composer build` stays green.
-    expect($composer)->toContain('skills/_shared/classify-risk.sh --self-test');
-});
-

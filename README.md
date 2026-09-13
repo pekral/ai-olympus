@@ -63,7 +63,7 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 
 - **Issue-to-PR workflow** — separate roles implement, review, test, and report
 - **Adaptive routing** — a deterministic classifier picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline per task, so a typo fix does not pay for an authorization rewrite's review
-- **Sonnet first** — the implementer and the reviewer default to Sonnet and escalate to Opus only on a recorded reason
+- **Cheapest model that works** — the implementer and the reviewer run at their default tier (Sonnet on Claude Code) and escalate to the strongest model only on a recorded reason; the same contract binds to Codex / OpenAI's own model controls
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
@@ -232,14 +232,15 @@ Every `daedalus` run classifies the task before it dispatches anything, using `s
 
 | Tier | Who runs | Typical change |
 |------|----------|----------------|
-| `FAST` | implementer (Sonnet) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
-| `STANDARD` | `+ athena` (Sonnet) | ordinary application and business-logic work |
-| `CRITICAL` | `+ athena` analysis where relevant, both on Opus, `argus` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
+| `FAST` | implementer (default tier) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
+| `STANDARD` | `+ athena` (default tier) | ordinary application and business-logic work |
+| `CRITICAL` | `+ athena` analysis where relevant, both at the escalated tier, `argus` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
 
 - A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
 - The tier is recomputed against the real diff after implementation and can only rise, so a task that grows into an authorization change is reviewed like one.
 - Tests, static analysis, linting, CI, and the pre-merge quality gate run at **every** tier, `FAST` included. The tier buys LLM reasoning, never a deterministic gate.
-- Every decision is recorded, so *"why was `athena` executed?"*, *"why was Opus used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
+- Every decision is recorded, so *"why was `athena` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
+- The classifier is a shell script and the tiers are roles rather than model names, so Codex / OpenAI sessions route identically; `codex/agents/*.toml` binds the tiers to that platform's model controls.
 
 Override it when you disagree: ask for **thorough mode** (or `--thorough`) to run the complete pipeline regardless of the classification, or name a tier directly with `--fast` / `--standard` / `--critical`. An escalating override always applies; a de-escalating one is refused when a sensitive area forced the tier, and the refusal is reported rather than silent.
 

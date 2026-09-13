@@ -72,122 +72,66 @@ test('resolve-issue skill requires the created branch name to be in English', fu
     expect($content)->toContain('name always in English, regardless of the assignment language');
 });
 
-test('git/general.md mandates one commit per phase for phased issues', function (): void {
+test('commit granularity is the author\'s judgment, and the package says what that costs', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
-
-    expect($content)->toContain('One phase = one commit.');
-    expect($content)->toContain('exactly one commit');
-});
-
-test('git/general.md mandates one commit per enumerated assignment point', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
-
-    // The point-level mapping and the cherry-pick ordering preference are two separate
-    // mandates — a rule carrying only the first lets a run produce dependent commits
-    // silently, which is what makes a PR's change list unreadable.
-    expect($content)->toContain('One assignment point = one commit.');
-    expect($content)->toContain('in the assignment\'s own order');
-    expect($content)->toContain('Prefer independent, cherry-pickable commits.');
-
-    // Independence must stay a preference: a hard requirement would push a run to merge
-    // two points into one commit, which defeats the point-level mapping above.
-    expect($content)->toContain('Independence is a **preference**');
-});
-
-test('git/general.md routes every post-plan change into a logical commit, amend or new (issue #179)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
-
-    // The point/phase rules map only the PLANNED work; this one covers what arrives after it.
-    expect($content)->toContain(
-        '**Every change on the branch belongs to a logical commit — amend the commit it belongs to, open a new one when it does not.**',
-    );
-    expect($content)->toContain('git commit --fixup=<sha>');
-    expect($content)->toContain('A separate *"follow-up to the commit above"* commit is the wrong shape');
-
-    // Amending must never become a way to shrink the commit count at the cost of the mapping.
-    expect($content)->toContain('the count is not the goal, one-logical-change-per-commit is');
-
-    // The guard that keeps "amend the existing commit" from destroying an in-flight review.
-    expect($content)->toContain('The branch is already pushed and under review → do not rewrite it.');
-    expect($content)->toContain('re-derive every SHA you have already cited');
-
-    // Reconciliation happens while the branch is still safe to rewrite.
-    expect($content)->toContain('**Reconcile before opening the PR.**');
-});
-
-test('resolve-issue commit planning carries the amend-or-new decision table (issue #179)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
-
-    expect($content)->toContain('## 6. Keep every later change in a logical commit');
-    // The decision is made before committing, not discovered afterwards.
-    expect($content)->toContain('decide **amend or new** before committing it');
-    expect($content)->toContain('`git commit --fixup=<sha>` + `git rebase --autosquash <base>`');
-    // The under-review branch keeps its history; a new commit is the correct shape there.
-    expect($content)->toContain('never a force-push that detaches review anchors');
-    // A rewrite moves every short SHA the plan table and the PR description already cite.
-    expect($content)->toContain('re-derive every short SHA');
-    // No commit on the branch is unaccounted for, even the ones outside the `## Changes` table.
-    expect($content)->toContain('so no commit on the branch is unaccounted for');
-    // It defers to the rule instead of restating it.
-    expect($content)->toContain('@rules/git/general.md` *Every change on the branch belongs to a logical commit*');
-});
-
-test('resolve-issue skill anchors phase planning on the one-phase-one-commit git rule', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-
-    expect($content)->toContain('one phase = one commit');
-    expect($content)->toContain('@rules/git/general.md');
-});
-
-test('resolve-issue plans one commit per point the assignment enumerates', function (): void {
-    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
 
-    // The body must name the point markers a run has to look for — a phase-only summary
-    // walks past an assignment that lists recommended fixes instead of phases.
-    expect($skill)->toContain('one point = one commit');
-    expect($skill)->toContain('recommended fixes, review findings, checklist entries, ordered acceptance criteria');
-    expect($skill)->toContain('independently cherry-pickable');
+    // The package used to mandate one commit per phase and per enumerated assignment point,
+    // ordered for cherry-pickability, with no commit shipping a symbol its own tree did not call.
+    // None of it was ever a review criterion, and it cost a plan table plus a reconciliation pass
+    // on every run. Withdrawn, and the withdrawal states its own cost.
+    expect($rule)->toContain('**Commit granularity is the author\'s judgment; no rule prescribes how the work is divided.**');
+    expect($rule)->toContain('What is lost, stated rather than hidden');
 
-    // The reference owns the procedure: inventory, mapping, independence ordering, and the
-    // recorded table the PR change list is rendered from.
-    expect($reference)->toContain('## 1. Inventory the points the assignment enumerates');
-    expect($reference)->toContain('## 2. Map one point to one commit');
-    expect($reference)->toContain('## 3. Order for independence (cherry-pick friendly — preferred, not required)');
-    expect($reference)->toContain('## 4. Record the commit plan before implementing');
-    expect($reference)->toContain('depends on #N');
+    $withdrawnMandates = [
+        'One phase = one commit.',
+        'One assignment point = one commit.',
+        'Prefer independent, cherry-pickable commits.',
+        '**No commit ships dead code.**',
+    ];
 
-    // A deferred or pre-existing point must not silently become an in-scope commit.
-    expect($reference)->toContain('A point the run does **not** implement never becomes a commit');
+    foreach ($withdrawnMandates as $withdrawn) {
+        expect($rule)->not->toContain($withdrawn);
+    }
 
-    // A phase containing a checklist matches two markers at once — without a precedence
-    // rule the same assignment maps to two different commit counts.
-    expect($reference)->toContain('**Precedence when the enumerations nest.**');
-    expect($reference)->toContain('innermost independently verifiable level is the point');
+    // The planning machinery goes with the mandate it existed to execute.
+    expect(is_file($packageDir . '/skills/resolve-issue/references/phase-planning.md'))->toBeFalse();
+    expect($skill)->not->toContain('references/phase-planning.md');
+    expect($skill)->toContain('### Committing');
 });
 
-test('resolve-issue PR description lists one entry per commit', function (): void {
+test('the two commit constraints that are not about granularity survive', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/phase-planning.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+
+    // A committed failing test encodes a lie in the history; the gate on the merged head is what
+    // makes the branch deployable. Neither depends on how the work was divided.
+    expect($rule)->toContain('**A test and the change that makes it pass land in the same commit.**');
+    expect($rule)->toContain('**The merged head is green; intermediate commits are not gated.**');
+    expect($skill)->toContain('no failing or simulated-failing test is ever committed');
+
+    // Nothing may be left uncommitted, and a branch under review is not rewritten — the guard that
+    // keeps tidying from detaching review anchors and invalidating cited SHAs.
+    expect($rule)->toContain('**Nothing is left in the working tree, and a branch under review is not rewritten.**');
+    expect($rule)->toContain('git commit --fixup=<sha>');
+    expect($rule)->toContain('never plain `--force`');
+    expect($rule)->toContain('every SHA you have already cited is re-derived');
+});
+
+test('the PR change list survives the removal of the commit plan it was rendered from', function (): void {
+    $packageDir = dirname(__DIR__, 2);
     $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
 
-    // The PR content requirements must demand the change list, and the reference must define
-    // its shape — a per-file or per-topic list defeats the point-per-commit mapping.
-    expect($pullRequest)->toContain('**Changes** — one entry per commit');
-    expect($reference)->toContain('Rendering the PR `## Changes` list.');
-    expect($reference)->toContain('One line per commit — never one line per file');
-    expect($reference)->toContain('depends on <N>');
+    // The list is what a reviewer checks the assignment off against, so it outlives the plan table
+    // that used to produce it — it now describes the change rather than enumerating commits.
+    expect($pullRequest)->toContain('**Changes** — what the pull request actually does');
+    expect($pullRequest)->toContain('never one line per file');
 
-    // The bijection needs the review-loop carve-out: the loop pushes commits after the PR
-    // body is written and nothing edits that body, so without it every converged PR would
-    // violate the one-entry-per-commit invariant.
-    expect($reference)->toContain('remediation commit pushed by the post-PR review loop');
+    // The review-loop carve-out has to survive too: the loop pushes commits after the PR body is
+    // written and nothing edits that body afterwards.
+    expect($pullRequest)->toContain('remediation commit pushed by the post-PR review loop');
 });
 
 test('resolve-issue skill refuses to resolve a closed / inactive task', function (): void {
@@ -1173,27 +1117,34 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     expect($memory)->toContain('load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`)');
 });
 
-test('the filing bar keeps agent-noticed items out of the tracker unless they must be worked on (issue #225)', function (): void {
+test('the filing bar files exactly two things and ignores everything else (issue #225)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
 
-    expect($rule)->toContain('**The filing bar — an agent files only work that must actually be done.**');
+    // The bar used to admit three broad categories, one of which was "technical debt with a named
+    // consequence" — which is every refactoring proposal an agent can argue for. The backlog filled
+    // with work nobody had decided to do. It is now two categories, both critical.
+    expect($rule)->toContain('**The filing bar — exactly two things are filed, and nothing else is.**');
+    expect($rule)->toContain('**A critical gap in the business logic the assignment asked for**');
+    expect($rule)->toContain('**A critical security issue**');
 
-    // The three ways in. Dropping any one of them turns the bar into a blanket ban on filing.
-    expect($rule)->toContain('It blocks or materially complicates a planned capability.');
-    expect($rule)->toContain('It is a bug of Critical or High severity, or a security shortcoming');
-    expect($rule)->toContain('It is technical debt with a **named, concrete consequence**');
+    // The withdrawn ways in must be gone, not merely de-emphasised.
+    expect($rule)->not->toContain('It blocks or materially complicates a planned capability.');
+    expect($rule)->not->toContain('It is technical debt with a **named, concrete consequence**');
 
-    // The named categories the issue asked to stop filing, mirror issues included.
-    expect($rule)->toContain('**Never file:**');
+    // Below the bar the item is dropped, not parked in a handoff for someone else to triage.
+    expect($rule)->toContain('**Everything else is ignored, not filed and not reported.**');
+    expect($rule)->toContain('a refactoring proposal or follow-up of any kind');
     expect($rule)->toContain('nice-to-have work');
-    expect($rule)->toContain('**mirror issue**');
-    expect($rule)->toContain('**When in doubt, do not file**');
+    expect($rule)->toContain('Drop them.');
+    expect($rule)->toContain('**When in doubt, do not file.**');
 
-    // The bar must never become an excuse for a silent scope cut: a promise the run made is
-    // still filed unconditionally, and a withheld item is still visible somewhere.
-    expect($rule)->toContain('That obligation is unconditional and this bar never weakens it.');
-    expect($rule)->toContain('**Not filing is not dropping.**');
+    // The trade is stated: a real problem that goes unfiled is re-noticed by the next run, and a
+    // filed non-problem is paid for by every later triage.
+    expect($rule)->toContain('This is a deliberate trade, and it is stated rather than hidden.');
+
+    // A scope cut still may not be silent — it is documented rather than scheduled.
+    expect($rule)->toContain('**A deferred assignment point stays visible even when it is not filed.**');
 });
 
 test('athena and the deferred-follow-up procedure both route filing through the bar (issue #225)', function (): void {
@@ -1209,9 +1160,15 @@ test('athena and the deferred-follow-up procedure both route filing through the 
     expect($athena)->toContain('withheld below the filing bar:');
     expect($athena)->not->toContain('Every out-of-scope item the review produced therefore also becomes an issue');
 
-    // The resolve-issue side applies the bar only to what the run noticed on its own.
-    expect($deferred)->toContain('Apply the filing bar to anything the run was not asked for.');
-    expect($deferred)->toContain('is filed unconditionally');
+    // The resolve-issue side now routes every candidate through the bar, a deferred assignment item
+    // included — it used to file that one unconditionally.
+    expect($deferred)->toContain('**Apply the filing bar — it decides every candidate, including a deferred assignment item.**');
+    expect($deferred)->toContain('is **ignored**: not filed, and not carried forward');
+    expect($deferred)->not->toContain('is filed unconditionally');
+
+    // athena's own must-file carve-out for a deferred assignment item goes with it.
+    expect($athena)->toContain('**A deferred assignment item is filed only when the gap is critical.**');
+    expect($athena)->not->toContain('it is a must-file');
 });
 
 test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {

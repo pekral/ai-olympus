@@ -105,14 +105,18 @@ Reading, mapping, and verifying come first; implementing comes last. This pre-fl
    Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you edit anything, then classify each match as in scope for this change or as a stated exception. An incomplete sweep leaves a stale reference in a file nobody opened, and that reference surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior (for bugs, reproduce the failure; for features, confirm the integration points exist as assumed). If reading and mapping contradict the issue framing or the scenario table, stop and surface the discrepancy instead of implementing on a wrong premise.
 
-Only after Read, Map, and Verify are complete may commit planning and implementation begin.
+Only after Read, Map, and Verify are complete may implementation begin.
 
-### Commit planning (one point = one commit)
+### Committing
 
-Before writing any code, split the in-scope work into commits per `references/phase-planning.md`, applying **one phase = one commit** from `@rules/git/general.md` *Git Rules*: inventory the discrete points the assignment enumerates — recommended fixes, review findings, checklist entries, ordered acceptance criteria, `Phase N` headings — map **one point = one commit** in the assignment's order, and order them so each commit is independently cherry-pickable where the files allow. Record that reference's commit-plan table **before** implementing — the plan for step 11 and the source of the PR `## Changes` list — then commit at each point's end.
-Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
+How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*). This skill used to require a commit plan table written before the first line of code, one commit per enumerated assignment point, ordered for cherry-pickability, reconciled against the table before the PR. None of it was ever a review criterion, and all of it cost a planning pass plus a rebase whenever the plan turned out wrong.
 
-Per `@rules/git/general.md` *Git Rules* (*The merged head is green; intermediate commits are not gated*), a point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed. Intermediate commits are not individually gated — the project's gate runs once on the head commit being merged. When a branch genuinely needs a bisectable history, replay the range with `git rebase --exec '<the project gate>' <base>`; that replay is available, not required.
+Two constraints remain, and neither is about granularity:
+
+- A point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*).
+- Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
+
+Intermediate commits are not individually gated; the project's gate runs once on the head commit being merged. When a branch genuinely needs a bisectable history, replay the range with `git rebase --exec '<the project gate>' <base>`; that replay is available, not required.
 
 ### Pre-existing issue handling
 
@@ -225,7 +229,6 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 - references/quality-gates.md
 - references/deferred-follow-up.md
 - references/pre-existing-issue-handling.md
-- references/phase-planning.md
 - references/security-remediation-checklist.md
 - references/pull-request.md
 - references/tracker-follow-up.md

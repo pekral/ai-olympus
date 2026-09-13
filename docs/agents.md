@@ -136,7 +136,7 @@ System prompt: what the agent does, which skills it orchestrates, and the handof
 - **`tools`** — restrict to what the agent needs. A read-only reviewer needs `Read, Glob, Grep, Bash`, plus `WebSearch, WebFetch` when its review has to reach a third-party's public documentation (both fetch, neither writes, so the read-only stance holds).
 - **`disallowedTools`** — the second, harness-enforced layer (issue #163): names tools the agent must never receive even if a later edit to `tools:` (or an inherited default) would otherwise grant them. Every shipped agent carries one — read-only agents (`athena`, `hermes`, `daedalus`) list `Write, Edit`; agents with no documentation-fetch need (`hephaestus`) list `WebSearch, WebFetch`. It does **not** restrict what an agent can do through `Bash` — see *Capability model* below.
 - **`memory`** — do **not** add this field to any agent in this roster. It automatically grants `Read`, `Write`, **and** `Edit` regardless of what `tools:` says, so adding it to a read-only agent silently reintroduces write access without ever touching the `tools:` line a content pin would catch.
-- **`model`** — the tier the agent runs at **by default**, not the tier it always runs at. `hephaestus` and `athena` both declare `sonnet`: adaptive routing pays for `opus` only when the run's tier or a failed cheaper attempt justifies it, and `daedalus` then passes that override on the `Task` dispatch (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *Sonnet first, escalate with a recorded reason*). `daedalus` itself is `sonnet` and `hermes` is `haiku`. Never read a `model:` line as "this role costs this much"; read it as the floor.
+- **`model`** — the **default tier** the agent runs at, not the tier it always runs at. `hephaestus` and `athena` both declare `sonnet`: adaptive routing pays for the escalated tier only when the run's tier or a failed cheaper attempt justifies it, and `daedalus` then dispatches at that tier (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *Default model tier first, escalate with a recorded reason*). `daedalus` itself is `sonnet` and `hermes` is `haiku`. Never read a `model:` line as "this role costs this much"; read it as the floor. **The field is the Claude Code binding of a platform-neutral contract** — on Codex / OpenAI the same two tiers are the session's configured model at its normal reasoning effort and the strongest model (or highest reasoning effort) it can select, and `codex/agents/*.toml` carries that mapping.
 - **`effort`** — reasoning effort while the agent is active (`low` / `medium` / `high` / `xhigh` / `max`), set per agent by what its role actually decides. `daedalus` and `athena` run at `high`: one routes the whole run and the other is the roster's single reviewer, so a shallow pass there costs a round for everybody downstream. Effort is orthogonal to `model`: `athena` at `sonnet` still reviews at `high` effort, and the routing decision escalates the model, never the effort. `hephaestus`, `argus` and `hermes` run at `medium` — they execute against a brief that has already been decided, and `max` is never used on any agent. The runtime clamps the level to the highest one the agent's `model` supports, and drops it silently: `claude-haiku-4-5` supports no effort level at all, so `hermes` carries the field for the day its model changes, not for today's dispatch.
 - **System prompt** — orchestration only. Delegate to skills via `@skills/<name>/SKILL.md`; **never duplicate a skill's rules** — defer to the skill as the source of truth.
 
@@ -212,7 +212,7 @@ user → daedalus                                         (top-level; resolves s
          │  security-focused? ── yes ─→ Task ▶ athena (security analysis mode = security skills + analyze-problem → remediation plan; Security analysis done) → feeds hephaestus
          │     │ no
          ▼     ▼
-       Task ▶ hephaestus   (= resolve-issue; sonnet, or opus on a CRITICAL tier / a recorded escalation)
+       Task ▶ hephaestus   (= resolve-issue; default tier, escalated on a CRITICAL tier / a recorded reason)
          │        └─ lightweight pre-PR self-check (deterministic: criteria, diff-targeted tests, static analysis, no debug artifacts) → opens Draft PR
          │        └─ re-classify against the real diff (--floor = initial tier; the tier can rise, never fall)
          ▼
@@ -221,7 +221,7 @@ user → daedalus                                         (top-level; resolves s
          ▼
        FAST tier? ── yes ─→ no CR pass: daedalus promotes the PR out of Draft after the scoped pass below, records stage|skipped|athena
          │     │ no
-       Task ▶ athena  (sonnet, or opus on a CRITICAL tier; = process-code-review / code-review-github — the single CR pass: quality / architecture / optimisation + laravel-security + security-bounty-hunter + security-threat-analysis — the hephaestus ↔ athena loop)
+       Task ▶ athena  (default tier, escalated on a CRITICAL tier; = process-code-review / code-review-github — the single CR pass: quality / architecture / optimisation + laravel-security + security-bounty-hunter + security-threat-analysis — the hephaestus ↔ athena loop)
          │        └─ athena: convergence loop (code-review-github + fixes, maxIterations 3) → one published review → 0 Critical/Moderate
          │           (athena dispatch guarded by registration check — fallback: review inline in code-review-github)
          ▼
@@ -246,16 +246,17 @@ The pipeline above is the `CRITICAL` shape of the run. Most tasks do not need it
 
 | Tier | Who runs | Typical change |
 | --- | --- | --- |
-| `FAST` | `hephaestus` (sonnet) + deterministic validation | docs, README, typo, formatting, tests-only, simple config, rename, small isolated fix |
-| `STANDARD` | `+ athena` (sonnet) | ordinary application and business-logic work |
-| `CRITICAL` | `+ athena` upfront analysis where relevant, both at opus, `argus` when behaviour is observable | auth, authorization, secrets, payments, migrations, data loss, concurrency, queues, locking, cache consistency, public APIs, core architecture, large refactors |
+| `FAST` | `hephaestus` (default tier) + deterministic validation | docs, README, typo, formatting, tests-only, simple config, rename, small isolated fix |
+| `STANDARD` | `+ athena` (default tier) | ordinary application and business-logic work |
+| `CRITICAL` | `+ athena` upfront analysis where relevant, both at the escalated tier, `argus` when behaviour is observable | auth, authorization, secrets, payments, migrations, data loss, concurrency, queues, locking, cache consistency, public APIs, core architecture, large refactors |
 
 Four properties are what make it safe to route this way:
 
 - **A sensitive area forces `CRITICAL` on its own**, regardless of the score and regardless of a lower explicit override.
 - **The tier is recomputed against the real diff** after implementation, carrying the first verdict as a floor. A task that grew into an authorization change is reviewed like one; a tier never falls.
 - **Deterministic gates are untouched at every tier.** Tests, static analysis, linting, CI, and the pre-merge quality gate run on a `FAST` change exactly as on a `CRITICAL` one. What the tier buys is LLM reasoning, and only that.
-- **The decisions are recorded.** `.claude/run/<slug>.routing` carries the initial and final tier with their signals, every stage executed or skipped with its reason, and every model escalation with its reason — so *"why was `athena` executed?"*, *"why was opus used?"* and *"why was this `CRITICAL`?"* are answerable from the record.
+- **The decisions are recorded.** `.claude/run/<slug>.routing` carries the initial and final tier with their signals, every stage executed or skipped with its reason, and every model escalation with its reason — so *"why was `athena` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the record.
+- **It is platform-neutral.** The classifier is a shell script, and the tiers are roles rather than model names, so a Codex / OpenAI session routes the same task the same way. `codex/agents/*.toml` binds the two tiers to that platform's controls, and a session that cannot change the model for one step records what it applied instead rather than claiming an override.
 
 A caller who disagrees overrides it: `--thorough` runs the complete pipeline regardless of the classification, and `--fast` / `--standard` / `--critical` name a tier directly. An escalating override always applies; a de-escalating one is refused when a sensitive-area force fired, and the refusal is printed rather than silent.
 
