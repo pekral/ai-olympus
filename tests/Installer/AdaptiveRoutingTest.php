@@ -171,3 +171,57 @@ test('the routing contract is documented for humans, not only for agents', funct
     expect($docs)->toContain('It is platform-neutral.');
     expect($readme)->toContain('so Codex / OpenAI sessions route identically');
 });
+
+test('no shipped surface claims the implementer reviews its own diff', function (): void {
+    // The duplicate review was removed from `resolve-issue`, but `agents/hephaestus.md` kept telling
+    // the agent its pre-PR self-check runs `code-review` + `security-review` and gates on the
+    // findings — the opposite of what the skill says, three lines below its own "never review your
+    // own work". Two more copies sat in `docs/agents.md` and in daedalus's athena-not-registered
+    // fallback, which named a security pass nobody performs any more.
+    //
+    // Pin the class, not the sentence: any phrasing that has the self-check RUN a review skill.
+    // Negative statements ("does not run", "runs no review skill") must keep passing, so the
+    // patterns match the positive claim only.
+    $claimsReviewRuns = [
+        'self-check runs `code-review`',
+        'self-check runs `security-review`',
+        'self-check with `code-review`',
+        'self-check still runs `code-review`',
+        'pass running `code-review`',
+        'runs `code-review` + `security-review`',
+        '`code-review` + `security-review` over its own diff',
+        '`code-review` + `security-review` once over its own diff',
+    ];
+
+    $violations = [];
+
+    foreach (packageTextFiles() as $relativePath => $contents) {
+        if (preg_match('#^(rules|skills|agents|docs)/.+\.md$#', $relativePath) !== 1) {
+            continue;
+        }
+
+        foreach ($claimsReviewRuns as $claim) {
+            if (str_contains($contents, $claim)) {
+                $violations[] = $relativePath . ' — "' . $claim . '"';
+            }
+        }
+    }
+
+    expect($violations)->toBe([]);
+});
+
+test('hephaestus points at the lightweight self-check and nothing else', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    // The agent must defer to the skill that owns the pass, and the deferral must be visibly
+    // consistent with the "never review your own work" boundary stated above it.
+    expect($hephaestus)->toContain('**lightweight pre-PR self-check**');
+    expect($hephaestus)->toContain('it runs **no** review skill over your diff');
+    expect($hephaestus)->toContain('never review your own work');
+
+    // An unregistered athena must not silently promote the implementer into the reviewer's place.
+    expect($daedalus)->toContain('athena is not registered — no pre-implementation security analysis runs');
+    expect($daedalus)->toContain('**Do not route the analysis into `hephaestus` instead:**');
+});
