@@ -85,7 +85,7 @@ test('deterministic gates are explicitly outside the trade at every tier', funct
 
     // Savings mode predates this and claimed "the same reviewer runs" unconditionally, which a
     // FAST run makes false. The two mechanisms must be reconciled, not left contradicting.
-    expect($rule)->toContain('Savings mode and adaptive routing are orthogonal');
+    expect($rule)->toContain('Context efficiency and adaptive routing are orthogonal');
     expect($rule)->toContain('whenever the tier calls for one');
 });
 
@@ -213,7 +213,7 @@ test('no shipped surface claims the implementer reviews its own diff', function 
 test('hephaestus points at the lightweight self-check and nothing else', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $daedalus = daedalusContractText();
 
     // The agent must defer to the skill that owns the pass, and the deferral must be visibly
     // consistent with the "never review your own work" boundary stated above it.

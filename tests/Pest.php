@@ -780,6 +780,31 @@ function ruleExtensionFrontmatter(string $path): string
  * Reading the delegating file alone would miss a rule stated once in the shared file; reading the
  * shared file alone would miss the tracker-specific half.
  */
+/**
+ * The whole `daedalus` orchestration contract: its base prompt plus the rare
+ * procedures extracted into `skills/_shared/orchestration/`.
+ *
+ * Those procedures were moved out so the orchestrator stops carrying ~30 KB of
+ * crash-recovery and merge-preparation detail on every ordinary run (progressive
+ * disclosure). The rules themselves did not change, so a content test that pins
+ * one must keep passing — this helper is what makes "extracted" and "removed"
+ * distinguishable to the suite. It mirrors `crContractText()`, which already
+ * folds a skill's references back into the skill for the same reason.
+ */
+function daedalusContractText(): string
+{
+    $packageDir = dirname(__DIR__);
+    $text = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+
+    $references = glob($packageDir . '/skills/_shared/orchestration/*.md');
+
+    foreach ($references === false ? [] : $references as $reference) {
+        $text .= "\n" . (string) file_get_contents($reference);
+    }
+
+    return $text;
+}
+
 function crContractText(string $path): string
 {
     $packageDir = dirname(__DIR__);

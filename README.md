@@ -242,11 +242,33 @@ Every `daedalus` run classifies the task before it dispatches anything, using `s
 - Every decision is recorded, so *"why was `athena` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
 - The classifier is a shell script and the tiers are roles rather than model names, so Codex / OpenAI sessions route identically; `codex/agents/*.toml` binds the tiers to that platform's model controls.
 
+**Deterministic work no longer buys a model.** Validation, route planning, and the routine completion report are scripts, and an LLM is the escalation path for each:
+
+| Stage | Helper | A model runs only when |
+|-------|--------|------------------------|
+| Validation | `run-validation.sh` | a check failed and needs interpreting, or the manifest was invalid or refused |
+| Route planning | `plan-route.sh` | never — the plan is the tier's stage list |
+| Completion report | `render-report.sh` | the audience needs real writing (announcement, changelog prose, a language the renderer does not carry) |
+
+The implementer writes a **validation manifest** naming the commands that cover its own diff; the runner executes them without a shell, against an allow-list of project-local tools, and returns a verdict with an explicit `escalate` field. A `FAST` task therefore completes with **one** specialist dispatch.
+
+Agent handoffs are structured and bounded (`check-handoff.sh`): they carry decisions and artifact paths, never diffs or test output, so a long review loop stops re-tokenising the same evidence at every round.
+
 Override it when you disagree: ask for **thorough mode** (or `--thorough`) to run the complete pipeline regardless of the classification, or name a tier directly with `--fast` / `--standard` / `--critical`. An escalating override always applies; a de-escalating one is refused when a sensitive area forced the tier, and the refusal is reported rather than silent.
 
-Ask `daedalus` explicitly for **savings mode** to reduce repeated context gathering. It keeps the same PR/review/feedback artifacts, just less duplicate context re-derivation. This mode is off by default, and it is orthogonal to the tier above: routing decides *which* stages run, savings mode decides how cheaply the stages that do run reach their result.
+**Context-efficient orchestration is on by default and has no flag.** The run assembles each stage's context from a small manifest rather than re-deriving it, executes the route plan instead of re-reasoning about the workflow, and passes scoped context rather than the accumulated history. It is orthogonal to the tier above: routing decides *which* stages run, context efficiency decides how cheaply the ones that do run reach their result. Ask for **verbose orchestration** (`--verbose-orchestration`) only to debug a routing decision — it adds narration, never a check.
 
-Role boundaries, handoffs, adaptive routing, savings mode, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
+### Measuring the routing decisions
+
+Each completed run appends **counts only** to a local store outside the repository — tier, outcome, dispatches, escalations, review rounds, finding counts. No source, diffs, prompts, issue text, branch names, or URLs are ever written.
+
+```bash
+vendor/bin/ai-olympus stats --last=7d
+```
+
+The summary answers the questions a single run cannot: how often `FAST` runs escalate (the tier is routing real work past the review), how often reviews find nothing (the tier is buying a pass that changes no outcome), and how often the expensive model tier is used. Token counts appear only where the runtime reports them — an absent number rather than an estimated one.
+
+Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
 ## Skill Catalog
 

@@ -21,6 +21,10 @@ final class Installer
                 return self::showHelp();
             }
 
+            if ($command === 'stats') {
+                return MetricsCommand::run($normalizedArgv);
+            }
+
             if ($command !== 'install') {
                 fwrite(STDERR, sprintf('Unknown command: %s%s', $command, PHP_EOL));
 
@@ -64,8 +68,10 @@ final class Installer
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
         echo "                                 [--disable-co-author-attribution]\n\n";
+        echo "  vendor/bin/ai-olympus stats [--last=7d|30d|all]\n\n";
         echo "Commands:\n";
-        echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n\n";
+        echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n";
+        echo "  stats                   Summarise local orchestration metrics (tiers, dispatches, escalations).\n\n";
         self::showInstallOptions();
 
         return 0;

@@ -167,6 +167,11 @@
       "bash skills/_shared/assert-current-repo.sh --self-test",
       "bash skills/_shared/scan-attachments.sh --self-test",
       "bash skills/_shared/classify-risk.sh --self-test",
+      "bash skills/_shared/run-validation.sh --self-test",
+      "bash skills/_shared/plan-route.sh --self-test",
+      "bash skills/_shared/check-handoff.sh --self-test",
+      "bash skills/_shared/render-report.sh --self-test",
+      "bash skills/_shared/record-metrics.sh --self-test",
       "bash skills/_shared/browser-drive.sh --self-test",
       "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test",
       "bash skills/code-review-bugsnag/scripts/load-issue.sh --self-test"
