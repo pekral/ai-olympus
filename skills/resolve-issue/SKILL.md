@@ -130,7 +130,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 8. Write or update a test that reproduces the bug (the failing test). Follow the RED step in `@skills/test-driven-development/SKILL.md`.
 9. **Verify RED** — run the test and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not proceed to the fix until the test is observed failing.** This step is mandatory and blocking.
-10. Apply the fix (GREEN step) — write the smallest production change that makes the test pass, then verify all relevant tests pass.
+10. Apply the fix (GREEN step) — write the smallest production change that makes the test pass, then verify all relevant tests pass. Then repair the records the defect already wrote — after this fix, never before (`references/data-repair.md`).
 
 ### If feature
 8. Design a minimal implementation aligned with project architecture.
@@ -227,6 +227,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 - references/comment-analysis.md
 - references/pre-pr-self-check.md
 - references/quality-gates.md
+- references/data-repair.md
 - references/deferred-follow-up.md
 - references/pre-existing-issue-handling.md
 - references/security-remediation-checklist.md
@@ -235,7 +236,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 
 ## Done when
 - The issue is fully addressed
-- Behavior is correct and stable
+- Behavior is correct and stable, and records the defect already wrote are repaired, filed, or stated disposable (`references/data-repair.md`)
 - Tests cover affected logic with 100% coverage and pass
 - Fixers and checkers are **not** run in this skill — the project's full gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*)
 - No sensitive data is exposed

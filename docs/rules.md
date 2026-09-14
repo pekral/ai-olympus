@@ -27,7 +27,7 @@ before any language- or framework-specific rule has a say.
 | Rule | What it governs | Scope |
 |---|---|---|
 | [`general/general.md`](../rules/general/general.md) | Project context and default agent behavior — the baseline every run follows | Always |
-| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; read the per-project compound memory; tracker claim, status, and linking invariants | Always |
+| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; read the per-project compound memory; fix the cause before repairing the data it wrote; tracker claim, status, and linking invariants | Always |
 | [`git/general.md`](../rules/git/general.md) | Git workflow, commit shape, pull requests, and the merge gate | Always |
 | [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Always |
 | [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Always |
