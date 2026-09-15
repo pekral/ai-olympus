@@ -18,6 +18,11 @@
 #
 #   --tier <t>                 the classifier's verdict (required)
 #   --thorough                 run the complete pipeline regardless of the tier
+#   --hotfix                   the caller declared a production emergency: the
+#                              review stage runs in its narrowed `review_hotfix`
+#                              mode and the plan records `"hotfix": true`. It
+#                              never changes the tier, so a sensitive-area force
+#                              still buys every stage it would otherwise buy.
 #   --security-analysis        the task carries a cyber-security question, so the
 #                              pre-implementation analysis stage applies
 #   --runtime-acceptance       the change alters behaviour a user can observe
@@ -57,7 +62,7 @@ PROG="${0##*/}"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: plan-route.sh --tier <FAST|STANDARD|CRITICAL> [--thorough]
+Usage: plan-route.sh --tier <FAST|STANDARD|CRITICAL> [--thorough] [--hotfix]
                      [--security-analysis] [--runtime-acceptance]
                      [--escalated-from <tier>] [--tracker <yes|no>]
        plan-route.sh --self-test
@@ -99,7 +104,7 @@ stage_deterministic() {
 }
 
 plan() {
-  local tier="" thorough=0 security=0 runtime=0 escalated_from="" tracker="yes"
+  local tier="" thorough=0 hotfix=0 security=0 runtime=0 escalated_from="" tracker="yes"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -113,6 +118,10 @@ plan() {
       ;;
     --thorough)
       thorough=1
+      shift
+      ;;
+    --hotfix)
+      hotfix=1
       shift
       ;;
     --security-analysis)
@@ -161,6 +170,12 @@ plan() {
   local model_tier="default"
   [[ "$tier" == "CRITICAL" ]] && model_tier="escalated"
 
+  # A declared hotfix narrows what the reviewer reports; it never removes the
+  # reviewer, and it never moves the tier. The mode travels in the plan so the
+  # dispatch cannot forget it and cannot invent it.
+  local review_mode="review"
+  [[ "$hotfix" -eq 1 ]] && review_mode="review_hotfix"
+
   STAGES=()
 
   # --- Re-entry after a post-implementation escalation -----------------------
@@ -175,11 +190,11 @@ plan() {
       STAGES=()
     else
       [[ "$tier" == "CRITICAL" ]] && stage_deterministic deterministic_validation pre_review
-      stage_agent athena review "$model_tier"
+      stage_agent athena "$review_mode" "$model_tier"
       stage_deterministic deterministic_validation scoped
       [[ "$runtime" -eq 1 && "$tier" == "CRITICAL" ]] && stage_agent argus acceptance default
     fi
-    emit "$tier" "$thorough" "$escalated_from"
+    emit "$tier" "$thorough" "$escalated_from" "$hotfix"
     return 0
   fi
 
@@ -199,7 +214,7 @@ plan() {
   fi
 
   if [[ "$tier" != "FAST" ]]; then
-    stage_agent athena review "$model_tier"
+    stage_agent athena "$review_mode" "$model_tier"
   fi
 
   # Every tier validates, FAST included: it is the tier's only gate, so it is
@@ -214,16 +229,17 @@ plan() {
     stage_deterministic deterministic_reporting completion
   fi
 
-  emit "$tier" "$thorough" ""
+  emit "$tier" "$thorough" "" "$hotfix"
   return 0
 }
 
 emit() {
-  local tier="$1" thorough="$2" escalated_from="$3" first=1 stage
+  local tier="$1" thorough="$2" escalated_from="$3" hotfix="${4:-0}" first=1 stage
 
   printf '{\n'
   printf '  "tier": "%s",\n' "$tier"
   printf '  "thorough": %s,\n' "$([[ "$thorough" -eq 1 ]] && printf 'true' || printf 'false')"
+  printf '  "hotfix": %s,\n' "$([[ "$hotfix" -eq 1 ]] && printf 'true' || printf 'false')"
   if [[ -n "$escalated_from" ]]; then
     printf '  "escalated_from": "%s",\n' "$escalated_from"
   else
@@ -258,6 +274,24 @@ self_test() {
     actual="$(printf '%s' "$out" | jq -r '[.stages[] | if .type == "agent" then "\(.role):\(.mode):\(.model_tier)" else .type + ":" + .mode end] | join(" -> ")')"
     if [[ "$actual" != "$expected" ]]; then
       printf 'FAIL  %-52s\n  expected %s\n  got      %s\n' "$label" "$expected" "$actual" >&2
+      failures=$((failures + 1))
+      return 0
+    fi
+    printf 'ok    %-52s %s\n' "$label" "$actual"
+  }
+
+  expect_field() {
+    local label="$1" expected="$2" filter="$3"
+    shift 3
+    local out actual
+    if ! out="$("$script" "$@" 2>&1)"; then
+      printf 'FAIL  %-52s script exited non-zero: %s\n' "$label" "$out" >&2
+      failures=$((failures + 1))
+      return 0
+    fi
+    actual="$(printf '%s' "$out" | jq -r "$filter")"
+    if [[ "$actual" != "$expected" ]]; then
+      printf 'FAIL  %-52s expected %s, got %s\n' "$label" "$expected" "$actual" >&2
       failures=$((failures + 1))
       return 0
     fi
@@ -328,6 +362,25 @@ self_test() {
     --tier CRITICAL --escalated-from FAST
   expect_sequence 'an unchanged tier owes nothing' '' --tier STANDARD --escalated-from STANDARD
   expect_sequence 'a tier cannot be lowered by re-classification' '' --tier FAST --escalated-from CRITICAL
+
+  # --- HOTFIX ----------------------------------------------------------------
+  #
+  # The mode narrows what the reviewer reports. A plan that dropped the reviewer
+  # instead would ship an unreviewed emergency change, which is the opposite of
+  # what the mode trades.
+  expect_sequence '--hotfix narrows the review instead of removing it' \
+    "$IMPL -> $RECLASS -> athena:review_hotfix:default -> $VALIDATE -> $REPORT" \
+    --tier STANDARD --hotfix
+
+  expect_sequence '--hotfix never lowers a CRITICAL tier' \
+    "hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review_hotfix:escalated -> $VALIDATE -> $REPORT" \
+    --tier CRITICAL --hotfix
+
+  expect_sequence '--hotfix carries into a post-implementation escalation' \
+    "athena:review_hotfix:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --hotfix
+
+  expect_field '--hotfix is recorded in the plan' 'true' '.hotfix' --tier STANDARD --hotfix
+  expect_field 'an ordinary run records no hotfix' 'false' '.hotfix' --tier STANDARD
 
   # --- Usage -----------------------------------------------------------------
   expect_exit 'a missing tier is a usage error' 1

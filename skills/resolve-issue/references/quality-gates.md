@@ -14,6 +14,14 @@ When neither works, **stop and report it** — state what the checker flags, wha
 
 If both fixers and checkers fail or are not found, stop and inform the user.
 
+## HOTFIX — what the mode relaxes here
+
+A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path*). The mode waives the coverage gates and nothing else; it is declared by the caller and never inferred from how urgent the assignment sounds.
+
+- **Step 3 does not block.** Run the coverage command when one exists, record the figure, and proceed even when it falls short. Steps 1 and 2 are untouched — a fixer rewrite, a checker error, a static-analysis error, and a failing test all block a hotfix exactly as they block any other change, because a hotfix that breaks the default branch is a second outage.
+- **The reproduction stays; the committed test becomes optional.** `@skills/resolve-issue/SKILL.md` *If bug* requires a failing test before the fix. Under HOTFIX that relaxes to: observe the failure before the fix and its absence after, by whatever is fastest — a test, a one-off script, or the running application — and state which was used in the handoff and the pull request.
+- **Write the regression test when it is cheap.** When it is not, say so in the pull request, so the gap is visible rather than assumed. Everything else in the bug branch is unchanged, the data repair included.
+
 ## Gate placement — deferred to the merge boundary (issue #65, revised)
 
 A branch used to run the project's full build several times: once per implementation phase, once before the PR opened, and once per review-loop iteration. Every one of those runs proved the same thing the next one would prove again, and on a larger task the repeated full builds dominated the wall-clock cost of delivering the change. The gate now runs **once, immediately before the merge**, and the fixes it produces land as their own commit.

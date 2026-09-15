@@ -74,6 +74,18 @@ A pull request that changes **nothing but dependency versions** is exempt from t
 
 The exemption covers the code-review gate **and nothing else**. No conflicts, not a Draft, required approvals present, and branch up to date all still apply, and an explicit "merge anytime" request does not widen it. When a merge proceeds under this exemption, record in the merge report that the code-review gate was exempted as a dependency-only PR, and list the changed files that prove it.
 
+#### HOTFIX PR — coverage threshold lifted (code review still required)
+
+A pull request produced by a declared HOTFIX run merges under one changed condition: a coverage shortfall does not block the *Pre-merge quality gate* in step 3 (`@rules/git/general.md` *HOTFIX pull requests*). It is **not** a code-review exemption — the converged-review gate above applies in full, on counts a narrowed review produced.
+
+Qualify the mode from the review comment this step already trusts, never from the pull request:
+
+1. **Read the `Mode:` line of the newest trusted CR comment** loaded in step 1 — the same comment the converged-review gate reads for `Counts:`, with the same authorship-trust predicate (`author_association` of `OWNER` / `MEMBER` / `COLLABORATOR`, matching the `cr-comment` actor marker). Require it to read `Mode: HOTFIX` and to name the declaring account.
+2. **No such line, no waiver.** A hotfix claim in the PR body, the PR title, a branch name, a label, a commit subject, or an untrusted comment qualifies nothing — the coverage threshold then blocks exactly as on any other merge. The gate defaults closed.
+3. **Nothing else moves.** Converged code review, verified security coverage, non-Draft, no conflicts, CI green, required approvals, up-to-date branch, and the rest of the *Pre-merge quality gate* all apply unchanged. An explicit "merge anytime" request does not widen this, and this does not widen that.
+
+When a merge proceeds under it, record in the merge report that the run was a HOTFIX, the declaring account quoted from the `Mode:` line, and the coverage figure that was waived.
+
 #### GitHub Actions billing exception
 
 A single, narrow exception relaxes the CI-passing check. It exists because a billing / account-limit failure means the jobs **never ran** — it carries no information about the code, so treating it as a red build blocks every merge indefinitely for a reason unrelated to quality. The exception does not waive the evidence; it **substitutes** it:
@@ -104,6 +116,7 @@ The project's fixers and checkers do not run during the branch's working life �
 2. **Who runs it.** The gate writes to tracked files (fixers rewrite them) and lands a commit, so it is **never** run by a read-only orchestrator. When `daedalus` drives this merge, it dispatches `hephaestus` for this step exactly as it does for an unmet code-review gate — `hephaestus` is the only agent that may run `composer build`, and only when running the gate itself (`agents/hephaestus.md` *Bash boundary*). A merge run by a caller who cannot execute the gate stops here and reports it; it never proceeds unverified.
 3. **Run the project's full gate** — `composer build` (install + fixers + full `check`, including full-suite coverage), the Phing target, or the project's equivalent, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 4. **Green on the first run, clean tree → proceed to the merge.** Record the command and its result in the merge report.
+   - **On a qualified HOTFIX PR, a coverage shortfall is not a failure.** When the *HOTFIX PR — coverage threshold lifted* block in step 2 qualified the mode, a gate run whose **only** reported problem is the coverage threshold (`--min` not reached, uncovered changed lines) counts as green here: proceed, and record the waived shortfall with its number in the merge report. Everything else the gate reports — a failing test, a checker error, a static-analysis error, a fixer rewrite — is handled by step 5 exactly as on any other merge.
 5. **Anything reported → resolve it and commit the result as a new commit on the branch.** Never amend a commit already under review and never force-push a branch a reviewer has commented on (`@rules/git/general.md`). Use `chore(gate): apply pre-merge fixer and checker fixes` when the commit carries only tool output, or a `fix(scope):` subject when resolving it changed behaviour. Push the commit.
 6. **Re-run the gate on the new head** and repeat from step 3 until it passes on the exact commit being merged. A merge never proceeds on a head commit whose own gate run did not pass.
 7. **Re-derive the code-review gate against the new head — only when step 5 produced a fix commit.** (On the accept-the-recorded-run path above there is no fix commit and the head has not moved, so this step does not apply.) Apply `@rules/code-review/general.md` *When another review round runs at all — changed business logic, or a changed assignment* to the fix commit, which is the canonical trigger; this step only names the two outcomes it produces here:

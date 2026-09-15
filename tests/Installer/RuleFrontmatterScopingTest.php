@@ -312,7 +312,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined once more, with `rules/jira/general.md`: the JIRA comment marker carries a
         // digest of the account e-mail instead of the address, because that line is visible to
         // everyone who can browse the issue. Nothing else in either file moved.
-        'rules/code-review/general.md' => 'd64ae9a153827e9fb81b9a41f5058870a751e9596cf47881ae509b2c2c544b70',
+        // Re-baselined: the file gained `## HOTFIX runs — a narrowed review, declared on the
+        // comment` — the two questions the narrowed review still answers, the security carve-out
+        // that is never narrowed with them, and the `Mode:` header line the merge gate reads as
+        // the mode's only trusted evidence. Nothing else in the file moved.
+        'rules/code-review/general.md' => '1a99a88557b691d7fa105428945cfdafaf7ebe9cc7e97bd05f1a00a6febdf818',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
