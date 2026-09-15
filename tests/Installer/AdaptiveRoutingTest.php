@@ -89,14 +89,20 @@ test('deterministic gates are explicitly outside the trade at every tier', funct
     expect($rule)->toContain('whenever the tier calls for one');
 });
 
-test('the implementer and the reviewer run at the default model tier', function (): void {
+test('the implementer runs at the default model tier and the reviewer carries the escalated one', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Default-tier-first is the saving. A role permanently pinned to the expensive model pays for it
-    // on a README typo, which is exactly the fixed overhead adaptive routing exists to remove.
+    // Default-tier-first is the saving, and the implementer keeps it: a role permanently pinned to
+    // the expensive model pays for it on a README typo, which is the fixed overhead adaptive
+    // routing exists to remove. `athena` is the operator's deliberate exception — the reviewer is
+    // the one role whose shallow pass costs a round for every stage downstream, so this roster buys
+    // the stronger model outright instead of escalating into it. The escalation contract itself is
+    // unchanged on both, which is what the three pins below assert.
+    expect(file_get_contents($packageDir . '/agents/hephaestus.md'))->toContain("\nmodel: sonnet\n");
+    expect(file_get_contents($packageDir . '/agents/athena.md'))->toContain("\nmodel: opus\n");
+
     foreach (['hephaestus', 'athena'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-        expect($content)->toContain("\nmodel: sonnet\n");
         expect($content)->toContain('## Model tier — the default tier, escalated only on a recorded reason');
         expect($content)->toContain('Blocked: needs model escalation');
 
@@ -126,11 +132,19 @@ test('the routing contract binds to OpenAI / Codex, not only to Claude Code', fu
 test('every agent declares its own model tiers, per platform, in its own definition', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Claude Code: the frontmatter plus the tier daedalus dispatches at.
+    // Claude Code: the frontmatter plus the tier daedalus dispatches at. `hephaestus` carries both
+    // tiers; `athena` was raised to the stronger model outright, so it declares that there is no
+    // higher tier left to escalate to on this platform rather than naming one that does not exist.
+    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
+    expect($hephaestus)->toContain('**On Claude Code:** default tier `sonnet`');
+    expect($hephaestus)->toContain('Escalated tier `opus`');
+
+    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    expect($athena)->toContain('**On Claude Code:** default tier `opus`');
+    expect($athena)->toContain('no higher tier to escalate to on this platform');
+
     foreach (['hephaestus', 'athena'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-        expect($content)->toContain('**On Claude Code:** default tier `sonnet`');
-        expect($content)->toContain('Escalated tier `opus`');
         expect($content)->toContain('codex/agents/' . $agent . '.toml` declares both');
     }
 

@@ -310,8 +310,9 @@ test('agents directory ships the athena security-CR subagent with required front
     $content = (string) file_get_contents($agentPath);
     expect($content)->toContain('name: athena');
     expect($content)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
-    // Sonnet by default, escalated to opus per dispatch on a CRITICAL tier or a recorded reason.
-    expect($content)->toContain('model: sonnet');
+    // Opus by operator decision: the reviewer's mistakes cost every stage downstream, so this
+    // roster pays for the stronger model here rather than escalating into it per dispatch.
+    expect($content)->toContain('model: opus');
     expect($content)->toContain('@skills/security-review/SKILL.md');
     expect($content)->toContain('@skills/laravel-security/SKILL.md');
     expect($content)->toContain('@skills/security-bounty-hunter/SKILL.md');
@@ -567,17 +568,18 @@ test(
     function (): void {
         $packageDir = dirname(__DIR__, 2);
 
-        // Effort is set per agent by what the role actually decides. `daedalus` routes the whole
-        // run and `athena` is the roster's single reviewer, so a shallow pass there costs a round
-        // for everybody downstream — both stay at `high`. The three that execute against an
-        // already-decided brief run at `medium`. `max` was dropped from the whole roster in issue
-        // #179 and never came back.
+        // Effort is set per agent by what the role actually decides. `athena` is the roster's
+        // single reviewer, so a shallow pass there costs a round for everybody downstream — it
+        // stays at `high`. The roles that execute against an already-decided brief run at
+        // `medium`, and `hermes` at `low`: it composes prose from evidence other agents already
+        // produced and derives no fact of its own. `max` was dropped from the whole roster in
+        // issue #179 and never came back.
         $expected = [
             'argus' => 'medium',
             'athena' => 'high',
-            'daedalus' => 'high',
+            'daedalus' => 'medium',
             'hephaestus' => 'medium',
-            'hermes' => 'medium',
+            'hermes' => 'low',
         ];
 
         $globResult = glob($packageDir . '/agents/*.md');
@@ -603,7 +605,7 @@ test(
 
         // The anatomy doc must document the same levels the roster ships.
         $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-        expect($docs)->toContain('`hephaestus`, `argus` and `hermes` run at `medium`');
+        expect($docs)->toContain('`hephaestus`, `argus` and `daedalus` run at `medium`, and `hermes` at `low`');
         expect($docs)->not->toContain('set to `max` on every agent');
         expect($docs)->not->toContain('set to `high` on every agent');
     },
