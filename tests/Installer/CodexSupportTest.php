@@ -35,7 +35,7 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         // whatever the session happened to be configured with — the opposite of "declared per
         // platform in the agent's own definition". The prose block below the keys states the same
         // two values, so a future edit cannot move one without the other.
-        expect($content)->toMatch('/^model = "(sol|luna|terra)"$/m');
+        expect($content)->toMatch('/^model = "(sol|luna|terra|astra)"$/m');
         expect($content)->toMatch('/^model_reasoning_effort = "(low|medium|high)"$/m');
     }
 });

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="AI Olympus — five AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
+  <img src="assets/logo.png" alt="AI Olympus — six AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
 
 <h1>AI Olympus — An AI Development Team for Laravel</h1>
 
@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 56 reusable skills, and five specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 56 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 ## Requirements
 
@@ -87,7 +87,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 56 skills, the five agents, and the `/prepare-issue-for-merge` command. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
+That loads all 56 skills, the six agents, and the `/prepare-issue-for-merge` command. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -96,9 +96,9 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project for **Claude Code and Codex**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the five subagents)
+- `.claude/agents` (the six subagents)
 - `CLAUDE.md` in the project root
-- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the five custom-agent adapters)
+- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
 - `.claude/commands` (the `/prepare-issue-for-merge` slash command; Codex reaches the same workflow as `$verify-merge-readiness`)
 - `AGENTS.md` in the project root
@@ -136,6 +136,18 @@ Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role
 Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `athena`, and final tracker reporting belongs to `hermes`. An explicitly requested merge must use the separate `merge-github-pr` skill.
 
 **Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/apollo.png"><img src="assets/agents/thumbnails/apollo.jpg" alt="apollo avatar" width="80"></a></td>
+<td valign="top">
+
+**`apollo` — page redesigner** · writes only its own proposal
+
+Redesigns an existing page around the operator who works in it — a warehouse, workshop, or shop-floor worker who is not an IT person and needs the order out. It maps every state the main screenshot hides, lays the content region out against that operator's task sequence, and hands back a developer-ready specification with one rendered preview per state. The application's main layout shell is never touched without an explicit order, and it proposes rather than implements: it holds no `Edit` tool, so no file the application ships is changeable by it. Its portrait is the universal placeholder until custom artwork exists.
+
+**Orchestrates:** `page-redesign`
 
 </td>
 </tr>

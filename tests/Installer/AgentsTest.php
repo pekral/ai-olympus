@@ -575,6 +575,7 @@ test(
         // produced and derives no fact of its own. `max` was dropped from the whole roster in
         // issue #179 and never came back.
         $expected = [
+            'apollo' => 'medium',
             'argus' => 'medium',
             'athena' => 'high',
             'daedalus' => 'medium',
