@@ -1,5 +1,8 @@
 name = "daedalus"
 description = "Front-door orchestrator that routes a request to the AI Olympus specialists and coordinates the issue-to-reviewed-PR workflow."
+model = "sol"
+model_reasoning_effort = "medium"
+
 developer_instructions = """
 First read `.codex/agent-instructions/daedalus.md` in full and follow it as your authoritative role definition.
 
@@ -15,7 +18,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
 - This role performs orchestration and routing only — it never analyses, implements, or reviews.
-- Default tier: the session's configured model at its normal reasoning effort.
+- Default tier: `sol` at `medium` reasoning effort — the `model` and `model_reasoning_effort` keys above are the binding declaration; this line states the same values so the file cannot disagree with itself.
 - Escalated tier: none — no step this role performs turns on reasoning depth, so it never escalates itself.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.
 

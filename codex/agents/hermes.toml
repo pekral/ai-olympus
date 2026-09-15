@@ -1,5 +1,8 @@
 name = "hermes"
 description = "Publishing specialist that prepares announcements and owns the post-convergence what-changed and how-to-test report."
+model = "luna"
+model_reasoning_effort = "medium"
+
 developer_instructions = """
 First read `.codex/agent-instructions/hermes.md` in full and follow it as your authoritative role definition.
 
@@ -14,7 +17,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
 - This role performs composing and publishing reports from evidence other agents produced.
-- Default tier: the session's configured model at its normal reasoning effort.
+- Default tier: `luna` at `medium` reasoning effort — the `model` and `model_reasoning_effort` keys above are the binding declaration; this line states the same values so the file cannot disagree with itself.
 - Escalated tier: none — this role derives no new fact, so it never escalates.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.
 
