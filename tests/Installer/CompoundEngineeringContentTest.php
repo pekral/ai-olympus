@@ -1141,6 +1141,31 @@ test('athena and the deferred-follow-up procedure both route filing through the 
     expect($athena)->not->toContain('it is a must-file');
 });
 
+test('an EPIC tree is never created without a human approving the confirmation package', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // A subject too broad for one PR is an ask for a plan. A tree of issues is a structure somebody
+    // then has to own, re-triage, and close, so it takes an explicit approval rather than inheriting
+    // the original request's consent.
+    expect($backlog)->toContain('**An EPIC tree is never created without a human\'s approval — propose it first, and stop.**');
+    expect($backlog)->toContain('**Silence is not approval, and neither is the original request.**');
+    expect($skill)->toContain('**A human approves the tree before any of it is created (L2).**');
+
+    // The consent inventory splits the two cases rather than covering both with the flat-list row.
+    expect($orchestration)->toContain('Create an **EPIC parent with sub-issues** | L2 |');
+    expect($orchestration)->toContain('Create a **flat** set of tracker issues');
+
+    // The orchestrator stops with a status that says what it is waiting for.
+    expect($backlog)->toContain('`Breakdown proposed — awaiting approval`');
+    expect(daedalusContractText())->toContain('**When the split is an EPIC parent with sub-issues, create nothing until a human approves it**');
+
+    // A flat list keeps its existing consent — the gate is about the tree, not about issue creation.
+    expect($backlog)->toContain('so a **flat** set of peer issues opened under this mode is pre-approved (**L1**)');
+});
+
 test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
