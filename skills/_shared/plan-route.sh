@@ -25,6 +25,10 @@
 #                              still buys every stage it would otherwise buy.
 #   --security-analysis        the task carries a cyber-security question, so the
 #                              pre-implementation analysis stage applies
+#   --redesign                 the task asks for a page redesign, so `apollo`
+#                              produces the layout specification the implementer
+#                              then builds. Tier-independent by design: a
+#                              redesign is a kind of work, not a level of risk.
 #   --runtime-acceptance       the change alters behaviour a user can observe
 #   --escalated-from <tier>    a post-implementation re-classification raised the
 #                              tier from this one; emits the stages the earlier
@@ -63,7 +67,7 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: plan-route.sh --tier <FAST|STANDARD|CRITICAL> [--thorough] [--hotfix]
-                     [--security-analysis] [--runtime-acceptance]
+                     [--security-analysis] [--redesign] [--runtime-acceptance]
                      [--escalated-from <tier>] [--tracker <yes|no>]
        plan-route.sh --self-test
 
@@ -104,7 +108,7 @@ stage_deterministic() {
 }
 
 plan() {
-  local tier="" thorough=0 hotfix=0 security=0 runtime=0 escalated_from="" tracker="yes"
+  local tier="" thorough=0 hotfix=0 security=0 redesign=0 runtime=0 escalated_from="" tracker="yes"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -126,6 +130,10 @@ plan() {
       ;;
     --security-analysis)
       security=1
+      shift
+      ;;
+    --redesign)
+      redesign=1
       shift
       ;;
     --runtime-acceptance)
@@ -201,6 +209,13 @@ plan() {
   # --- The normal plan -------------------------------------------------------
   if [[ "$security" -eq 1 && "$tier" == "CRITICAL" ]]; then
     stage_agent athena security_analysis "$model_tier"
+  fi
+
+  # The redesign produces the specification the implementation builds from, so it
+  # sits before `hephaestus` for the same reason the security analysis does. It is
+  # not gated on the tier: a page can need a redesign at any level of risk.
+  if [[ "$redesign" -eq 1 ]]; then
+    stage_agent apollo redesign default
   fi
 
   stage_agent hephaestus implementation "$model_tier"
@@ -362,6 +377,28 @@ self_test() {
     --tier CRITICAL --escalated-from FAST
   expect_sequence 'an unchanged tier owes nothing' '' --tier STANDARD --escalated-from STANDARD
   expect_sequence 'a tier cannot be lowered by re-classification' '' --tier FAST --escalated-from CRITICAL
+
+  # --- Redesign --------------------------------------------------------------
+  #
+  # The specification has to exist before the code that implements it, and the
+  # need for one is a property of the task rather than of its risk — so the stage
+  # appears at every tier, always ahead of the implementer.
+  expect_sequence '--redesign designs before it implements' \
+    "apollo:redesign:default -> $IMPL -> $RECLASS -> athena:review:default -> $VALIDATE -> $REPORT" \
+    --tier STANDARD --redesign
+
+  expect_sequence '--redesign applies on FAST too' \
+    "apollo:redesign:default -> $IMPL -> $RECLASS -> $VALIDATE -> $REPORT" --tier FAST --redesign
+
+  expect_sequence 'a CRITICAL redesign still analyses security first' \
+    "athena:security_analysis:escalated -> apollo:redesign:default -> hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> $REPORT" \
+    --tier CRITICAL --security-analysis --redesign
+
+  # A re-classification owes the stages the lower tier skipped. The redesign is not
+  # one of them: it already ran, and replaying it would redo the work and hand the
+  # implementer a second, competing specification.
+  expect_sequence 'an escalation never replays the redesign' \
+    "athena:review:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --redesign
 
   # --- HOTFIX ----------------------------------------------------------------
   #

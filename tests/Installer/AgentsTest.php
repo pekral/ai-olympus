@@ -360,44 +360,37 @@ test('athena scopes every review pass to the current diff only (issue #179)', fu
     expect($content)->toContain('each round re-reads a diff, not a repository');
 });
 
-test('athena files out-of-scope findings as issues on the resolved tracker (issue #179)', function (): void {
+test('athena hands a critical pre-existing problem over instead of filing it itself', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $daedalus = daedalusContractText();
 
-    expect($content)->toContain('9. **File the out-of-scope findings that must be worked on as tracker issues.**');
-    // Reuse the existing skill rather than re-implementing issue formatting / labelling.
-    expect($content)->toContain('@skills/create-issue/SKILL.md');
+    // The review is about the assignment and the diff that fulfils it. A defect that predates the
+    // change is not its subject, so athena reports the Critical ones and files nothing at all —
+    // one agent decides what enters the backlog instead of every reviewer queueing work.
+    expect($content)->toContain('9. **Hand a critical pre-existing problem to the agent that files issues — file nothing yourself.**');
+    expect($content)->toContain('**What you hand over — Critical only.**');
+    expect($content)->toContain('**You never call an issue-creation skill or `gh issue create` yourself.**');
+    expect($content)->toContain('**Who decides, and who files.**');
 
-    // Only out-of-scope items are deferred; an in-scope finding is still fixed in this PR and still
-    // counts toward the convergence gate.
-    expect($content)->toContain('never deferred to a new issue, and the convergence gate still counts it');
+    // The decision, and the right to drop the item, belong to daedalus.
+    expect($daedalus)->toContain('**You decide what happens to the critical pre-existing problems `athena` hands back.**');
+    expect($daedalus)->toContain('**Judge the severity yourself**');
+    expect($daedalus)->toContain('**File it, or drop it.**');
+    expect($daedalus)->toContain('@skills/create-issue/SKILL.md');
 
-    // The destination is the tracker the source resolved to, never a hardcoded channel.
-    expect($content)->toContain('**Where it is filed — the tracker the source resolved to.**');
-    expect($content)->toContain('**source you detected in step 2**');
-    expect($content)->toContain('no resolvable source');
-
-    // Filed once per run, not once per loop iteration, and deduplicated against already-open issues.
-    expect($content)->toContain('**Once per run, and never a duplicate.**');
-    expect($content)->toContain('**Never** per loop iteration');
-    // In a loop-driven run the single publication is the one step 10 performs at convergence, since
-    // the earlier iterations run quiet -- naming that moment is what makes "once per run" actionable.
-    expect($content)->toContain('the single publication the step-10 loop performs at convergence');
-    expect($content)->toContain('already filed: <link>');
-
-    // Filing must never turn into public disclosure of an unfixed vulnerability: `code-review`
-    // routes out-of-scope SECURITY shortcomings into the same Refactoring Proposals section.
+    // Handing a vulnerability on is not the same as making it safe to publish, so the marking is
+    // mandatory on athena's side and honoured on daedalus's.
     expect($content)->toContain('**Never disclose an unfixed vulnerability on a public tracker.**');
-    expect($content)->toContain('gh repo view --json isPrivate');
-    expect($content)->toContain('is **not filed as a public issue**');
-    expect($content)->toContain('Withholding never means dropping it');
+    expect($content)->toContain('do not file publicly');
+    expect($daedalus)->toContain('**Never file an item marked `do not file publicly`**');
 
-    // Queueing follow-up work must never gate the change under review.
-    expect($content)->toContain('**A failure here never blocks the review.**');
-    expect($content)->toContain('out-of-scope filing failed: <reason>');
+    // In-scope findings are unaffected: they are fixed in this PR and still gate convergence.
+    expect($content)->toContain('A `Critical` / `Moderate` finding on a changed line is fixed in this PR');
 
     // The result is a first-class handoff field, not buried in prose.
-    expect($content)->toContain('- **Out-of-scope issues filed:**');
+    expect($content)->toContain('- **Critical out-of-scope findings:**');
+    expect($content)->toContain('- **Out-of-scope observations:**');
 });
 
 test('athena also runs a pre-implementation security-analysis mode that feeds hephaestus', function (): void {
@@ -1922,9 +1915,10 @@ test('athena subjects the security plan publication to its own disclosure guard 
     // The #212 checklist format is what makes the leak precise, so the guard has to say so.
     expect($content)->toContain('a precise, machine-readable statement that a named control is missing at a named place');
 
-    // Same visibility check as step 9 — a private tracker is not a disclosure surface. Three
-    // occurrences: step 9's rule, this step's, and the Bash boundary that permits the call.
-    expect(substr_count($content, 'gh repo view --json isPrivate'))->toBe(3);
+    // A private tracker is not a disclosure surface. Two occurrences: this step's rule, and the
+    // Bash boundary that permits the call. Step 9 lost its own — athena no longer files anything,
+    // so the visibility decision moved to `daedalus`, which is what actually creates the issue.
+    expect(substr_count($content, 'gh repo view --json isPrivate'))->toBe(2);
     expect($content)->toContain('On a **private** tracker nothing here applies — publish the plan as written');
 
     // Three routes, and the honest limit on the cheapest one.

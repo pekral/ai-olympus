@@ -1124,11 +1124,11 @@ test('athena and the deferred-follow-up procedure both route filing through the 
     $deferred = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
 
     // athena's step 9 was the package's main producer of low-value issues: it filed every
-    // Refactoring Proposals entry unconditionally.
-    expect($athena)->toContain('**What gets filed — only what clears the filing bar.**');
-    expect($athena)->toContain('only when it clears the filing bar');
-    expect($athena)->toContain('**When in doubt, do not file.**');
-    expect($athena)->toContain('withheld below the filing bar:');
+    // Refactoring Proposals entry unconditionally, then only what cleared the bar. It now files
+    // nothing at all — it hands a Critical pre-existing problem to the agent that owns the
+    // backlog, which judges it and may drop it. The bar itself did not move; the decision did.
+    expect($athena)->toContain('**What you hand over — Critical only.**');
+    expect($athena)->toContain('**You never call an issue-creation skill or `gh issue create` yourself.**');
     expect($athena)->not->toContain('Every out-of-scope item the review produced therefore also becomes an issue');
 
     // The resolve-issue side now routes every candidate through the bar, a deferred assignment item
@@ -1137,8 +1137,7 @@ test('athena and the deferred-follow-up procedure both route filing through the 
     expect($deferred)->toContain('is **ignored**: not filed, and not carried forward');
     expect($deferred)->not->toContain('is filed unconditionally');
 
-    // athena's own must-file carve-out for a deferred assignment item goes with it.
-    expect($athena)->toContain('**A deferred assignment item is filed only when the gap is critical.**');
+    // Nothing athena carries may read as a licence to file on its own authority again.
     expect($athena)->not->toContain('it is a must-file');
 });
 

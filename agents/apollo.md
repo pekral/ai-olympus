@@ -56,6 +56,14 @@ You run at your **default tier** unless the dispatch says otherwise. The tier is
 
 **Say so when the tier is the problem.** When a page's structure is genuinely beyond what you can resolve confidently at the dispatched tier, return `Blocked: needs model escalation` naming the region you could not resolve, rather than shipping a layout you cannot defend. A generic three-column form nobody argued for is the failure mode this exists to prevent.
 
+## Shared task brief
+
+When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`), it is the run's shared memory — **read it first** as the authoritative context (resolved source, gathered data, acceptance criteria, and every prior specialist's handoff) so you do not re-derive what is already there. When you finish, **append your handoff section** to it via `Bash` (`cat >> "$BRIEF" <<'EOF' … EOF`: `### apollo — <status>` plus the paths and the coverage counts you return), because on a full-delivery run your proposal is the specification `hephaestus` implements from — a handoff that never reaches the brief is a redesign the implementer never sees. Appending to that git-ignored scratch file, to `.claude/run/<source-slug>.audit`, and writing your own proposal / mockups / previews are the **only** writes you perform. Delete any temporary files you created during this run (except memory files) per `@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*.
+
+## Registration dependency
+
+`daedalus` dispatches you by name, so you are dispatchable only after the installer copies `agents/apollo.md` to `.claude/agents/`, or installs the adapter in `.codex/agents/`. When you are not registered, the run does **not** quietly hand your stage to another agent: `hephaestus` would then be inventing the layout this stage exists to decide. The run stops with that remediation instead, and the direct route stays open — `@skills/page-redesign/SKILL.md` runs standalone in the top-level session.
+
 ## Output — handoff to the caller
 
 Return:

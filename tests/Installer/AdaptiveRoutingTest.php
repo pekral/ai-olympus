@@ -111,6 +111,59 @@ test('the implementer runs at the default model tier and the reviewer carries th
     }
 });
 
+/**
+ * The agent stages of a plan, as `role:mode`, in order.
+ *
+ * @return list<string>
+ */
+function routingAgentStages(string $planJson): array
+{
+    $roles = [];
+
+    foreach ((array) decodedJsonField($planJson, 'stages') as $stage) {
+        $stage = (array) $stage;
+        $role = $stage['role'] ?? null;
+        $mode = $stage['mode'] ?? null;
+
+        if (is_string($role) && is_string($mode)) {
+            $roles[] = $role . ':' . $mode;
+        }
+    }
+
+    return $roles;
+}
+
+function routingPlan(string $args): string
+{
+    $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
+
+    return (string) shell_exec('bash ' . escapeshellarg($planner) . ' ' . $args . ' 2>/dev/null');
+}
+
+test('a page redesign is routed to apollo before the implementer, at every tier', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // The stage answers "does somebody design this page before it is built?", which is a property
+    // of the task rather than of its risk — so it is not gated on the tier, and it sits ahead of
+    // the implementer, or the implementer would be inventing the layout the stage exists to decide.
+    foreach (['FAST', 'STANDARD', 'CRITICAL'] as $tier) {
+        $roles = routingAgentStages(routingPlan('--tier ' . $tier . ' --redesign'));
+
+        expect($roles[0])->toBe('apollo:redesign');
+        expect($roles[1])->toBe('hephaestus:implementation');
+    }
+
+    // An escalation owes the stages the lower tier skipped. The redesign already ran, so replaying
+    // it would hand the implementer a second, competing specification.
+    expect(routingPlan('--tier STANDARD --escalated-from FAST --redesign'))->not->toContain('apollo');
+
+    // The orchestrator passes the flag, the rule says when, and the agent states it is dispatched.
+    expect(daedalusContractText())->toContain('Page-redesign task → design with `apollo`');
+    expect(file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
+        ->toContain('### One stage is chosen by the kind of work, not by the tier');
+    expect(file_get_contents($packageDir . '/agents/apollo.md'))->toContain('## Registration dependency');
+});
+
 test('the routing contract binds to OpenAI / Codex, not only to Claude Code', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');

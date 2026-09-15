@@ -44,7 +44,7 @@ In Codex, request the role by name:
 Use the daedalus agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`daedalus` routes implementation to `hephaestus`, review to `athena`, acceptance testing to `argus` when needed, and the final report to `hermes`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`daedalus` routes implementation to `hephaestus`, review to `athena`, a page redesign to `apollo` before anything is built, acceptance testing to `argus` when needed, and the final report to `hermes`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -169,9 +169,9 @@ Exercises changed behaviour on a local running application: APIs over HTTP and U
 
 **`daedalus` — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request security analysis before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `apollo` for a page redesign, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `hephaestus`, `athena`, `argus`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `hephaestus`, `athena`, `apollo`, `argus`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>

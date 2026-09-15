@@ -183,6 +183,15 @@ This changes **how much LLM reasoning** a run spends. It never changes which det
 
 `FAST` covers documentation, README edits, typo fixes, formatting, tests-only changes, simple configuration changes, a rename with no behaviour change, and a small isolated bug fix. `STANDARD` is the default for ordinary application and business-logic work. `CRITICAL` covers authentication, authorization, security boundaries, secrets, payments, billing, migrations, data-loss risk, concurrency, queues, locking, cache consistency, public APIs, shared or core architecture, and large refactors.
 
+### One stage is chosen by the kind of work, not by the tier
+
+The tiers above buy **depth**: how much reasoning a change is worth. One stage is orthogonal to that, because it answers a different question — *does this task need somebody to design the page before anybody builds it?*
+
+- **`apollo` runs whenever the assignment asks for a page redesign**, at `FAST`, `STANDARD`, and `CRITICAL` alike. `daedalus` passes `--redesign` to the planner, which places the stage **before** `hephaestus`: the proposal is the specification the implementation builds from, so an implementer that ran first would be inventing the layout the stage exists to decide.
+- **It composes with the security analysis rather than competing with it.** A `CRITICAL` redesign runs `athena`'s security analysis, then `apollo`'s redesign, then the implementation. Neither stage is a substitute for the other.
+- **A re-classification never replays it.** An escalation owes the stages the lower tier skipped; the redesign is not one of them, because it already ran. Replaying it would redo the work and hand the implementer a second, competing specification.
+- **A redesign with no implementation ask is an analysis-only run.** `apollo`'s proposal is then the whole deliverable and the run stops there — the same shape as a security-analysis-only run.
+
 ### The classifier is deterministic, and it is a script
 
 `skills/_shared/classify-risk.sh` decides the tier. It is a shell script, not a judgment call and not another LLM: a router that asks a model how risky a task is adds an LLM call to save LLM calls, and its answer is neither reproducible nor auditable. The script's own header owns the scoring table, the patterns, and the override precedence; that table is not restated here, so the two cannot drift apart.
