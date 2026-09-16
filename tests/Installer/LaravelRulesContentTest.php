@@ -406,10 +406,13 @@ test('laravel rules prefer a fluent collection pipeline over reassigned intermed
     expect($content)->toContain('## Collections');
     expect($content)->toContain('**Chain collection operations into one fluent pipeline.**');
 
-    // The three shapes the rule replaces.
+    // The two shapes the rule replaces.
     expect($content)->toContain('**Reassigning one variable step by step is the shape to replace.**');
-    expect($content)->toContain('accumulate into an array a `map()` / `filter()` / `groupBy()` / `sum()` call already expresses');
     expect($content)->toContain('**Never leave the collection mid-pipeline.**');
+
+    // A `foreach` is not one of them, and this section says so rather than staying silent.
+    expect($content)->toContain('**A `foreach` is never a finding, and this section never makes one.**');
+    expect($content)->not->toContain('accumulate into an array a `map()` / `filter()` / `groupBy()` / `sum()` call already expresses');
 
     // Formatting, and the two limits that keep the rule from distorting readable code.
     expect($content)->toContain('**Break a long chain across lines, one operation per line**');

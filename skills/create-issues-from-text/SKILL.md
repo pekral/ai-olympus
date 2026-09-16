@@ -27,7 +27,7 @@ metadata:
 ### 3. Create Issues
 - One issue per step
 - Ensure each is independently deliverable
-- For every issue created — flat breakdown, EPIC parent, and sub-issues alike — select and apply the single most relevant existing label per `@rules/compound-engineering/general.md` *Label newly created tracker issues*; this is additive to, and independent of, the structural `EPIC` label from *EPIC parent & sub-issues* below
+- For every issue created — flat breakdown, EPIC parent, and sub-issues alike — select and apply the single most relevant existing label per `@rules/compound-engineering/general.md` *Label tracker issues, and keep the labels true*; this is additive to, and independent of, the structural `EPIC` label from *EPIC parent & sub-issues* below
 
 ### 4. Output
 - Return list of created issues with URLs

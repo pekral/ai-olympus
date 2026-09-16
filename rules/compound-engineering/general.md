@@ -182,7 +182,7 @@ The tracker is where a human looks to see what an agent is doing. A run that imp
   **Convergence has exactly one definition in this package, and it is not restated here:** `@skills/process-code-review/SKILL.md` *Review loop* step 4 — zero Critical, zero unfulfilled reviewer comments, and no Moderate left undeferred, where a Moderate meeting the S1–S3 security carve-out is never deferrable. This phase fires on that gate.
   It was written against an earlier gate of *zero Critical and zero Moderate*; that wording is withdrawn rather than left standing beside the newer one, because two definitions of convergence in one package is how a phase signal starts contradicting the merge gate it precedes. The signal lands on both surfaces: the pull request leaves Draft, and the source tracker item gains the ready-to-merge status. A human reading either one then sees that the work waits on a merge, not on a reviewer.
 - **Phase 3 has a different owner than phases 1 and 2.** Convergence is determined inside the review-and-fix loop, so the implementing agent never observes it — it applies fixes and hands back to the review. The phase-3 write therefore belongs to whoever already promotes the pull request out of Draft at that same moment: `@skills/process-code-review/SKILL.md`, run by the reviewing agent. The issue-side write is the same action as that promotion, not a parallel one. Phases 1 and 2 keep their owner unchanged.
-- **Every phase write is unconditional.** A run never skips a phase write because the tracker is not already configured for it. When the signal does not exist yet — a repository without the phase label — the run creates it once and then applies it. This mirrors the `EPIC` label that *Label newly created tracker issues* below already creates on demand.
+- **Every phase write is unconditional.** A run never skips a phase write because the tracker is not already configured for it. When the signal does not exist yet — a repository without the phase label — the run creates it once and then applies it. This mirrors the `EPIC` label that *Label tracker issues, and keep the labels true* below already creates on demand.
 - **Every phase write is verified.** After each write the run re-reads the issue through the tracker's deterministic loader and confirms the status actually landed. An external write can be silently blocked in auto-mode, so a zero exit code is not evidence.
 - **Every phase write is idempotent.** A phase write that already holds is a no-op, never an error and never a duplicate.
 - **A reopened review reverts phase 3.** Phase 3 states that the review converged. A change to the effective PR diff fingerprint makes that statement false, so the run withdraws the signal exactly the way it wrote it: it removes the ready-to-merge status from the tracker item and returns the pull request to Draft. A content-identical rebase changes commit SHAs but not the reviewed diff, so it preserves phase 3 and does not trigger another CR round.
@@ -239,7 +239,7 @@ The single sanctioned exception is the resolve-issue PR opt-out (no PR exists to
 
 The per-tracker mechanics (CLI calls, dedup search, the blocked-write fallback) live in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*; this section owns the principle.
 
-## Label newly created tracker issues
+## Label tracker issues, and keep the labels true
 
 Any agent or skill that creates a new issue in a tracker — GitHub, JIRA, or a GitHub issue filed on Bugsnag's behalf — must select exactly **one** most-relevant label from the target system's **existing** labels and apply it at creation time (or immediately after). Picking the best match from the loaded list is a semantic judgment call — compare each candidate label's name + description against the new issue's title + body — not a deterministic script; the only deterministic part is the single CLI call that loads the label list.
 
@@ -253,6 +253,19 @@ What remains are the **content candidates** — labels classifying the kind or a
   - **GitHub:** `gh label list --json name,description --limit 200` — an explicit `--limit` is mandatory; the default is only 30, and candidates would silently drop off a repository that carries more labels than that. Apply with `--label "<name>"` on `gh issue create`, or `gh issue edit <n> --add-label "<name>"` immediately after.
   - **JIRA:** labels are free-form text with no descriptions and no per-project registry (`acli` has no `label` subcommand). Harvest existing candidates from recent issues in the same project instead — `acli jira workitem search --jql "project = <KEY> AND labels IS NOT EMPTY ORDER BY updated DESC" --fields "labels" --json --limit 100` — then match on name only (no description exists to compare). Apply with `acli jira workitem create … --label "<name>"`. An empty harvest, or `acli` being unavailable, is a documented skip, mirroring the existing "skip when no such label exists" precedent for the backlog label.
   - **Bugsnag:** files as a GitHub issue in the linked repository, so it inherits the GitHub mechanics unchanged.
+
+### The label stays true as the item moves
+
+Labelling is not a one-off at creation. A label describes what the item **is** and, for the workflow labels, what state it is **in** — so a label that has stopped being true misroutes the item exactly as a missing one hides it. A stale `work in progress` on a converged pull request is the same defect as no label at all.
+
+- **Remove the label that is no longer true in the same action that adds the one that is.** When a pull request leaves Draft, when a review round converges, or when the work turns out to be something other than what it looked like, correct both halves together: `gh pr edit <number> --add-label "<now true>" --remove-label "<no longer true>"`.
+- **Never touch a label the team owns as a signal** unless the workflow being executed explicitly says to. The claim label, the phase labels, `ready for review`, `ready to merge`, and `EPIC` are set by the mechanisms that own them (*Claim a tracker issue before working on it*, *Tracker status tracks the phase of work*), never by a general "make the labels accurate" pass.
+- **A labelling failure is never a reason to abort.** When the tracker rejects the edit — a missing permission, a renamed label — record it in the completion report and carry on with the actual task. Never retry by creating a label to work around the rejection; that is the one thing this section forbids outright.
+
+### What the review does and does not say about labels
+
+- **A label that contradicts the diff is a finding.** A `feature` label on a pure bugfix, a `work in progress` label on a converged pull request. Severity: **Moderate**. The **Suggested Fix** names the exact `gh pr edit` invocation that corrects it.
+- **An item carrying no label at all is never a finding.** Do not raise it, do not count it, and do not mention it in the report. Labelling stays mandatory for the agent that opens or updates the item, but the absence of a label says nothing about whether the diff is correct — and a review whose job is to find defects does not spend a finding on metadata. The review speaks only when a label is present and untrue.
 
 Call sites carry only a one-line reference to this section — the heuristic and per-tracker mechanics live here once. Unlike the two sections above (which split the principle here from the mechanics in `resolve-issue`, a single executor), this contract has **four executors**, so this section owns both the principle and the execution.
 

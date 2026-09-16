@@ -28,6 +28,9 @@ A name that is merely **less descriptive than it could be**, without misrepresen
 - Expose clear interfaces and keep implementation details internal.
 - Extract deeply nested conditionals into well-named methods where it improves readability.
 - Prefer small, simple classes or functions unless state is genuinely needed.
+- **A file that is already past the size threshold must not grow.** This is a ratchet on the diff, never a limit on the codebase as it stands. A file under **400 lines** takes new code freely. A file over 400 lines must not gain net lines: put the new behaviour in a new class the existing one calls, or extract enough of the old one to pay for the addition. A file over **800 lines** is expected to leave the change shorter than it found it, and the change says what was extracted and why the split falls where it does. The reason is that a class of that size carries no summary a reader can hold — finding the one method that matters means reading past hundreds of unrelated ones, and every change to it risks behaviour nobody remembered was there.
+The same ratchet applies to a **method** the diff pushes past roughly **50 lines** or past three levels of nesting; the fix is the extraction *Extract deeply nested conditionals into well-named methods* above already prescribes.
+**Never split by moving lines somewhere arbitrary.** A `FooHelper` that exists only to hold the overflow is the same class under two names. Split along a responsibility and name the new class after it; when no name presents itself, the boundary is wrong.
 - Prefer typed DTOs over raw arrays across important boundaries.
 - **Prefer a DTO or a value object over an associative array whenever the array carries named, heterogeneous fields.** An associative array states neither which keys exist nor what type each holds, so every consumer re-derives the shape by reading the producer, a typo in a key fails at runtime instead of at analysis time, and a renamed field leaves no trace at the call sites. A DTO carries the shape in the type system; a value object additionally owns the invariant that makes the value valid (a `Money` that cannot hold a negative amount with no currency, an `EmailAddress` that cannot hold an unparsable string) — reach for the value object when the data has rules of its own, and the DTO when it is a plain record.
 This is the general form of the two rules above: the >4-parameter rule and the public-return rule are the two places where it is mandatory, and this bullet is the default everywhere else. The exemptions stay the same — a framework / vendor contract fixed outside the project, and a genuinely internal short-lived helper structure whose producer and consumer are the same private method. The data-carrier exemption below belongs to the >4-parameter rule alone: replacing an array with a DTO never lands back on the same class, so this bullet carries no circularity to exempt.
@@ -148,6 +151,18 @@ sequential workflow tests where each act→assert step depends on the state left
 ## Globals
 - Do not use global variables.
 - Do not introduce `global` state in application or test code unless the platform truly requires it.
+
+## Time
+
+A runtime resolves a bare date call against an ambient default — `date.timezone`, the framework's own configuration, the container's locale. The result carries no mark saying which zone produced it, so it looks identical to a value that is explicit and diverges only when it meets a value that really is in another zone. That divergence follows daylight saving, so it appears twice a year and in production.
+
+- **Every date call names its timezone.** `new DateTimeImmutable('now', $timezone)`, `Carbon::now($timezone)`, `Carbon::parse($value, $timezone)`. Never leave the ambient default to supply it. The explicit argument is also the only thing that tells the next reader which zone the instant is in.
+- **Compute, compare, and store in one zone.** A stored timestamp, an interval, a range predicate, a TTL, and a scheduled-at value all use it. Convert at the boundary where a human reads or types a time, and convert straight back before storing or comparing.
+- **Never take the time from the database.** SQL `NOW()`, `CURDATE()`, and `CURRENT_TIMESTAMP` resolve against the database session's zone, which is a third source nobody sets deliberately. Resolve the instant in PHP and bind it as a parameter.
+- **A value that crosses a process boundary carries its zone.** A queue payload, an API response, a cache entry, and a log line are read by a different process that cannot ask which zone produced them.
+- **Never assume an existing value is already in the expected zone.** A codebase carrying both shapes proves nothing about the value in front of you. Follow it back to the call that produced it before comparing it with anything.
+
+Severity in code review: **Moderate** for a date the diff constructs, parses, or compares with no explicit timezone, and for a new SQL `NOW()` / `CURRENT_TIMESTAMP` where the instant belonged in PHP. The scope is the changed lines. Existing bare calls elsewhere are not a finding, and this rule is never a licence to open a migration pull request for them.
 
 ## Async Review Note
 - When reviewing asynchronous jobs, first verify whether retry, timeout, and backoff behavior is defined in the job itself or centrally in configuration.

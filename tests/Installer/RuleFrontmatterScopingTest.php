@@ -190,7 +190,12 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // `Artisan::call()` sibling — a job under test is invoked through
         // `app()->call([$job, 'handle'])`, pointing at `rules/code-testing/general.md` *Jobs* for
         // the contract. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => '49c04940b9853abf0e681c613105b808e2c5d8899916b30c3a2a0fcbe1609915',
+        // Re-baselined: the file gained `## Time` (the configured zone is read from
+        // `config('app.timezone')`, never from a literal or the ambient default), `## String
+        // Emptiness Checks` gained the reason whitespace-only input must reach the same branch,
+        // and `## Collections` dropped its `foreach` clause and gained the gating bullet saying a
+        // `foreach` is never a finding. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => 'ee995836e4dd665e8dfb253111a9b870272ffc19a48dc10258a7c7b934c596f5',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -199,7 +204,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // the signature fixed outside the project, and the data carrier's own constructor, whose
         // prescribed fix was circular. `tests/Installer/DtoConstructorParamExemptionTest.php`
         // pins the new wording.
-        'rules/php/core-standards.md' => 'f10ef28dfe8f11728b295ed7a4810d1a14f8a888ba29701dc617ea7315e394d9',
+        // Re-baselined: `## Structure` gained the size ratchet — a file already over the
+        // threshold must not gain net lines — and the file gained `## Time`, the
+        // framework-agnostic half of the timezone contract. Nothing else in the file moved.
+        'rules/php/core-standards.md' => '2ff96c2637defbc00e86ba31e4ca2c6cac588ab4f82b1fd25a9c23948d9f8d08',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -301,7 +309,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // ...and once more: `## Actions` now opens with the reuse-first gate, so a new Action is
         // written only after `app/Actions/**` was searched for one that already orchestrates the
         // same use case. Nothing else in the file moved.
-        'rules/laravel/architecture.md' => '48a8c65167ae2a63a66541d570b9a4f5ab9ed775e59a06ae77a33f1ee730f10b',
+        // Re-baselined: DTOs gained the `spatie/laravel-data` contract and the `readonly class`
+        // fatal-error trap, Data Builders gained the exclusive-suffix and one-shape-per-builder
+        // rules, Validation Rules (Traits) gained the `ValidationRules` suffix and the
+        // parameterised-trait rule, and CR Severity Rules gained the matching entries.
+        'rules/laravel/architecture.md' => '2f3c24e9e5491645d6fd1e6469b83e9710332de71d6a382450ebd3b5c2342461',
         'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
@@ -316,7 +328,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // comment` — the two questions the narrowed review still answers, the security carve-out
         // that is never narrowed with them, and the `Mode:` header line the merge gate reads as
         // the mode's only trusted evidence. Nothing else in the file moved.
-        'rules/code-review/general.md' => '1a99a88557b691d7fa105428945cfdafaf7ebe9cc7e97bd05f1a00a6febdf818',
+        // Re-baselined: the file gained three sections — a `foreach` is never a finding, a review
+        // comment assigned to somebody else is left alone, and published product documentation is
+        // a requirement the assignment need not restate. Nothing else in the file moved.
+        'rules/code-review/general.md' => '549d74cabbbeed5ceddb379419b56664004d13071171f99a9dffeff92590e1d9',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

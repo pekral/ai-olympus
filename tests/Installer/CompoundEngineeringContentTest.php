@@ -311,7 +311,7 @@ test('newly created tracker issues get the single most relevant existing label (
 
     // The section heading must exist; unlike the two sections above it owns both
     // the principle and the per-tracker mechanics (four executors, not one).
-    expect($rule)->toContain('## Label newly created tracker issues');
+    expect($rule)->toContain('## Label tracker issues, and keep the labels true');
 
     // Select-only-from-loaded-list + never-create, with both structural-label
     // exceptions named inline (rule<->skill parity: an absolute the skill
@@ -343,9 +343,9 @@ test('newly created tracker issues get the single most relevant existing label (
     // resolve-issue's per-tracker filing mechanics were extracted to a reference (issue #59).
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/deferred-follow-up.md');
 
-    expect($createIssue)->toContain('Label newly created tracker issues');
-    expect($createIssuesFromText)->toContain('Label newly created tracker issues');
-    expect($resolveIssue)->toContain('Label newly created tracker issues');
+    expect($createIssue)->toContain('Label tracker issues, and keep the labels true');
+    expect($createIssuesFromText)->toContain('Label tracker issues, and keep the labels true');
+    expect($resolveIssue)->toContain('Label tracker issues, and keep the labels true');
 
     // Additive-only: the pre-existing EPIC structural-label mechanism stays untouched.
     expect($createIssuesFromText)->toContain('EPIC parent & sub-issues');
@@ -1375,7 +1375,7 @@ test('the phase label is named as the second sanctioned label-creation exception
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
-    // *Label newly created tracker issues* states "never create a new label" as an absolute, so a
+    // *Label tracker issues, and keep the labels true* states "never create a new label" as an absolute, so a
     // second mechanism that legitimately creates one has to be named inline in that same rule.
     expect($rule)->toContain('Two sanctioned exceptions exist, and both are structural labels an existing mechanism creates on demand');
     expect($rule)->toContain('the phase labels that *Tracker status tracks the phase of work* above requires');
