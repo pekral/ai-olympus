@@ -211,7 +211,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // class calls, `## PHP Practices` gained the unnecessary-local-variable rule, `## Testing`
         // gained the ban on widening visibility for a test, and `## CR Severity Rules` gained their
         // severities. `tests/Installer/VisibilityAndLocalVariableRuleTest.php` pins the wording.
-        'rules/php/core-standards.md' => 'b2e94b6988a6be10e7fc920e059db95c03a5664af6d14edfc1da30454b6e759a',
+        // The same change states that a string or array callable needs first-class callable syntax
+        // before its method turns private, and the reflection bullet in `## Testing` now forbids
+        // reaching a private member, so the two Testing bullets no longer disagree.
+        'rules/php/core-standards.md' => '095c6871cae5637ca2826f84c00070279893889a07e1dc2f23f8e3072063d516',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
