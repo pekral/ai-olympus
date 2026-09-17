@@ -330,8 +330,10 @@ test('architecture rules collapse an Action that only forwards to another Action
     expect($content)->toContain('- **Action-to-Action pass-through rule (Action pattern):**');
     expect($content)->toContain('an `__invoke()` whose entire body is `($this->otherAction)($payload)` and nothing else');
 
-    // The carve-out is what keeps the rule from flagging legitimate orchestration.
-    expect($content)->toContain('one of them another Action, is the pattern working as intended');
+    // The carve-out is what keeps the rule from flagging legitimate orchestration. It is qualified:
+    // only an Action an entry point calls in its own right may be composed, so the carve-out never
+    // licenses the inner Action that nothing outside the Action layer calls.
+    expect($content)->toContain('one of them an Action an entry point also calls, is the pattern working as intended');
     expect($content)->toContain('two names for one use case');
 
     // An Action is a use case, not a reusable method, so both branches collapse the pair.
@@ -356,6 +358,35 @@ test('architecture rules collapse an Action that only forwards to another Action
     // two cross-references back to it (the CR Severity Rules entry and the Exceptions entry).
     expect(substr_count($content, '- **Action-to-Action pass-through rule (Action pattern):**'))->toBe(1);
     expect(substr_count($content, '**Action-to-Action pass-through rule**'))->toBe(2);
+});
+
+test('architecture rules keep an Action out of another Action\'s internals', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $architecture = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+    $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    // The rule: an Action is what a consumer calls, so the caller decides whether it may exist.
+    expect($architecture)->toContain(
+        '### An Action is the application\'s entry-point contract, never a step inside another Action',
+    );
+    expect($architecture)->toContain('An Action whose only callers are other Actions is not a use case');
+    expect($architecture)->toContain('**The test is the caller, not the size of the class.**');
+
+    // The fix moves the step back or down a layer — never sideways into a second Action.
+    expect($architecture)->toContain('**The fix is never a second Action.**');
+    expect($architecture)->toContain('stays a private method of that Action');
+
+    // The carve-out: composing an Action a consumer also calls is two use cases, not one split.
+    expect($architecture)->toContain('**An Action an entry point also calls may be composed freely.**');
+
+    // The trade is stated rather than hidden, because the rule refuses an SRP extraction.
+    expect($architecture)->toContain('reads as the single-responsibility principle, and here it is refused');
+
+    // The CR walk carries the finding at the severity the rule file declares, with its own gating.
+    expect($walk)->toContain('- **Action called only by other Actions (Action pattern)**');
+    expect($walk)->toContain('Never propose a differently named second Action.');
+    expect($walk)->toContain('This bullet owns the inner Action\'s existence.');
+    expect($architecture)->toContain('an Action whose only non-test callers are other Actions');
 });
 
 test('architecture rules cap an Action __invoke() at exactly one DTO parameter', function (): void {
