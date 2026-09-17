@@ -207,7 +207,11 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: `## Structure` gained the size ratchet — a file already over the
         // threshold must not gain net lines — and the file gained `## Time`, the
         // framework-agnostic half of the timezone contract. Nothing else in the file moved.
-        'rules/php/core-standards.md' => '2ff96c2637defbc00e86ba31e4ca2c6cac588ab4f82b1fd25a9c23948d9f8d08',
+        // Re-baselined: `## Structure` gained the private-visibility rule for a method only its own
+        // class calls, `## PHP Practices` gained the unnecessary-local-variable rule, `## Testing`
+        // gained the ban on widening visibility for a test, and `## CR Severity Rules` gained their
+        // severities. `tests/Installer/VisibilityAndLocalVariableRuleTest.php` pins the wording.
+        'rules/php/core-standards.md' => 'b2e94b6988a6be10e7fc920e059db95c03a5664af6d14edfc1da30454b6e759a',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -336,7 +340,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
         // moved; the sibling *assert the dispatch, never the payload* bullet is untouched.
-        'rules/code-testing/general.md' => 'acd2885e6a1bbc7aa81e5191a3b47878238d73b302ace17b4e50449af1267c9b',
+        // Re-baselined: `## Testing Rules` gained the one-line pointer to the ban on widening
+        // visibility for a test in `rules/php/core-standards.md`. Nothing else in the file moved.
+        'rules/code-testing/general.md' => 'acaa7aef2aa313181a2d5729af66047169cbae344fcf86fb828f695b90f17c45',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none

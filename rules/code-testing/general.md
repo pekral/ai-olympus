@@ -17,6 +17,7 @@ paths:
 - Never use `describe()`; use top-level `it()` / `test()` only.
 - Test classes should be `final`.
 - Prefer local variables; avoid shared mutable state.
+- Never change the visibility of production code so a test can reach it, and never use reflection to call or read a private member. Test through the public method, or extract the logic into its own class — see `@rules/php/core-standards.md` Testing *Never widen visibility for a test*.
 - In Laravel Pest projects, define `uses(Tests\TestCase::class)` in `tests/Pest.php` instead of repeating it in every test file.
 
 ## Flaky Test Prevention
