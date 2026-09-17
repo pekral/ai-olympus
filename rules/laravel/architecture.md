@@ -120,6 +120,22 @@ in this project those two steps live in dedicated Data Validator / Data Builder 
 - **Test for misplaced general logic:** if a block inside `__invoke()` could be lifted verbatim into another Action without modification, it is general logic in the wrong home — move it to a Model Service / Data Validator / Data Builder and call it from both Actions instead of duplicating it.
 
 ## Model Services
+
+### Avoid introducing a new Model Service — an Action is the default home
+A new use case belongs in an Action under `app/Actions/{Domain}/`. A Model Service is the exception, not the starting point. It exists to hold the single-model operations that more than one flow already calls.
+
+Work through this order before you add a `Service`-suffixed class:
+
+1. Reuse the Model Service the model already has.
+2. When the model has none, keep the logic in the Action that needs it.
+3. Add a Model Service only once a **second** flow needs the same single-model operation.
+
+Step 3 is the whole justification for a new Service. The class then removes a duplication that already exists. A Service added for one caller anticipates a duplication instead, and the anticipated second caller often never arrives.
+
+- **A new Model Service is justified when the operations it holds are model-scoped and already shared.** Model-scoped means a read, a write, or a computation over one model's own data. The coordination of a flow is not model-scoped — that is the Action's job.
+- **It is never justified as a place to park logic that only one Action calls.** That logic stays in the Action until a second caller appears. *Action scope: concrete use case, not general logic* moves **reusable** logic out of an Action; it never asks for a Service the reuse has not yet produced.
+- **Everything below still applies to a Service that does get added.** It extends `BaseModelService`, it stays scoped to one model, and a class with exactly one public business method is Action-shaped rather than Service-shaped.
+
 - Every `Service`-suffixed class must extend `BaseModelService` — unconditionally, with no "doesn't primarily serve a model" exception (see **Architecture** → *BaseModelService pattern* for the structural test that decides which remediation a non-compliant class needs).
 - BaseModelService implementations must define:
   - `getModelClass()`
@@ -346,6 +362,9 @@ This is the **primary home** for the finding on a Laravel HTTP endpoint — `@ru
   - a public method returning a structured associative array / array shape where a typed DTO should be returned (see **DTOs** → *Public methods return typed DTOs, not associative arrays*) — excludes single scalars, homogeneous lists / Collections, and array shapes fixed by a framework / vendor contract (`toArray()`, `jsonSerialize()`, `Arrayable`, `casts()`, FormRequest `rules()`)
   - request → DTO transformation called directly in a controller body (`SomeData::from($request)` / `SomeData::fromRequest($request)` or any DTO factory taking the request) instead of being exposed as a `toDto()` method on the endpoint's FormRequest and read via `$request->toDto()` — applies where a FormRequest already exists for the endpoint; one-off mappings with no reuse and endpoints with no FormRequest are exempt (see **Controllers and Other Entry Points**)
   - a `Service`-suffixed class that already `extends BaseModelService` (so neither Critical bullet above fires) but whose public methods cross into cross-model / multi-collaborator orchestration that the Action pattern exists for — e.g. it coordinates several unrelated models, or duplicates orchestration an existing Action already owns (see **Model Services** *Do not mix unrelated multi-domain orchestration into one service*). **Gating — never both:** a `Service`-suffixed class that does **not** extend `BaseModelService` is always the Critical finding instead, never this Moderate one. A compliant `BaseModelService` subclass that stays scoped to its single model is not flagged by this bullet regardless of its public method count — including a class with exactly one public business method.
+  - a **new** `Service`-suffixed class the diff adds whose logic has a single caller, or whose public methods coordinate a flow instead of operating on one model — an Action is the default home for new logic, and a Model Service is added only once a second flow needs the same single-model operation (see **Model Services** → *Avoid introducing a new Model Service — an Action is the default home*).
+The **Suggested Fix** names the Action the logic moves into: the caller's existing Action, or the new Action that replaces the Service. A Service the diff adds for an operation two or more existing flows already call is not this finding, and neither is one a framework / vendor contract requires.
+**Gating — one finding per class, never two:** a new Service that does not extend `BaseModelService` is the Critical finding above instead; a new Service that already extends it and crosses into cross-model orchestration is the Moderate bullet below instead. This bullet owns the new Service's existence, including the compliant single-public-method case the bullet below exempts
   - an Action carrying general / reusable logic that is not use-case-specific orchestration — a reusable computation, or an orchestration fragment another flow already reuses (or could reuse) — that should live in a Model Service / Data Builder and be called from the Action (see **Action scope: concrete use case, not general logic**); the litmus test is whether the block could be lifted verbatim into another Action. When the block is inline validation, inline data mapping, or an inline query / persistence call, raise the dedicated Critical finding (inline validation guards → Data Validator; inline mapping → Data Builder; inline read/write → Repository / ModelManager) instead — never both.
     When the **entire** `__invoke()` body is a single delegating call to a Service / Facade / Model Service method or to another Action, the matching pass-through finding below owns it instead — never both
   - pass-through Action whose `__invoke()` only forwards a single Service / Facade / Model Service call with no orchestration of its own — inline the single-use method into the Action, or remove the Action and call the reused service method directly (see the **Pass-through Action rule**)
