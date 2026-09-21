@@ -195,7 +195,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Emptiness Checks` gained the reason whitespace-only input must reach the same branch,
         // and `## Collections` dropped its `foreach` clause and gained the gating bullet saying a
         // `foreach` is never a finding. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => 'ee995836e4dd665e8dfb253111a9b870272ffc19a48dc10258a7c7b934c596f5',
+        // Re-baselined: `## Database and Eloquent` gained the reuse-first gate on query scopes —
+        // a new scope is written only once the model, its traits, and its parents were searched
+        // for one that already applies the same condition. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => '512473cb6727846295c93af38867e054bd1db6bbad27957e0b175b6daa238a49',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired

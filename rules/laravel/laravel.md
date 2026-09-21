@@ -65,6 +65,11 @@ paths:
 `$user->sendWelcomeEmail()` (queue dispatch is orchestration → Action), `$order->getRecentForCustomer()` (new query is the repository's job → Repository), `$user->updatePassword(...)` (persistence belongs in a ModelManager → ModelManager / Action).
 - **Accessors and methods that lazy-load relationships count as new database queries.** A method or accessor that touches `$this->relation->...` when the caller has not eager-loaded the relationship issues a query and breaches the simple-logic boundary above. Either eager-load the relationship at the call site (a Repository method) and let the model method consume already-loaded data, or move the logic out of the model entirely.
 - Define relationships, scopes, casts, and accessors in models.
+- **Before you add a query scope, prove that no existing scope already expresses the filter.** A scope is the reusable name of a condition, so a second scope for a condition the model already carries splits one filter into two definitions. They drift apart the moment one of them is corrected, and the caller that reads the stale one keeps working while it returns the wrong rows. Search the model, every trait it uses, and its parent classes before you write the scope.
+  - **Match on the condition, never on the name.** `scopeActive()` and `scopeNotDeleted()` over the same column are one filter under two names. Read the `where` each existing scope applies.
+  - **When an existing scope already expresses the filter, call it.** The new query composes that scope; it never restates the condition.
+  - **When an existing scope almost fits, widen that scope.** Give it the parameter the new call site needs, or compose it with one further condition at the call site. A near-copy under a new name is the violation.
+  - **A condition no existing scope expresses is a new scope.** Two scopes over the same column stay two scopes when they apply genuinely different conditions — `scopePublished()` on `published_at <= now()` beside `scopeScheduled()` on `published_at > now()`.
 - Use eager loading to avoid N+1 queries.
 - Do not query inside loops.
 - Use `withCount()` for counts where appropriate.

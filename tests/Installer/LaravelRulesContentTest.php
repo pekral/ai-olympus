@@ -515,3 +515,26 @@ test('the CR walk and refactor skill keep the request out of the extracted Actio
     expect($skill)->toContain('- **Never pass the HTTP request into the Action.**');
     expect($skill)->toContain('the entry point keeps both ends of client↔server communication');
 });
+
+test('laravel rules reuse an existing query scope before a new one is added', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $laravel = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
+    $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    // The rule: a scope names a condition, so a second scope for the same condition splits it.
+    expect($laravel)->toContain(
+        '- **Before you add a query scope, prove that no existing scope already expresses the filter.**',
+    );
+    expect($laravel)->toContain('**Match on the condition, never on the name.**');
+    expect($laravel)->toContain('**When an existing scope already expresses the filter, call it.**');
+    expect($laravel)->toContain('**When an existing scope almost fits, widen that scope.**');
+
+    // A genuinely new condition still earns its own scope, so the rule does not collapse filters.
+    expect($laravel)->toContain('**A condition no existing scope expresses is a new scope.**');
+
+    // The CR walk carries the finding at Moderate, on every Laravel project.
+    expect($walk)->toContain('- **New Eloquent query scope added (Laravel)**');
+    expect($walk)->toContain('regardless of whether `pekral/arch-app-services` is installed');
+    expect($walk)->toContain('a duplicated filter definition a fixer does not catch');
+    expect($walk)->toContain('never a second scope beside the first');
+});
