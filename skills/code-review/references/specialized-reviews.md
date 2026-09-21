@@ -165,6 +165,7 @@ Criterion: the skill authors or edits files — code, tests, documents, or any o
 Criterion: the skill's evidence comes from a live instance — an HTTP request, a browser, a queue, or runtime telemetry. A code review reads a diff and has no running instance to read.
 
 - `laravel-telescope` — reads telemetry that a live application recorded, and writes nothing itself, so question 2 passes it on to question 3.
+- `interactive-testing` — exercises a live application through the testing agent's own interactive browser and reports observed acceptance results; it does not edit the implementation.
 
 ### Group 3 — its output is not findings on the changed lines
 
