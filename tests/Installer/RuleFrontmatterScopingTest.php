@@ -198,7 +198,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: `## Database and Eloquent` gained the reuse-first gate on query scopes —
         // a new scope is written only once the model, its traits, and its parents were searched
         // for one that already applies the same condition. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => '512473cb6727846295c93af38867e054bd1db6bbad27957e0b175b6daa238a49',
+        // Re-baselined: Controllers must return an explicit HTTP response instead of relying on
+        // Laravel to implicitly normalize a domain value. The related Core Analysis bullet is
+        // pinned by `tests/Installer/LaravelRulesContentTest.php`.
+        'rules/laravel/laravel.md' => '918cb0e742e00412d166fc0b94108dbed460be6487cb860b79c12ee1e979780f',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
