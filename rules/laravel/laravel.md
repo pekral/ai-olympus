@@ -46,6 +46,7 @@ paths:
 - Use method injection.
 - Never call `validate()` directly in controllers.
 - Never execute database queries directly in controllers.
+- **Return an explicit HTTP response from every controller action.** Never return a raw `array`, scalar, Eloquent model, DTO, `Collection`, or arbitrary object from a controller. Convert the Action's domain value at the HTTP boundary with the response shape the endpoint needs: `response()->json(...)` for JSON, `response(...)` for a regular response, `redirect()` / `back()` for navigation, `view()` for HTML, or Laravel's stream / download response builders for streamed content. A `Responsable` object is allowed only when it is the endpoint's explicit HTTP response contract. Laravel may normalize several raw values, but relying on that implicit conversion hides the status, headers, and representation the client receives.
 - Keep resource controllers CRUD-only:
     - `index`
     - `create`

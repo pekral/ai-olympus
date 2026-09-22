@@ -13,6 +13,20 @@ test('laravel rules prefer filled()/blank() helpers over strict empty-string com
     expect($content)->toContain('`=== \'\'`');
 });
 
+test('controllers must construct explicit HTTP responses instead of returning raw domain values (issue #140)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $laravel = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    $refactor = (string) file_get_contents($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md');
+
+    expect($laravel)->toContain('**Return an explicit HTTP response from every controller action.**');
+    expect($laravel)->toContain('Never return a raw `array`, scalar, Eloquent model, DTO, `Collection`, or arbitrary object from a controller.');
+    expect($laravel)->toContain('`response()->json(...)`');
+    expect($review)->toContain('- **Controller returns a raw domain value (HTTP boundary)**');
+    expect($review)->toContain('Severity: **Critical** (see `@rules/laravel/laravel.md` Controllers');
+    expect($refactor)->toContain('never return the raw domain value from a controller');
+});
+
 test('laravel rules extend Database and Eloquent with index and EXPLAIN guidance (issue #525)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
