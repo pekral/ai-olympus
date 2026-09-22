@@ -1289,6 +1289,19 @@ test('e2e-testing skill is gated on Playwright already being present', function 
     expect($content)->toContain('manual, scenario-based testing');
 });
 
+test('testing rules prefer E2E evidence and prevent retrospective isolated coverage', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rules = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $tdd = (string) file_get_contents($packageDir . '/skills/test-driven-development/SKILL.md');
+    $e2e = (string) file_get_contents($packageDir . '/skills/e2e-testing/SKILL.md');
+
+    expect($rules)->toContain('**Prove behavior end to end first.**');
+    expect($rules)->toContain('**Write the test before production code.**');
+    expect($rules)->toContain('**Test a real behavior gap, not the implementation\'s reflection.**');
+    expect($tdd)->toContain('write the failure inventory before the test');
+    expect($e2e)->toContain('Every completed E2E scenario must leave a repeatable artifact');
+});
+
 test('frontend and vite skills target the Blade/Livewire/Alpine/Vite stack, not React', function (): void {
     $packageDir = dirname(__DIR__, 2);
 

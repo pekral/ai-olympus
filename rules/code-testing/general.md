@@ -20,6 +20,12 @@ paths:
 - Never change the visibility of production code so a test can reach it, and never use reflection to call or read a private member. Test through the public method, or extract the logic into its own class — see `@rules/php/core-standards.md` Testing *Never widen visibility for a test*.
 - In Laravel Pest projects, define `uses(Tests\TestCase::class)` in `tests/Pest.php` instead of repeating it in every test file.
 
+## Test Strategy
+
+- **Prove behavior end to end first.** For a user-visible or cross-boundary change, use the project's existing browser, HTTP, queue, or CLI E2E path as the primary test. Do not install a test runtime merely to satisfy this rule. An E2E run ends with a repeatable artifact that identifies the scenario and records the outcome, such as a Playwright trace, screenshot/video, JUnit result, request/response capture, or generated report.
+- **Write the test before production code.** Never add an isolated unit or feature test after writing the production behavior it is meant to justify. When isolation is genuinely necessary because an E2E path cannot exercise a narrow failure mode economically, first write a failure inventory: the concrete ways the behavior can fail, the observable outcome for each, and the one scenario the test will prove. Then write and observe the failing test before the production change.
+- **Test a real behavior gap, not the implementation's reflection.** Do not add tautological assertions, change-detector tests, or a regression test for a bug unless an observable behavior gap exists. A valid regression test fails against the buggy behavior and passes only when the user-visible or contract-visible outcome is corrected.
+
 ## Flaky Test Prevention
 A flaky test fails inconsistently, is hard to reproduce, and is often "fixed" by simply re-running the pipeline. Flaky tests destroy trust in CI — once a team learns to re-run instead of investigate, it starts ignoring real failures too. Every new or modified test must be deterministic: it must pass repeatedly, in isolation, and in any order. Apply the following:
 
