@@ -11,9 +11,7 @@ codeReviewRuleContents() :: **What is lost, stated rather than hidden:**
 codeReviewRuleContents() :: @rules/code-testing/general.md
 codeReviewRuleContents() :: @skills/code-review/SKILL.md
 codeReviewRuleContents() :: Security-lens findings are never suppressed, at any severity
-codeReviewRuleContents() :: domain glossary
 codeReviewRuleContents() :: isEligibleForDiscount
-codeReviewRuleContents() :: navigation markers
 codeReviewRuleContents() :: reuse-first gate
 codeReviewRuleContents() :: {ClassName}Test.php
 crContractText(skills/code-review-bugsnag/SKILL.md) :: reuse-first gate
