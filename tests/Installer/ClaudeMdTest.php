@@ -45,6 +45,30 @@ test('install copies CLAUDE.md to project root', function (): void {
     }
 });
 
+test('install keeps an existing AGENTS.md as Claude Code instructions when CLAUDE.md is absent (issue #139)', function (): void {
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/AGENTS.md', 'project-owned AGENTS.md');
+    $cwd = getcwd();
+    $originalCwd = $cwd !== false ? $cwd : '';
+
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['ai-olympus', 'install', '--force']);
+        ob_end_clean();
+
+        expect($exitCode)->toBe(0);
+        expect(is_file($root . '/CLAUDE.md'))->toBeFalse();
+        expect(file_get_contents($root . '/AGENTS.md'))->toBe('project-owned AGENTS.md');
+    } finally {
+        if ($originalCwd !== '') {
+            chdir($originalCwd);
+        }
+
+        installerRemoveDirectory($root);
+    }
+});
+
 test('install does not overwrite existing CLAUDE.md without force flag', function (): void {
     $root = installerCreateProjectRoot();
     $claudeMd = $root . '/CLAUDE.md';
