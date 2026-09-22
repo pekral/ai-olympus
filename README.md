@@ -21,7 +21,7 @@ Run the two commands in [Quickstart](#quickstart) from your Composer project roo
 
 ## Configuration
 
-Existing `CLAUDE.md` and `AGENTS.md` are preserved. For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
+Existing `CLAUDE.md` and `AGENTS.md` are preserved. When a project has an existing `AGENTS.md` but no `CLAUDE.md`, the installer deliberately does not add its `CLAUDE.md` template: Claude Code 2.1.277+ then uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
 
 ## Quickstart
 

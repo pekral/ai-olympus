@@ -132,14 +132,20 @@ final class Installer
 
     private static function installRootInstructions(string $root): int
     {
-        $copied = InstallerFileCopier::installSingleFile(
-            InstallerPath::resolveClaudeMdSource(),
-            InstallerPath::resolveClaudeMdTarget($root),
-        );
+        $claudeMdTarget = InstallerPath::resolveClaudeMdTarget($root);
+        $agentsMdTarget = InstallerPath::resolveAgentsMdTarget($root);
+        $copied = 0;
+
+        if (is_file($claudeMdTarget) || !is_file($agentsMdTarget)) {
+            $copied += InstallerFileCopier::installSingleFile(
+                InstallerPath::resolveClaudeMdSource(),
+                $claudeMdTarget,
+            );
+        }
 
         return $copied + InstallerFileCopier::installSingleFile(
             InstallerPath::resolveAgentsMdSource(),
-            InstallerPath::resolveAgentsMdTarget($root),
+            $agentsMdTarget,
         );
     }
 
