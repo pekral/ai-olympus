@@ -7,8 +7,8 @@ While reading and modifying the files required for the in-scope work, you may en
 - **Bugs** — incorrect logic, broken edge cases, null-dereference risks, race conditions, or runtime errors that exist before this task.
 - **Project-rule violations** — code that contradicts any rule listed in this skill's *Constraints* block (`@rules/php/core-standards.md`, `@rules/laravel/*`, `@rules/sql/optimalize.md`, etc.) or any other rule under `.claude/rules/`.
 - **Security vulnerabilities** — anything `@rules/security/backend.md`, `@rules/security/frontend.md`, or `@rules/security/mobile.md` would flag (injection, missing authn/authz, unsafe deserialization, sensitive-data exposure, …).
-- **Unnecessary comments** — comments / PHPDoc already sitting in the region you are changing that carry no information the code does not already give: narration of the statement below, a restatement of the signature, a redundant type docblock the native types already carry, commented-out code, a section banner, a changelog note, or a comment that no longer matches the code. Delete them per `@rules/php/core-standards.md` *Documentation* (*The default state of the codebase is no comment*); keep only what clears the bar stated there — genuinely complex logic, the *why*, a domain definition, a navigation marker, or a comment this ruleset mandates.
-When a comment was compensating for an unclear symbol, rename or extract instead of deleting blind, and when a comment's value is genuinely unclear, keep it and name it in the PR rather than removing it.
+- **Unnecessary comments** — comments / PHPDoc already sitting in the region you are changing that do not serve type analysis, security/operational context, or non-intuitive behaviour. Delete them per `@rules/php/core-standards.md` *Documentation* (*The default state of the codebase is no comment*), including narration, restated signatures, type docblocks native types already carry, commented-out code, section banners, changelog notes, domain definitions, navigation markers, and stale prose.
+When a comment was compensating for an unclear symbol, rename or extract before removing it. Retain only the concise residue that belongs to one of the three allowed categories.
 
 Rules:
 
@@ -24,4 +24,3 @@ Rules:
    - Either way, pre-existing fixes follow the same 100% coverage rule on changed lines as in-scope changes (step 16) — with the comment-only deletion above as the single exception, since it adds and modifies no executable line to cover.
 4. Commit a pre-existing fix **before** the in-scope work, so it forms an independently revertable base.
 5. If a pre-existing issue is **non-trivial** (would significantly expand the PR, requires architectural decisions, or affects shared infrastructure beyond the touched files), do **not** fix it inline. Move it to the *Out of scope (deferred)* group from step 7 and surface it under the PR's `## TODO` section with a one-line reason for deferral.
-

@@ -38,7 +38,7 @@ Before starting the resolution flow:
   - **Feature** — new behavior
 - Prefer minimal, safe, and readable changes
 - Keep scope limited unless related fixes are trivial and safe
-- When implementing DB work, prefer batch operations over per-row queries inside loops per `@rules/sql/optimalize.md` "Batch over per-row operations" — ModelManager `batchUpdate` / `batchInsert`, `whereIn(...)->delete()`, or a single bulk read keyed in memory. Per-row queries are allowed only when iterations have an unavoidable side-effect dependency that is justified in a code comment.
+- When implementing DB work, prefer batch operations over per-row queries inside loops per `@rules/sql/optimalize.md` "Batch over per-row operations" — ModelManager `batchUpdate` / `batchInsert`, `whereIn(...)->delete()`, or a single bulk read keyed in memory. Per-row queries are allowed only when iterations have an unavoidable side-effect dependency documented as operational context in a code comment.
 
 ## Execution
 

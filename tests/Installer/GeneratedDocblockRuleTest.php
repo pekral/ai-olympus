@@ -15,26 +15,10 @@ test('the PHP standards forbid a generated docblock that describes logic (issue 
     $packageDir = dirname(__DIR__, 2);
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
-    // The prohibition names all three declaration kinds; dropping any one leaves the shape it
-    // covers arguable, which is exactly the gap the issue reported.
-    expect($standards)->toContain('**Never generate a docblock that describes the logic of a class, a method, or a property.**');
-
-    // The three recurring shapes, each stated so a reviewer can match a real docblock against it.
-    expect($standards)->toContain('a **class** docblock telling the reader what the class does');
-    expect($standards)->toContain('a **property** docblock describing what the property holds');
-    expect($standards)->toContain('a **generated template** that describes logic while carrying no fact the code cannot carry');
-
-    // Without this the rule reads as "shorten the docblock", which is the wrong half — the
-    // information belongs in the name, not in fewer lines of prose above it.
-    expect($standards)->toContain('The prescribed fix is the **rename**, never the shorter docblock');
-    expect($standards)->toContain('the property\'s name what it holds');
-
-    // The exemptions are what keep the rule from firing on facts the code provably cannot carry.
-    expect($standards)->toContain('a `@param` / `@return` line carrying a constraint the type system cannot express');
-    expect($standards)->toContain('`@see` and the other navigation markers');
-    expect($standards)->toContain('a docblock generated or owned by `vendor/`');
-    expect($standards)->toContain('a docblock this ruleset itself mandates');
-    expect($standards)->toContain('and a *why* comment — a decision, a rejected alternative, an external ticket / CVE / RFC reference');
+    expect($standards)->toContain('**Never generate a docblock that describes the logic of a class, method, or property.**');
+    expect($standards)->toContain('A declaration-level docblock is allowed only for type analysis.');
+    expect($standards)->toContain('clearer name or structure, never a shorter description');
+    expect($standards)->toContain('Vendor-owned docblocks are outside this rule.');
 });
 
 test('the generated-docblock rule extends the existing Documentation section rather than forking it (issue #22)', function (): void {
@@ -45,12 +29,7 @@ test('the generated-docblock rule extends the existing Documentation section rat
     // section, which is the duplication the issue's reuse-first gate exists to prevent.
     expect(substr_count($standards, '**Never generate a docblock that describes the logic'))->toBe(1);
 
-    // It builds on the naming-first bullet instead of restating it.
-    expect($standards)->toContain('*Naming comes first* above governs the comment a fact has earned');
-    expect($standards)->toContain('**Naming comes first, even for a *why* comment.**');
-
-    // It lives inside `## Documentation`, between the naming-first bullet it extends and the
-    // PHPDoc-volume bullet it constrains — not in a section of its own after them.
+    // It lives inside `## Documentation`, rather than in a parallel rule.
     $documentationStart = strpos($standards, '## Documentation');
     $documentationEnd = strpos($standards, '## Testing');
     $rulePosition = strpos($standards, '**Never generate a docblock that describes the logic');
@@ -73,10 +52,8 @@ test('the code-review walk finds the generated docblock on the changed lines (is
     expect($crRule)->toContain('the **Suggested Fix** is the **rename itself**, never a shorter docblock');
     expect($crRule)->toContain('(*Never generate a docblock that describes the logic of a class, a method, or a property*)');
 
-    // The exemptions, so the trigger stays off facts the code cannot carry.
-    expect($crRule)->toContain('(d) a `@param` / `@return` line carrying a constraint the type system cannot express');
-    expect($crRule)->toContain('(e) a docblock generated or owned by `vendor/`');
-    expect($crRule)->toContain('(f) a docblock this ruleset itself mandates');
+    // Type analysis is the sole code-owned PHPDoc exception.
+    expect($crRule)->toContain('PHPDoc used for type analysis beyond native declarations');
 });
 
 test('the generated-docblock trigger extends the issue #53 bullet instead of forking a rival one (issue #22)', function (): void {
@@ -94,9 +71,8 @@ test('the generated-docblock trigger extends the issue #53 bullet instead of for
     expect($newShape)->toBeLessThan((int) $volumeBullet);
     expect(substr_count($crRule, 'a **generated docblock template** the diff itself adds'))->toBe(1);
 
-    // The two bullets can both see a generated docblock, so the boundary between them is stated:
-    // the volume bullet exempts one the diff did not write, this one flags one the diff adds.
-    expect($crRule)->toContain('It does not contradict the volume bullet\'s exemption (f) below either');
+    // Vendor-owned docblocks are out of review scope, while a diff-added template is reviewed.
+    expect($crRule)->toContain('It does not contradict the volume bullet\'s scope either');
     expect($crRule)->toContain('one finding per docblock, never both');
 
     // The bullet the CR skill already enumerates is the one that grew, so no skill enumeration

@@ -928,16 +928,16 @@ test('code review rule flags extensive PHPDoc / inline commentary as a readabili
     // The fix is always structural -- a shorter comment is never the remedy.
     expect($rule)->toContain('The **Suggested Fix** is always the code change, never a shorter comment');
 
-    // Comments this same ruleset MANDATES must never become findings of this bullet.
-    expect($rule)->toContain('a comment this ruleset **mandates**');
-    expect($rule)->toContain('are required, and are never findings');
+    // A mandated comment is retained only when it meets the same three-category policy.
+    expect($rule)->toContain('A comment required elsewhere in this ruleset is exempt only when it documents');
+    expect($rule)->toContain('otherwise this policy takes precedence');
 
     // The canonical standard states the preference; the CR bullet defers to it.
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     expect($standards)->toContain('**Write the code so that extensive PHPDoc and inline commentary are not needed.**');
     expect($standards)->toContain('a comment block that is growing is a signal to restructure the code');
-    // Documenting real constraints stays required -- only its length is bounded.
-    expect($standards)->toContain('non-obvious side effects, and important constraints — **concisely**');
+    // Only the three retained categories may receive a concise comment.
+    expect($standards)->toContain('Keep an allowed comment concise and verifiable.');
 
     // The lens has to be registered in the walk-through the skill actually executes.
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
@@ -1103,10 +1103,10 @@ test('code review flags comments and docs that only restate the code (issue #53)
     expect($rule)->toContain('Explanatory comments and docs that restate the code (issue #53)');
     // The fix is a better name, not a comment.
     expect($rule)->toContain('a comment is not a substitute for a name');
-    // The three carve-outs the code genuinely cannot express.
-    expect($rule)->toContain('explain *why*, not *what*');
-    expect($rule)->toContain('domain glossary');
-    expect($rule)->toContain('navigation markers');
+    // The three permitted categories are exact.
+    expect($rule)->toContain('PHPDoc used for type analysis beyond native declarations');
+    expect($rule)->toContain('a concise security or operational context');
+    expect($rule)->toContain('a concise explanation of deliberately non-intuitive behaviour');
     // A doc file that narrates behaviour is worse than a comment — it drifts.
     expect($rule)->toContain('a second, lying source of truth');
 
@@ -2206,18 +2206,19 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
     // The two rules already in the file govern authoring a new comment and reviewing a
     // changed line. Neither tells an agent to remove a comment that is already there.
     expect($standards)->toContain('**The default state of the codebase is no comment.**');
-    expect($standards)->toContain('**Delete every unnecessary comment sitting in code you are already changing.**');
+    expect($standards)->toContain('**Remove every other comment in code you are changing.**');
 
-    // Without the bar, "delete unnecessary comments" reads as "delete comments".
-    expect($standards)->toContain('**Only these survive, and only while they stay true:**');
-    expect($standards)->toContain('logic genuinely complex enough that a competent reader cannot recover it from the code in seconds');
+    // The retention bar is deliberately exhaustive, not a broad "why" exemption.
+    expect($standards)->toContain('**Type analysis**');
+    expect($standards)->toContain('**Security or operational context**');
+    expect($standards)->toContain('**Non-intuitive behaviour**');
+    expect($standards)->toContain('domain definitions, navigation markers');
 
     // Deleting is bounded to the region already being read -- it is not a repo-wide sweep.
-    expect($standards)->toContain('Do not go hunting through untouched files for more.');
+    expect($standards)->toContain('Do not sweep untouched files.');
 
     // A comment compensating for a bad name must not be dropped before the name is fixed.
-    expect($standards)->toContain('**Two rails before any deletion.**');
-    expect($standards)->toContain('rename or extract **first** and delete it after');
+    expect($standards)->toContain('Rename or extract first where needed, then remove the obsolete prose.');
 
     // The bullet this replaced said the same thing in weaker words -- leaving both would
     // be the exact redundancy the new rule forbids, sitting inside the rule that forbids it.
@@ -2241,13 +2242,13 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
 
     // Refactoring is what turns an accurate comment into a redundant one.
     $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
-    expect($refactoring)->toContain('deletes the comment it just made redundant');
-    expect($refactoring)->toContain('Delete it in the same commit as the restructuring that obsoleted it.');
-    expect($refactoring)->toContain('Never delete a comment the refactor did **not** make redundant');
+    expect($refactoring)->toContain('removes comments outside the three allowed categories');
+    expect($refactoring)->toContain('Delete it in the same commit.');
+    expect($refactoring)->toContain('remove every other comment in the refactored region');
 
     // MODE=cr is read-only everywhere else in that file; this guideline must not break it.
     expect($refactoring)->toContain(
-        'In `MODE=cr`, raise each comment the diff leaves behind after such a restructuring '
+        'In `MODE=cr`, raise each disallowed comment the diff leaves behind after such a restructuring '
         . 'as a refactoring finding proposing the deletion, instead of deleting it.',
     );
 });
@@ -2326,31 +2327,16 @@ test('this package writes no suppression annotation in its own source (issue #25
     expect(array_values($offenders))->toBe([]);
 });
 
-test('a why-comment is exempt only for the residue naming could not carry (issue #263)', function (): void {
+test('only type, security-operational, and non-intuitive comments are retained', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     $crRule = codeReviewRuleContents();
 
-    // The keep bar from #256 says what a comment may explain. Read alone it also licensed
-    // explaining it in prose the code could have carried, which is the hole #263 reported:
-    // a five-line block narrating what a condition tests, ending in a genuine why sentence.
-    expect($standards)->toContain('**Naming comes first, even for a *why* comment.**');
-    expect($standards)->toContain('A multi-line comment explaining what a condition tests is a **finding**, not a *why* comment');
-    expect($standards)->toContain('the explanation belongs in the predicate\'s name');
-
-    // Naming cannot reach everything -- an external identifier has no name to become.
-    expect($standards)->toContain('an external reference such as a ticket, CVE, or RFC identifier');
-
-    // The test has to be applicable by a reviewer without re-deriving the author's intent.
-    expect($standards)->toContain('read the comment, then ask which sentences a reader would still need after the code is named well');
-
-    // The review-side exemption was unconditional and is now scoped to the residue.
-    expect($crRule)->toContain('**Not findings — these stay, at the length the fact needs once naming has taken what it can (issue #263):**');
-    expect($crRule)->toContain('This exemption covers the **residue**, never the whole narrative');
-    expect($crRule)->toContain('Judge the exemption per sentence, not per comment block;');
-
-    // Without this the fix reads as "shorten the comment", which is the wrong half.
-    expect($crRule)->toContain('the **Suggested Fix** extracts that name and keeps only the sentences a reader still needs afterwards');
+    expect($standards)->toContain('Retain a code comment or docblock only when it is needed for exactly one of these purposes:');
+    expect($standards)->toContain('Make the code carry everything it can before retaining an allowed comment.');
+    expect($crRule)->toContain('only the three retained-comment categories');
+    expect($crRule)->toContain('A multi-line block explaining what a condition tests is a finding');
+    expect($crRule)->toContain('type analysis, security/operational context, or non-intuitive behaviour');
 });
 
 test('the three CR tracker wrappers share one contract instead of three drifting copies (issue #279)', function (): void {
