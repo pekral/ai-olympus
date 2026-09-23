@@ -10,11 +10,11 @@ use Pekral\AiOlympus\Installer;
 function renamedAgentIdentifiers(): array
 {
     return [
+        'apollo' => 'michelangelo',
+        'argus' => 'raphael',
+        'athena' => 'leonardo',
         'daedalus' => 'splinter',
         'hephaestus' => 'donatello',
-        'athena' => 'leonardo',
-        'argus' => 'raphael',
-        'apollo' => 'michelangelo',
         'hermes' => 'april',
     ];
 }

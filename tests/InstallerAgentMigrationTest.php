@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\InstallerAgentMigration;
+use Pekral\AiOlympus\InstallerPath;
 
 function agentMigrationFixtureDirectory(): string
 {
@@ -20,7 +21,7 @@ test('agent migration recognizes unchanged definitions with Windows line endings
     );
 
     try {
-        $removed = InstallerAgentMigration::removeKnownCopies(dirname(__DIR__) . '/agents', $root . '/agents');
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
 
         expect($removed)->toBe(1);
         expect(file_exists($root . '/agents/hephaestus.md'))->toBeFalse();
@@ -31,10 +32,10 @@ test('agent migration recognizes unchanged definitions with Windows line endings
 
 test('agent migration removes a dangling link only when it points at the previous package definition', function (): void {
     $root = agentMigrationFixtureDirectory();
-    symlink(dirname(__DIR__) . '/agents/hephaestus.md', $root . '/agents/hephaestus.md');
+    symlink((string) InstallerPath::resolveAgentsSource() . '/hephaestus.md', $root . '/agents/hephaestus.md');
 
     try {
-        $removed = InstallerAgentMigration::removeKnownCopies(dirname(__DIR__) . '/agents', $root . '/agents');
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
 
         expect($removed)->toBe(1);
         expect(is_link($root . '/agents/hephaestus.md'))->toBeFalse();
@@ -48,7 +49,7 @@ test('agent migration preserves foreign symlinks even when their content matches
     symlink(__DIR__ . '/Fixtures/legacy-agents/hephaestus.md', $root . '/agents/hephaestus.md');
 
     try {
-        $removed = InstallerAgentMigration::removeKnownCopies(dirname(__DIR__) . '/agents', $root . '/agents');
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
 
         expect($removed)->toBe(0);
         expect(is_link($root . '/agents/hephaestus.md'))->toBeTrue();
@@ -62,7 +63,7 @@ test('agent migration leaves a known old copy when its replacement has not been 
     installerWriteFile($root . '/agents/hephaestus.md', (string) file_get_contents(__DIR__ . '/Fixtures/legacy-agents/hephaestus.md'));
 
     try {
-        $removed = InstallerAgentMigration::removeKnownCopies(dirname(__DIR__) . '/agents', $root . '/agents');
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
 
         expect($removed)->toBe(0);
         expect(is_file($root . '/agents/hephaestus.md'))->toBeTrue();
@@ -77,7 +78,7 @@ test('agent migration does not cross a symlinked target or its parent', function
     symlink($root, $root . '/linked');
 
     try {
-        $removed = InstallerAgentMigration::removeKnownCopies(dirname(__DIR__) . '/agents', $root . '/' . $target);
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/' . $target);
 
         expect($removed)->toBe(0);
         expect(is_file($root . '/agents/hephaestus.md'))->toBeTrue();

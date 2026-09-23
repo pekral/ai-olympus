@@ -5,7 +5,13 @@ declare(strict_types = 1);
 test('the avatar manifest gives every live agent a complete portable portrait and thumbnail', function (): void {
     $package = dirname(__DIR__, 2);
     $assets = $package . '/assets/agents';
-    /** @var array{stylesheet: string, preview: string, agents: list<array{id: string, displayName: string, portrait: string, thumbnail: string}>} $manifest */
+    /**
+     * @var array{
+     *     stylesheet: string,
+     *     preview: string,
+     *     agents: list<array{id: string, displayName: string, portrait: string, thumbnail: string}>
+     * } $manifest
+     */
     $manifest = json_decode((string) file_get_contents($assets . '/manifest.json'), associative: true, flags: JSON_THROW_ON_ERROR);
     $definitions = glob($package . '/agents/*.md');
     assert(is_array($definitions));
@@ -27,7 +33,7 @@ test('the avatar manifest gives every live agent a complete portable portrait an
 
             expect([$size[0], $size[1], $size[2]])->toBe([$dimension, $dimension, IMAGETYPE_PNG]);
             // PNG IHDR colour type 6 retains alpha for the light and dark Cockpit surfaces.
-            expect(ord(((string) file_get_contents($path))[25]))->toBe(6);
+            expect(ord((string) file_get_contents($path)[25]))->toBe(6);
         }
     }
 });
