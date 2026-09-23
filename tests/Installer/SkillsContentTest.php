@@ -47,7 +47,7 @@ test('unified resolve-issue skill runs a lightweight self-check before PR creati
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
-    // The two full LLM review passes this skill used to run over its own diff are gone: `athena`
+    // The two full LLM review passes this skill used to run over its own diff are gone: `leonardo`
     // reviewed the same diff again straight afterwards, so they were a complete duplicate review on
     // every run. What remains is the deterministic set that must hold before work is handed off.
     expect($content)->toContain('## Pre-PR self-check (lightweight, deterministic)');
@@ -106,7 +106,7 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $daedalus = daedalusContractText();
+    $splinter = splinterContractText();
 
     expect($merge)->toContain('Every CR run **updates the one `cr-comment` it owns** on the PR rather than adding another');
     expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');
@@ -127,8 +127,8 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     expect($codeReview)->not->toContain('edit history on the upserted comment');
 
     // The orchestrator quotes the content gate, not timestamp-based staleness.
-    expect($daedalus)->toContain('whose reviewed diff fingerprint is missing or differs');
-    expect($daedalus)->not->toContain('whose `updatedAt` predates the head commit');
+    expect($splinter)->toContain('whose reviewed diff fingerprint is missing or differs');
+    expect($splinter)->not->toContain('whose `updatedAt` predates the head commit');
 });
 
 test('merge-github-pr post-merge step includes conditional worktree cleanup with opt-in and used-tree guards (issue #699)', function (): void {
@@ -516,9 +516,9 @@ test('github load-issue script is shipped, executable, and documents the same sh
     expect($content)->toContain('isDraft:     (if $kind == "pr" then $p.isDraft else null end)');
     expect($content)->not->toContain('$p.isDraft     // null');
 
-    // `hermes` decides whether the mandatory post-convergence report is already covered from the
+    // `april` decides whether the mandatory post-convergence report is already covered from the
     // comments this loader returns, and that decision is gated on the commenter having write
-    // access (`agents/hermes.md` step 4). Without the association in the projection the gate has
+    // access (`agents/april.md` step 4). Without the association in the projection the gate has
     // nothing to read, so any account could suppress the report with a lookalike comment.
     expect($content)->toContain('authorAssociation: (.authorAssociation // null)');
     expect($content)->toContain('"author", "authorAssociation", "body", "createdAt", "updatedAt", "url"');
@@ -1582,7 +1582,7 @@ test('the three build-dedup mechanisms are retired with the repeats they removed
     expect($gates)->toContain('**`security-audit` is never reused by anything.**');
 
     // No brief section survives for a mechanism nothing writes to.
-    foreach (['agents/daedalus.md', 'agents/hephaestus.md'] as $relativePath) {
+    foreach (['agents/splinter.md', 'agents/donatello.md'] as $relativePath) {
         $body = (string) file_get_contents($packageDir . '/' . $relativePath);
         expect($body)->not->toContain('## Build gate cache');
         expect($body)->not->toContain('## Gate log');
@@ -1620,14 +1620,14 @@ test('a security remediation plan is a machine-checkable checklist that blocks P
     // `## Handoff log` is a free-text zone by `@rules/compound-engineering/orchestration.md`, so no
     // heading found inside it may promote a link back to control-plane status.
     expect($resolveIssue . $checklist . $pullRequest)->not->toContain('handoff section written by ');
-    expect($checklist)->toContain('including a `### athena — Security analysis done` heading found there');
+    expect($checklist)->toContain('including a `### leonardo — Security analysis done` heading found there');
     expect($checklist)->toContain('same repository / project as the source');
 
     // The verified state is rendered into the PR body as its own section.
     expect($pullRequest)->toContain('**`## Security acceptance checklist`**');
     expect($pullRequest)->toContain('Omit the section entirely when no plan existed');
 
-    // athena keeps deriving its own remediation-conformance verdict — this is evidence, not a replacement.
+    // leonardo keeps deriving its own remediation-conformance verdict — this is evidence, not a replacement.
     expect($checklist)->toContain('this section is evidence that verdict can cite, never a replacement for it');
 });
 
@@ -2290,7 +2290,7 @@ test('the resolve-issue per-tracker follow-up lives in a listed reference', func
 test('a run that produced no post-convergence report says so in its handoff (issue #71)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Neither skill publishes the report - `hermes` does, dispatched by `daedalus` step 6a. A run
+    // Neither skill publishes the report - `april` does, dispatched by `splinter` step 6a. A run
     // outside that orchestration therefore ends with no report at all, and used to end silently,
     // which reads exactly like a run whose report was published. The literal line is what a caller
     // (and the next agent) greps for, so both skills carry the same one verbatim.
@@ -2300,8 +2300,8 @@ test('a run that produced no post-convergence report says so in its handoff (iss
     expect($resolve)->toContain('**A missing post-convergence report is stated, never left silent.**');
     expect($resolve)->toContain($marker);
     expect($resolve)->toContain('a machine token, identical in every handoff language');
-    expect($resolve)->toContain('This skill publishes no `hermes` report of its own');
-    expect($resolve)->toContain('`agents/daedalus.md` step 6a owns the report itself');
+    expect($resolve)->toContain('This skill publishes no `april` report of its own');
+    expect($resolve)->toContain('`agents/splinter.md` step 6a owns the report itself');
 
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     expect($process)->toContain($marker);
@@ -2311,10 +2311,10 @@ test('a run that produced no post-convergence report says so in its handoff (iss
     // publish to, so it must never be told a report is missing. Pin the condition in each skill's
     // own wording - an unconditional line would fire on every described-task run.
     expect($resolve)->toContain('When the run ends without that reporting step and the source is a tracker');
-    expect($process)->toContain('when the run ended with no `hermes` reporting step and the source is a tracker');
+    expect($process)->toContain('when the run ended with no `april` reporting step and the source is a tracker');
 
     // The marker used to be a Czech sentence in two otherwise fully English skills, which is the
-    // mixed-language handoff `agents/hephaestus.md` forbids on every non-Czech assignment. Keeping
+    // mixed-language handoff `agents/donatello.md` forbids on every non-Czech assignment. Keeping
     // it a machine token preserves the greppable line the assignment asked for without the clash.
     foreach ([$resolve, $process] as $skill) {
         expect($skill)->not->toContain('nepublikován');

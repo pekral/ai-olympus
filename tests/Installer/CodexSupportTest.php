@@ -55,8 +55,8 @@ test('Codex installation uses official project locations and keeps existing AGEN
         expect($exitCode)->toBe(0);
         expect(file_get_contents($root . '/AGENTS.md'))->toBe('project-owned instructions');
         expect(is_file($root . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_file($root . '/.codex/agents/daedalus.toml'))->toBeTrue();
-        expect(is_file($root . '/.codex/agent-instructions/daedalus.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/agents/splinter.toml'))->toBeTrue();
+        expect(is_file($root . '/.codex/agent-instructions/splinter.md'))->toBeTrue();
         expect(is_file($root . '/.codex/rules/php/core-standards.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {

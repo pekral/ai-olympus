@@ -11,7 +11,7 @@ test('web-article-writer names the boundary against every neighbour that also pr
     // body rather than only in the pull request that added it, so the two stay discoverable apart.
     expect($skill)->toContain(
         'Announcing a change shipped in **this** repository — a tweet, a thread, release notes, '
-        . 'or a marketing blurb — belongs to `agents/hermes.md`, not here.',
+        . 'or a marketing blurb — belongs to `agents/april.md`, not here.',
     );
     expect($skill)->toContain(
         'When the target is a Laravel application and the request includes a broader SEO audit or '

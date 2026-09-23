@@ -258,30 +258,30 @@ test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped ag
     $packageDir = dirname(__DIR__, 2);
 
     // The always-run CR set is strictly sequential, so running security-review
-    // inline while athena runs the same review in parallel is pure latency.
+    // inline while leonardo runs the same review in parallel is pure latency.
     // The flag must be opt-in: unset keeps the inline pass, so coverage can
     // never drop just because a caller forgot to set it.
     foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
         $content = crContractText('skills/' . $wrapper . '/SKILL.md');
-        expect($content)->toContain('SECURITY_OWNER=athena');
+        expect($content)->toContain('SECURITY_OWNER=leonardo');
         expect($content)->toContain('Absence of the flag means it runs');
-        expect($content)->toContain('security: owned by athena');
+        expect($content)->toContain('security: owned by leonardo');
     }
 
-    // No shipped agent sets it any more: athena is the single reviewer, so the wrapper's inline
+    // No shipped agent sets it any more: leonardo is the single reviewer, so the wrapper's inline
     // security pass IS her security pass and suppressing it would skip the review with nothing
     // behind it. The flag stays in the wrappers for an external caller that genuinely runs a
     // second, concurrent security pass (issue #179).
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    expect($athena)->toContain('Never set `SECURITY_OWNER=athena`');
-    expect($athena)->toContain('setting it here would skip the pass with nothing behind it');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    expect($leonardo)->toContain('Never set `SECURITY_OWNER=leonardo`');
+    expect($leonardo)->toContain('setting it here would skip the pass with nothing behind it');
 });
 
 test('a skipped security pass has somewhere to be declared on the summary line', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // Pinning the SKILL.md instruction alone proved insufficient: the wrappers
-    // told the agent to declare `security: owned by athena`, but no template
+    // told the agent to declare `security: owned by leonardo`, but no template
     // carried the slot, so the declaration depended on the agent inventing it.
     // A skipped pass that is not declared is indistinguishable from one that
     // ran — which would make the whole opt-in contract unsafe on the way out.
@@ -294,8 +294,8 @@ test('a skipped security pass has somewhere to be declared on the summary line',
 
     foreach ($templates as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('security: owned by athena');
-        expect($content)->toContain('SECURITY_OWNER=athena');
+        expect($content)->toContain('security: owned by leonardo');
+        expect($content)->toContain('SECURITY_OWNER=leonardo');
     }
 });
 
@@ -314,12 +314,12 @@ test('the merge gate verifies a delegated security review actually arrived', fun
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    // `security: owned by athena` records a delegation, not a delivery. A
+    // `security: owned by leonardo` records a delegation, not a delivery. A
     // security pass that dies mid-run (API error, session limit, cancelled
     // agent) leaves the PR positively marked as covered with zero coverage —
     // strictly worse than an obviously missing review.
     expect($merge)->toContain('Delegated security coverage is verified, never assumed');
-    expect($merge)->toContain('security: owned by athena');
+    expect($merge)->toContain('security: owned by leonardo');
 
     // The token must carry a link, so a missing delivery is visible in the
     // comment itself rather than only in the merge gate.
@@ -330,7 +330,7 @@ test('the merge gate verifies a delegated security review actually arrived', fun
         'code-review/templates/review-output.md',
     ] as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('url of athena\'s security comment');
+        expect($content)->toContain('url of leonardo\'s security comment');
         expect($content)->toContain('The URL is mandatory');
     }
 });

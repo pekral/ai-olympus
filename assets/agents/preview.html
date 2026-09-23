@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <title>AI Olympus — Meet the crew</title>
+    <link rel="stylesheet" href="activity.css">
+    <link rel="stylesheet" href="preview.css">
+    <script src="preview.js" defer></script>
+</head>
+<body>
+<main>
+    <header class="page-header">
+        <p class="eyebrow"><span aria-hidden="true">◉</span> AI OLYMPUS / AGENT CREW</p>
+        <h1>Six specialists. One team.</h1>
+        <p class="introduction">A familiar face for every step. Meet the agents behind your next idea.</p>
+    </header>
+    <form class="preview-controls" aria-label="Avatar preview settings">
+        <div class="control">
+            <label for="agent-state">Agent state</label>
+            <select id="agent-state" name="state">
+                <option value="idle">Idle</option>
+                <option value="queued">Queued</option>
+                <option value="thinking" selected>Thinking</option>
+                <option value="working">Working</option>
+                <option value="responding">Responding</option>
+            </select>
+        </div>
+        <div class="control">
+            <label for="preview-theme">Background</label>
+            <select id="preview-theme" name="theme">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+            </select>
+        </div>
+        <label class="motion-control"><input id="pause-motion" type="checkbox"> Pause animation</label>
+        <p id="preview-status" role="status" aria-live="polite" aria-atomic="true">Thinking · Animation follows your system motion preference.</p>
+    </form>
+    <section class="agent-grid" aria-label="Agent portraits">
+        <article class="agent-card" style="--card-accent: #be8d69">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="splinter.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Orchestration</p>
+            <h2>Splinter</h2>
+            <p class="agent-description">Coordinates the team and guides work from request to reviewed result.</p>
+            <div class="agent-footer"><code>splinter</code><span class="agent-state">Thinking</span></div>
+        </article>
+        <article class="agent-card" style="--card-accent: #a78bfa">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="donatello.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Implementation</p>
+            <h2>Donatello</h2>
+            <p class="agent-description">Builds features, fixes problems and writes the tests that prove them.</p>
+            <div class="agent-footer"><code>donatello</code><span class="agent-state">Thinking</span></div>
+        </article>
+        <article class="agent-card" style="--card-accent: #60a5fa">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="leonardo.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Code review & security</p>
+            <h2>Leonardo</h2>
+            <p class="agent-description">Reviews architecture, correctness and security before work ships.</p>
+            <div class="agent-footer"><code>leonardo</code><span class="agent-state">Thinking</span></div>
+        </article>
+        <article class="agent-card" style="--card-accent: #fb7185">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="raphael.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Acceptance testing</p>
+            <h2>Raphael</h2>
+            <p class="agent-description">Exercises real user scenarios and reports what works and what fails.</p>
+            <div class="agent-footer"><code>raphael</code><span class="agent-state">Thinking</span></div>
+        </article>
+        <article class="agent-card" style="--card-accent: #fb923c">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="michelangelo.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Design</p>
+            <h2>Michelangelo</h2>
+            <p class="agent-description">Designs clear interfaces and prepares visual handoffs for implementation.</p>
+            <div class="agent-footer"><code>michelangelo</code><span class="agent-state">Thinking</span></div>
+        </article>
+        <article class="agent-card" style="--card-accent: #facc15">
+            <div class="ai-agent-activity" data-agent-state="thinking">
+                <div class="ai-agent-portrait" aria-hidden="true">
+                    <img class="ai-agent-avatar" src="april.png" alt="" width="1254" height="1254">
+                    <span class="ai-agent-bubble"><span></span><span></span><span></span></span>
+                </div>
+            </div>
+            <p class="agent-role">Communication</p>
+            <h2>April O’Neil</h2>
+            <p class="agent-description">Explains what changed, how to test it and what the team delivered.</p>
+            <div class="agent-footer"><code>april</code><span class="agent-state">Thinking</span></div>
+        </article>
+    </section>
+    <footer class="page-footer">
+        <p>Portraits follow Cockpit’s Krang style. Motion uses the same gentle sway and thought dots.</p>
+        <p><a href="manifest.json">Asset manifest</a><span aria-hidden="true"> · </span><a href="activity.css">Animation stylesheet</a></p>
+    </footer>
+</main>
+</body>
+</html>

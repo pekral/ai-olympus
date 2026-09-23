@@ -74,7 +74,11 @@
   ],
   "archive": {
     "exclude": [
-      "/assets",
+      "/assets/ATTRIBUTION.md",
+      "/assets/brands",
+      "/assets/logo.png",
+      "/assets/social-preview.png",
+      "/assets/social-preview.svg",
       "/docs",
       "/tests"
     ]

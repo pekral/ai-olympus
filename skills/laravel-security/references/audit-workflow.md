@@ -14,14 +14,14 @@ Audit reporting uses five levels; the repository's convergence gate (CR) maps th
 | Low              | Minor       | NO                   |
 | Info             | Minor       | NO                   |
 
-The `athena.md` pins (`Critical` / `Moderate` / `Minor`) are unchanged — the audit severity is a reporting layer above them.
+The `leonardo.md` pins (`Critical` / `Moderate` / `Minor`) are unchanged — the audit severity is a reporting layer above them.
 
 ## Every confirmed finding carries
 
 1. **The area** (1–7 below) and the **severity** (Critical / High / Medium / Low / Info).
 2. **The concrete file and line** (or the search pattern).
 3. **The proposed fix** — as a reference to the matching section of `@skills/laravel-security/SKILL.md`.
-4. **A regression-test sketch** (Pest / PHPUnit) — the auditor sketches the test that would catch the finding; `hephaestus` implements the application fix.
+4. **A regression-test sketch** (Pest / PHPUnit) — the auditor sketches the test that would catch the finding; `donatello` implements the application fix.
 
 ## The seven audit areas
 

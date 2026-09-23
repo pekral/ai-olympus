@@ -307,6 +307,7 @@ final class Installer
 
         foreach ($targets as $target) {
             $copied += InstallerFileCopier::installDirectory($source, $target, $force, $symlink, $sourceFiles);
+            $pruned += InstallerAgentMigration::removeKnownCopies($source, $target);
 
             if ($prune) {
                 $pruned += InstallerPruner::pruneDirectory($source, $target, $sourceFiles);

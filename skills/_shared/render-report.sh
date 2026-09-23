@@ -10,8 +10,8 @@
 #
 #   Language generation still earns a model when the audience is a human being
 #   addressed as one — a release announcement, changelog prose, a stakeholder
-#   note. A four-line engineering status is not that, and `hermes` is reserved
-#   for the cases that are (`agents/hermes.md` *When a model is warranted*).
+#   note. A four-line engineering status is not that, and `april` is reserved
+#   for the cases that are (`agents/april.md` *When a model is warranted*).
 #
 # Usage
 #   render-report.sh --data <path|-> [--language <code>]
@@ -133,7 +133,7 @@ render() {
   case "$LANGUAGE_ARG" in
   en | cs) LANGUAGE="$LANGUAGE_ARG" ;;
   *)
-    echo "$PROG: unsupported language: $(safe_display "$LANGUAGE_ARG") — escalate to hermes for a language this renderer does not carry" >&2
+    echo "$PROG: unsupported language: $(safe_display "$LANGUAGE_ARG") — escalate to april for a language this renderer does not carry" >&2
     return 1
     ;;
   esac

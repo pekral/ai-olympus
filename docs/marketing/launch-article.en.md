@@ -59,20 +59,20 @@ pull requests.
 So the roster got split. Five agents, each with its own capability boundary, and none of them
 reviewing code it wrote itself:
 
-- **`daedalus`** resolves the source, decides the route, and dispatches. It also owns the backlog:
+- **`splinter`** resolves the source, decides the route, and dispatches. It also owns the backlog:
   it triages the open issues into a defensible order, and splits a subject too broad for one pull
   request into separately deliverable ones. It holds `Task`, `Read`, `Glob`, `Grep`, `Bash`. It
   never writes code.
-- **`hephaestus`** implements. It is the only agent that holds `Write` and `Edit`.
-- **`athena`** reviews — code quality, architecture, and security in one pass — and drives the fix
+- **`donatello`** implements. It is the only agent that holds `Write` and `Edit`.
+- **`leonardo`** reviews — code quality, architecture, and security in one pass — and drives the fix
   loop until it converges. It holds no `Write` and no `Edit`.
-- **`argus`** is the only agent that runs the application — the API over real HTTP, the UI in a real
+- **`raphael`** is the only agent that runs the application — the API over real HTTP, the UI in a real
   browser — and returns a per-criterion verdict: met, not met, partial, or blocked. It never edits
   code.
-- **`hermes`** writes the human-facing report once the loop converges.
+- **`april`** writes the human-facing report once the loop converges.
 
-The split matters because of what each agent *cannot* do, not what it can. `athena` reviewing
-`hephaestus`'s diff is reading code it did not write, with none of the author's reasoning in context.
+The split matters because of what each agent *cannot* do, not what it can. `leonardo` reviewing
+`donatello`'s diff is reading code it did not write, with none of the author's reasoning in context.
 It finds things. In the pull request above it found two, both mine, both real, and both fixed before
 the review was published.
 
@@ -108,9 +108,9 @@ project.
 
 Three things stop this from being a machine that rewrites your repository while you are at lunch.
 
-**Read-only agents are read-only in the frontmatter.** `athena`, `hermes`, `daedalus`, and `argus`
+**Read-only agents are read-only in the frontmatter.** `leonardo`, `april`, `splinter`, and `raphael`
 each carry `disallowedTools: Write, Edit`. That is enforced by the harness, not by the
-agent's own good intentions. `hephaestus` carries `disallowedTools: WebSearch, WebFetch` for the
+agent's own good intentions. `donatello` carries `disallowedTools: WebSearch, WebFetch` for the
 mirror-image reason: the agent that writes files has no business fetching a third-party URL.
 
 **`composer build` is a gate, not a suggestion.** It runs the installer, then five fixers, then ten

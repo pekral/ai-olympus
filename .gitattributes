@@ -1,2 +1,6 @@
-/assets export-ignore
+/assets/ATTRIBUTION.md export-ignore
+/assets/brands export-ignore
+/assets/logo.png export-ignore
+/assets/social-preview.png export-ignore
+/assets/social-preview.svg export-ignore
 /docs export-ignore

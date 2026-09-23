@@ -294,8 +294,8 @@ test('install creates Claude and Codex directories but never Cursor', function (
         expect(is_file($root . '/.claude/skills/code-review/SKILL.md'))->toBeTrue();
         expect(is_file($root . '/.codex/rules/php/core-standards.md'))->toBeTrue();
         expect(is_file($root . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_file($root . '/.codex/agents/daedalus.toml'))->toBeTrue();
-        expect(is_file($root . '/.codex/agent-instructions/daedalus.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/agents/splinter.toml'))->toBeTrue();
+        expect(is_file($root . '/.codex/agent-instructions/splinter.md'))->toBeTrue();
         expect(is_dir($root . '/.cursor'))->toBeFalse();
     } finally {
         if ($originalCwd !== '') {

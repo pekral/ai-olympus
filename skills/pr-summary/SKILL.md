@@ -89,7 +89,7 @@ Conditional — render only when it has content, never as an empty field:
 - Order the steps by what matters. When one step is the important one, say so in that step.
 - When the change is reachable only behind a test parameter — a feature flag, an ENV switch, a query-string parameter, a request header, an A/B variant, a beta toggle, or an allow-listed account — the **first** step enables it, naming the exact toggle and the value required. There is no separate metadata line for it on any target; the toggle lives inside the step that enables it.
 - Cover the regression too: name the neighbouring flows the tester should exercise to confirm nothing else moved.
-- **Caller-supplied steps win.** When the caller (for example `hermes` in post-convergence reporting mode) passes pre-authored steps derived from designed test scenarios, use those steps as passed — never compressed, never rewritten. The caller's scenarios are the source of truth for this section.
+- **Caller-supplied steps win.** When the caller (for example `april` in post-convergence reporting mode) passes pre-authored steps derived from designed test scenarios, use those steps as passed — never compressed, never rewritten. The caller's scenarios are the source of truth for this section.
 
 ### Closing line — the PR and the source issue
 
@@ -158,7 +158,7 @@ When the calling CR wrapper passes extra markdown blocks (the `Clarifying questi
 - **On JIRA the slot carries `Clarifying questions` only, and its position is after `What changed`** — the last section there, so the slot still sits directly above the closing links line. The `Assignment Compliance` verdict renders into the `Acceptance criteria` section instead of travelling through the slot, per *The JIRA shape* above.
 - Each embedded block must already use the target tracker's source format (GitHub Markdown for GitHub, the supported intermediate Wiki Markup subset for JIRA, plain text for Bugsnag).
 - The resulting comment is published once per linked tracker target — that single consolidated comment is the only non-technical artifact a CR run posts on each linked issue, JIRA ticket, or Bugsnag error.
-- When no embedded blocks are passed, the template renders without that slot exactly as before. This is the shape of a non-CR invocation (for example `hermes` in post-convergence reporting mode), never of a clean CR result.
+- When no embedded blocks are passed, the template renders without that slot exactly as before. This is the shape of a non-CR invocation (for example `april` in post-convergence reporting mode), never of a clean CR result.
 - On GitHub and Bugsnag this slot is how the assignment verdict reaches the reader, and on a CR run it carries that verdict on **every** run with a linked tracker — the affirmative one included; on JIRA the `Acceptance criteria` section carries the same verdict under the same rule. Silence is no longer the clean signal: a tracker comment in which "every criterion is met" and "nobody checked" look identical is the defect `@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases* removes. This skill authors no verdict, no banner, and no "satisfies the assignment" sentence of its own — it renders the passed block verbatim, and the block is the verdict.
 
 ---

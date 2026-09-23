@@ -4,9 +4,9 @@ Referenced from `skills/resolve-issue/SKILL.md` *Pre-PR self-check*. Extracted t
 
 ## What this pass replaced, and why
 
-It used to run `@skills/code-review/SKILL.md` and `@skills/security-review/SKILL.md` inline over the implementer's own diff, gate PR creation on 0 Critical / 0 Moderate, and hand off to `athena`, who then ran the same two lenses over the same diff again. The second pass is the authoritative one, so the first bought a marginally cleaner starting point at the price of a complete duplicate LLM review on every run — the single largest avoidable cost in the pipeline. `@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two* removed it.
+It used to run `@skills/code-review/SKILL.md` and `@skills/security-review/SKILL.md` inline over the implementer's own diff, gate PR creation on 0 Critical / 0 Moderate, and hand off to `leonardo`, who then ran the same two lenses over the same diff again. The second pass is the authoritative one, so the first bought a marginally cleaner starting point at the price of a complete duplicate LLM review on every run — the single largest avoidable cost in the pipeline. `@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two* removed it.
 
-**What is lost, stated rather than hidden:** `athena` now reads a less pre-polished diff, so a finding the implementer would have caught and quietly fixed can instead cost one review round. That is the intended trade — one round is cheaper than one duplicated review on every run — and on a `FAST`-tier run, where no `athena` pass is dispatched at all, the deterministic gates below plus the classifier's sensitive-area force are what stand in its place.
+**What is lost, stated rather than hidden:** `leonardo` now reads a less pre-polished diff, so a finding the implementer would have caught and quietly fixed can instead cost one review round. That is the intended trade — one round is cheaper than one duplicated review on every run — and on a `FAST`-tier run, where no `leonardo` pass is dispatched at all, the deterministic gates below plus the classifier's sensitive-area force are what stand in its place.
 
 ## Procedure
 
@@ -17,7 +17,7 @@ It used to run `@skills/code-review/SKILL.md` and `@skills/security-review/SKILL
 
 ## The boundary
 
-- **It is not a review.** It invokes no review skill, produces no severity-graded findings, and gates nothing on a finding count. Judgment calls — architecture, reuse, security reasoning — belong to `athena`.
+- **It is not a review.** It invokes no review skill, produces no severity-graded findings, and gates nothing on a finding count. Judgment calls — architecture, reuse, security reasoning — belong to `leonardo`.
 - **It does not run the build.** The project's full gate runs once immediately before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*); this pass runs the diff-targeted tests and the static analysis for the changed files.
 - **It never claims a verdict it did not produce.** The technical report says what this pass checked, never "code review clean" or "security review passed".
 

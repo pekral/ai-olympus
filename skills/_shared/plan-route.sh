@@ -25,7 +25,7 @@
 #                              still buys every stage it would otherwise buy.
 #   --security-analysis        the task carries a cyber-security question, so the
 #                              pre-implementation analysis stage applies
-#   --redesign                 the task asks for a page redesign, so `apollo`
+#   --redesign                 the task asks for a page redesign, so `michelangelo`
 #                              produces the layout specification the implementer
 #                              then builds. Tier-independent by design: a
 #                              redesign is a kind of work, not a level of risk.
@@ -43,9 +43,9 @@
 #     "thorough": false,
 #     "escalated_from": null,
 #     "stages": [
-#       { "type": "agent", "role": "hephaestus", "mode": "implementation", "model_tier": "default" },
+#       { "type": "agent", "role": "donatello", "mode": "implementation", "model_tier": "default" },
 #       { "type": "deterministic_classification", "mode": "post_implementation" },
-#       { "type": "agent", "role": "athena", "mode": "review", "model_tier": "default" },
+#       { "type": "agent", "role": "leonardo", "mode": "review", "model_tier": "default" },
 #       { "type": "deterministic_validation", "mode": "scoped" },
 #       { "type": "deterministic_reporting", "mode": "completion" }
 #     ]
@@ -198,9 +198,9 @@ plan() {
       STAGES=()
     else
       [[ "$tier" == "CRITICAL" ]] && stage_deterministic deterministic_validation pre_review
-      stage_agent athena "$review_mode" "$model_tier"
+      stage_agent leonardo "$review_mode" "$model_tier"
       stage_deterministic deterministic_validation scoped
-      [[ "$runtime" -eq 1 && "$tier" == "CRITICAL" ]] && stage_agent argus acceptance default
+      [[ "$runtime" -eq 1 && "$tier" == "CRITICAL" ]] && stage_agent raphael acceptance default
     fi
     emit "$tier" "$thorough" "$escalated_from" "$hotfix"
     return 0
@@ -208,17 +208,17 @@ plan() {
 
   # --- The normal plan -------------------------------------------------------
   if [[ "$security" -eq 1 && "$tier" == "CRITICAL" ]]; then
-    stage_agent athena security_analysis "$model_tier"
+    stage_agent leonardo security_analysis "$model_tier"
   fi
 
   # The redesign produces the specification the implementation builds from, so it
-  # sits before `hephaestus` for the same reason the security analysis does. It is
+  # sits before `donatello` for the same reason the security analysis does. It is
   # not gated on the tier: a page can need a redesign at any level of risk.
   if [[ "$redesign" -eq 1 ]]; then
-    stage_agent apollo redesign default
+    stage_agent michelangelo redesign default
   fi
 
-  stage_agent hephaestus implementation "$model_tier"
+  stage_agent donatello implementation "$model_tier"
 
   # The diff only exists once the implementation lands, so the re-classification
   # that can raise the tier sits here and nowhere earlier.
@@ -229,7 +229,7 @@ plan() {
   fi
 
   if [[ "$tier" != "FAST" ]]; then
-    stage_agent athena "$review_mode" "$model_tier"
+    stage_agent leonardo "$review_mode" "$model_tier"
   fi
 
   # Every tier validates, FAST included: it is the tier's only gate, so it is
@@ -237,7 +237,7 @@ plan() {
   stage_deterministic deterministic_validation scoped
 
   if [[ "$runtime" -eq 1 && "$tier" == "CRITICAL" ]]; then
-    stage_agent argus acceptance default
+    stage_agent raphael acceptance default
   fi
 
   if [[ "$tracker" == "yes" ]]; then
@@ -329,7 +329,7 @@ self_test() {
     fi
   }
 
-  local IMPL='hephaestus:implementation:default'
+  local IMPL='donatello:implementation:default'
   local RECLASS='deterministic_classification:post_implementation'
   local VALIDATE='deterministic_validation:scoped'
   local REPORT='deterministic_reporting:completion'
@@ -339,28 +339,28 @@ self_test() {
     "$IMPL -> $RECLASS -> $VALIDATE -> $REPORT" --tier FAST
 
   expect_sequence 'STANDARD adds the review at the default model tier' \
-    "$IMPL -> $RECLASS -> athena:review:default -> $VALIDATE -> $REPORT" --tier STANDARD
+    "$IMPL -> $RECLASS -> leonardo:review:default -> $VALIDATE -> $REPORT" --tier STANDARD
 
   expect_sequence 'CRITICAL escalates the model and validates before review' \
-    "hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> $REPORT" \
+    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL
 
   expect_sequence 'CRITICAL with a security question analyses first' \
-    "athena:security_analysis:escalated -> hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> $REPORT" \
+    "leonardo:security_analysis:escalated -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --security-analysis
 
   # The security analysis belongs to CRITICAL. A STANDARD task that mentions
   # security is routed by the classifier, which forces CRITICAL on a real
   # security surface — so a STANDARD plan never carries the stage.
   expect_sequence 'STANDARD never buys the upfront security analysis' \
-    "$IMPL -> $RECLASS -> athena:review:default -> $VALIDATE -> $REPORT" --tier STANDARD --security-analysis
+    "$IMPL -> $RECLASS -> leonardo:review:default -> $VALIDATE -> $REPORT" --tier STANDARD --security-analysis
 
-  expect_sequence 'runtime acceptance adds argus on CRITICAL' \
-    "hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> argus:acceptance:default -> $REPORT" \
+  expect_sequence 'runtime acceptance adds raphael on CRITICAL' \
+    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> raphael:acceptance:default -> $REPORT" \
     --tier CRITICAL --runtime-acceptance
 
   expect_sequence '--thorough runs the full pipeline over a FAST verdict' \
-    "hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> $REPORT" \
+    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier FAST --thorough
 
   expect_sequence 'no tracker means no reporting stage to run' \
@@ -371,9 +371,9 @@ self_test() {
   # The raised tier owes the stages the lower one skipped, never a replay of the
   # implementation it already has.
   expect_sequence 'FAST escalated to STANDARD owes the review' \
-    "athena:review:default -> $VALIDATE" --tier STANDARD --escalated-from FAST
+    "leonardo:review:default -> $VALIDATE" --tier STANDARD --escalated-from FAST
   expect_sequence 'FAST escalated to CRITICAL owes both validations and the review' \
-    "deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE" \
+    "deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE" \
     --tier CRITICAL --escalated-from FAST
   expect_sequence 'an unchanged tier owes nothing' '' --tier STANDARD --escalated-from STANDARD
   expect_sequence 'a tier cannot be lowered by re-classification' '' --tier FAST --escalated-from CRITICAL
@@ -384,21 +384,21 @@ self_test() {
   # need for one is a property of the task rather than of its risk — so the stage
   # appears at every tier, always ahead of the implementer.
   expect_sequence '--redesign designs before it implements' \
-    "apollo:redesign:default -> $IMPL -> $RECLASS -> athena:review:default -> $VALIDATE -> $REPORT" \
+    "michelangelo:redesign:default -> $IMPL -> $RECLASS -> leonardo:review:default -> $VALIDATE -> $REPORT" \
     --tier STANDARD --redesign
 
   expect_sequence '--redesign applies on FAST too' \
-    "apollo:redesign:default -> $IMPL -> $RECLASS -> $VALIDATE -> $REPORT" --tier FAST --redesign
+    "michelangelo:redesign:default -> $IMPL -> $RECLASS -> $VALIDATE -> $REPORT" --tier FAST --redesign
 
   expect_sequence 'a CRITICAL redesign still analyses security first' \
-    "athena:security_analysis:escalated -> apollo:redesign:default -> hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review:escalated -> $VALIDATE -> $REPORT" \
+    "leonardo:security_analysis:escalated -> michelangelo:redesign:default -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --security-analysis --redesign
 
   # A re-classification owes the stages the lower tier skipped. The redesign is not
   # one of them: it already ran, and replaying it would redo the work and hand the
   # implementer a second, competing specification.
   expect_sequence 'an escalation never replays the redesign' \
-    "athena:review:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --redesign
+    "leonardo:review:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --redesign
 
   # --- HOTFIX ----------------------------------------------------------------
   #
@@ -406,15 +406,15 @@ self_test() {
   # instead would ship an unreviewed emergency change, which is the opposite of
   # what the mode trades.
   expect_sequence '--hotfix narrows the review instead of removing it' \
-    "$IMPL -> $RECLASS -> athena:review_hotfix:default -> $VALIDATE -> $REPORT" \
+    "$IMPL -> $RECLASS -> leonardo:review_hotfix:default -> $VALIDATE -> $REPORT" \
     --tier STANDARD --hotfix
 
   expect_sequence '--hotfix never lowers a CRITICAL tier' \
-    "hephaestus:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> athena:review_hotfix:escalated -> $VALIDATE -> $REPORT" \
+    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review_hotfix:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --hotfix
 
   expect_sequence '--hotfix carries into a post-implementation escalation' \
-    "athena:review_hotfix:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --hotfix
+    "leonardo:review_hotfix:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --hotfix
 
   expect_field '--hotfix is recorded in the plan' 'true' '.hotfix' --tier STANDARD --hotfix
   expect_field 'an ordinary run records no hotfix' 'false' '.hotfix' --tier STANDARD
