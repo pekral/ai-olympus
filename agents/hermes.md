@@ -136,7 +136,7 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    The helper is the only deletion path. Never compose raw `gh api --method DELETE` or
    `acli jira workitem comment delete` yourself.
 7. Reload the issue and PR. Require exactly one current `merge-readiness` comment from the actor on
-   the issue (on a JIRA source: the marker-carrying comments by the actor are exactly the protected IDs), every deleted
+   the issue (on a JIRA source: every remaining marker-carrying comment by the actor is a protected ID), every deleted
    ID absent, and all protected IDs still present. A partial cleanup is
    `Blocked`, with the remaining and protected IDs named.
 
