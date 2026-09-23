@@ -22,10 +22,14 @@
 #   2. The actor digest is derived from the e-mail `acli jira auth status`
 #      reports, through the same jira-actor.sh function upsert-comment.sh uses
 #      to write the `_cr-comment:actor=<actor-digest>_` marker.
-#   3. Both protected comments exist on this issue and carry that marker. The
-#      author `accountId` of FINAL_TLDR_ID anchors the actor's account: this run
-#      published that comment itself, while acli exposes no account ID for the
-#      current user. CURRENT_CR_ID must share that `accountId`.
+#   3. Both protected comments exist on this issue. The author `accountId` of
+#      FINAL_TLDR_ID anchors the actor's account: this run published that comment
+#      itself and read it back, while acli exposes no account ID for the current
+#      user. CURRENT_CR_ID must share that `accountId`. A protected comment needs
+#      no marker, so a TL;DR published through the sanctioned JIRA MCP fallback
+#      after `upsert-comment.sh` failed still anchors the cleanup of the
+#      duplicates that failed run left behind. Pass only a comment ID this run
+#      published as FINAL_TLDR_ID.
 #   4. The target exists on this issue, carries the marker, and its author
 #      `accountId` equals the anchor. The marker alone is visible text anyone
 #      can copy, and a display name is not an identity, so neither proves
@@ -40,7 +44,9 @@
 # comment --json`; a comment the view does not embed cannot be proven either.
 #
 # After `acli jira workitem comment delete --key <KEY> --id <ID>` the issue is
-# re-read, and success is reported only when the comment is gone.
+# re-read, and success is reported only when that read still lists both
+# protected comments and no longer lists the target — a read that lists neither
+# proves nothing.
 #
 # Exit codes:
 #   1  usage / argument error
@@ -129,26 +135,30 @@ read_comments() {
     ) | add // []' 2>/dev/null
 }
 
-# Print `<accountId>\t<emailAddress>` of a comment that exists on the issue and
-# carries the marker; print nothing otherwise.
+# Print `<accountId>\t<emailAddress>` of a comment that exists on the issue and,
+# when a marker is given, carries it; print nothing otherwise.
 owned_identity() {
-  printf '%s' "$COMMENTS" | jq -r --arg id "$1" --arg marker "$MARKER" '
+  printf '%s' "$COMMENTS" | jq -r --arg id "$1" --arg marker "$2" '
     map(select(((.id // "") | tostring) == $id)) | first
     | select(. != null)
-    | select((.body | tojson) | contains($marker))
+    | select($marker == "" or ((.body | tojson) | contains($marker)))
     | [ (.author.accountId? // ""), (.author.emailAddress? // "") ] | @tsv' 2>/dev/null || true
 }
 
-# Refuse unless the comment is on the issue, carries the marker, belongs to the
-# anchor account, and shows no conflicting e-mail.
+# Refuse unless the comment is on the issue, carries the required marker,
+# belongs to the anchor account, and shows no conflicting e-mail.
 require_owned() {
-  local id="$1" what="$2" identity account email
-  identity="$(owned_identity "$id")"
+  local id="$1" what="$2" marker="$3" identity account email
+  identity="$(owned_identity "$id" "$marker")"
   account="${identity%%$'\t'*}"
   email="${identity#*$'\t'}"
 
   if [[ -z "$identity" || -z "$account" ]]; then
-    printf '%s\n' "$PROG: $what $id is not on $KEY or does not carry this actor's cr-comment marker" >&2
+    if [[ -n "$marker" ]]; then
+      printf '%s\n' "$PROG: $what $id is not on $KEY or does not carry this actor's cr-comment marker" >&2
+    else
+      printf '%s\n' "$PROG: $what $id is not on $KEY or has no resolvable author account" >&2
+    fi
     exit 4
   fi
 
@@ -171,9 +181,9 @@ if ! COMMENTS="$(read_comments)" || [[ -z "$COMMENTS" ]]; then
 fi
 
 ANCHOR_ACCOUNT=""
-require_owned "$FINAL_TLDR_ID" "protected comment"
-require_owned "$CURRENT_CR_ID" "protected comment"
-require_owned "$COMMENT_ID" "comment"
+require_owned "$FINAL_TLDR_ID" "protected comment" ""
+require_owned "$CURRENT_CR_ID" "protected comment" ""
+require_owned "$COMMENT_ID" "comment" "$MARKER"
 
 if ! acli jira workitem comment delete --key "$KEY" --id "$COMMENT_ID" >/dev/null 2>&1; then
   printf '%s\n' "$PROG: acli comment delete failed on $KEY comment $COMMENT_ID" >&2
@@ -184,6 +194,13 @@ if ! COMMENTS="$(read_comments)" || [[ -z "$COMMENTS" ]]; then
   printf '%s\n' "$PROG: deletion could not be verified; the comments of $KEY are unreadable" >&2
   exit 3
 fi
+
+for protected_id in "$FINAL_TLDR_ID" "$CURRENT_CR_ID"; do
+  if ! printf '%s' "$COMMENTS" | jq -e --arg id "$protected_id" 'any(.[]; ((.id // "") | tostring) == $id)' >/dev/null; then
+    printf '%s\n' "$PROG: deletion could not be verified; the re-read of $KEY lacks protected comment $protected_id" >&2
+    exit 3
+  fi
+done
 
 if printf '%s' "$COMMENTS" | jq -e --arg id "$COMMENT_ID" 'any(.[]; ((.id // "") | tostring) == $id)' >/dev/null; then
   printf '%s\n' "$PROG: deletion verification failed; comment $COMMENT_ID is still on $KEY" >&2

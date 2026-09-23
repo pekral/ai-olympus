@@ -151,25 +151,46 @@ test('the JIRA comment delete helper refuses a comment whose copied marker belon
     expect($result['deleted'])->toBeFalse();
 });
 
-test('the JIRA comment delete helper refuses an unmarked comment and an unmarked protected comment', function (): void {
+test('the JIRA comment delete helper refuses an unmarked target', function (): void {
     $unmarkedTarget = [
         jiraDeleteComment('123', 'acc-agent', ''),
         jiraDeleteComment('900', 'acc-agent', 'Final TL;DR ' . jiraDeleteMarker()),
     ];
-    $unmarkedProtected = [
+
+    $result = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], $unmarkedTarget, []);
+
+    expect($result['process']->getExitCode())->toBe(4);
+    expect($result['process']->getErrorOutput())->toContain('comment 123 is not on ACME-1234 or does not carry');
+    expect($result['deleted'])->toBeFalse();
+});
+
+test('an unmarked TL;DR from the MCP fallback still anchors the cleanup of a marked duplicate', function (): void {
+    $before = [
         jiraDeleteComment('123', 'acc-agent', 'orphan ' . jiraDeleteMarker()),
-        jiraDeleteComment('900', 'acc-agent', 'Final TL;DR without a marker'),
+        jiraDeleteComment('900', 'acc-agent', 'Final TL;DR published through the MCP fallback'),
     ];
+    $after = [jiraDeleteComment('900', 'acc-agent', 'Final TL;DR published through the MCP fallback')];
 
-    $target = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], $unmarkedTarget, []);
-    $protected = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], $unmarkedProtected, []);
+    $result = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], $before, $after);
 
-    expect($target['process']->getExitCode())->toBe(4);
-    expect($target['process']->getErrorOutput())->toContain('comment 123 is not on ACME-1234 or does not carry');
-    expect($target['deleted'])->toBeFalse();
-    expect($protected['process']->getExitCode())->toBe(4);
-    expect($protected['process']->getErrorOutput())->toContain('protected comment 900');
-    expect($protected['deleted'])->toBeFalse();
+    expect($result['process']->getExitCode())->toBe(0);
+    expect($result['process']->getOutput())->toContain('deleted id=123 key=ACME-1234');
+});
+
+test('the JIRA comment delete helper refuses a protected id that is not on the issue', function (): void {
+    $result = runJiraDeleteHelper(['ACME-1234', '123', '901', '901'], jiraDeleteOwnedComments(), []);
+
+    expect($result['process']->getExitCode())->toBe(4);
+    expect($result['process']->getErrorOutput())->toContain('protected comment 901 is not on ACME-1234 or has no resolvable author account');
+    expect($result['deleted'])->toBeFalse();
+});
+
+test('a post-delete read that no longer lists the protected comments proves nothing', function (): void {
+    $result = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], jiraDeleteOwnedComments(), []);
+
+    expect($result['process']->getExitCode())->toBe(3);
+    expect($result['process']->getErrorOutput())->toContain('lacks protected comment 900');
+    expect($result['process']->getOutput())->not->toContain('deleted id=');
 });
 
 test('the JIRA comment delete helper refuses a comment whose visible e-mail names another account', function (): void {

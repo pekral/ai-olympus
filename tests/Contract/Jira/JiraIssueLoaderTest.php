@@ -429,3 +429,25 @@ test('parse-comments exposes the comment id and the ADF-rendered body', function
     expect(decodedJsonField($output, '0.body'))->toContain('v rámci F1 úplně vynecháme');
     expect(decodedJsonField($output, '1.id'))->toBe('116700');
 });
+
+test('a date node renders its day, and an unrenderable timestamp degrades to its raw value', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $dates = [];
+
+    foreach (['1700000000000', '1e25', '-99999999999999999999'] as $timestamp) {
+        $dates[] = ['attrs' => ['timestamp' => $timestamp], 'type' => 'date'];
+    }
+
+    $body = ['content' => [jiraLoaderParagraph($dates)], 'type' => 'doc', 'version' => 1];
+    $view['fields']['comment'] = ['comments' => [['body' => $body, 'id' => '10001']]];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', ['FAKE_ACLI_VIEW_JSON' => (string) json_encode($view)]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'comments.0.body'))->toBe('2023-11-141e25-99999999999999999999');
+});
