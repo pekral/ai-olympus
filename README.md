@@ -26,11 +26,11 @@ Existing `CLAUDE.md` and `AGENTS.md` are preserved. When a project has an existi
 ## Quickstart
 
 ```bash
-composer require pekral/ai-olympus:0.1.2 --dev
+composer require pekral/ai-olympus:dev-master --dev
 vendor/bin/ai-olympus install --force
 ```
 
-The commands above pin version `0.1.2`. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
+This installs the current `master` development branch, which contains the Ninja Turtles team shown below. Commit your project's `composer.lock` to keep installations reproducible. The tagged release `0.1.2` still uses the original agent names; see [versions and upgrades](docs/installation.md#versions-and-upgrades) if you need that release.
 
 Restart the agent session after installation. In Claude Code:
 
@@ -106,7 +106,9 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
 
 > [!IMPORTANT]
-> `install` normally copies only missing files; security rule files are refreshed even without `--force`. The Quickstart's `--force` also replaces other installed rules, skills, and agents, so save local customizations first. Neither root instruction file is overwritten. Use `--prune` when upgrading to remove files the package no longer ships.
+> `install` normally copies only missing files; security rule files are refreshed even without `--force`. The Quickstart's `--force` also replaces other installed rules, skills, and agents, so save local customizations first. Neither root instruction file is overwritten.
+>
+> During the agent rename, the installer removes verified, unchanged copies of the old definitions once their replacements are installed. Edited old definitions and custom agents are preserved. See the [old-to-new name mapping](docs/agents.md#renamed-agents). Use `--prune` only after reviewing orphaned files: it also removes custom files absent from the package.
 
 Installation leaves global Claude settings unchanged by default. Pass `--disable-co-author-attribution` to set `includeCoAuthoredBy: false` in `~/.claude/settings.json` when absent; existing values are preserved. The installer still removes this package's obsolete `bash-guard` hook from project settings. This cleanup and the opt-in settings switches configure Claude Code only, including when you intend to use Codex; they do not grant Codex permissions. See the [trust model](SECURITY.md).
 
@@ -124,50 +126,14 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-Each agent has its own transparent avatar and shared activity animations under [`assets/agents/`](assets/agents). Try the [interactive preview](assets/agents/preview.html) or use the [integration manifest](assets/agents/manifest.json). Full role definitions live in [`docs/agents.md`](docs/agents.md).
+The six specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
 
 <table>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/donatello.png"><img src="assets/agents/thumbnails/donatello.png" alt="donatello avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/splinter.png"><img src="assets/agents/thumbnails/splinter.png" alt="Splinter avatar" width="80"></a></td>
 <td valign="top">
 
-**`donatello` — code-writing implementer**
-
-Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `leonardo`, and final tracker reporting belongs to `april`. An explicitly requested merge must use the separate `merge-github-pr` skill.
-
-**Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/michelangelo.png"><img src="assets/agents/thumbnails/michelangelo.png" alt="michelangelo avatar" width="80"></a></td>
-<td valign="top">
-
-**`michelangelo` — page redesigner** · writes only its own proposal
-
-Redesigns an existing page around the operator who works in it — a warehouse, workshop, or shop-floor worker who is not an IT person and needs the order out. It maps every state the main screenshot hides, lays the content region out against that operator's task sequence, and hands back a developer-ready specification with one rendered preview per state. The application's main layout shell is never touched without an explicit order, and it proposes rather than implements: it holds no `Edit` tool, so no file the application ships is changeable by it. Its portrait is the universal placeholder until custom artwork exists.
-
-**Orchestrates:** `page-redesign`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/raphael.png"><img src="assets/agents/thumbnails/raphael.png" alt="raphael avatar" width="80"></a></td>
-<td valign="top">
-
-**`raphael` — acceptance tester** · read-only
-
-Exercises changed behaviour on a local running application: APIs over HTTP and UI scenarios in a real browser. Uses the project's `interactive-testing` skill when available. Returns a per-criterion Met / Not met / Blocked verdict with observed evidence; an untested criterion is never Met. Pure refactors and documentation changes do not need this pass. It never edits code, authors tests, merges, or publishes.
-
-**Orchestrates:** `tester-cookbook`, `e2e-testing`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/splinter.png"><img src="assets/agents/thumbnails/splinter.png" alt="splinter avatar" width="80"></a></td>
-<td valign="top">
-
-**`splinter` — engineering-workflow orchestrator** · the front door
+**Splinter (`splinter`) — engineering-workflow orchestrator** · the front door
 
 Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
@@ -176,10 +142,22 @@ Routes a free-form request to the specialists: `donatello` for implementation, `
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/leonardo.png"><img src="assets/agents/thumbnails/leonardo.png" alt="leonardo avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/donatello.png"><img src="assets/agents/thumbnails/donatello.png" alt="Donatello avatar" width="80"></a></td>
 <td valign="top">
 
-**`leonardo` — the code-review sentinel** · read-only
+**Donatello (`donatello`) — code-writing implementer**
+
+Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `leonardo`, and final tracker reporting belongs to `april`. An explicitly requested merge must use the separate `merge-github-pr` skill.
+
+**Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/leonardo.png"><img src="assets/agents/thumbnails/leonardo.png" alt="Leonardo avatar" width="80"></a></td>
+<td valign="top">
+
+**Leonardo (`leonardo`) — the code-review sentinel** · read-only
 
 The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
@@ -188,10 +166,34 @@ The roster's **only** CR agent. Two modes: the authoritative code review after `
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/april.png"><img src="assets/agents/thumbnails/april.png" alt="april avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/raphael.png"><img src="assets/agents/thumbnails/raphael.png" alt="Raphael avatar" width="80"></a></td>
 <td valign="top">
 
-**`april` — release announcer & reporter** · read-only
+**Raphael (`raphael`) — acceptance tester** · read-only
+
+Exercises changed behaviour on a local running application: APIs over HTTP and UI scenarios in a real browser. Uses the project's `interactive-testing` skill when available. Returns a per-criterion Met / Not met / Blocked verdict with observed evidence; an untested criterion is never Met. Pure refactors and documentation changes do not need this pass. It never edits code, authors tests, merges, or publishes.
+
+**Orchestrates:** `tester-cookbook`, `e2e-testing`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/michelangelo.png"><img src="assets/agents/thumbnails/michelangelo.png" alt="Michelangelo avatar" width="80"></a></td>
+<td valign="top">
+
+**Michelangelo (`michelangelo`) — page redesigner** · writes only its own proposal
+
+Redesigns an existing page around the operator who works in it — a warehouse, workshop, or shop-floor worker who is not an IT person and needs the order out. It maps every state the main screenshot hides, lays the content region out against that operator's task sequence, and hands back a developer-ready specification with one rendered preview per state. The application's main layout shell is never touched without an explicit order, and it proposes rather than implements: it holds no `Edit` tool, so no file the application ships is changeable by it.
+
+**Orchestrates:** `page-redesign`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/april.png"><img src="assets/agents/thumbnails/april.png" alt="April O’Neil avatar" width="80"></a></td>
+<td valign="top">
+
+**April O’Neil (`april`) — release announcer & reporter** · read-only
 
 Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. For merge preparation, it publishes one verified source-issue TL;DR and removes only superseded comments owned by the authenticated actor while preserving current review evidence. This reporting role is separate from `leonardo` publishing the code review. It does not change implementation code.
 
@@ -200,6 +202,20 @@ Writes release announcements and publishes the final tracker report after review
 </td>
 </tr>
 </table>
+
+### Avatars and activity animations
+
+All six agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). They follow Cockpit’s Krang mascot style. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+
+Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
+
+| State | Appearance |
+|---|---|
+| `idle` | Still portrait, no thought bubble |
+| `queued` | Still portrait and thought bubble |
+| `thinking`, `working`, `responding` | Swaying portrait and moving thought dots |
+
+Animations respect `prefers-reduced-motion` and can be paused with `data-motion="paused"`. The [integration manifest](assets/agents/manifest.json) maps agent IDs to display names, roles, image paths, and accent colours. See the [markup example](docs/agents.md#avatar-and-activity-assets) to use it. These assets prepare a future Cockpit integration; agents are not yet connected to Cockpit directly.
 
 ### How agents hand work over
 
