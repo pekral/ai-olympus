@@ -218,10 +218,12 @@ if (!is_string($wikiMarkup)) {
     exit(1);
 }
 
+// A body cut mid-character (a byte-based truncation of Czech text) still publishes: the broken
+// bytes become U+FFFD instead of failing the whole comment.
 try {
     echo json_encode(
         jiraWikiMarkupToAdf($wikiMarkup),
-        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR,
     );
     echo "\n";
 } catch (JsonException $exception) {

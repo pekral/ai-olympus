@@ -245,9 +245,9 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // The lookup matches on the comment's author and on the marker inside its
     // body — never on "the latest comment", and never on the whole comment
     // object, which would match the marker in any field.
-    expect($jiraScriptBody)->toContain('acli jira workitem comment list --key "$KEY" --json --paginate');
+    expect($jiraScriptBody)->toContain('acli jira workitem view "$KEY" --fields comment --json');
     expect($jiraScriptBody)->toContain('--arg marker_email "$EMAIL"');
-    expect($jiraScriptBody)->toContain('(.author.emailAddress // "") == $marker_email');
+    expect($jiraScriptBody)->toContain('(.author | if type == "object" then (.emailAddress // "") else "" end)');
     expect($jiraScriptBody)->toContain('((.body | tojson) | contains($marker))');
     expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
     expect($jiraScriptBody)->toContain('if [[ -n "$MARKER_TEXT" ]]; then');

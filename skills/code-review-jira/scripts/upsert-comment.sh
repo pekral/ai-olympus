@@ -43,16 +43,23 @@
 #      the source does not already carry it). The raw address never leaves this
 #      process: it is used only for the local author comparison in step 4.
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
-#   4. List the issue's comments and pick the newest one this account authored
-#      whose body carries that marker. Both halves are load-bearing: the marker
-#      is visible text anyone can copy into their own comment, so the author
+#   4. Read the issue's comments through `acli jira workitem view <KEY>
+#      --fields comment --json` and pick the newest one this account authored
+#      whose body carries that marker. `comment list` is not used: acli 1.3.x
+#      returns the author there as a bare display name and the body as flattened
+#      text, so neither half of the match can be made against it. Both halves
+#      are load-bearing: the marker is visible text anyone can copy into their
+#      own comment, so the author
 #      must match too, and the marker is matched against the comment body alone
 #      rather than against the whole comment object.
 #   5. When a match exists, update it via
 #      `acli jira workitem comment update --body-adf`. Otherwise create a fresh
 #      comment from the ADF file and immediately update that same new comment
 #      through the same `--body-adf` path. Passing ADF to both calls ensures a
-#      failed update never leaves Wiki Markup behind.
+#      failed update never leaves Wiki Markup behind. `comment create --json`
+#      reports a per-work-item status and no comment ID on acli 1.3.x, so the
+#      new ID is resolved by re-reading the comments and taking the comment that
+#      was absent before the create, carries the marker, and has this author.
 #
 # The lookup is fail-safe, never fail-open: an unresolvable account e-mail, an
 # `acli` error, or an unexpected JSON shape falls back to creating a new comment
@@ -194,6 +201,27 @@ if ! jq -e '.version == 1 and .type == "doc" and (.content | type == "array")' "
   exit 3
 fi
 
+# Print the issue's comments as one JSON array, or nothing when the read fails.
+# `jq -s` slurps the stream so a response of several documents still flattens;
+# the envelope differs between acli builds, hence the fallbacks and the `[]`
+# default for a shape none of them matches.
+read_comments() {
+  local raw=""
+  if ! raw="$(acli jira workitem view "$KEY" --fields comment --json 2>"$LIST_STDERR")"; then
+    return 1
+  fi
+
+  printf '%s' "$raw" \
+    | jq -s 'map(
+          if type == "array" then .
+          elif type == "object" then (.fields.comment.comments // .comments // .results // .values // [])
+          else [] end
+        ) | add // []' 2>/dev/null
+}
+
+# An author that is a bare display name, or missing, has no e-mail to match.
+AUTHOR_EMAIL_JQ='(.author | if type == "object" then (.emailAddress // "") else "" end)'
+
 # Look for a comment this actor already published under the same marker. Every
 # failure path here — no marker, an acli error, an unexpected JSON shape, no
 # match — resolves to "no existing comment", so the script creates one instead
@@ -201,24 +229,9 @@ fi
 EXISTING_ID=""
 COMMENTS_JSON=""
 if [[ -n "$MARKER_TEXT" ]]; then
-  LIST_JSON=""
-  if ! LIST_JSON="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>"$LIST_STDERR")"; then
+  if ! COMMENTS_JSON="$(read_comments)"; then
     echo "upsert-comment.sh: comment lookup failed on $KEY, publishing a new comment instead: $(<"$LIST_STDERR")" >&2
-    LIST_JSON=""
-  fi
-
-  if [[ -n "$LIST_JSON" ]]; then
-    # Flatten first, match second. `--paginate` may emit one JSON document per
-    # page, so `jq -s` slurps the whole stream before any envelope key is read;
-    # a single-document response slurps to a one-element stream and behaves the
-    # same. The envelope key differs between acli builds, hence the three
-    # fallbacks and the `[]` default for a shape none of them matches.
-    COMMENTS_JSON="$(printf '%s' "$LIST_JSON" \
-      | jq -s 'map(
-            if type == "array" then .
-            elif type == "object" then (.comments // .results // .values // [])
-            else [] end
-          ) | add // []' 2>/dev/null || true)"
+    COMMENTS_JSON=""
   fi
 
   if [[ -n "$COMMENTS_JSON" ]]; then
@@ -227,7 +240,7 @@ if [[ -n "$MARKER_TEXT" ]]; then
     # account to a reader; the comparison here needs no digest of its own.
     EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
       | jq -r --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" '
-          map(select(((.author.emailAddress // "") == $marker_email)
+          map(select(('"${AUTHOR_EMAIL_JQ}"' == $marker_email)
                      and ((.body | tojson) | contains($marker))))
           | sort_by((.updated? // .created? // "") | tostring)
           | last
@@ -242,9 +255,9 @@ fi
 # unprovable, so the new comment below is a duplicate rather than a first one.
 if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ && -n "$COMMENTS_JSON" ]]; then
   UNVERIFIABLE_MARKED="$(printf '%s' "$COMMENTS_JSON" \
-    | jq -r 'map(select(((.author.emailAddress // "") == "")
-                        and ((.body | tojson) | contains("cr-comment:actor="))))
-             | length' 2>/dev/null || true)"
+    | jq -r "map(select((${AUTHOR_EMAIL_JQ} == \"\")
+                        and ((.body | tojson) | contains(\"cr-comment:actor=\"))))
+             | length" 2>/dev/null || true)"
 
   if [[ "$UNVERIFIABLE_MARKED" =~ ^[1-9][0-9]*$ ]]; then
     echo "upsert-comment.sh: no comment matched this actor's identity — author identity could not be verified from the acli response; posting a new comment instead of updating" >&2
@@ -269,6 +282,24 @@ else
       // ([.. | objects | .id? | select(type == "string" or type == "number")] | first)
       // empty
     ) | tostring' 2>/dev/null || true)"
+
+  # acli 1.3.x reports no comment ID here. Identify the new comment by what only
+  # it can carry: absent before the create, this account's marker in the body,
+  # and this account as its author. The highest ID wins, since JIRA assigns them
+  # in ascending order. Without a marker and an e-mail there is nothing to match
+  # on, so the run fails closed rather than update a comment it cannot prove.
+  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$MARKER_TEXT" && -n "$EMAIL" ]]; then
+    BEFORE_IDS="$(printf '%s' "${COMMENTS_JSON:-[]}" | jq -c '[.[] | (.id? // empty) | tostring]' 2>/dev/null || echo '[]')"
+    AFTER_JSON="$(read_comments || true)"
+    TARGET_ID="$(printf '%s' "${AFTER_JSON:-[]}" \
+      | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" "
+          map(select(((.id? // \"\") | tostring) as \$id | (\$before | index(\$id)) == null)
+              | select(${AUTHOR_EMAIL_JQ} == \$marker_email)
+              | select((.body | tojson) | contains(\$marker)))
+          | map((.id | tostring) | select(test(\"^[0-9]+\$\")) | tonumber)
+          | max // empty
+          | tostring" 2>/dev/null || true)"
+  fi
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2

@@ -172,7 +172,7 @@ test('hermes runs three publication checks before a JIRA comment counts as publi
 
     // The read the check needs is granted in hermes's own Bash boundary, and it stays a read.
     $boundary = installerDocsSection($hermes, '## Bash boundary');
-    expect($boundary)->toContain('acli jira workitem comment list --key <KEY> --json --paginate');
+    expect($boundary)->toContain('acli jira workitem view <KEY> --fields comment --json');
     expect($boundary)->toContain('never an `acli` write');
 });
 

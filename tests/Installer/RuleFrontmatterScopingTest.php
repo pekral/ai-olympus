@@ -371,7 +371,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
         // exists. The ADF-only write path and the self-assignment rule are unchanged.
-        'rules/jira/general.md' => 'c67c0aaa28882db8330f554f7c2769a511411191d1dba9a4986a3894583b059e',
+        // Re-baselined: a failed helper with no JIRA MCP tool in the session now stops as blocked,
+        // quoting the helper's stderr verbatim instead of paraphrasing a cause.
+        'rules/jira/general.md' => '248ac84d092a13cca1bf798c3263512ecaac54afc31365b88f1962f1c7f56c0a',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
