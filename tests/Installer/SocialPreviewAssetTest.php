@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 /**
  * Issue #193 — the social-preview asset still advertised `argos`, an agent removed in #179, and
- * never gained `hermes`. Every other surface that names the roster (`README.md`, `docs/agents.md`,
+ * never gained `april`. Every other surface that names the roster (`README.md`, `docs/agents.md`,
  * the rules, the issue template) was swept in lockstep; this one asset was missed because nothing
  * derived its content from `agents/*.md`.
  *
@@ -51,10 +51,10 @@ test('the rendered PNG is bound to the SVG it was rendered from (issue #193)', f
     $svg = (string) file_get_contents($packageDir . '/assets/social-preview.svg');
 
     expect(hash('sha256', str_replace("\r\n", "\n", $svg)))
-        ->toBe('5db6981c62d6641b97c43f93a24bf0a4b20cf8259c04b648c5753f87d0174576');
+        ->toBe('f43f7c452178eda9e4bc7abe15eb22830e69e96bcdeed7b5f943e1e9a3e7f8f1');
 
     expect(hash_file('sha256', $packageDir . '/assets/social-preview.png'))
-        ->toBe('dbb1a49acb57390f379b6a9e5046c699def16f1298125e4685fe7b6e7e947704');
+        ->toBe('426fc6e42e5f9a127bc7c62861cd0b33e65088b2f50e9f7e2c82bdb93a67a64e');
 
     // The dimensions GitHub renders a social preview at; a re-render at the wrong size would
     // otherwise pass the digest check the moment someone updated it without looking.

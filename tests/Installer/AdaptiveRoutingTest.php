@@ -94,14 +94,14 @@ test('the implementer runs at the default model tier and the reviewer carries th
 
     // Default-tier-first is the saving, and the implementer keeps it: a role permanently pinned to
     // the expensive model pays for it on a README typo, which is the fixed overhead adaptive
-    // routing exists to remove. `athena` is the operator's deliberate exception — the reviewer is
+    // routing exists to remove. `leonardo` is the operator's deliberate exception — the reviewer is
     // the one role whose shallow pass costs a round for every stage downstream, so this roster buys
     // the stronger model outright instead of escalating into it. The escalation contract itself is
     // unchanged on both, which is what the three pins below assert.
-    expect(file_get_contents($packageDir . '/agents/hephaestus.md'))->toContain("\nmodel: sonnet\n");
-    expect(file_get_contents($packageDir . '/agents/athena.md'))->toContain("\nmodel: opus\n");
+    expect(file_get_contents($packageDir . '/agents/donatello.md'))->toContain("\nmodel: sonnet\n");
+    expect(file_get_contents($packageDir . '/agents/leonardo.md'))->toContain("\nmodel: opus\n");
 
-    foreach (['hephaestus', 'athena'] as $agent) {
+    foreach (['donatello', 'leonardo'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('## Model tier — the default tier, escalated only on a recorded reason');
         expect($content)->toContain('Blocked: needs model escalation');
@@ -140,7 +140,7 @@ function routingPlan(string $args): string
     return (string) shell_exec('bash ' . escapeshellarg($planner) . ' ' . $args . ' 2>/dev/null');
 }
 
-test('a page redesign is routed to apollo before the implementer, at every tier', function (): void {
+test('a page redesign is routed to michelangelo before the implementer, at every tier', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // The stage answers "does somebody design this page before it is built?", which is a property
@@ -149,19 +149,19 @@ test('a page redesign is routed to apollo before the implementer, at every tier'
     foreach (['FAST', 'STANDARD', 'CRITICAL'] as $tier) {
         $roles = routingAgentStages(routingPlan('--tier ' . $tier . ' --redesign'));
 
-        expect($roles[0])->toBe('apollo:redesign');
-        expect($roles[1])->toBe('hephaestus:implementation');
+        expect($roles[0])->toBe('michelangelo:redesign');
+        expect($roles[1])->toBe('donatello:implementation');
     }
 
     // An escalation owes the stages the lower tier skipped. The redesign already ran, so replaying
     // it would hand the implementer a second, competing specification.
-    expect(routingPlan('--tier STANDARD --escalated-from FAST --redesign'))->not->toContain('apollo');
+    expect(routingPlan('--tier STANDARD --escalated-from FAST --redesign'))->not->toContain('michelangelo');
 
     // The orchestrator passes the flag, the rule says when, and the agent states it is dispatched.
-    expect(daedalusContractText())->toContain('Page-redesign task → design with `apollo`');
+    expect(splinterContractText())->toContain('Page-redesign task → design with `michelangelo`');
     expect(file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('### One stage is chosen by the kind of work, not by the tier');
-    expect(file_get_contents($packageDir . '/agents/apollo.md'))->toContain('## Registration dependency');
+    expect(file_get_contents($packageDir . '/agents/michelangelo.md'))->toContain('## Registration dependency');
 });
 
 test('the routing contract binds to OpenAI / Codex, not only to Claude Code', function (): void {
@@ -185,25 +185,25 @@ test('the routing contract binds to OpenAI / Codex, not only to Claude Code', fu
 test('every agent declares its own model tiers, per platform, in its own definition', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Claude Code: the frontmatter plus the tier daedalus dispatches at. `hephaestus` carries both
-    // tiers; `athena` was raised to the stronger model outright, so it declares that there is no
+    // Claude Code: the frontmatter plus the tier splinter dispatches at. `donatello` carries both
+    // tiers; `leonardo` was raised to the stronger model outright, so it declares that there is no
     // higher tier left to escalate to on this platform rather than naming one that does not exist.
-    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-    expect($hephaestus)->toContain('**On Claude Code:** default tier `sonnet`');
-    expect($hephaestus)->toContain('Escalated tier `opus`');
+    $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
+    expect($donatello)->toContain('**On Claude Code:** default tier `sonnet`');
+    expect($donatello)->toContain('Escalated tier `opus`');
 
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    expect($athena)->toContain('**On Claude Code:** default tier `opus`');
-    expect($athena)->toContain('no higher tier to escalate to on this platform');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    expect($leonardo)->toContain('**On Claude Code:** default tier `opus`');
+    expect($leonardo)->toContain('no higher tier to escalate to on this platform');
 
-    foreach (['hephaestus', 'athena'] as $agent) {
+    foreach (['donatello', 'leonardo'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('codex/agents/' . $agent . '.toml` declares both');
     }
 
     // Codex / OpenAI: every shipped adapter declares both tiers for its own role, including the
     // three that never escalate — an absent declaration would read as an undecided one.
-    foreach (['daedalus', 'hephaestus', 'athena', 'argus', 'hermes'] as $agent) {
+    foreach (['splinter', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('Model tiers for this role on Codex — this file is where they are declared, not the rules:');
         expect($toml)->toContain('- Default tier:');
@@ -214,7 +214,7 @@ test('every agent declares its own model tiers, per platform, in its own definit
     }
 
     // The three roles that derive no new fact must say they never escalate, not leave it open.
-    foreach (['daedalus', 'argus', 'hermes'] as $agent) {
+    foreach (['splinter', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('- Escalated tier: none —');
     }
@@ -240,10 +240,10 @@ test('the routing contract is documented for humans, not only for agents', funct
 });
 
 test('no shipped surface claims the implementer reviews its own diff', function (): void {
-    // The duplicate review was removed from `resolve-issue`, but `agents/hephaestus.md` kept telling
+    // The duplicate review was removed from `resolve-issue`, but `agents/donatello.md` kept telling
     // the agent its pre-PR self-check runs `code-review` + `security-review` and gates on the
     // findings — the opposite of what the skill says, three lines below its own "never review your
-    // own work". Two more copies sat in `docs/agents.md` and in daedalus's athena-not-registered
+    // own work". Two more copies sat in `docs/agents.md` and in splinter's leonardo-not-registered
     // fallback, which named a security pass nobody performs any more.
     //
     // Pin the class, not the sentence: any phrasing that has the self-check RUN a review skill.
@@ -277,18 +277,18 @@ test('no shipped surface claims the implementer reviews its own diff', function 
     expect($violations)->toBe([]);
 });
 
-test('hephaestus points at the lightweight self-check and nothing else', function (): void {
+test('donatello points at the lightweight self-check and nothing else', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-    $daedalus = daedalusContractText();
+    $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
+    $splinter = splinterContractText();
 
     // The agent must defer to the skill that owns the pass, and the deferral must be visibly
     // consistent with the "never review your own work" boundary stated above it.
-    expect($hephaestus)->toContain('**lightweight pre-PR self-check**');
-    expect($hephaestus)->toContain('it runs **no** review skill over your diff');
-    expect($hephaestus)->toContain('never review your own work');
+    expect($donatello)->toContain('**lightweight pre-PR self-check**');
+    expect($donatello)->toContain('it runs **no** review skill over your diff');
+    expect($donatello)->toContain('never review your own work');
 
-    // An unregistered athena must not silently promote the implementer into the reviewer's place.
-    expect($daedalus)->toContain('athena is not registered — no pre-implementation security analysis runs');
-    expect($daedalus)->toContain('**Do not route the analysis into `hephaestus` instead:**');
+    // An unregistered leonardo must not silently promote the implementer into the reviewer's place.
+    expect($splinter)->toContain('leonardo is not registered — no pre-implementation security analysis runs');
+    expect($splinter)->toContain('**Do not route the analysis into `donatello` instead:**');
 });

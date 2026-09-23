@@ -105,10 +105,17 @@ jobs:
           composer check-platform-reqs --no-dev
           vendor/bin/ai-olympus install --force
           test -f .claude/skills/resolve-issue/SKILL.md
-          test -f .codex/agents/daedalus.toml
+          test -f .codex/agents/splinter.toml
           test -f .agents/skills/resolve-issue/SKILL.md
           cmp vendor/pekral/ai-olympus/templates/CLAUDE.md CLAUDE.md
-          test ! -d vendor/pekral/ai-olympus/assets
+          test -f vendor/pekral/ai-olympus/assets/agents/manifest.json
+          test -f vendor/pekral/ai-olympus/assets/agents/activity.css
+          for agent in splinter donatello leonardo raphael michelangelo april; do
+            test -f "vendor/pekral/ai-olympus/assets/agents/$agent.png"
+            test -f "vendor/pekral/ai-olympus/assets/agents/thumbnails/$agent.png"
+          done
+          test ! -f vendor/pekral/ai-olympus/assets/social-preview.png
+          test ! -f vendor/pekral/ai-olympus/assets/logo.png
           test ! -d vendor/pekral/ai-olympus/docs
           test ! -f "$HOME/.claude/settings.json"
           rm .claude/skills/resolve-issue/SKILL.md

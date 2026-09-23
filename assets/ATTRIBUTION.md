@@ -17,8 +17,6 @@ rsvg-convert -w 960 -h 480 assets/social-preview.svg -o assets/logo.png
 
 Update both digest values in `tests/Installer/SocialPreviewAssetTest.php` after rendering. Upload `social-preview.png` in GitHub **Settings → General → Social preview**; committing the file does not configure GitHub's repository setting.
 
-The original 1254 × 1254 agent portraits remain in `agents/*.png`. The 160 × 160 JPEG files in `agents/thumbnails/` serve the 80-pixel README portraits and the smaller documentation portraits. To recreate a thumbnail on macOS:
+The 1254 × 1254 transparent agent portraits in `agents/*.png` were generated from the Cockpit Krang style reference. The matching 160 × 160 transparent PNGs in `agents/thumbnails/` are used in the README and role documentation. Generation prompts and the reference source are recorded in `agents/prompts.json`. The English character identities are Splinter, Donatello, Leonardo, Raphael, Michelangelo, and April O’Neil.
 
-```bash
-sips -z 160 160 -s format jpeg -s formatOptions 80 assets/agents/athena.png --out assets/agents/thumbnails/athena.jpg
-```
+Teenage Mutant Ninja Turtles character names and likenesses belong to their respective rights holders. These themed agent portraits do not imply affiliation or endorsement. This character artwork is separate from the PHP and Laravel logo licences above.

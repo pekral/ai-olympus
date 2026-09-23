@@ -99,7 +99,7 @@ final class InstallerProjectSettings
     /**
      * Prepends scoped `Edit` / `Write` permission entries for the project working
      * tree to `permissions.allow` in the project's `.claude/settings.local.json`,
-     * idempotently, so a dispatched subagent (e.g. `hephaestus`) may write files without
+     * idempotently, so a dispatched subagent (e.g. `donatello`) may write files without
      * interactive approval. Existing allow entries and unrelated keys are preserved.
      * The written file is re-read and validated so a malformed file can never be
      * accepted. Returns true only when at least one entry was added.

@@ -18,7 +18,7 @@ crContractText(skills/code-review-bugsnag/SKILL.md) :: reuse-first gate
 crContractText(skills/code-review-github/SKILL.md) :: @skills/pr-summary/SKILL.md
 crContractText(skills/code-review-github/SKILL.md) :: closingIssues[]
 crContractText(skills/code-review-github/SKILL.md) :: every linked issue
-crContractText(skills/code-review-github/SKILL.md) :: render `Coverage: deferred to hephaestus (isolated worktree, no vendor/)`
+crContractText(skills/code-review-github/SKILL.md) :: render `Coverage: deferred to donatello (isolated worktree, no vendor/)`
 crContractText(skills/code-review-github/SKILL.md) :: skills/code-review-github/scripts/upsert-comment.sh
 crContractText(skills/code-review-jira/SKILL.md) :: #### Linked GitHub issues (consolidated mirror — one comment per issue, updated in place)
 crContractText(skills/code-review-jira/SKILL.md) :: @skills/pr-summary/SKILL.md

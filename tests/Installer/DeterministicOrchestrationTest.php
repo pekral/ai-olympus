@@ -104,7 +104,7 @@ test('the route planner produces each tier plan deterministically', function ():
         'STANDARD adds the review at the default model tier',
         'CRITICAL escalates the model and validates before review',
         'CRITICAL with a security question analyses first',
-        'runtime acceptance adds argus on CRITICAL',
+        'runtime acceptance adds raphael on CRITICAL',
         '--thorough runs the full pipeline over a FAST verdict',
         'no tracker means no reporting stage to run',
     ] as $label) {
@@ -138,16 +138,16 @@ test('handoffs are bounded, structured, and keep evidence out of the document', 
     expect($validator)->toContain('reference the artifact path instead');
 
     // The implementer's own contract points at the validator rather than restating the budget.
-    $hephaestus = (string) file_get_contents($packageDir . '/agents/hephaestus.md');
-    expect($hephaestus)->toContain('skills/_shared/check-handoff.sh --role implementation');
-    expect($hephaestus)->toContain('never paste a diff, never paste test output');
+    $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
+    expect($donatello)->toContain('skills/_shared/check-handoff.sh --role implementation');
+    expect($donatello)->toContain('never paste a diff, never paste test output');
 });
 
-test('the routine report is rendered from run data, and hermes is reserved for real writing', function (): void {
+test('the routine report is rendered from run data, and april is reserved for real writing', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $renderer = (string) file_get_contents($packageDir . '/skills/_shared/render-report.sh');
-    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    $daedalus = daedalusContractText();
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
+    $splinter = splinterContractText();
 
     expect($renderer)->toContain('\'a completed run renders every known field\'');
     expect($renderer)->toContain('\'a failed run reports the failure, not a success\'');
@@ -160,11 +160,11 @@ test('the routine report is rendered from run data, and hermes is reserved for r
     expect($renderer)->toContain('\'the report renders in the assignment language\'');
     expect($renderer)->toContain('\'an unsupported language escalates rather than guessing\'');
 
-    // hermes states where the boundary is, and daedalus routes around it.
-    expect($hermes)->toContain('## When a model is warranted — and when a template is');
-    expect($hermes)->toContain('you are not dispatched for it');
-    expect($daedalus)->toContain('skills/_shared/render-report.sh');
-    expect($daedalus)->toContain('**Dispatch `hermes` only when the renderer cannot do the job**');
+    // april states where the boundary is, and splinter routes around it.
+    expect($april)->toContain('## When a model is warranted — and when a template is');
+    expect($april)->toContain('you are not dispatched for it');
+    expect($splinter)->toContain('skills/_shared/render-report.sh');
+    expect($splinter)->toContain('**Dispatch `april` only when the renderer cannot do the job**');
 });
 
 test('metrics are persisted as counts only, outside the repository', function (): void {
@@ -184,18 +184,18 @@ test('metrics are persisted as counts only, outside the repository', function ()
     expect($recorder)->toContain('\'every stored line is valid JSON\'');
 });
 
-test('daedalus records the run metrics that make the next tuning decision evidence-based', function (): void {
-    $daedalus = daedalusContractText();
+test('splinter records the run metrics that make the next tuning decision evidence-based', function (): void {
+    $splinter = splinterContractText();
 
-    expect($daedalus)->toContain('skills/_shared/record-metrics.sh');
-    expect($daedalus)->toContain('It writes counts only — never source, diffs, prompts, tracker text, branch names, or URLs');
-    expect($daedalus)->toContain('ai-olympus stats --last=7d');
+    expect($splinter)->toContain('skills/_shared/record-metrics.sh');
+    expect($splinter)->toContain('It writes counts only — never source, diffs, prompts, tracker text, branch names, or URLs');
+    expect($splinter)->toContain('ai-olympus stats --last=7d');
 });
 
 test('the deterministic helpers are mapped for Codex, not only for Claude Code', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['daedalus', 'hephaestus', 'athena', 'argus', 'hermes'] as $agent) {
+    foreach (['splinter', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('run-validation.sh');
         expect($toml)->toContain('platform-neutral by construction');

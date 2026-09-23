@@ -74,8 +74,8 @@ test('the executors carry the mode: implementer, review loop, and route plan', f
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
     $planner = (string) file_get_contents($packageDir . '/skills/_shared/plan-route.sh');
-    $daedalus = (string) file_get_contents($packageDir . '/agents/daedalus.md');
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     // One home for every gate behaviour both skills share. Knowing the bug is gone survives there;
     // the committed test is what becomes optional.
@@ -89,8 +89,8 @@ test('the executors carry the mode: implementer, review loop, and route plan', f
     // The mode travels in the deterministic plan, so a dispatch can neither forget nor invent it.
     expect($planner)->toContain('--hotfix');
     expect($planner)->toContain('review_hotfix');
-    expect($daedalus)->toContain('**A declared HOTFIX is passed to the planner, never applied by hand.**');
-    expect($athena)->toContain('**When the dispatch carries `review_hotfix`**');
+    expect($splinter)->toContain('**A declared HOTFIX is passed to the planner, never applied by hand.**');
+    expect($leonardo)->toContain('**When the dispatch carries `review_hotfix`**');
 });
 
 /**
@@ -136,7 +136,7 @@ test('the route planner narrows the review without removing it and never moves t
     $expected = [];
 
     foreach (hotfixPlanStageLabels($ordinary) as $label) {
-        $expected[] = $label === 'athena:review' ? 'athena:review_hotfix' : $label;
+        $expected[] = $label === 'leonardo:review' ? 'leonardo:review_hotfix' : $label;
     }
 
     expect(hotfixPlanStageLabels($hotfix))->toBe($expected);
@@ -147,5 +147,5 @@ test('a hotfix on a sensitive area still buys every stage the tier would buy', f
 
     expect(decodedJsonField($critical, 'tier'))->toBe('CRITICAL');
     expect(hotfixPlanStageLabels($critical))->toContain('deterministic_validation');
-    expect(hotfixPlanStageLabels($critical))->toContain('athena:review_hotfix');
+    expect(hotfixPlanStageLabels($critical))->toContain('leonardo:review_hotfix');
 });

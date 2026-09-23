@@ -690,7 +690,7 @@ function ruleScopingConsumerAppTreePaths(): array
 /**
  * The consumer-project paths outside `app/`. Two of them are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
- * every consuming project (per this package's own `agents/daedalus.md` *Shared task brief*), and
+ * every consuming project (per this package's own `agents/splinter.md` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
  * directory that walk skips. They live here for the same reason the rest of this corpus does.
  *
@@ -781,7 +781,7 @@ function ruleExtensionFrontmatter(string $path): string
  * shared file alone would miss the tracker-specific half.
  */
 /**
- * The whole `daedalus` orchestration contract: its base prompt plus the rare
+ * The whole `splinter` orchestration contract: its base prompt plus the rare
  * procedures extracted into `skills/_shared/orchestration/`.
  *
  * Those procedures were moved out so the orchestrator stops carrying ~30 KB of
@@ -791,10 +791,10 @@ function ruleExtensionFrontmatter(string $path): string
  * distinguishable to the suite. It mirrors `crContractText()`, which already
  * folds a skill's references back into the skill for the same reason.
  */
-function daedalusContractText(): string
+function splinterContractText(): string
 {
     $packageDir = dirname(__DIR__);
-    $text = (string) file_get_contents($packageDir . '/agents/daedalus.md');
+    $text = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
     $references = glob($packageDir . '/skills/_shared/orchestration/*.md');
 
@@ -870,7 +870,7 @@ function packageTextFiles(): array
  * skill names its bullets classify. Only the lead of a bullet — everything before the em-dash that
  * opens the reason — is read, so a skill this section merely mentions inside a reason is never
  * mistaken for a classified one. Shared, because both the section's own coverage guard and the
- * athena non-duplication guard classify against the same parse.
+ * leonardo non-duplication guard classify against the same parse.
  *
  * @return array<int, list<string>>
  */

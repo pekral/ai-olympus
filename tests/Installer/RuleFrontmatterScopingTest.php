@@ -223,7 +223,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: Documentation now retains comments only for type analysis, security or
         // operational context, and deliberately non-intuitive behaviour. The content policy is
         // pinned by `tests/Installer/SkillsContentTest.php`; the frontmatter scope is unchanged.
-        'rules/php/core-standards.md' => '0cb99f1061f401f1b140fc3c4396e50b534666653a8e296b303a072d6a9d79a7',
+        'rules/php/core-standards.md' => '2fa2a4d8d789710c728c07c3bdce141c758002f8e4d8f88f2334d1705de410f1',
         'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
     ];
 
@@ -237,7 +237,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
     // else, so a mismatch here means a normative sentence moved during the rename.
     // Re-baselined when the package moved to pekral/ai-olympus: the agent rename
-    // (daidalos -> daedalus, hefaistos -> hephaestus) and the PHP namespace rename
+    // (daidalos -> splinter, hefaistos -> donatello) and the PHP namespace rename
     // are the only edits these bodies carry. `rules/reports/general.md` carries one further
     // re-baseline: #11 deleted the skill whose report was the second half of the GitHub-PR English
     // exception, so that exception dropped back to a single one. `rules/code-review/general.md` and
@@ -366,7 +366,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // visibility for a test in `rules/php/core-standards.md`. Nothing else in the file moved.
         // Re-baselined: E2E behaviour evidence is preferred, and an isolated test requires a
         // prior failure inventory. `tests/Installer/SkillsContentTest.php` pins the new policy.
-        'rules/code-testing/general.md' => '2af64b1812268b4f6392d0cd80d3f283218135fdb196016c69621af1097e7dc0',
+        'rules/code-testing/general.md' => '1b4898d6a320da8c1e102418f1088232128dad014216fcb76e338f0281b6505a',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none

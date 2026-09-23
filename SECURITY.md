@@ -81,7 +81,7 @@ Edit(//<absolute-project-path>/**)
 Write(//<absolute-project-path>/**)
 ```
 
-These entries pre-allow dispatched subagents (e.g. `hephaestus`) to write files inside the project tree without requiring an interactive approval on each operation. A dispatched subagent runs non-interactively, so a write is denied at runtime unless the path is already in `permissions.allow`.
+These entries pre-allow dispatched subagents (e.g. `donatello`) to write files inside the project tree without requiring an interactive approval on each operation. A dispatched subagent runs non-interactively, so a write is denied at runtime unless the path is already in `permissions.allow`.
 
 **Why `settings.local.json` and not `settings.json`.** The entries carry a machine-absolute path — they are personal and not portable. `settings.local.json` is git-ignored by Claude Code by default, so the absolute path never leaks into version control.
 

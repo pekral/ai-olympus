@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "stylesheet": "activity.css",
+  "preview": "preview.html",
+  "states": [
+    "idle",
+    "queued",
+    "thinking",
+    "working",
+    "responding"
+  ],
+  "agents": [
+    {
+      "id": "splinter",
+      "displayName": "Splinter",
+      "role": "Orchestration",
+      "previousId": "daedalus",
+      "accent": "#be8d69",
+      "summary": "Coordinates the team and guides work from request to reviewed result.",
+      "portrait": "splinter.png",
+      "thumbnail": "thumbnails/splinter.png"
+    },
+    {
+      "id": "donatello",
+      "displayName": "Donatello",
+      "role": "Implementation",
+      "previousId": "hephaestus",
+      "accent": "#a78bfa",
+      "summary": "Builds features, fixes problems and writes the tests that prove them.",
+      "portrait": "donatello.png",
+      "thumbnail": "thumbnails/donatello.png"
+    },
+    {
+      "id": "leonardo",
+      "displayName": "Leonardo",
+      "role": "Code review & security",
+      "previousId": "athena",
+      "accent": "#60a5fa",
+      "summary": "Reviews architecture, correctness and security before work ships.",
+      "portrait": "leonardo.png",
+      "thumbnail": "thumbnails/leonardo.png"
+    },
+    {
+      "id": "raphael",
+      "displayName": "Raphael",
+      "role": "Acceptance testing",
+      "previousId": "argus",
+      "accent": "#fb7185",
+      "summary": "Exercises real user scenarios and reports what works and what fails.",
+      "portrait": "raphael.png",
+      "thumbnail": "thumbnails/raphael.png"
+    },
+    {
+      "id": "michelangelo",
+      "displayName": "Michelangelo",
+      "role": "Design",
+      "previousId": "apollo",
+      "accent": "#fb923c",
+      "summary": "Designs clear interfaces and prepares visual handoffs for implementation.",
+      "portrait": "michelangelo.png",
+      "thumbnail": "thumbnails/michelangelo.png"
+    },
+    {
+      "id": "april",
+      "displayName": "April O’Neil",
+      "role": "Communication",
+      "previousId": "hermes",
+      "accent": "#facc15",
+      "summary": "Explains what changed, how to test it and what the team delivered.",
+      "portrait": "april.png",
+      "thumbnail": "thumbnails/april.png"
+    }
+  ]
+}

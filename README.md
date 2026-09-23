@@ -35,16 +35,16 @@ The commands above pin version `0.1.2`. See [versions and upgrades](docs/install
 Restart the agent session after installation. In Claude Code:
 
 ```text
-@daedalus resolve https://github.com/owner/repo/issues/123
+@splinter resolve https://github.com/owner/repo/issues/123
 ```
 
 In Codex, request the role by name:
 
 ```text
-Use the daedalus agent to resolve https://github.com/owner/repo/issues/123
+Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`daedalus` routes implementation to `hephaestus`, review to `athena`, a page redesign to `apollo` before anything is built, acceptance testing to `argus` when needed, and the final report to `hermes`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -116,7 +116,7 @@ Everything beyond those two commands — enabling auto-install on `composer inst
 
 ## Claude Code and Codex Subagents
 
-Agents are a thin orchestration layer over the existing skills — they don't replace them and they don't duplicate their prompts. The roster is named after **Greek mythology** by function (see [`docs/agents.md`](docs/agents.md)).
+Agents are a thin orchestration layer over the existing skills — they don't replace them and they don't duplicate their prompts. The roster uses **Teenage Mutant Ninja Turtles** characters matched to each role (see [`docs/agents.md`](docs/agents.md)).
 
 ```text
 Rules  = long-lived project standards
@@ -124,26 +124,26 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-Each agent has its own avatar under [`assets/agents/`](assets/agents). Full role definitions live in [`docs/agents.md`](docs/agents.md).
+Each agent has its own transparent avatar and shared activity animations under [`assets/agents/`](assets/agents). Try the [interactive preview](assets/agents/preview.html) or use the [integration manifest](assets/agents/manifest.json). Full role definitions live in [`docs/agents.md`](docs/agents.md).
 
 <table>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/hephaestus.png"><img src="assets/agents/thumbnails/hephaestus.jpg" alt="hephaestus avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/donatello.png"><img src="assets/agents/thumbnails/donatello.png" alt="donatello avatar" width="80"></a></td>
 <td valign="top">
 
-**`hephaestus` — code-writing implementer**
+**`donatello` — code-writing implementer**
 
-Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `athena`, and final tracker reporting belongs to `hermes`. An explicitly requested merge must use the separate `merge-github-pr` skill.
+Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `leonardo`, and final tracker reporting belongs to `april`. An explicitly requested merge must use the separate `merge-github-pr` skill.
 
 **Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
 
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/apollo.png"><img src="assets/agents/thumbnails/apollo.jpg" alt="apollo avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/michelangelo.png"><img src="assets/agents/thumbnails/michelangelo.png" alt="michelangelo avatar" width="80"></a></td>
 <td valign="top">
 
-**`apollo` — page redesigner** · writes only its own proposal
+**`michelangelo` — page redesigner** · writes only its own proposal
 
 Redesigns an existing page around the operator who works in it — a warehouse, workshop, or shop-floor worker who is not an IT person and needs the order out. It maps every state the main screenshot hides, lays the content region out against that operator's task sequence, and hands back a developer-ready specification with one rendered preview per state. The application's main layout shell is never touched without an explicit order, and it proposes rather than implements: it holds no `Edit` tool, so no file the application ships is changeable by it. Its portrait is the universal placeholder until custom artwork exists.
 
@@ -152,10 +152,10 @@ Redesigns an existing page around the operator who works in it — a warehouse, 
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/argus.png"><img src="assets/agents/thumbnails/argus.jpg" alt="argus avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/raphael.png"><img src="assets/agents/thumbnails/raphael.png" alt="raphael avatar" width="80"></a></td>
 <td valign="top">
 
-**`argus` — acceptance tester** · read-only
+**`raphael` — acceptance tester** · read-only
 
 Exercises changed behaviour on a local running application: APIs over HTTP and UI scenarios in a real browser. Uses the project's `interactive-testing` skill when available. Returns a per-criterion Met / Not met / Blocked verdict with observed evidence; an untested criterion is never Met. Pure refactors and documentation changes do not need this pass. It never edits code, authors tests, merges, or publishes.
 
@@ -164,36 +164,36 @@ Exercises changed behaviour on a local running application: APIs over HTTP and U
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/daedalus.png"><img src="assets/agents/thumbnails/daedalus.jpg" alt="daedalus avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/splinter.png"><img src="assets/agents/thumbnails/splinter.png" alt="splinter avatar" width="80"></a></td>
 <td valign="top">
 
-**`daedalus` — engineering-workflow orchestrator** · the front door
+**`splinter` — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `hephaestus` for implementation, `athena` for review, `apollo` for a page redesign, `argus` for acceptance testing when needed, and `hermes` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `hephaestus`, `athena`, `apollo`, `argus`, `hermes` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/athena.png"><img src="assets/agents/thumbnails/athena.jpg" alt="athena avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/leonardo.png"><img src="assets/agents/thumbnails/leonardo.png" alt="leonardo avatar" width="80"></a></td>
 <td valign="top">
 
-**`athena` — the code-review sentinel** · read-only
+**`leonardo` — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `hephaestus` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `hephaestus`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate / Minor.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/hermes.png"><img src="assets/agents/thumbnails/hermes.jpg" alt="hermes avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/april.png"><img src="assets/agents/thumbnails/april.png" alt="april avatar" width="80"></a></td>
 <td valign="top">
 
-**`hermes` — release announcer & reporter** · read-only
+**`april` — release announcer & reporter** · read-only
 
-Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. For merge preparation, it publishes one verified source-issue TL;DR and removes only superseded comments owned by the authenticated actor while preserving current review evidence. This reporting role is separate from `athena` publishing the code review. It does not change implementation code.
+Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. For merge preparation, it publishes one verified source-issue TL;DR and removes only superseded comments owned by the authenticated actor while preserving current review evidence. This reporting role is separate from `leonardo` publishing the code review. It does not change implementation code.
 
 **Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
 
@@ -213,18 +213,18 @@ Agents never share a conversation. Every step is a blocking dispatch that return
 - **Per-dispatch memory slice** — project memory is filtered per recipient role into the dispatch prompt itself, never folded into the shared brief that every later agent reads.
 - **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
 
-The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `daedalus` owns the brief and all three ledgers.
+The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `splinter` owns the brief and all three ledgers.
 
 ### Using the roles and skills
 
 After the [Quickstart](#quickstart), choose a specialist when you do not need the full pipeline. Claude Code examples:
 
 ```text
-@athena review the current diff
-@hephaestus implement the failing upload validation
+@leonardo review the current diff
+@donatello implement the failing upload validation
 ```
 
-In Codex, ask it to use the corresponding agent by name, as in the `daedalus` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
+In Codex, ask it to use the corresponding agent by name, as in the `splinter` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
 To prepare an existing GitHub issue's PR for merge without merging it, use the shared workflow:
 
@@ -236,22 +236,22 @@ To prepare an existing GitHub issue's PR for merge without merging it, use the s
 $verify-merge-readiness https://github.com/owner/repository/issues/123
 ```
 
-The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `daedalus` agent to orchestrate the skill when custom agents are available.
+The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `splinter` agent to orchestrate the skill when custom agents are available.
 
 ### Adaptive routing — how much pipeline a task gets
 
-Every `daedalus` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
+Every `splinter` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
 
 | Tier | Who runs | Typical change |
 |------|----------|----------------|
 | `FAST` | implementer (default tier) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
-| `STANDARD` | `+ athena` (default tier) | ordinary application and business-logic work |
-| `CRITICAL` | `+ athena` analysis where relevant, both at the escalated tier, `argus` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
+| `STANDARD` | `+ leonardo` (default tier) | ordinary application and business-logic work |
+| `CRITICAL` | `+ leonardo` analysis where relevant, both at the escalated tier, `raphael` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
 
 - A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
 - The tier is recomputed against the real diff after implementation and can only rise, so a task that grows into an authorization change is reviewed like one.
 - Tests, static analysis, linting, CI, and the pre-merge quality gate run at **every** tier, `FAST` included. The tier buys LLM reasoning, never a deterministic gate.
-- Every decision is recorded, so *"why was `athena` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
+- Every decision is recorded, so *"why was `leonardo` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
 - The classifier is a shell script and the tiers are roles rather than model names, so Codex / OpenAI sessions route identically; `codex/agents/*.toml` binds the tiers to that platform's model controls.
 
 **Deterministic work no longer buys a model.** Validation, route planning, and the routine completion report are scripts, and an LLM is the escalation path for each:

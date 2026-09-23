@@ -129,18 +129,18 @@ test('the JIRA publish helper never leaves an unformatted comment behind and for
 
 test('the merge-readiness TL;DR is published through the helper that matches the source tracker', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
-    foreach ([$hermes, $skill] as $document) {
+    foreach ([$april, $skill] as $document) {
         expect($document)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
         expect($document)->toContain('pr-summary-jira.md');
         expect($document)->toContain('the only sanctioned');
     }
 
     // A JIRA source cleans its superseded duplicates through the JIRA helper, never a raw acli delete.
-    foreach ([$hermes, $skill] as $document) {
+    foreach ([$april, $skill] as $document) {
         expect($document)->toContain('skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>');
         expect($document)->toContain('`acli jira workitem comment delete`');
         expect($document)->toContain('every remaining marker-carrying comment by the actor is a protected ID');
@@ -153,42 +153,42 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     expect($rule)->toContain('A GitHub-shaped instruction on a JIRA source is re-routed, never followed literally.');
 });
 
-test('hermes runs three publication checks before a JIRA comment counts as published (issue #118)', function (): void {
+test('april runs three publication checks before a JIRA comment counts as published (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
 
-    expect($hermes)->toContain('**On a JIRA target, three publication checks are yours and nobody else\'s.**');
+    expect($april)->toContain('**On a JIRA target, three publication checks are yours and nobody else\'s.**');
 
     // 1. The banned-list walk, and the one thing it must not do instead of removing a hit.
-    expect($hermes)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
-    expect($hermes)->toContain('**Remove each hit — never annotate it**');
-    expect($hermes)->toContain('shorten `What changed` when it overflows, never `How to test`');
+    expect($april)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
+    expect($april)->toContain('**Remove each hit — never annotate it**');
+    expect($april)->toContain('shorten `What changed` when it overflows, never `How to test`');
 
     // 2. ADF publication.
-    expect($hermes)->toContain('**Publish as ADF.**');
-    expect($hermes)->toContain('acli jira workitem comment update --body-adf');
+    expect($april)->toContain('**Publish as ADF.**');
+    expect($april)->toContain('acli jira workitem comment update --body-adf');
 
     // 3. The structural read-back, and the verdict a flat body produces.
-    expect($hermes)->toContain('**Read the comment back and confirm its structure, not only that it exists.**');
-    expect($hermes)->toContain('real `heading`, `bulletList`, and `listItem` nodes');
-    expect($hermes)->toContain('**A single `paragraph` of flat text means the conversion failed**');
-    expect($hermes)->toContain('**publication failure, not a cosmetic one**');
+    expect($april)->toContain('**Read the comment back and confirm its structure, not only that it exists.**');
+    expect($april)->toContain('real `heading`, `bulletList`, and `listItem` nodes');
+    expect($april)->toContain('**A single `paragraph` of flat text means the conversion failed**');
+    expect($april)->toContain('**publication failure, not a cosmetic one**');
 
-    // The read the check needs is granted in hermes's own Bash boundary, and it stays a read.
-    $boundary = installerDocsSection($hermes, '## Bash boundary');
+    // The read the check needs is granted in april's own Bash boundary, and it stays a read.
+    $boundary = installerDocsSection($april, '## Bash boundary');
     expect($boundary)->toContain('acli jira workitem view <KEY> --fields comment --json');
     expect($boundary)->toContain('never an `acli` write');
 });
 
 test('the reporting headline goes where the target template opens, not into a Problem field JIRA no longer has (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $hermes = (string) file_get_contents($packageDir . '/agents/hermes.md');
-    $daedalus = daedalusContractText();
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
+    $splinter = splinterContractText();
 
     // Both files instructed the headline into the `Problem` field on every target. The JIRA
     // template has no such field now, and it does carry a slot of its own.
-    expect($hermes)->not->toContain('the same position on every target, because every target renders the same structure');
-    expect($hermes)->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
-    expect($daedalus)->not->toContain('the opening sentence of the `Problem` field is');
-    expect($daedalus)->toContain('the status sentence above `h2. Acceptance criteria` on JIRA');
+    expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
+    expect($april)->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
+    expect($splinter)->not->toContain('the opening sentence of the `Problem` field is');
+    expect($splinter)->toContain('the status sentence above `h2. Acceptance criteria` on JIRA');
 });

@@ -900,11 +900,11 @@ test(
     
         $codeReview = codeReviewRuleContents();
         expect($codeReview)->toContain('**Sanctioned exception — the isolated-worktree deferral.**');
-        expect($codeReview)->toContain('reports the gate as `deferred to hephaestus` instead of the Critical finding the bullet above otherwise requires');
+        expect($codeReview)->toContain('reports the gate as `deferred to donatello` instead of the Critical finding the bullet above otherwise requires');
     
         $codeTesting = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
         expect($codeTesting)->toContain('**Sanctioned exception:**');
-        expect($codeTesting)->toContain('reports `deferred to hephaestus` here instead of a Critical finding');
+        expect($codeTesting)->toContain('reports `deferred to donatello` here instead of a Critical finding');
     
         $coreStandards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
         expect($coreStandards)->toContain('except the sanctioned savings-mode isolated-worktree deferral');
@@ -912,8 +912,8 @@ test(
         // The wrapper's Output Rules give `deferred` its own defined, non-Critical rendering slot instead
         // of silently omitting Coverage (which would read as "100% clean") or forcing a Critical finding.
         $github = crContractText('skills/code-review-github/SKILL.md');
-        expect($github)->toContain('a savings-mode `deferred to hephaestus` verdict (non-Critical');
-        expect($github)->toContain('render `Coverage: deferred to hephaestus (isolated worktree, no vendor/)`');
+        expect($github)->toContain('a savings-mode `deferred to donatello` verdict (non-Critical');
+        expect($github)->toContain('render `Coverage: deferred to donatello (isolated worktree, no vendor/)`');
     },
 );
 
@@ -1203,7 +1203,7 @@ test('rule defines the Assignment-Declared Test-Only Conditions Exclusion Gate w
     expect($rule)->toContain('**Explicit purpose.**');
     expect($rule)->toContain('**Scope match.**');
 
-    // Security carve-out predicate — supplied verbatim by athena, must never be diluted.
+    // Security carve-out predicate — supplied verbatim by leonardo, must never be diluted.
     expect($rule)->toContain('**Security carve-out (final predicate — supersedes the conservative default above).**');
     expect($rule)->toContain('The Exclusion Gate MAY move a finding to `## Excluded per assignment` **only when the finding is');
     expect($rule)->toContain('non-security AND its original severity is Moderate or Minor**.');
@@ -1851,7 +1851,7 @@ test(
         $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
         // rules/code-review/general.md Coverage gate now carries the same hardened wording already
-        // established in rules/compound-engineering/orchestration.md and agents/athena.md —
+        // established in rules/compound-engineering/orchestration.md and agents/leonardo.md —
         // this was the weakest of the four restatements before issue #137's fix.
         expect($crRule)->toContain(
             '**Staleness guard:** CI results are valid only when that run\'s actually-checked-out SHA '
@@ -2552,8 +2552,8 @@ test('content-identical history rewrites preserve the converged code review verd
     );
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $gitRule = (string) file_get_contents($packageDir . '/rules/git/general.md');
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    $daedalus = daedalusContractText();
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $splinter = splinterContractText();
 
     $fingerprintCommand = 'git diff --binary --full-index --no-color --no-ext-diff --no-renames '
         . '<base>...<head> | git patch-id --verbatim';
@@ -2570,8 +2570,8 @@ test('content-identical history rewrites preserve the converged code review verd
     expect($loopScope)->toContain('Pass it on the next invocation as `reviewedDiffFingerprint = <patch-id>`');
     expect($merge)->toContain('A content-identical history rewrite keeps the review current');
     expect($gitRule)->toContain('A rebase that preserves the reviewed diff fingerprint does not stale code review');
-    expect($athena)->toContain('once per effective PR diff fingerprint');
-    expect($daedalus)->toContain('compare the current effective PR diff fingerprint with the latest trusted CR');
+    expect($leonardo)->toContain('once per effective PR diff fingerprint');
+    expect($splinter)->toContain('compare the current effective PR diff fingerprint with the latest trusted CR');
 
     foreach ([
         'code-review/templates/review-output.md',
@@ -2817,8 +2817,8 @@ test('every CR wrapper and template renders the Database Analysis section for ei
 
     // The reviewer agent lists the conditional lenses it lets the wrapper drive; a stale list there
     // reads as "the DB lens is mysql-problem-solver" and re-opens the gap this issue closed.
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    expect($athena)->toContain('the engine-resolved DB lens (`mysql-problem-solver`, or `postgres-patterns` with `MODE=cr` on PostgreSQL)');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    expect($leonardo)->toContain('the engine-resolved DB lens (`mysql-problem-solver`, or `postgres-patterns` with `MODE=cr` on PostgreSQL)');
 });
 
 test('a Blade or Livewire diff triggers all three frontend lenses (issue #60)', function (): void {
@@ -4186,8 +4186,8 @@ test('every shipped skill is either in the CR set or classified as deliberately 
 
     // The CR set is read from the two carriers that name what a review runs, never from a list
     // maintained here - a lens added there must not have to be added to a test as well.
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
-    preg_match_all('#@skills/([a-z0-9-]+)/SKILL\.md#', $parts[0] . $athena, $named);
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    preg_match_all('#@skills/([a-z0-9-]+)/SKILL\.md#', $parts[0] . $leonardo, $named);
     $crSet = array_unique($named[1]);
     expect(count($crSet))->toBeGreaterThan(20);
 
@@ -4384,20 +4384,20 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     expect($jira)->toContain('Its sections are `Acceptance criteria`, `How to test`, and `What changed`, under one status sentence');
 });
 
-test('a standalone athena review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {
+test('a standalone leonardo review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $athena = (string) file_get_contents($packageDir . '/agents/athena.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     // On the base branch a JIRA source routed the severity-sorted findings, with their counts and
     // code references, straight onto the ticket — the one remaining path that bypassed the split.
-    expect($athena)->toContain('**two comments, and the split between them is not optional.**');
-    expect($athena)->toContain('The severity-sorted findings go to the **linked GitHub pull request**');
-    expect($athena)->toContain('**Never publish the severity-sorted findings, the counts, or the code references to the JIRA ticket**');
+    expect($leonardo)->toContain('**two comments, and the split between them is not optional.**');
+    expect($leonardo)->toContain('The severity-sorted findings go to the **linked GitHub pull request**');
+    expect($leonardo)->toContain('**Never publish the severity-sorted findings, the counts, or the code references to the JIRA ticket**');
 
     // The tracker-matching routing issue #691 added is preserved: the JIRA helper still publishes,
     // it just publishes the non-technical summary rather than the findings.
-    expect($athena)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -');
-    expect($athena)->toContain('composed by `@skills/pr-summary/SKILL.md`');
+    expect($leonardo)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -');
+    expect($leonardo)->toContain('composed by `@skills/pr-summary/SKILL.md`');
 });
 
 test('issue context analysis gates a comment-borne acceptance criterion on author trust', function (): void {
