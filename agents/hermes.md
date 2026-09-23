@@ -112,21 +112,32 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    Capture the returned URL and ID, reload the issue, and match that exact identity. Retry once when
    absent. **Publish and read back the final TL;DR before deleting anything.** An unconfirmed
    publication is `Blocked: publication unconfirmed`; delete nothing.
-4. Build and report an exact deletion manifest. **Steps 4–7 are GitHub-only**, because
-   `delete-owned-github-comment.sh` is the only sanctioned deletion path and it speaks GitHub. On a
-   JIRA source the run publishes the TL;DR, deletes nothing, and says so in the handoff. Include only top-level issue/PR comments whose
+4. Build and report an exact deletion manifest. Include only top-level issue/PR comments whose
    author login equals the authenticated actor, whose content concerns this PR's preparation,
    review, acceptance verification, or testing, and which the final TL;DR or newer merge evidence
    supersedes. Never delete another account's comment. Never delete an ambiguous or unrelated
-   actor-owned comment, submitted review, or line thread.
+   actor-owned comment, submitted review, or line thread. **On a JIRA source** the manifest covers
+   the JIRA issue's comments instead: a comment enters it only when it carries this actor's
+   `_cr-comment:actor=<actor-digest>_` marker and the final TL;DR supersedes it — typically the
+   duplicate a failed `upsert-comment.sh` run (exit 2/3) left behind, with a raw-Markup or an empty
+   body. A comment that carries no marker cannot be proven yours: name it in the handoff for a
+   human and never delete it. The pull-request comments of a JIRA source stay in place, because
+   the GitHub helper protects a GitHub-side TL;DR that a JIRA source does not carry.
 5. Preserve the newly published TL;DR and the newest trusted `cr-comment` required by
    `@skills/merge-github-pr/SKILL.md`. Older comments in that namespace may enter the manifest;
    the current merge evidence never does.
-6. For every manifested ID, call
-   `skills/_shared/delete-owned-github-comment.sh <TARGET_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`.
-   The helper is the only deletion path. Never compose raw `gh api --method DELETE` yourself.
+6. For every manifested ID, call the helper that matches the source tracker:
+   - **GitHub** → `skills/_shared/delete-owned-github-comment.sh <TARGET_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`
+   - **JIRA** → `skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`.
+     JIRA keeps one update-in-place `cr-comment` per actor, so when the final TL;DR is that
+     comment, pass its ID for both protected slots. Read comment IDs from
+     `skills/code-review-jira/scripts/parse-comments.sh`.
+
+   The helper is the only deletion path. Never compose raw `gh api --method DELETE` or
+   `acli jira workitem comment delete` yourself.
 7. Reload the issue and PR. Require exactly one current `merge-readiness` comment from the actor on
-   the issue, every deleted ID absent, and all protected IDs still present. A partial cleanup is
+   the issue (on a JIRA source: exactly one marker-carrying comment from the actor), every deleted
+   ID absent, and all protected IDs still present. A partial cleanup is
    `Blocked`, with the remaining and protected IDs named.
 
 Return `Preparation report done` only with the read-back TL;DR URL, deleted IDs, protected IDs, and
@@ -134,7 +145,7 @@ the explicit statement that the PR was not merged.
 
 ## Bash boundary
 
-Bash is granted for one purpose: loading the source read-only and, when explicitly asked, publishing or consolidating through the canonical wrappers — never anything the cross-cutting contract in `@rules/compound-engineering/orchestration.md` *Bash capability boundary* forbids. Concretely, through Bash you may: run the deterministic loader scripts and `gh` reads; run the single raw `acli jira workitem view <KEY> --fields comment --json` **read** that the JIRA structural read-back needs, because the deterministic loader flattens a comment's ADF to plain text and cannot tell a heading from a sentence — a read only, never an `acli` write; run `upsert-comment.sh` **only** when publication was explicitly requested — which a *Post-convergence reporting mode* dispatch is, the publish being that dispatch's own deliverable (L1), and which a *Merge-preparation consolidation mode* dispatch is for its L2 final TL;DR; run `skills/_shared/delete-owned-github-comment.sh` only in that merge-preparation mode and only for its verified deletion manifest; run `@skills/pr-summary/SKILL.md` in those modes to compose the comment it posts; `cat >>` to append your handoff to the shared brief; and, under `.claude/run/<source-slug>.audit`'s own per-run append lock (a separate lock keyed to that file alone, so a concurrent append never interleaves with it), `cat >>` to append your own memory-read, outbound-request, external-write, deletion, and note lines to that file — the write half of the obligation `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* assigns you for your step-0 memory read, your `gh` reads, and an authorized publish or deletion. You never run any `git` write operation, never create, modify, or delete any tracked file, and never make a network call outside the tracker reads and canonical wrapper calls above. The residual risk this boundary does not close — Bash can still run an unlisted command such as `curl` or `cat > file` — is documented once, for every agent, in the rule above; it is advisory here, not enforced.
+Bash is granted for one purpose: loading the source read-only and, when explicitly asked, publishing or consolidating through the canonical wrappers — never anything the cross-cutting contract in `@rules/compound-engineering/orchestration.md` *Bash capability boundary* forbids. Concretely, through Bash you may: run the deterministic loader scripts and `gh` reads; run the single raw `acli jira workitem view <KEY> --fields comment --json` **read** that the JIRA structural read-back needs, because the deterministic loader flattens a comment's ADF to plain text and cannot tell a heading from a sentence — a read only, never an `acli` write; run `upsert-comment.sh` **only** when publication was explicitly requested — which a *Post-convergence reporting mode* dispatch is, the publish being that dispatch's own deliverable (L1), and which a *Merge-preparation consolidation mode* dispatch is for its L2 final TL;DR; run `skills/_shared/delete-owned-github-comment.sh` or `skills/code-review-jira/scripts/delete-owned-comment.sh` only in that merge-preparation mode and only for its verified deletion manifest; run `@skills/pr-summary/SKILL.md` in those modes to compose the comment it posts; `cat >>` to append your handoff to the shared brief; and, under `.claude/run/<source-slug>.audit`'s own per-run append lock (a separate lock keyed to that file alone, so a concurrent append never interleaves with it), `cat >>` to append your own memory-read, outbound-request, external-write, deletion, and note lines to that file — the write half of the obligation `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* assigns you for your step-0 memory read, your `gh` reads, and an authorized publish or deletion. You never run any `git` write operation, never create, modify, or delete any tracked file, and never make a network call outside the tracker reads and canonical wrapper calls above. The residual risk this boundary does not close — Bash can still run an unlisted command such as `curl` or `cat > file` — is documented once, for every agent, in the rule above; it is advisory here, not enforced.
 
 ## Shared task brief
 

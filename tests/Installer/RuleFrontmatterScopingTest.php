@@ -373,7 +373,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // exists. The ADF-only write path and the self-assignment rule are unchanged.
         // Re-baselined: a failed helper with no JIRA MCP tool in the session now stops as blocked,
         // quoting the helper's stderr verbatim instead of paraphrasing a cause.
-        'rules/jira/general.md' => '248ac84d092a13cca1bf798c3263512ecaac54afc31365b88f1962f1c7f56c0a',
+        // Re-baselined: comments are read through the loaders, whose body is rendered from the
+        // view ADF, and a comment is deleted only through `delete-owned-comment.sh`.
+        'rules/jira/general.md' => '822bfef7ffaeefda9192c0cc468a35856fed409c178b5fd4a0e0b028fcbb5ad7',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
