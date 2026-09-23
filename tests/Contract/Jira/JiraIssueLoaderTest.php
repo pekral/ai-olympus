@@ -107,7 +107,7 @@ function jiraLoaderCommentsJson(): string
  */
 function jiraLoaderRequiredBinaries(): array
 {
-    return ['bash', 'jq', 'sed', 'awk', 'cat', 'grep', 'head'];
+    return ['bash', 'jq', 'sed', 'awk', 'cat', 'grep', 'head', 'dirname'];
 }
 
 /**
@@ -158,19 +158,19 @@ function removeJiraLoaderFixture(array $fixture): void
  * @param array{bin: string, calls: string, directory: string} $fixture
  * @param array<string, string> $environment
  */
-function runJiraLoader(array $fixture, string $argument, array $environment = []): Process
+function runJiraLoader(array $fixture, string $argument, array $environment = [], string $script = 'load-issue.sh'): Process
 {
     $packageDir = dirname(__DIR__, 3);
     $process = new Process([
-        $packageDir . '/skills/code-review-jira/scripts/load-issue.sh',
+        $packageDir . '/skills/code-review-jira/scripts/' . $script,
         $argument,
     ], $packageDir, [
-        ...$environment,
         'FAKE_ACLI_CALLS' => $fixture['calls'],
-        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderCommentsJson(),
-        'FAKE_ACLI_VIEW_JSON' => jiraLoaderViewJson(),
         'HOME' => $fixture['directory'],
         'PATH' => $fixture['bin'],
+    ] + $environment + [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderCommentsJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderViewJson(),
     ]);
 
     $process->run();
@@ -289,4 +289,143 @@ test('a failed comment fetch degrades to an empty list while the issue still loa
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'comments'))->toBe([]);
     expect(decodedJsonField($output, 'key'))->toBe('ACME-1234');
+});
+
+/**
+ * The shape of a real decision comment: a mention, a numbered emoji, and the decision itself
+ * written as a bullet list. `comment list` flattens it to "ad . AC7 — „open (human)“ ad …",
+ * dropping every list item, so an agent reading only that text sees no decision at all.
+ *
+ * @return array<string, mixed>
+ */
+function jiraLoaderDecisionCommentAdf(): array
+{
+    $decision = ' tuhle část měření v rámci F1 úplně vynecháme. To by mělo být součástí až F2';
+    $link = ['marks' => [['attrs' => ['href' => 'https://example.com/f2'], 'type' => 'link']], 'text' => 'plán F2', 'type' => 'text'];
+    $nested = ['attrs' => ['order' => 1], 'content' => [jiraLoaderListItem([$link])], 'type' => 'orderedList'];
+    $secondItem = jiraLoaderListItem([['text' => 'v F1 půjde čistě o rozdělování kontaktů', 'type' => 'text']]);
+    $secondItem['content'][] = $nested;
+
+    return [
+        'content' => [
+            jiraLoaderParagraph([
+                ['attrs' => ['id' => '712020:a114afbb', 'text' => '@Dominik Vondra'], 'type' => 'mention'],
+                ['text' => ' děkuju za dotazy:', 'type' => 'text'],
+                ['type' => 'hardBreak'],
+                ['text' => 'ad ', 'type' => 'text'],
+                ['attrs' => ['shortName' => ':1_one_circle_red:', 'text' => ':1_one_circle_red:'], 'type' => 'emoji'],
+                ['text' => ' . ', 'type' => 'text'],
+                ['marks' => [['type' => 'strong']], 'text' => 'AC7 — „open (human)“', 'type' => 'text'],
+            ]),
+            ['content' => [jiraLoaderListItem([['text' => $decision, 'type' => 'text']]), $secondItem], 'type' => 'bulletList'],
+            ['type' => 'rule'],
+            jiraLoaderParagraph([['attrs' => ['url' => 'https://acme.atlassian.net/browse/ACME-1'], 'type' => 'inlineCard']]),
+        ],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
+
+/**
+ * @param list<array<string, mixed>> $inline
+ * @return array{content: list<array<string, mixed>>, type: string}
+ */
+function jiraLoaderParagraph(array $inline): array
+{
+    return ['content' => $inline, 'type' => 'paragraph'];
+}
+
+/**
+ * @param list<array<string, mixed>> $inline
+ * @return array{content: list<array<string, mixed>>, type: string}
+ */
+function jiraLoaderListItem(array $inline): array
+{
+    return ['content' => [jiraLoaderParagraph($inline)], 'type' => 'listItem'];
+}
+
+/**
+ * @return array<string, string>
+ */
+function jiraLoaderDecisionEnvironment(): array
+{
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['comment'] = [
+        'comments' => [
+            ['body' => jiraLoaderDecisionCommentAdf(), 'created' => '2026-09-12T10:00:00.000+0200', 'id' => '116641'],
+        ],
+        'total' => 1,
+    ];
+
+    return [
+        'FAKE_ACLI_COMMENTS_JSON' => (string) json_encode([
+            'comments' => [
+                ['author' => 'Pavel Manda', 'body' => ' děkuju za dotazy: ad   .  AC7 — „open (human)“', 'id' => '116641'],
+                ['author' => 'Maintainer', 'body' => 'Flattened text only.', 'id' => '116700'],
+            ],
+        ]),
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+    ];
+}
+
+test('a comment body is rendered from the view ADF so a decision written as a bullet survives', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $process = runJiraLoader($fixture, 'ACME-1234', jiraLoaderDecisionEnvironment());
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'comments.0.id'))->toBe('116641');
+    expect(decodedJsonField($output, 'comments.0.author'))->toBe('Pavel Manda');
+    expect(decodedJsonField($output, 'comments.0.body'))->toBe(
+        "@Dominik Vondra děkuju za dotazy:\n"
+        . "ad :1_one_circle_red: . AC7 — „open (human)“\n"
+        . "-  tuhle část měření v rámci F1 úplně vynecháme. To by mělo být součástí až F2\n"
+        . "- v F1 půjde čistě o rozdělování kontaktů\n"
+        . "  1. plán F2 (https://example.com/f2)\n"
+        . "---\n"
+        . 'https://acme.atlassian.net/browse/ACME-1',
+    );
+});
+
+test('a comment the view does not embed keeps the flattened comment-list text as its fallback', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $process = runJiraLoader($fixture, 'ACME-1234', jiraLoaderDecisionEnvironment());
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'comments.1.id'))->toBe('116700');
+    expect(decodedJsonField($output, 'comments.1.body'))->toBe('Flattened text only.');
+});
+
+test('a view embedding fewer comments than the issue carries is disclosed on stderr', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $environment = jiraLoaderDecisionEnvironment();
+    $environment['FAKE_ACLI_VIEW_JSON'] = str_replace('"total":1', '"total":2', $environment['FAKE_ACLI_VIEW_JSON']);
+
+    $process = runJiraLoader($fixture, 'ACME-1234', $environment);
+
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect($process->getErrorOutput())->toContain('embedded 1 fewer comments than ACME-1234 carries');
+});
+
+test('parse-comments exposes the comment id and the ADF-rendered body', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $process = runJiraLoader($fixture, 'ACME-1234', jiraLoaderDecisionEnvironment(), 'parse-comments.sh');
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, '0.id'))->toBe('116641');
+    expect(decodedJsonField($output, '0.body'))->toContain('v rámci F1 úplně vynecháme');
+    expect(decodedJsonField($output, '1.id'))->toBe('116700');
 });
