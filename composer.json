@@ -51,7 +51,7 @@
     "pestphp/pest-plugin": "^5.0",
     "pestphp/pest-plugin-type-coverage": "^5.0.2",
     "phpstan/extension-installer": "^1.4.3",
-    "phpstan/phpstan": "^2.2.14",
+    "phpstan/phpstan": "^2.2.15",
     "phpstan/phpstan-deprecation-rules": "^2.0.5",
     "phpstan/phpstan-mockery": "^2.0",
     "phpstan/phpstan-phpunit": "^2.0.18",
