@@ -552,3 +552,15 @@ test('laravel rules reuse an existing query scope before a new one is added', fu
     expect($walk)->toContain('a duplicated filter definition a fixer does not catch');
     expect($walk)->toContain('never a second scope beside the first');
 });
+
+test('data validators return bool or throw and never return data', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $architecture = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    $refactor = (string) file_get_contents($packageDir . '/skills/refactor-entry-point-to-action/SKILL.md');
+
+    expect($architecture)->toContain('**A Data Validator returns `bool` or throws an exception — nothing else.**');
+    expect($architecture)->toContain('a public Data Validator method whose return type is anything other than `bool` or `void`');
+    expect($review)->toContain('- **Data Validator returns `bool` or throws**');
+    expect($refactor)->toContain('Every public Data Validator method returns `bool` or returns `void` and throws on invalid input');
+});

@@ -336,7 +336,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // contract, so an Action every non-test caller of which is another Action is a finding. The
         // two places that used to license Action-to-Action composition unconditionally now qualify
         // it to an Action an entry point also calls, and CR Severity Rules gained the entry.
-        'rules/laravel/architecture.md' => '8ea348af0e68b1cc6e76c6e8eb98cb3dfa1e75ea17f1220791af9976f02396bc',
+        // Re-baselined: `## Data Validators` now states that a Data Validator returns `bool` or
+        // throws and never returns data, and CR Severity Rules gained the matching Critical entry.
+        'rules/laravel/architecture.md' => '8fd4d802377fcbc7d44102bf468a45fece9719972f8d3ab625e41c97081c83b7',
         'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
         'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
