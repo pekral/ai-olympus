@@ -164,14 +164,17 @@ unformatted Wiki Markup instead of the ADF document JIRA Cloud stores (`@rules/j
   fallback is the JIRA MCP server with an **ADF** payload.
 
 Publish and read back the final TL;DR before deleting anything. Protect its returned comment ID for
-every later delete call. The deletion pass below is **GitHub-only** — `delete-owned-github-comment.sh`
-is the only sanctioned deletion path and it speaks GitHub — so on a JIRA source the run publishes the
-TL;DR, deletes nothing, and reports that.
+every later delete call. The deletion pass below uses the helper that matches the source tracker. On
+a JIRA source it cleans the JIRA issue only: the pull-request comments stay, because the GitHub
+helper protects a GitHub-side TL;DR that a JIRA source does not carry.
 
 Build an explicit deletion manifest from the complete issue and PR comment sets. A comment enters
 the manifest only when all conditions hold:
 
-1. its author login exactly equals the authenticated actor;
+1. its author login exactly equals the authenticated actor — on a JIRA source, it carries this
+   actor's `_cr-comment:actor=<actor-digest>_` marker, which the JIRA helper proves together with
+   the author account ID. A JIRA comment with no marker, such as an empty duplicate a failed
+   publish left behind, cannot be proven and is reported for a human instead;
 2. it concerns this PR's preparation, code review, acceptance verification, or testing;
 3. it is superseded by the final TL;DR or by newer preserved merge evidence;
 4. its exact ID and target URL were read in this run.
@@ -188,12 +191,24 @@ Delete each manifested top-level issue/PR comment only through:
 skills/_shared/delete-owned-github-comment.sh <ISSUE_OR_PR_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
 ```
 
-The helper re-checks repository ownership, comment ownership, target membership, and every
+Delete each manifested JIRA comment only through:
+
+```bash
+skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
+```
+
+JIRA keeps one update-in-place `cr-comment` per actor, so pass the final TL;DR ID for both protected
+slots when it is that comment. `skills/code-review-jira/scripts/parse-comments.sh` returns each
+comment `id`. This also removes the duplicates a failed `upsert-comment.sh` run (exit 2/3) can leave
+behind, once the replacement TL;DR is published and read back.
+
+The helper re-checks repository or issue ownership, comment ownership, target membership, and every
 protected ID before deletion. A failed check stops the cleanup; never replace it with a raw
-`gh api --method DELETE` call.
+`gh api --method DELETE` or `acli jira workitem comment delete` call.
 
 Finally reload both targets. Require exactly one current `merge-readiness` comment by the actor on
-the source issue, require every manifested stale ID to return HTTP 404, and require both protected
+the source issue (on JIRA: exactly one marker-carrying comment by the actor), require every
+manifested stale ID to be gone (HTTP 404 on GitHub, absent from the issue view on JIRA), and require both protected
 review-evidence IDs to remain readable. A partial or unverified cleanup returns `Blocked` with the
 remaining IDs; it never reports success optimistically.
 

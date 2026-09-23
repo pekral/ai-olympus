@@ -139,11 +139,14 @@ test('the merge-readiness TL;DR is published through the helper that matches the
         expect($document)->toContain('the only sanctioned');
     }
 
-    // Deletion stays GitHub-only, so a JIRA source publishes the TL;DR and deletes nothing.
-    expect($hermes)->toContain('**Steps 4–7 are GitHub-only**');
-    expect($hermes)->toContain('deletes nothing, and says so in the handoff');
-    expect($skill)->toContain('The deletion pass below is **GitHub-only**');
-    expect($skill)->toContain('deletes nothing, and reports that');
+    // A JIRA source cleans its superseded duplicates through the JIRA helper, never a raw acli delete.
+    foreach ([$hermes, $skill] as $document) {
+        expect($document)->toContain('skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>');
+        expect($document)->toContain('`acli jira workitem comment delete`');
+    }
+
+    expect($rule)->toContain('**Delete a comment only through `skills/code-review-jira/scripts/delete-owned-comment.sh`.**');
+    expect($rule)->toContain('never from the `acli jira workitem comment list` body alone');
 
     expect($rule)->toContain('A helper that fails is never a licence to improvise.');
     expect($rule)->toContain('A GitHub-shaped instruction on a JIRA source is re-routed, never followed literally.');

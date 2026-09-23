@@ -147,8 +147,12 @@ fi
 #   ✓ Authenticated
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=jira-actor.sh
+source "$SCRIPT_DIR/jira-actor.sh"
+
 AUTH_STATUS="$(acli jira auth status 2>/dev/null || true)"
-SITE="$(printf '%s' "$AUTH_STATUS" | awk -F': *' 'tolower($0) ~ /site:/ { gsub(/[[:space:]]+$/, "", $2); print $2; exit }')"
+SITE="$(jira_auth_status_field "$AUTH_STATUS" site)"
 if [[ -z "$SITE" ]]; then
   echo "upsert-comment.sh: failed to resolve JIRA site — is acli authenticated? (run: acli jira auth status)" >&2
   exit 3
@@ -160,11 +164,8 @@ fi
 # every reader of the issue can see. `php` computes the digest because this
 # script already requires it for the ADF conversion, so no further tool has to
 # be present for the publisher to work.
-EMAIL="$(printf '%s' "$AUTH_STATUS" | awk -F': *' 'tolower($0) ~ /email:/ { gsub(/[[:space:]]+$/, "", $2); print $2; exit }')"
-ACTOR_ID=""
-if [[ -n "$EMAIL" ]]; then
-  ACTOR_ID="$(printf '%s' "$EMAIL" | php -r 'echo substr(hash("sha256", (string) stream_get_contents(STDIN)), 0, 16);' 2>/dev/null || true)"
-fi
+EMAIL="$(jira_auth_status_field "$AUTH_STATUS" email)"
+ACTOR_ID="$(jira_actor_digest "$EMAIL")"
 
 # An unresolvable identity is not fatal: the script then adds no marker and
 # creates a new comment, exactly as it did before.
@@ -184,7 +185,6 @@ fi
 # `--body-adf` flag, but `--body-file` accepts an ADF document. The update call
 # then applies the same payload to that exact new comment ID through the
 # explicitly requested `--body-adf` path.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADF_FILE_TMP="$(mktemp)"
 CREATE_STDERR="$(mktemp)"
 LIST_STDERR="$(mktemp)"
@@ -303,6 +303,7 @@ else
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
+    echo "upsert-comment.sh: the created comment may remain on $KEY carrying this actor's marker; after a verified publish, remove it only through skills/code-review-jira/scripts/delete-owned-comment.sh" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
   fi

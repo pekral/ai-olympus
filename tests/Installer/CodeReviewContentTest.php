@@ -226,8 +226,13 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // line is readable by everyone who can browse the issue, and Jira Cloud
     // hides `author.emailAddress` from its own API responses for that reason.
     expect($jiraScriptBody)->toContain('acli jira auth status');
-    expect($jiraScriptBody)->toContain('tolower($0) ~ /email:/');
-    expect($jiraScriptBody)->toContain('hash("sha256", (string) stream_get_contents(STDIN)), 0, 16');
+    // The e-mail parse and the digest live in the shared `jira-actor.sh`, which the delete helper
+    // sources too, so the marker it writes and the marker a delete proves never diverge.
+    $jiraActorBody = (string) file_get_contents(dirname($jiraScript) . '/jira-actor.sh');
+    expect($jiraScriptBody)->toContain('EMAIL="$(jira_auth_status_field "$AUTH_STATUS" email)"');
+    expect($jiraScriptBody)->toContain('ACTOR_ID="$(jira_actor_digest "$EMAIL")"');
+    expect($jiraActorBody)->toContain('tolower($0) ~ (label ":")');
+    expect($jiraActorBody)->toContain('hash("sha256", (string) stream_get_contents(STDIN)), 0, 16');
     expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"');
     expect($jiraScriptBody)->not->toContain('cr-comment:actor=${EMAIL}');
     // Jira Cloud commonly omits `author.emailAddress`, which the author half of
