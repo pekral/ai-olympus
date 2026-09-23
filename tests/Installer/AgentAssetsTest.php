@@ -33,7 +33,7 @@ test('the avatar manifest gives every live agent a complete portable portrait an
 
             expect([$size[0], $size[1], $size[2]])->toBe([$dimension, $dimension, IMAGETYPE_PNG]);
             // PNG IHDR colour type 6 retains alpha for the light and dark Cockpit surfaces.
-            expect(ord((string) file_get_contents($path)[25]))->toBe(6);
+            expect(ord(substr((string) file_get_contents($path), 25, 1)))->toBe(6);
         }
     }
 });
