@@ -143,6 +143,7 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     foreach ([$hermes, $skill] as $document) {
         expect($document)->toContain('skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>');
         expect($document)->toContain('`acli jira workitem comment delete`');
+        expect($document)->toContain('the marker-carrying comments by the actor are exactly the protected IDs');
     }
 
     expect($rule)->toContain('**Delete a comment only through `skills/code-review-jira/scripts/delete-owned-comment.sh`.**');

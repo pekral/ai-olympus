@@ -46,7 +46,7 @@
 #     stderr, and the comments past the embedded page keep the flattened text. `id` is the comment
 #     ID, which `delete-owned-comment.sh` and `comment update --id` take.
 #   - The ADF renderer keeps every node a reader needs: a mention as its `@Name`, an emoji as its
-#     `:shortcode:`, a smart link as its URL, a linked text as `text (url)`, a status or a date as
+#     text (the character, or the `:shortcode:` when JIRA stores no character), a smart link as its URL, a linked text as `text (url)`, a status or a date as
 #     its value, a list item as `- ` / `1. ` indented two spaces per nesting level, a task as
 #     `- [ ]` / `- [x]`, a rule as `---`, a table as `| cell | cell |` rows, and an expand as its
 #     title followed by its content. The same renderer produces `descriptionText`.
@@ -251,7 +251,7 @@ def unwrapJavaToString:
   end;
 
 # `adfInline` renders one inline node. Nothing a reader needs is dropped: a mention keeps its
-# `@Name`, an emoji its `:shortcode:`, a smart link its URL, a linked text its target, and a status
+# `@Name`, an emoji its text or `:shortcode:`, a smart link its URL, a linked text its target, and a status
 # lozenge or a date its value — the flattened `comment list` text loses exactly these nodes.
 def adfInline:
   if type != "object" then ""
@@ -265,8 +265,10 @@ def adfInline:
   elif (.type // "") | IN("inlineCard","blockCard","embedCard") then (.attrs.url // "")
   elif .type == "status" then (.attrs.text // "")
   elif .type == "date" then
-    ((.attrs.timestamp // "") | tostring | tonumber? // null
-     | if . == null then "" else (. / 1000 | floor | strftime("%Y-%m-%d")) end)
+    ((.attrs.timestamp // "") | tostring) as $raw
+    | ($raw | tonumber? // null) as $ms
+    | if $ms == null then $raw
+      else (try ($ms / 1000 | floor | strftime("%Y-%m-%d")) catch $raw) end
   else ((.content // []) | map(adfInline) | join(""))
   end;
 
