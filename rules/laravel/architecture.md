@@ -271,7 +271,7 @@ When this pattern appears inline in an Action `__invoke()`, extract it into a de
   A Data Validator never returns data: no validated or normalized array, no DTO, no model, no `Collection`, no error-message string or list, no nullable result that encodes *invalid* as `null`. Returning the cleaned-up input turns the validator into a Data Builder; returning error messages moves the rejection decision to the caller. Normalization belongs in a Data Builder, and the caller that needs the data reads it from its own source after the validator passes.
 - Store Data Validators under `app/DataValidators/{Domain}` by default, but follow the project's existing namespace convention if different.
 - Use the `DataValidator` suffix.
-- Data Validators should be `final readonly` with constructor injection and a single public method `validate()`.
+- Data Validators should be `final readonly` with constructor injection. Name each public method after the check it performs (`validate()`, `assertPayable()`, `evaluate()`), and give it one of the two return shapes above: `bool` or `void` with an exception.
 - **When `pekral/arch-app-services` is installed:** Data Validator classes must use the `Pekral\Arch\DataValidation\DataValidator` trait, which provides the `$this->validate($data, $rules, $messages)` method. Do not call `Validator::make()` directly — always use `$this->validate()` from the trait.
 - Actions must call Data Validators before business orchestration.
 
