@@ -14,7 +14,7 @@ declare(strict_types = 1);
  */
 test('the compound-engineering rule states the ordering and why it is causal', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
 
     expect($rule)->toContain('## Fix the cause first, then repair the data it already wrote');
 

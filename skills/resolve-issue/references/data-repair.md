@@ -3,7 +3,7 @@
 A defect that ran in production wrote its result somewhere: a table, a JSON column, a file, a cache
 entry, a queued payload. The fix in step 10 corrects the code path and leaves every one of those
 records exactly as the defect wrote it. Resolving the issue means delivering both halves, in this
-order — the cause first, then the repair — per `@rules/compound-engineering/general.md` *Fix the
+order — the cause first, then the repair — per `@rules/compound-engineering/tracker.md` *Fix the
 cause first, then repair the data it already wrote*. The order is causal rather than a preference: a
 repair that runs while the defect is still live is re-corrupted by the next request that takes the
 broken path.

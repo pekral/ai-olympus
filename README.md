@@ -229,7 +229,7 @@ Agents never share a conversation. Every step is a blocking dispatch that return
 - **Per-dispatch memory slice** — project memory is filtered per recipient role into the dispatch prompt itself, never folded into the shared brief that every later agent reads.
 - **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
 
-The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md) and [`rules/security/general.md`](rules/security/general.md); `splinter` owns the brief and all three ledgers.
+The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md), [`rules/compound-engineering/tracker.md`](rules/compound-engineering/tracker.md) and [`rules/security/general.md`](rules/security/general.md); `splinter` owns the brief and all three ledgers.
 
 ### Using the roles and skills
 
@@ -306,7 +306,8 @@ with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skil
 
 ## Rules Overview
 
-29 rule files: an always-on baseline every run applies, plus scoped rules for PHP, Laravel,
+30 rule files: a small always-on baseline every run applies, on-demand rules for code review,
+trackers, JIRA and refactoring, plus scoped rules for PHP, Laravel,
 security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
 **[`docs/rules.md`](docs/rules.md)**.
 

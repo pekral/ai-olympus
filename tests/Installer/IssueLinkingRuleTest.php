@@ -9,7 +9,7 @@ declare(strict_types = 1);
  * PR #43 proved the second half of the same defect — a translated keyword parses as nothing.
  *
  * These tests pin the corrected mechanic and its single owner: the general invariant lives in
- * `rules/compound-engineering/general.md`, and this section implements it for GitHub only.
+ * `rules/compound-engineering/tracker.md`, and this section implements it for GitHub only.
  */
 test('the GitHub issue-linking mechanic keys off the PR body, not only the commit (issue #43 lesson)', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -56,7 +56,7 @@ test('the git rule implements the general linking invariant instead of restating
     // One owner for the principle, one owner for the GitHub mechanic — the split the two
     // sibling tracker-write sections already use.
     expect($rule)->toContain(
-        'This section is the GitHub mechanic for `@rules/compound-engineering/general.md` '
+        'This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md` '
         . '*Every pull request links back to its tracker issue*.',
     );
     expect($rule)->toContain('That section owns the invariant across every tracker; this one owns how GitHub carries it.');

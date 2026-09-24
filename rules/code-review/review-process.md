@@ -1,5 +1,7 @@
 ---
 description: Code Review — the passes the review runs and how it reports: refactoring/DRY analysis, the coverage gate, findings verification, and the output rules. Companion to code-review/general.md; apply both.
+paths:
+  - ".claude/rules/code-review/**"
 ---
 
 # Code Review — canonical review-process detail
@@ -19,7 +21,7 @@ Retired with it, because each existed only to fill one of those two sections: th
 - **Duplication that is a rule violation is still a finding.** *Reuse of existing logic* in `@rules/code-review/core-analysis.md` owns the reuse-first gate at its own severity, and it is unaffected — a parallel implementation of logic the codebase already has is a finding, not a proposal.
 - **Both skills stay shipped and stay usable.** `@skills/class-refactoring/SKILL.md` and `@skills/refactor-entry-point-to-action/SKILL.md` are unchanged and run exactly as before when a caller asks for a refactor. Only their automatic, read-only invocation from inside a code review is gone.
 - **The three frontend lenses are unaffected.** `frontend-patterns`, `frontend-a11y`, and `design-system` own what is inside a component and keep running; this walk only ever owned where the markup was split.
-- **An out-of-scope problem a reviewer genuinely notices is still recorded.** It travels in the reviewer's handoff and, when it clears the filing bar, becomes its own tracker issue (`@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* → *The filing bar*). It just no longer has a section of its own on the PR comment.
+- **An out-of-scope problem a reviewer genuinely notices is still recorded.** It travels in the reviewer's handoff and, when it clears the filing bar, becomes its own tracker issue (`@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar*). It just no longer has a section of its own on the PR comment.
 
 **What is lost, stated rather than hidden:** a tech-debt observation that is not a rule violation, not security-relevant, and not worth a tracker issue is no longer written down anywhere a reader of the PR will see. That is the intended trade — those are exactly the entries the round count was being spent on.
 

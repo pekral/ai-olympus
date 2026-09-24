@@ -313,7 +313,7 @@ test('sub-issues are returned when the GraphQL call succeeds', function (): void
 test('a failed sub-issue GraphQL call degrades to an empty list while the issue still loads', function (): void {
     // This degradation is deliberate — a repository without the sub-issue feature must still load
     // — but it makes an empty `subIssues` indistinguishable from a failed fetch, which
-    // `@rules/compound-engineering/general.md` requires callers to disclose as unverified. Pinning
+    // `@rules/compound-engineering/tracker.md` requires callers to disclose as unverified. Pinning
     // it here keeps the behaviour the rule describes from drifting away from the rule.
     $fixture = createGitHubLoaderFixture();
 

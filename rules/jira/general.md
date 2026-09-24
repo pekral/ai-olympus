@@ -1,5 +1,7 @@
 ---
 description: JIRA CLI (acli) usage and fallback rules
+paths:
+  - ".claude/rules/jira/**"
 ---
 
 ## JIRA Rules

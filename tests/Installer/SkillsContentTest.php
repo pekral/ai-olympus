@@ -188,7 +188,7 @@ test('no shipped surface restates the withdrawn convergence wording', function (
         // The pre-PR self-check no longer grades findings at all, so it no longer carries the wording:
         // it is a deterministic checklist, not a review with a 0 Critical / 0 Moderate gate.
         // The one place that withdraws the wording has to quote it to withdraw it.
-        'rules/compound-engineering/general.md' => 1,
+        'rules/compound-engineering/tracker.md' => 1,
         // Reports of past runs, true as history and never a statement of the current gate.
         'docs/marketing/launch-article.en.md' => 1,
         'docs/memory/PROJECT_MEMORY.md' => 1,
@@ -2098,7 +2098,7 @@ test('resolve-issue always signals the GitHub review-waiting phase once the PR i
         . "\n" . (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
 
     // The step is phase 2 of the tracker-status invariant, so it cites the rule that owns it.
-    expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+    expect($content)->toContain('`@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*');
 
     // The old escape hatch made the signal a coin flip on repository configuration.
     expect($content)->not->toContain('Skip this step when the project does not use such labels');
@@ -2125,7 +2125,7 @@ test('resolve-issue puts a concrete tracker reference in the PR itself and verif
     // per-tracker shape, so nothing guaranteed the link GitHub, JIRA, or Bugsnag actually reads.
     expect($pullRequest)->not->toContain('  - reference to the original issue' . "\n");
     expect($pullRequest)->toContain('**reference to the source tracker item**');
-    expect($pullRequest)->toContain('`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*');
+    expect($pullRequest)->toContain('`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*');
 
     // One concrete shape per tracker, plus the described-task case that has nothing to link.
     expect($pullRequest)->toContain('**GitHub-sourced task:** the literal English `Closes #<N>` in the body');
@@ -2181,7 +2181,7 @@ test('the resolve-issue skill body names the link-back obligation it delegates',
     // verified); the reference keeps the procedure — the split its other sections already use.
     expect($skill)->toContain(
         'The run also writes the PR link-back on the source tracker '
-        . '(`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*)',
+        . '(`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*)',
     );
     expect($skill)->toContain('JIRA and Bugsnag expose no structured link write at all');
     expect($skill)->toContain('verified by re-reading the item through its deterministic loader');
@@ -2196,10 +2196,10 @@ test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag
     expect($content)->toContain(
         'The same write is phase 1 of *Tracker status tracks the phase of work* in that file',
     );
-    expect($content)->toContain('It is JIRA\'s phase-1 write under `@rules/compound-engineering/general.md`');
+    expect($content)->toContain('It is JIRA\'s phase-1 write under `@rules/compound-engineering/tracker.md`');
 
     // Phase 2 on JIRA: the Code Review transition.
-    expect($content)->toContain('This is JIRA\'s phase-2 write under `@rules/compound-engineering/general.md`');
+    expect($content)->toContain('This is JIRA\'s phase-2 write under `@rules/compound-engineering/tracker.md`');
 
     // Bugsnag: both phases are a named exception with a stated reason, never a silent gap.
     expect($content)->toContain('no claim step, and no in-progress status write either');
@@ -2217,7 +2217,7 @@ test('process-code-review writes the review-waiting phase signal when it opens t
     expect($content)->toContain(
         'write that issue\'s review-waiting phase signal now, exactly as the resolving run would have',
     );
-    expect($content)->toContain('`@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+    expect($content)->toContain('`@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*');
     expect($content)->toContain('This is the only other path that opens the PR, so it owns the phase-2 write on that path.');
 
     // The mechanics pointer must resolve to the file that actually carries the two sections —
@@ -2239,7 +2239,7 @@ test('process-code-review links the PR to its tracker issue when it opens the PR
     // The Finalization bullet list carried a title rule and a body rule and said nothing about
     // the link, so this second PR-opening path opened unlinked PRs by default.
     expect($content)->toContain('**Link the PR to the tracker issue the branch resolves**');
-    expect($content)->toContain('`@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*');
+    expect($content)->toContain('`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*');
     expect($content)->toContain('This is the only other path that opens the PR, so it owns the link on that path.');
 
     // The GitHub keyword is literal and English, and lives in the body — the PR #43 lesson.
@@ -2339,7 +2339,7 @@ test('the round-3 deferral boundary triages every remaining finding into exactly
 
     // The filing bar is cross-referenced, never restated.
     expect($reference)->toContain('## The filing bar is cross-referenced, never restated');
-    expect($reference)->toContain('`@rules/compound-engineering/general.md` *File deferred points as follow-up tracker issues* → *The filing bar*');
+    expect($reference)->toContain('`@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar*');
     expect($reference)->not->toContain('It blocks or materially complicates a planned capability');
 
     // A Moderate that satisfies neither criterion blocks — it never silently vanishes.
@@ -2367,7 +2367,7 @@ test('process-code-review writes the ready-to-merge phase signal when the review
 
     // Convergence is the one moment phase 3 fires, so the skill owns both halves of the signal.
     expect($skill)->toContain('#### Promote the PR out of Draft and signal ready to merge');
-    expect($skill)->toContain('phase 3 of `@rules/compound-engineering/general.md` *Tracker status tracks the phase of work*');
+    expect($skill)->toContain('phase 3 of `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*');
     expect($skill)->toContain('**Write the ready-to-merge phase signal on the source tracker item in this same step**');
     expect($skill)->toContain('live in `references/ready-to-merge-signal.md`');
 
