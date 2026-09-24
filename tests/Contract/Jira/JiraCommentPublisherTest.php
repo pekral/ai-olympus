@@ -19,6 +19,15 @@ if [[ "$1" == "jira" && "$2" == "auth" && "$3" == "status" ]]; then
   exit 0
 fi
 
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "search" ]]; then
+  if [[ -z "${FAKE_ACLI_SEARCH_JSON:-}" ]]; then
+    exit 1
+  fi
+
+  printf '%s\n' "$FAKE_ACLI_SEARCH_JSON"
+  exit 0
+fi
+
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   if [[ "${FAKE_ACLI_LIST_OK:-1}" != "1" ]]; then
     exit 1
@@ -218,9 +227,13 @@ JSON;
  *
  * @return array{id: string, created: string, author: array<string, string>, body: array{content: array<int, array{text: string}>}}
  */
-function jiraComment(string $id, string $created, ?string $author, string $text): array
+function jiraComment(string $id, string $created, ?string $author, string $text, ?string $accountId = null): array
 {
     $authorField = $author === null ? ['displayName' => 'CR Bot'] : ['emailAddress' => $author];
+
+    if ($accountId !== null) {
+        $authorField['accountId'] = $accountId;
+    }
 
     return ['id' => $id, 'created' => $created, 'author' => $authorField, 'body' => ['content' => [['text' => $text]]]];
 }
@@ -565,7 +578,7 @@ test('the JIRA publisher creates a marked comment when no marker-carrying commen
     }
 });
 
-test('a failed JIRA comment lookup falls back to creating a comment instead of blocking the publish', function (): void {
+test('a failed JIRA comment lookup publishes nothing instead of risking a duplicate', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
@@ -589,23 +602,25 @@ test('a failed JIRA comment lookup falls back to creating a comment instead of b
         $process->run();
         $calls = (string) file_get_contents($fixture['calls']);
 
-        expect($process->getExitCode())->toBe(0)
-            ->and($process->getErrorOutput())->toContain('comment lookup failed on TEAM-42, publishing a new comment instead')
-            ->and($process->getErrorOutput())->toContain('action=created id=10009')
-            ->and($calls)->toContain('comment create --key TEAM-42 --body-file');
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('comment lookup failed on TEAM-42, nothing was published')
+            ->and($process->getErrorOutput())->not->toContain('action=created')
+            ->and($process->getOutput())->toBe('')
+            ->and($calls)->not->toContain('comment create')
+            ->and($calls)->not->toContain('comment update');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
 });
 
-test('the JIRA publisher warns about a degraded lookup when the acli response hides the comment author', function (): void {
+test('the JIRA publisher refuses to duplicate a marked comment whose author it cannot verify', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
     // Jira Cloud omits `author.emailAddress` whenever e-mail visibility is
-    // restricted, which is the default on many instances. The author half of the
-    // lookup then has nothing to match on, so the publisher creates a second
-    // comment — and must say so instead of letting the run read as a first one.
+    // restricted, and no account ID resolves here. The marked comment may be this
+    // actor's own, so a create could duplicate it and an update could overwrite a
+    // stranger's: the publisher does neither.
     $listJson = json_encode([
         jiraComment('9301', '2026-05-01T00:00:00.000+0000', author: null, text: 'round one _' . jiraActorMarker('bot@example.com') . '_'),
     ], JSON_THROW_ON_ERROR);
@@ -629,10 +644,10 @@ test('the JIRA publisher warns about a degraded lookup when the acli response hi
         $process->run();
         $calls = (string) file_get_contents($fixture['calls']);
 
-        expect($process->getExitCode())->toBe(0)
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('refusing to create a duplicate — comment 9301 on TEAM-42 carries this actor\'s marker')
             ->and($process->getErrorOutput())->toContain('author identity could not be verified from the acli response')
-            ->and($process->getErrorOutput())->toContain('action=created id=10021')
-            ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
+            ->and($calls)->not->toContain('comment create')
             // The unverifiable comment is never claimed as this actor's own.
             ->and($calls)->not->toContain('--id 9301');
     } finally {
@@ -729,7 +744,7 @@ test('the JIRA publisher resolves the new comment ID from the re-read issue when
     }
 });
 
-test('the JIRA publisher treats a display-name author as unverifiable instead of failing the lookup', function (): void {
+test('the JIRA publisher treats a display-name author as unverifiable and creates no duplicate', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
@@ -756,10 +771,94 @@ test('the JIRA publisher treats a display-name author as unverifiable instead of
         $process->run();
         $calls = (string) file_get_contents($fixture['calls']);
 
-        expect($process->getExitCode())->toBe(0)
+        expect($process->getExitCode())->toBe(3)
             ->and($calls)->not->toContain('--id 9002')
-            ->and($process->getErrorOutput())->toContain('author identity could not be verified')
-            ->and($process->getErrorOutput())->toContain('action=created id=10007');
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('author identity could not be verified');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher updates its own comment through the account ID when the acli response hides the e-mail', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $marker = jiraActorMarker('bot@example.com');
+    $listJson = json_encode([
+        jiraComment('9401', '2026-06-01T00:00:00.000+0000', author: null, text: 'round one _' . $marker . '_', accountId: 'acc-bot'),
+        jiraComment('9402', '2026-06-02T00:00:00.000+0000', author: null, text: 'copied _' . $marker . '_', accountId: 'acc-stranger'),
+    ], JSON_THROW_ON_ERROR);
+    $searchJson = json_encode([['fields' => ['assignee' => ['accountId' => 'acc-bot']]]], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10031"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_SEARCH_JSON' => $searchJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9401 --body-adf')
+            // The newer copy under another account ID is never the update target.
+            ->and($calls)->not->toContain('--id 9402')
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9401');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('a rerun after a create whose ID was missing updates that comment instead of duplicating it', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $marker = jiraActorMarker('bot@example.com');
+    // The comment an earlier run created and could not resolve the ID of is the
+    // exact shape acli 1.3.x left behind on a failed publish.
+    $listJson = json_encode(['fields' => ['comment' => ['comments' => [
+        jiraComment('9501', '2026-07-01T00:00:00.000+0000', 'bot@example.com', 'first attempt _' . $marker . '_', accountId: 'acc-bot'),
+    ],
+    ],
+    ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"results":[{"key":"TEAM-42","status":"success"}]}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Retry');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9501 --body-adf')
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9501');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }

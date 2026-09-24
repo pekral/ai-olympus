@@ -36,8 +36,9 @@
 #
 # Behavior:
 #   1. Detect the site and the account e-mail from `acli jira auth status`.
-#      That status output is the only identity `acli` exposes — it carries no
-#      account ID, and no `acli` subcommand returns one for the current user.
+#      That status output carries no account ID, and no `acli` subcommand
+#      returns one for the current user, so the account ID is resolved through
+#      JQL `currentUser()` (`jira_actor_account_id` in jira-actor.sh).
 #   2. Derive the actor digest from that e-mail and append the marker line
 #      `_cr-comment:actor=<actor-digest>_` to the Wiki Markup source (only when
 #      the source does not already carry it). The raw address never leaves this
@@ -45,9 +46,12 @@
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
 #   4. Read the issue's comments through `acli jira workitem view <KEY>
 #      --fields comment --json` and pick the newest one this account authored
-#      whose body carries that marker. `comment list` is not used: acli 1.3.x
-#      returns the author there as a bare display name and the body as flattened
-#      text, so neither half of the match can be made against it. Both halves
+#      whose body carries that marker. The author matches on the account ID,
+#      or on the e-mail when no account ID was resolved; a visible e-mail that
+#      differs disqualifies the comment either way. `comment list` is not used:
+#      acli 1.3.x returns the author there as a bare display name and the body
+#      as flattened text, so neither half of the match can be made against it.
+#      Both halves
 #      are load-bearing: the marker is visible text anyone can copy into their
 #      own comment, so the author
 #      must match too, and the marker is matched against the comment body alone
@@ -61,19 +65,20 @@
 #      new ID is resolved by re-reading the comments and taking the comment that
 #      was absent before the create, carries the marker, and has this author.
 #
-# The lookup is fail-safe, never fail-open: an unresolvable account e-mail, an
-# `acli` error, or an unexpected JSON shape falls back to creating a new comment
-# — the previous behaviour — rather than guessing at a match.
-#
-# A comment list that omits `author.emailAddress` resolves the same way, and it
-# is the common case rather than an exotic one: Jira Cloud hides that field
-# whenever the account sets its e-mail visibility to "Only you and admins", or
-# the instance hides it site-wide. The author half of the lookup then has
-# nothing to match on, so the run creates a second comment instead of updating
-# one it cannot prove it owns. A duplicate comment is the cheap failure;
-# overwriting a stranger's is not. The run says so on stderr whenever a
-# marker-carrying comment has an unresolvable author, so the operator reads a
-# degradation rather than a first run.
+# One result is one comment. The helper never creates a comment it cannot prove
+# is the first one, so a rerun — including a caller's retry after exit 3 —
+# updates the comment an earlier run created or refuses, and never duplicates it:
+#   - A failed or unparsable comment lookup exits 3 and creates nothing. Without
+#     the lookup, a create could duplicate a comment this actor already owns.
+#   - A comment carrying this actor's marker whose author can be neither
+#     confirmed nor ruled out exits 3 and creates nothing. Jira Cloud hides
+#     `author.emailAddress` whenever the account restricts its e-mail
+#     visibility, so the account ID carries the match; only when that is
+#     unresolvable too is the author undecidable. Updating a comment the helper
+#     cannot prove it owns would risk overwriting a stranger's, so it neither
+#     updates nor duplicates it.
+# Only an unresolvable account e-mail still creates a comment on every run: it
+# leaves no marker to look up, so the comment is published unmarked.
 #
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
@@ -219,48 +224,65 @@ read_comments() {
         ) | add // []' 2>/dev/null
 }
 
-# An author that is a bare display name, or missing, has no e-mail to match.
-AUTHOR_EMAIL_JQ='(.author | if type == "object" then (.emailAddress // "") else "" end)'
+# The account ID carries the author match wherever Jira Cloud hides
+# `author.emailAddress`, which it does whenever the account restricts its e-mail
+# visibility.
+ACCOUNT_ID=""
+if [[ -n "$MARKER_TEXT" ]]; then
+  ACCOUNT_ID="$(jira_actor_account_id)"
+fi
 
-# Look for a comment this actor already published under the same marker. Every
-# failure path here — no marker, an acli error, an unexpected JSON shape, no
-# match — resolves to "no existing comment", so the script creates one instead
-# of claiming a match it is not sure of.
+# `owned`: the author carries this account ID, or this e-mail when no account ID
+# was resolved, and no visible e-mail that differs. `decidable`: the response
+# carries enough of the author to confirm or rule out ownership. The e-mail is
+# compared raw; the marker carries only its digest, so it never identifies the
+# account to a reader.
+AUTHOR_JQ="$(cat <<'JQ'
+  def author_of: .author | if type == "object" then . else {} end;
+  def owned: author_of as $a
+    | (($a.emailAddress // "") as $e | $e == "" or $e == $email)
+      and (($account != "" and ($a.accountId // "") == $account)
+           or ($email != "" and ($a.emailAddress // "") == $email));
+  def decidable: author_of as $a
+    | ($a.emailAddress // "") != "" or ($account != "" and ($a.accountId // "") != "");
+  def marked: (.body | tojson) | contains($marker);
+JQ
+)"
+
+# Look for a comment this actor already published under the same marker. A
+# lookup that cannot be made, or a marked comment whose author cannot be
+# decided, publishes nothing: either could hide the comment a create would
+# duplicate.
 EXISTING_ID=""
 COMMENTS_JSON=""
 if [[ -n "$MARKER_TEXT" ]]; then
-  if ! COMMENTS_JSON="$(read_comments)"; then
-    echo "upsert-comment.sh: comment lookup failed on $KEY, publishing a new comment instead: $(<"$LIST_STDERR")" >&2
-    COMMENTS_JSON=""
+  if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
+    echo "upsert-comment.sh: comment lookup failed on $KEY, nothing was published: $(<"$LIST_STDERR")" >&2
+    echo "upsert-comment.sh: a create without the lookup could duplicate a comment this actor already owns; rerun once the issue is readable" >&2
+    exit 3
   fi
 
-  if [[ -n "$COMMENTS_JSON" ]]; then
-    # The author is compared on the raw e-mail this process already holds. The
-    # marker in the body carries only its digest, so it never identifies the
-    # account to a reader; the comparison here needs no digest of its own.
-    EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
-      | jq -r --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" '
-          map(select(('"${AUTHOR_EMAIL_JQ}"' == $marker_email)
-                     and ((.body | tojson) | contains($marker))))
-          | sort_by((.updated? // .created? // "") | tostring)
+  EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
+    | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+        map(select(marked and owned))
+        | sort_by((.updated? // .created? // "") | tostring)
+        | last
+        | (.id? // empty)
+        | tostring' 2>/dev/null || true)"
+
+  if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
+    UNDECIDABLE_ID="$(printf '%s' "$COMMENTS_JSON" \
+      | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+          map(select(marked and (decidable | not)))
           | last
           | (.id? // empty)
           | tostring' 2>/dev/null || true)"
-  fi
-fi
 
-# Name the hidden-e-mail degradation instead of letting it pass for a first run.
-# A comment already carrying a `cr-comment` marker whose author this response
-# does not identify means the update target may well be there and be
-# unprovable, so the new comment below is a duplicate rather than a first one.
-if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ && -n "$COMMENTS_JSON" ]]; then
-  UNVERIFIABLE_MARKED="$(printf '%s' "$COMMENTS_JSON" \
-    | jq -r "map(select((${AUTHOR_EMAIL_JQ} == \"\")
-                        and ((.body | tojson) | contains(\"cr-comment:actor=\"))))
-             | length" 2>/dev/null || true)"
-
-  if [[ "$UNVERIFIABLE_MARKED" =~ ^[1-9][0-9]*$ ]]; then
-    echo "upsert-comment.sh: no comment matched this actor's identity — author identity could not be verified from the acli response; posting a new comment instead of updating" >&2
+    if [[ -n "$UNDECIDABLE_ID" ]]; then
+      echo "upsert-comment.sh: refusing to create a duplicate — comment $UNDECIDABLE_ID on $KEY carries this actor's marker, but its author identity could not be verified from the acli response" >&2
+      echo "upsert-comment.sh: update that comment through the JIRA MCP server with an ADF payload; never create a second one" >&2
+      exit 3
+    fi
   fi
 fi
 
@@ -286,24 +308,23 @@ else
   # acli 1.3.x reports no comment ID here. Identify the new comment by what only
   # it can carry: absent before the create, this account's marker in the body,
   # and this account as its author. The highest ID wins, since JIRA assigns them
-  # in ascending order. Without a marker and an e-mail there is nothing to match
-  # on, so the run fails closed rather than update a comment it cannot prove.
-  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$MARKER_TEXT" && -n "$EMAIL" ]]; then
+  # in ascending order. Without a marker there is nothing to match on, so the
+  # run fails closed rather than update a comment it cannot prove.
+  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$MARKER_TEXT" ]]; then
     BEFORE_IDS="$(printf '%s' "${COMMENTS_JSON:-[]}" | jq -c '[.[] | (.id? // empty) | tostring]' 2>/dev/null || echo '[]')"
     AFTER_JSON="$(read_comments || true)"
     TARGET_ID="$(printf '%s' "${AFTER_JSON:-[]}" \
-      | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg marker_email "$EMAIL" "
-          map(select(((.id? // \"\") | tostring) as \$id | (\$before | index(\$id)) == null)
-              | select(${AUTHOR_EMAIL_JQ} == \$marker_email)
-              | select((.body | tojson) | contains(\$marker)))
-          | map((.id | tostring) | select(test(\"^[0-9]+\$\")) | tonumber)
+      | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+          map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
+              | select(marked and owned))
+          | map((.id | tostring) | select(test("^[0-9]+$")) | tonumber)
           | max // empty
-          | tostring" 2>/dev/null || true)"
+          | tostring' 2>/dev/null || true)"
   fi
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
-    echo "upsert-comment.sh: the created comment may remain on $KEY carrying this actor's marker; after a verified publish, remove it only through skills/code-review-jira/scripts/delete-owned-comment.sh" >&2
+    echo "upsert-comment.sh: do not publish this result again — the created comment carries this actor's marker, and a rerun of this helper updates it or refuses, never duplicates it" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
   fi

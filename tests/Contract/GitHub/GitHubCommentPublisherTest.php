@@ -222,7 +222,7 @@ test('a rejected GitHub publish fails loudly instead of reporting a null comment
     }
 });
 
-test('a failed GitHub comment lookup warns and falls back to a new comment', function (): void {
+test('a failed GitHub comment lookup publishes nothing instead of risking a duplicate', function (): void {
     $fixture = createGitHubCommentPublisherFixture();
 
     try {
@@ -233,12 +233,12 @@ test('a failed GitHub comment lookup warns and falls back to a new comment', fun
 
         $calls = (string) file_get_contents($fixture['calls']);
 
-        expect($process->getExitCode())->toBe(0)
-            // The error is surfaced, never swallowed, and the publish still happens.
-            ->and($process->getErrorOutput())->toContain('comment lookup failed on acme/widgets#42, publishing a new comment instead')
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('comment lookup failed on acme/widgets#42, nothing was published')
             ->and($process->getErrorOutput())->toContain('gh: Not Found (HTTP 404)')
-            ->and($process->getErrorOutput())->toContain('action=created id=800')
-            ->and($calls)->toContain('repos/acme/widgets/issues/42/comments -X POST');
+            ->and($process->getErrorOutput())->not->toContain('action=created')
+            ->and($process->getOutput())->toBe('')
+            ->and($calls)->not->toContain('-X POST');
     } finally {
         removeGitHubCommentPublisherFixture($fixture);
     }

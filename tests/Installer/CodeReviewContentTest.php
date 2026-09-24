@@ -202,9 +202,10 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($githubScriptBody)->toContain('--arg actor "$ACTOR"');
     expect($githubScriptBody)->toContain('select((.user.login // "") == $actor)');
     expect($githubScriptBody)->toContain('select(.body // "" | contains($marker))');
-    // A failed lookup warns and falls back to a new comment — it never aborts
-    // the publish and never silently swallows the error.
-    expect($githubScriptBody)->toContain('comment lookup failed on ${NWO}#${NUMBER}, publishing a new comment instead');
+    // A failed lookup publishes nothing: a POST without it could duplicate the
+    // comment this actor already owns.
+    expect($githubScriptBody)->toContain('comment lookup failed on ${NWO}#${NUMBER}, nothing was published');
+    expect($githubScriptBody)->not->toContain('publishing a new comment instead');
     // Issue #519: `gh api -f body=@-` published a comment whose body was the
     // literal string `@-` because only the typed `-F/--field` flag expands
     // `@-` to stdin. The script now builds a JSON payload via jq and feeds
@@ -219,9 +220,9 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // Issue #695: no hidden anchor marker is appended to the JIRA comment body.
     expect($jiraScriptBody)->not->toContain('{anchor:');
     expect($jiraScriptBody)->not->toContain('ACTOR_SLUG');
-    // Site and actor e-mail both come from `acli jira auth status` — the only
-    // identity `acli` exposes, since it returns no account ID for the current
-    // user. The visible marker JIRA needs in place of GitHub's hidden HTML
+    // Site and actor e-mail both come from `acli jira auth status`, which
+    // carries no account ID; the account ID comes from JQL `currentUser()`.
+    // The visible marker JIRA needs in place of GitHub's hidden HTML
     // comment therefore carries a digest of that e-mail, never the address: the
     // line is readable by everyone who can browse the issue, and Jira Cloud
     // hides `author.emailAddress` from its own API responses for that reason.
@@ -235,9 +236,12 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraActorBody)->toContain('hash("sha256", (string) stream_get_contents(STDIN)), 0, 16');
     expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"');
     expect($jiraScriptBody)->not->toContain('cr-comment:actor=${EMAIL}');
-    // Jira Cloud commonly omits `author.emailAddress`, which the author half of
-    // the lookup needs. That degradation is named on stderr instead of passing
-    // for a first run.
+    // Jira Cloud commonly omits `author.emailAddress`, so the account ID carries
+    // the author match. A marked comment whose author stays undecidable is never
+    // duplicated: the helper refuses instead of creating a second comment.
+    expect($jiraScriptBody)->toContain('ACCOUNT_ID="$(jira_actor_account_id)"');
+    expect($jiraActorBody)->toContain('= currentUser() ORDER BY updated DESC');
+    expect($jiraScriptBody)->toContain('refusing to create a duplicate');
     expect($jiraScriptBody)->toContain('author identity could not be verified from the acli response');
     expect($jiraScriptBody)->not->toContain('acli jira me --json');
     expect($jiraScriptBody)->toContain('acli jira workitem comment create');
@@ -251,14 +255,16 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // body — never on "the latest comment", and never on the whole comment
     // object, which would match the marker in any field.
     expect($jiraScriptBody)->toContain('acli jira workitem view "$KEY" --fields comment --json');
-    expect($jiraScriptBody)->toContain('--arg marker_email "$EMAIL"');
-    expect($jiraScriptBody)->toContain('(.author | if type == "object" then (.emailAddress // "") else "" end)');
-    expect($jiraScriptBody)->toContain('((.body | tojson) | contains($marker))');
+    expect($jiraScriptBody)->toContain('--arg email "$EMAIL" --arg account "$ACCOUNT_ID"');
+    expect($jiraScriptBody)->toContain('def author_of: .author | if type == "object" then . else {} end;');
+    expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | contains($marker);');
+    expect($jiraScriptBody)->toContain('map(select(marked and owned))');
     expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
     expect($jiraScriptBody)->toContain('if [[ -n "$MARKER_TEXT" ]]; then');
-    // Every lookup failure resolves to "no existing comment", so the helper
-    // creates one rather than guessing at a match.
-    expect($jiraScriptBody)->toContain('comment lookup failed on $KEY, publishing a new comment instead');
+    // A lookup that cannot be made publishes nothing rather than risk a
+    // duplicate; only an unresolvable identity still publishes unmarked.
+    expect($jiraScriptBody)->toContain('comment lookup failed on $KEY, nothing was published');
+    expect($jiraScriptBody)->not->toContain('publishing a new comment instead');
     expect($jiraScriptBody)->toContain('could not resolve the acli account identity, publishing an unmarked new comment');
     // A failed update deletes only a comment this run created — never one an
     // earlier run published.

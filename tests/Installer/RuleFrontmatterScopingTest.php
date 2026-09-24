@@ -381,7 +381,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // quoting the helper's stderr verbatim instead of paraphrasing a cause.
         // Re-baselined: comments are read through the loaders, whose body is rendered from the
         // view ADF, and a comment is deleted only through `delete-owned-comment.sh`.
-        'rules/jira/general.md' => 'ae6cfc5585e42368762b0c4b5fbfabaac34fd20d04745815dc13ad8cf390c1fc',
+        // Re-baselined: an issue carries one comment per actor holding the final result, a retry
+        // goes through the helper again, and a JIRA MCP fallback updates that comment instead of
+        // adding a second one. Nothing else in the file moved.
+        'rules/jira/general.md' => '0bdf6cc4c26e5a33bd2b0fa9d4eb5f59ac8b23ad621f19e0aab5aec5c5536a72',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states

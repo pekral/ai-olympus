@@ -39,9 +39,9 @@
 #      `gh api repos/<nwo>/issues/comments/<id>`; otherwise POST a new comment
 #      via `gh api repos/<nwo>/issues/<N>/comments`.
 #
-# A failing lookup never blocks publication: the script warns on stderr and
-# falls back to POSTing a new comment, so a transient API error costs a
-# duplicate comment rather than a lost review.
+# One result is one comment. A failing lookup publishes nothing and exits 3:
+# without it, a POST could duplicate the comment this actor already owns, and a
+# rerun once the API answers again updates that comment in place.
 #
 # The marker stays at the bottom of the comment so it survives manual edits
 # at the top. It is rendered by GitHub as an invisible HTML comment, and it is
@@ -186,14 +186,15 @@ ${MARKER}"
 fi
 
 # Look for a comment this actor already published under the same marker. A
-# failed lookup is a warning, never a blocker: the script falls back to POSTing
-# a new comment, so a transient API error costs a duplicate rather than a lost
-# review. `--paginate` emits one JSON array per page, so `jq -s 'add // []'`
-# flattens them into a single array before the marker match runs.
+# failed lookup publishes nothing: a POST without it could duplicate the
+# comment this actor already owns. `--paginate` emits one JSON array per page,
+# so `jq -s 'add // []'` flattens them into a single array before the marker
+# match runs.
 ALL_COMMENTS=""
 if ! ALL_COMMENTS="$(gh api "repos/${NWO}/issues/${NUMBER}/comments" --paginate 2>"$LOOKUP_STDERR")"; then
-  echo "upsert-comment.sh: comment lookup failed on ${NWO}#${NUMBER}, publishing a new comment instead: $(cat "$LOOKUP_STDERR")" >&2
-  ALL_COMMENTS=""
+  echo "upsert-comment.sh: comment lookup failed on ${NWO}#${NUMBER}, nothing was published: $(cat "$LOOKUP_STDERR")" >&2
+  echo "upsert-comment.sh: a POST without the lookup could duplicate a comment this actor already owns; rerun once the API answers" >&2
+  exit 3
 fi
 
 EXISTING_ID=""
