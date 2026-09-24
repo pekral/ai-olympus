@@ -114,6 +114,12 @@ test('every rule scoped in issue #274, #275 or #277 declares exactly the `paths:
         'rules/laravel/queue-debouncing.md',
         'rules/code-testing/general.md',
         'rules/php/dependency-selection.md',
+        'rules/code-review/core-analysis.md',
+        'rules/code-review/general.md',
+        'rules/code-review/review-process.md',
+        'rules/compound-engineering/tracker.md',
+        'rules/jira/general.md',
+        'rules/refactoring/general.md',
     ]);
 });
 
@@ -435,7 +441,7 @@ test('every rule declares exactly one of the two scopes the loader has (issue #4
     }
 
     expect($violations)->toBe([]);
-    expect($alwaysOn)->toHaveCount(11);
+    expect($alwaysOn)->toHaveCount(6);
     expect(array_intersect($alwaysOn, array_keys(ruleScopingExpectedGlobs())))->toBe([]);
 });
 
@@ -484,16 +490,62 @@ test('a rule scoped in issue #274, #275 or #277 is no longer claimed as always-o
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
-        'rules/code-review/core-analysis.md',
-        'rules/code-review/general.md',
-        'rules/code-review/review-process.md',
-        'rules/jira/general.md',
-        'rules/refactoring/general.md',
         'rules/reports/general.md',
         'rules/security/general.md',
     ]);
 
     foreach (array_keys(ruleScopingExpectedGlobs()) as $relativePath) {
         expect($alwaysOn)->not->toContain($relativePath);
+    }
+});
+
+test('every rule the instruction-budget fix scoped to its own path is named by a skill or an agent', function (): void {
+    // A rule scoped to its own installed path attaches only when an agent reads that path, and an
+    // agent reads it only because a skill or an agent names it. A rule that loses its last
+    // `@rules/…` reference in `skills/` or `agents/` is therefore never loaded again, and nothing
+    // else in the build would say so. Rule files naming each other do not count: no rule reaches an
+    // agent on its own any more once all of them are on demand.
+    $walked = packageTextFiles();
+    $unreferenced = [];
+
+    foreach (array_keys(ruleScopingGlobsAddedByTotalBudget()) as $relativePath) {
+        $referencingFiles = array_filter(
+            $walked,
+            static fn (string $contents, string $file): bool => preg_match('#^(skills|agents)/#', $file) === 1
+                && str_contains($contents, '@' . $relativePath),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        if ($referencingFiles === []) {
+            $unreferenced[] = $relativePath;
+        }
+    }
+
+    expect($walked)->toHaveKey('skills/code-review/SKILL.md');
+    expect($unreferenced)->toBe([]);
+});
+
+test('the always-on compound-engineering rule points every tracker run at its on-demand sibling', function (): void {
+    // The tracker workflow moved out of the always-on file to keep the total budget; the pointer is
+    // what still tells a run that never touches `.claude/run/` that the file exists and applies.
+    $packageDir = dirname(__DIR__, 2);
+    $general = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $tracker = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
+
+    expect($general)->toContain('## Tracker workflow — the companion file');
+    expect($general)->toContain('reads and applies `@rules/compound-engineering/tracker.md` first');
+    expect($general)->not->toContain('## Claim a tracker issue before working on it');
+
+    foreach ([
+        '## Analyze every comment before you act on a tracker assignment',
+        '## Fix the cause first, then repair the data it already wrote',
+        '## Claim a tracker issue before working on it',
+        '## Tracker status tracks the phase of work',
+        '## Every pull request links back to its tracker issue',
+        '## File deferred points as follow-up tracker issues',
+        '## Label tracker issues, and keep the labels true',
+    ] as $heading) {
+        expect($tracker)->toContain($heading);
+        expect($general)->toContain('*' . substr($heading, 3) . '*');
     }
 });

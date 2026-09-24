@@ -275,7 +275,7 @@ test('a failed issue fetch exits with the fetch-failure code and emits no partia
 });
 
 test('a failed comment fetch degrades to an empty list while the issue still loads', function (): void {
-    // `@rules/compound-engineering/general.md` *Truncated input is disclosed* rests on this exact
+    // `@rules/compound-engineering/tracker.md` *Truncated input is disclosed* rests on this exact
     // behaviour: an empty JIRA `comments[]` is indistinguishable from a failed fetch, so a caller
     // must read it as unverified rather than as "no comments". Pinning it keeps the loader from
     // drifting away from the rule that describes it.

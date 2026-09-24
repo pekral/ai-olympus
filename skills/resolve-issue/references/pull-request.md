@@ -16,7 +16,7 @@ Once review and testing are clean and the user has **not** opted out:
 - **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/general.md` *Draft pull requests*. The inline self-check above is the implementer's single-pass pre-PR self-check, **not** the authoritative code review — the authoritative `code-review-github` / `process-code-review` (the `leonardo` ↔ `donatello` convergence loop) still runs **after** the PR exists, so at creation time the PR is not yet ready to merge and agents will keep working on it. It is promoted out of Draft (`gh pr ready`) by `@skills/process-code-review/SKILL.md` once that review converges (0 Critical, no undeferred Moderate — `@skills/process-code-review/SKILL.md` *Review loop* step 4).
 - Create the pull request with:
   - clear description of the change
-  - **reference to the source tracker item** — the pull request itself carries it, never only a commit message, per `@rules/compound-engineering/general.md` *Every pull request links back to its tracker issue*:
+  - **reference to the source tracker item** — the pull request itself carries it, never only a commit message, per `@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*:
     - **GitHub-sourced task:** the literal English `Closes #<N>` in the body, per `@rules/git/general.md` *Issue Linking*. A translated keyword is not parsed and leaves the pull request unlinked
     - **JIRA-sourced task:** the issue key in the pull request **title**, so Atlassian's Development panel has a key to match, plus the issue URL in the body
     - **Bugsnag-sourced task:** the error URL in the body. When `linkedIssues[]` carries a mirrored GitHub issue, add that issue's `Closes #<N>` as well

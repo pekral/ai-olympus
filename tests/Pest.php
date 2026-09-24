@@ -414,23 +414,27 @@ function ruleExtensionStaleMdcReferences(array $textFiles): array
  * The first four entries below are always-on because they govern something every run produces
  * rather than a file type a run may or may not touch: `compound-engineering` (principles only,
  * since issue #275 split its dispatch-time orchestration mechanics into a scoped
- * `orchestration.md` sibling — see `ruleScopingExpectedGlobs()`) governs the memory/tracker
- * contract every run follows, `general` governs the project-context and default-AI-behavior
+ * `orchestration.md` sibling, and since the instruction-budget fix its tracker workflow into a
+ * scoped `tracker.md` sibling — see `ruleScopingExpectedGlobs()`) governs the memory contract every
+ * run follows, `general` governs the project-context and default-AI-behavior
  * baseline every run follows regardless of which file type it touches (split out of
  * `php/core-standards.md` in issue #281, because scoping that file to `**\/*.php` in issue #274
  * stopped those two sections reaching a run that touches no PHP file), `git` governs every commit
  * and pull request, and `writing` governs every sentence an agent writes.
  *
- * Issue #45 added the remaining seven. They used to declare `paths: []` and were described as
- * reference-only — reachable only when a skill, an agent file, or another rule named them. That
- * description was never true of the loader: an empty list reads the same as no key at all, so all
- * of them already loaded into every session. The measurement is in `CHANGELOG.md`. Each of the
- * seven governs an *activity* — reviewing a diff, talking to JIRA, refactoring, publishing a
- * report, reading external content — and no path glob names an activity, so inventing one would
- * silence the rule exactly where it applies. That is the variant `CHANGELOG.md` records as
- * rejected for `security/general.md` back in issue #12, and it holds for the other six too.
- * Always-on is therefore the state that matches both the loader and the intent; the token cost of
- * these seven is real, and shrinking them is a content problem, not a frontmatter one.
+ * Issue #45 added seven more, on the reasoning that each governs an *activity* — reviewing a
+ * diff, talking to JIRA, refactoring, publishing a report, reading external content — no path glob
+ * names, so their token cost was a content problem, not a frontmatter one. The instruction-budget
+ * fix reversed that for five of them. Claude Code now enforces a 150 000-character limit on the
+ * **total** of every always-loaded instruction file, and the always-on rules alone came to
+ * 344 317 bytes, so every consuming project exceeded it before its own `CLAUDE.md` was counted.
+ * The three code-review files, `jira/general.md` and `refactoring/general.md` are now scoped to
+ * their own installed path (see `ruleScopingGlobsAddedByTotalBudget()`), and the tracker-workflow
+ * sections of `compound-engineering/general.md` moved into the scoped `tracker.md` sibling. Two of
+ * the seven stay here: `reports/general.md` governs every report an agent publishes, and
+ * `security/general.md` is the Untrusted Content Boundary, which must be present on exactly the
+ * runs where external content arrives unannounced — the variant `CHANGELOG.md` records as rejected
+ * under issue #12 still holds for it. `InstructionFileSizeTest.php` measures what this list costs.
  *
  * @return array<int, string>
  */
@@ -441,11 +445,6 @@ function ruleExtensionAlwaysOnFiles(): array
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
-        'rules/code-review/core-analysis.md',
-        'rules/code-review/general.md',
-        'rules/code-review/review-process.md',
-        'rules/jira/general.md',
-        'rules/refactoring/general.md',
         'rules/reports/general.md',
         'rules/security/general.md',
     ];
@@ -472,6 +471,7 @@ function ruleScopingExpectedGlobs(): array
         ruleScopingGlobsAddedByScoping(),
         ruleScopingGlobsTranslatedFromCursorGlobs(),
         ruleScopingGlobsAddedByIssue45(),
+        ruleScopingGlobsAddedByTotalBudget(),
     );
 }
 
@@ -548,9 +548,9 @@ function ruleScopingGlobsTranslatedFromCursorGlobs(): array
  *
  * Both fail safe when the glob does not match: `@skills/create-test/SKILL.md` and the code-review
  * rule set name `@rules/code-testing/general.md`, and `@rules/git/general.md` names
- * `@rules/php/dependency-selection.md` from its dependency-only-PR exemption. The code-review set
- * and `rules/git/general.md` are themselves always-on, so that fallback is present in every
- * session and an agent still reads either rule on demand.
+ * `@rules/php/dependency-selection.md` from its dependency-only-PR exemption. `rules/git/general.md`
+ * is always-on and the code-review set is read by every review, so that fallback reaches every
+ * session that needs it and an agent still reads either rule on demand.
  *
  * @return array<string, array<int, string>>
  */
@@ -559,6 +559,38 @@ function ruleScopingGlobsAddedByIssue45(): array
     return [
         'rules/code-testing/general.md' => ['tests/**', '**/tests/**', '**/*Test.php'],
         'rules/php/dependency-selection.md' => ['composer.json', '**/composer.json'],
+    ];
+}
+
+/**
+ * The rules the instruction-budget fix took off the always-on list. Claude Code enforces a
+ * 150 000-character limit on the total of every always-loaded instruction file, and these six
+ * carried 280 000 bytes of it between them. Each governs an activity rather than a file type, so
+ * no glob of a consumer's source names it; each is scoped instead to its own installed path. That
+ * glob matches exactly when an agent reads the file, which is what every skill and agent running
+ * the activity is told to do through its `@rules/…` reference — so the rule attaches on the run
+ * that needs it and on no other. `tracker.md` also carries `.claude/run/**`, the glob its
+ * `orchestration.md` sibling uses, because the orchestrator's gather phase applies the comment
+ * analysis and the claim before any specialist is dispatched.
+ *
+ * `.claude/run/**` is deliberately not given to the code-review files: every orchestrated run
+ * touches that directory, including the orchestrator itself, which never reviews, so the glob would
+ * pull 225 000 bytes of review rules into sessions that do not use them.
+ *
+ * @return array<string, array<int, string>>
+ */
+function ruleScopingGlobsAddedByTotalBudget(): array
+{
+    return [
+        'rules/code-review/core-analysis.md' => ['.claude/rules/code-review/**'],
+        'rules/code-review/general.md' => ['.claude/rules/code-review/**'],
+        'rules/code-review/review-process.md' => ['.claude/rules/code-review/**'],
+        'rules/compound-engineering/tracker.md' => [
+            '.claude/run/**',
+            '.claude/rules/compound-engineering/tracker.md',
+        ],
+        'rules/jira/general.md' => ['.claude/rules/jira/**'],
+        'rules/refactoring/general.md' => ['.claude/rules/refactoring/**'],
     ];
 }
 
@@ -688,7 +720,9 @@ function ruleScopingConsumerAppTreePaths(): array
 }
 
 /**
- * The consumer-project paths outside `app/`. Two of them are not the consumer's own source at all
+ * The consumer-project paths outside `app/`. The `.claude/rules/…` entries are where the installer
+ * puts the rules scoped to their own path, which is what an agent reads when a skill names them.
+ * Two more are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
  * every consuming project (per this package's own `agents/splinter.md` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
@@ -712,6 +746,10 @@ function ruleScopingConsumerPathsOutsideAppTree(): array
         'config/dynamodb.php',
         'vendor/pekral/arch-app-services/src/Concerns/DataValidator.php',
         '.claude/run/gh-123.md',
+        '.claude/rules/code-review/general.md',
+        '.claude/rules/compound-engineering/tracker.md',
+        '.claude/rules/jira/general.md',
+        '.claude/rules/refactoring/general.md',
     ];
 }
 

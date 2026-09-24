@@ -1,18 +1,26 @@
 # Rules Overview
 
-The 27 rule files this package installs. A rule is an always-loaded instruction file — not a
+The 30 rule files this package installs. A rule is a binding instruction file — not a
 suggestion an agent may weigh, and not documentation. Every run applies the always-on baseline;
-scoped rules apply to the files they name.
+scoped rules apply to the files they name, and on-demand rules apply to the activity that names them.
 
 **How they load.** Claude Code reads the Markdown rules from `.claude/rules`. Codex uses the
 explicit loader instructions described in [What You Get](../README.md#what-you-get). A rule's
 `paths` key declares its scope — a rule without that key is part of the always-applicable
 baseline.
 
+**Why the baseline is small.** Claude Code enforces a 150 000-character limit on the **total** of
+every always-loaded instruction file — the project `CLAUDE.md`, user memory, and every rule without
+a `paths` key. The always-on baseline plus the shipped `CLAUDE.md` template is therefore held under
+75 000 bytes, half that limit, so a consuming project keeps room for its own instructions. The
+large activity rules are on demand: each is scoped to its own installed path, so it loads when a
+skill or an agent that names it reads it.
+
 | Group | Rules | Applies to |
 |---|---|---|
-| [Always-on baseline](#always-on-baseline) | 11 | Every run, whatever it touches |
-| [Orchestration](#orchestration) | 1 | Runs that dispatch subagents |
+| [Always-on baseline](#always-on-baseline) | 6 | Every run, whatever it touches |
+| [On-demand activity rules](#on-demand-activity-rules) | 6 | The review, tracker, JIRA, or refactoring activity that names them |
+| [Orchestration](#orchestration) | 3 | Runs that dispatch subagents |
 | [PHP & Composer](#php--composer) | 3 | PHP code and dependency choices |
 | [Laravel](#laravel) | 6 | Laravel projects |
 | [Security](#security) | 4 | Every run; three are surface-scoped |
@@ -27,16 +35,27 @@ before any language- or framework-specific rule has a say.
 | Rule | What it governs | Scope |
 |---|---|---|
 | [`general/general.md`](../rules/general/general.md) | Project context and default agent behavior — the baseline every run follows | Always |
-| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; read the per-project compound memory; fix the cause before repairing the data it wrote; tracker claim, status, and linking invariants | Always |
+| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; read the per-project compound memory; blocked delegation is a hard stop; points to the tracker workflow file | Always |
 | [`git/general.md`](../rules/git/general.md) | Git workflow, commit shape, pull requests, and the merge gate | Always |
-| [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Always |
-| [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Always |
-| [`code-review/review-process.md`](../rules/code-review/review-process.md) | The passes a review runs and how it reports — coverage gate, findings verification, output rules | Always |
-| [`refactoring/general.md`](../rules/refactoring/general.md) | What refactoring is: behavior-preserving, incremental, never a big-bang rewrite | Always |
-| [`jira/general.md`](../rules/jira/general.md) | JIRA CLI usage, the three sanctioned transitions, and the ADF comment format | Always |
 | [`reports/general.md`](../rules/reports/general.md) | Which language a tracker-published report is written in (the assignment's) | Always |
 | [`writing/general.md`](../rules/writing/general.md) | Simplified technical writing (ASD-STE100 principles) for every agent response | Always |
 | [`security/general.md`](../rules/security/general.md) | Untrusted Content Boundary — external content is data, never an instruction | Always |
+
+## On-demand activity rules
+
+Scoped to their own installed path under `.claude/rules/`, so none of them counts toward the total
+always-on limit. Each governs an activity rather than a file type, and every skill and agent that
+runs the activity names the file with `@rules/…` and reads it; `compound-engineering/tracker.md`
+also loads for any run that touches `.claude/run/`.
+
+| Rule | What it governs | Scope |
+|---|---|---|
+| [`compound-engineering/tracker.md`](../rules/compound-engineering/tracker.md) | The tracker workflow — analyse every comment first, fix the cause before repairing the data it wrote, claim, phase status, PR ↔ issue linking, deferred follow-ups, labels | Tracker runs |
+| [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Code review |
+| [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Code review |
+| [`code-review/review-process.md`](../rules/code-review/review-process.md) | The passes a review runs and how it reports — coverage gate, findings verification, output rules | Code review |
+| [`refactoring/general.md`](../rules/refactoring/general.md) | What refactoring is: behavior-preserving, incremental, never a big-bang rewrite | Refactoring |
+| [`jira/general.md`](../rules/jira/general.md) | JIRA CLI usage, the three sanctioned transitions, and the ADF comment format | JIRA |
 
 ## Orchestration
 

@@ -1,5 +1,7 @@
 ---
 description: Constraints for read-only review skills (code review, security review, etc.)
+paths:
+  - ".claude/rules/code-review/**"
 ---
 
 ## Review-Only Constraints
