@@ -408,7 +408,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // bullet exempts the seam's own delegation line from Coverage — it is a single call to the
         // native function with no logic, excluded via `@codeCoverageIgnore` or covered only in the
         // isolated integration group. Nothing else in the file moved.
-        'rules/code-testing/general.md' => '51cb20329f6f5c90191eddb4b46290db72811df80bc9eecf64b03b5d92ee33fd',
+        // Re-baselined: the file gained `## Acceptance-Criteria Test Contract` — every criterion has
+        // a test, every test proves a criterion, coverage comes from those tests, and the code is the
+        // simplest design that meets the criteria. `CodeTestingContentTest.php` pins it.
+        'rules/code-testing/general.md' => '9b2a26f25858b5612011bb38def77b864697f73ed19a3978ef4b84fc9549b540',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
