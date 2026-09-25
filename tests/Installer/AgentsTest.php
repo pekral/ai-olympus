@@ -563,16 +563,16 @@ test(
 
         // Effort is set per agent by what the role actually decides. `leonardo` is the roster's
         // single reviewer, so a shallow pass there costs a round for everybody downstream — it
-        // stays at `high`. The roles that execute against an already-decided brief run at
-        // `medium`, and `april` at `low`: it composes prose from evidence other agents already
-        // produced and derives no fact of its own. `max` was dropped from the whole roster in
+        // stays at `high`. `donatello` and `raphael` also run at `high`: the implementer and the
+        // acceptance tester produce the evidence every later stage relies on. `splinter`, `april`
+        // and `michelangelo` run at `medium`. `max` was dropped from the whole roster in
         // issue #179 and never came back.
         $expected = [
-            'april' => 'low',
-            'donatello' => 'medium',
+            'april' => 'medium',
+            'donatello' => 'high',
             'leonardo' => 'high',
             'michelangelo' => 'medium',
-            'raphael' => 'medium',
+            'raphael' => 'high',
             'splinter' => 'medium',
         ];
 
@@ -599,7 +599,7 @@ test(
 
         // The anatomy doc must document the same levels the roster ships.
         $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-        expect($docs)->toContain('`donatello`, `raphael` and `splinter` run at `medium`, and `april` at `low`');
+        expect($docs)->toContain('`splinter`, `april` and `michelangelo` run at `medium`');
         expect($docs)->not->toContain('set to `max` on every agent');
         expect($docs)->not->toContain('set to `high` on every agent');
     },
