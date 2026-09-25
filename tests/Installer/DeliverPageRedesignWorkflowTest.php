@@ -60,8 +60,8 @@ test('deliver-page-redesign walks the local instance and never writes to the hos
 
 test('the delivery plan carries the review and the browser walkthrough on every tier', function (string $tier): void {
     // The skill promises a converged review and a walkthrough that is never skipped. The planner
-    // adds `raphael` only on CRITICAL and drops `leonardo` on FAST, so the delivery flags must buy
-    // both on every tier the classifier can return.
+    // adds `raphael` on every tier for runtime acceptance but drops `leonardo` on FAST, so the
+    // delivery flags must buy both on every tier the classifier can return.
     $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
     $process = new Process([$planner, '--tier', $tier, '--runtime-acceptance', '--thorough', '--tracker', 'no']);
     $process->mustRun();

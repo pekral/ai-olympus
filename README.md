@@ -275,9 +275,10 @@ Every `splinter` run classifies the task before it dispatches anything, using `s
 |------|----------|----------------|
 | `FAST` | implementer (default tier) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
 | `STANDARD` | `+ leonardo` (default tier) | ordinary application and business-logic work |
-| `CRITICAL` | `+ leonardo` analysis where relevant, both at the escalated tier, `raphael` when behaviour is observable | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
+| `CRITICAL` | `+ leonardo` analysis where relevant, both at the escalated tier | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
 
 - A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
+- `raphael` runs at **every** tier when the change alters behaviour a user can observe. It checks the UI in a real browser whenever the change reaches a page, and it creates a local test account when it cannot sign in otherwise.
 - The tier is recomputed against the real diff after implementation and can only rise, so a task that grows into an authorization change is reviewed like one.
 - Tests, static analysis, linting, CI, and the pre-merge quality gate run at **every** tier, `FAST` included. The tier buys LLM reasoning, never a deterministic gate.
 - Every decision is recorded, so *"why was `leonardo` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.

@@ -180,7 +180,7 @@ This changes **how much LLM reasoning** a run spends. It never changes which det
 | --- | --- |
 | `FAST` | `splinter → donatello (sonnet) → deterministic validation → done` |
 | `STANDARD` | `splinter → donatello (sonnet) → leonardo (sonnet) → deterministic validation → done` |
-| `CRITICAL` | `splinter → leonardo analysis (when the task carries a security question) → donatello (opus) → leonardo (opus) → deterministic validation → raphael when runtime acceptance applies → done` |
+| `CRITICAL` | `splinter → leonardo analysis (when the task carries a security question) → donatello (opus) → leonardo (opus) → deterministic validation → done` |
 
 `FAST` covers documentation, README edits, typo fixes, formatting, tests-only changes, simple configuration changes, a rename with no behaviour change, and a small isolated bug fix. `STANDARD` is the default for ordinary application and business-logic work. `CRITICAL` covers authentication, authorization, security boundaries, secrets, payments, billing, migrations, data-loss risk, concurrency, queues, locking, cache consistency, public APIs, shared or core architecture, and large refactors.
 
@@ -193,6 +193,15 @@ The tiers above buy **depth**: how much reasoning a change is worth. One stage i
 - **A re-classification never replays it.** An escalation owes the stages the lower tier skipped; the redesign is not one of them, because it already ran. Replaying it would redo the work and hand the implementer a second, competing specification.
 - **An approved redesign is never replayed.** When the task carries a redesign proposal the user already approved (`@skills/deliver-page-redesign/SKILL.md` *Get the design approved*), `splinter` does not pass `--redesign` and does not dispatch `michelangelo`. The approved proposal is the specification `donatello` implements. A second proposal would override the user's approval.
 - **A redesign with no implementation ask is an analysis-only run.** `michelangelo`'s proposal is then the whole deliverable and the run stops there — the same shape as a security-analysis-only run.
+
+### The acceptance pass is chosen by the change, not by the tier
+
+A test suite and a review read artifacts; only a walkthrough of the running application shows what a user sees. The acceptance pass therefore answers its own question — *does this change alter behaviour a user can observe?* — and the tier never answers it.
+
+- **`raphael` runs whenever the answer is yes**, at `FAST`, `STANDARD`, and `CRITICAL` alike. `splinter` passes `--runtime-acceptance` to the planner, which places the stage after the scoped validation.
+- **A user-visible change is always checked in the UI.** `raphael` drives a real browser whenever the change reaches a page, and it signs in through `@skills/interactive-testing/SKILL.md` *Sign-in and test accounts*, so a missing login never ends the check.
+- **A change with nothing to observe buys nothing.** A pure refactor, a dependency bump, a docs change, a test-only change, and a CI change get no acceptance pass at any tier.
+- **A re-classification never replays it.** The lower tier's plan already carried the stage, so an escalation owes it nothing.
 
 ### The classifier is deterministic, and it is a script
 

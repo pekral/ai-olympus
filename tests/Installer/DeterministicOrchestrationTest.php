@@ -105,6 +105,8 @@ test('the route planner produces each tier plan deterministically', function ():
         'CRITICAL escalates the model and validates before review',
         'CRITICAL with a security question analyses first',
         'runtime acceptance adds raphael on CRITICAL',
+        'runtime acceptance adds raphael on FAST',
+        'runtime acceptance adds raphael on STANDARD',
         '--thorough runs the full pipeline over a FAST verdict',
         'no tracker means no reporting stage to run',
     ] as $label) {
@@ -116,6 +118,7 @@ test('the route planner produces each tier plan deterministically', function ():
     expect($planner)->toContain('\'FAST escalated to STANDARD owes the review\'');
     expect($planner)->toContain('\'FAST escalated to CRITICAL owes both validations and the review\'');
     expect($planner)->toContain('\'a tier cannot be lowered by re-classification\'');
+    expect($planner)->toContain('\'an escalation never replays the acceptance pass\'');
 
     // The stage types are what separate an LLM dispatch from a script run.
     foreach (['deterministic_validation', 'deterministic_classification', 'deterministic_reporting'] as $type) {

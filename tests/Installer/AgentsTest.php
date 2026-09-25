@@ -1038,7 +1038,7 @@ test('raphael runs the project interactive-testing skill for its sandbox rules',
     expect($raphael)->toContain('This package ships a generic `interactive-testing` skill');
     $interactiveTesting = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
     expect($interactiveTesting)->toContain('The testing agent MUST use its own interactive browser session.');
-    expect($interactiveTesting)->toContain('wait for them to log in');
+    expect($interactiveTesting)->not->toContain('wait for them to log in');
     expect($interactiveTesting)->toContain('Use the project URL supplied by the user');
 
     // The two steps it governs point at it, so a reader of either one reaches the rules.
@@ -1047,6 +1047,36 @@ test('raphael runs the project interactive-testing skill for its sandbox rules',
 
     // The roster doc lists it among what raphael orchestrates.
     expect($docs)->toContain('the project\'s own `interactive-testing` skill when it ships one');
+});
+
+test('a missing login never ends the UI check of a user-visible change', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
+    $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // One owner section states the sign-in order; the agent references it instead of restating it.
+    expect($skill)->toContain('## Sign-in and test accounts');
+    expect($skill)->toContain('1. **A valid session.**');
+    expect($skill)->toContain('2. **A documented test account.**');
+    expect($skill)->toContain('3. **A test account you create.**');
+    expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Sign-in and test accounts*');
+
+    // Creating an account is bounded: local target, no bypass, reserved identity, real accounts untouched.
+    expect($skill)->toContain('**Local target only.**');
+    expect($skill)->toContain('Never create an account on a production, staging, or other shared remote environment');
+    expect($skill)->toContain('**No authentication bypass.**');
+    expect($skill)->toContain('reserved test domain (RFC 2606)');
+    expect($skill)->toContain('**Real accounts stay untouched.**');
+    expect($skill)->toContain('Without one, the scenario is `Blocked`.');
+    expect($skill)->toContain('Never skip the UI check silently.');
+
+    // The account is runtime data, so raphael's read-only boundary on tracked files still holds.
+    expect($raphael)->toContain('that account is runtime data in the local database, not a tracked file');
+
+    // A user-visible change is checked in the UI at every tier.
+    expect($orchestration)->toContain('### The acceptance pass is chosen by the change, not by the tier');
+    expect($orchestration)->toContain('**`raphael` runs whenever the answer is yes**, at `FAST`, `STANDARD`, and `CRITICAL` alike.');
 });
 
 test('agents directory ships the raphael acceptance-tester subagent with required frontmatter', function (): void {
@@ -1075,11 +1105,12 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     expect($content)->toContain('does this change alter behaviour a user can observe?');
     expect($content)->toContain('QA done (nothing to exercise)');
 
-    // The browser is gated a second time, finer than the dispatch: an API-only task is still
-    // exercised over HTTP, but no browser starts to re-verify a UI this task never touched.
-    expect($content)->toContain('**Gate the browser on an actual UI change before you start it.**');
-    expect($content)->toContain('If nothing there changed, do not start a browser.');
-    expect($content)->toContain('QA done (UI channel skipped — no UI change)');
+    // A change that reaches a page is always checked in the browser; the browser is skipped only
+    // for a change with no path to any page.
+    expect($content)->toContain('**Check the UI in a real browser whenever the change reaches it.**');
+    expect($content)->toContain('**Skip the browser only when the change has no path to any page**');
+    expect($content)->toContain('QA done (UI channel skipped — no UI effect)');
+    expect($content)->not->toContain('If nothing there changed, do not start a browser.');
 
     // A UI change is exercised at both viewports and reported per viewport — one merged verdict
     // hides the most common way a UI ships broken.
