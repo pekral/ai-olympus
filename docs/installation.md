@@ -143,12 +143,12 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 |---|---|
 | 55 skills (`skills/*/SKILL.md`) | ✅ automatically |
 | 5 agents (`agents/*.md`) | ✅ automatically |
-| `/prepare-issue-for-merge` (`commands/*.md`) | ✅ automatically |
+| `/prepare-issue-for-merge`, `/redesign-page` (`commands/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ Composer only |
 | `CLAUDE.md` | ❌ Composer only |
 | `.claude/settings.local.json` switches (`--deny-network-bash`, …) | ❌ Composer only |
 
-The package used to ship a `/ai-olympus:install-rules` command that copied `rules/` and `CLAUDE.md` out of the plugin directory. It no longer does: `commands/` now carries `prepare-issue-for-merge.md` alone. On this channel the rules and `CLAUDE.md` therefore do not arrive at all — install through Composer when you want them.
+The package used to ship a `/ai-olympus:install-rules` command that copied `rules/` and `CLAUDE.md` out of the plugin directory. It no longer does: `commands/` now carries `prepare-issue-for-merge.md` and `redesign-page.md` only. On this channel the rules and `CLAUDE.md` therefore do not arrive at all — install through Composer when you want them.
 
 Skills, agents, and the command update on their own after `/plugin update`.
 

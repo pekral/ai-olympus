@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 57 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 58 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 ## Requirements
 
@@ -53,11 +53,11 @@ Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 | **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
 | **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
 | **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
-| **Commands** | `/prepare-issue-for-merge`, the one slash command the package ships | `.claude/commands` |
+| **Commands** | `/prepare-issue-for-merge` and `/redesign-page`, the slash commands the package ships | `.claude/commands` |
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
 
-Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill the command delegates to — mention `$verify-merge-readiness` and Codex loads it from `.agents/skills`.
+Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness` or `$deliver-page-redesign` and Codex loads it from `.agents/skills`.
 
 ## Why This Package
 
@@ -67,7 +67,7 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **57 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **58 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 
 ## Installation Details
 
@@ -87,7 +87,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 57 skills, the six agents, and the `/prepare-issue-for-merge` command. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
+That loads all 58 skills, the six agents, and the `/prepare-issue-for-merge` and `/redesign-page` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -100,7 +100,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 - `CLAUDE.md` in the project root
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
-- `.claude/commands` (the `/prepare-issue-for-merge` slash command; Codex reaches the same workflow as `$verify-merge-readiness`)
+- `.claude/commands` (the `/prepare-issue-for-merge` and `/redesign-page` slash commands; Codex reaches the same workflows as `$verify-merge-readiness` and `$deliver-page-redesign`)
 - `AGENTS.md` in the project root
 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -253,6 +253,18 @@ $verify-merge-readiness https://github.com/owner/repository/issues/123
 ```
 
 The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `splinter` agent to orchestrate the skill when custom agents are available.
+
+To redesign one page of the running application from its URL, use the redesign workflow:
+
+```text
+# Claude Code
+/redesign-page https://app.example.test/orders/42
+
+# Codex
+$deliver-page-redesign https://app.example.test/orders/42
+```
+
+The invoking session captures the page on the local instance, and `splinter` runs the full delivery route in thorough mode with the redesign stage. `michelangelo` writes the proposal and one preview per state, `donatello` implements it with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
 
 ### Adaptive routing — how much pipeline a task gets
 

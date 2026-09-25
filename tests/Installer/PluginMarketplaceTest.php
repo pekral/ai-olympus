@@ -107,12 +107,14 @@ test('the surviving slash command installs into the Claude Code project director
         // only, so a Composer install left `/prepare-issue-for-merge` unavailable while every skill
         // and agent it delegates to was already installed.
         expect(is_file($root . '/.claude/commands/prepare-issue-for-merge.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/commands/redesign-page.md'))->toBeTrue();
 
         // Codex exposes no user-defined slash command — `SlashCommandItem` carries only built-in and
         // service-tier variants — so the same workflow reaches Codex as the skill it delegates to,
         // which `.agents/skills` already installs. A `.codex` copy would be a file nothing reads.
         expect(is_dir($root . '/.codex/commands'))->toBeFalse();
         expect(is_file($root . '/.agents/skills/verify-merge-readiness/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.agents/skills/deliver-page-redesign/SKILL.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {
             chdir($originalCwd);
@@ -122,7 +124,7 @@ test('the surviving slash command installs into the Claude Code project director
     }
 });
 
-test('commands ships exactly the one command the package still exposes', function (): void {
+test('commands ships exactly the commands the package exposes', function (): void {
     $files = glob(dirname(__DIR__, 2) . '/commands/*.md');
 
     expect($files)->not->toBeFalse();
@@ -130,7 +132,7 @@ test('commands ships exactly the one command the package still exposes', functio
     $names = array_map(static fn (string $path): string => basename($path), is_array($files) ? $files : []);
     sort($names);
 
-    expect($names)->toBe(['prepare-issue-for-merge.md']);
+    expect($names)->toBe(['prepare-issue-for-merge.md', 'redesign-page.md']);
 });
 
 test('both installation paths are documented with the difference between them', function (): void {
