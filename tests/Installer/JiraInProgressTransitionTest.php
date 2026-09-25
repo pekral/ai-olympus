@@ -220,3 +220,87 @@ test('the JIRA In Progress claim stops when current-user assignment cannot be ve
         removeJiraClaimFixture($fixture);
     }
 });
+
+test('a JIRA issue in review owned by the authenticated user returns to In Progress', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Code Review');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+        'Rozpracováno',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(file_get_contents($fixture['state']))->toBe('Rozpracováno')
+            ->and(file_get_contents($fixture['assigned']))->toBe('@me')
+            ->and($process->getErrorOutput())->toContain('from=Code Review');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a JIRA issue in review not owned by the authenticated user is not taken back', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Code Review');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '0',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Code Review')
+            ->and(file_get_contents($fixture['assigned']))->toBe('')
+            ->and($process->getErrorOutput())->toContain('not assigned to currentUser()');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a finished JIRA issue is never returned to In Progress', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Done');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Done')
+            ->and(file_get_contents($fixture['assigned']))->toBe('');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
