@@ -30,6 +30,9 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "assign" ]]; then
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "search" ]]; then
+  if [[ "$FAKE_ACLI_VERIFY" == "error" ]]; then
+    exit 1
+  fi
   if [[ "$FAKE_ACLI_VERIFY" == "1" ]]; then
     printf '%s\n' '{"issues":[{"key":"TEAM-42"}]}'
   else
@@ -299,6 +302,170 @@ test('a finished JIRA issue is never returned to In Progress', function (): void
 
         expect($process->getExitCode())->toBe(4)
             ->and(file_get_contents($fixture['state']))->toBe('Done')
+            ->and(file_get_contents($fixture['assigned']))->toBe('');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a JIRA issue in review whose ownership lookup fails stops instead of stealing or looping (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Code Review');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => 'error',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(3)
+            ->and(file_get_contents($fixture['state']))->toBe('Code Review')
+            ->and(file_get_contents($fixture['assigned']))->toBe('')
+            ->and($process->getErrorOutput())->toContain('could not verify who owns TEAM-42');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a foreign-owned issue in a synonym review column is not taken over (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Ke kontrole');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '0',
+        'JIRA_CODE_REVIEW_SYNONYMS' => 'Ke kontrole',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Ke kontrole')
+            ->and(file_get_contents($fixture['assigned']))->toBe('');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a foreign-owned issue in Ready to Merge is not taken over (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Ready to Merge');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '0',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Ready to Merge')
+            ->and(file_get_contents($fixture['assigned']))->toBe('');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('an owned issue in Ready to Merge returns to In Progress (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Ready to Merge');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(file_get_contents($fixture['state']))->toBe('In Progress')
+            ->and(file_get_contents($fixture['assigned']))->toBe('@me');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a Canceled JIRA issue is never returned to In Progress (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Canceled');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Canceled')
+            ->and(file_get_contents($fixture['assigned']))->toBe('');
+    } finally {
+        removeJiraClaimFixture($fixture);
+    }
+});
+
+test('a Merged JIRA issue is never returned to In Progress (issue #154)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    file_put_contents($fixture['state'], 'Merged');
+    $systemPath = jiraClaimSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ]);
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(file_get_contents($fixture['state']))->toBe('Merged')
             ->and(file_get_contents($fixture['assigned']))->toBe('');
     } finally {
         removeJiraClaimFixture($fixture);
