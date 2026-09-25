@@ -53,3 +53,22 @@ test('every test in this suite carries at least one assertion', function (): voi
 
     expect($violations)->toBe([]);
 });
+
+test('the acceptance-criteria test contract binds criteria, simplest code, exact tests and full coverage', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
+    $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
+
+    expect($rule)->toContain('## Acceptance-Criteria Test Contract')
+        ->and($rule)->toContain('**Every criterion has a test.**')
+        ->and($rule)->toContain('**Every test proves a criterion.**')
+        ->and($rule)->toContain('**Coverage comes from those tests.**')
+        ->and($rule)->toContain('code that the criteria do not need — delete the code.')
+        ->and($rule)->toContain('**The code is the simplest design that meets every criterion.**')
+        ->and($rule)->toContain('a criterion → test table')
+        ->and($review)->toContain('**Every test the diff adds proves a criterion — the reverse direction.**')
+        ->and($review)->toContain('is a **Moderate** finding. Typical cases:')
+        ->and($review)->toContain('`@rules/code-testing/general.md` *Acceptance-Criteria Test Contract*')
+        ->and($donatello)->toContain('Apply `@rules/code-testing/general.md` *Acceptance-Criteria Test Contract*');
+});

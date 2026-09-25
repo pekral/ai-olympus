@@ -131,6 +131,19 @@ Each of the following is a violation on a line the change adds or modifies:
 
 CR severity: **Moderate**. Escalate to **Critical** when the tautology is the only assertion covering a line the change adds or modifies, because the change then ships untested while reporting as covered.
 
+## Acceptance-Criteria Test Contract
+
+A change is delivered only when three things hold together: every acceptance criterion of the assignment is met, the code is the simplest design that meets them, and the tests prove exactly those criteria with 100% coverage of the changed lines. Each part is weak alone. Coverage without criteria rewards tests that execute lines and prove nothing. Criteria without coverage leave code that no test reaches. Tests beyond the criteria cost maintenance and hide which test guards which promise.
+
+- **Every criterion has a test.** Each acceptance criterion has at least one named test that proves it, with the data the assignment states. The test name says which criterion the test proves. The review-side check is `@rules/code-review/review-process.md` *Acceptance-criteria use-case coverage*; this section is its implementation-side counterpart.
+- **Every test proves a criterion.** Each test that the change adds or modifies proves one criterion, or one failure mode that the criteria or the change imply: an error path, a boundary, an authorization check, a fallback. A test that proves neither is removed. A second test that proves the same criterion with the same data is merged into the first one.
+- **Coverage comes from those tests.** *Coverage* below requires 100% of the changed lines. Reach it with the tests above, never with a test written only to execute a line. A changed line that no criterion-driven test reaches is one of two things:
+  1. a failure mode without its test — add the test;
+  2. code that the criteria do not need — delete the code.
+- **The code is the simplest design that meets every criterion.** No speculative abstraction, no configuration for a fixed value, no defensive branch for an impossible case (*Simplicity First*, `@rules/code-review/core-analysis.md`). Deleting code is preferred over testing it.
+- **The handoff proves the mapping.** The implementer reports a criterion → test table (criterion, test file and test name, result) and the measured coverage of the changed lines. A criterion with no test, a test with no criterion, or coverage below 100% is not delivered: fix it, or stop as `Blocked`.
+- **A declared HOTFIX is the only waiver.** It follows `@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path* and the review-side waiver in `@rules/code-review/review-process.md`. No other caller instruction lifts this section.
+
 ## Coverage
 - Every test change must be verified to be functional — run affected tests after each modification.
 - Require 100% code coverage for every changed or added code path — applies equally to code modifications and code review.
