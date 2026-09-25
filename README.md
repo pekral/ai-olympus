@@ -265,7 +265,7 @@ To redesign one page of the running application from its URL, use the redesign w
 $deliver-page-redesign https://app.example.test/orders/42
 ```
 
-The invoking session captures the page on the local instance, and `splinter` runs the full delivery route in thorough mode with the redesign stage. `michelangelo` writes the proposal and one preview per state, `donatello` implements it with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
+The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `splinter` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
 
 ### Adaptive routing — how much pipeline a task gets
 

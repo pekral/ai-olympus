@@ -87,7 +87,7 @@ link to read the skill itself.
 | [`frontend-a11y`](../skills/frontend-a11y/) | Building or reviewing accessible UI in a Laravel app |
 | [`frontend-design-direction`](../skills/frontend-design-direction/) | The work is not just making UI function but making it feel purposeful and polished |
 | [`page-redesign`](../skills/page-redesign/) | Redesigning an existing page so non-technical operators can work it quickly |
-| [`deliver-page-redesign`](../skills/deliver-page-redesign/) | One page of a running application must be redesigned end to end from its URL, through implementation and an interactive browser walkthrough |
+| [`deliver-page-redesign`](../skills/deliver-page-redesign/) | One page of a running application must be redesigned end to end from its URL: previews approved by the user first, then implementation and an interactive browser walkthrough |
 | [`frontend-slides`](../skills/frontend-slides/) | Building standalone HTML/CSS/JS presentation slide decks |
 | [`diagram-design`](../skills/diagram-design/) | A change, analysis, or document needs a diagram |
 | [`design-system`](../skills/design-system/) | Generating, auditing, or reviewing the visual design system of a Laravel app |

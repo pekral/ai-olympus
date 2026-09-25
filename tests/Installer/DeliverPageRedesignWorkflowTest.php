@@ -16,7 +16,7 @@ test('deliver-page-redesign is one shared workflow for Claude Code and Codex', f
     $command = (string) file_get_contents($commandPath);
 
     expect($skill)->toContain('name: deliver-page-redesign');
-    expect($skill)->toContain('### 2. Delegate the delivery route to `splinter`');
+    expect($skill)->toContain('### 4. Delegate the delivery route to `splinter`');
     expect($skill)->toContain('never merges the pull request');
 
     expect($command)->toContain('argument-hint: [page URL]');
@@ -34,7 +34,8 @@ test('deliver-page-redesign routes through the redesign stage and a mandatory in
     $skill = (string) file_get_contents($packageDir . '/skills/deliver-page-redesign/SKILL.md');
     $command = (string) file_get_contents($packageDir . '/commands/redesign-page.md');
 
-    expect($skill)->toContain('passes `--redesign`, `--runtime-acceptance`, `--thorough`, and `--tracker no`');
+    expect($skill)->toContain('passes `--runtime-acceptance`, `--thorough`, and `--tracker no`');
+    expect($skill)->toContain('It does not pass `--redesign`, because the approved proposal is');
     expect($skill)->toContain('@skills/page-redesign/SKILL.md');
     expect($skill)->toContain('@skills/interactive-testing/SKILL.md');
     expect($skill)->toContain('the `raphael` pass is never skipped');
@@ -45,7 +46,7 @@ test('deliver-page-redesign routes through the redesign stage and a mandatory in
     // dispatch itself. The invoking session resolves and captures the page, then delegates.
     expect($skill)->not->toContain('Dispatch `splinter`');
     expect($skill)->toContain('The invoking session performs this step itself, before it delegates anything');
-    expect($command)->toContain('delegate the delivery route to the `splinter` agent');
+    expect($command)->toContain('then delegate the delivery route to the');
 });
 
 test('deliver-page-redesign walks the local instance and never writes to the host in the URL', function (): void {
@@ -57,12 +58,12 @@ test('deliver-page-redesign walks the local instance and never writes to the hos
     expect($skill)->toContain('`skills/_shared/browser-drive.sh`');
 });
 
-test('the planner puts the review and the browser walkthrough into every redesign plan', function (string $tier): void {
+test('the delivery plan carries the review and the browser walkthrough on every tier', function (string $tier): void {
     // The skill promises a converged review and a walkthrough that is never skipped. The planner
-    // adds `raphael` only on CRITICAL and drops `leonardo` on FAST, so the skill's own flags must
-    // buy both on every tier the classifier can return.
+    // adds `raphael` only on CRITICAL and drops `leonardo` on FAST, so the delivery flags must buy
+    // both on every tier the classifier can return.
     $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
-    $process = new Process([$planner, '--tier', $tier, '--redesign', '--runtime-acceptance', '--thorough', '--tracker', 'no']);
+    $process = new Process([$planner, '--tier', $tier, '--runtime-acceptance', '--thorough', '--tracker', 'no']);
     $process->mustRun();
 
     $plan = json_decode($process->getOutput(), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
@@ -76,10 +77,33 @@ test('the planner puts the review and the browser walkthrough into every redesig
         }
     }
 
-    expect($roles)->toContain('michelangelo');
+    // The user already approved the proposal, so the delivery plan never replays the redesign.
+    expect($roles)->not->toContain('michelangelo');
     expect($roles)->toContain('donatello');
     expect($roles)->toContain('leonardo');
     expect($roles)->toContain('raphael');
-    // The proposal is the specification the implementation builds from, so it runs first.
-    expect(array_values(array_intersect($roles, ['michelangelo', 'donatello'])))->toBe(['michelangelo', 'donatello']);
 })->with(['FAST', 'STANDARD', 'CRITICAL']);
+
+test('deliver-page-redesign writes no code before the user approves the previews', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/deliver-page-redesign/SKILL.md');
+    $command = (string) file_get_contents($packageDir . '/commands/redesign-page.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+
+    expect($skill)->toContain('**No code before approval.**');
+    expect($skill)->toContain('### 3. Get the design approved');
+    expect($skill)->toContain('Only an explicit approval in the user\'s own reply counts');
+    expect($skill)->toContain('dispatch `michelangelo` again with the current proposal path and the');
+    expect($skill)->toContain('`APPROVED.md`');
+    expect($command)->toContain('Write no code before that approval.');
+
+    // The previews must reach the user on both clients.
+    expect($skill)->toContain('On Claude Code, open each PNG with the Read tool');
+    expect($skill)->toContain('On Codex, open each PNG with the image viewer tool');
+    expect($command)->toContain('registered `michelangelo`');
+
+    // Delivery must implement the approved proposal instead of producing a competing one.
+    expect($orchestration)->toContain('**An approved redesign is never replayed.**');
+    expect($splinter)->toContain('**An approved redesign is never replayed.**');
+});
