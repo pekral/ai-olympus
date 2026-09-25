@@ -184,6 +184,7 @@ Criterion: the skill produces or advances the very artifact under review, rather
 - `resolve-issue` — the implementation phase that produced the diff under review.
 - `process-code-review` — drives the convergence loop this review feeds, and promotes the pull request out of Draft.
 - `verify-merge-readiness` — drives the issue and pull request to a merge-ready state without merging it.
+- `deliver-page-redesign` — drives one page redesign from its URL to a reviewed and browser-verified pull request. It also writes code through `donatello`, but question 1 is asked before question 2, so it lands here.
 - `pr-summary` — publishes the run's non-technical tracker summary.
 - `merge-github-pr` — merges the pull request after the review converges.
 
