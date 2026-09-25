@@ -405,7 +405,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // adding a second one. Nothing else in the file moved.
         // Re-baselined: the In Progress helper also returns an issue from review to In Progress
         // for the owner who resumes work on the code, and never returns a finished issue.
-        'rules/jira/general.md' => '904ff7ec7e10e1e355b9cbd6ae1bbc39845952a54f253d165ef1099a7ee82505',
+        // Re-baselined once more: the review-phase and finished detections are now synonym-aware
+        // and cover Ready to Merge, `Canceled`, and `Merged` (issue #154); exception (1) in the
+        // status-transition ban now names the owner's return from review explicitly, split into a
+        // numbered sub-list to stay under the 800-character line bound.
+        'rules/jira/general.md' => '5c5bcf75ecbeeb06a5f35c610f964b7104f35be3d0796d2a8b777b41f372696c',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
