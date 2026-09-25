@@ -246,6 +246,23 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     }
 });
 
+test('rules/jira/general.md names the review column, not exception (1), for the reverting sentence (issue #154)', function (): void {
+    // Round-2 CR on #154: the sentence used to read "Reverting exception (1) needs no fourth
+    // helper either: the owner's return from review is exception (1)'s own transition, run
+    // again." — which names the wrong exception and leaves the move back to Code Review after
+    // resumed work unsanctioned. It states the actual transition: moving the issue back to the
+    // review column is exception (2)'s own transition, run again.
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+
+    expect($content)->toContain(
+        'Undoing the owner\'s return — moving the issue back to the review column once the resumed '
+        . 'change is pushed and green — needs no fourth helper either: that move is exception (2)\'s '
+        . 'own transition, run again.',
+    );
+    expect($content)->not->toContain('Reverting exception (1) needs no fourth helper either');
+});
+
 test('every rule renamed in issue #277 keeps a byte-identical body below the frontmatter', function (): void {
     // Digests of everything after the closing `---`, taken from each file while it was still a
     // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
@@ -409,7 +426,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and cover Ready to Merge, `Canceled`, and `Merged` (issue #154); exception (1) in the
         // status-transition ban now names the owner's return from review explicitly, split into a
         // numbered sub-list to stay under the 800-character line bound.
-        'rules/jira/general.md' => '5c5bcf75ecbeeb06a5f35c610f964b7104f35be3d0796d2a8b777b41f372696c',
+        // Re-baselined again (issue #154, round 2): the package owner corrected the criterion —
+        // Ready to Merge already means an approved review sits behind the issue, so it is never
+        // returned to In Progress by anyone; only a Code Review status returns, and only for its
+        // owner. The finished list also gained `Hotovo`, a status containing `deploy`, and
+        // `Testování`/`testovani`. The reverting sentence now names exception (2), not (1).
+        'rules/jira/general.md' => '468ac5ee10807d31a2e17d97c1b41c3125e169be7c22c1457072b39fbc98f163',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
