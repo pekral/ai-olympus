@@ -6,7 +6,9 @@
 # script is one of three sanctioned exceptions: it can ONLY land an issue in an
 # In Progress (start-of-work) status. It structurally refuses any other target
 # (Done, Closed, Review, …) so an AI agent cannot use it to push work through
-# the board in unintended directions.
+# the board in unintended directions. It also returns an issue from a review
+# status to In Progress when the owner resumes work on the code (a code-review
+# fix round, a conflict resolution on the open pull request).
 #
 # Usage:
 #   transition-to-in-progress.sh <KEY|URL> [<STATUS>]
@@ -35,9 +37,11 @@
 #   3. Read the current status via load-issue.sh. If already in the target
 #      status, continue only when currentUser() already owns it; otherwise abort
 #      instead of stealing another run's claim.
-#   4. If already in a status that is lexically past In Progress (contains
-#      "review", "done", "closed", "resolved", "cancelled"), treat it as
-#      claimed-by-another-run and exit 4 (caller should abort).
+#   4. If already in a finished status (contains "done", "closed", "resolved",
+#      "cancelled"), exit 4 (caller should abort). If already in a review status
+#      (contains "review"), continue only when currentUser() owns the issue — the
+#      owner is resuming work on it; otherwise exit 4 instead of taking back
+#      another run's issue.
 #   5. Run `acli jira workitem transition --key <KEY> --status <target> --yes`.
 #   6. Run `acli jira workitem assign --key <KEY> --assignee "@me" --yes` and
 #      verify it with JQL `key = <KEY> AND assignee = currentUser()`.
@@ -59,7 +63,8 @@
 #   2  missing required tool (acli, jq)
 #   3  JIRA API call failed (read, transition, assignment, or verification;
 #      transition failures classified as 4/5 retain those exit codes)
-#   4  issue is already past In Progress — treat as claimed-by-another, abort
+#   4  issue is finished, or claimed by another run (in progress or in review
+#      and not owned by currentUser()) — abort
 #   5  target status not available in this project — discover via MCP / ask
 set -euo pipefail
 
@@ -193,20 +198,38 @@ if [[ -n "$CURRENT_STATUS" && "$(printf '%s' "$CURRENT_STATUS" | tr '[:upper:]' 
   exit 4
 fi
 
-# Past-In-Progress guard: if the issue is already in a review/done/closed status,
-# treat it as claimed-by-another-run so the caller can abort rather than re-transition.
+# Past-In-Progress guard: a finished issue is never re-opened, and an issue in
+# review returns to In Progress only for the user who owns it.
 current_lower="$(printf '%s' "${CURRENT_STATUS:-}" | tr '[:upper:]' '[:lower:]')"
-is_past=false
-for keyword in review 'done' closed resolved cancelled; do
+is_finished=false
+for keyword in 'done' closed resolved cancelled; do
   if [[ "$current_lower" == *"$keyword"* ]]; then
-    is_past=true
+    is_finished=true
     break
   fi
 done
 
-if [[ "$is_past" == true ]]; then
+if [[ "$is_finished" == true ]]; then
   echo "transition-to-in-progress.sh: $KEY is already in '${CURRENT_STATUS}' (past In Progress) — treat as claimed-by-another-run and abort." >&2
   exit 4
+fi
+
+if [[ "$current_lower" == *review* ]]; then
+  if current_user_owns_issue; then
+    ownership_status=0
+  else
+    ownership_status=$?
+  fi
+
+  if [[ "$ownership_status" -eq 3 ]]; then
+    echo "transition-to-in-progress.sh: could not verify who owns $KEY in '${CURRENT_STATUS}'" >&2
+    exit 3
+  fi
+
+  if [[ "$ownership_status" -ne 0 ]]; then
+    echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' and is not assigned to currentUser() — another run owns the review; abort." >&2
+    exit 4
+  fi
 fi
 
 # acli transitions by target status name. Capture stderr so a "status not
