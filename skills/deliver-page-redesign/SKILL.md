@@ -8,8 +8,9 @@ metadata:
 
 ## TL;DR
 
-Delegate the orchestration to `splinter`. The input is the URL of one page in the running
-application. `splinter` runs the full delivery route with the redesign stage: `michelangelo` writes
+The invoking session resolves the page, captures it as it renders today, and then delegates the
+orchestration to `splinter`. The input is the URL of one page in the application.
+`splinter` runs the full delivery route with the redesign stage: `michelangelo` writes
 the proposal and the previews, `donatello` implements it and opens the pull request, `leonardo`
 reviews it to convergence, and `raphael` exercises the page in its own interactive browser.
 
@@ -35,31 +36,43 @@ never merges the pull request.
 - Accept exactly one absolute `http://` or `https://` URL of a page in the application this
   repository runs. A missing URL, several URLs, or a URL of another application is a hard stop:
   ask for the one page URL.
-- Treat the URL as the target of the redesign and as the base for the browser walkthrough. Never
-  switch to another host, environment, or checkout.
+- The URL path names the page to redesign. The host of the URL never receives a write. Every
+  screenshot and the whole walkthrough run on the local instance of this repository, because the
+  redesign exists only on the pull-request branch. Never run them on a shared, staging, or
+  production host. Name the local base URL in the report.
 - Keep the main layout shell — sidebar, global header, primary navigation, footer, page chrome, and
   the position of the content region. Change it only when the user names the shell element in the
   same request, and quote that order in the proposal.
 
 ## Workflow
 
-### 1. Resolve the page
+### 1. Resolve and capture the page
 
-Map the URL to its route, controller or Livewire component, views, and the components they render.
-Stop and report when the URL matches no route in this repository. Record the route and the files in
-the shared brief as the resolved source. The run has no tracker, so it passes `--tracker no` to the
-planner.
+The invoking session performs this step itself, before it delegates anything:
 
-### 2. Dispatch `splinter` with the redesign assignment
+1. Map the URL path to its route, controller or Livewire component, views, and the components they
+   render. Stop and report when the path matches no route in this repository.
+2. Open the path on the local instance and capture a desktop and a mobile screenshot with
+   `skills/_shared/browser-drive.sh`. These screenshots are the main screenshot that
+   @skills/page-redesign/SKILL.md step 1 expects.
+3. When the local instance or the browser runtime is not available, continue without the
+   screenshots. The proposal then records that it was built from the view source only.
 
-Hand `splinter` a described task: *redesign the page at `<URL>` and implement the redesign*. The
-assignment carries the acceptance criteria from *Acceptance criteria* below. `splinter` then:
+### 2. Delegate the delivery route to `splinter`
 
-1. passes `--redesign` and `--runtime-acceptance` to `skills/_shared/plan-route.sh`,
-2. dispatches `michelangelo` with @skills/page-redesign/SKILL.md before any code exists,
+Hand `splinter` a described task: *redesign the page at `<path>` and implement the redesign*. The
+task carries the resolved route and files, the screenshot paths, the local base URL, and the
+acceptance criteria from *Acceptance criteria* below. `splinter` then:
+
+1. passes `--redesign`, `--runtime-acceptance`, `--thorough`, and `--tracker no` to
+   `skills/_shared/plan-route.sh`. The run has no tracker. `--thorough` gives the full pipeline on
+   every tier, so the review and the `raphael` stage are always in the plan,
+2. dispatches `michelangelo` with @skills/page-redesign/SKILL.md and the screenshots before any
+   code exists,
 3. dispatches `donatello` to implement the proposal and open the pull request,
 4. drives the `leonardo` review-and-fix loop to convergence,
-5. dispatches `raphael`, which runs @skills/interactive-testing/SKILL.md against the URL.
+5. dispatches `raphael`, which runs @skills/interactive-testing/SKILL.md against the path on the
+   local instance of the pull-request head.
 
 The redesign changes a UI surface, so the `raphael` pass is never skipped. A `Not met` or `Blocked`
 criterion returns to `donatello`. After the fix, `raphael` repeats the affected scenario and checks

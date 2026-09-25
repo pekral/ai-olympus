@@ -3,8 +3,8 @@ description: Redesign one application page from its URL — proposal, implementa
 argument-hint: [page URL]
 ---
 
-Delegate this request to the `splinter` agent and run
-`@skills/deliver-page-redesign/SKILL.md` with this page URL:
+Run `@skills/deliver-page-redesign/SKILL.md` with this page URL. Resolve and capture the page in
+this session, then delegate the delivery route to the `splinter` agent as the skill describes:
 
 $ARGUMENTS
 
