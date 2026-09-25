@@ -11,9 +11,39 @@ test('InstallerClaudeSettings exposes the two bundled-script permission patterns
     $patterns = InstallerClaudeSettings::getBundledScriptPermissions();
 
     expect($patterns)->toBe([
-        'Bash(*skills/code-review-github/scripts/load-issue.sh:*)',
-        'Bash(*skills/code-review-jira/scripts/load-issue.sh:*)',
+        'Bash(*skills/code-review-github/scripts/load-issue.sh *)',
+        'Bash(*skills/code-review-jira/scripts/load-issue.sh *)',
     ]);
+});
+
+test('no bundled-script permission mixes a wildcard with the :* suffix', function (): void {
+    // Claude Code reads such a pattern as a literal prefix, so it never matches.
+    foreach (InstallerClaudeSettings::getBundledScriptPermissions() as $pattern) {
+        expect($pattern)->not->toEndWith(':*)');
+    }
+});
+
+test('ensureBundledScriptPermissions replaces the legacy :* entries and keeps unrelated ones', function (): void {
+    $home = sys_get_temp_dir() . '/claude-settings-' . bin2hex(random_bytes(4));
+    $settingsPath = $home . '/.claude/settings.json';
+    installerWriteFile($settingsPath, (string) json_encode([
+        'permissions' => [
+            'allow' => ['Bash(git status:*)', ...InstallerClaudeSettings::getLegacyBundledScriptPermissions()],
+        ],
+    ]));
+
+    try {
+        $added = InstallerClaudeSettings::ensureBundledScriptPermissions($home);
+
+        expect($added)->toBe(2);
+        expect(InstallerClaudeSettings::loadAllowList($home))->toBe([
+            'Bash(git status:*)',
+            ...InstallerClaudeSettings::getBundledScriptPermissions(),
+        ]);
+        expect(InstallerClaudeSettings::ensureBundledScriptPermissions($home))->toBe(0);
+    } finally {
+        installerRemoveDirectory($home);
+    }
 });
 
 test('InstallerProjectSettings exposes exactly the ten network-Bash deny patterns', function (): void {
@@ -35,8 +65,8 @@ test('every network-Bash deny pattern uses the :* trailing-wildcard form and ope
     $patterns = InstallerProjectSettings::getNetworkBashDenyPermissions();
 
     foreach ($patterns as $pattern) {
-        // The `:*` suffix is only recognised at the end of a pattern, and it is the form
-        // getBundledScriptPermissions() already uses — pinned so nobody "fixes" it to ` *`.
+        // The `:*` suffix is only recognised at the end of a pattern with no other `*` —
+        // pinned so nobody "fixes" it to ` *`.
         expect($pattern)->toStartWith('Bash(');
         expect($pattern)->toEndWith(':*)');
     }
@@ -90,8 +120,8 @@ test('ensureBundledScriptPermissions merges into existing settings.json without 
         expect($added)->toBe(2);
         expect(InstallerClaudeSettings::loadAllowList($home))->toBe([
             'Bash(git status:*)',
-            'Bash(*skills/code-review-github/scripts/load-issue.sh:*)',
-            'Bash(*skills/code-review-jira/scripts/load-issue.sh:*)',
+            'Bash(*skills/code-review-github/scripts/load-issue.sh *)',
+            'Bash(*skills/code-review-jira/scripts/load-issue.sh *)',
         ]);
 
         $raw = (string) file_get_contents($settingsPath);
@@ -164,8 +194,8 @@ test('ensureBundledScriptPermissions drops non-string entries from allow before 
 
         expect(InstallerClaudeSettings::loadAllowList($home))->toBe([
             'Bash(git status:*)',
-            'Bash(*skills/code-review-github/scripts/load-issue.sh:*)',
-            'Bash(*skills/code-review-jira/scripts/load-issue.sh:*)',
+            'Bash(*skills/code-review-github/scripts/load-issue.sh *)',
+            'Bash(*skills/code-review-jira/scripts/load-issue.sh *)',
         ]);
     } finally {
         installerRemoveDirectory($home);

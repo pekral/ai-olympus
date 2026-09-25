@@ -21,9 +21,26 @@ final class InstallerClaudeSettings
      * Patterns match both project-local (`.claude/skills/.../scripts/...`) and
      * home (`~/.claude/skills/.../scripts/...`) install locations.
      *
+     * The trailing wildcard is ` *`, not `:*`: Claude Code reads a pattern that mixes a leading
+     * `*` with the `:*` suffix as a literal prefix, so the leading `*` would never expand.
+     *
      * @return array<int, string>
      */
     public static function getBundledScriptPermissions(): array
+    {
+        return [
+            'Bash(*skills/code-review-github/scripts/load-issue.sh *)',
+            'Bash(*skills/code-review-jira/scripts/load-issue.sh *)',
+        ];
+    }
+
+    /**
+     * Earlier installer releases wrote these entries. They never matched, so the installer
+     * replaces them with getBundledScriptPermissions().
+     *
+     * @return array<int, string>
+     */
+    public static function getLegacyBundledScriptPermissions(): array
     {
         return [
             'Bash(*skills/code-review-github/scripts/load-issue.sh:*)',
@@ -116,7 +133,8 @@ final class InstallerClaudeSettings
 
     /**
      * Adds the bundled-script permission entries to the user's Claude settings file
-     * idempotently. Returns the number of entries newly added (0 when nothing changed).
+     * idempotently and removes the legacy entries they replace. Returns the number of
+     * entries newly added (0 when nothing was added).
      */
     public static function ensureBundledScriptPermissions(string $home): int
     {
@@ -126,11 +144,11 @@ final class InstallerClaudeSettings
         $merged = self::mergePermissions($existing);
         $mergedAllow = InstallerSettingsFile::extractPermissionList($merged, 'allow');
 
-        $added = count($mergedAllow) - count($existingAllow);
-
-        if ($added === 0) {
+        if ($mergedAllow === $existingAllow) {
             return 0;
         }
+
+        $added = count(array_diff($mergedAllow, $existingAllow));
 
         InstallerPath::ensureDirectory(dirname($settingsPath));
         InstallerSettingsFile::write($settingsPath, $merged);
@@ -141,6 +159,7 @@ final class InstallerClaudeSettings
     private static function mergePermissions(stdClass $existing): stdClass
     {
         [$permissions, $allow] = InstallerSettingsFile::resolvePermissionList($existing, 'allow');
+        $allow = array_values(array_diff($allow, self::getLegacyBundledScriptPermissions()));
 
         foreach (self::getBundledScriptPermissions() as $pattern) {
             if (!in_array($pattern, $allow, strict: true)) {

@@ -60,8 +60,8 @@ All security-sensitive installer flags are **opt-in by design** — the package 
 **What it does.** Alongside this flag, the installer idempotently appends a narrow allow-list for this package's bundled scripts to `~/.claude/settings.json` (`permissions.allow`):
 
 ```
-Bash(*skills/code-review-github/scripts/load-issue.sh:*)
-Bash(*skills/code-review-jira/scripts/load-issue.sh:*)
+Bash(*skills/code-review-github/scripts/load-issue.sh *)
+Bash(*skills/code-review-jira/scripts/load-issue.sh *)
 ```
 
 These two patterns pre-approve the GitHub and JIRA `load-issue.sh` scripts that the `code-review-github` and `code-review-jira` skills invoke, so Claude Code stops prompting for confirmation on every run.

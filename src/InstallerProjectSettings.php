@@ -48,8 +48,9 @@ final class InstallerProjectSettings
      * (`--deny-network-bash`).
      *
      * `:*` (not ` *`) is deliberate: the two forms are documented as equivalent trailing
-     * wildcards, and `:*` is the form `InstallerClaudeSettings::getBundledScriptPermissions()`
-     * already uses — do not "fix" one to match the other. The suffix also enforces a word
+     * wildcards, and `:*` is safe here because no pattern carries a second `*`. Mixing `:*`
+     * with another `*` makes the pattern a literal prefix, which is why
+     * `InstallerClaudeSettings::getBundledScriptPermissions()` uses ` *`. The suffix also enforces a word
      * boundary, which is why `ncat` / `netcat` / `telnet` / `sftp` are listed separately instead
      * of being covered by the shorter names next to them: `Bash(nc:*)` does not match `ncat`.
      *
