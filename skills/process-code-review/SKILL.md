@@ -84,6 +84,8 @@ If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint,
 
 **Free-form reviewer threads are exempt from the reproducer requirement.** Unresolved threads written by human reviewers will not carry the four structured fields. Do **not** request a CR rerun for them and do **not** block. Instead, derive the intent from the comment text, apply the minimal best-effort fix that satisfies it, and add or adjust a test at your discretion (a regression test when the comment describes a behavior bug; none when it is a naming / readability / dead-code remark). Keep the change scoped strictly to what the reviewer asked for. The exemption removes only the mandatory reproducer workflow — a behavior-changing best-effort fix still has to satisfy the diff-scoped coverage gate enforced by the **Review loop** below (`@rules/php/core-standards.md` Testing).
 
+**Reviewer questions:** `references/answering-reviewer-questions.md`.
+
 ---
 
 ### Pre-fix phase — pre-existing issue handling
@@ -263,6 +265,7 @@ Rules:
 
 ## References
 
+- references/answering-reviewer-questions.md
 - references/ready-to-merge-signal.md
 - references/review-loop-scope.md
 - references/round-three-deferral.md

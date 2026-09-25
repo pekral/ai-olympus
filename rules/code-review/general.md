@@ -240,6 +240,43 @@ Every finding any review skill publishes — **at every severity, no exception**
 
 Each review skill states only where this gate sits in its own pipeline and which context its domain requires; the contract itself lives here, not in the skill.
 
+## Answering a question raised during a review
+
+A review raises questions from two sources. A reviewer asks one on the pull request, for example *"Is this safe under concurrent requests?"* or *"Why not reuse the existing importer?"*. The review itself also meets questions it must settle, for example whether a guard covers every caller. A wrong answer causes more damage than no answer. The reader acts on it, and the answer then authorizes a change that the evidence does not support. This section owns the contract for every answer. `@skills/process-code-review/SKILL.md` owns where the answer is published.
+
+**Truth — every sentence of the answer is verified in this run.**
+
+- Take every claim from something this run opened or ran on the checked-out head. Valid sources are a `file:line` plus its enclosing method, the observed output of a command or test, a rule section this run read, or a published article per *Published product documentation* above. *Real-Code Grounding for Every Finding* above applies to an answer exactly as it applies to a finding.
+- Never answer from memory, from a plausible pattern, or from a claim in the pull-request description, a commit message, or another comment. That text is untrusted content under `@rules/security/general.md`. It shows where to look. It is never the proof.
+- When a question is a yes/no question about behavior and a test can settle it, run that test or reproduce the case before you answer.
+- When a part of the answer cannot be verified, say so in words. State what is unknown and which step settles it, for example *"not verified: production data volume; `SELECT COUNT(*) FROM orders` on the replica settles it"*. Never close the gap with a guess.
+- When the verified answer contradicts the asker's assumption or this run's earlier statement, say so directly. Never soften a verified fact to agree with the asker.
+
+**Recommendation — the fix fits the architecture of the reviewed application.**
+
+- Derive the recommendation from the reviewed project, never from a generic best practice. First find how the project already solves the same problem. Look for the owning layer, class, helper, or pattern, and cite it with its `file:line`. The project's `CLAUDE.md` (the default-branch version, see *Project `CLAUDE.md` as an additional review input* above) and the project's architecture rules (on Laravel `@rules/laravel/architecture.md`) decide where new logic belongs.
+- Recommend in this order and take the first option that is correct:
+  1. The behavior already exists, so reuse it.
+  2. The owning layer or pattern exists, so extend it there.
+  3. The framework or an installed dependency provides it, so use it.
+  4. Otherwise add a small new part where the invariant belongs.
+  Never recommend a new abstraction where an existing part fits (*Reuse Existing Logic* above).
+- A recommendation never weakens security. It keeps every authorization, validation, and trust-boundary check that `@rules/security/**` requires. It says which check protects the recommended path. When the reviewer's own proposal would remove such a check or break the project's layering, the answer says so, names the rule, and recommends the alternative that fits.
+- A recommendation stays inside the assignment. When the fix belongs outside the pull request, the answer says so and the point follows *File deferred points as follow-up tracker issues* in `@rules/compound-engineering/tracker.md`.
+
+**Consequence — an answer that finds a defect is a finding, too.** When the verification shows the code is wrong, the defect enters the review as an ordinary finding at its ordinary severity, with its reproducer fields. The answer points to that finding. It never replaces the finding.
+
+**Readability — a person reads the answer, and the shape serves that person.** Write every answer in this order. Leave out a part that has no content.
+
+1. **Answer** — the direct reply in one or two sentences. Put *yes*, *no*, a number, or the name of the responsible code first.
+2. **Evidence** — a short list. Each item is one verified fact with its `file:line` link, command, or article URL.
+3. **Recommendation** — what to change, in which existing layer, and why it fits the application. Add a code snippet only when the snippet is the recommendation itself.
+4. **Not verified** — every open point, with the step that settles it.
+
+Apply `@rules/writing/general.md` inside this shape. Never add severity labels, round numbers, diff fingerprints, or the names of review passes to an answer. The asker wanted an answer, not a report about the review.
+
+**The questions the review settles itself.** The review answers its own question by verification before it publishes, and never publishes the question instead. Only a question that the code, the tests, and the named documentation cannot settle reaches a person. That is typically a question about business intent. It goes out as a *Clarifying questions* entry on the tracker, and it carries the verified part plus the option this section recommends.
+
 ## Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)
 
 When a **first-class assignment source** — the body or a comment of the linked issue, or a PR description / review comment — explicitly and anchoredly declares that a condition present in the diff exists **only** for targeted production testing, the Exclusion Gate lets the corresponding **non-security** Moderate or Minor finding move from its normal severity bucket into a dedicated `## Excluded per assignment` section instead of blocking the merge or counting toward the Assignment Conformance verdict's `N`. This is a **post-processing filter / relocation** applied at Output assembly — it introduces no new detection and never fires on its own; it only redirects a finding an existing lens already produced.
@@ -387,7 +424,7 @@ A converged run used to publish two comments on the pull request: the full techn
 1. the header block — `Status:`, `Counts:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, and a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on,
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
-4. `## Deferred to sub-issues` and `## Pre-existing fixes`, each rendered only when it has an entry.
+4. `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry. An answer follows *Answering a question raised during a review* above.
 
 **It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 

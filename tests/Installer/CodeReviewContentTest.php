@@ -4338,7 +4338,7 @@ test('the reviewer comment gate delegates a comment addressed to another account
 
     // Delegated counts toward M, so `unfulfilledCount` excludes it without a second counter.
     expect($contract)->toContain(
-        '`reviewer comments: M/N fulfilled` (M = fulfilled, rejected-with-reason, or delegated to another account, out of N actionable)',
+        '`reviewer comments: M/N fulfilled` (M = fulfilled, answered, rejected-with-reason, or delegated to another account, out of N actionable)',
     );
 
     // Skipped is not dropped, and the classification survives every later round.
@@ -4421,4 +4421,35 @@ test('issue context analysis gates a comment-borne acceptance criterion on autho
     expect($skill)->toContain('lets a stranger write a merge gate');
     // An untrusted comment is still read — the gate filters authority, never input.
     expect($skill)->toContain('Read every comment either way');
+});
+
+test('a question raised during a review gets a verified, architecture-fitting, readable answer', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $contract = crContractText('skills/code-review-github/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $reference = (string) file_get_contents(
+        $packageDir . '/skills/process-code-review/references/answering-reviewer-questions.md',
+    );
+
+    // Truth: every sentence is verified in this run, and an unverifiable part is labelled.
+    expect($rule)->toContain('## Answering a question raised during a review');
+    expect($rule)->toContain('**Truth — every sentence of the answer is verified in this run.**');
+    expect($rule)->toContain('Never close the gap with a guess.');
+    // Fit: the recommendation starts from how the project already solves the problem and keeps security.
+    expect($rule)->toContain('**Recommendation — the fix fits the architecture of the reviewed application.**');
+    expect($rule)->toContain('A recommendation never weakens security.');
+    // Readability: one fixed shape a person reads top-down.
+    expect($rule)->toContain('1. **Answer** — the direct reply in one or two sentences.');
+    expect($rule)->toContain('4. **Not verified** — every open point, with the step that settles it.');
+
+    // The gate owes the reviewer an answer, and a stale answer is not fulfilled.
+    expect($contract)->toContain('An open question counts as one of these instructions');
+    expect($contract)->toContain('   - **Answered** — the instruction is a question');
+    expect($contract)->toContain('- **`## Answers to reviewer questions` section.**');
+
+    // The skill routes a question to its reference and never patches it.
+    expect($skill)->toContain('**Reviewer questions:** `references/answering-reviewer-questions.md`.');
+    expect($reference)->toContain('Never turn it into a code change the reviewer did not ask for.');
+    expect($reference)->toContain('leaves a thread that only asked a question unresolved after its answer is published');
 });

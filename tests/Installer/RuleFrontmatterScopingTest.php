@@ -363,7 +363,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the file gained three sections — a `foreach` is never a finding, a review
         // comment assigned to somebody else is left alone, and published product documentation is
         // a requirement the assignment need not restate. Nothing else in the file moved.
-        'rules/code-review/general.md' => '549d74cabbbeed5ceddb379419b56664004d13071171f99a9dffeff92590e1d9',
+        // Re-baselined: the file gained `## Answering a question raised during a review`, and the
+        // one-comment contract lists `## Answers to reviewer questions` as a conditional section.
+        'rules/code-review/general.md' => '8162f97caa5c6ac956048bcbe9bf717ddd63659fdacb4bad1e586a35ca13e1f0',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
