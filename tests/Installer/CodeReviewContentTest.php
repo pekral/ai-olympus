@@ -1157,6 +1157,43 @@ test('code review enforces test isolation against real HTTP and system processes
     expect($content)->toContain('Process::fake()');
 });
 
+test('code review raises a real DNS lookup or network socket reachable from a test as critical', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
+    $testingRule = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $laravelRule = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
+
+    expect($content)->toContain('Three independent gates, all **Critical**')
+        ->and($content)->toContain('**Real DNS lookup or network socket**')
+        ->and($content)->toContain('This gate also fires on **production code**')
+        ->and($content)->toContain('does not clear the finding')
+        ->and($testingRule)->toContain('**A test never reaches the real network below HTTP.**')
+        ->and($testingRule)->toContain('**The rule covers the code under test, not only the test file.**')
+        ->and($testingRule)->toContain('**The base test case replaces the seam by default.**')
+        ->and($testingRule)->toContain('**A namespace function override is not a replacement.**')
+        ->and($testingRule)->toContain('CR severity: **Critical**. The review applies the gate **Real DNS lookup or network socket**')
+        ->and($testingRule)->not->toContain('Avoid DNS lookups in tests.')
+        ->and($laravelRule)->toContain('**Never let tests perform a real DNS lookup or open a raw network socket.**');
+});
+
+test('the DNS seam allows one seam per capability and exempts its delegation line from coverage', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
+    $testingRule = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $laravelRule = (string) file_get_contents($packageDir . '/rules/laravel/laravel.md');
+
+    expect($content)->toContain('outside an injectable seam class dedicated to that capability')
+        ->and($content)->toContain('exempts from Coverage; the review cites that exemption instead of raising either gate')
+        ->and($content)->not->toContain('outside the project\'s single injectable seam')
+        ->and($testingRule)->toContain('**Production code calls such a function through an injectable seam class dedicated to that capability.**')
+        ->and($testingRule)->toContain('One seam per capability')
+        ->and($testingRule)->toContain('**The seam\'s own delegation line is exempt from Coverage.**')
+        ->and($testingRule)->toContain('@codeCoverageIgnore')
+        ->and($testingRule)->not->toContain('through one injectable seam.')
+        ->and($laravelRule)->toContain('an injectable seam class dedicated to that capability')
+        ->and($laravelRule)->not->toContain('only through one injectable class');
+});
+
 test('code-review wires the API rule and api-review skill into every CR run (issue #552)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
