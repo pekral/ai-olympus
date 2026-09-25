@@ -22,8 +22,8 @@
 - Role:    splinter
 
 ### parallel-agent-publication-contract — Parallel-dispatched agents must route findings through the shared brief, not publish directly
-- Trigger: a new CR/review agent splinter dispatches in parallel with another (e.g. `leonardo` alongside `argos`) publishes findings via raw `gh pr comment`/`gh issue comment`.
-- Rule:    A parallel-dispatched agent must hand off findings via the shared brief so the consolidating agent (e.g. `argos`) publishes one report. Direct publication is allowed only in standalone mode, and even then only via the canonical `upsert-comment.sh` wrapper — never raw `gh pr comment`/`gh issue comment`, which breaks consolidation and duplicates comment threads.
+- Trigger: a new CR/review agent that splinter dispatches in parallel with another agent publishes findings via raw `gh pr comment`/`gh issue comment`.
+- Rule:    A parallel-dispatched agent must hand off findings via the shared brief so the consolidating agent (today the single CR agent, `leonardo`) publishes one report. Direct publication is allowed only in standalone mode, and even then only via the canonical `upsert-comment.sh` wrapper — never raw `gh pr comment`/`gh issue comment`, which breaks consolidation and duplicates comment threads.
 - Example: `agents/athena.md` step 5 used `gh pr comment` directly; argos flagged Moderate in PR #638 (`82abc16`); fixed to hand off via brief / `upsert-comment.sh` standalone.
 - Source:  https://github.com/pekral/ai-olympus/pull/638   Added: 2026-06-20
 - Role:    splinter
@@ -125,9 +125,9 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/706   Added: 2026-06-23
 - Role:    donatello
 
-### claim-mechanism-converges-clean-when-it-mirrors-an-existing-pattern — daedalus: a feature that mirrors an already-reviewed sibling pattern converges in one CR iteration
+### claim-mechanism-converges-clean-when-it-mirrors-an-existing-pattern — splinter: a feature that mirrors an already-reviewed sibling pattern converges in one CR iteration
 - Trigger: orchestrating a feature whose core artifact is structurally near-identical to an existing, already-reviewed artifact (a new JIRA transition helper cloning an existing one; a claim label mirroring `ready for review`).
-- Rule:    Settle the design first when the *mechanism* is ambiguous (which signal, where the contract lives) even if the *code* is a clone — the ambiguity is in the design, not the implementation. Once fixed, implementation is low-risk and argos+leonardo converge in iteration 1. Scope a similar "claim/status/follow-up" request as design-then-clone, not net-new high-risk work.
+- Rule:    Settle the design first when the *mechanism* is ambiguous (which signal, where the contract lives) even if the *code* is a clone — the ambiguity is in the design, not the implementation. Once fixed, implementation is low-risk and `leonardo` converges in iteration 1. Scope a similar "claim/status/follow-up" request as design-then-clone, not net-new high-risk work.
 - Source:  https://github.com/pekral/ai-olympus/pull/706   Added: 2026-06-23
 - Role:    splinter
 
@@ -202,8 +202,8 @@
 - Role:    donatello
 
 ### background-cr-dispatch-can-silently-lose-output — A background CR review reporting "completed" is not proof it actually published
-- Trigger: splinter dispatches argos/leonardo in parallel with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed.
-- Rule:    A background agent can return a `task-notification` with `status: completed` and a full-looking summary while no corresponding PR comment/review/brief handoff section exists. Before trusting a background CR completion, verify with `gh pr view <n> --json comments,reviews` (or the loader) and grep the brief for the handoff section; if either is empty, treat the run as lost and re-dispatch synchronously (`run_in_background: false`). Do not proceed to the merge gate on an unverified background handoff. Preventive complement: when a task explicitly worries output may be lost, dispatch argos+leonardo foreground from the start instead of background-plus-verify.
+- Trigger: splinter dispatches `leonardo` with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed.
+- Rule:    A background agent can return a `task-notification` with `status: completed` and a full-looking summary while no corresponding PR comment/review/brief handoff section exists. Before trusting a background CR completion, verify with `gh pr view <n> --json comments,reviews` (or the loader) and grep the brief for the handoff section; if either is empty, treat the run as lost and re-dispatch synchronously (`run_in_background: false`). Do not proceed to the merge gate on an unverified background handoff. Preventive complement: when a task explicitly worries output may be lost, dispatch `leonardo` foreground from the start instead of background-plus-verify.
 - Example: issue #9/PR #31 — first parallel background dispatch returned "done" summaries but left zero PR comments/brief sections; re-dispatched synchronously, producing verifiable comments (`gh api .../issues/31/comments` confirmed) and correct brief entries (0 Critical/0 Moderate/1 Minor). Recurrence PR #49/issue #39: pre-merge re-verification dispatched foreground from the start, sidestepping the async gap.
 - Source:  https://github.com/pekral/ai-olympus/pull/31   Added: 2026-07-12   Updated: 2026-07-15 (PR #49)
 - Role:    splinter
@@ -306,8 +306,8 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/72   Added: 2026-07-19
 - Role:    splinter
 
-### process-code-review-completion-skips-duplicate-cr-comment-after-upstream-publish — When argos/athena already published the CR comment, Completion publishes only `cr-status`
-- Trigger: `process-code-review` runs (typically as `donatello`) on a PR where `argos` (optionally consolidating `leonardo`) already published the single technical `cr-comment` upstream of this skill's own Review loop.
+### process-code-review-completion-skips-duplicate-cr-comment-after-upstream-publish — When `leonardo` already published the CR comment, Completion publishes only `cr-status`
+- Trigger: `process-code-review` runs (typically as `donatello`) on a PR where `leonardo` already published the single technical `cr-comment` upstream of this skill's own Review loop.
 - Rule:    Taken literally, `@skills/process-code-review/SKILL.md` Completion re-triggers a second technical-review publish, duplicating the `cr-comment` thread. When the upstream review already exists and the diff is unchanged or only gained a trivial, re-verified-safe fix commit, treat that comment as satisfying the review and publish only the distinct `cr-status` comment, then promote out of Draft. Do not also publish the linked-issue mirror if another pipeline step already owns that duty.
 - Example: issue #55/PR #73 — `argos` published the consolidated `cr-comment` (0/0/2 Minor) before `process-code-review` started; `talos` added one trivial CHANGELOG commit, re-verified `composer build` green, published only `cr-status`, promoted out of Draft — the linked-issue summary left to `apollon`'s dedicated reporting step.
 - Source:  https://github.com/pekral/ai-olympus/pull/73   Added: 2026-07-19
@@ -320,7 +320,7 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/72   Added: 2026-07-19   Updated: 2026-07-19 (issue #69 / PR #70)
 - Role:    splinter
 
-### cleanup-must-verify-lock-ownership-before-unconditional-release — daedalus step-7 cleanup must confirm this run acquired the write-lock before removing it
+### cleanup-must-verify-lock-ownership-before-unconditional-release — splinter step-7 cleanup must confirm this run acquired the write-lock before removing it
 - Trigger: splinter reaches step-7 cleanup and runs `rm -rf .claude/run/.splinter-write.lock` mechanically, without checking whether *this* run's own step 5 ever created that lock — especially on a non-standard path (already-resolved issue, analysis-only) that never dispatched `donatello`.
 - Rule:    The cleanup is conditional on step 5 having acquired the lock *in this run* — not an unconditional habit. `ls -la .claude/run/` first: if briefs/the lock predate this run's step 5, or `donatello` was never dispatched, do not touch it — it may belong to another active splinter instance. If removed by mistake, recreate a placeholder with a transparent incident note and disclose it in the final report — never silently continue, never fabricate the holder's PID.
 - Example: The `gh-71` run (issue #71, already shipped via merged PR #72, see [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]) ran `rm -rf .daedalus-write.lock` unconditionally, deleting `gh-60`'s live lock (confirmed via its `Resolve_by_AI:in-progress` label + mtime); no actual collision occurred, so the lock was recreated with an incident note disclosed to the user.
@@ -334,9 +334,9 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/76   Added: 2026-07-19
 - Role:    splinter
 
-### daedalus-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — daedalus executes merge-github-pr itself
+### splinter-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — splinter executes merge-github-pr itself
 - Trigger: a splinter run reaches convergence on a PR and needs to perform the actual merge into the base branch.
-- Rule:    `donatello` explicitly never merges; `leonardo` is a read-only reviewer with no merge capability either (though `argos` may flip `gh pr ready` as part of consolidating a barrier-gated review — not the same operation as the merge). No agent performs `gh pr merge`. splinter reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
+- Rule:    `donatello` explicitly never merges; `leonardo` is a read-only reviewer with no merge capability either (though `leonardo` may flip `gh pr ready` when it promotes a converged PR out of Draft — not the same operation as the merge). No agent performs `gh pr merge`. splinter reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
 - Example: PR #76 (issue #60) — after convergence (argos 0/0/0/0 + athena 0/0/0), daedalus independently verified all 6 pre-checks and ran `gh pr merge --squash --delete-branch` directly — no specialist dispatched for the merge.
 - Source:  https://github.com/pekral/ai-olympus/pull/76   Added: 2026-07-19
 - Role:    splinter
