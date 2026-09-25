@@ -38,10 +38,11 @@
 #      status, continue only when currentUser() already owns it; otherwise abort
 #      instead of stealing another run's claim.
 #   4. If already in a finished status (contains "done", "closed", "resolved",
-#      "cancelled"), exit 4 (caller should abort). If already in a review status
-#      (contains "review"), continue only when currentUser() owns the issue — the
-#      owner is resuming work on it; otherwise exit 4 instead of taking back
-#      another run's issue.
+#      "cancelled", "canceled", or "merged"), exit 4 (caller should abort). If
+#      already in a review or ready-to-merge status (contains "review" or
+#      "merge", or matches $JIRA_CODE_REVIEW_SYNONYMS / $JIRA_READY_TO_MERGE_SYNONYMS),
+#      continue only when currentUser() owns the issue — the owner is resuming
+#      work on it; otherwise exit 4 instead of taking back another run's issue.
 #   5. Run `acli jira workitem transition --key <KEY> --status <target> --yes`.
 #   6. Run `acli jira workitem assign --key <KEY> --assignee "@me" --yes` and
 #      verify it with JQL `key = <KEY> AND assignee = currentUser()`.
@@ -166,6 +167,26 @@ current_user_owns_issue() {
   printf '%s' "$assignment_json" | jq -e --arg key "$KEY" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null
 }
 
+# $1 = a lower-cased status, $2 = a comma-separated synonym list. Matches the
+# same trim/lowercase handling as the progress-name guard above and the
+# review-name / merge-name guards in transition-to-code-review.sh and
+# transition-to-ready-to-merge.sh.
+status_in_list() {
+  local status="$1" list="$2" entry entry_trimmed
+
+  [[ -z "$list" ]] && return 1
+
+  IFS=',' read -ra entries <<<"$list"
+  for entry in "${entries[@]}"; do
+    entry_trimmed="$(printf '%s' "$entry" | sed -E 's#^[[:space:]]+|[[:space:]]+$##g' | tr '[:upper:]' '[:lower:]')"
+    if [[ -n "$entry_trimmed" && "$status" == "$entry_trimmed" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 # Read current status for the idempotence check and past-In-Progress guard.
 if ! ISSUE_JSON="$("$SCRIPT_DIR/load-issue.sh" "$KEY")"; then
   echo "transition-to-in-progress.sh: failed to read current status of $KEY" >&2
@@ -199,10 +220,12 @@ if [[ -n "$CURRENT_STATUS" && "$(printf '%s' "$CURRENT_STATUS" | tr '[:upper:]' 
 fi
 
 # Past-In-Progress guard: a finished issue is never re-opened, and an issue in
-# review returns to In Progress only for the user who owns it.
+# review or ready-to-merge returns to In Progress only for the user who owns
+# it. The finished check runs first so a resolution status such as "Merged" is
+# never misread as the ready-to-merge column below.
 current_lower="$(printf '%s' "${CURRENT_STATUS:-}" | tr '[:upper:]' '[:lower:]')"
 is_finished=false
-for keyword in 'done' closed resolved cancelled; do
+for keyword in 'done' closed resolved cancelled canceled merged; do
   if [[ "$current_lower" == *"$keyword"* ]]; then
     is_finished=true
     break
@@ -214,7 +237,18 @@ if [[ "$is_finished" == true ]]; then
   exit 4
 fi
 
-if [[ "$current_lower" == *review* ]]; then
+# Review-phase guard: the same synonym-aware detection the Code Review and
+# Ready to Merge helpers use for their own targets, so a board whose review
+# or ready-to-merge column carries no "review" / "merge" substring is still
+# recognised here.
+needs_owner=false
+if [[ "$current_lower" == *review* || "$current_lower" == *merge* ]] \
+  || status_in_list "$current_lower" "${JIRA_CODE_REVIEW_SYNONYMS:-}" \
+  || status_in_list "$current_lower" "${JIRA_READY_TO_MERGE_SYNONYMS:-}"; then
+  needs_owner=true
+fi
+
+if [[ "$needs_owner" == true ]]; then
   if current_user_owns_issue; then
     ownership_status=0
   else
@@ -227,7 +261,7 @@ if [[ "$current_lower" == *review* ]]; then
   fi
 
   if [[ "$ownership_status" -ne 0 ]]; then
-    echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' and is not assigned to currentUser() — another run owns the review; abort." >&2
+    echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' and is not assigned to currentUser() — another run owns it; abort." >&2
     exit 4
   fi
 fi
