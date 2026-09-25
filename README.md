@@ -242,11 +242,12 @@ After the [Quickstart](#quickstart), choose a specialist when you do not need th
 
 In Codex, ask it to use the corresponding agent by name, as in the `splinter` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
-To prepare an existing GitHub issue's PR for merge without merging it, use the shared workflow:
+To prepare an existing GitHub or JIRA issue's PR for merge without merging it, use the shared workflow:
 
 ```text
 # Claude Code
 /prepare-issue-for-merge https://github.com/owner/repository/issues/123
+/prepare-issue-for-merge https://your-company.atlassian.net/browse/PROJ-123
 
 # Codex
 $verify-merge-readiness https://github.com/owner/repository/issues/123

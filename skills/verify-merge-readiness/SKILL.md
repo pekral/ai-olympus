@@ -1,6 +1,6 @@
 ---
 name: verify-merge-readiness
-description: "Use when a GitHub issue or pull request must be brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely."
+description: "Use when a GitHub issue, a GitHub pull request, or a JIRA issue must have its pull request brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -13,12 +13,13 @@ state, but stop before merge. When the issue carries no pull request yet, `splin
 task first, and this workflow prepares the pull request that delivery opens. Reuse a trusted
 converged review when the effective PR diff is content-identical; review again only when content or
 actionable feedback changed. Then dispatch `april` to publish one current TL;DR on the source
-GitHub issue and remove only superseded, actor-owned preparation comments.
+issue — a GitHub issue or a JIRA ticket — and remove only superseded, actor-owned preparation
+comments.
 
 This skill is the shared workflow for both clients:
 
-- Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL>`.
-- Codex: `$verify-merge-readiness` with the same URL. Use the registered `splinter` agent when the
+- Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL, or JIRA key or URL>`.
+- Codex: `$verify-merge-readiness` with the same reference. Use the registered `splinter` agent when the
   client supports project agents.
 
 It never merges the pull request.
@@ -38,10 +39,17 @@ It never merges the pull request.
   under review except for the skill-owned rebase using `--force-with-lease`.
 - Apply @rules/reports/general.md. The source-issue TL;DR uses the assignment language. Technical PR
   review evidence stays in canonical English.
-- Accept exactly one full `https://github.com/<owner>/<repository>/issues/<number>` or
-  `https://github.com/<owner>/<repository>/pull/<number>` URL. Missing, multiple, malformed, or
-  foreign-repository references are a hard stop. Run `skills/_shared/assert-current-repo.sh <URL>`
-  before any write.
+- Accept exactly one source reference:
+  - a full `https://github.com/<owner>/<repository>/issues/<number>` or
+    `https://github.com/<owner>/<repository>/pull/<number>` URL,
+  - a JIRA issue key (`PROJ-123`) or a JIRA URL that names one issue key (`/browse/<KEY>` or
+    `?selectedIssue=<KEY>`).
+
+  Missing, multiple, or malformed references are a hard stop. A GitHub reference to another
+  repository is a hard stop too. Run `skills/_shared/assert-current-repo.sh <URL>` on the GitHub
+  issue or pull-request URL before any write. On a JIRA source, run it on the resolved pull-request
+  URL.
+- Apply @rules/jira/general.md on a JIRA source.
 - An invocation explicitly authorizes the final TL;DR publish and deletion of qualifying
   superseded comments (L2). When the source issue carries no pull request, it also authorizes the
   delivery path that opens one; implementation, its tests, and the Draft PR stay L1 exactly as in a
@@ -52,10 +60,22 @@ It never merges the pull request.
 
 ### 1. Resolve the source issue and pull request
 
-Load the supplied reference through `skills/code-review-github/scripts/load-issue.sh <URL>`. Resolve
-the source issue from the PR's closing issue, or resolve the open PR linked from the issue. Page
-every issue comment, PR comment, submitted review, and line thread needed by the preparation and
-consolidation decisions.
+Detect the tracker from the reference as `@skills/resolve-issue/references/source-detection.md`
+does.
+
+- **GitHub** — load the reference through `skills/code-review-github/scripts/load-issue.sh <URL>`.
+  Resolve the source issue from the PR's closing issue, or resolve the open PR linked from the
+  issue.
+- **JIRA** — the ticket is the source issue. Load it through
+  `skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>`, which carries the
+  description, comments, subtasks, attachments, and linked issues the assignment needs. Take the
+  candidate pull requests from `pullRequests[]` of `skills/code-review-jira/scripts/load-issue.sh
+  <KEY|URL>`. Keep only open pull requests of the current repository, then load each through the
+  GitHub loader. A ticket whose resolution is set, or whose status is in the Done category, is
+  closed.
+
+Page every issue comment, PR comment, submitted review, and line thread needed by the preparation
+and consolidation decisions.
 
 Then branch on how many pull requests the issue resolves to:
 
@@ -79,7 +99,8 @@ Record in the shared brief:
 - source issue URL and PR URL;
 - base branch, current head SHA, and Draft/merge/check state;
 - every explicit acceptance criterion and its evidence;
-- the authenticated GitHub actor from `gh api user --jq .login`;
+- the authenticated GitHub actor from `gh api user --jq .login`, and on a JIRA source the `acli`
+  account from `acli jira auth status`;
 - the newest trusted `cr-comment`, including reviewed SHA, effective diff fingerprint, finding
   counts, unresolved findings, and the `Quality gate:` exact-head evidence it carries.
 
@@ -234,6 +255,7 @@ Return:
 - The current effective diff has a trusted converged review, reused only when content-identical.
 - Every acceptance criterion and the exact-head quality gate are green.
 - The PR is non-Draft and GitHub reports it mergeable and current with its base.
-- One final TL;DR exists on the source issue and was read back.
+- One final TL;DR exists on the source issue — the GitHub issue or the JIRA ticket — and was read
+  back.
 - Only superseded actor-owned preparation comments were deleted; current merge evidence remains.
 - No merge was attempted.

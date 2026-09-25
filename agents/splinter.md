@@ -202,7 +202,7 @@ Two consequences you act on directly: the **full-delivery** path acquires the wr
 
 ## Prepare-only mode — `/prepare-issue-for-merge`
 
-**Trigger:** the user invokes `/prepare-issue-for-merge <URL>`, `$verify-merge-readiness`, or asks to prepare a GitHub issue's PR for merge without merging. → **load `skills/_shared/orchestration/merge-preparation.md` and follow it in full.** It is a specialization of the end-to-end run below, not a second implementation of it; nothing about it applies to an ordinary run, so it is not carried here.
+**Trigger:** the user invokes `/prepare-issue-for-merge <URL>`, `$verify-merge-readiness`, or asks to prepare a GitHub or JIRA issue's PR for merge without merging. → **load `skills/_shared/orchestration/merge-preparation.md` and follow it in full.** It is a specialization of the end-to-end run below, not a second implementation of it; nothing about it applies to an ordinary run, so it is not carried here.
 
 ## The end-to-end run
 
