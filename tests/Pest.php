@@ -445,7 +445,6 @@ function ruleExtensionAlwaysOnFiles(): array
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
-        'rules/reports/general.md',
         'rules/security/general.md',
     ];
 }
@@ -585,13 +584,46 @@ function ruleScopingGlobsAddedByTotalBudget(): array
         'rules/code-review/core-analysis.md' => ['.claude/rules/code-review/**'],
         'rules/code-review/general.md' => ['.claude/rules/code-review/**'],
         'rules/code-review/review-process.md' => ['.claude/rules/code-review/**'],
+        'rules/compound-engineering/memory.md' => [
+            '.claude/run/**',
+            'docs/memory/**',
+            '.claude/rules/compound-engineering/memory.md',
+        ],
         'rules/compound-engineering/tracker.md' => [
             '.claude/run/**',
             '.claude/rules/compound-engineering/tracker.md',
         ],
+        'rules/git/pull-requests.md' => ['.claude/run/**', '.claude/rules/git/pull-requests.md'],
         'rules/jira/general.md' => ['.claude/rules/jira/**'],
         'rules/refactoring/general.md' => ['.claude/rules/refactoring/**'],
+        'rules/reports/general.md' => ['.claude/rules/reports/**'],
     ];
+}
+
+/**
+ * The git rule set as one string: the always-on `general.md` plus the on-demand
+ * `pull-requests.md` its pull-request and merge sections moved into to keep the always-on total
+ * inside the instruction budget. A test asking whether the git rules state something asks it of
+ * both, so the split cannot make an assertion pass or fail by which file a sentence landed in.
+ */
+function gitRuleContents(): string
+{
+    $packageDir = dirname(__DIR__);
+
+    return (string) file_get_contents($packageDir . '/rules/git/general.md') . "\n"
+        . (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+}
+
+/**
+ * The compound-engineering rule plus its on-demand `memory.md`, for the same reason as
+ * `gitRuleContents()`: the Compound Memory sections moved out of the always-on file.
+ */
+function compoundEngineeringRuleContents(): string
+{
+    $packageDir = dirname(__DIR__);
+
+    return (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md') . "\n"
+        . (string) file_get_contents($packageDir . '/rules/compound-engineering/memory.md');
 }
 
 /**
@@ -750,6 +782,9 @@ function ruleScopingConsumerPathsOutsideAppTree(): array
         '.claude/rules/compound-engineering/tracker.md',
         '.claude/rules/jira/general.md',
         '.claude/rules/refactoring/general.md',
+        '.claude/rules/git/pull-requests.md',
+        '.claude/rules/compound-engineering/memory.md',
+        '.claude/rules/reports/general.md',
     ];
 }
 

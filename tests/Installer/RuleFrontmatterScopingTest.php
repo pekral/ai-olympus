@@ -117,9 +117,12 @@ test('every rule scoped in issue #274, #275 or #277 declares exactly the `paths:
         'rules/code-review/core-analysis.md',
         'rules/code-review/general.md',
         'rules/code-review/review-process.md',
+        'rules/compound-engineering/memory.md',
         'rules/compound-engineering/tracker.md',
+        'rules/git/pull-requests.md',
         'rules/jira/general.md',
         'rules/refactoring/general.md',
+        'rules/reports/general.md',
     ]);
 });
 
@@ -365,7 +368,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // a requirement the assignment need not restate. Nothing else in the file moved.
         // Re-baselined: the file gained `## Answering a question raised during a review`, and the
         // one-comment contract lists `## Answers to reviewer questions` as a conditional section.
-        'rules/code-review/general.md' => '8162f97caa5c6ac956048bcbe9bf717ddd63659fdacb4bad1e586a35ca13e1f0',
+        // Re-baselined: its `*Per-dispatch memory slice*` pointer names `compound-engineering/memory.md`,
+        // where Compound Memory moved to leave the always-on file. No sentence changed.
+        'rules/code-review/general.md' => 'ab7e37f483543b7be51252dc20dbc1708ea47e6486d97e9c8981313a93373034',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -446,7 +451,7 @@ test('every rule declares exactly one of the two scopes the loader has (issue #4
     }
 
     expect($violations)->toBe([]);
-    expect($alwaysOn)->toHaveCount(6);
+    expect($alwaysOn)->toHaveCount(5);
     expect(array_intersect($alwaysOn, array_keys(ruleScopingExpectedGlobs())))->toBe([]);
 });
 
@@ -495,7 +500,6 @@ test('a rule scoped in issue #274, #275 or #277 is no longer claimed as always-o
         'rules/general/general.md',
         'rules/git/general.md',
         'rules/writing/general.md',
-        'rules/reports/general.md',
         'rules/security/general.md',
     ]);
 
@@ -553,4 +557,27 @@ test('the always-on compound-engineering rule points every tracker run at its on
         expect($tracker)->toContain($heading);
         expect($general)->toContain('*' . substr($heading, 3) . '*');
     }
+});
+
+test('the always-on rules point at every section the second budget pass moved on demand', function (): void {
+    // Each pointer is what still tells a session that never read the on-demand file that it exists
+    // and applies. Losing one silences the moved sections exactly as deleting them would.
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    $git = $read('rules/git/general.md');
+    $pullRequests = $read('rules/git/pull-requests.md');
+    expect($git)->toContain('reads and applies `@rules/git/pull-requests.md` first');
+
+    foreach (['## Issue Linking', '## Pull Requests', '## PR Lifecycle', '## Merging'] as $heading) {
+        expect($pullRequests)->toContain("\n" . $heading . "\n");
+        expect($git)->not->toContain("\n" . $heading . "\n");
+    }
+
+    $compound = $read('rules/compound-engineering/general.md');
+    expect($compound)->toContain('reads and applies `@rules/compound-engineering/memory.md` first');
+    expect($compound)->not->toContain('## Compound Memory (per project)');
+    expect($read('rules/compound-engineering/memory.md'))->toContain('## Compound Memory (per project)');
+
+    expect($read('rules/writing/general.md'))->toContain('reads and applies `@rules/reports/general.md` first');
 });

@@ -14,6 +14,7 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
     // absence of a `paths` key, never as the Cursor-only `alwaysApply` this used to pin
     // (issue #187).
     expect($content)->not->toContain('paths:');
+    $content = compoundEngineeringRuleContents();
 
     // Pillar 1 — every change must make future work easier, and lessons are recorded.
     expect($content)->toContain('## Compound Engineering');
@@ -59,8 +60,7 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
 });
 
 test('git/general.md mandates English branch names regardless of assignment language', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $content = gitRuleContents();
 
     expect($content)->toContain('always written in English regardless of the assignment language');
 });
@@ -74,7 +74,7 @@ test('resolve-issue skill requires the created branch name to be in English', fu
 
 test('commit granularity is the author\'s judgment, and the package says what that costs', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
     // The package used to mandate one commit per phase and per enumerated assignment point,
@@ -103,7 +103,7 @@ test('commit granularity is the author\'s judgment, and the package says what th
 
 test('the two commit constraints that are not about granularity survive', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
     // A committed failing test encodes a lie in the history; the gate on the merged head is what
@@ -143,8 +143,7 @@ test('resolve-issue skill refuses to resolve a closed / inactive task', function
 });
 
 test('compound-engineering rule defines the per-project memory file convention (issue #626)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $content = compoundEngineeringRuleContents();
 
     expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($content)->toContain('### Read protocol');
@@ -152,7 +151,7 @@ test('compound-engineering rule defines the per-project memory file convention (
 
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
     $splinter = splinterContractText();
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
 
@@ -177,7 +176,7 @@ test('compound memory reads are hooked into the context phases (issue #626)', fu
 test('CLAUDE.md points to the per-project memory file so it stays discoverable (issue #148)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $claudeMd = (string) file_get_contents($packageDir . '/CLAUDE.md');
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
 
     // general.md already mandates the pointer; CLAUDE.md (root, and the shipped template
     // installed into consumer projects) must actually carry it.
@@ -192,7 +191,7 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     expect(is_dir($packageDir . '/skills/record-project-memory'))->toBeFalse();
 
     // No former write hook still references the removed skill.
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
@@ -433,24 +432,22 @@ test(
     'compound-engineering rule adds a narrower compaction-only Write protocol sibling to Read protocol (issue #98)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
-        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+        // Compound Memory moved verbatim into the on-demand `memory.md`, so the section runs to the
+        // end of that file.
+        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/memory.md');
 
         // The new section is a sibling of Read protocol, under the same Compound Memory heading.
         expect($rule)->toContain('### Write protocol (compact after every write)');
         $compoundMemoryPos = strpos($rule, '## Compound Memory (per project)');
         $writeProtocolPos = strpos($rule, '### Write protocol (compact after every write)');
         $readProtocolPos = strpos($rule, '### Read protocol');
-        // The next top-level `##` section after Compound Memory in general.md — the pointer to the
-        // tracker workflow, which moved into the on-demand `tracker.md` sibling.
-        $nextSectionPos = strpos($rule, '## Tracker workflow — the companion file');
+        // Compound Memory is the last section of `memory.md`, so its end is the end of the file.
+        $nextSectionPos = strlen($rule);
         expect($compoundMemoryPos)->not->toBeFalse();
         expect($writeProtocolPos)->not->toBeFalse();
         expect($readProtocolPos)->not->toBeFalse();
-        expect($nextSectionPos)->not->toBeFalse();
 
-        if (!is_int($compoundMemoryPos) || !is_int($writeProtocolPos)
-            || !is_int($readProtocolPos) || !is_int($nextSectionPos)
-        ) {
+        if (!is_int($compoundMemoryPos) || !is_int($writeProtocolPos) || !is_int($readProtocolPos)) {
             return;
         }
 
@@ -528,8 +525,7 @@ function compoundMemoryFilterRoleBlocks(string $content, string $role): array
 }
 
 test('per-role read filter extracts entries whose Role: line sits past a fixed grep -A5 window (issue #148)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
 
     // The old fixed-offset idiom is gone; the corrected filter is a whole-block awk extraction.
     expect($rule)->not->toContain('grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"');
@@ -662,7 +658,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
 
 test('Role dictionary and per-role read filter cover the full live agent roster (issue #166)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
 
     // The live roster (excluding `shared`, which is not an agent) is derived from agents/*.md
     // rather than pinned as a literal — a new agent dropped into agents/ without a matching
@@ -716,7 +712,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
 
 test('compound memory is filtered per dispatch target, not folded unfiltered into the shared brief (issue #165)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
     $splinter = splinterContractText();
 
     // The rule names the new mechanism and where the slice travels.
@@ -754,7 +750,7 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
 
 test('the per-dispatch memory slice is authoritative only in its own structural position (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/general.md');
+    $rule = compoundEngineeringRuleContents();
 
     // Issue #160 finding: the slice moved to the dispatch prompt (issue #165), a channel no rule
     // declared inert — while the slice itself is declared authoritative AND forbids re-reading the
@@ -1352,7 +1348,7 @@ test('the PR linking invariant states the no-tracker case and both tracker limit
 
     // GitHub keeps its mechanic in the git rules, so the two files do not carry it twice.
     expect($rule)->toContain('**GitHub\'s mechanic lives with the git rules.**');
-    expect($rule)->toContain('`@rules/git/general.md` *Issue Linking* owns the literal closing keyword');
+    expect($rule)->toContain('`@rules/git/pull-requests.md` *Issue Linking* owns the literal closing keyword');
 
     // JIRA: no structured raw-URL link exists through acli, so the comment is the mechanism and
     // the Development panel is additive infrastructure, never the guarantee.

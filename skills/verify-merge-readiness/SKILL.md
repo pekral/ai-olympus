@@ -33,6 +33,7 @@ It never merges the pull request.
   `april` owns publication and consolidation.
 - Apply @rules/code-review/general.md. A trusted review requires the repository trust predicate,
   the actor marker, and the canonical effective-diff fingerprint.
+- Apply @rules/git/pull-requests.md — the merge gate this skill proves.
 - Apply @rules/git/general.md. Never push to the default branch and never rewrite a branch already
   under review except for the skill-owned rebase using `--force-with-lease`.
 - Apply @rules/reports/general.md. The source-issue TL;DR uses the assignment language. Technical PR

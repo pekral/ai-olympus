@@ -2557,7 +2557,7 @@ test('content-identical history rewrites preserve the converged code review verd
         $packageDir . '/skills/process-code-review/references/review-loop-scope.md',
     );
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $gitRule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $gitRule = gitRuleContents();
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $splinter = splinterContractText();
 

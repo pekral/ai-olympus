@@ -180,7 +180,7 @@ When a plan does exist, it runs after the self-check above and **still before th
 
 **Opt-out — the user must explicitly ask to skip the PR.** A silent or ambiguous request is **not** an opt-out — when in doubt, create the PR.
 
-**Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/general.md` *Draft pull requests* — the authoritative `code-review-github` / `process-code-review` loop still runs after the PR exists, and promotes it out of Draft on convergence.
+**Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/pull-requests.md` *Draft pull requests* — the authoritative `code-review-github` / `process-code-review` loop still runs after the PR exists, and promotes it out of Draft on convergence.
 
 The opt-out consequences and the full PR body layout — **Summary**, **Changes**, **Pre-existing fixes**, **`## Security acceptance checklist`**, **TODO list**, and the mandatory **`## Audit`** section with its standalone-run fallback — live in `references/pull-request.md`.
 

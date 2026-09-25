@@ -12,8 +12,7 @@ declare(strict_types = 1);
  * `rules/compound-engineering/tracker.md`, and this section implements it for GitHub only.
  */
 test('the GitHub issue-linking mechanic keys off the PR body, not only the commit (issue #43 lesson)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // The old conditional, commit-only wording is gone — it is what left the PR unlinked.
     expect($rule)->not->toContain('If a GitHub issue is provided, always link it in commits');
@@ -34,8 +33,7 @@ test('the GitHub issue-linking mechanic keys off the PR body, not only the commi
 });
 
 test('the closing keyword is pinned as English and named where the language rule states it (issue #43)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // A translated keyword parses as nothing, so the exemption has to be stated, not assumed.
     expect($rule)->toContain('**The keyword is English, always.**');
@@ -50,8 +48,7 @@ test('the closing keyword is pinned as English and named where the language rule
 });
 
 test('the git rule implements the general linking invariant instead of restating it', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // One owner for the principle, one owner for the GitHub mechanic — the split the two
     // sibling tracker-write sections already use.

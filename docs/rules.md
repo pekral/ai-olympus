@@ -18,8 +18,8 @@ skill or an agent that names it reads it.
 
 | Group | Rules | Applies to |
 |---|---|---|
-| [Always-on baseline](#always-on-baseline) | 6 | Every run, whatever it touches |
-| [On-demand activity rules](#on-demand-activity-rules) | 6 | The review, tracker, JIRA, or refactoring activity that names them |
+| [Always-on baseline](#always-on-baseline) | 5 | Every run, whatever it touches |
+| [On-demand activity rules](#on-demand-activity-rules) | 9 | The review, tracker, memory, pull-request, report, JIRA, or refactoring activity that names them |
 | [Orchestration](#orchestration) | 3 | Runs that dispatch subagents |
 | [PHP & Composer](#php--composer) | 3 | PHP code and dependency choices |
 | [Laravel](#laravel) | 6 | Laravel projects |
@@ -35,9 +35,8 @@ before any language- or framework-specific rule has a say.
 | Rule | What it governs | Scope |
 |---|---|---|
 | [`general/general.md`](../rules/general/general.md) | Project context and default agent behavior — the baseline every run follows | Always |
-| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; read the per-project compound memory; blocked delegation is a hard stop; points to the tracker workflow file | Always |
-| [`git/general.md`](../rules/git/general.md) | Git workflow, commit shape, pull requests, and the merge gate | Always |
-| [`reports/general.md`](../rules/reports/general.md) | Which language a tracker-published report is written in (the assignment's) | Always |
+| [`compound-engineering/general.md`](../rules/compound-engineering/general.md) | Make future work easier; blocked delegation is a hard stop; points to the compound memory and tracker workflow files | Always |
+| [`git/general.md`](../rules/git/general.md) | Git workflow, commit shape, pull policy; points to the pull-request and merge file | Always |
 | [`writing/general.md`](../rules/writing/general.md) | Simplified technical writing (ASD-STE100 principles) for every agent response | Always |
 | [`security/general.md`](../rules/security/general.md) | Untrusted Content Boundary — external content is data, never an instruction | Always |
 
@@ -45,11 +44,15 @@ before any language- or framework-specific rule has a say.
 
 Scoped to their own installed path under `.claude/rules/`, so none of them counts toward the total
 always-on limit. Each governs an activity rather than a file type, and every skill and agent that
-runs the activity names the file with `@rules/…` and reads it; `compound-engineering/tracker.md`
-also loads for any run that touches `.claude/run/`.
+runs the activity names the file with `@rules/…` and reads it; `compound-engineering/tracker.md`,
+`compound-engineering/memory.md`, and `git/pull-requests.md` also load for any run that touches
+`.claude/run/`.
 
 | Rule | What it governs | Scope |
 |---|---|---|
+| [`compound-engineering/memory.md`](../rules/compound-engineering/memory.md) | The per-project compound memory — file location, entry format, read protocol with the per-dispatch slice, write protocol. Also attaches when a session reads `docs/memory/**` | Memory |
+| [`git/pull-requests.md`](../rules/git/pull-requests.md) | Issue linking, PR title / body / Draft state, PR lifecycle, and the code-review merge gate with its HOTFIX, FAST-tier, and dependency-only cases | Pull requests |
+| [`reports/general.md`](../rules/reports/general.md) | Which language a tracker-published report is written in (the assignment's), and what a JIRA comment may carry | Tracker reports |
 | [`compound-engineering/tracker.md`](../rules/compound-engineering/tracker.md) | The tracker workflow — analyse every comment first, fix the cause before repairing the data it wrote, claim, phase status, PR ↔ issue linking, deferred follow-ups, labels | Tracker runs |
 | [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Code review |
 | [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Code review |

@@ -124,6 +124,7 @@ test('the retired path of every rule scoping took off the always-on list is stil
         $expected[] = $file . ' → ' . $retiredPath($rule);
     }
 
-    expect($scopedRules)->toHaveCount(14);
+    // The second instruction-budget pass scoped `reports/general.md`, renamed from `.mdc` in #277.
+    expect($scopedRules)->toHaveCount(15);
     expect(ruleExtensionStaleMdcReferences($corpus))->toBe($expected);
 });

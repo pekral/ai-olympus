@@ -179,10 +179,11 @@ A commit carrying only the verbatim output of the project's fixers changes no bu
 When an earlier pass had already promoted it, withdraw both signals now — `references/ready-to-merge-signal.md` *Revert when the review re-opens*. Classify from the commit's own diff, never from its subject line; an unclear case counts as business logic and gets the round.
   - **A gate that cannot be run is a hard stop** — do not promote the PR out of Draft and do not report convergence; surface what failed.
 - Commit and push changes
-- If PR does not exist, create it according to @rules/git/general.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
-  - Title in English (per `@rules/git/general.md`)
+- If PR does not exist, create it per @rules/git/pull-requests.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
+  - Title in English (per `@rules/git/pull-requests.md`)
   - Body in the assignment language (per `@rules/reports/general.md`)
-  - **Link the PR to the tracker issue the branch resolves** (`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*). This is the only other path that opens the PR, so it owns the link on that path. GitHub: the literal English `Closes #<N>` in the **body**, per `@rules/git/general.md` *Issue Linking* — a translated keyword is not parsed. JIRA / Bugsnag: the key or error URL in the PR, plus a comment with the PR URL, per `@skills/resolve-issue/references/tracker-follow-up.md` *JIRA-specific follow-up* / *Bugsnag-specific follow-up*. Re-read both through the deterministic loader and confirm the link landed; report a failed write rather than assuming it. When the branch resolves no tracker issue, there is nothing to link; the step is inapplicable.
+  - **Link the PR to the tracker issue the branch resolves** (`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*). This is the only other path that opens the PR, so it owns the link on that path. GitHub: the literal English `Closes #<N>` in the **body**, per `@rules/git/pull-requests.md` *Issue Linking* — a translated keyword is not parsed. JIRA / Bugsnag: the key or error URL in the PR, plus a comment with the PR URL, per `@skills/resolve-issue/references/tracker-follow-up.md` *JIRA-specific follow-up* / *Bugsnag-specific follow-up*.
+    Re-read both through the deterministic loader and confirm the link landed; report a failed write rather than assuming it. When the branch resolves no tracker issue, there is nothing to link; the step is inapplicable.
   - When the branch resolves a tracker issue, write that issue's review-waiting phase signal now, exactly as the resolving run would have (`@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*, mechanics in `@skills/resolve-issue/references/tracker-follow-up.md` *GitHub-specific follow-up* / *JIRA-specific follow-up*). This is the only other path that opens the PR, so it owns the phase-2 write on that path. Skip it when the signal is already present — the write is idempotent.
 
 ---
@@ -215,7 +216,7 @@ gh api graphql -f query='mutation($threadId:ID!){ resolveReviewThread(input:{thr
 
 #### Promote the PR out of Draft and signal ready to merge
 
-Convergence is exactly the moment the PR becomes ready to merge, so this skill owns both halves of that signal — the Draft → ready transition per `@rules/git/general.md` *Draft pull requests*, and phase 3 of `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*:
+Convergence is exactly the moment the PR becomes ready to merge, so this skill owns both halves of that signal — the Draft → ready transition per `@rules/git/pull-requests.md` *Draft pull requests*, and phase 3 of `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*:
 
 - Because this step runs only after the **Review loop converged** (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate), mark the PR ready for review now: `gh pr ready <PR-NUMBER|URL>`. This is the same class of GitHub PR state change as resolving a review thread, not a code change.
 - Do **this only on a converged loop.** If the loop stopped at round 3 without converging, the PR stays a Draft — never promote a PR that still carries a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar. A Moderate deferred into a sub-issue is not such a finding: it is resolved for this PR and recorded in the tracker.

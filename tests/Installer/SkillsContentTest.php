@@ -79,7 +79,7 @@ test('draft-PR-until-review-converges policy is wired through the rule and the P
     $packageDir = dirname(__DIR__, 2);
 
     // Canonical policy lives in the git rule.
-    $git = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $git = gitRuleContents();
     expect($git)->toContain('### Draft pull requests');
     expect($git)->toContain('gh pr create --draft');
     expect($git)->toContain('gh pr ready');
@@ -149,7 +149,7 @@ test('merge-github-pr post-merge step includes conditional worktree cleanup with
 
 test('the merge gate reads zero Critical with no undeferred Moderate, coherently everywhere', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $git = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $git = gitRuleContents();
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
 
@@ -231,7 +231,7 @@ test('dependency-only pull requests are exempt from the code-review merge gate',
     $packageDir = dirname(__DIR__, 2);
 
     // Canonical policy lives in the git rule.
-    $git = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $git = gitRuleContents();
     expect($git)->toContain('### Dependency-only pull requests (code-review exemption)');
     expect($git)->toContain('**Manifests and lockfiles only.**');
     expect($git)->toContain('**Version bumps of already-present packages only.**');

@@ -1,5 +1,7 @@
 ---
 description: Language rule for reports published to issue trackers (GitHub, JIRA, Bugsnag)
+paths:
+  - ".claude/rules/reports/**"
 ---
 
 ## Tracker-Published Reports — Language

@@ -73,7 +73,7 @@ When the default branch carries no `CLAUDE.md`, skip the gate. This is not a fin
 
 ### Scope — `CLAUDE.md` only, deliberately
 
-The gate reads `CLAUDE.md` and nothing else. It does **not** read `.cursor/rules/`, `AGENTS.md`, `.github/copilot-instructions.md`, or any other agent-instruction convention. This is a deliberate choice rather than an oversight, on three grounds: `CLAUDE.md` is the only file the request behind this gate named; it is already the one file this package's own rules treat as the canonical hand-curated instruction file (`@rules/compound-engineering/general.md` *Compound Memory*, `@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*); and widening the surface now would be unrequested complexity under this file's own *Simplicity First* bullet. A later change may extend the gate to another file, on its own stated reasoning.
+The gate reads `CLAUDE.md` and nothing else. It does **not** read `.cursor/rules/`, `AGENTS.md`, `.github/copilot-instructions.md`, or any other agent-instruction convention. This is a deliberate choice rather than an oversight, on three grounds: `CLAUDE.md` is the only file the request behind this gate named; it is already the one file this package's own rules treat as the canonical hand-curated instruction file (`@rules/compound-engineering/memory.md` *Compound Memory*, `@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*); and widening the surface now would be unrequested complexity under this file's own *Simplicity First* bullet. A later change may extend the gate to another file, on its own stated reasoning.
 
 ## Scope
 - Focus only on relevant changes in the PR unless broader context is required.

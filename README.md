@@ -306,8 +306,8 @@ with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skil
 
 ## Rules Overview
 
-30 rule files: a small always-on baseline every run applies, on-demand rules for code review,
-trackers, JIRA and refactoring, plus scoped rules for PHP, Laravel,
+32 rule files: a small always-on baseline every run applies, on-demand rules for code review,
+trackers, project memory, pull requests, tracker reports, JIRA and refactoring, plus scoped rules for PHP, Laravel,
 security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
 **[`docs/rules.md`](docs/rules.md)**.
 

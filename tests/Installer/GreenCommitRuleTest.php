@@ -13,8 +13,7 @@ declare(strict_types = 1);
  * — and pin that the trade-off itself is stated rather than silently dropped.
  */
 test('the git rule gates the merged head and states what deferring the gate trades away (issue #233, revised)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // The gate is pinned to the one commit that actually ships, and to the skill that runs it.
     expect($rule)->toContain('**The merged head is green; intermediate commits are not gated.**');
@@ -46,8 +45,7 @@ test('the git rule gates the merged head and states what deferring the gate trad
 });
 
 test('the green-commit rule declares its own review severity (issue #233)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // Without a declared severity a reviewer falls back to the generic stratification and can wave
     // a committed failing test through as a style nit.
@@ -137,8 +135,7 @@ test('the TDD cycle keeps RED out of the commit history (issue #233)', function 
 });
 
 test('the withdrawn cherry-pick guarantee is named as withdrawn, not left implied (issue #233)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $rule = gitRuleContents();
 
     // This used to assert that cherry-pick independence survived the gate deferral. The granularity
     // mandate it belonged to is now withdrawn too, so the rule must say both properties are gone

@@ -57,7 +57,7 @@ test('the review rules narrow the scope and declare the mode on the comment', fu
 
 test('the merge gate lifts only the coverage threshold, on evidence from the review comment', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $git = (string) file_get_contents($packageDir . '/rules/git/general.md');
+    $git = gitRuleContents();
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
     // The existing two code-review exemptions stay two: a hotfix is reviewed, only differently.
