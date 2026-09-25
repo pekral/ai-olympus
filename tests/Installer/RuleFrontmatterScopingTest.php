@@ -212,7 +212,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // pinned by `tests/Installer/LaravelRulesContentTest.php`.
         // Re-baselined: `## Testing` gained the ban on a real DNS lookup or raw network socket in a
         // test, with the fake bound in `tests/TestCase.php`. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => '4cd976feb5caf9669534bdb9e0a0921caed3f9c6244768bb90b154abdb16e775',
+        // Re-baselined once more: the DNS bullet now names the seam an injectable seam class
+        // dedicated to that capability, matching the per-capability wording in
+        // `rules/code-testing/general.md`. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => '8c8f089a1a9ad76e686f3203a83273905c2429a23b5388def566086ce7780491',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -384,7 +387,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: `## External Calls` replaced "Avoid DNS lookups in tests." with the
         // no-network-below-HTTP contract — the named functions, the injectable seam faked by the
         // base test case, and the Critical CR severity. Nothing else in the file moved.
-        'rules/code-testing/general.md' => '69611a197eee8df1867eadf0f72214045673e2838fe16f31de40da5dd8a7cc16',
+        // Re-baselined once more: the seam bullet now states one seam per capability, and a new
+        // bullet exempts the seam's own delegation line from Coverage — it is a single call to the
+        // native function with no logic, excluded via `@codeCoverageIgnore` or covered only in the
+        // isolated integration group. Nothing else in the file moved.
+        'rules/code-testing/general.md' => '51cb20329f6f5c90191eddb4b46290db72811df80bc9eecf64b03b5d92ee33fd',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
