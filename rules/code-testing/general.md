@@ -82,7 +82,12 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Tests must not call external services.
 - Mock all HTTP requests.
 - Use local or in-memory database connections for tests.
-- Avoid DNS lookups in tests.
+- **A test never reaches the real network below HTTP.** This covers DNS resolution and raw connections: `dns_get_record()`, `checkdnsrr()`, `dns_check_record()`, `getmxrr()`, `dns_get_mx()`, `gethostbyname()`, `gethostbynamel()`, `gethostbyaddr()`, `fsockopen()`, `pfsockopen()`, `stream_socket_client()`, `socket_connect()`, `ftp_connect()`, `ftp_ssl_connect()`, and `ldap_connect()`. The list names the common cases and is not exhaustive: every function that queries a resolver or opens a connection to another host is covered.
+- **The rule covers the code under test, not only the test file.** A test that drives production code into `dns_get_record()` performs a real lookup, even when the test file never names the function. A lookup that returns an empty result is still a real query: it depends on the machine's resolver, it stalls the suite when the resolver times out, and it sends the queried host names to the network.
+- **Production code calls such a function through one injectable seam.** Wrap the function in a small class that the container resolves, for example `DnsResolver::records(string $hostname, int $type)`. Every other class depends on that seam and never on the global function.
+- **The base test case replaces the seam by default.** Bind a fake that performs no I/O in the shared test setup. A test that configures nothing then still cannot reach the network. A test that needs records configures them on that fake.
+- **A namespace function override is not a replacement.** Declaring `namespace App\Foo; function dns_get_record() {…}` catches only an unqualified call from that exact namespace, and only after a test loads the file. A fully qualified `\dns_get_record()`, a `use function dns_get_record;` import, or a call from another namespace reaches the real resolver again, and nothing reports it.
+- CR severity: **Critical**. The review applies the gate **Real DNS lookup or network socket** in `@rules/code-review/review-process.md` *Test isolation — no real HTTP, no real system processes*.
 
 ## Consistency
 - Ensure new or modified tests follow existing project conventions.

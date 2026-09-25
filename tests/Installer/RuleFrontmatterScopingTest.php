@@ -210,7 +210,9 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: Controllers must return an explicit HTTP response instead of relying on
         // Laravel to implicitly normalize a domain value. The related Core Analysis bullet is
         // pinned by `tests/Installer/LaravelRulesContentTest.php`.
-        'rules/laravel/laravel.md' => '918cb0e742e00412d166fc0b94108dbed460be6487cb860b79c12ee1e979780f',
+        // Re-baselined: `## Testing` gained the ban on a real DNS lookup or raw network socket in a
+        // test, with the fake bound in `tests/TestCase.php`. Nothing else in the file moved.
+        'rules/laravel/laravel.md' => '4cd976feb5caf9669534bdb9e0a0921caed3f9c6244768bb90b154abdb16e775',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -379,7 +381,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // visibility for a test in `rules/php/core-standards.md`. Nothing else in the file moved.
         // Re-baselined: E2E behaviour evidence is preferred, and an isolated test requires a
         // prior failure inventory. `tests/Installer/SkillsContentTest.php` pins the new policy.
-        'rules/code-testing/general.md' => '1b4898d6a320da8c1e102418f1088232128dad014216fcb76e338f0281b6505a',
+        // Re-baselined: `## External Calls` replaced "Avoid DNS lookups in tests." with the
+        // no-network-below-HTTP contract — the named functions, the injectable seam faked by the
+        // base test case, and the Critical CR severity. Nothing else in the file moved.
+        'rules/code-testing/general.md' => '69611a197eee8df1867eadf0f72214045673e2838fe16f31de40da5dd8a7cc16',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
