@@ -252,7 +252,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // names the manifest `timezone`, `## Naming` requires English identifiers, and the Minor
         // tier is gone from the `mixed` severity and the misleading-name gating. `## CR Severity Rules`
         // gained the Moderate entry for a comment block carrying prose.
-        'rules/php/core-standards.md' => '06a13d2c785eba6160e76a981f91348992252f3c0d65b159cc0a683fb4085de6',
+        'rules/php/core-standards.md' => 'fa702898edc435ab0e9b7ee3e22a9d220141088381617198e7d4ca58d20db4a6',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -456,7 +456,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: coverage and gate discovery point to the manifest-first order in
         // `skills/resolve-issue/references/quality-gates.md`, the gate run is attributed to
         // Finalization or the merge, and AAA phases are separated by blank lines, never comments.
-        'rules/code-testing/general.md' => '5339067bc52c56b4b92e561b83d7bd6d1eeedf8c642708299809d8ae73ee6b45',
+        'rules/code-testing/general.md' => 'c2a0cf0b305641798e139e2398695bbf7ada3d172a5affc37ea0f75c1c380f90',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
