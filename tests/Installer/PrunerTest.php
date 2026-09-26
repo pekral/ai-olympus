@@ -357,6 +357,27 @@ test('a dangling symlink into the package source is still pruned', function (): 
     }
 });
 
+test('a dangling symlink outside the package source is pruned', function (): void {
+    if (installerSymlinkUnsupported()) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
+    installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
+    symlink($root . '/moved-checkout/skills/removed', $root . '/target/removed');
+
+    try {
+        expect(InstallerPruner::findOrphans($root . '/source', $root . '/target'))->toBe(['removed']);
+        expect(InstallerPruner::pruneDirectory($root . '/source', $root . '/target'))->toBe(1);
+        expect(is_link($root . '/target/removed'))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
 test('a relative symlink that climbs back into the package source is package-owned', function (): void {
     if (installerSymlinkUnsupported()) {
         expect(value: true)->toBeTrue();

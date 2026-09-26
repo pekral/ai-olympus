@@ -41,7 +41,7 @@ description: Unified Git workflow, commits and pull request rules
 - **Read-only review skills are exempt.** A read-only skill switches to the branch and runs `git pull` only to read the diff; it must never rebase, `composer install`, or otherwise rewrite the branch or working tree.
 
 ## Commit Messages
-- Language: English, regardless of the assignment language. Unlike the PR description (which follows the assignment language), commit messages and PR titles are never translated. When the project manifest sets `language.github`, commit messages use that language instead.
+- Language: English, regardless of the assignment language. Unlike the PR description (which follows the assignment language), commit messages and PR titles are never translated. When the project manifest sets `language.github`, commit messages and PR titles use that language instead.
 - Format: `type(scope): short description`
 - Keep messages concise and specific.
 - Use lowercase for `type` and `scope`.

@@ -6,7 +6,7 @@ Project fixers and checkers run **once per branch, at the merge boundary** — n
 2. **Phing** — when the manifest sets no `gate`, check for `build.xml` or `phing.xml` in the project root. If present, list available targets (`phing -l`) and use relevant fixer/checker targets.
 3. **Composer scripts** — when neither source applies, inspect `composer.json` `scripts` section for fixer and checker commands (e.g. `fix`, `check`, `build`, `pint-fix`, `phpcs-fix`, `rector-fix`, `pint-check`, `phpcs-check`, `rector-check`, `test:coverage`).
 
-Export every variable in the manifest `env` before you run a gate or coverage command, whichever source supplied the command.
+Before you run a gate or coverage command, whichever source supplied it, export exactly the `NAME=value` lines `skills/_shared/read-manifest.sh --env` prints — never the raw manifest `env`. When that call exits `4`, it refused a variable that changes which program runs (`PATH`, `GIT_*`, `LD_*`, …): stop and report the refused name instead of running the gate.
 
 A manifest `gate` already fixes the order: run its commands as listed. Otherwise run in this order:
 1. **Fixers** — run all available fixers (e.g. code style, rector, normalize). Fix any issues they report.

@@ -10,7 +10,7 @@
 
 ## Coverage map
 Every in-scope route, with the four layers (✓ / ✗ / n/a). `policy ✗` = no centralized
-policy (defense-in-depth), not "unprotected".
+policy: a Moderate hardening finding, not an exposure.
 
 | Method | URI | auth | authz | scoped | policy | Lane |
 |--------|-----|:----:|:-----:|:------:|:------:|------|

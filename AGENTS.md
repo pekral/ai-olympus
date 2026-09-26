@@ -71,7 +71,6 @@ Strong success criteria let you loop independently. Weak criteria require consta
 
 ## Project conventions
 
-- The quality gate runs once, immediately before merge. Do not run `composer build`, fixers, or checkers during implementation or the code-review loop unless the active skill explicitly owns the pre-merge gate.
+- The quality gate runs once, before the merge — not before every push. Do not run the project's gate, fixers, or checkers while implementing or while working through a code review. `$process-code-review` *Finalization* runs the full gate once, after the review converges; `$merge-github-pr` accepts that record only for the exact head commit being merged, or runs the gate itself. `.agents/skills/resolve-issue/references/quality-gates.md` defines how the project's gate command is discovered.
 - Git worktrees are supported, but create one only when the user explicitly requests it.
-- Generated `.claude/`, `.codex/`, and `.agents/` directories are not source files in this package. Edit the tracked `rules/`, `skills/`, `agents/`, and `codex/` sources instead.
 - Read relevant entries in `docs/memory/PROJECT_MEMORY.md` before starting a task.

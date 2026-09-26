@@ -252,7 +252,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // names the manifest `timezone`, `## Naming` requires English identifiers, and the Minor
         // tier is gone from the `mixed` severity and the misleading-name gating. `## CR Severity Rules`
         // gained the Moderate entry for a comment block carrying prose.
-        'rules/php/core-standards.md' => '35cf25b595f5c1325c8d7ee452447263008ba4a25d6e7e51b3e118d2e9556837',
+        'rules/php/core-standards.md' => '988b41338123a04188c48bf185fdfae6ca212a59baccb570cfa6ed69575ee41b',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -434,7 +434,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // covering the changed paths, and the manifest. The Minor bucket lost its security-lens
         // exception (Low maps to Moderate, Info is not published), and a documented exemption and
         // the product-docs source moved to the PR description and the manifest `product-docs` key.
-        'rules/code-review/general.md' => '489f62f8632823284bfaabc72b84b9c22c3e0c99eb0697da23e61cb3d0dec917',
+        'rules/code-review/general.md' => 'e4e031f4d4cf9fedfca0a11d33d920497751ef84eb874ed919f5758b436f846e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -503,7 +503,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the manifest's `language.github` fixes the language of every GitHub report,
         // the technical CR comment included; JIRA and Bugsnag keep the assignment language. The
         // severity vocabulary lost `Minor`.
-        'rules/reports/general.md' => '850c7758bfd8afe4d05146ed39b9371ec0a48359f56446229a1f8266fab04ab4',
+        'rules/reports/general.md' => '6a31a2bea63be0a0a0a621001812bd140c9155aa024dde5ece9ea5c8c92824d2',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

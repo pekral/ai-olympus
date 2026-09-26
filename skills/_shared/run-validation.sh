@@ -79,8 +79,8 @@
 #     "validation": { "executables": ["vendor/bin/castor"] },
 #     "env": { "CLAUDECODE": "1" }
 #   An extra executable must be a `vendor/bin/<name>` path. `env` is exported to
-#   every executed command; a name that changes how a program is loaded or
-#   resolved (PATH, LD_*, DYLD_*, BASH_ENV, …) is refused. An unacceptable
+#   every executed command exactly as `read-manifest.sh --env` validates it — the
+#   one check every consumer of the manifest environment shares. An unacceptable
 #   manifest entry refuses the whole run, exactly like an unacceptable command.
 #
 # Exit codes
@@ -137,10 +137,6 @@ ALLOWED_EXECUTABLES=(
 # these are already inert — the check exists so a manifest that carries them is
 # refused loudly instead of running with them as literal argument text.
 SHELL_METACHARACTERS=';|&$`(){}<>*?!#'
-
-# Environment names a project manifest may never set: each changes which program
-# runs or what it loads before its first line executes.
-PROTECTED_ENV_RE='^(PATH|IFS|ENV|BASH_ENV|BASHOPTS|SHELLOPTS|CDPATH|GLOBIGNORE|PS4|PROMPT_COMMAND|NODE_OPTIONS|PHPRC|PHP_INI_SCAN_DIR|LD_.*|DYLD_.*)$'
 
 safe_display() {
   printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-200
@@ -266,7 +262,7 @@ PROJECT_ENV=()
 # manifest. Every entry is checked before any command runs; one unacceptable
 # entry refuses the run.
 load_project_manifest() {
-  local reader project entry name value
+  local reader project entry
   reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
   [[ -f "$reader" ]] || return 0
   project="$(bash "$reader" 2>/dev/null)" || project='{}'
@@ -281,19 +277,19 @@ load_project_manifest() {
     ALLOWED_EXECUTABLES+=("$entry")
   done < <(printf '%s' "$project" | jq -r '(.validation // {}).executables // [] | .[] | tostring')
 
-  if ! printf '%s' "$project" | jq -e '(.env // {}) | type == "object"' >/dev/null 2>&1; then
-    refuse 'project manifest: env must be an object'
+  local env_lines env_status=0 reason
+  env_lines="$(bash "$reader" --env 2>/dev/null)" || env_status=$?
+  if [[ "$env_status" -eq 4 ]]; then
+    reason="$(bash "$reader" --env 2>&1 >/dev/null || true)"
+    refuse "project manifest: $(safe_display "${reason#*: }")"
   fi
-  while IFS=$'\t' read -r name value; do
-    if [[ ! "$name" =~ ^[A-Z][A-Z0-9_]*$ || "$name" =~ $PROTECTED_ENV_RE ]]; then
-      refuse "project manifest: env name is not allowed — $(safe_display "$name")"
-    fi
-    if [[ ! "$value" =~ ^[A-Za-z0-9._:/@%+=,-]*$ ]]; then
-      refuse "project manifest: env value of $name carries a character that is not allowed"
-    fi
-    export "$name=$value"
-    PROJECT_ENV+=("$name=$value")
-  done < <(printf '%s' "$project" | jq -r '(.env // {}) | to_entries[] | [.key, (.value | tostring)] | @tsv')
+  [[ "$env_status" -eq 0 ]] || return 0
+
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    export "${entry?}"
+    PROJECT_ENV+=("$entry")
+  done <<<"$env_lines"
 }
 
 run_manifest() {
@@ -598,6 +594,11 @@ STUB
   manifest_project "$tmp/path-env" '{ "extra": { "ai-olympus": { "env": { "PATH": "/tmp/evil" } } } }'
   VERDICT_PROJECT="$tmp/path-env"
   verdict 'a manifest env that redirects PATH refuses the run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
+
+  manifest_project "$tmp/git-env" '{ "extra": { "ai-olympus": { "env": { "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.fsmonitor" } } } }'
+  VERDICT_PROJECT="$tmp/git-env"
+  verdict 'a manifest env that injects git configuration refuses the run' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
 
   manifest_project "$tmp/value-env" '{ "extra": { "ai-olympus": { "env": { "FOO": "a b" } } } }'

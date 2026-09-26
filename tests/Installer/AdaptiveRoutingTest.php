@@ -80,6 +80,7 @@ test('a sensitive area forces CRITICAL and a lower override is refused, not appl
         'the working tree cannot remove a project critical path',
         'an invalid project regex fails towards CRITICAL',
         'without a manifest a deploy descriptor is STANDARD',
+        'an unparsable manifest with critical paths fails towards CRITICAL',
     ] as $label) {
         expect($content)->toContain('\'' . $label . '\'');
     }

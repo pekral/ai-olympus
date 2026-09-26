@@ -91,7 +91,7 @@ final class InstallerPruner
     {
         $linkTarget = is_link($path) ? readlink($path) : false;
 
-        if ($linkTarget === false) {
+        if ($linkTarget === false || realpath($path) === false) {
             return false;
         }
 

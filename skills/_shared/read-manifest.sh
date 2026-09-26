@@ -19,10 +19,12 @@
 #   package keeps its built-in behaviour.
 #
 # Usage
-#   read-manifest.sh [--ref <git-ref>]
+#   read-manifest.sh [--ref <git-ref>] [--env | --raw]
 #   read-manifest.sh --self-test
 #
 #   --ref  read composer.json from this ref instead of the default branch
+#   --env  print the manifest `env` as validated NAME=value lines, one per line
+#   --raw  print composer.json from the ref as it is, without parsing it (no jq)
 #
 #   composer.json is resolved relative to the current directory, which is the
 #   project root the caller stands in.
@@ -31,18 +33,31 @@
 #   The manifest as one line of JSON. `{}` when there is no default-branch ref,
 #   no composer.json on it, or no `extra.ai-olympus` object in it.
 #
+# Environment (--env)
+#   Every consumer that exports the manifest `env` reads it through `--env`, so
+#   one check guards them all. A name must match ^[A-Z][A-Z0-9_]*$ and must not
+#   be one that changes which program runs or what it loads before its first
+#   line: PATH, HOME, TMPDIR, SHELL, LD_*, DYLD_*, BASH_ENV, GIT_*, PERL5*,
+#   PYTHON*, RUBY*, NODE_OPTIONS, NPM_CONFIG_*, COMPOSER_*, PHPRC, XDG_*, and the
+#   rest of PROTECTED_ENV_RE below. A value must stay within [A-Za-z0-9._:/@%+=,-].
+#   One refused entry refuses the whole environment: nothing is printed and the
+#   exit code is 4.
+#
 # Exit codes
 #   0  the manifest was printed (possibly `{}`)
 #   1  usage error
 #   2  missing required tool (git or jq)
 #   3  composer.json on the ref is not valid JSON; `{}` is still printed
+#   4  --env refused an entry; nothing is printed
 set -euo pipefail
 
 PROG="${0##*/}"
 
+PROTECTED_ENV_RE='^(PATH|IFS|ENV|BASH_ENV|BASHOPTS|SHELLOPTS|SHELL|CDPATH|GLOBIGNORE|PS4|PROMPT_COMMAND|HOME|TMPDIR|MAKEFLAGS|MFLAGS|NODE_OPTIONS|NPM_CONFIG_.*|COMPOSER_.*|PHPRC|PHP_INI_SCAN_DIR|JAVA_TOOL_OPTIONS|GCONV_PATH|LOCPATH|NLSPATH|PERLLIB|LD_.*|DYLD_.*|GIT_.*|PERL5.*|PYTHON.*|RUBY.*|XDG_.*)$'
+
 usage() {
   cat >&2 <<'EOF'
-Usage: read-manifest.sh [--ref <git-ref>]
+Usage: read-manifest.sh [--ref <git-ref>] [--env | --raw]
        read-manifest.sh --self-test
 
 Prints extra.ai-olympus of ./composer.json on the default branch as JSON,
@@ -68,8 +83,34 @@ default_ref() {
   return 1
 }
 
+print_env() {
+  local manifest="$1" name value
+  local -a lines=()
+
+  if ! printf '%s' "$manifest" | jq -e '(.env // {}) | type == "object"' >/dev/null 2>&1; then
+    echo "$PROG: env must be an object" >&2
+    return 4
+  fi
+
+  while IFS=$'\t' read -r name value; do
+    [[ -n "$name" ]] || continue
+    if [[ ! "$name" =~ ^[A-Z][A-Z0-9_]*$ || "$name" =~ $PROTECTED_ENV_RE ]]; then
+      echo "$PROG: env name is not allowed: $name" >&2
+      return 4
+    fi
+    if [[ ! "$value" =~ ^[A-Za-z0-9._:/@%+=,-]*$ ]]; then
+      echo "$PROG: env value of $name carries a character that is not allowed" >&2
+      return 4
+    fi
+    lines+=("$name=$value")
+  done < <(printf '%s' "$manifest" | jq -r '(.env // {}) | to_entries[] | [.key, (.value | tostring)] | @tsv')
+
+  [[ "${#lines[@]}" -eq 0 ]] || printf '%s\n' "${lines[@]}"
+  return 0
+}
+
 read_manifest() {
-  local ref=""
+  local ref="" mode="json"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -77,6 +118,10 @@ read_manifest() {
       [[ $# -ge 2 ]] || { usage; return 1; }
       ref="$2"
       shift 2
+      ;;
+    --env | --raw)
+      mode="${1#--}"
+      shift
       ;;
     *)
       usage
@@ -87,29 +132,42 @@ read_manifest() {
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "$PROG: not a git checkout — using no manifest" >&2
-    printf '{}\n'
+    [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
   fi
 
   if [[ -z "$ref" ]] && ! ref="$(default_ref)"; then
     echo "$PROG: no default-branch ref — using no manifest" >&2
-    printf '{}\n'
+    [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
   fi
 
   local composer
   if ! composer="$(git show "$ref:./composer.json" 2>/dev/null)"; then
-    printf '{}\n'
+    [[ "$mode" == "json" ]] && printf '{}\n'
+    return 0
+  fi
+
+  if [[ "$mode" == "raw" ]]; then
+    printf '%s\n' "$composer"
     return 0
   fi
 
   if ! printf '%s' "$composer" | jq -e . >/dev/null 2>&1; then
     echo "$PROG: composer.json on $ref is not valid JSON — using no manifest" >&2
-    printf '{}\n'
+    [[ "$mode" == "json" ]] && printf '{}\n'
     return 3
   fi
 
-  printf '%s' "$composer" | jq -c '(.extra // {})["ai-olympus"] // {} | if type == "object" then . else {} end'
+  local manifest
+  manifest="$(printf '%s' "$composer" | jq -c '(.extra // {})["ai-olympus"] // {} | if type == "object" then . else {} end')"
+
+  if [[ "$mode" == "env" ]]; then
+    print_env "$manifest"
+    return $?
+  fi
+
+  printf '%s\n' "$manifest"
 }
 
 SELF_TEST_TMP=""
@@ -179,8 +237,18 @@ self_test() {
   commit_composer "$repo" '{ not json'
   expect_output 'invalid composer.json yields {} and exit 3' "$repo" '{}' 3 --ref HEAD
 
+  commit_composer "$repo" '{ "extra": { "ai-olympus": { "env": { "CLAUDECODE": "1", "TELESCOPE_ENABLED": "false" } } } }'
+  expect_output '--env prints validated NAME=value lines' "$repo" $'CLAUDECODE=1\nTELESCOPE_ENABLED=false' 0 --ref HEAD --env
+  expect_output '--raw prints composer.json unparsed' "$repo" '{ "extra": { "ai-olympus": { "env": { "CLAUDECODE": "1", "TELESCOPE_ENABLED": "false" } } } }' 0 --ref HEAD --raw
+
+  local refused
+  for refused in '"PATH": "/tmp/evil"' '"GIT_CONFIG_COUNT": "1"' '"PERL5OPT": "-Mevil"' '"LD_PRELOAD": "x.so"' '"HOME": "/tmp"' '"lower": "1"' '"FOO": "a b"'; do
+    commit_composer "$repo" "{ \"extra\": { \"ai-olympus\": { \"env\": { $refused, \"CLAUDECODE\": \"1\" } } } }"
+    expect_output "--env refuses ${refused%%:*}" "$repo" '' 4 --ref HEAD --env
+  done
+
   mkdir -p "$repo/app"
-  git -C "$repo" update-ref refs/remotes/origin/master "$(git -C "$repo" rev-parse HEAD~4)"
+  git -C "$repo" update-ref refs/remotes/origin/master "$(git -C "$repo" rev-parse HEAD~11)"
   expect_output 'composer.json resolves relative to the current directory' "$repo/app" '{}' 0
 
   local actual
@@ -203,7 +271,9 @@ self_test() {
   return 0
 }
 
-for tool in git jq; do
+required_tools=(git jq)
+[[ " $* " == *" --raw "* ]] && required_tools=(git)
+for tool in "${required_tools[@]}"; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "$PROG: required tool not found: $tool" >&2
     exit 2
