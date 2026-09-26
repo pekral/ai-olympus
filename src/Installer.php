@@ -137,9 +137,11 @@ final class Installer
         $copied = 0;
 
         if (is_file($claudeMdTarget) || !is_file($agentsMdTarget)) {
+            $instructionsTarget = InstallerPath::resolveClaudeInstructionsTarget($root);
+            InstallerPath::ensureDirectory(dirname($instructionsTarget));
             $copied += InstallerFileCopier::installSingleFile(
                 InstallerPath::resolveClaudeMdSource(),
-                $claudeMdTarget,
+                $instructionsTarget,
             );
         }
 
