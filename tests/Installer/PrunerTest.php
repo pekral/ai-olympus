@@ -278,14 +278,11 @@ test('findOrphans does not descend through a directory symlink inside the target
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
     installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
-    installerWriteFile($root . '/outside/secret.md', 'secret');
-    symlink($root . '/outside', $root . '/target/escape');
+    symlink($root . '/source/keep', $root . '/target/escape');
 
     try {
         $orphans = InstallerPruner::findOrphans($root . '/source', $root . '/target');
 
-        // The symlink itself is reported as an orphan leaf — it is never descended into, so no
-        // path outside the target (e.g. `escape/secret.md`) is ever enumerated or counted.
         expect($orphans)->toBe(['escape']);
     } finally {
         installerRemoveDirectory($root);
@@ -302,8 +299,7 @@ test('pruning never deletes through a directory symlink inside the target — on
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
     installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
-    installerWriteFile($root . '/outside/secret.md', 'secret');
-    symlink($root . '/outside', $root . '/target/escape');
+    symlink($root . '/source/keep', $root . '/target/escape');
 
     try {
         $pruned = InstallerPruner::pruneDirectory($root . '/source', $root . '/target');
@@ -311,8 +307,70 @@ test('pruning never deletes through a directory symlink inside the target — on
         expect($pruned)->toBe(1);
         expect(file_exists($root . '/target/escape'))->toBeFalse();
         expect(is_link($root . '/target/escape'))->toBeFalse();
-        // The symlink's own directory entry was removed — its target was never touched.
-        expect(is_file($root . '/outside/secret.md'))->toBeTrue();
+        expect(is_file($root . '/source/keep/SKILL.md'))->toBeTrue();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
+test('a symlink pointing outside the package source is project-owned and survives prune', function (): void {
+    if (installerSymlinkUnsupported()) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
+    installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
+    installerWriteFile($root . '/.ai/skills/project-skill/SKILL.md', 'project');
+    symlink('../.ai/skills/project-skill', $root . '/target/project-skill');
+
+    try {
+        expect(InstallerPruner::findOrphans($root . '/source', $root . '/target'))->toBe([]);
+        expect(InstallerPruner::pruneDirectory($root . '/source', $root . '/target'))->toBe(0);
+        expect(is_link($root . '/target/project-skill'))->toBeTrue();
+        expect(is_file($root . '/target/project-skill/SKILL.md'))->toBeTrue();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
+test('a dangling symlink into the package source is still pruned', function (): void {
+    if (installerSymlinkUnsupported()) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
+    installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
+    symlink($root . '/source/removed/SKILL.md', $root . '/target/removed.md');
+
+    try {
+        expect(InstallerPruner::findOrphans($root . '/source', $root . '/target'))->toBe(['removed.md']);
+        expect(InstallerPruner::pruneDirectory($root . '/source', $root . '/target'))->toBe(1);
+        expect(is_link($root . '/target/removed.md'))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});
+
+test('a relative symlink that climbs back into the package source is package-owned', function (): void {
+    if (installerSymlinkUnsupported()) {
+        expect(value: true)->toBeTrue();
+
+        return;
+    }
+
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/source/keep/SKILL.md', 'keep');
+    installerWriteFile($root . '/target/keep/SKILL.md', 'keep');
+    symlink('./../source/./keep', $root . '/target/relative');
+
+    try {
+        expect(InstallerPruner::findOrphans($root . '/source', $root . '/target'))->toBe(['relative']);
     } finally {
         installerRemoveDirectory($root);
     }

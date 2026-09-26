@@ -96,6 +96,17 @@ final class InstallerPath
         // @codeCoverageIgnoreEnd
     }
 
+    public static function resolveClaudeInstructionsTarget(string $root): string
+    {
+        $claudeMdTarget = self::resolveClaudeMdTarget($root);
+
+        if (is_file($claudeMdTarget) || !is_dir($root . '/vendor/laravel/boost')) {
+            return $claudeMdTarget;
+        }
+
+        return $root . '/.ai/guidelines/ai-olympus.md';
+    }
+
     public static function resolveClaudeMdSource(): ?string
     {
         $source = self::getPackageDirectory() . '/templates/CLAUDE.md';

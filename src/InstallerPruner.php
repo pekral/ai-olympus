@@ -74,7 +74,8 @@ final class InstallerPruner
 
         return array_values(array_filter(
             $targetFiles,
-            static fn (string $relativePath): bool => !isset($sourceFileSet[$relativePath]),
+            static fn (string $relativePath): bool => !isset($sourceFileSet[$relativePath])
+                && !self::isProjectOwnedSymlink($targetDir . '/' . $relativePath, $source),
         ));
     }
 
@@ -84,6 +85,71 @@ final class InstallerPruner
     public static function listSourceFiles(string $source): array
     {
         return self::listFiles($source);
+    }
+
+    private static function isProjectOwnedSymlink(string $path, string $source): bool
+    {
+        $linkTarget = is_link($path) ? readlink($path) : false;
+
+        if ($linkTarget === false) {
+            return false;
+        }
+
+        $absoluteTarget = str_starts_with($linkTarget, '/') ? $linkTarget : dirname($path) . '/' . $linkTarget;
+        $sourceRoots = self::pathSpellings($source);
+
+        foreach (self::pathSpellings($absoluteTarget) as $candidate) {
+            if (self::isWithinAny($candidate, $sourceRoots)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function pathSpellings(string $path): array
+    {
+        $resolved = realpath($path);
+
+        return $resolved === false ? [self::normalizePath($path)] : [self::normalizePath($path), $resolved];
+    }
+
+    /**
+     * @param array<int, string> $roots
+     */
+    private static function isWithinAny(string $candidate, array $roots): bool
+    {
+        foreach ($roots as $root) {
+            if ($candidate === $root || str_starts_with($candidate, $root . '/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function normalizePath(string $path): string
+    {
+        $segments = [];
+
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                array_pop($segments);
+
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        return '/' . implode('/', $segments);
     }
 
     private static function removeEmptyDirectories(string $directory, string $stopAt): void
