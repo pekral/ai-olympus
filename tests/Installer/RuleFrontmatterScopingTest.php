@@ -450,7 +450,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined once more (issue #156, round 2): the generic "helper that fails" fallback
         // bullet now also states that its JIRA MCP payload carries the marker line, an agent
         // marker per `@rules/code-review/general.md` *Authorship trust*.
-        'rules/jira/general.md' => '727c734cfdc49815b7e132d452fd7ce8c4eb531e6f9490cd1e3354438644e9cb',
+        // Re-baselined once more (issue #156, round 4): the marker rule it cites is renamed to
+        // *Every comment an agent publishes on GitHub or JIRA carries a marker*, and the generic
+        // fallback bullet names the no-e-mail case, where the MCP fallback cannot compute the
+        // digest either and the run stops as blocked.
+        'rules/jira/general.md' => '8d8484189777533656903fe968f7b99339eef2c3d05538491bdf90f7217be99b',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
