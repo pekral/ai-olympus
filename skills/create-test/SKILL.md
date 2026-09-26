@@ -51,7 +51,7 @@ Follow this order:
 
 ### 3. Cover the Changed Behaviour
 - Cover each changed behaviour once, at its owner boundary: the happy path, each edge case with a credible regression, and a regression scenario only for a genuine observable behavior gap
-- An uncovered changed line is resolved per `@skills/test-audit/SKILL.md` *Coverage* — a behavioural test, removal of unneeded code, or an explicit conflict report
+- An uncovered changed line is resolved per `@skills/test-audit/SKILL.md` *Coverage* — a behavioural test, a report that the line is removable code, or an explicit conflict report
 
 ### 4. Validate
 - Run relevant tests after each change and confirm they pass
@@ -98,7 +98,7 @@ Rules:
 
 - Created or updated test files
 - The authoring-gate record: one line per new or changed test (what it protects, the regression it catches, its owner boundary, its overlap)
-- Coverage status for current changes (must be 100%, or the explicitly reported conflict)
+- Coverage status for current changes (must be 100%; a reported conflict or removable line leaves the gate open)
 - Test review result
 - List of pre-existing fix commits (if any), each with a one-line rationale, plus any pre-existing issue deferred as a follow-up with the reason
 

@@ -25,7 +25,7 @@ change → observable behaviour / risk / contract → strongest owner boundary
 
 This skill runs in one of three modes, selected by the caller via `MODE` (default `authoring`):
 
-- **`authoring` (default) — the lightweight gate.** `@skills/create-test/SKILL.md`, `@skills/create-missing-tests-in-pr/SKILL.md`, `@skills/test-driven-development/SKILL.md`, `@skills/rewrite-tests-pest/SKILL.md`, and every agent that adds or changes a test run it before the test is written. Scope: the changed behaviour, the tests directly related to it, and its direct owner boundary. It never reads the whole suite.
+- **`authoring` (default) — the lightweight gate.** `@skills/create-test/SKILL.md`, `@skills/create-missing-tests-in-pr/SKILL.md`, `@skills/test-driven-development/SKILL.md`, and every agent that adds or changes a test run it before the test is written. Scope: the changed behaviour, the tests directly related to it, and its direct owner boundary. It never reads the whole suite. `@skills/rewrite-tests-pest/SKILL.md` applies only the *Junk patterns*: it rewrites a junk assertion into a falsifiable one and lists a test with no contract as an `audit` candidate — a rewrite never drops a test.
 - **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff adds or modifies a test)** — **never modify code, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Apply the *Authoring gate* and the *Junk patterns* to the tests the diff adds or modifies, and to the production lines those tests exist for. Return findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate buckets. Every instruction below that would touch a file is emitted as a written proposal.
 - **`audit` (read-only discovery, explicit request only)** — runs only when the user asks for it (`audit tests`, `/test-audit <scope>`). It is never an automatic step of an issue, implementation, or review workflow. See *Audit mode*.
 
@@ -70,7 +70,7 @@ A bug regression test must, in this order:
 The coverage gate stays: every changed line is covered (`@rules/code-testing/general.md` *Coverage*). **An uncovered changed line is a question, never an order to write a test.** Resolve it in this order:
 
 1. **Identify the behaviour or the credible risk the line carries.** When one exists and no test proves it, write the test through the *Authoring gate*.
-2. **When the line carries no behaviour the change needs, it is unnecessary code** — remove it (`@rules/code-testing/general.md` *Acceptance-Criteria Test Contract*, *Simplicity First*).
+2. **When the line carries no behaviour the change needs, it is unnecessary code** — remove it (`@rules/code-testing/general.md` *Acceptance-Criteria Test Contract*, *Simplicity First*). A caller that may not change production code (`create-test`, `create-missing-tests-in-pr`) removes nothing: it reports the line as removable code in its output.
 3. **When neither applies** — the line is required by a contract but has no meaningful test — **report the conflict explicitly**: the `file:line`, the contract that requires the line, and why no behavioural test can reach it. Never close the gap with a fake, coverage-only, or implementation-coupled test. The gate stays open for a human decision.
 
 ## Junk patterns
@@ -127,5 +127,5 @@ The shared checklist for every mode: the authoring gate rejects a new test that 
 - No new or changed test matches a junk pattern.
 - Each contract has one primary test at its owner boundary; every additional test names its distinct failure mode.
 - Every regression test was observed failing before the fix, where the workflow allowed it.
-- The coverage gate is met by behavioural tests, by removed code, or by an explicitly reported conflict — never by a coverage-only test.
+- Every changed line is covered by a behavioural test or removed. A line neither can reach is reported as an explicit conflict, and the coverage gate stays open for a human decision — never closed by a coverage-only test.
 - An audit changed nothing before the user approved its candidates, and every `DELETE` carries complete removal evidence.

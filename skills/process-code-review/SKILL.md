@@ -74,7 +74,7 @@ Read the reproducer fields off `comments[]` and `body` / `descriptionText` retur
 - **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
 - **JIRA-originated reviews:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>`. Never call `acli` directly.
 
-Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
+Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` because the fix changes no behaviour (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
 
 1. Drop the Faulty Example into a new test case at the layer named in the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.

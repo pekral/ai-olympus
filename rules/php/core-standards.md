@@ -137,7 +137,7 @@ sequential workflow tests where each act→assert step depends on the state left
 - Prefer data providers through test arguments rather than PHPDoc annotations.
 - Avoid reflection in tests unless there is no reasonable alternative, and never use it to reach a private member (see *Never widen visibility for a test* below).
 - **Never widen visibility for a test.** Production visibility is decided by production callers only (see *Structure* → *A method called only from inside its own class is `private`*). A test never changes it. The following are all the same defect: a `private` method made `protected` or `public` so a test can call it; a `@internal`, `@visibleForTesting`, or similar annotation on a member widened for a test; a test-only subclass that re-exposes a `protected` member; and reflection (`ReflectionMethod::setAccessible()`, `Closure::bind()`, `invoke()` on a private member) that reaches past the visibility instead of changing it. When a private method needs tests, write the tests another way:
-    1. Test the behaviour through the public method that calls the private one, with inputs that drive each branch of the private method.
+    1. Test the behaviour through the public method that calls the private one, with inputs that exercise each behaviour the private method carries.
     2. When that path is too long to set up, the private method holds a responsibility of its own. Extract it into a new class with its own public method, inject that class, and test the new class directly.
     3. When neither works, stop and report it. Never change the visibility to make the test pass.
 - Split complex conditional test setups into separate test cases instead of branching inside a test.
