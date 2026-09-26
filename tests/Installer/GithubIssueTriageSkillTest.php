@@ -347,10 +347,11 @@ test('sweep evidence self-test runs the script and covers every structure and ev
         'evidence — a merged pull request into the default branch',
         'evidence — an open pull request wins, one pull request is listed once, a foreign one is ignored',
         'evidence — no pull request at all',
-        'evidence — merged into another branch is not merged',
+        'evidence — merged into another branch is not merged, a truncated timeline is reported',
         'structure — a direct epic in an epic',
         'structure — an epic in an epic through an umbrella issue',
         'structure — a closed epic in an open epic',
+        'structure — a closed epic under an umbrella issue in an open epic',
         'structure — an issue with no epic',
         'summary — every bucket is counted separately',
         'read-only — gh calls were:',
@@ -393,7 +394,13 @@ test('backlog sweep reference keeps epics, bodies and workflow labels out of rea
 
     // A human's recent label change is a decision, not drift.
     expect($content)->toContain('The sweep never reverts it; it reports the conflict and asks.');
-    expect($content)->toContain('agent-note');
+
+    // A comment is L2 and belongs only to a close or a move, never to a label change.
+    expect($content)->toContain('| Post the evidence comment | L2 | it accompanies a close or a move — never a label change, never on its own |');
+    expect($content)->toContain('A label change gets no comment on the issue');
+
+    $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
+    expect($backlog)->toContain('The one comment a backlog run writes is the backlog sweep\'s `agent-note` that records why an issue was closed or moved');
 
     $skill = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
     expect($skill)->toContain('`references/backlog-sweep.md`');
@@ -411,7 +418,14 @@ test('pending-analysis reference runs analyze-problem read-only and publishes a 
     // Analysis is outside the backlog tier: the top-level session runs it.
     expect($content)->toContain('**It runs in the top-level session, never inside `splinter`\'s backlog tier.**');
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
-    expect($content)->toContain('gh issue list --state open --label analyze');
+    expect($content)->toContain('gh issue list --state open --label analyze --limit 1000');
+    expect($content)->toContain('A listing that returns exactly 1000 issues may be truncated');
+    expect($content)->toContain('`Resolve_by_AI:in-progress` — another run owns it');
+
+    // A public tracker never receives an unfixed vulnerability.
+    expect($content)->toContain('gh repo view --json isPrivate --jq \'.isPrivate\'');
+    expect($content)->toContain('on a **public** repository (`isPrivate` is `false`), an issue labelled `security`');
+    expect($content)->toContain('on a public repository, it discloses no unfixed vulnerability');
 
     // Subagents analyse; only the session holding the consent publishes.
     expect($content)->toContain('never publishes, labels, or edits anything.');
@@ -422,7 +436,12 @@ test('pending-analysis reference runs analyze-problem read-only and publishes a 
 
     // Labels after the analysis: `analyze` goes, routing stays the owner's.
     expect($content)->toContain('**remove `analyze`**');
-    expect($content)->toContain('**Never add it**');
+    expect($content)->toContain('The pass **never adds or removes `Resolve_by_AI`**.');
+    expect($content)->toContain('The pass never assigns `priority: critical`, and never removes or lowers it');
+    expect($content)->toContain('--remove-label "<replaced priority>" --add-label "priority: <level>"');
+
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    expect($orchestration)->toContain('| top-level session | Publish an analysis as an `agent-note` comment on an issue labelled `analyze`');
 
     $skill = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
     expect($skill)->toContain('`references/pending-analysis.md`');

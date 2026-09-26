@@ -26,12 +26,16 @@
 #   - an open epic whose ancestor chain holds another epic
 #     (`structure: epic #A contains epic #C`, with `(via #P)` when an
 #     intermediate issue sits between them)
-#   - a closed epic listed as a sub-issue of an open epic
-#     (`structure: epic #A contains epic #C (closed)`)
+#   - a closed epic listed as a sub-issue of an open epic, or of an open
+#     issue under an epic (`structure: epic #A contains epic #C (closed)`,
+#     with `, via #P` for the intermediate issue). A closed intermediate issue
+#     is not listed, so what sits under it stays out of view.
 #   - an open non-epic issue with no epic in its ancestor chain
 #     (`structure: #N has no epic`)
 #   - an epic whose sub-issue list is longer than one page
 #     (`(+N not listed)` on the epic's own line)
+#   - an issue with more referencing events than one page holds
+#     (`(more references not listed)` after its pull requests)
 #
 # Evidence, per open non-epic issue — a pointer for the reader, never a
 # verdict that the issue is resolved:
@@ -84,9 +88,11 @@ QUERY='query($owner: String!, $name: String!, $endCursor: String) {
         }
         subIssues(first: 100) { totalCount nodes { number state labels(first: 30) { nodes { name } } } }
         closedByPullRequestsReferences(first: 20, includeClosedPrs: true) {
+          totalCount
           nodes { number state merged baseRefName repository { nameWithOwner } }
         }
         timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
+          totalCount
           nodes {
             ... on CrossReferencedEvent {
               source { ... on PullRequest { number state merged baseRefName repository { nameWithOwner } } }
@@ -119,6 +125,9 @@ def evidence($default):
   elif any(.[]; .merged and .baseRefName == $default) then "merged"
   else "unmerged" end;
 def ref_or_dash: if . == null then "-" else "#\(.number)" end;
+def refs_truncated:
+  (.closedByPullRequestsReferences.totalCount // 0) > (.closedByPullRequestsReferences.nodes | length)
+  or (.timelineItems.totalCount // 0) > (.timelineItems.nodes | length);
 
 (.[0].data.repository.defaultBranchRef.name) as $default
 | ([.[].data.repository.issues.nodes[]] | sort_by(.number)) as $issues
@@ -129,17 +138,18 @@ def ref_or_dash: if . == null then "-" else "#\(.number)" end;
     child: .number,
     via: (if .parent.number == nearest_epic.number then null else .parent.number end)
   })) as $open_nested
-| ($epics | map(. as $e | .subIssues.nodes[] | select(.state == "CLOSED" and is_epic) | {epic: $e.number, child: .number})) as $closed_nested
+| (($epics | map(. as $e | .subIssues.nodes[] | select(.state == "CLOSED" and is_epic) | {epic: $e.number, child: .number, via: null}))
+   + ($others | map(select(.epic != null) | . as $o | .subIssues.nodes[] | select(.state == "CLOSED" and is_epic) | {epic: $o.epic.number, child: .number, via: $o.number}))) as $closed_nested
 | ($others | map(select(.epic == null))) as $orphans
 | (
     ($issues[] | if is_epic then
       "#\(.number)  EPIC   parent: \(.parent | ref_or_dash)  open sub-issues: \([.subIssues.nodes[] | select(.state == "OPEN") | "#\(.number)"] | if length == 0 then "-" else join(" ") end)\(if .subIssues.totalCount > (.subIssues.nodes | length) then " (+\(.subIssues.totalCount - (.subIssues.nodes | length)) not listed)" else "" end)  — \(.title)"
     else
       (.number) as $n | ($others[] | select(.number == $n)) |
-      "#\(.number)  issue  epic: \(.epic | ref_or_dash)  parent: \(.parent | ref_or_dash)  labels: \(names | if length == 0 then "-" else join(", ") end)  prs: \(.refs | if length == 0 then "-" else map(pr_text) | join(", ") end)  evidence: \(.refs | evidence($default))  — \(.title)"
+      "#\(.number)  issue  epic: \(.epic | ref_or_dash)  parent: \(.parent | ref_or_dash)  labels: \(names | if length == 0 then "-" else join(", ") end)  prs: \(.refs | if length == 0 then "-" else map(pr_text) | join(", ") end)\(if refs_truncated then " (more references not listed)" else "" end)  evidence: \(.refs | evidence($default))  — \(.title)"
     end),
     ($open_nested[] | "structure: epic #\(.epic) contains epic #\(.child)\(if .via == null then "" else " (via #\(.via))" end)"),
-    ($closed_nested[] | "structure: epic #\(.epic) contains epic #\(.child) (closed)"),
+    ($closed_nested[] | "structure: epic #\(.epic) contains epic #\(.child) (closed\(if .via == null then "" else ", via #\(.via)" end))"),
     ($orphans[] | "structure: #\(.number) has no epic"),
     "summary: \($issues | length) open issues — \($epics | length) epics, \($others | length) other; \(($open_nested | length) + ($closed_nested | length)) nesting violations, \($orphans | length) without an epic; evidence: \([$others[] | select((.refs | evidence($default)) == "merged")] | length) merged, \([$others[] | select((.refs | evidence($default)) == "open-pr")] | length) open-pr, \([$others[] | select((.refs | evidence($default)) == "unmerged")] | length) unmerged, \([$others[] | select((.refs | evidence($default)) == "no-pr")] | length) no-pr"
   )
@@ -239,7 +249,7 @@ STUB
  "closedByPullRequestsReferences":{"nodes":[]},"timelineItems":{"nodes":[]}},
 {"number":11,"title":"feat: umbrella","labels":{"nodes":[{"name":"enhancement"}]},
  "parent":{"number":10,"labels":{"nodes":[{"name":"EPIC"}]},"parent":null},
- "subIssues":{"totalCount":1,"nodes":[{"number":14,"state":"OPEN","labels":{"nodes":[]}}]},
+ "subIssues":{"totalCount":2,"nodes":[{"number":14,"state":"OPEN","labels":{"nodes":[]}},{"number":18,"state":"CLOSED","labels":{"nodes":[{"name":"EPIC"}]}}]},
  "closedByPullRequestsReferences":{"nodes":[]},
  "timelineItems":{"nodes":[{"source":{"number":20,"state":"MERGED","merged":true,"baseRefName":"master","repository":{"nameWithOwner":"stub-owner/stub-repo"}}},{}]}},
 {"number":12,"title":"EPIC | Nested","labels":{"nodes":[{"name":"EPIC"}]},
@@ -267,7 +277,7 @@ STUB
  "parent":{"number":10,"labels":{"nodes":[{"name":"EPIC"}]},"parent":null},
  "subIssues":{"totalCount":0,"nodes":[]},
  "closedByPullRequestsReferences":{"nodes":[{"number":23,"state":"MERGED","merged":true,"baseRefName":"release","repository":{"nameWithOwner":"stub-owner/stub-repo"}}]},
- "timelineItems":{"nodes":[{"source":{"number":24,"state":"CLOSED","merged":false,"baseRefName":"master","repository":{"nameWithOwner":"stub-owner/stub-repo"}}}]}}
+ "timelineItems":{"totalCount":150,"nodes":[{"source":{"number":24,"state":"CLOSED","merged":false,"baseRefName":"master","repository":{"nameWithOwner":"stub-owner/stub-repo"}}}]}}
 ]}}}}
 PAGES
 
@@ -318,18 +328,20 @@ PAGES
     '#14  issue  epic: #10  parent: #11  labels: bug, priority: high  prs: #21 open->master closes, #22 merged->master  evidence: open-pr  — fix: child of the umbrella'
   expect_line 'evidence — no pull request at all' \
     '#15  issue  epic: -  parent: -  labels: documentation  prs: -  evidence: no-pr  — docs: orphan'
-  expect_line 'evidence — merged into another branch is not merged' \
-    '#17  issue  epic: #10  parent: #10  labels: chore  prs: #23 merged->release closes, #24 closed->master  evidence: unmerged  — chore: merged elsewhere'
+  expect_line 'evidence — merged into another branch is not merged, a truncated timeline is reported' \
+    '#17  issue  epic: #10  parent: #10  labels: chore  prs: #23 merged->release closes, #24 closed->master (more references not listed)  evidence: unmerged  — chore: merged elsewhere'
   expect_line 'structure — a direct epic in an epic' \
     'structure: epic #10 contains epic #12'
   expect_line 'structure — an epic in an epic through an umbrella issue' \
     'structure: epic #10 contains epic #16 (via #11)'
   expect_line 'structure — a closed epic in an open epic' \
     'structure: epic #10 contains epic #13 (closed)'
+  expect_line 'structure — a closed epic under an umbrella issue in an open epic' \
+    'structure: epic #10 contains epic #18 (closed, via #11)'
   expect_line 'structure — an issue with no epic' \
     'structure: #15 has no epic'
   expect_line 'summary — every bucket is counted separately' \
-    'summary: 7 open issues — 3 epics, 4 other; 3 nesting violations, 1 without an epic; evidence: 1 merged, 1 open-pr, 1 unmerged, 1 no-pr'
+    'summary: 7 open issues — 3 epics, 4 other; 4 nesting violations, 1 without an epic; evidence: 1 merged, 1 open-pr, 1 unmerged, 1 no-pr'
 
   checks=$((checks + 1))
   if [[ "$out" == *'structure: #11 has no epic'* || "$out" == *'structure: #14 has no epic'* ]]; then
