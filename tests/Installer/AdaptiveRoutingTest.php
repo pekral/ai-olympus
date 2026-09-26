@@ -73,6 +73,16 @@ test('a sensitive area forces CRITICAL and a lower override is refused, not appl
     expect($content)->toContain('forced=\'auth-security-secrets\'');
     expect($content)->toContain('forced=\'migrations-data-loss\'');
     expect($content)->toContain('forced=\'payments-billing\'');
+    expect($content)->toContain('forced=\'project-critical-path\'');
+
+    foreach ([
+        'a project critical path is CRITICAL',
+        'the working tree cannot remove a project critical path',
+        'an invalid project regex fails towards CRITICAL',
+        'without a manifest a deploy descriptor is STANDARD',
+    ] as $label) {
+        expect($content)->toContain('\'' . $label . '\'');
+    }
 });
 
 test('deterministic gates are explicitly outside the trade at every tier', function (): void {

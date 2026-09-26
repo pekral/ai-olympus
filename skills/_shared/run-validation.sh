@@ -72,6 +72,17 @@
 #   A refusal is `status: invalid` with `escalate: true` — never a silent skip,
 #   and never a pass.
 #
+# Project manifest
+#   A project whose checks run through a tool the list does not carry names it
+#   in its manifest (@rules/general/general.md *Project manifest*), read through
+#   `read-manifest.sh` from the default branch, never from the working tree:
+#     "validation": { "executables": ["vendor/bin/castor"] },
+#     "env": { "CLAUDECODE": "1" }
+#   An extra executable must be a `vendor/bin/<name>` path. `env` is exported to
+#   every executed command; a name that changes how a program is loaded or
+#   resolved (PATH, LD_*, DYLD_*, BASH_ENV, …) is refused. An unacceptable
+#   manifest entry refuses the whole run, exactly like an unacceptable command.
+#
 # Exit codes
 #   0  every executed check passed
 #   1  usage error
@@ -126,6 +137,10 @@ ALLOWED_EXECUTABLES=(
 # these are already inert — the check exists so a manifest that carries them is
 # refused loudly instead of running with them as literal argument text.
 SHELL_METACHARACTERS=';|&$`(){}<>*?!#'
+
+# Environment names a project manifest may never set: each changes which program
+# runs or what it loads before its first line executes.
+PROTECTED_ENV_RE='^(PATH|IFS|ENV|BASH_ENV|BASHOPTS|SHELLOPTS|CDPATH|GLOBIGNORE|PS4|PROMPT_COMMAND|NODE_OPTIONS|PHPRC|PHP_INI_SCAN_DIR|LD_.*|DYLD_.*)$'
 
 safe_display() {
   printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-200
@@ -245,6 +260,42 @@ validate_command() {
   return 0
 }
 
+PROJECT_ENV=()
+
+# Extend the executable allow-list and the environment from the project
+# manifest. Every entry is checked before any command runs; one unacceptable
+# entry refuses the run.
+load_project_manifest() {
+  local reader project entry name value
+  reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
+  [[ -f "$reader" ]] || return 0
+  project="$(bash "$reader" 2>/dev/null)" || project='{}'
+
+  if ! printf '%s' "$project" | jq -e '(.validation // {}) | type == "object" and ((.executables // []) | type == "array")' >/dev/null 2>&1; then
+    refuse 'project manifest: validation.executables must be an array'
+  fi
+  while IFS= read -r entry; do
+    if [[ ! "$entry" =~ ^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
+      refuse "project manifest: a validation executable must be a vendor/bin/<name> path — $(safe_display "$entry")"
+    fi
+    ALLOWED_EXECUTABLES+=("$entry")
+  done < <(printf '%s' "$project" | jq -r '(.validation // {}).executables // [] | .[] | tostring')
+
+  if ! printf '%s' "$project" | jq -e '(.env // {}) | type == "object"' >/dev/null 2>&1; then
+    refuse 'project manifest: env must be an object'
+  fi
+  while IFS=$'\t' read -r name value; do
+    if [[ ! "$name" =~ ^[A-Z][A-Z0-9_]*$ || "$name" =~ $PROTECTED_ENV_RE ]]; then
+      refuse "project manifest: env name is not allowed — $(safe_display "$name")"
+    fi
+    if [[ ! "$value" =~ ^[A-Za-z0-9._:/@%+=,-]*$ ]]; then
+      refuse "project manifest: env value of $name carries a character that is not allowed"
+    fi
+    export "$name=$value"
+    PROJECT_ENV+=("$name=$value")
+  done < <(printf '%s' "$project" | jq -r '(.env // {}) | to_entries[] | [.key, (.value | tostring)] | @tsv')
+}
+
 run_manifest() {
   local manifest_arg="" logs_dir="" dry_run=0
 
@@ -304,6 +355,8 @@ run_manifest() {
     fi
   fi
 
+  load_project_manifest
+
   # --- Validate every command before running any of them ---------------------
   #
   # All-or-nothing on purpose: a manifest whose third command is refused must
@@ -328,6 +381,9 @@ run_manifest() {
 
   if [[ "$dry_run" -eq 1 ]]; then
     local item
+    for item in ${PROJECT_ENV[@]+"${PROJECT_ENV[@]}"}; do
+      printf 'env|%s\n' "$item" >&2
+    done
     for item in "${plan[@]}"; do
       printf '%s\n' "$item" >&2
     done
@@ -420,7 +476,7 @@ STUB
 
     local out actual status escalate
     set +e
-    out="$(cd "$tmp/project" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" 2>/dev/null)"
+    out="$(cd "${VERDICT_PROJECT:-$tmp/project}" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" 2>/dev/null)"
     actual=$?
     set -e
     status="$(printf '%s' "$out" | jq -r '.status // "none"' 2>/dev/null || printf 'unparseable')"
@@ -499,6 +555,56 @@ STUB
   else
     printf 'ok    %-54s nothing executed\n' 'refusal happens before execution'
   fi
+
+  # --- Project manifest ------------------------------------------------------
+  #
+  # The castor stub fails unless the probe variable reaches it, so the passing
+  # case proves both the allow-list extension and the exported environment.
+  unset RUN_VALIDATION_PROBE
+  manifest_project() {
+    local dir="$1" committed="$2"
+    mkdir -p "$dir/vendor/bin"
+    cat >"$dir/vendor/bin/castor" <<'STUB'
+#!/usr/bin/env bash
+[[ "${RUN_VALIDATION_PROBE:-}" == "manifest-env" ]] || { echo "probe missing"; exit 1; }
+echo "castor ok"
+STUB
+    chmod +x "$dir/vendor/bin/castor"
+    git -C "$dir" init -q
+    printf '%s\n' "$committed" >"$dir/composer.json"
+    git -C "$dir" add composer.json
+    git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m manifest
+    git -C "$dir" update-ref refs/remotes/origin/master HEAD
+  }
+
+  manifest_project "$tmp/manifest" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/castor"] }, "env": { "RUN_VALIDATION_PROBE": "manifest-env" } } } }'
+  VERDICT_PROJECT="$tmp/manifest"
+  verdict 'a manifest executable runs with the manifest env' \
+    '{ "head_sha": "abc1234", "lint": ["vendor/bin/castor php-ai"] }' 0 passed false
+  printf '%s\n' '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/castor", "vendor/bin/evil"] } } } }' >"$tmp/manifest/composer.json"
+  verdict 'an executable only the working tree lists is refused' \
+    '{ "head_sha": "abc1234", "lint": ["vendor/bin/evil"] }' 3 invalid true
+
+  manifest_project "$tmp/no-env" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/castor"] } } } }'
+  VERDICT_PROJECT="$tmp/no-env"
+  verdict 'without the manifest env the same command fails' \
+    '{ "head_sha": "abc1234", "lint": ["vendor/bin/castor php-ai"] }' 4 failed true
+
+  manifest_project "$tmp/outside" '{ "extra": { "ai-olympus": { "validation": { "executables": ["curl"] } } } }'
+  VERDICT_PROJECT="$tmp/outside"
+  verdict 'a manifest executable outside vendor/bin refuses the run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
+
+  manifest_project "$tmp/path-env" '{ "extra": { "ai-olympus": { "env": { "PATH": "/tmp/evil" } } } }'
+  VERDICT_PROJECT="$tmp/path-env"
+  verdict 'a manifest env that redirects PATH refuses the run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
+
+  manifest_project "$tmp/value-env" '{ "extra": { "ai-olympus": { "env": { "FOO": "a b" } } } }'
+  VERDICT_PROJECT="$tmp/value-env"
+  verdict 'a manifest env value with a space refuses the run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
+  VERDICT_PROJECT=""
 
   # --- Usage -----------------------------------------------------------------
   usage_error() {
