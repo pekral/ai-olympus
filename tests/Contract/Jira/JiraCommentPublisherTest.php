@@ -299,10 +299,11 @@ function removeJiraCommentPublisherFixture(array $fixture): void
     rmdir($fixture['directory']);
 }
 
-test('JIRA comments are published as rendered ADF instead of literal Wiki Markup (unmarked fallback, no acli e-mail)', function (): void {
+test('JIRA comments are published as rendered ADF instead of literal Wiki Markup, marked with the actor digest', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
+    $email = 'bot@example.com';
     $body = <<<'WIKI'
 h2. What changed
 
@@ -328,23 +329,42 @@ WIKI;
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
-        'FAKE_ACLI_EMAIL' => '',
+        'FAKE_ACLI_EMAIL' => $email,
+        'FAKE_ACLI_LIST_JSON' => '{"comments":[]}',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], $body);
 
     try {
         $process->run();
-        $adf = (string) file_get_contents($fixture['adf']);
+        $adf = json_decode((string) file_get_contents($fixture['adf']), associative: true, flags: JSON_THROW_ON_ERROR);
         $calls = (string) file_get_contents($fixture['calls']);
-        $created = (string) file_get_contents($fixture['created']);
+        $created = json_decode((string) file_get_contents($fixture['created']), associative: true, flags: JSON_THROW_ON_ERROR);
 
+        // Compared as decoded arrays, never as raw bytes: the marker is appended to the Wiki
+        // Markup source before conversion, so the expected ADF gains one more content node,
+        // and only the array shape — not the converter's own JSON formatting — is under test.
+        $expected = json_decode(JIRA_COMMENT_EXPECTED_ADF, associative: true, flags: JSON_THROW_ON_ERROR);
+        $expected['content'][] = [
+            'content' => [
+                [
+                    'marks' => [['type' => 'em']],
+                    'text' => jiraActorMarker($email),
+                    'type' => 'text',
+                ],
+            ],
+            'type' => 'paragraph',
+        ];
+
+        // toEqual(), never toBe(): the fixer is free to reorder the keys of the array literal
+        // above, and a reordered PHP array is no longer `===` to the JSON-decoded one even
+        // though both describe the exact same document.
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain('focusedCommentId=10001')
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10001 --body-adf')
-            ->and($created)->toBe(JIRA_COMMENT_EXPECTED_ADF . "\n")
-            ->and($adf)->toBe(JIRA_COMMENT_EXPECTED_ADF . "\n");
+            ->and($created)->toEqual($expected)
+            ->and($adf)->toEqual($expected);
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
@@ -363,7 +383,8 @@ test('JIRA ADF publishing fails closed when create omits the new comment ID', fu
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{}',
-        'FAKE_ACLI_EMAIL' => '',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => '{"comments":[]}',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], 'h2. Fallback');
@@ -372,9 +393,10 @@ test('JIRA ADF publishing fails closed when create omits the new comment ID', fu
         $process->run();
         $calls = (string) file_get_contents($fixture['calls']);
 
+        // The before-create snapshot and the post-create re-read both call `workitem view`; neither
+        // resolves an ID for the new comment here, so publication fails closed without an update.
         expect($process->getExitCode())->toBe(3)
             ->and($process->getErrorOutput())->toContain('ID is missing; ADF update aborted')
-            ->and($calls)->not->toContain('workitem view')
             ->and($calls)->not->toContain('comment update');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
@@ -394,7 +416,8 @@ test('JIRA publication fails when the newly created comment cannot receive ADF',
         'FAKE_ACLI_CALLS' => $fixture['calls'],
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10003"}',
-        'FAKE_ACLI_EMAIL' => '',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => '{"comments":[]}',
         'FAKE_ACLI_UPDATE_OK' => '0',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
     ], 'h2. Must render');
@@ -404,6 +427,110 @@ test('JIRA publication fails when the newly created comment cannot receive ADF',
 
         expect($process->getExitCode())->toBe(3)
             ->and($process->getErrorOutput())->toContain('ADF update failed');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher exits 3 and publishes nothing when the account e-mail cannot be resolved (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_EMAIL' => '',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. No resolvable identity');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('cannot derive the agent marker')
+            ->and($calls)->not->toContain('comment create')
+            ->and($calls)->not->toContain('comment update');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test(
+    'the JIRA publisher in agent-note mode also exits 3 and publishes nothing when the account e-mail cannot be resolved (issue #156)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 3);
+        $fixture = createJiraCommentPublisherFixture();
+        $systemPath = jiraCommentSystemPath();
+        $process = new Process([
+            $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+            'TEAM-42',
+            '-',
+            'agent-note',
+        ], $packageDir, [
+            'FAKE_ACLI_ADF' => $fixture['adf'],
+            'FAKE_ACLI_CALLS' => $fixture['calls'],
+            'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+            'FAKE_ACLI_EMAIL' => '',
+            'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+        ], 'h2. No resolvable identity');
+    
+        try {
+            $process->run();
+            $calls = (string) file_get_contents($fixture['calls']);
+    
+            expect($process->getExitCode())->toBe(3)
+                ->and($process->getErrorOutput())->toContain('cannot derive the agent marker')
+                ->and($calls)->not->toContain('comment create')
+                ->and($calls)->not->toContain('comment update');
+        } finally {
+            removeJiraCommentPublisherFixture($fixture);
+        }
+    },
+);
+
+test('agent-note mode never resolves the new comment ID to an older agent note when create omits the ID (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $agentNoteMarker = 'agent-note:actor=' . substr(hash('sha256', 'bot@example.com'), 0, 16);
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'bot@example.com', $agentNoteMarker),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'agent-note',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        // acli reports no ID from the create — the case the pre-create snapshot exists to guard.
+        'FAKE_ACLI_CREATE_JSON' => '{}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. A second runbook note');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        // The older note (9001) was in the before-create snapshot, so it never matches "absent
+        // before the create" — it is neither the update target nor deleted on a failed update.
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('ID is missing; ADF update aborted')
+            ->and($calls)->not->toContain('--id 9001');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
@@ -897,9 +1024,11 @@ test('agent-note mode always creates a fresh comment, even one carrying its own 
         $created = (string) file_get_contents($fixture['created']);
 
         expect($process->getExitCode())->toBe(0)
-            // No lookup at all: agent-note mode never reads the existing comments to look
-            // for a match, so an existing agent-note comment is never picked up or overwritten.
-            ->and($calls)->not->toContain('workitem view')
+            // The before-create snapshot still reads the existing comments (issue #156), but
+            // agent-note mode never matches against it, so the existing note (9001) is never the
+            // update target: creation proceeds and the new comment id (10099) is used instead.
+            ->and($calls)->toContain('workitem view TEAM-42 --fields comment --json')
+            ->and($calls)->not->toContain('--id 9001')
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10099 --body-adf')
             ->and($process->getErrorOutput())->toContain('action=created id=10099')

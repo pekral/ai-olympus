@@ -260,12 +260,13 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | contains($marker);');
     expect($jiraScriptBody)->toContain('map(select(marked and owned))');
     expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
-    expect($jiraScriptBody)->toContain('if [[ -n "$MARKER_TEXT" ]]; then');
     // A lookup that cannot be made publishes nothing rather than risk a
-    // duplicate; only an unresolvable identity still publishes unmarked.
+    // duplicate; an unresolvable identity publishes nothing at all (issue #156) —
+    // without a marker a later run cannot tell agent output from the operator's own.
     expect($jiraScriptBody)->toContain('comment lookup failed on $KEY, nothing was published');
     expect($jiraScriptBody)->not->toContain('publishing a new comment instead');
-    expect($jiraScriptBody)->toContain('could not resolve the acli account identity, publishing an unmarked new comment');
+    expect($jiraScriptBody)->not->toContain('publishing an unmarked new comment');
+    expect($jiraScriptBody)->toContain('cannot derive the agent marker (no account e-mail in acli auth status); nothing was published');
     // A failed update deletes only a comment this run created — never one an
     // earlier run published.
     expect($jiraScriptBody)->toContain('if [[ "$ACTION" == "created" ]]; then');
