@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 57 skills this package ships, grouped by what you reach for them for. Each description is the
+All 59 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -12,7 +12,7 @@ link to read the skill itself.
 | [Issue → PR workflow](#issue--pr-workflow) | 10 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 5 |
-| [Testing](#testing) | 6 |
+| [Testing](#testing) | 8 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 1 |
@@ -63,10 +63,12 @@ link to read the skill itself.
 | Skill | What it is for |
 |-------|----------------|
 | [`test-driven-development`](../skills/test-driven-development/) | Implementing a feature or bugfix with strict TDD |
-| [`create-test`](../skills/create-test/) | Create or update tests to ensure full coverage for current changes |
-| [`create-missing-tests-in-pr`](../skills/create-missing-tests-in-pr/) | A PR review already exists and missing tests must be completed with 100% coverage for current changes |
+| [`test-audit`](../skills/test-audit/) | The single test-value bar: an authoring gate for new or changed tests, a code-review lens for changed tests, and an explicit read-only audit that proposes KEEP / CONSOLIDATE / MOVE / DELETE with evidence |
+| [`create-test`](../skills/create-test/) | Creating or updating the minimum tests that protect the changed behaviour, then verifying coverage of the changed code |
+| [`create-missing-tests-in-pr`](../skills/create-missing-tests-in-pr/) | A PR review already exists and its missing tests — only for a missing behavioural contract — must be completed |
 | [`rewrite-tests-pest`](../skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
 | [`e2e-testing`](../skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
+| [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser |
 | [`tester-cookbook`](../skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |
 
 ## Databases

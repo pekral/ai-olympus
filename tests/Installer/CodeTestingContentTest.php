@@ -2,20 +2,21 @@
 
 declare(strict_types = 1);
 
-test('code-testing rule bans tautological assertions and names every detectable form', function (): void {
+test('code-testing rule hands test value to test-audit, which names every tautological form', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/test-audit/SKILL.md');
 
-    expect($content)->toContain('## No Tautological Assertions');
-    expect($content)->toContain('**No tautological assertion belongs in the codebase.**');
-    expect($content)->toContain('A literal asserted against itself');
-    expect($content)->toContain('A value the test itself just assigned');
-    expect($content)->toContain('A configured test double re-asserted');
-    expect($content)->toContain('A language or framework guarantee');
-    expect($content)->toContain('An expected value computed by the code under test');
-    expect($content)->toContain('No assertion at all');
-    expect($content)->toContain('**The falsifiability test');
-    expect($content)->toContain('CR severity: **Moderate**');
+    expect($rule)->toContain('## Test Value');
+    expect($rule)->toContain('That skill is the single authority on test value');
+    expect($rule)->not->toContain('## No Tautological Assertions');
+    expect($skill)->toContain(
+        'a literal asserted against itself, a value the test just assigned, a configured test double re-asserted, or a language or framework guarantee',
+    );
+    expect($skill)->toContain('**Expected value produced by the system under test**');
+    expect($skill)->toContain('**Assertion-free test**');
+    expect($skill)->toContain('apply the **falsifiability test**');
+    expect($skill)->toContain('A junk pattern is **Moderate**; it is **Critical** when the junk test is the only test covering a line');
 });
 
 test('no test in this suite asserts a literal against itself', function (): void {

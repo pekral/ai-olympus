@@ -74,13 +74,13 @@ Read the reproducer fields off `comments[]` and `body` / `descriptionText` retur
 - **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
 - **JIRA-originated reviews:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>`. Never call `acli` directly.
 
-Use these to write a failing test **before** applying the fix:
+Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
 
 1. Drop the Faulty Example into a new test case at the layer named in the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.
 3. Apply the Suggested Fix snippet (or the Fix narrative when Suggested Fix is `n/a`); rerun the test until it passes.
 
-If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing — the CR skills are responsible for providing them. Suggested Fix may legitimately be `n/a` per the CR rules.
+If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing. Suggested Fix may legitimately be `n/a` per the CR rules.
 
 **Free-form reviewer threads are exempt from the reproducer requirement.** Unresolved threads written by human reviewers will not carry the four structured fields. Do **not** request a CR rerun for them and do **not** block. Instead, derive the intent from the comment text, apply the minimal best-effort fix that satisfies it, and add or adjust a test at your discretion (a regression test when the comment describes a behavior bug; none when it is a naming / readability / dead-code remark). Keep the change scoped strictly to what the reviewer asked for. The exemption removes only the mandatory reproducer workflow — a behavior-changing best-effort fix still has to satisfy the diff-scoped coverage gate enforced by the **Review loop** below (`@rules/php/core-standards.md` Testing).
 

@@ -21,7 +21,7 @@ metadata:
 - Keep tests deterministic and non-flaky
 - Prefer simple, readable Pest syntax
 - Use helper methods or datasets when they clearly reduce duplication
-- Avoid reflection; prefer mocks or partial mocks when readable and effective
+- Avoid reflection; test through the public boundary, and mock only what `@rules/code-testing/general.md` *Mocking* allows
 - Avoid branching in tests; prefer separate test cases or datasets instead
 
 ## Read, Map & Verify before rewriting (mandatory pre-flight)
@@ -54,7 +54,7 @@ Only after Read, Map, and Verify are complete may the rewrite begin.
 3. Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 4. Run available fixers on changed test files and fix any violations.
 5. Run available checkers/analyzers on changed test files and resolve all reported errors.
-6. Run a quick code review of rewritten tests against `@rules/code-testing/general.md` and fix any findings.
+6. Check the rewritten tests against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`, and fix any findings. A rewrite preserves every test; removing a low-value test is an explicit `audit` of that skill, never part of a rewrite.
 
 ## Done when
 - Target tests are rewritten to Pest syntax

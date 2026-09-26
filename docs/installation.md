@@ -179,7 +179,7 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 
 | | Loaded by the plugin |
 |---|---|
-| 55 skills (`skills/*/SKILL.md`) | ✅ automatically |
+| 59 skills (`skills/*/SKILL.md`) | ✅ automatically |
 | 5 agents (`agents/*.md`) | ✅ automatically |
 | `/prepare-issue-for-merge`, `/redesign-page` (`commands/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ Composer only |

@@ -199,7 +199,7 @@ Per `@rules/code-testing/general.md`, tests must be deterministic.
 - Use auto-waiting locators (`locator.click()`), never `page.click(selector)` on a maybe-not-ready node.
 - Replace `await page.waitForTimeout(...)` with `waitForResponse`, `waitForURL`, or `expect(locator).toBeVisible()`.
 - Wait for the element state before acting on animated UI: `await locator.waitFor({ state: 'visible' })`.
-- Quarantine genuinely flaky tests with `test.fixme(true, 'flaky — issue #NNN')` and link an issue rather than leaving them red.
+- Never quarantine a flaky test with `test.fixme` or a skip: `@rules/git/general.md` forbids a skipped test left to be enabled later. Fix its cause — a missing wait, shared state — and keep the test. When the cause cannot be established, report it instead of parking the test.
 - Reproduce flakiness with `npx playwright test path.spec.ts --repeat-each=10`.
 
 ## Done when
