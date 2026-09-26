@@ -13,7 +13,7 @@ Each write class runs only when the user's request names it. A request that name
 | Add or correct a type or priority label | L1 | the request asks for triage, labels, or priorities |
 | Close an issue | L2 | the request asks to close resolved issues |
 | Detach or move a sub-issue | L2 | the request asks to fix the epic tree or re-parent issues |
-| Post an explanatory comment | L2 | it accompanies one of the writes above — never on its own |
+| Post the evidence comment | L2 | it accompanies a close or a move — never a label change, never on its own |
 
 The sweep never closes, reopens, or edits an **epic**; never creates an epic (`@rules/compound-engineering/backlog.md` *Decomposition mode* step 3 owns that gate); never edits an issue body; and never changes a workflow label — the claim label, `ready for review`, `ready to merge`, or `EPIC` (`@rules/compound-engineering/tracker.md` *The label stays true as the item moves*). A stale workflow label is reported, not removed.
 
@@ -74,6 +74,8 @@ A non-epic issue with its own sub-issues — an umbrella — may sit under an ep
    gh api -X POST repos/<owner>/<repo>/issues/<epic>/sub_issues -F sub_issue_id=<id> -F replace_parent=true
    ```
 
+   A move away from another epic gets one `agent-note` comment on the issue naming the old epic, the new one, and the scope sentence that decided it. A first placement of an issue that had no epic needs none.
+
 4. **Leave an issue without an epic** when no epic's scope fits it — developer tooling in a backlog whose epics are product areas is the common case. Report it; never create an epic to fill the gap.
 
 The native sub-issue relation is the source of truth. A checklist inside an epic's description is prose the sweep does not edit; when it has drifted from the sub-issues, report the drift.
@@ -95,7 +97,7 @@ The native sub-issue relation is the source of truth. A checklist inside an epic
    - the precedent of a sibling — an issue of the same kind in the same epic, such as an earlier security analysis.
 4. **Fill a missing priority** from the same evidence, or from the issue the item serves: a plan, analysis, or follow-up takes the priority of the issue it was written for.
 5. `priority: critical` stays human-only: the sweep never assigns it and never removes it.
-6. **Explain every change** that is not a pure addition — a priority that moved, an issue that changed epic — with one `agent-note` comment on that issue naming the evidence.
+6. **Explain every label change in the report**, with the evidence it rests on. A label change gets no comment on the issue: commenting is a separate L2 write, and a request to fix labels is not the ask for it.
 
 ## Report
 
