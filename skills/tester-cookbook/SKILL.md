@@ -87,8 +87,8 @@ Before sending the comment, scan the body for every forbidden token listed in **
 Repeat until the body is clean. **Do not publish a comment that still contains forbidden vocabulary.**
 
 ### 7. Publish the comment
-- Send through `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> <report-file>`. The helper converts the source to ADF and applies it through `acli jira workitem comment update --body-adf`.
-- Fall back to the JIRA MCP server only when `acli` is unavailable.
+- Send through `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> <report-file>`. The helper converts the source to ADF, appends the `_cr-comment:actor=<actor-digest>_` marker, and applies it through `acli jira workitem comment update --body-adf`.
+- Fall back to the JIRA MCP server only when `acli` is unavailable, appending the same `_cr-comment:actor=<actor-digest>_` marker line to the ADF payload — an agent marker per `@rules/code-review/general.md` *Authorship trust*, on this fallback as on the helper.
 - Never change the JIRA task status.
 
 ## Related skills (to disambiguate)

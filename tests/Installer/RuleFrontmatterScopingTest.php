@@ -397,7 +397,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // `agent-note:actor=` marker family — the one place every other reader of that test
         // (the Exclusion Gate, the assigned-comment section, the re-review trigger, and
         // tracker.md) now points at instead of restating.
-        'rules/code-review/general.md' => '9dd21d1c9371f70d66b44ebf145562c7aedf020b5d35d4be8cf250b8b15a850b',
+        // Re-baselined once more (issue #156, round 2): the marker family is now defined by its
+        // own shape ("any `<namespace>:actor=` marker a package helper writes") with the full
+        // namespace list — `cr-comment`, `merge-readiness`, `agent-note` — since `merge-readiness`
+        // was a real, already-shipped namespace the previous two-marker wording missed.
+        'rules/code-review/general.md' => 'eeb7b931d36db7f15c90eb3c44bb37f5e0319897ed5bc96cc459999fea2f2aa0',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -443,7 +447,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // carries the `cr-comment:actor=` marker, per `@rules/compound-engineering/tracker.md`
         // *Every agent write to a tracker carries a marker* — it no longer says the fallback
         // "carries none".
-        'rules/jira/general.md' => '91a7f2df6bfed961df013488387d9c130ed49b569bce3ba29d2587cab56a8a5d',
+        // Re-baselined once more (issue #156, round 2): the generic "helper that fails" fallback
+        // bullet now also states that its JIRA MCP payload carries the marker line, an agent
+        // marker per `@rules/code-review/general.md` *Authorship trust*.
+        'rules/jira/general.md' => '727c734cfdc49815b7e132d452fd7ce8c4eb531e6f9490cd1e3354438644e9cb',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
