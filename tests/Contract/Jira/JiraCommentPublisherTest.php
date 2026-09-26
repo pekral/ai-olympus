@@ -863,3 +863,87 @@ test('a rerun after a create whose ID was missing updates that comment instead o
         removeJiraCommentPublisherFixture($fixture);
     }
 });
+
+test('agent-note mode always creates a fresh comment, even one carrying its own marker already exists (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $agentNoteMarker = 'agent-note:actor=' . substr(hash('sha256', 'bot@example.com'), 0, 16);
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'bot@example.com', $agentNoteMarker),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'agent-note',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10099"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. A runbook the operator asked for');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $created = (string) file_get_contents($fixture['created']);
+
+        expect($process->getExitCode())->toBe(0)
+            // No lookup at all: agent-note mode never reads the existing comments to look
+            // for a match, so an existing agent-note comment is never picked up or overwritten.
+            ->and($calls)->not->toContain('workitem view')
+            ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 10099 --body-adf')
+            ->and($process->getErrorOutput())->toContain('action=created id=10099')
+            ->and($created)->toContain($agentNoteMarker);
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('a MARKER_KEY other than agent-note keeps the cr-comment lookup-and-update behaviour (issue #156)', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9501', '2026-01-01T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'some-legacy-value',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('workitem view TEAM-42 --fields comment --json')
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9501 --body-adf')
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9501');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});

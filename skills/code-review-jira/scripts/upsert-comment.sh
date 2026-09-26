@@ -30,9 +30,16 @@
 #               or any URL containing ?selectedIssue=<KEY>.
 #   BODY_FILE   Path to a file holding the JIRA Wiki Markup source, or `-` to
 #               read from stdin. The helper converts it to ADF before publish.
-#   MARKER_KEY  Optional. Accepted for backward compatibility but ignored —
-#               the marker namespace is always `cr-comment`, the only namespace
-#               this package publishes into.
+#   MARKER_KEY  Optional. Only the literal value `agent-note` changes anything:
+#               it switches the marker namespace to `agent-note:actor=` and
+#               skips the lookup-and-update behaviour below entirely — every
+#               call in this mode CREATEs a fresh comment, never looks up or
+#               updates an existing one, so a runbook or a note the operator
+#               asked an agent to leave as its own comment is never picked up
+#               and overwritten by a later CR publish. Any other value,
+#               including no value, keeps today's behaviour exactly: the
+#               marker namespace is `cr-comment`, and the run looks up and
+#               updates this actor's existing marked comment.
 #
 # Behavior:
 #   1. Detect the site and the account e-mail from `acli jira auth status`.
@@ -79,6 +86,10 @@
 #     updates nor duplicates it.
 # Only an unresolvable account e-mail still creates a comment on every run: it
 # leaves no marker to look up, so the comment is published unmarked.
+# `agent-note` mode (MARKER_KEY == "agent-note") is the deliberate exception:
+# every call creates a fresh comment, by design — never a lookup, never an
+# update. It is for a separate agent comment (a runbook, a note) that must
+# never be picked up and overwritten by a later cr-comment publish.
 #
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
@@ -98,7 +109,9 @@ Usage: upsert-comment.sh <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
-  MARKER_KEY  optional, accepted for backward compatibility but ignored
+  MARKER_KEY  optional; only `agent-note` changes anything (create-only,
+              agent-note:actor= marker); any other value keeps today's
+              cr-comment lookup-and-update behaviour
 EOF
 }
 
@@ -109,7 +122,9 @@ fi
 
 INPUT="$1"
 BODY_SRC="$2"
-# $3 (MARKER_KEY) accepted for backward compatibility but not used.
+# $3 (MARKER_KEY): only the literal "agent-note" changes behaviour (see below).
+# Any other value, including none, keeps today's cr-comment behaviour exactly.
+MODE="${3:-cr-comment}"
 
 for bin in acli jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -174,9 +189,14 @@ ACTOR_ID="$(jira_actor_digest "$EMAIL")"
 
 # An unresolvable identity is not fatal: the script then adds no marker and
 # creates a new comment, exactly as it did before.
+MARKER_NAMESPACE="cr-comment"
+if [[ "$MODE" == "agent-note" ]]; then
+  MARKER_NAMESPACE="agent-note"
+fi
+
 MARKER_TEXT=""
 if [[ -n "$ACTOR_ID" ]]; then
-  MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"
+  MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
   if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
     BODY="${BODY}
 
@@ -252,10 +272,12 @@ JQ
 # Look for a comment this actor already published under the same marker. A
 # lookup that cannot be made, or a marked comment whose author cannot be
 # decided, publishes nothing: either could hide the comment a create would
-# duplicate.
+# duplicate. `agent-note` mode skips this entirely — it is create-only, so an
+# existing agent-note comment (a runbook, a note the operator asked an agent
+# to leave as its own comment) is never picked up or overwritten.
 EXISTING_ID=""
 COMMENTS_JSON=""
-if [[ -n "$MARKER_TEXT" ]]; then
+if [[ -n "$MARKER_TEXT" && "$MODE" != "agent-note" ]]; then
   if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
     echo "upsert-comment.sh: comment lookup failed on $KEY, nothing was published: $(<"$LIST_STDERR")" >&2
     echo "upsert-comment.sh: a create without the lookup could duplicate a comment this actor already owns; rerun once the issue is readable" >&2
