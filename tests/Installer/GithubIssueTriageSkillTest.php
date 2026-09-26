@@ -415,6 +415,8 @@ test('pending-analysis reference runs analyze-problem read-only and publishes a 
 
     // Subagents analyse; only the session holding the consent publishes.
     expect($content)->toContain('never publishes, labels, or edits anything.');
+    expect($content)->toContain('returns its report **as text**');
+    expect($content)->toContain('never a local branch, uncommitted changes, or the analysing machine\'s working tree');
     expect($content)->toContain('upsert-comment.sh <URL> <report-file> agent-note');
     expect($content)->toContain('Never paste the analysis into the issue body.');
 

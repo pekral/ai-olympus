@@ -23,7 +23,7 @@ Run `@skills/analyze-problem/SKILL.md` against the issue URL, **read-only**, and
 Independent issues may be analysed **in parallel**, one subagent per issue. Each subagent:
 
 - receives the issue URL, the assignment language, and the environment facts it cannot discover itself;
-- writes its report to a file outside the repository and returns the path;
+- returns its report **as text** — a harness may refuse a subagent's file writes, and the session that publishes saves the report to a file outside the repository;
 - returns a verdict (adopt, adopt partially, do not adopt, defer), a primary type label, a priority with its reason, and whether the issue now holds an assignment an agent could implement;
 - never publishes, labels, or edits anything.
 
@@ -36,7 +36,8 @@ Read every report in full. Publish it only when:
 - all twelve sections are filled and the *Sources* section lists what the analysis actually read;
 - it is written in the assignment language only (`@rules/reports/general.md`);
 - it quotes no secret, token, or personal data from the tracker or the environment;
-- its facts about this repository hold — spot-check the claims the verdict rests on against the default branch.
+- its facts about this repository hold — spot-check the claims the verdict rests on against the default branch;
+- it cites only state a reader of the issue can verify — the default branch, merged or open pull requests, the tracker — and never a local branch, uncommitted changes, or the analysing machine's working tree.
 
 A report that fails a check goes back to its subagent with the concrete defect; it is never patched silently.
 
