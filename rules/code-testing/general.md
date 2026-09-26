@@ -115,21 +115,8 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Tests must not contain conditions (e.g., `if`, `switch`); split conditional logic into separate test cases or data providers instead.
 - Structure every test body arrange-act-assert per @rules/php/core-standards.md Testing (phases in order, separated by blank lines, never by `// Arrange` / `// Act` / `// Assert` comments — see the canonical rule for the exception list).
 
-## No Tautological Assertions
-A tautology — an assertion that holds no matter what the code under test does — states nothing about that code, yet it counts toward coverage and reads as verified behaviour. That makes it worse than a missing test: a gap is visible, a tautology is camouflage. **No tautological assertion belongs in the codebase.** Delete it, or rewrite it into a claim the production code is able to break.
-
-Each of the following is a violation on a line the change adds or modifies:
-
-- **A literal asserted against itself** — `expect(true)->toBeTrue()`, `expect(1)->toBe(1)`, `assertSame('a', 'a')`. No project code is exercised at all.
-- **A value the test itself just assigned**, with no call to the system under test in between — `$data = new OrderData(total: 500); expect($data->total)->toBe(500);` asserts PHP's property assignment, not the project's behaviour. It stops being a tautology when a named constructor, cast, mutator, or normaliser transformed the input: then assert the transformation, never the echo.
-- **A configured test double re-asserted** — asserting the value a mock was just told to return verifies the mocking library. Assert the effect the system under test produced from that value instead.
-- **A language or framework guarantee** — that `collect([])` is a `Collection`, or that a getter with a declared return type returns that type. The type system already enforces it; the assertion cannot fail.
-- **An expected value computed by the code under test** — `expect($sut->total())->toBe($sut->total())`, or the system's own formula recomputed inline in the test so both sides move together when the formula changes. Pin the expected value literally.
-- **No assertion at all**, where the test passes merely because nothing threw. When *does not throw* genuinely is the contract, assert it explicitly (`expect(fn () => $sut->run())->not->toThrow(RuntimeException::class)`).
-
-**The falsifiability test — apply it to every assertion you write.** Break the production code the test claims to cover: invert a condition, return a wrong value, delete the branch. If the test still passes, the assertion is a tautology. A test must be able to fail for the reason it exists — that is the whole of its value.
-
-CR severity: **Moderate**. Escalate to **Critical** when the tautology is the only assertion covering a line the change adds or modifies, because the change then ships untested while reporting as covered.
+## Test Value
+Every new or changed test passes the authoring gate of `@skills/test-audit/SKILL.md`: it protects a named behaviour, risk, or contract; a real regression makes it fail; no stronger test already guards it; and it needs no test-only production seam. That skill is the single authority on test value — the owner-boundary principle, the regression-test rules, the junk patterns (tautological assertions among them), the falsifiability test, the retention bar, and the evidence a test removal needs. Coverage verifies those tests; it never justifies one.
 
 ## Acceptance-Criteria Test Contract
 
@@ -159,4 +146,4 @@ A change is delivered only when three things hold together: every acceptance cri
 - The gate discovers its own tooling: the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 
 ## Test Review
-- After completing test changes, run a quick code review focused on test quality against these rules.
+- After completing test changes, check every changed test against these rules and the *Junk patterns* of `@skills/test-audit/SKILL.md`.

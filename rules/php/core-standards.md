@@ -122,7 +122,7 @@ When neither the restructuring nor a scoped configuration entry resolves it, **s
 ## Testing
 - Add or update tests for every meaningful behavior change.
 - Write all new tests using Pest syntax (`it()` / `test()` functional blocks); do not introduce PHPUnit-style class-based tests for new test files.
-- Require 100% test coverage for every changed or added code path.
+- Require 100% test coverage for every changed or added code path. Coverage verifies the tests; it never justifies one (`@skills/test-audit/SKILL.md` *Coverage*).
 - **In code review / pre-PR contexts (CR skills, `process-code-review`, `create-missing-tests-in-pr`, `create-test`) verify coverage for the changed files only** — every line, branch, and condition added or modified by the current changes must be covered, but do not gate on a project-wide coverage percentage. Use the project's coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`, or a direct `vendor/bin/pest --coverage-clover=<file>` / PHPUnit `--coverage-clover` invocation when the project defines none; do not add a new bespoke coverage script to the project. Full-suite coverage commands remain the release / CI gate.
 - Scope the run to the changed source files whenever the runner allows it (`--coverage-clover` plus a path filter, PCOV `pcov.directory` scoped to the changed directories); otherwise generate the report and read off only the changed files.
 - **Delete any auto-generated coverage report file (the `--coverage-clover` output or other coverage artifact) as soon as it has been read**, so it is never accidentally committed to git, and keep such artifacts in `.gitignore` as a second line of defence.

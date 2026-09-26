@@ -1,6 +1,6 @@
 ---
 name: create-test
-description: Use when create or update tests to ensure full coverage for current changes
+description: Use when creating or updating tests for current changes. Writes the minimum tests that protect the changed behaviour, risk, or contract at its owner boundary, then verifies full coverage of the changed code.
 license: MIT
 metadata:
   author: Petr Král (pekral.cz)
@@ -11,6 +11,7 @@ metadata:
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
 - Do not modify production code unless strictly required — the only exception is the **Pre-existing issue handling** workflow below, which lands its production-code fixes in their own separate commits
 - Prefer the project's existing E2E path for user-visible or cross-boundary behavior. An isolated test is allowed only when it was designed before the production change, after a written failure inventory, per `@rules/code-testing/general.md` *Test Strategy*.
+- Run the authoring gate of `@skills/test-audit/SKILL.md` (`MODE=authoring`) before you write or change a test. **Coverage alone is never sufficient justification for creating a test.** Coverage stays the validation step at the end.
 
 ---
 
@@ -31,8 +32,13 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 ## Execution
 
 ### 1. Analyze Context
-- Locate existing tests
-- Identify missing coverage for changed code
+Follow this order:
+
+1. Identify the behaviour, risk, or contract the change carries.
+2. Find its strongest owner boundary (`@skills/test-audit/SKILL.md` *Owner boundary*).
+3. Check the existing tests of that behaviour; extend one before you add one.
+4. Write the minimal test that passes the authoring gate.
+5. Verify changed-code coverage (step 5).
 
 ### 2. Create or Update Tests
 - Prefer updating existing tests
@@ -43,12 +49,9 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - **Invoke a job under test with `app()->call([$job, 'handle'])` per `@rules/code-testing/general.md` *Jobs*** — construct the job with the payload the test controls and let the container resolve the `handle()` dependencies. Never hand-build doubles and pass them to `handle()` directly; when a collaborator genuinely cannot run in the test, swap its container binding (`$this->app->instance(...)`, `Http::fake()`, `Process::fake()`) and leave the call site unchanged.
 - **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), separated by blank lines, never by `// Arrange` / `// Act` / `// Assert` comments; see the canonical rule for the exception list.
 
-### 3. Ensure Coverage
-- Cover all changed code paths
-- Include:
-    - happy paths
-    - edge cases
-    - regression scenarios only for a genuine observable behavior gap
+### 3. Cover the Changed Behaviour
+- Cover each changed behaviour once, at its owner boundary: the happy path, each edge case with a credible regression, and a regression scenario only for a genuine observable behavior gap
+- An uncovered changed line is resolved per `@skills/test-audit/SKILL.md` *Coverage* — a behavioural test, removal of unneeded code, or an explicit conflict report
 
 ### 4. Validate
 - Run relevant tests after each change and confirm they pass
@@ -65,7 +68,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - Run available checkers/analyzers on changed test files and resolve all reported errors
 
 ### 7. Test Review
-- Run a quick code review of the created/updated tests against `@rules/code-testing/general.md`
+- Check every created or updated test against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`
 - Fix any findings before finalizing
 
 ### 8. Pre-existing issue handling
@@ -94,7 +97,8 @@ Rules:
 ## Output
 
 - Created or updated test files
-- Coverage status for current changes (must be 100%)
+- The authoring-gate record: one line per new or changed test (what it protects, the regression it catches, its owner boundary, its overlap)
+- Coverage status for current changes (must be 100%, or the explicitly reported conflict)
 - Test review result
 - List of pre-existing fix commits (if any), each with a one-line rationale, plus any pre-existing issue deferred as a follow-up with the reason
 
@@ -107,6 +111,6 @@ Rules:
 - Cover behavior, not implementation
 - Focus on changed code only
 - Follow project test conventions strictly
-- Prefer minimal tests for maximum coverage
+- Minimum tests, maximum confidence
 - Use data providers where they improve readability and reduce duplication
 - Keep tests readable and maintainable

@@ -47,7 +47,7 @@ When the RED step must be isolated rather than E2E, write the failure inventory 
 ## Required cycle
 
 ### 1. RED
-Write one minimal test for the next behavior.
+Write one minimal test for the next behavior, at its strongest owner boundary (`@skills/test-audit/SKILL.md` *Owner boundary*), after it passes the authoring gate of that skill.
 - Keep the test focused and readable
 - Prefer real code paths; mock only where appropriate by project testing rules
 - Do not generate `covers()`
@@ -86,6 +86,8 @@ Move to the next behavior and repeat the cycle.
 ## Bug-fix rule
 Never add a regression test for a bug unless an E2E reproduction or failure inventory establishes a genuine observable behavior gap. When it does, write and observe the failing test before the fix.
 
+One observable regression should normally have one primary regression test at the strongest owning boundary. Another test of the same scenario is allowed only for a distinct failure mode (`@skills/test-audit/SKILL.md` *Regression tests*).
+
 ## Scope control
 - Fix obvious blocking issues only when necessary for safe implementation
 - Keep unrelated cleanup out of scope unless it is trivial and low risk
@@ -95,13 +97,13 @@ Never add a regression test for a bug unless an E2E reproduction or failure inve
 2. Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 3. Run available fixers on changed files and fix any violations.
 4. Run available checkers/analyzers on changed files and resolve all reported errors.
-5. Run a quick code review of all tests written during the TDD cycle against `@rules/code-testing/general.md` and fix any findings.
+5. Check every test written during the TDD cycle against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`, and fix any findings.
 
 ## Done when
 - Every implemented behavior is backed by a test
 - Each new test was observed failing before implementation
 - Production code was added only to satisfy failing tests
-- Changed behavior, edge cases, and failure paths are covered
+- Changed behavior, edge cases, and failure paths with a credible regression are covered, each once at its owner boundary
 - Relevant tests pass
 - 100% code coverage is verified for all changes
 - Code style and quality checks pass (fixers and checkers ran clean)
