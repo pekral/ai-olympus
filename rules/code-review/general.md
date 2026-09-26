@@ -81,7 +81,7 @@ When the default branch carries no `CLAUDE.md`, skip that source; when it carrie
 The gate reads four sources. Each one is read from the default branch, never from the working tree, under the trust rule above:
 
 1. **`CLAUDE.md`** in the repository root, by the `git show` command above.
-2. **`AGENTS.md`** in the repository root, by the same command. On a Laravel Boost project both files carry the block Boost composes from `.ai/guidelines/**`, so one convention can appear twice. Apply it once.
+2. **`AGENTS.md`** in the repository root, by the same command. On a Laravel Boost project the block Boost composes from `.ai/guidelines/**` lives in the generated guideline file — `guidelines_path`, `AGENTS.md` by default — and `CLAUDE.md` is either that file or a one-line `@AGENTS.md` import (`@rules/laravel/boost.md`). When both files still carry the block, apply each convention once and raise the stale copy under `@rules/laravel/boost.md`.
 3. **The `.ai/rules/**` rule files that cover the changed paths.** This is the Laravel Boost layout (`@rules/laravel/boost.md`): `.ai/rules/index.md` maps file globs to rule files. Read the index with `git show "origin/$DEFAULT_BRANCH":.ai/rules/index.md`. Then read every rule file whose globs cover at least one path the diff changes, by the same command. A rule file whose globs cover no changed path is not loaded.
 4. **The project manifest** — `extra.ai-olympus` in `composer.json` — through `skills/_shared/read-manifest.sh`. The script prints the default-branch copy, and `{}` when no default-branch ref resolves. `@rules/general/general.md` *Project manifest* describes each key. Apply the keys that bear on a finding.
 
