@@ -234,7 +234,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraScriptBody)->toContain('ACTOR_ID="$(jira_actor_digest "$EMAIL")"');
     expect($jiraActorBody)->toContain('tolower($0) ~ (label ":")');
     expect($jiraActorBody)->toContain('hash("sha256", (string) stream_get_contents(STDIN)), 0, 16');
-    expect($jiraScriptBody)->toContain('MARKER_TEXT="cr-comment:actor=${ACTOR_ID}"');
+    expect($jiraScriptBody)->toContain('MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"');
     expect($jiraScriptBody)->not->toContain('cr-comment:actor=${EMAIL}');
     // Jira Cloud commonly omits `author.emailAddress`, so the account ID carries
     // the author match. A marked comment whose author stays undecidable is never

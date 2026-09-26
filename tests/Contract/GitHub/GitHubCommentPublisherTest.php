@@ -277,3 +277,40 @@ test('a marker namespace other than cr-comment matches only its own comment', fu
         removeGitHubCommentPublisherFixture($fixture);
     }
 });
+
+test('agent-note mode always POSTs a fresh comment, even one carrying its own marker already exists (issue #156)', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+    $listJson = json_encode([
+        githubComment(901, '2026-01-01T00:00:00Z', 'bot', "note\n\n<!-- agent-note:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR);
+
+    $packageDir = dirname(__DIR__, 3);
+    $process = new Process([
+        $packageDir . '/skills/code-review-github/scripts/upsert-comment.sh',
+        'https://github.com/acme/widgets/pull/42',
+        '-',
+        'agent-note',
+    ], $packageDir, [
+        'FAKE_GH_ACTOR' => 'bot',
+        'FAKE_GH_BODY' => $fixture['body'],
+        'FAKE_GH_CALLS' => $fixture['calls'],
+        'FAKE_GH_LIST_JSON' => $listJson,
+        'FAKE_GH_RESPONSE' => '{"id":960,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-960"}',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . githubCommentSystemPath(),
+    ], 'A runbook the operator asked for');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $payload = (string) file_get_contents($fixture['body']);
+
+        expect($process->getExitCode())->toBe(0)
+            // No lookup at all: agent-note mode never lists the existing comments, so an
+            // existing agent-note comment is never picked up or PATCHed.
+            ->and($calls)->not->toContain('--paginate')
+            ->and($process->getErrorOutput())->toContain('action=created id=960')
+            ->and($payload)->toContain('<!-- agent-note:actor=bot -->');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});
