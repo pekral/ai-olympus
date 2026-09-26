@@ -33,7 +33,7 @@ link to read the skill itself.
 | [`pr-summary`](../skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`create-issue`](../skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
-| [`github-issue-triage`](../skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type |
+| [`github-issue-triage`](../skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type, the open backlog swept (merged issues closed, epics kept flat, issues re-parented), or the issues labelled `analyze` analysed |
 | [`github-release-roadmap`](../skills/github-release-roadmap/) | Planning a GitHub release roadmap for one repository |
 
 ## Code review

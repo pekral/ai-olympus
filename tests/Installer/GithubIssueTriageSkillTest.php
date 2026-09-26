@@ -192,7 +192,7 @@ test('body derivation is anchored to the issue-form headings and reports an ambi
     expect($skill)->toContain('an ambiguous body is a conflict for a human');
 });
 
-test('both scripts name the repository they write to before the first write', function (): void {
+test('every triage script names its target repository before the first gh call', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // The scripts resolve their target implicitly from the working directory
@@ -200,7 +200,7 @@ test('both scripts name the repository they write to before the first write', fu
     // label write — including the only label removal in the package —
     // unauditable after the fact. The precedent is `assert-current-repo.sh`,
     // which prints the nameWithOwner it vouched for.
-    foreach (['seed-labels.sh', 'assign-priorities.sh'] as $name) {
+    foreach (['seed-labels.sh', 'assign-priorities.sh', 'collect-sweep-evidence.sh'] as $name) {
         $content = (string) file_get_contents($packageDir . '/skills/github-issue-triage/scripts/' . $name);
 
         expect($content)->toContain('gh repo view --json nameWithOwner --jq \'.nameWithOwner\'');
@@ -234,10 +234,10 @@ test('triage script never overrides a human type label with a body guess', funct
     expect($content)->toContain('but the issue is labelled');
 });
 
-test('both triage scripts report gh failures instead of suppressing them', function (): void {
+test('every triage script reports gh failures instead of suppressing them', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['seed-labels.sh', 'assign-priorities.sh'] as $name) {
+    foreach (['seed-labels.sh', 'assign-priorities.sh', 'collect-sweep-evidence.sh'] as $name) {
         $content = (string) file_get_contents($packageDir . '/skills/github-issue-triage/scripts/' . $name);
 
         // A silenced gh failure hides a rejected write behind a generic
@@ -305,5 +305,126 @@ test('triage self-test runs as part of the project build', function (): void {
     $scripts = $composer['scripts'];
 
     expect($scripts['shell-self-tests'])->toContain('bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test');
+    expect($scripts['shell-self-tests'])->toContain('bash skills/github-issue-triage/scripts/collect-sweep-evidence.sh --self-test');
     expect($scripts['check'])->toContain('@shell-self-tests');
+});
+
+test('sweep evidence script is shipped, executable, read-only, and walks every page', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $script = $packageDir . '/skills/github-issue-triage/scripts/collect-sweep-evidence.sh';
+
+    expect(is_file($script))->toBeTrue();
+    expect(is_executable($script))->toBeTrue();
+
+    $content = (string) file_get_contents($script);
+    expect($content)->toStartWith('#!/usr/bin/env bash');
+    expect($content)->toContain('set -euo pipefail');
+    expect($content)->toContain('--self-test');
+
+    // The sweep decides per issue; the evidence it rests on must never write.
+    foreach (['gh issue edit', 'gh issue close', 'gh issue comment', '-X POST', '-X DELETE', '-X PATCH', '--method'] as $write) {
+        expect($content)->not->toContain($write);
+    }
+
+    // A backlog is never truncated behind a summary that reads like all of it.
+    expect($content)->toContain('gh api graphql --paginate');
+    expect($content)->toContain('issues(states: OPEN, first: 50, after: $endCursor');
+    expect($content)->toContain('pageInfo { hasNextPage endCursor }');
+});
+
+test('sweep evidence self-test runs the script and covers every structure and evidence case', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/github-issue-triage/scripts/collect-sweep-evidence.sh');
+
+    // Proven by running the script against a stubbed gh that refuses every
+    // call except the two reads — a passing run is the read-only proof.
+    expect($content)->toContain('GH_STUB_CALLS');
+    expect($content)->toContain('gh stub: unexpected call');
+    expect($content)->toContain('api|graphql|--paginate|-f|owner=stub-owner|-f|name=stub-repo|-f|query=<document>');
+
+    $requiredCases = [
+        'epic — open sub-issues listed, a truncated list is reported',
+        'evidence — a merged pull request into the default branch',
+        'evidence — an open pull request wins, one pull request is listed once, a foreign one is ignored',
+        'evidence — no pull request at all',
+        'evidence — merged into another branch is not merged',
+        'structure — a direct epic in an epic',
+        'structure — an epic in an epic through an umbrella issue',
+        'structure — a closed epic in an open epic',
+        'structure — an issue with no epic',
+        'summary — every bucket is counted separately',
+        'read-only — gh calls were:',
+        'gh failure -> exit',
+    ];
+
+    foreach ($requiredCases as $case) {
+        expect($content)->toContain($case);
+    }
+
+    // `merged` is a pointer: a pull request merged into another branch, or one
+    // from another repository, never counts toward it.
+    expect($content)->toContain('.merged and .baseRefName == $default');
+    expect($content)->toContain('.repository.nameWithOwner == $repo');
+});
+
+test('backlog sweep reference keeps epics, bodies and workflow labels out of reach', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = $packageDir . '/skills/github-issue-triage/references/backlog-sweep.md';
+
+    expect(is_file($reference))->toBeTrue();
+
+    $content = (string) file_get_contents($reference);
+
+    // Consent: every write class beyond labelling needs the request to name it.
+    expect($content)->toContain('Each write class runs only when the user\'s request names it.');
+    expect($content)->toContain('The sweep never closes, reopens, or edits an **epic**');
+    expect($content)->toContain('never edits an issue body');
+    expect($content)->toContain('A stale workflow label is reported, not removed.');
+
+    // Closing rests on the default branch, never on a pull-request description.
+    expect($content)->toContain('The `evidence:` field is a **pointer, never a verdict**.');
+    expect($content)->toContain('not with a pull-request description');
+    expect($content)->toContain('gh issue close <N> --reason completed');
+
+    // The epic tree: detach, never merge or close; no new epic to fill a gap.
+    expect($content)->toContain('An epic never contains another epic');
+    expect($content)->toContain('-F replace_parent=true');
+    expect($content)->toContain('never create an epic to fill the gap');
+
+    // A human's recent label change is a decision, not drift.
+    expect($content)->toContain('The sweep never reverts it; it reports the conflict and asks.');
+    expect($content)->toContain('agent-note');
+
+    $skill = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
+    expect($skill)->toContain('`references/backlog-sweep.md`');
+    expect($skill)->toContain('`scripts/collect-sweep-evidence.sh`');
+});
+
+test('pending-analysis reference runs analyze-problem read-only and publishes a new comment', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = $packageDir . '/skills/github-issue-triage/references/pending-analysis.md';
+
+    expect(is_file($reference))->toBeTrue();
+
+    $content = (string) file_get_contents($reference);
+
+    // Analysis is outside the backlog tier: the top-level session runs it.
+    expect($content)->toContain('**It runs in the top-level session, never inside `splinter`\'s backlog tier.**');
+    expect($content)->toContain('@skills/analyze-problem/SKILL.md');
+    expect($content)->toContain('gh issue list --state open --label analyze');
+
+    // Subagents analyse; only the session holding the consent publishes.
+    expect($content)->toContain('never publishes, labels, or edits anything.');
+    expect($content)->toContain('upsert-comment.sh <URL> <report-file> agent-note');
+    expect($content)->toContain('Never paste the analysis into the issue body.');
+
+    // Labels after the analysis: `analyze` goes, routing stays the owner's.
+    expect($content)->toContain('**remove `analyze`**');
+    expect($content)->toContain('**Never add it**');
+
+    $skill = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
+    expect($skill)->toContain('`references/pending-analysis.md`');
+
+    $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
+    expect($backlog)->toContain('**Leave the pending-analysis pass to the top-level session.**');
 });
