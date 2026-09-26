@@ -171,6 +171,7 @@
       "echo '🧪 Running shell script self-tests...'",
       "bash skills/_shared/assert-current-repo.sh --self-test",
       "bash skills/_shared/scan-attachments.sh --self-test",
+      "bash skills/_shared/read-manifest.sh --self-test",
       "bash skills/_shared/classify-risk.sh --self-test",
       "bash skills/_shared/run-validation.sh --self-test",
       "bash skills/_shared/plan-route.sh --self-test",

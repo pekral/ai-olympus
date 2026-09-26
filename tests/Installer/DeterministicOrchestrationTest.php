@@ -12,7 +12,7 @@ declare(strict_types = 1);
 test('every deterministic orchestration helper is shipped, executable, and self-testing', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $helpers = ['run-validation', 'plan-route', 'check-handoff', 'render-report', 'record-metrics'];
+    $helpers = ['run-validation', 'plan-route', 'check-handoff', 'render-report', 'record-metrics', 'read-manifest'];
 
     foreach ($helpers as $helper) {
         $script = $packageDir . '/skills/_shared/' . $helper . '.sh';
@@ -75,6 +75,38 @@ test('the validation manifest is executed without a shell and against an allow-l
     // validation is a state nobody can act on.
     expect($runner)->toContain('one bad command refuses the whole manifest');
     expect($runner)->toContain('refusal happens before execution');
+});
+
+test('the validation runner extends its allow-list only from the default-branch project manifest', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
+    $reader = (string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh');
+
+    expect($runner)->toContain('read-manifest.sh');
+    expect($runner)->toContain('PROTECTED_ENV_RE');
+    expect($runner)->toContain('^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$');
+
+    foreach ([
+        'a manifest executable runs with the manifest env',
+        'without the manifest env the same command fails',
+        'an executable only the working tree lists is refused',
+        'a manifest executable outside vendor/bin refuses the run',
+        'a manifest env that redirects PATH refuses the run',
+        'a manifest env value with a space refuses the run',
+    ] as $label) {
+        expect($runner)->toContain('\'' . $label . '\'');
+    }
+
+    expect($reader)->toContain('git show "$ref:./composer.json"');
+
+    foreach ([
+        'without a default-branch ref the manifest is empty',
+        'the working tree never overrides the default branch',
+        'invalid composer.json yields {} and exit 3',
+        'composer.json resolves relative to the current directory',
+    ] as $label) {
+        expect($reader)->toContain('\'' . $label . '\'');
+    }
 });
 
 test('the validation runner separates a pass, a failure, and an undeterminable scope', function (): void {
