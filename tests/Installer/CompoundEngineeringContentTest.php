@@ -1617,18 +1617,38 @@ test('the operator trust value is defined once, in Authorship trust, never in tr
         ->and($tracker)->not->toContain('It is trusted for scope refinement like the assignee on JIRA or an `OWNER` on GitHub');
 });
 
-test('every agent write to a tracker carries a marker, and no sanctioned fallback is exempt (issue #156)', function (): void {
+test('every comment an agent publishes on GitHub or JIRA carries a marker, and no sanctioned fallback is exempt (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $tracker = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
     $jira = (string) file_get_contents($packageDir . '/rules/jira/general.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
-    expect($tracker)->toContain('**Every agent write to a tracker carries a marker.**')
+    expect($tracker)->toContain('**Every comment an agent publishes on GitHub or JIRA carries a marker.**')
         ->and($tracker)->toContain('`@rules/code-review/general.md` *Authorship trust* defines the agent-marker family once')
         ->and($tracker)->toContain('Never restate the namespace list here; it drifts from the one that paragraph names.')
-        ->and($tracker)->toContain('**A publish path that cannot carry a marker is not a sanctioned way to write to a tracker.**')
+        ->and($tracker)->toContain('Every sanctioned comment publish path on those two trackers appends one')
+        ->and($tracker)->toContain('**A comment path there that cannot carry a marker is not sanctioned.**')
+        ->and($tracker)->not->toContain('with no exception')
+        ->and($tracker)->not->toContain('**Every agent write to a tracker carries a marker.**')
         ->and($tracker)->not->toContain('**Limitation:** an agent comment published outside the helper carries no marker')
         ->and($tracker)->not->toContain('Two markers form the agent-marker family');
+
+    // The rule's scope matches the paths the package ships: the Bugsnag publisher carries no marker
+    // by design, and label writes and status transitions carry no comment body at all.
+    expect($tracker)->toContain(
+        'Bugsnag is outside it: the operator test covers only the `acli` and `gh` accounts, '
+        . 'so a Bugsnag comment carries no marker and keeps the platform-gated test below.',
+    )
+        ->and($tracker)->toContain('Label writes and status transitions carry no comment body, so they are outside it too.');
+
+    // With no resolvable e-mail there is no digest, so the MCP fallback cannot mark the comment
+    // either — the run stops instead of publishing an unmarked comment by another route.
+    expect($jira)->toContain(
+        'When the helper exits 3 because `acli jira auth status` carries no account e-mail, '
+        . 'the MCP fallback cannot compute the digest either, so the run stops as blocked.',
+    )
+        ->and($jira)->toContain('*Every comment an agent publishes on GitHub or JIRA carries a marker*')
+        ->and($prSummary)->toContain('*Every comment an agent publishes on GitHub or JIRA carries a marker*');
 
     expect($jira)->toContain('A replacement TL;DR published through the JIRA MCP fallback still carries the `cr-comment:actor=` marker')
         ->and($jira)->not->toContain('A replacement TL;DR published through the JIRA MCP fallback carries none');
