@@ -180,7 +180,8 @@
       "bash skills/_shared/browser-drive.sh --self-test",
       "bash skills/page-redesign/scripts/render-previews.sh --self-test",
       "bash skills/github-issue-triage/scripts/assign-priorities.sh --self-test",
-      "bash skills/code-review-bugsnag/scripts/load-issue.sh --self-test"
+      "bash skills/code-review-bugsnag/scripts/load-issue.sh --self-test",
+      "bash skills/code-review-jira/scripts/load-issue.sh --self-test"
     ],
     "shellcheck": [
       "echo \"🐚 Running ShellCheck...\"",
