@@ -23,6 +23,8 @@ Run the two commands in [Quickstart](#quickstart) from your Composer project roo
 
 Existing `CLAUDE.md` and `AGENTS.md` are preserved. When a project has an existing `AGENTS.md` but no `CLAUDE.md`, the installer deliberately does not add its `CLAUDE.md` template: Claude Code 2.1.277+ then uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
 
+The same `extra.ai-olympus` key in `composer.json` is the [project manifest](docs/installation.md#project-manifest): it tells the workflows how your project runs its quality gate and coverage, which extra tools validation may run, which paths are critical, and which language, timezone, and tenancy model apply. Your own instructions — `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest — take precedence over the packaged rules; only the security floor stays fixed.
+
 ## Quickstart
 
 ```bash
@@ -159,7 +161,7 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 
 **Leonardo (`leonardo`) — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate / Minor.
+The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate.
 
 **Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
@@ -320,7 +322,7 @@ with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skil
 
 ## Rules Overview
 
-32 rule files: a small always-on baseline every run applies, on-demand rules for code review,
+33 rule files: a small always-on baseline every run applies, on-demand rules for code review,
 trackers, project memory, pull requests, tracker reports, JIRA and refactoring, plus scoped rules for PHP, Laravel,
 security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
 **[`docs/rules.md`](docs/rules.md)**.

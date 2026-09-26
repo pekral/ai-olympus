@@ -17,6 +17,7 @@ This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md`
 ## Pull Requests
 - PR title must be in English.
 - PR description must be written in the same language as the assignment. The literal `Closes #<N>` keyword is the one exception, because GitHub parses no other spelling — see *Issue Linking* above.
+- **When the project manifest sets `language.github`** (`@rules/general/general.md` *Project manifest*), that language replaces both rules above: the PR title, the PR description, and every PR or issue comment are written in it. `Closes #<N>` stays English.
 - Format PR messages as Markdown.
 
 ### PR Content Requirements
@@ -55,7 +56,6 @@ A pull request is a **Draft** for as long as it is **not yet ready to merge and 
     - **A Critical always blocks**, at every round, with no deferral and no exception.
     - **A Moderate blocks until it is resolved, and it is resolved in one of two ways** — fixed in the review loop, or, at round 3 only, deferred into a tracker sub-issue (`@skills/process-code-review/SKILL.md` *Review loop* step 6 and `references/round-three-deferral.md`). A Moderate that is neither fixed nor deferred still blocks.
     - **A security-relevant Moderate is never deferrable.** A finding meeting the **S1–S3** carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* — produced by a security lens, citing a rule in `@rules/security/**`, or landing on a security surface — blocks the merge until it is fixed. No filing bar, no sub-issue, and no round count changes that.
-    - **Minor findings do not block**, and the review no longer detects one outside a security lens (`@rules/code-review/general.md` *Minor findings are not detected*).
 - If no code review exists for the PR, or the latest review still carries an unresolved Critical or an undeferred Moderate, **do not merge** — run (or re-run) the review to convergence first via `@skills/code-review-github/SKILL.md` + `@skills/process-code-review/SKILL.md`, then merge.
 - Compare the current effective-PR-diff fingerprint with the `Reviewed diff fingerprint:` recorded by the latest trusted CR. A missing or different fingerprint makes the prior review stale and requires CR on the new diff. A rebase that preserves the reviewed diff fingerprint does not stale code review; do not run another round solely because commit SHAs changed. The exact-head build gate remains separate and still re-runs after a history rewrite.
 - This gate is independent of the GitHub `reviewDecision` approval state: a GitHub "Approved" without a converged code review (0 Critical, no undeferred Moderate) is **not** sufficient to merge.

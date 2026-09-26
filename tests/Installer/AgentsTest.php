@@ -509,10 +509,12 @@ test('laravel-security audit-workflow ships with all 7 areas, severity mapping, 
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/laravel-security/references/audit-workflow.md');
 
-    // Severity mapping: 5-level audit scale maps to 3-level CR scale.
+    // Severity mapping: 5-level audit scale maps to the 2-level CR scale; Info is not published.
     expect($content)->toContain('Critical');
     expect($content)->toContain('Moderate');
-    expect($content)->toContain('Minor');
+    expect($content)->not->toContain('Minor');
+    expect($content)->toContain('| Low              | Moderate      | YES                  |');
+    expect($content)->toContain('| Info             | not published | NO                   |');
 
     // All 7 audit areas must be present.
     expect($content)->toContain('Authorization');
@@ -1269,7 +1271,7 @@ test('donatello owns the executed coverage verdict and runs no build gate of its
 
     // The gate moved to the merge boundary, so the implementer must not run one — in either mode.
     expect($donatello)->toContain('Gate placement — deferred to the merge boundary');
-    expect($donatello)->toContain('Do not run fixers, checkers, or `composer build` in the implementation flow either.');
+    expect($donatello)->toContain('Do not run fixers, checkers, or the project\'s full gate in the implementation flow either.');
     expect($donatello)->toContain('never a full build');
 
     // The coverage ownership it carries is unrelated to gate placement and survives unchanged.
@@ -1303,7 +1305,8 @@ test('leonardo frames a security remediation plan as a severity-prefixed GFM tas
 
     expect($leonardo)->toContain('**Success criteria must be a machine-checkable acceptance checklist (issue #212).**');
     expect($leonardo)->toContain('one `- [ ] ` item per criterion, never a prose paragraph');
-    expect($leonardo)->toContain('`- [ ] [Critical] …` / `- [ ] [Moderate] …` / `- [ ] [Minor] …`');
+    expect($leonardo)->toContain('`- [ ] [Critical] …` / `- [ ] [Moderate] …`;');
+    expect($leonardo)->not->toContain('[Minor]');
     expect($leonardo)->toContain('never two joined by "and"');
     // The generic analyze-problem format is deliberately left alone for every other caller.
     expect($leonardo)->toContain('not a change to `@skills/analyze-problem/SKILL.md`\'s generic Success-criteria format');

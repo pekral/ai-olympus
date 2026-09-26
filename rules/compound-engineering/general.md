@@ -22,6 +22,20 @@ The sections that govern a run taking its assignment from a tracker item live in
 
 - **A run that reads, claims, updates, links, labels, or files a tracker item reads and applies `@rules/compound-engineering/tracker.md` first.** Every skill and agent that performs one of those steps names the file.
 
+## No generated documentation in `docs/`
+
+An agent never generates documentation into `docs/` — no new file and no new subdirectory, unless the user explicitly asks for that file. Nothing checks generated documentation: no test, no fixer, no reviewer. The code moves and the document does not, so the next reader trusts a description of code that no longer exists. The one path an agent writes under `docs/` on its own is `docs/memory/PROJECT_MEMORY.md` (`@rules/compound-engineering/memory.md`).
+
+| Documentation | Where it belongs |
+|---|---|
+| Conventions for agents and contributors | the project instruction sources (`@rules/general/general.md` *Project instructions take precedence*) |
+| Path-scoped traps and settled decisions | the project's own rule files (e.g. `.ai/rules/**`) |
+| The repository entry point | `README.md` |
+| Analysis, plans, and reports for one task | the tracker item |
+
+- **Deleting a committed file is a stated decision, never a side effect.** Run `git status` before you commit and stage only the changes you intended. The commit message says who decided the deletion and why.
+- In code review, a diff that adds a file under `docs/`, other than the memory file, is a **Moderate** finding. The Suggested Fix names the row of the table the content moves to.
+
 ## What Not To Do
 
 - Do not write a project-specific lesson into this shared rules package as a new global rule — only genuinely universal standards belong here.

@@ -72,7 +72,10 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // Malicious Code & Supply-Chain Indicators bullet headings.
         // The digest records the current body; it never forbids a deliberate edit to it, only
         // an accidental one.
-        'backend.md' => '163d6d5e4b5e926675090079f36554b5e58ed9dd92a4775b7f60a7fcad204600',
+        // Re-baselined: a project that accepts the DNS-rebinding gap states the acceptance in the
+        // PR description instead of a comment at the sink, because a PHP comment carries only
+        // `@` annotations. Nothing else in the file moved.
+        'backend.md' => 'c5a00d4934e7eb3d025d6ca9b9d11d5c5a55bdb6dfc71d4889989639a3c6a3e3',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         'mobile.md' => 'f72b824c6f6d23f0db84662ab7de8c54c5126b4d65d5118e44b169d2a4115fea',
     ];
@@ -191,7 +194,9 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     // the reason, exactly as `rules/reports/general.md` did below.
     $packageDir = dirname(__DIR__, 2);
     $expectedBodyHashes = [
-        'rules/api/general.md' => '33b6cd8fce7ced30e90e05f72fde2d1cacf25e7aa37579aac5a3f4c351eed2fc',
+        // Re-baselined: the Minor tier is gone, so the CR Severity Rules drop their Minor-only list.
+        // Nothing else in the file moved.
+        'rules/api/general.md' => 'eca37e85cde510cb99b0c02f569293022770bd75ccd712fe57be468e6d5a4ca0',
         // Re-baselined: the file gained a `## Collections` section — a sequence of collection
         // transformations is chained into one fluent pipeline instead of being reassigned
         // through a single variable. Nothing else in the file moved.
@@ -215,7 +220,11 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined once more: the DNS bullet now names the seam an injectable seam class
         // dedicated to that capability, matching the per-capability wording in
         // `rules/code-testing/general.md`. Nothing else in the file moved.
-        'rules/laravel/laravel.md' => '8c8f089a1a9ad76e686f3203a83273905c2429a23b5388def566086ce7780491',
+        // Re-baselined: `## Queue and Jobs` gained the rule that every dispatched queue has a
+        // consumer, the file gained `## Agent Tool Output (`laravel/pao`)`, `## Time` names the
+        // manifest `timezone` as the zone that wins, and the exact-semantics exception in `## String
+        // Emptiness Checks` is stated in the PR description instead of at the call site.
+        'rules/laravel/laravel.md' => '120ecdd54f8abe061adf2a64525b6717c14a88821724a9a9514141911e849455',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -237,8 +246,17 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: Documentation now retains comments only for type analysis, security or
         // operational context, and deliberately non-intuitive behaviour. The content policy is
         // pinned by `tests/Installer/SkillsContentTest.php`; the frontmatter scope is unchanged.
-        'rules/php/core-standards.md' => '2fa2a4d8d789710c728c07c3bdce141c758002f8e4d8f88f2334d1705de410f1',
-        'rules/sql/optimalize.md' => '1be7ae52b6e7c764c8d631a5ad01c08d3e953d06f3cdf6e21e21a94e771816d7',
+        // Re-baselined: Documentation now allows `@` annotations only — the *what* goes into
+        // names, the *why* into the commit message and the PR description — `## Testing` drops the
+        // optional AAA comments and points at the project's discovered coverage command, `## Time`
+        // names the manifest `timezone`, `## Naming` requires English identifiers, and the Minor
+        // tier is gone from the `mixed` severity and the misleading-name gating. `## CR Severity Rules`
+        // gained the Moderate entry for a comment block carrying prose.
+        'rules/php/core-standards.md' => '35cf25b595f5c1325c8d7ee452447263008ba4a25d6e7e51b3e118d2e9556837',
+        // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
+        // review of a changed query makes, and the per-row exception is justified in the PR
+        // description instead of a code comment. Nothing else in the file moved.
+        'rules/sql/optimalize.md' => '6ef890fd191140ababe4499cabc6787b24fa8757352452493de8ed59f82a9ee8',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -370,10 +388,19 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: `## Data Validators` now states that a Data Validator returns `bool` or
         // throws and never returns data, and CR Severity Rules gained the matching Critical entry.
         // The old single-`validate()` restriction is replaced by named methods of those two shapes.
-        'rules/laravel/architecture.md' => '154bf87a09f89097797beef549a50869479eb77d31ada014450c0ad6ecf5dd58',
-        'rules/laravel/dynamodb.md' => 'c551d704a405b13d01da74a7be899380907d0f84ccccdfc6c912fc6ed9b9409a',
+        // Re-baselined: `Resolver` joined the forbidden bare suffixes with the walk that routes each
+        // of its responsibilities to a layer, the multitenancy bullet gained the manifest
+        // `tenancy: database` case, `## Controllers and Other Entry Points` gained the rule that
+        // only an entry point reads the authenticated user, CR Severity Rules gained the matching
+        // Moderate entry, and the per-row exception is justified in the PR description only.
+        'rules/laravel/architecture.md' => 'a7ac0411ce5dca4e3e6e08a957fe252524d01411841dca24f9378883dcbc11c1',
+        // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
+        // PHP comment carries only `@` annotations. Nothing else in the file moved.
+        'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
         'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
-        'rules/laravel/livewire.md' => '33544f8968925e49543216bce85dc98d2e0c4a7d91fa975be49a792504186d61',
+        // Re-baselined: the view-size exemption is stated in the PR description instead of the file
+        // header, and the Minor tier of the layout-splitting severity rules is gone.
+        'rules/laravel/livewire.md' => '4198570633d18fef4c7a5344374cd8d1215df98f2aee36748543410334177427',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
         // marker instead of re-posted, and the rule states what that costs (the comment chain is no
@@ -401,7 +428,13 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // own shape ("any `<namespace>:actor=` marker a package helper writes") with the full
         // namespace list — `cr-comment`, `merge-readiness`, `agent-note` — since `merge-readiness`
         // was a real, already-shipped namespace the previous two-marker wording missed.
-        'rules/code-review/general.md' => 'eeb7b931d36db7f15c90eb3c44bb37f5e0319897ed5bc96cc459999fea2f2aa0',
+        // Re-baselined: project instructions now win at every severity above the security /
+        // merge-gate / untrusted-content floor, and a project-only convention takes the project's
+        // severity (Moderate by default). The gate also reads `AGENTS.md`, the `.ai/rules/**` files
+        // covering the changed paths, and the manifest. The Minor bucket lost its security-lens
+        // exception (Low maps to Moderate, Info is not published), and a documented exemption and
+        // the product-docs source moved to the PR description and the manifest `product-docs` key.
+        'rules/code-review/general.md' => '489f62f8632823284bfaabc72b84b9c22c3e0c99eb0697da23e61cb3d0dec917',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -420,7 +453,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the file gained `## Acceptance-Criteria Test Contract` — every criterion has
         // a test, every test proves a criterion, coverage comes from those tests, and the code is the
         // simplest design that meets the criteria. `CodeTestingContentTest.php` pins it.
-        'rules/code-testing/general.md' => '9b2a26f25858b5612011bb38def77b864697f73ed19a3978ef4b84fc9549b540',
+        // Re-baselined: coverage and gate discovery point to the manifest-first order in
+        // `skills/resolve-issue/references/quality-gates.md`, the gate run is attributed to
+        // Finalization or the merge, and AAA phases are separated by blank lines, never comments.
+        'rules/code-testing/general.md' => '711ce4acd60723a8033e7182bdb7f47e21acdeebb07798308218910db1c07baf',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
@@ -464,7 +500,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
         // to. The language rule above it is unchanged apart from the JIRA section order.
-        'rules/reports/general.md' => '83cbe17a46783d1fa48bba736bad03eee0ac57166b318549c90554ce188299ea',
+        // Re-baselined: the manifest's `language.github` fixes the language of every GitHub report,
+        // the technical CR comment included; JIRA and Bugsnag keep the assignment language. The
+        // severity vocabulary lost `Minor`.
+        'rules/reports/general.md' => '850c7758bfd8afe4d05146ed39b9371ec0a48359f56446229a1f8266fab04ab4',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

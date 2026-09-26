@@ -113,7 +113,7 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Prefer simple, readable tests over complex setups.
 - Use data providers (datasets) where they improve readability and reduce duplication across similar test cases.
 - Tests must not contain conditions (e.g., `if`, `switch`); split conditional logic into separate test cases or data providers instead.
-- Structure every test body arrange-act-assert per @rules/php/core-standards.md Testing (phases in order, comments optional — see the canonical rule for the exception list).
+- Structure every test body arrange-act-assert per @rules/php/core-standards.md Testing (phases in order, separated by blank lines, never by `// Arrange` / `// Act` / `// Assert` comments — see the canonical rule for the exception list).
 
 ## No Tautological Assertions
 A tautology — an assertion that holds no matter what the code under test does — states nothing about that code, yet it counts toward coverage and reads as verified behaviour. That makes it worse than a missing test: a gap is visible, a tautology is camouflage. **No tautological assertion belongs in the codebase.** Delete it, or rewrite it into a claim the production code is able to break.
@@ -147,16 +147,16 @@ A change is delivered only when three things hold together: every acceptance cri
 ## Coverage
 - Every test change must be verified to be functional — run affected tests after each modification.
 - Require 100% code coverage for every changed or added code path — applies equally to code modifications and code review.
-- Before running coverage, discover the project's coverage command (prefer Phing target from `build.xml`/`phing.xml`; fall back to a Composer script in `composer.json` such as `test:coverage` or `coverage`). Do not assume a default command.
+- Before running coverage, discover the project's coverage command per `@skills/resolve-issue/references/quality-gates.md`. Do not assume a default command.
 - **Coverage reporting is short by default (issue #528 follow-up).** Run the coverage check on every change, but report the result on the published CR / tracker comment **only** when there is something the reader must act on:
     - **uncovered changed lines** — list every uncovered line as a Critical finding and render the `## Coverage` section with the tool, exact command, and the uncovered-line list;
     - **coverage tooling unavailable** — raise the missing-tool case as a Critical finding and render the `## Coverage` section with the reason in place of a result. **Sanctioned exception:** a pass running in the optional isolated read-only worktree with no `vendor/` under `## Savings mode: on` reports `deferred to donatello` here instead of a Critical finding, per `@rules/code-review/review-process.md` *Validation & Coverage Gate*.
   When every changed line is at 100% coverage and the tool ran successfully, **omit the `## Coverage` section entirely, omit the `Coverage:` header line, and omit the `coverage …` slot from the final summary line.** The CR is "clean" on the Counts line and the omission is the signal that coverage is satisfied — never emit `100%` / `clean` / `n/a` placeholders for the section, the header line, or the summary slot. The coverage check itself still runs unconditionally on every CR; only the user-visible reporting is short-circuited.
 
 ## Code Style and Quality Gates
-- **Do not run fixers or checkers on test changes as you author them.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), executed by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*, which commits the fixes it produces as their own commit.
+- **Do not run fixers or checkers on test changes as you author them.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), run by `@skills/process-code-review/SKILL.md` *Finalization* after the review converges, or by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. That run commits the fixes it produces as their own commit.
 - Do run the **tests** you are writing or changing — that is correctness feedback on the change itself, not a style gate, and it costs no build.
-- The gate discovers its own tooling: prefer Phing targets (`build.xml`/`phing.xml`) over Composer scripts (`composer.json`).
+- The gate discovers its own tooling: the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 
 ## Test Review
 - After completing test changes, run a quick code review focused on test quality against these rules.

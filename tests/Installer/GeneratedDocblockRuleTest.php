@@ -16,7 +16,7 @@ test('the PHP standards forbid a generated docblock that describes logic (issue 
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
     expect($standards)->toContain('**Never generate a docblock that describes the logic of a class, method, or property.**');
-    expect($standards)->toContain('A declaration-level docblock is allowed only for type analysis.');
+    expect($standards)->toContain('A declaration-level docblock carries `@` annotations only.');
     expect($standards)->toContain('clearer name or structure, never a shorter description');
     expect($standards)->toContain('Vendor-owned docblocks are outside this rule.');
 });

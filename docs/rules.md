@@ -1,6 +1,6 @@
 # Rules Overview
 
-The 30 rule files this package installs. A rule is a binding instruction file — not a
+The 33 rule files this package installs. A rule is a binding instruction file — not a
 suggestion an agent may weigh, and not documentation. Every run applies the always-on baseline;
 scoped rules apply to the files they name, and on-demand rules apply to the activity that names them.
 
@@ -22,7 +22,7 @@ skill or an agent that names it reads it.
 | [On-demand activity rules](#on-demand-activity-rules) | 9 | The review, tracker, memory, pull-request, report, JIRA, or refactoring activity that names them |
 | [Orchestration](#orchestration) | 3 | Runs that dispatch subagents |
 | [PHP & Composer](#php--composer) | 3 | PHP code and dependency choices |
-| [Laravel](#laravel) | 6 | Laravel projects |
+| [Laravel](#laravel) | 7 | Laravel projects |
 | [Security](#security) | 4 | Every run; three are surface-scoped |
 | [Data & API](#data--api) | 2 | SQL and HTTP API surfaces |
 | [Testing](#testing) | 1 | Test files |
@@ -88,6 +88,7 @@ Applies to a run that dispatches subagents rather than doing the work itself.
 | [`laravel/livewire.md`](../rules/laravel/livewire.md) | Livewire component rules, including HTML / Blade layout splitting | Livewire |
 | [`laravel/queue-debouncing.md`](../rules/laravel/queue-debouncing.md) | Safe queue debouncing, urgency separation, and replaceable work | Laravel |
 | [`laravel/dynamodb.md`](../rules/laravel/dynamodb.md) | DynamoDB query safety — scan prevention, key-targeted reads, Tinker debug | Laravel |
+| [`laravel/boost.md`](../rules/laravel/boost.md) | Laravel Boost — generated `CLAUDE.md` / `AGENTS.md`, regeneration, the 150 000-character limit, `@scoped` guidelines, project skills | Laravel Boost |
 
 ## Security
 

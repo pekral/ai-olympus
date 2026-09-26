@@ -27,6 +27,7 @@ paths:
 - Use `EXPLAIN ANALYZE` for actual vs estimated row counts.
 - Check slow query log — prioritize frequent or longest-running queries.
 - Apply one optimization at a time; measure before and after.
+- **In code review, name the connection a changed query runs on and its blast radius**: tenant (one tenant's data), shared (every tenant on one server or shard), global (one database every tenant reads), or analytics. The same query costs orders of magnitude more on a shared or global connection than on a tenant one, and a review that does not name the connection has not assessed the risk. This is a statement in the review's database analysis, not a finding of its own.
 
 ## Performance Non-Regression on Query Changes
 Whenever a query is **refactored or changed** (Eloquent / query-builder rewrite, raw-SQL edit, added / removed `JOIN` / `WHERE` / `ORDER BY` / `GROUP BY` / subquery / eager load, pagination change, index-driven rewrite, or a refactor that moves the query into another layer), the changed query **must be at least as fast as the original — ideally faster**. Never ship a query change that is slower without a documented justification.
@@ -102,7 +103,7 @@ ALTER TABLE orders ADD INDEX idx_user_status_created (user_id, status, created_a
 - **Bulk delete:** prefer a single `whereIn(...)->delete()` over per-row `Model::delete()` calls.
 - **Bulk read:** fetch the whole working set in one query (e.g. `findBy{Attribute}In(...)`) and key it in memory; never look rows up one by one inside a loop.
 - **Goal:** minimize DB round-trips and lock contention.
-- **Acceptable exception:** per-row work that genuinely cannot be batched because each iteration depends on a side effect of the previous one (e.g. each row triggers a downstream API call that mutates DB state the next row reads). The exception must be justified in a short code comment or in the PR description.
+- **Acceptable exception:** per-row work that genuinely cannot be batched because each iteration depends on a side effect of the previous one (e.g. each row triggers a downstream API call that mutates DB state the next row reads). The exception must be justified in the PR description.
 
 ```php
 // Bad — per-row update inside a loop

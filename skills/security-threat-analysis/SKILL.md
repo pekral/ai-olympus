@@ -12,7 +12,7 @@ metadata:
 - Apply `@rules/security/backend.md`
 - Apply `@rules/security/frontend.md`
 - Apply `@rules/security/mobile.md`
-- Apply `@rules/reports/general.md`. When the remediation report is published as a **GitHub PR comment** (technical channel — the PR is the codebase tracker), it stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. When it is published as a comment on the originating tracker issue / JIRA ticket (non-technical channel), it follows the language of the source assignment. CVE / GHSA identifiers, CWE / OWASP labels, package names, and code identifiers stay verbatim regardless of the surrounding prose language.
+- Apply `@rules/reports/general.md`. When the remediation report is published as a **GitHub PR comment** (technical channel — the PR is the codebase tracker), it stays in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* — or in the language the project manifest sets in `language.github` (*Project override — `language.github` in the manifest*). When it is published as a comment on the originating tracker issue / JIRA ticket (non-technical channel), it follows the language of the source assignment. CVE / GHSA identifiers, CWE / OWASP labels, package names, and code identifiers stay verbatim regardless of the surrounding prose language.
 - Never include exploit payloads in a form ready for live attack; always redact secrets, PII, and identifying tokens
 - Do not modify code in this skill — it produces a report only
 - Do not duplicate `@skills/security-review/SKILL.md`; that skill audits the whole project, this skill analyzes one referenced external threat

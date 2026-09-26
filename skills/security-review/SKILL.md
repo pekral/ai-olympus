@@ -15,7 +15,7 @@ metadata:
 - Apply `@rules/security/frontend.md`
 - Apply `@rules/security/mobile.md`
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
-- Apply @rules/reports/general.md. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
+- Apply @rules/reports/general.md. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* — or in the language the project manifest sets in `language.github` (*Project override — `language.github` in the manifest*). When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
 - Focus on realistic, exploitable issues
 - Never reveal secrets
 - **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing to the remote is not. Output is the audit report only.
@@ -99,7 +99,7 @@ Raise a finding when the traced path reaches the sink without **all** of: a sche
 
 State the **reachable entry point** in the finding, per the attack-surface rule above — an unauthenticated endpoint that returns the fetched body is a different finding from a queued job whose output nobody sees. Severity: **Critical** when the sink is reachable unauthenticated or by a low-privilege caller, when the response is observable, or when cloud metadata / an internal admin surface is reachable; **High** otherwise, including blind SSRF. The **Suggested Fix** routes the URL through one central validator (a validation rule, a Data Validator, or a `SafeUrl` value object) rather than repeating the checks per call site, and pairs it with `withoutRedirecting()` and a timeout.
 
-A DNS-rebinding gap left open (host validated, then re-resolved by the client) is a finding when nothing at the sink acknowledges it; an inline comment accepting the trade-off downgrades it to a note. Scope boundary — disabled TLS on the same request belongs to *Malicious Code & Supply-Chain Indicators (issue #549)* below, and a user-supplied browser redirect target is an open redirect; raise one finding per violation, never two for the same line.
+A DNS-rebinding gap left open (host validated, then re-resolved by the client) is a finding. An author who accepts the trade-off states it, with the reason, in the PR description — never in a code comment. That statement is context for the reviewer, not a waiver: there is no "note" tier, so the gap stays a finding at its severity until the sink closes it. Scope boundary — disabled TLS on the same request belongs to *Malicious Code & Supply-Chain Indicators (issue #549)* below, and a user-supplied browser redirect target is an open redirect; raise one finding per violation, never two for the same line.
 
 ### Malicious Code & Supply-Chain Indicators (issue #549)
 Walk every line the diff adds or modifies in application code, shell / deploy / CI scripts, `composer.json` / `package.json` script hooks, and installer hooks against `@rules/security/backend.md` *Malicious Code & Supply-Chain Indicators* (and the frontend / mobile mirrors for client surfaces). Raise a finding on each indicator:
@@ -176,6 +176,8 @@ Findings from this skill are **never** eligible for the Assignment-Declared Test
 - High
 - Medium
 - Low
+
+When the findings fold into a code review, the CR severity scale has only Critical and Moderate. The mapping is fixed: **Critical → Critical; High, Medium, and Low → Moderate.** Every mapped finding blocks convergence. A project instruction never lowers this mapping: every finding of this skill meets S1 of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*.
 
 ### Each finding must include
 - severity
