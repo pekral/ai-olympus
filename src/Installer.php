@@ -134,10 +134,10 @@ final class Installer
     {
         $claudeMdTarget = InstallerPath::resolveClaudeMdTarget($root);
         $agentsMdTarget = InstallerPath::resolveAgentsMdTarget($root);
-        $instructionsTarget = InstallerPath::resolveClaudeInstructionsTarget($root);
         $copied = 0;
 
-        if ($instructionsTarget !== $claudeMdTarget) {
+        if (InstallerPath::isBoostProject($root)) {
+            $instructionsTarget = InstallerPath::resolveClaudeInstructionsTarget($root);
             InstallerPath::ensureDirectory(dirname($instructionsTarget));
 
             return InstallerFileCopier::installSingleFile(InstallerPath::resolveClaudeMdSource(), $instructionsTarget);

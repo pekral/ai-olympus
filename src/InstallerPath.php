@@ -100,11 +100,16 @@ final class InstallerPath
     {
         $claudeMdTarget = self::resolveClaudeMdTarget($root);
 
-        if (is_file($claudeMdTarget) || !is_dir($root . '/vendor/laravel/boost')) {
+        if (is_file($claudeMdTarget) || !self::isBoostProject($root)) {
             return $claudeMdTarget;
         }
 
         return $root . '/.ai/guidelines/ai-olympus.md';
+    }
+
+    public static function isBoostProject(string $root): bool
+    {
+        return is_dir($root . '/vendor/laravel/boost');
     }
 
     public static function resolveClaudeMdSource(): ?string
