@@ -38,7 +38,7 @@ It never merges the pull request.
 - Apply @rules/git/general.md. Never push to the default branch and never rewrite a branch already
   under review except for the skill-owned rebase using `--force-with-lease`.
 - Apply @rules/reports/general.md. The source-issue TL;DR uses the assignment language. Technical PR
-  review evidence stays in canonical English.
+  review evidence stays in canonical English, or in the manifest's `language.github` when it is set.
 - Accept exactly one source reference:
   - a full `https://github.com/<owner>/<repository>/issues/<number>` or
     `https://github.com/<owner>/<repository>/pull/<number>` URL,

@@ -1825,7 +1825,7 @@ test('the three frontend lenses carry a read-only MODE=cr contract so the CR can
         expect($content)->toContain('when the diff touches a frontend surface)**');
         expect($content)->toContain('never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.**');
         expect($content)->toContain('lines added or modified by the PR diff');
-        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate buckets');
         expect($content)->toContain('never applied to the project');
         expect($content)->toContain('> **What this lens owns in a CR:**');
     }
@@ -1906,7 +1906,7 @@ test('docker-patterns and vite-patterns carry a read-only MODE=cr contract (issu
             . 'never run fixers or checkers, and never chain a follow-up review.**',
         );
         expect($content)->toContain('Scope the analysis to the lines added or modified by the PR diff');
-        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate buckets');
         expect($content)->toContain('never applied to the project');
         expect($content)->toContain('> **What this lens owns in a CR:**');
     }
@@ -1972,7 +1972,7 @@ test('the three domain lenses carry a read-only MODE=cr contract (issue #64)', f
             . 'never run fixers or checkers, and never chain a follow-up review.**',
         );
         expect($content)->toContain('Scope the analysis to the lines added or modified by the PR diff');
-        expect($content)->toContain('the CR folds into its standard Critical / Moderate / Minor buckets');
+        expect($content)->toContain('the CR folds into its standard Critical / Moderate buckets');
         expect($content)->toContain('never applied to the project');
         expect($content)->toContain('> **What this lens owns in a CR:**');
         // Each mode block must be the only one in its file, so a later edit cannot leave two

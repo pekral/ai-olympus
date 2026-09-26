@@ -407,7 +407,7 @@ SecurityLogger::log('role_change', ['target_user' => $targetId, 'new_role' => 'a
 
 ## Laravel Security Audit
 
-When auditing an existing Laravel application (instead of building new features), use `@skills/laravel-security/references/audit-workflow.md`. It covers the 7 audit areas — Authorization/IDOR/BOLA, Authentication, Validation, XSS, File upload, Secrets/configuration, Dependencies — with severity mapping (Critical/High/Medium/Low/Info → CR scale Critical/Moderate/Minor), Grep patterns, and a required regression-test sketch per confirmed finding. The building blocks in this file (Production Configuration, Authentication, Authorization, Eloquent Security, CSRF, XSS Prevention, Input Validation, File Upload Security, Secrets and Dependencies) are the reference fixes the audit workflow links back to.
+When auditing an existing Laravel application (instead of building new features), use `@skills/laravel-security/references/audit-workflow.md`. It covers the 7 audit areas — Authorization/IDOR/BOLA, Authentication, Validation, XSS, File upload, Secrets/configuration, Dependencies — with severity mapping (Critical → Critical; High/Medium/Low → Moderate; Info → not published), Grep patterns, and a required regression-test sketch per confirmed finding. The building blocks in this file (Production Configuration, Authentication, Authorization, Eloquent Security, CSRF, XSS Prevention, Input Validation, File Upload Security, Secrets and Dependencies) are the reference fixes the audit workflow links back to.
 
 ## Done when
 - The relevant secure default is applied and matches the project's existing style

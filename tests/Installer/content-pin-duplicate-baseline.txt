@@ -10,7 +10,6 @@ codeReviewRuleContents() :: **Test Hint:**
 codeReviewRuleContents() :: **What is lost, stated rather than hidden:**
 codeReviewRuleContents() :: @rules/code-testing/general.md
 codeReviewRuleContents() :: @skills/code-review/SKILL.md
-codeReviewRuleContents() :: Security-lens findings are never suppressed, at any severity
 codeReviewRuleContents() :: isEligibleForDiscount
 codeReviewRuleContents() :: reuse-first gate
 codeReviewRuleContents() :: {ClassName}Test.php

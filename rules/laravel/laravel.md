@@ -117,6 +117,12 @@ The only exception is a process the test itself owns end-to-end (e.g. the projec
 - Use `Artisan::call(CommandClass::class)` for console command execution in tests.
 - Use `app()->call([$job, 'handle'])` to invoke a job under test. The container resolves the `handle()` dependencies, so the test needs no doubles and runs the same wiring the queue worker runs. See `@rules/code-testing/general.md` *Jobs* for the full contract, including when to swap a container binding instead.
 
+## Agent Tool Output (`laravel/pao`)
+Applies only when the project installs `laravel/pao`. The package detects an agent through `CLAUDECODE=1` and replaces the human output of Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan with compact JSON.
+- **Run every such tool whose output you read with `CLAUDECODE=1`.** The manifest `env` provides it when the project sets it there (`@rules/general/general.md` *Project manifest*). Do not add it to a command a human reads.
+- **The process exit code is the only green signal.** pao can print `passed` while the process exits non-zero — for example a risky test under `failOnRisky`. Read the exit code, never the summary.
+- **Never parse pao's JSON in committed code.** It is an output format, not an API. Severity in code review: **Moderate**.
+
 ## Queue and Jobs
 - Queue long-running or external-dependent work.
 - Jobs should be idempotent.
@@ -132,6 +138,7 @@ The only exception is a process the test itself owns end-to-end (e.g. the projec
 - Queue constructors must only accept lightweight scalar values, DTOs, enums, or value objects. Avoid hydrated models, collections, large arrays, files, and service instances.
 - Use `Bus::bulk()` to dispatch many jobs onto the queue in a single call when you do **not** need batch tracking — bulk notifications, imports, email campaigns, and mass background tasks. It enqueues the jobs without the overhead of a tracked batch.
 - Reserve `Bus::batch()` for cases that genuinely need progress tracking, completion/failure callbacks, or cancellation. When none of those are required, prefer `Bus::bulk()` as the lighter option, and never loop over `dispatch()` per job when a single bulk call covers the same work.
+- **Every queue the code dispatches to has a consumer.** A new queue name — `onQueue()`, a job's `$queue`, a connection's default queue — ships together with its worker entry in the deploy configuration the project already uses: Horizon, supervisor, a Bref / serverless worker, or Vapor. A dispatch target with no consumer enqueues messages nobody processes. This rule never asks a project to adopt a worker technology it does not run; the consumer is added in the one it has. Severity in code review: **Critical**. When the deploy configuration lives outside this repository, record a verification gap instead of a finding.
 
 ## Scheduling
 - Attach structured metadata to scheduled commands with `withAttributes()` (e.g. a tag or a priority) so monitoring, logging, and alerting can group, filter, and prioritize scheduled runs.
@@ -205,10 +212,11 @@ The only exception is a process the test itself owns end-to-end (e.g. the projec
 - **`empty()` is not the substitute.** It additionally treats the legitimate string `'0'` as empty, which is a separate defect in the opposite direction. `strlen($value) === 0` has the same whitespace hole as `=== ''`.
 - The same applies to the **normalisation** side. When a getter maps *no value* to `null`, it maps `'   '` to `null` too, or the whitespace is what gets persisted.
 - Laravel's `required` rule already trims, so `['required', 'string']` needs nothing added. The gap is in `nullable` / `sometimes` combinations and in every hand-written comparison in a FormRequest accessor, a Data Builder, or a DTO — that is where this rule bites.
-- Keep the raw `!== ''` / `=== ''` form only when the exact PHP semantics matter (e.g. a `null`, whitespace-only, or empty-collection value must be treated as non-empty) and say so at the call site.
+- Keep the raw `!== ''` / `=== ''` form only when the exact PHP semantics matter (e.g. a `null`, whitespace-only, or empty-collection value must be treated as non-empty), and state why in the PR description.
 - Severity in code review: **Moderate** for a `''`-only comparison on a value that reaches the application from outside it. The rule is satisfied only when `' '` demonstrably reaches the same branch as `''`.
 
 ## Time
+- **When the project manifest sets `timezone`, that zone wins** over `config('app.timezone')` (`@rules/general/general.md` *Project manifest*). Pass it explicitly on every call, exactly as the rest of this section passes the configured zone.
 - **The project's configured timezone is the single source, and `config('app.timezone')` is where it lives.** Read it from there — `now(config('app.timezone'))`, `Carbon::parse($value, config('app.timezone'))` — never from a zone literal repeated at each call site, and never by leaving `now()` to apply it silently.
 - **The explicit argument changes nothing at runtime and everything for the reader.** `now()` already resolves against `config('app.timezone')`, so this is not a behaviour fix — it is what makes the zone reviewable. A bare call is indistinguishable from one whose author never considered the zone, and a literal `'Europe/Prague'` forks the answer the moment the configuration changes.
 - The framework-agnostic half of this rule lives in `@rules/php/core-standards.md` *Time* and applies unchanged: one zone for computing and storing, conversion only at the boundary, no SQL `NOW()`, and a zone on every value that crosses a process boundary.

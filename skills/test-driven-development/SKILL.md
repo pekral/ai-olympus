@@ -92,7 +92,7 @@ Never add a regression test for a bug unless an E2E reproduction or failure inve
 
 ## Post-cycle validation
 1. Verify 100% code coverage for all changed or added code paths — if coverage tooling exists, run it.
-2. Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
+2. Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 3. Run available fixers on changed files and fix any violations.
 4. Run available checkers/analyzers on changed files and resolve all reported errors.
 5. Run a quick code review of all tests written during the TDD cycle against `@rules/code-testing/general.md` and fix any findings.

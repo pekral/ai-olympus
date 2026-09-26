@@ -41,7 +41,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - **Place new test files per `@rules/code-testing/general.md` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
 - **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions. When changing what a test asserts, rename the description in the same change so the code-review test-organization gate passes downstream.
 - **Invoke a job under test with `app()->call([$job, 'handle'])` per `@rules/code-testing/general.md` *Jobs*** — construct the job with the payload the test controls and let the container resolve the `handle()` dependencies. Never hand-build doubles and pass them to `handle()` directly; when a collaborator genuinely cannot run in the test, swap its container binding (`$this->app->instance(...)`, `Http::fake()`, `Process::fake()`) and leave the call site unchanged.
-- **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
+- **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), separated by blank lines, never by `// Arrange` / `// Act` / `// Assert` comments; see the canonical rule for the exception list.
 
 ### 3. Ensure Coverage
 - Cover all changed code paths
@@ -60,7 +60,7 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 - If coverage tooling exists, verify coverage **for the changed files only**, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`) and verify the result. Do not gate on a project-wide coverage percentage — full-suite coverage is for release gates, not for verifying current changes. Delete any generated coverage report file once read so it is not accidentally committed.
 
 ### 6. Code Style and Quality Gates
-- Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`)
+- Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`
 - Run available fixers on changed test files and fix any violations
 - Run available checkers/analyzers on changed test files and resolve all reported errors
 

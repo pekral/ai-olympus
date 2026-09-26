@@ -73,12 +73,12 @@ git rebase "origin/$DEFAULT_BRANCH"   # 2) bring the latest default branch in
 # resolve conflicts if any, then: git rebase --continue
 git push --force-with-lease           # 3) publish; do NOT git pull again — it would undo the rebase
 ```
-The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted; substitute the project's own gate for `composer build` where it differs.
+The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted. `<the project gate>` is the project's gate command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 
 Run that replay only when you actually want a bisectable history — it executes the whole gate once per commit, which is the cost the single end-of-work gate exists to avoid:
 
 ```bash
-git rebase --exec 'composer build' "origin/$DEFAULT_BRANCH"   # optional; stops on the first commit that fails
+git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"   # optional; stops on the first commit that fails
 ```
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
@@ -99,7 +99,7 @@ A conflict is a question about **intent**, not a formatting problem. Both sides 
 
 **3. Resolve each hunk.** Preserve both intents wherever they are compatible. Where they genuinely conflict, keep the one matching the merge's stated goal and record the trade-off in the merge commit body. **Never invent new behaviour in a conflict resolution** — a merge commit is the worst place to introduce a change nobody reviewed, because reviewers read the diff against each parent and a third behaviour appears in neither.
 
-**4. Run the project's checks.** Discover them rather than assuming (`composer.json` scripts, `package.json` scripts, the CI workflow) and run the full gate — for this project `composer build`. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart.
+**4. Run the project's checks.** Discover them rather than assuming — the project's gate command, discovered per `@skills/resolve-issue/references/quality-gates.md`, plus the `package.json` scripts and the CI workflow — and run the full gate. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart.
 
 **5. Finish.** Stage and continue (`git commit` for a merge, `git rebase --continue` for a rebase, repeating until every commit is replayed).
 

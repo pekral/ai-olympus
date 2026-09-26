@@ -73,14 +73,14 @@ Only after Read, Map, and Verify are complete may test-writing begin.
     current changes.
 -   If coverage tooling exists, verify that current changes are covered
     with 100% coverage for the changed files only, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`) — do not gate on the full-suite coverage percentage. Delete any generated coverage report file once read so it is not accidentally committed.
--   If fixers or test-related wrappers exist in the project, use them (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
+-   If fixers or test-related wrappers exist in the project, use them — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 -   Do not run the whole test suite unless it is required for the
     changed files workflow.
 -   If the review recommendation is already satisfied by existing tests,
     do not duplicate test coverage.
 -   **Place new test files per `@rules/code-testing/general.md` *Test Organization*** — the test file path mirrors the namespace of the SUT (e.g. `App\Service\Billing\InvoiceCalculator` → `tests/Service/Billing/InvoiceCalculatorTest.php`), the file name is `{ClassName}Test.php` (or `{ClassName}{Scenario}Test.php` for an extracted scenario file of the same SUT), and cross-cutting tests sit under an intent-named directory (`tests/Feature/<flow>`, `tests/Contract/<vendor>`, `tests/Integration/<area>`).
 -   **Name every `it()` / `test()` block to match the scenario the body asserts** — plain-language descriptions such as `it('returns zero for an empty cart')` or `test('throws InvalidArgumentException when the discount is negative')`. Never use placeholders (`it('it works')`, `test('test1')`, `test('happy path')`), method names (`test('calculate')`, `it('handles getUser')`), or descriptions that contradict the assertions, so the code-review test-organization gate passes when the PR is re-reviewed.
--   **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), comments optional; see the canonical rule for the exception list.
+-   **Structure every test body arrange-act-assert per `@rules/php/core-standards.md` Testing** — phases in order (setup → action → assertions), separated by blank lines, never by `// Arrange` / `// Act` / `// Assert` comments; see the canonical rule for the exception list.
 
 ### Pre-existing issue handling
 
@@ -105,7 +105,7 @@ Rules:
 
 ### After completing the tasks
 
--   Discover available fixers and checkers (prefer Phing targets from `build.xml`/`phing.xml`; fall back to Composer scripts in `composer.json`).
+-   Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 -   Run available fixers on all changed test files and fix any violations.
 -   Run available checkers/analyzers on all changed test files and resolve all reported errors.
 -   Run a quick code review of all added or updated tests against `@rules/code-testing/general.md` and fix any findings.

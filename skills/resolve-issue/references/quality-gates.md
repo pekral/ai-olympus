@@ -1,18 +1,21 @@
 # Quality Gates
 
-Project fixers and checkers run **once per branch, at the merge boundary** — not before every push. Discover available tooling using this priority:
+Project fixers and checkers run **once per branch, at the merge boundary** — not before every push. This file is the one place that defines how the project's gate and coverage commands are discovered; every other file points here. Discover them in this order, and resolve the gate and the coverage command separately — each comes from the first source that defines it:
 
-1. **Phing** — check for `build.xml` or `phing.xml` in the project root. If present, list available targets (`phing -l`) and use relevant fixer/checker targets.
-2. **Composer scripts** — if Phing is not available, inspect `composer.json` `scripts` section for fixer and checker commands (e.g. `fix`, `check`, `build`, `pint-fix`, `phpcs-fix`, `rector-fix`, `pint-check`, `phpcs-check`, `rector-check`, `test:coverage`).
+1. **Project manifest** — read `extra.ai-olympus` with `skills/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*). The script reads the default-branch copy, never the working tree of a branch under review. When the manifest sets `gate`, that list is the project's full gate: run its commands in the listed order, and every command must pass. When the manifest sets `coverage`, that command is the project's coverage command.
+2. **Phing** — when the manifest sets no `gate`, check for `build.xml` or `phing.xml` in the project root. If present, list available targets (`phing -l`) and use relevant fixer/checker targets.
+3. **Composer scripts** — when neither source applies, inspect `composer.json` `scripts` section for fixer and checker commands (e.g. `fix`, `check`, `build`, `pint-fix`, `phpcs-fix`, `rector-fix`, `pint-check`, `phpcs-check`, `rector-check`, `test:coverage`).
 
-Run in this order:
+Export every variable in the manifest `env` before you run a gate or coverage command, whichever source supplied the command.
+
+A manifest `gate` already fixes the order: run its commands as listed. Otherwise run in this order:
 1. **Fixers** — run all available fixers (e.g. code style, rector, normalize). Fix any issues they report.
 2. **Checkers** — run all available checkers/analyzers (e.g. code style check, static analysis, audit). Resolve all reported errors before proceeding.
    **Resolve means change the code, never silence the tool.** A `phpcs:ignore`, `@phpstan-ignore`, `@psalm-suppress`, `@SuppressWarnings`, a new baseline / `ignoreErrors` line, or a PHP `@` operator must never enter the diff — `@rules/php/core-standards.md` PHP Practices admits no exception, and a new suppression annotation is a **Critical** review finding. Narrow a type, split a method, introduce a DTO, or assert an invariant the analyser cannot infer. For a genuine false positive in a surface the project does not own, add one scoped entry to the project's own tool configuration naming the single rule and the single path, with a comment naming the external contract that forces it.
 When neither works, **stop and report it** — state what the checker flags, what was tried, and why neither route resolved it, and let a human decide. Never write the suppression to get the gate green.
 3. **Coverage** — if a coverage command exists, run it and confirm 100% coverage for changed code paths.
 
-If both fixers and checkers fail or are not found, stop and inform the user.
+If the manifest sets no `gate` and both fixers and checkers fail or are not found, stop and inform the user.
 
 ## HOTFIX — what the mode relaxes here
 
@@ -27,7 +30,7 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 A branch used to run the project's full build several times: once per implementation phase, once before the PR opened, and once per review-loop iteration. Every one of those runs proved the same thing the next one would prove again, and on a larger task the repeated full builds dominated the wall-clock cost of delivering the change. The gate now runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
-- **Once the work is finished — the full gate, once.** The project's full build (`composer build`, the Phing target, or the project's equivalent — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
+- **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
 - **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — and it runs the gate itself otherwise — for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes.
 - **Fixes from the gate land as a new commit.** When the gate reports anything — a fixer rewrote a file, a checker flagged an error, coverage fell short — resolve it and commit the result as a **new commit** on the branch (`chore(gate): apply pre-merge fixer and checker fixes`, or a `fix(scope):` subject when the resolution changed behaviour). Never amend a commit already under review, and never force-push a branch a reviewer has commented on (`@rules/git/general.md`).
 - **Re-run the gate after the fix commit.** The fix commit is a new tree, so the gate has not passed on it yet. Re-run the full build on the new head and repeat until it is green on the exact commit being merged. A merge proceeds only on a head commit whose own gate run passed.

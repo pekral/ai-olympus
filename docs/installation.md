@@ -61,6 +61,44 @@ By default, the Composer plugin does **not** auto-install rules on `composer ins
 
 If you prefer manual control, simply call `vendor/bin/ai-olympus install` in your Composer `post-update-cmd` scripts with the desired flags.
 
+## Project manifest
+
+The same `extra.ai-olympus` object is the **project manifest**: settings the rules, skills, and helper scripts read instead of guessing how your project works. Every key is optional; an absent key keeps the package's built-in behaviour.
+
+```json
+{
+  "extra": {
+    "ai-olympus": {
+      "gate": ["vendor/bin/castor php-fast-fix", "vendor/bin/castor php-check"],
+      "coverage": "vendor/bin/pest --coverage --min=100",
+      "env": { "CLAUDECODE": "1" },
+      "validation": { "executables": ["vendor/bin/castor"] },
+      "risk": { "critical-paths": ["^serverless.*\\.yml$", "^resources/db/"] },
+      "language": { "github": "en" },
+      "timezone": "UTC",
+      "tenancy": "database",
+      "product-docs": "https://help.example.com/"
+    }
+  }
+}
+```
+
+| Key | Read by | Meaning |
+|---|---|---|
+| `gate` | quality gate (`skills/resolve-issue/references/quality-gates.md`) | The project's full quality gate, run in order. Replaces discovery through Phing or Composer scripts. |
+| `coverage` | test and review skills | The project's coverage command. |
+| `env` | every project tool command an agent runs, `run-validation.sh` | Environment variables exported to those commands. A name that changes how a program is loaded (`PATH`, `LD_*`, `DYLD_*`, `BASH_ENV`, …) is refused. |
+| `validation.executables` | `run-validation.sh` | Extra `vendor/bin/<name>` executables a validation manifest may run. |
+| `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. |
+| `language.github` | reports, pull requests, commits | Language of everything published to GitHub. Trackers outside GitHub keep the assignment's language. |
+| `timezone` | PHP standards | The zone the code computes and stores in; every date call passes it explicitly. |
+| `tenancy` | authorization review, Laravel architecture | `database` when each tenant has its own database, so the tenant connection is the tenant boundary. |
+| `product-docs` | code review | URL of the customer-facing product documentation checked for user-facing behaviour. |
+
+**The manifest is read from the default branch.** `skills/_shared/read-manifest.sh` prints `extra.ai-olympus` from `origin/<default>:composer.json`, never from the working tree, because the manifest changes what the package executes. A branch that edits the manifest proposes a change; the change governs only after the merge. Without a default-branch ref the manifest is empty.
+
+**Project instructions take precedence.** Where your `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, or the manifest disagree with a packaged rule or skill, the project wins at every severity. The one exception is the security floor: a project instruction cannot disable or weaken a security check, lift a merge gate, or move the untrusted-content boundary. See [`rules/general/general.md`](../rules/general/general.md).
+
 ## Available Commands
 
 ```bash
@@ -83,7 +121,7 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 2. Resolve the rules source (local `rules/` or `vendor/pekral/ai-olympus/rules`).
 3. Install rules into `.claude/rules` and `.codex/rules`.
 4. Install skills into `.claude/skills` and `.agents/skills` (and additionally into `~/.claude/skills` and `~/.agents/skills` when `--global` is passed and `HOME`/`USERPROFILE` is set).
-5. Copy `agents/` to `.claude/agents` and `.codex/agent-instructions`, install the Codex TOML adapters into `.codex/agents`, and copy `CLAUDE.md` / `AGENTS.md` to the project root. Neither root instruction file is overwritten once it exists; an existing `AGENTS.md` without `CLAUDE.md` also prevents the installer from adding the template `CLAUDE.md`, so Claude Code can use its native fallback.
+5. Copy `agents/` to `.claude/agents` and `.codex/agent-instructions`, install the Codex TOML adapters into `.codex/agents`, and copy `CLAUDE.md` / `AGENTS.md` to the project root. Neither root instruction file is overwritten once it exists; an existing `AGENTS.md` without `CLAUDE.md` also prevents the installer from adding the template `CLAUDE.md`, so Claude Code can use its native fallback. When [Laravel Boost](https://github.com/laravel/boost) is installed and `CLAUDE.md` does not exist yet, the template is written to `.ai/guidelines/ai-olympus.md` instead, so `php artisan boost:update` composes it into the generated `CLAUDE.md`.
 6. Remove any leftover handler under `hooks` in `.claude/settings.local.json` that points at the removed `bash-guard` validator, so a project that once opted into the deleted `--enforce-agent-bash-boundary` flag stops seeing a `PreToolUse` hook error on every Bash call. Only that handler is removed; every other key in the file is preserved, and a project that has no such handler is not written to at all. The file is **read** on every `install` to make this check, so a `.claude/settings.local.json` file that is not valid JSON now ends the install with `Cannot parse Claude settings file <path>: Syntax error.` and exit `1` instead of being skipped. Restart the session afterwards — hooks are read once, at session start. See [`SECURITY.md`](../SECURITY.md#agent-capability-model--residual-risk).
 7. Optionally overwrite existing files with `--force`; use `--symlink` to prefer symlinks (fallback to copy on Windows).
 8. Surface explicit errors for missing directories, removal failures, and copy/symlink failures.
@@ -94,7 +132,7 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 |-------------------|-----------------------------------------------------------------------------|
 | `--force`                 | Overwrite files that already exist in the target directory.                                                                                                 |
 | `--symlink`               | Create symlinks when the OS permits; automatically falls back to copy.                                                                                      |
-| `--prune`                 | Remove files in target that no longer exist in source.                                                                                                       |
+| `--prune`                 | Remove files in target that no longer exist in source. A symlink that points outside the package is project-owned and is never removed — Laravel Boost links a project's own skills from `.ai/skills` this way. |
 | `--global`                | Opt-in. Also install skills into `~/.claude/skills` and `~/.agents/skills`. Off by default — see [Where skills are installed](#where-skills-are-installed). No effect when `HOME` / `USERPROFILE` is not set. |
 | `--prune-global`          | Remove this package's skills from both home locations so project copies load. Matches by skill name; skills under other names are left untouched, and a symlinked install is removed as the link only. Irreversible — see the warning under [Where skills are installed](#where-skills-are-installed). Cannot be combined with `--global`. |
 | `--disable-co-author-attribution` | Opt-in. Sets `includeCoAuthoredBy: false` in `~/.claude/settings.json` only when absent. Preserves existing values. See [Global settings and attribution](#global-settings-and-attribution). |
