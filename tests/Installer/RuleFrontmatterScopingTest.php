@@ -392,7 +392,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // one-comment contract lists `## Answers to reviewer questions` as a conditional section.
         // Re-baselined: its `*Per-dispatch memory slice*` pointer names `compound-engineering/memory.md`,
         // where Compound Memory moved to leave the always-on file. No sentence changed.
-        'rules/code-review/general.md' => 'ab7e37f483543b7be51252dc20dbc1708ea47e6486d97e9c8981313a93373034',
+        // Re-baselined (issue #156): *Authorship trust* gained the single definition of the
+        // operator's own account and of agent output carrying the `cr-comment:actor=` /
+        // `agent-note:actor=` marker family — the one place every other reader of that test
+        // (the Exclusion Gate, the assigned-comment section, the re-review trigger, and
+        // tracker.md) now points at instead of restating.
+        'rules/code-review/general.md' => '9dd21d1c9371f70d66b44ebf145562c7aedf020b5d35d4be8cf250b8b15a850b',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -434,7 +439,11 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // returned to In Progress by anyone; only a Code Review status returns, and only for its
         // owner. The finished list also gained `Hotovo`, a status containing `deploy`, and
         // `Testování`/`testovani`. The reverting sentence now names exception (2), not (1).
-        'rules/jira/general.md' => '468ac5ee10807d31a2e17d97c1b41c3125e169be7c22c1457072b39fbc98f163',
+        // Re-baselined again (issue #156): the JIRA MCP fallback TL;DR now states that it still
+        // carries the `cr-comment:actor=` marker, per `@rules/compound-engineering/tracker.md`
+        // *Every agent write to a tracker carries a marker* — it no longer says the fallback
+        // "carries none".
+        'rules/jira/general.md' => '91a7f2df6bfed961df013488387d9c130ed49b569bce3ba29d2587cab56a8a5d',
         'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
