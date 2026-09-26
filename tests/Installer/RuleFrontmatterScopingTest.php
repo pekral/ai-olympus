@@ -434,7 +434,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // covering the changed paths, and the manifest. The Minor bucket lost its security-lens
         // exception (Low maps to Moderate, Info is not published), and a documented exemption and
         // the product-docs source moved to the PR description and the manifest `product-docs` key.
-        'rules/code-review/general.md' => 'e4e031f4d4cf9fedfca0a11d33d920497751ef84eb874ed919f5758b436f846e',
+        'rules/code-review/general.md' => 'fe0464bac17739a98a2bda69bc3004123a76772d25dd3529a171abe73f9ae4da',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

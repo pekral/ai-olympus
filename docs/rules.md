@@ -88,7 +88,7 @@ Applies to a run that dispatches subagents rather than doing the work itself.
 | [`laravel/livewire.md`](../rules/laravel/livewire.md) | Livewire component rules, including HTML / Blade layout splitting | Livewire |
 | [`laravel/queue-debouncing.md`](../rules/laravel/queue-debouncing.md) | Safe queue debouncing, urgency separation, and replaceable work | Laravel |
 | [`laravel/dynamodb.md`](../rules/laravel/dynamodb.md) | DynamoDB query safety — scan prevention, key-targeted reads, Tinker debug | Laravel |
-| [`laravel/boost.md`](../rules/laravel/boost.md) | Laravel Boost — generated `CLAUDE.md` / `AGENTS.md`, regeneration, the 150 000-character limit, `@scoped` guidelines, project skills | Laravel Boost |
+| [`laravel/boost.md`](../rules/laravel/boost.md) | Laravel Boost — the generated guideline file (`AGENTS.md` by default, `CLAUDE.md` as its import), regeneration, the 150 000-character limit, `@scoped` guidelines, project skills | Laravel Boost |
 
 ## Security
 
