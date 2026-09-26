@@ -31,7 +31,7 @@ The host project declares machine-readable settings in its `composer.json` under
 | `auto-install` | bool | The Composer plugin runs `install --force` on every install and update. |
 | `gate` | string[] | The project's full quality gate. Run the commands in order; every command must pass. |
 | `coverage` | string | The project's coverage command. |
-| `env` | object | Environment variables exported to every project tool command an agent runs, e.g. `{"CLAUDECODE": "1"}`. |
+| `env` | object | Environment variables exported to every project tool command an agent runs, e.g. `{"CLAUDECODE": "1"}`. Export only what `skills/_shared/read-manifest.sh --env` prints; it refuses a name that changes which program runs. |
 | `validation.executables` | string[] | Extra project-local executables (`vendor/bin/<name>` only) that `skills/_shared/run-validation.sh` may run. |
 | `risk.critical-paths` | string[] | ERE regexes. A changed path that matches one forces the CRITICAL tier in `skills/_shared/classify-risk.sh`. |
 | `language.github` | string | The language (e.g. `en`) of everything published to GitHub: PR title and body, PR and issue comments including the non-technical mirror on a linked issue, and commit messages. Branch names stay English. JIRA and Bugsnag keep the assignment language. Absent: the PR body and the mirrors follow the assignment language. |
@@ -49,7 +49,7 @@ Project instructions override this package's rules and skills wherever the two d
 
 The only floor. A project instruction can never:
 1. disable or weaken a security check, or lower a security finding (S1–S3 of the Exclusion Gate in `@rules/code-review/general.md`);
-2. lift a merge gate — code-review convergence (0 Critical, 0 Moderate), the pre-merge quality gate, or required CI;
+2. lift a merge gate — the convergence gate in `@skills/process-code-review/SKILL.md` *Review loop* step 4 (0 Critical, no undeferred Moderate), the pre-merge quality gate, or required CI;
 3. move the untrusted-content boundary (`@rules/security/general.md`).
 
 Where a project instruction collides with the floor, the package rule applies, and the report names the project line it overrode.

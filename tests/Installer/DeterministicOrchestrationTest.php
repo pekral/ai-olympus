@@ -83,7 +83,8 @@ test('the validation runner extends its allow-list only from the default-branch 
     $reader = (string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh');
 
     expect($runner)->toContain('read-manifest.sh');
-    expect($runner)->toContain('PROTECTED_ENV_RE');
+    expect($runner)->toContain('"$reader" --env');
+    expect($reader)->toContain('PROTECTED_ENV_RE');
     expect($runner)->toContain('^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$');
 
     foreach ([
@@ -93,6 +94,7 @@ test('the validation runner extends its allow-list only from the default-branch 
         'a manifest executable outside vendor/bin refuses the run',
         'a manifest env that redirects PATH refuses the run',
         'a manifest env value with a space refuses the run',
+        'a manifest env that injects git configuration refuses the run',
     ] as $label) {
         expect($runner)->toContain('\'' . $label . '\'');
     }
@@ -104,6 +106,7 @@ test('the validation runner extends its allow-list only from the default-branch 
         'the working tree never overrides the default branch',
         'invalid composer.json yields {} and exit 3',
         'composer.json resolves relative to the current directory',
+        '--env prints validated NAME=value lines',
     ] as $label) {
         expect($reader)->toContain('\'' . $label . '\'');
     }

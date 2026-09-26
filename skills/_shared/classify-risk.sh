@@ -101,8 +101,9 @@
 #   decides what is sensitive. A match forces CRITICAL like the built-in forces.
 #   The manifest is read through `read-manifest.sh` from the default branch, so
 #   a branch under review cannot remove a path to route itself past review. An
-#   entry that is not a valid regex forces CRITICAL too: a broken escalation
-#   rule fails towards more review, never less. The list can only raise a tier.
+#   entry that is not a valid regex forces CRITICAL too, and so does a manifest
+#   that declares critical paths but cannot be parsed: a broken escalation rule
+#   fails towards more review, never less. The list can only raise a tier.
 #
 # Override precedence
 #   1. A force signal (auth / data / payments) wins over everything and yields
@@ -158,15 +159,27 @@ AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected resu
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # Print the project's critical-path regexes, one per line. Returns 2 when the
-# manifest cannot be read because a tool it needs is missing.
+# manifest cannot be read at all, and 3 when it cannot be parsed although the
+# default-branch composer.json declares critical paths.
 project_critical_paths() {
-  local reader manifest
+  local reader manifest status=0
   reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
   [[ -f "$reader" ]] || return 0
-  if ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+  command -v git >/dev/null 2>&1 || return 2
+
+  if command -v jq >/dev/null 2>&1; then
+    manifest="$(bash "$reader" 2>/dev/null)" || status=$?
+  else
+    status=2
+  fi
+
+  if [[ "$status" -ne 0 ]]; then
+    if bash "$reader" --raw 2>/dev/null | grep -q '"critical-paths"'; then
+      return 3
+    fi
     return 2
   fi
-  manifest="$(bash "$reader" 2>/dev/null)" || manifest='{}'
+
   printf '%s' "$manifest" | jq -r '(.risk // {}) | if type == "object" then (.["critical-paths"] // []) else [] end | if type == "array" then .[] | tostring else empty end'
 }
 
@@ -368,7 +381,12 @@ classify() {
   fi
   local project_paths_state="" project_regexes="" project_regex project_path project_match="" regex_status
   if [[ "$basis" == "diff" ]]; then
-    if ! project_regexes="$(project_critical_paths)"; then
+    local project_status=0
+    project_regexes="$(project_critical_paths)" || project_status=$?
+    if [[ "$project_status" -eq 3 ]]; then
+      project_match='manifest-unreadable'
+      project_regexes=""
+    elif [[ "$project_status" -ne 0 ]]; then
       project_paths_state='unavailable'
       project_regexes=""
     fi
@@ -690,6 +708,12 @@ self_test() {
   cd "$tmp/broken"
   expect_tier 'an invalid project regex fails towards CRITICAL' CRITICAL \
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/clear.txt"
+  manifest_repo "$tmp/unparsable" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["^serverless"] } } }, }'
+  cd "$tmp/unparsable"
+  expect_tier 'an unparsable manifest with critical paths fails towards CRITICAL' CRITICAL \
+    --files "$(writefiles 'serverless.yml')" --assignment "$tmp/clear.txt"
+  expect_line 'the unparsable manifest names its own signal' 'project-critical-path|manifest-unreadable' \
+    --files "$(writefiles 'serverless.yml')" --assignment "$tmp/clear.txt"
   cd "$tmp"
 
   # --- Input handling --------------------------------------------------------

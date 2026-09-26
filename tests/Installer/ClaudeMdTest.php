@@ -140,6 +140,7 @@ test('with Laravel Boost installed and no CLAUDE.md the template becomes a Boost
         ob_end_clean();
 
         expect(is_file($root . '/CLAUDE.md'))->toBeFalse();
+        expect(is_file($root . '/AGENTS.md'))->toBeFalse();
         expect(file_get_contents($root . '/.ai/guidelines/ai-olympus.md'))
             ->toBe(file_get_contents(dirname(__DIR__, 2) . '/templates/CLAUDE.md'));
     } finally {
@@ -173,4 +174,13 @@ test('with Laravel Boost installed an existing CLAUDE.md stays the only instruct
 
         installerRemoveDirectory($root);
     }
+});
+
+test('the packaged AGENTS.md carries the deferred gate wording of the template', function (): void {
+    $agentsMd = (string) file_get_contents(dirname(__DIR__, 2) . '/AGENTS.md');
+
+    expect($agentsMd)->not->toContain('composer build');
+    expect($agentsMd)->toContain('Finalization');
+    expect($agentsMd)->toContain('quality-gates.md');
+    expect($agentsMd)->not->toContain('Edit the tracked `rules/`');
 });

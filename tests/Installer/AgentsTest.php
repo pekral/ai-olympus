@@ -1237,12 +1237,12 @@ test('parallel agents share their split output through the brief under an append
     expect($leonardo)->toContain('$BRIEF.lock');
 });
 
-test('every agent keeps commit messages and PR titles in English regardless of the assignment language', function (): void {
+test('every agent keeps commit messages and PR titles in English or the manifest language, never the assignment language', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     foreach (['splinter', 'donatello', 'leonardo', 'april', 'raphael'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
-        expect($content)->toContain('commit messages and PR titles are always English');
+        expect($content)->toContain('commit messages and PR titles are English, or the manifest\'s `language.github` when it is set');
     }
 });
 
