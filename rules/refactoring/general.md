@@ -31,7 +31,7 @@ paths:
 ## Recommended Process
 1. **Stabilize** — add at least smoke tests, fix critical bugs first.
 2. **Identify entry points** — start at controllers, jobs, commands, listeners, Livewire components.
-3. **Introduce the Action pattern** — keep entry points thin; delegate orchestration to Actions.
+3. **Introduce the Action pattern** — keep entry points thin; delegate orchestration to Actions. Simple logic that does not repeat stays in the entry point (`@rules/php/core-standards.md` Design Principles → *Do not create a class for simple logic that does not repeat*).
 4. **Split responsibilities** — Action (orchestration), Service (business logic), Repository (read), ModelManager (write).
 5. **Modernize code**:
     - raw arrays → DTOs (e.g. Spatie Laravel Data)

@@ -105,6 +105,12 @@ When neither the restructuring nor a scoped configuration entry resolves it, **s
 - Keep I/O at the edges where practical.
 - Prefer deterministic behavior based on explicit inputs.
 - Extract repeated logic into reusable abstractions only when repetition is real and meaningful.
+- **Do not create a class for simple logic that does not repeat.** Before you add a class — an Action, a Service, a helper, a DTO, a Data Builder, a Data Validator, or a trait — check two facts. Is its logic simple? Does it repeat? Simple logic is a straight sequence of a few statements: one collaborator call, one persist, or one mapping, with no branching orchestration and no transaction. It repeats when the diff, or the diff together with the existing code, needs it in two or more places.
+  - **Simple and not repeated → keep it inline** at the one call site. A class that holds three lines behind one caller adds a file, a name, and a jump for the reader, and returns nothing for them.
+  - **Repeated → extract it once** and call it from every place (the DRY half of this rule). First search the project for an implementation that already does it (`@rules/code-review/general.md` *Reuse Existing Logic*).
+  - **Non-trivial orchestration → the class is justified** even with one caller: it coordinates two or more collaborators, branches on business state, or wraps a transaction.
+  - **Always allowed:** a class a framework or vendor contract requires (a FormRequest, a Job, a Listener, a Policy, a Middleware, a migration), and a class a security rule requires. This rule never moves validation away from a trust boundary.
+  - This rule takes precedence over the layer-extraction mandates in `@rules/laravel/architecture.md` (Action, Data Builder, Data Validator, DTO, Service) for simple, non-repeated logic.
 - Keep related code together and maintain a logical folder structure.
 - Leave touched code cleaner than you found it.
 - Do not add speculative (YAGNI) parameters. Add a parameter to a method, function, action, or constructor only when at least one current caller actually needs it. Optional knobs, "in case" defaults, and parameters introduced solely for hypothetical future callers must be removed; add them later when a real use case appears.

@@ -546,10 +546,10 @@ test('laravel rules reuse an existing query scope before a new one is added', fu
     // A genuinely new condition still earns its own scope, so the rule does not collapse filters.
     expect($laravel)->toContain('**A condition no existing scope expresses is a new scope.**');
 
-    // The CR walk carries the finding at Moderate, on every Laravel project.
+    // The CR walk carries the finding at the DRY severity, on every Laravel project.
     expect($walk)->toContain('- **New Eloquent query scope added (Laravel)**');
     expect($walk)->toContain('regardless of whether `pekral/arch-app-services` is installed');
-    expect($walk)->toContain('a duplicated filter definition a fixer does not catch');
+    expect($walk)->toContain('Severity: **Critical** (a duplicated filter definition is duplicated logic');
     expect($walk)->toContain('never a second scope beside the first');
 });
 
@@ -563,4 +563,21 @@ test('data validators return bool or throw and never return data', function (): 
     expect($architecture)->toContain('a public Data Validator method whose return type is anything other than `bool` or `void`');
     expect($review)->toContain('- **Data Validator returns `bool` or throws**');
     expect($refactor)->toContain('Every public Data Validator method returns `bool` or returns `void` and throws on invalid input');
+});
+
+test('simple logic that does not repeat gets no new class and DRY is a critical review check', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
+    $architecture = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
+
+    expect($standards)->toContain('- **Do not create a class for simple logic that does not repeat.**');
+    expect($standards)->toContain('**Simple and not repeated → keep it inline**');
+    expect($architecture)->toContain('**Simple logic that does not repeat stays in the entry point**');
+    expect($review)->toContain('- **DRY is one of the most important checks of every review.**');
+    expect($review)->toContain('**The same logic repeated inside the diff is the same finding.**');
+    expect($leonardo)->toContain('**DRY agenda (one of the most important checks):**');
+    expect($donatello)->toContain('## Reuse before you write (DRY)');
 });

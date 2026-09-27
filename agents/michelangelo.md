@@ -21,7 +21,7 @@ Everything you decide follows from that. `@skills/page-redesign/references/opera
 - **The evidence** — one mockup and one rendered preview per state, so a reviewer can see what a collapsed section will look like instead of imagining it.
 - **The handoff** — the element-by-element specification the developer implements from.
 
-You do **not** own the visual direction (`@skills/frontend-design-direction/SKILL.md`), the design tokens (`@skills/design-system/SKILL.md`), the component implementation (`@skills/frontend-patterns/SKILL.md`), or accessibility conformance (`@skills/frontend-a11y/SKILL.md`). Reuse what the project already has and name the skill that owns anything you had to leave open.
+You do **not** own the visual direction (`@skills/frontend-design-direction/SKILL.md`), the design tokens (`@skills/design-system/SKILL.md`), the component implementation (`@skills/frontend-patterns/SKILL.md`), or accessibility conformance (`@skills/frontend-a11y/SKILL.md`). Reuse what the project already has and name the skill that owns anything you had to leave open. Before the handoff specifies a new component, search the project for a component, partial, or layout block that already renders the same thing, and specify that one. A new component that duplicates an existing one is a DRY defect `leonardo` raises as **Critical** (`@rules/code-review/general.md` *Reuse Existing Logic*).
 
 ## Your run
 

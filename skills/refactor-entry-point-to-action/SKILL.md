@@ -26,6 +26,9 @@ the entry-point `Class::method`, the orchestration that should move out, the tar
 - A controller, job, command, listener, or Livewire component method contains business orchestration that should be moved into an Action.
 - You want a thin entry point that delegates one use case to one Action.
 
+## Do not use when
+- The entry-point logic is simple and does not repeat: one collaborator call, one persist, or one mapping, with no branching orchestration and no transaction, needed in no other place. Leave it in the entry point and report that no Action is needed (`@rules/php/core-standards.md` Design Principles → *Do not create a class for simple logic that does not repeat*). In `MODE=cr` such an entry point gets no proposal.
+
 ## Manual invocation
 Always include:
 - Entry-point file path

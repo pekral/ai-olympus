@@ -252,7 +252,10 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // names the manifest `timezone`, `## Naming` requires English identifiers, and the Minor
         // tier is gone from the `mixed` severity and the misleading-name gating. `## CR Severity Rules`
         // gained the Moderate entry for a comment block carrying prose.
-        'rules/php/core-standards.md' => 'fa702898edc435ab0e9b7ee3e22a9d220141088381617198e7d4ca58d20db4a6',
+        // Re-baselined: `## Design Principles` gained *Do not create a class for simple logic that
+        // does not repeat*, which keeps simple, non-repeated logic inline instead of in a new Action,
+        // Service, DTO, Data Builder, Data Validator, helper, or trait.
+        'rules/php/core-standards.md' => 'a7f36ac6cc3cd11cf5cd5a4c808b5ef54e5acb72bcfbd3c185f7f4d9c6560dba',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -393,7 +396,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // `tenancy: database` case, `## Controllers and Other Entry Points` gained the rule that
         // only an entry point reads the authenticated user, CR Severity Rules gained the matching
         // Moderate entry, and the per-row exception is justified in the PR description only.
-        'rules/laravel/architecture.md' => 'a7ac0411ce5dca4e3e6e08a957fe252524d01411841dca24f9378883dcbc11c1',
+        // Re-baselined: the Action-pattern Critical, *Before you create an Action*, the Moderate
+        // severities, and `## Exceptions` now keep simple logic that does not repeat inline instead
+        // of in a new Action or another layer class, per `rules/php/core-standards.md`.
+        'rules/laravel/architecture.md' => '2201e12442b2a8791c6292df3a0aca989bb2526fcc04fb540e371f87e7337a59',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
@@ -434,7 +440,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // covering the changed paths, and the manifest. The Minor bucket lost its security-lens
         // exception (Low maps to Moderate, Info is not published), and a documented exemption and
         // the product-docs source moved to the PR description and the manifest `product-docs` key.
-        'rules/code-review/general.md' => 'fe0464bac17739a98a2bda69bc3004123a76772d25dd3529a171abe73f9ae4da',
+        // Re-baselined: `## Reuse Existing Logic` now names DRY one of the most important checks of
+        // every review, searches the whole project, covers logic repeated inside the diff, and
+        // declares its severity as Critical.
+        'rules/code-review/general.md' => '80deb35bd0a6ef63f992a6d641e17d4743d09452fb42a537575548dfea04410e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -495,7 +504,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
         // what that costs — the proof that behaviour was preserved across a refactor.
-        'rules/refactoring/general.md' => '6a541ac80dd25fe355284a7b8c9ead0e9371d1888b703941a8f89139182a3fc0',
+        // Re-baselined: step 3 *Introduce the Action pattern* now keeps simple logic that does not
+        // repeat in the entry point, per `rules/php/core-standards.md` Design Principles.
+        'rules/refactoring/general.md' => '3bca19e9e2bac423340dd7a73c6ee10a46a57a69008c442f952489e307410b90',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves

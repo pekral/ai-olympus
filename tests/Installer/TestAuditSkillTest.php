@@ -103,3 +103,17 @@ test('code review runs the test-value lens only on a diff that touches tests', f
     expect($lenses)->toContain('A review never runs the full test audit');
     expect(testAuditRead('skills/code-review/SKILL.md'))->toContain('the test-value lens `test-audit` with `MODE=cr`');
 });
+
+test('the implementer runs the diff mode and deletes tests that prove no assignment logic', function (): void {
+    $skill = testAuditRead('skills/test-audit/SKILL.md');
+    $donatello = testAuditRead('agents/donatello.md');
+    $resolveIssue = testAuditRead('skills/resolve-issue/SKILL.md');
+
+    expect($skill)->toContain('**`diff` (automatic, over the current diff)**');
+    expect($skill)->toContain('## Diff mode');
+    expect($skill)->toContain('A test the diff **adds** is deleted, or merged into the test that proves the criterion.');
+    expect($skill)->toContain('A pre-existing test the diff **modifies** keeps the *Retention bar*.');
+    expect($skill)->toContain('**Verify 100% coverage** of every changed production line');
+    expect($donatello)->toContain('run `@skills/test-audit/SKILL.md` with `MODE=diff` over the current diff');
+    expect($resolveIssue)->toContain('16. Run `@skills/test-audit/SKILL.md` with `MODE=diff` over the current diff');
+});

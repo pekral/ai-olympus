@@ -1,6 +1,6 @@
 ---
 name: test-audit
-description: "Use when a test is about to be written or changed, when a diff that touches tests is reviewed, or when tests must be audited for low value. Holds the single test-value bar — behaviour, risk, or contract first, coverage only as verification — with a lightweight authoring gate, a read-only code-review lens, and an explicit read-only audit of a named scope that proposes KEEP / CONSOLIDATE / MOVE / DELETE with evidence."
+description: "Use when a test is about to be written or changed, when a diff that touches tests is reviewed, or when tests must be audited for low value. Holds the single test-value bar — behaviour, risk, or contract first, coverage only as verification — with a lightweight authoring gate, a read-only code-review lens, a diff mode the implementer runs before the pull request to delete tests that prove no assignment logic while keeping 100% coverage, and an explicit read-only audit of a named scope that proposes KEEP / CONSOLIDATE / MOVE / DELETE with evidence."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -23,10 +23,11 @@ change → observable behaviour / risk / contract → strongest owner boundary
 
 ## Modes
 
-This skill runs in one of three modes, selected by the caller via `MODE` (default `authoring`):
+This skill runs in one of four modes, selected by the caller via `MODE` (default `authoring`):
 
 - **`authoring` (default) — the lightweight gate.** `@skills/create-test/SKILL.md`, `@skills/create-missing-tests-in-pr/SKILL.md`, `@skills/test-driven-development/SKILL.md`, and every agent that adds or changes a test run it before the test is written. Scope: the changed behaviour, the tests directly related to it, and its direct owner boundary. It never reads the whole suite. `@skills/rewrite-tests-pest/SKILL.md` applies only the *Junk patterns*: it rewrites a junk assertion into a falsifiable one and lists a test with no contract as an `audit` candidate — a rewrite never drops a test.
 - **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the diff adds or modifies a test)** — **never modify code, never author a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Apply the *Authoring gate* and the *Junk patterns* to the tests the diff adds or modifies, and to the production lines those tests exist for. Return findings as markdown only, carrying the reproducer fields the CR folds into its standard Critical / Moderate buckets. Every instruction below that would touch a file is emitted as a written proposal.
+- **`diff` (automatic, over the current diff)** — the implementer (`donatello`) runs it once the implementation and its tests are in place, before the pull request. It audits the tests the current diff adds or modifies, deletes the ones that prove no logic from the assignment, and verifies 100% coverage of the changed lines. See *Diff mode*.
 - **`audit` (read-only discovery, explicit request only)** — runs only when the user asks for it (`audit tests`, `/test-audit <scope>`). It is never an automatic step of an issue, implementation, or review workflow. See *Audit mode*.
 
 > **What the `cr` lens owns in a CR:** whether each added or modified test earns its place — what it protects, the regression it catches, its owner boundary, its overlap with existing tests, the production seams it demands, and every junk pattern below. It **defers** a misplaced file or a description that does not match the assertions to `@rules/code-review/core-analysis.md` *Test organization*, a private member reached through reflection or a widened visibility to *Visibility widened for a test*, a job dispatch asserted with a payload closure to *Job-dispatch assertions carry no payload closure*, and real network or process access to `@rules/code-review/review-process.md` *Test isolation*. It never raises a finding one of those owners already raised on the same line.
@@ -98,6 +99,20 @@ The shared checklist for every mode: the authoring gate rejects a new test that 
 
 **A retained test that fails on the baseline is a possible product bug.** Reproduce it and report it; never delete it to make the suite green.
 
+## Diff mode
+
+`diff` runs over the current diff against the default branch (`git diff "origin/$DEFAULT_BRANCH"...HEAD` plus the working tree). It changes tests only; it never changes production behaviour.
+
+1. **List the tests the diff adds or modifies**, and the acceptance criteria of the assignment (`@rules/code-testing/general.md` *Acceptance-Criteria Test Contract*).
+2. **Classify each test.** It stays when it proves an acceptance criterion, or a failure mode the criteria or the change imply, at its owner boundary. It is useless when it proves none of them, or it matches a *Junk pattern*, or a stronger test already guards the same contract.
+3. **Delete or merge each useless test.**
+   - A test the diff **adds** is deleted, or merged into the test that proves the criterion. No approval is needed: it was never on the default branch.
+   - A pre-existing test the diff **modifies** keeps the *Retention bar*. Delete it only with complete removal evidence (`references/audit-report.md` *Removal evidence*); otherwise report it as a candidate and keep it.
+   - A test-only production seam goes together with its test.
+4. **Verify 100% coverage** of every changed production line with the project's coverage tooling, after the deletions. Resolve each uncovered line per *Coverage* above: a behavioural test, a removed line, or a reported conflict — never a coverage-only test.
+5. **Run the affected tests** and confirm they pass.
+6. **Record the result** in the implementer's handoff: each test kept (with the criterion it proves), each test deleted or merged (with the reason), and the coverage result.
+
 ## Audit mode
 
 `audit` runs only on an explicit request, over the scope the caller names: `tests/`, `tests/Feature/Billing`, one test file, or one subsystem.
@@ -120,6 +135,7 @@ The shared checklist for every mode: the authoring gate rejects a new test that 
 
 - **`authoring`** — the gate record above, inside the calling skill's output.
 - **`cr`** — findings in the review's Critical / Moderate buckets with the usual reproducer fields. A junk pattern is **Moderate**; it is **Critical** when the junk test is the only test covering a line the change adds or modifies, because the change then ships untested while reporting as covered. A finding whose fix removes or merges a test carries `Test Hint: none is needed — the fix deletes or merges a test`.
+- **`diff`** — the record from *Diff mode* step 6.
 - **`audit`** — the report in `references/audit-report.md` *Report*.
 
 ## Done when
@@ -128,4 +144,5 @@ The shared checklist for every mode: the authoring gate rejects a new test that 
 - Each contract has one primary test at its owner boundary; every additional test names its distinct failure mode.
 - Every regression test was observed failing before the fix, where the workflow allowed it.
 - Every changed line is covered by a behavioural test or removed. A line neither can reach is reported as an explicit conflict, and the coverage gate stays open for a human decision — never closed by a coverage-only test.
+- A `diff` run left no test in the diff that proves no assignment logic, and the changed lines report 100% coverage.
 - An audit changed nothing before the user approved its candidates, and every `DELETE` carries complete removal evidence.

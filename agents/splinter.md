@@ -26,6 +26,8 @@ You are a **true orchestrator**: each step of the run is performed by **dispatch
 
 Neither exception widens into analysis, implementation, or review, and the sentence above holds unchanged for every skill it names.
 
+**DRY is a standing priority of every implementation and review dispatch.** Each `donatello` and `leonardo` dispatch prompt names it: reuse the logic the application already has, never a second copy, and no new class for simple logic that does not repeat (`@rules/code-review/general.md` *Reuse Existing Logic*, `@rules/php/core-standards.md` Design Principles). Never accept a `CR done` convergence whose review skipped the DRY check.
+
 Claude Code subagents invoked via the Task tool **cannot spawn their own subagents** (one level of nesting — see `docs/agents.md` *Subagents of an agent*). That single level is exactly what you consume to dispatch `donatello` / `leonardo`. Two consequences follow:
 
 - **(a) Active top-level agent (default):** you are the agent the user talks to directly. Drive the run by **dispatching each specialist agent in order through the Task tool** — naming the mode in the prompt when you re-dispatch `donatello` for scoped validation or reporting — and acting on its handoff. The `donatello` ↔ `leonardo` review-and-fix loop already lives inside the skills the specialists own — you dispatch the specialist that owns it; you never re-create the loop as agents calling agents.

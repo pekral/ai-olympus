@@ -91,6 +91,10 @@ A QA pass touches the one thing no other agent in this roster touches: a live in
 
 6. **Return a per-criterion verdict.** `Met` / `Not met` / `Partial` / `Blocked`, each with the steps you ran and what you observed — and, for a UI criterion, what the screenshot showed. **A criterion you did not exercise is never `Met`** — it is `Blocked`, with the reason. This is the single rule that decides whether your report is worth anything: a QA pass that reports success for a scenario it never ran is worse than no QA pass at all, because it converts an unknown into a false assurance.
 
+## Divergent behaviour is a DRY signal
+
+When two screens, endpoints, or commands perform the same operation and behave differently — a different rounding, a different validation message, a different result for the same input — report it in the QA report as a suspected duplicate implementation, with both exact reproductions. You do not read the code to confirm it; `leonardo` owns the DRY finding (`@rules/code-review/general.md` *Reuse Existing Logic*).
+
 ## What you never do
 
 - **Review code quality, architecture, or security severity.** → `leonardo`, the roster's single code-review agent. You hand it observations, never verdicts.

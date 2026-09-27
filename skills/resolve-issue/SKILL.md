@@ -100,7 +100,7 @@ Run `@skills/prepare-issue-context/SKILL.md` with `MODE=resolve-issue` and the s
 Reading, mapping, and verifying come first; implementing comes last. This pre-flight is **blocking** — do not add or modify a single line of production code until all three steps pass, and never act on an assumption you have not confirmed by reading the code. (The context preparation above maps scenarios to code paths; this gate grounds the actual implementation in the real files you are about to change.)
 
 1. **Read** — open and read the actual files you will change and the code they depend on (callers, called methods, related tests, configuration, migrations). Confirm what the code does by reading it, not by guessing from names or the issue description.
-2. **Map** — map the change's blast radius: every call site, caller, data-flow path, and existing test that the in-scope change touches, plus the conventions, helpers, Services, and Actions already in the codebase to reuse instead of reinventing.
+2. **Map** — map the change's blast radius: every call site, caller, data-flow path, and existing test that the in-scope change touches, plus the existing logic to reuse: grep the whole project by behaviour, never by name (DRY), and keep simple, non-repeated logic inline (`@rules/php/core-standards.md` Design Principles).
    Then run a **completeness sweep** over the whole tree. Grep the entire repository for every name, pattern, convention, and section title the change renames, removes, or redefines — never only the files the assignment names, and never only the files you have already opened.
    Cover every file category the repository carries: source, tests, `rules/`, `skills/`, `agents/`, documentation, configuration, and generated assets such as `CHANGELOG.md` or `README.md`. Record the full match list before you edit anything, then classify each match as in scope for this change or as a stated exception. An incomplete sweep leaves a stale reference in a file nobody opened, and that reference surfaces later as a failing pinned test or a broken cross-reference.
 3. **Verify** — check your assumptions against the real code and its observed behavior (for bugs, reproduce the failure; for features, confirm the integration points exist as assumed). If reading and mapping contradict the issue framing or the scenario table, stop and surface the discrepancy instead of implementing on a wrong premise.
@@ -142,7 +142,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 13. If the implementation introduced new database migrations, run them (`php artisan migrate` for Laravel projects, or the project-specific equivalent) before executing the affected tests or creating the pull request.
 14. Run tests for affected areas and confirm correctness.
 15. Add or update tests to cover the new or fixed behavior.
-16. Verify 100% code coverage for all changed or added code paths — if coverage tooling exists, run it and confirm the result before proceeding.
+16. Run `@skills/test-audit/SKILL.md` with `MODE=diff` over the current diff: it deletes tests proving no assignment logic and verifies 100% coverage of the changed lines.
 
 ## Quality gates — deferred to the merge boundary
 
