@@ -13,7 +13,6 @@ codeReviewRuleContents() :: @skills/code-review/SKILL.md
 codeReviewRuleContents() :: isEligibleForDiscount
 codeReviewRuleContents() :: reuse-first gate
 codeReviewRuleContents() :: {ClassName}Test.php
-crContractText(skills/code-review-bugsnag/SKILL.md) :: reuse-first gate
 crContractText(skills/code-review-github/SKILL.md) :: @skills/pr-summary/SKILL.md
 crContractText(skills/code-review-github/SKILL.md) :: closingIssues[]
 crContractText(skills/code-review-github/SKILL.md) :: every linked issue
@@ -33,7 +32,6 @@ rules/code-testing/general.md :: ## Test Organization
 rules/code-testing/general.md :: {ClassName}{Scenario}Test.php
 skills/code-review-github/templates/pr-comment-output.md :: ## Architecture
 skills/code-review-github/templates/pr-comment-output.md :: only when the walk produces at least one finding
-skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Architecture conformance (Laravel)**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **New storage reuse analysis**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Request → DTO transformation belongs in the FormRequest, not the controller**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Test organization (issue #528)**

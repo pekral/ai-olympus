@@ -23,6 +23,7 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
     // Pillar 2 — per-project compound memory, stored in the project, not this package.
     expect($content)->toContain('## Compound Memory (per project)');
     expect($content)->toContain('in the project being worked on, never in this shared rules package');
+    expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
 
 test('analyze-problem skill requires pre-implementation research and a plan artifact (issue #564)', function (): void {
@@ -109,7 +110,6 @@ test('the two commit constraints that are not about granularity survive', functi
     // A committed failing test encodes a lie in the history; the gate on the merged head is what
     // makes the branch deployable. Neither depends on how the work was divided.
     expect($rule)->toContain('**A test and the change that makes it pass land in the same commit.**');
-    expect($rule)->toContain('**The merged head is green; intermediate commits are not gated.**');
     expect($skill)->toContain('no failing or simulated-failing test is ever committed');
 
     // Nothing may be left uncommitted, and a branch under review is not rewritten — the guard that
@@ -142,20 +142,12 @@ test('resolve-issue skill refuses to resolve a closed / inactive task', function
     expect($content)->toContain('do not resolve it');
 });
 
-test('compound-engineering rule defines the per-project memory file convention (issue #626)', function (): void {
-    $content = compoundEngineeringRuleContents();
-
-    expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
-    expect($content)->toContain('### Read protocol');
-});
-
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = compoundEngineeringRuleContents();
     $splinter = splinterContractText();
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
 
-    expect($rule)->toContain('## Blocked delegation is a hard stop');
     expect(substr_count($rule, '## Blocked delegation is a hard stop'))->toBe(1);
     expect($splinter)->toContain('*Blocked delegation is a hard stop*');
     expect($donatello)->toContain('*Blocked delegation is a hard stop*');

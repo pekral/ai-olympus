@@ -25,7 +25,6 @@ test('sql optimalize states the schema block version scope under Schema Design, 
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/sql/optimalize.md');
 
-    expect($content)->toContain('**Scope: MySQL 8.0.16+ on InnoDB.**');
     expect($content)->not->toContain('The schema-design guidance below (through **When to Break These Rules**) assumes MySQL 8.0.16+');
 
     // The statement has to sit in the section a reader opens looking for it, not in the sql_mode one.

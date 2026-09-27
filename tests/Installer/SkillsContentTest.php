@@ -709,15 +709,6 @@ test('JIRA context-consuming skills offer gather-issue-context.sh', function ():
     }
 });
 
-test('jira rule permits the single code-review transition via the helper only', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
-
-    expect($content)->toContain('transition-to-code-review.sh');
-    expect($content)->toContain('human-only');
-    expect($content)->toContain('Never change JIRA issue status');
-});
-
 test('jira rule permits three sanctioned transitions and names every helper', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
@@ -725,6 +716,8 @@ test('jira rule permits three sanctioned transitions and names every helper', fu
     expect($content)->toContain('transition-to-in-progress.sh');
     expect($content)->toContain('transition-to-code-review.sh');
     expect($content)->toContain('transition-to-ready-to-merge.sh');
+    expect($content)->toContain('Never change JIRA issue status');
+    expect($content)->toContain('human-only');
     // Every helper must be mentioned as a sanctioned exception.
     expect($content)->toContain('three exceptions');
     // The revert direction adds no fourth transition: it reuses the review helper.
@@ -1556,11 +1549,6 @@ test('merge-anytime waives waiting for CI, never the pre-merge gate (issue #65, 
     expect($merge)->toContain('The *Pre-merge quality gate* in step 3 runs regardless — no caller instruction skips it.');
     expect($merge)->not->toContain('waives the substitute build');
     expect($merge)->not->toContain('the green local build remains mandatory');
-
-    // The rest of the exception is unchanged.
-    expect($merge)->toContain('strictly **billing-only**');
-    expect($merge)->toContain('A general "merge this PR" request is **not** an explicit "merge anytime"');
-    expect($merge)->toContain('the only sanctioned relaxation is the *GitHub Actions billing exception* below');
 });
 
 test('the three build-dedup mechanisms are retired with the repeats they removed (issues #119, #124, #212)', function (): void {

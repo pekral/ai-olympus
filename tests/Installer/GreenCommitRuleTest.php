@@ -23,9 +23,6 @@ test('the git rule gates the merged head and states what deferring the gate trad
     // The cost of the trade must be stated, not discovered later by whoever runs git bisect.
     expect($rule)->toContain('What this trades away, stated plainly:');
     expect($rule)->toContain('git bisect');
-    // Cherry-pick independence used to be pinned here as surviving the deferral; the granularity
-    // mandate it belonged to is withdrawn, so what must be pinned now is that the rule says so.
-    expect($rule)->toContain('has since been withdrawn with the rest of the granularity mandate');
 
     // Obligation 1 — the RED state is real but never committed.
     expect($rule)->toContain('A test and the change that makes it pass land in the same commit.');

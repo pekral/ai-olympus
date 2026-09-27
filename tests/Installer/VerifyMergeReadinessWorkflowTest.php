@@ -217,14 +217,12 @@ test('verify-merge-readiness reads a JIRA issue as the source and resolves its p
     // URLs only, while the publication and cleanup steps already handled a JIRA ticket.
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
-    $command = (string) file_get_contents($packageDir . '/commands/prepare-issue-for-merge.md');
 
     expect($skill)->toContain('a JIRA issue key (`PROJ-123`) or a JIRA URL that names one issue key');
     expect($skill)->toContain('`skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>`');
     expect($skill)->toContain('candidate pull requests from `pullRequests[]`');
     expect($skill)->toContain('Keep only open pull requests of the current repository');
     expect($skill)->toContain('On a JIRA source, run it on the resolved pull-request');
-    expect($command)->toContain('argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL]');
 
     foreach (['gather-issue-context.sh', 'load-issue.sh'] as $script) {
         expect(is_file($packageDir . '/skills/code-review-jira/scripts/' . $script))->toBeTrue();

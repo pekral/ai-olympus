@@ -77,7 +77,6 @@ test('leonardo owns every code-review wrapper and the no-source fallback (issue 
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
-    expect($content)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
     expect($content)->toContain('@skills/code-review-github/SKILL.md');
     expect($content)->toContain('@skills/code-review-jira/SKILL.md');
     expect($content)->toContain('@skills/code-review-bugsnag/SKILL.md');
@@ -317,7 +316,6 @@ test('agents directory ships the leonardo security-CR subagent with required fro
     expect($content)->toContain('@skills/laravel-security/SKILL.md');
     expect($content)->toContain('@skills/security-bounty-hunter/SKILL.md');
     expect($content)->toContain('@skills/security-threat-analysis/SKILL.md');
-    expect($content)->toContain('@skills/resolve-issue/references/source-detection.md');
     // Read-only stance: never edits, commits, pushes, or merges.
     expect($content)->toContain('read-only');
 });

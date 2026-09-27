@@ -51,13 +51,9 @@ test('the code-review walk finds the generated docblock on the changed lines (is
     // the bullet, where deleting the comment is already the whole fix.
     expect($crRule)->toContain('the **Suggested Fix** is the **rename itself**, never a shorter docblock');
     expect($crRule)->toContain('(*Never generate a docblock that describes the logic of a class, a method, or a property*)');
-
-    // Type analysis is the sole code-owned PHPDoc exception.
-    expect($crRule)->toContain('PHPDoc used for type analysis beyond native declarations');
 });
 
 test('the generated-docblock trigger extends the issue #53 bullet instead of forking a rival one (issue #22)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $crRule = codeReviewRuleContents();
 
     // Reuse-first: the category lives inside the bullet that already owns redundancy. A second
@@ -74,9 +70,4 @@ test('the generated-docblock trigger extends the issue #53 bullet instead of for
     // Vendor-owned docblocks are out of review scope, while a diff-added template is reviewed.
     expect($crRule)->toContain('It does not contradict the volume bullet\'s scope either');
     expect($crRule)->toContain('one finding per docblock, never both');
-
-    // The bullet the CR skill already enumerates is the one that grew, so no skill enumeration
-    // entry had to be added — this pins that the enumeration still reaches the new shapes.
-    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    expect($skill)->toContain('explanatory comments / docs that restate the code (issue #53)');
 });

@@ -4,19 +4,6 @@ declare(strict_types = 1);
 
 use Pekral\AiOlympus\InstallerPath;
 
-test('resolveRulesSource always uses package directory', function (): void {
-    $root = installerCreateProjectRoot();
-    $packageDir = dirname(__DIR__, 2);
-
-    try {
-        $source = InstallerPath::resolveRulesSource($root);
-
-        expect($source)->toBe($packageDir . '/rules');
-    } finally {
-        installerRemoveDirectory($root);
-    }
-});
-
 test('resolveRulesSource ignores rules directory in project root', function (): void {
     $root = installerCreateProjectRoot();
     installerWriteFile($root . '/rules/test.mdc', 'foreign content');
@@ -32,51 +19,7 @@ test('resolveRulesSource ignores rules directory in project root', function (): 
 });
 
 test('resolveSkillsSource always uses package directory', function (): void {
-    $root = installerCreateProjectRoot();
-    $packageDir = dirname(__DIR__, 2);
-
-    try {
-        $source = InstallerPath::resolveSkillsSource();
-
-        expect($source)->toBe($packageDir . '/skills');
-    } finally {
-        installerRemoveDirectory($root);
-    }
-});
-
-test('resolveSkillsSource ignores skills directory in project root', function (): void {
-    $root = installerCreateProjectRoot();
-    installerWriteFile($root . '/skills/test/SKILL.md', 'foreign content');
-    $packageDir = dirname(__DIR__, 2);
-
-    try {
-        $source = InstallerPath::resolveSkillsSource();
-
-        expect($source)->toBe($packageDir . '/skills');
-    } finally {
-        installerRemoveDirectory($root);
-    }
-});
-
-test('resolveSkillsSource falls back to package when development directory does not exist', function (): void {
-    $root = sys_get_temp_dir() . '/no-skills-' . bin2hex(random_bytes(4));
-    installerEnsureDirectory($root);
-
-    try {
-        $result = InstallerPath::resolveSkillsSource();
-        $packageDir = dirname(__DIR__, 2);
-
-        expect($result)->toBe($packageDir . '/skills');
-    } finally {
-        installerRemoveDirectory($root);
-    }
-});
-
-test('resolveProjectRoot returns current working directory', function (): void {
-    $result = InstallerPath::resolveProjectRoot();
-
-    expect($result)->toBeString();
-    expect(strlen($result))->toBeGreaterThan(0);
+    expect(InstallerPath::resolveSkillsSource())->toBe(dirname(__DIR__, 2) . '/skills');
 });
 
 test('resolveRulesTargetDirectories returns the Claude and Codex rule libraries', function (): void {
@@ -199,7 +142,7 @@ test('isFilesystemRoot returns true for root paths', function (): void {
     expect($method->invoke(null, '/home/user'))->toBeFalse();
 });
 
-test('findProjectRoot traverses directories up', function (): void {
+test('resolveProjectRoot walks up to the nearest composer.json', function (): void {
     $root = installerCreateProjectRoot();
     $subdir = $root . '/deep/nested/path';
     installerEnsureDirectory($subdir);
@@ -209,10 +152,7 @@ test('findProjectRoot traverses directories up', function (): void {
     try {
         chdir($subdir);
 
-        $reflection = new ReflectionClass(InstallerPath::class);
-        $method = $reflection->getMethod('findProjectRoot');
-
-        $result = $method->invoke(object: null);
+        $result = InstallerPath::resolveProjectRoot();
         $expectedRoot = realpath($root);
         $expectedRoot = $expectedRoot !== false ? $expectedRoot : $root;
 

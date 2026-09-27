@@ -494,9 +494,6 @@ test('the strict rule compliance walk is retired while architecture conformance 
     expect($content)->toContain('**What is lost, stated rather than hidden:**');
 
     // Architecture conformance was always a separate walk and is untouched by the retirement.
-    expect($content)->toContain('**Architecture conformance (Laravel)**');
-    expect($content)->toContain('section-by-section deep-dive for `@rules/laravel/architecture.md`');
-    expect($content)->toContain('seven allowed homes including the Eloquent-model carve-out');
     expect($content)->toContain('security, Critical Findings Verification, and the Architecture conformance walk are unaffected');
 
     // The severity stratification survives the walk that defined it.
@@ -511,7 +508,6 @@ test('code review skills delegate the non-technical issue-tracker summary to pr-
     $jira = crContractText('skills/code-review-jira/SKILL.md');
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
-    expect($github)->toContain('#### Linked-issue consolidated summary (mandatory — single comment per linked issue)');
     expect($github)->toContain('every linked issue');
     expect($github)->toContain('closingIssues[]');
     expect($github)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
@@ -660,10 +656,6 @@ test('reuse-first gate asks whether new logic is necessary before reusing existi
     foreach ($reuseRoutingSkills as $relativePath) {
         expect(crContractText($relativePath))->toContain('Reuse Existing Logic');
     }
-
-    // The Bugsnag wrapper, previously the outlier, now carries the reuse-first gate explicitly.
-    $bugsnag = crContractText('skills/code-review-bugsnag/SKILL.md');
-    expect($bugsnag)->toContain('reuse-first gate');
 });
 
 test('code review templates render neither refactoring section', function (): void {
@@ -1919,7 +1911,6 @@ test(
         // The canonical wording above stays the single source, and the retired mechanism must not
         // leave a dangling reference behind.
         expect($gates)->not->toContain('nominal trigger SHA');
-        expect($gates)->toContain('**CI-result reuse for the loop gate (issue #124, retired).**');
     },
 );
 
@@ -2175,8 +2166,6 @@ test('process-code-review passes no iteration number, because nothing consumes i
     expect($process)->not->toContain('Late-iteration report scope');
     expect($loopScope)->not->toContain('Late-iteration report scope');
 
-    // The loop still counts its own iterations and still caps them at three.
-    expect($process)->toContain('`maxIterations = 3`');
     expect($process)->toContain('increment `iteration`, and go back to step 2');
 });
 
@@ -2620,7 +2609,6 @@ test('content-identical history rewrites preserve the converged code review verd
     expect($rule)->toContain('do not run another code-review round solely because the head SHA changed');
     expect($rule)->toContain('A missing or different fingerprint requires a new review');
 
-    expect($loopScope)->toContain('Pass it on the next invocation as `reviewedDiffFingerprint = <patch-id>`');
     expect($merge)->toContain('A content-identical history rewrite keeps the review current');
     expect($gitRule)->toContain('A rebase that preserves the reviewed diff fingerprint does not stale code review');
     expect($leonardo)->toContain('once per effective PR diff fingerprint');
@@ -2689,7 +2677,6 @@ test('process-code-review passes the reviewed revision and diff fingerprint to e
     // The subsection lives in the reference the skill points at; the skill keeps the pointer.
     $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
 
-    expect($process)->toContain('`references/review-loop-scope.md`');
     expect($loopScope)->toContain('#### Incremental review scope (iterations after the first)');
     // The loop is quiet, so no published comment exists to resolve a baseline from.
     expect($loopScope)->toContain('The caller is therefore the only source, and it must supply one');
