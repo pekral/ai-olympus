@@ -43,7 +43,7 @@ paths:
 - DTOs should be simple, explicit, and immutable where practical.
 
 ## Controllers
-- Use method injection.
+- Inject the FormRequest and route-bound models as action parameters; inject services through the constructor (see **Dependency Injection**).
 - Never call `validate()` directly in controllers.
 - Never execute database queries directly in controllers.
 - **Return an explicit HTTP response from every controller action.** Never return a raw `array`, scalar, Eloquent model, DTO, `Collection`, or arbitrary object from a controller. Convert the Action's domain value at the HTTP boundary with the response shape the endpoint needs: `response()->json(...)` for JSON, `response(...)` for a regular response, `redirect()` / `back()` for navigation, `view()` for HTML, or Laravel's stream / download response builders for streamed content. A `Responsable` object is allowed only when it is the endpoint's explicit HTTP response contract. Laravel may normalize several raw values, but relying on that implicit conversion hides the status, headers, and representation the client receives.
@@ -217,7 +217,7 @@ Applies only when the project installs `laravel/pao`. The package detects an age
 
 ## Time
 - **When the project manifest sets `timezone`, that zone wins** over `config('app.timezone')` (`@rules/general/general.md` *Project manifest*). Pass it explicitly on every call, exactly as the rest of this section passes the configured zone.
-- **The project's configured timezone is the single source, and `config('app.timezone')` is where it lives.** Read it from there — `now(config('app.timezone'))`, `Carbon::parse($value, config('app.timezone'))` — never from a zone literal repeated at each call site, and never by leaving `now()` to apply it silently.
+- **Absent the manifest key, the project's configured timezone is the single source, and `config('app.timezone')` is where it lives.** Read it from there — `now(config('app.timezone'))`, `Carbon::parse($value, config('app.timezone'))` — never from a zone literal repeated at each call site, and never by leaving `now()` to apply it silently.
 - **The explicit argument changes nothing at runtime and everything for the reader.** `now()` already resolves against `config('app.timezone')`, so this is not a behaviour fix — it is what makes the zone reviewable. A bare call is indistinguishable from one whose author never considered the zone, and a literal `'Europe/Prague'` forks the answer the moment the configuration changes.
 - The framework-agnostic half of this rule lives in `@rules/php/core-standards.md` *Time* and applies unchanged: one zone for computing and storing, conversion only at the boundary, no SQL `NOW()`, and a zone on every value that crosses a process boundary.
 - **A queued job, a console command, and a scheduled task resolve it the same way.** A worker is a separate process that loads its own configuration; nothing about the dispatcher's ambient zone travels in the payload.

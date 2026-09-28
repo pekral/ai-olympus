@@ -62,10 +62,8 @@ Follow this order:
 - Ensure 100% code coverage for all changed or added code paths
 - If coverage tooling exists, verify coverage **for the changed files only**, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`) and verify the result. Do not gate on a project-wide coverage percentage — full-suite coverage is for release gates, not for verifying current changes. Delete any generated coverage report file once read so it is not accidentally committed.
 
-### 6. Code Style and Quality Gates
-- Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`
-- Run available fixers on changed test files and fix any violations
-- Run available checkers/analyzers on changed test files and resolve all reported errors
+### 6. Quality gates — not run here
+- Do not run fixers or checkers in this skill. The project's gate runs once at the merge boundary (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*).
 
 ### 7. Test Review
 - Check every created or updated test against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`

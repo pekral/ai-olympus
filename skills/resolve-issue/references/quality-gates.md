@@ -40,7 +40,7 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 
 ## Gate placement — deferred to the merge boundary (issue #65, revised)
 
-A branch used to run the project's full build several times: once per implementation phase, once before the PR opened, and once per review-loop iteration. Every one of those runs proved the same thing the next one would prove again, and on a larger task the repeated full builds dominated the wall-clock cost of delivering the change. The gate now runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
+A full build proves the same thing on every run over the same bytes, and on a larger task repeated builds dominate the wall-clock cost of delivering the change. The gate therefore runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
 - **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
@@ -73,12 +73,4 @@ A rebase onto the newest default branch gives the head a new SHA. The branch's o
 
 The trade, stated rather than hidden: the combined tree `H` is not re-tested as a whole. The default branch's own gate covers the incoming changes, and the analysis above covers their interaction with the branch. A related change, an unclear one, or a changed fingerprint always takes the full gate.
 
-### Retired with the repeated builds they deduplicated
-
-Three mechanisms existed only to stop the same commit being built more than once. Deferring the gate to the end of the work removed the repeats, so all three are retired rather than left as guidance nothing can reach.
-
-- **Head-SHA push-level dedup (issue #212, retired).** It deduplicated the full build across the three call sites that each ran one — the implementation's Finalization, `donatello`'s scoped validation, and the review loop's Finalization. All three are gone, so there is no second execution on the same commit to deduplicate; the `## Gate log` brief section it was keyed to is retired with it.
-- **CI-result reuse for the loop gate (issue #124, retired).** It applied only to the per-iteration loop gate, which no longer exists — and it was already structurally unreachable in this repository, whose `pull_request` workflow checks out the merge ref and so could never satisfy its staleness guard.
-- **Savings-mode build-gate cache (issue #119, retired).** It cached a passing build keyed by the working-tree hash so the *next* full build in the same run could cite it. With one gate run per branch there is no next build to serve, and the cache was left with readers and no writer. The one reuse that still matters — the merge accepting the Finalization run — is keyed to the head SHA and lives in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*, which needs no cache. The `## Build gate cache` brief section is retired with it.
-
-**`security-audit` is never reused by anything.** `composer audit` queries a live advisory database at run time, so a green verdict is a function of *when* it ran, not only of *what* it read. It runs fresh on every gate execution — that was true of each retired mechanism's carve-out and stays true without them.
+**`security-audit` is never reused by anything.** `composer audit` queries a live advisory database at run time, so a green verdict is a function of *when* it ran, not only of *what* it read. It runs fresh on every gate execution.

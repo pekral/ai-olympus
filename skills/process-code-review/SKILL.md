@@ -163,7 +163,7 @@ Loop iterations run **quiet** — the review is invoked with the explicit instru
 
 ### Quality gates — not run in this loop
 
-**Do not run fixers, checkers, or the full build inside the review loop.** Per `@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's gate runs exactly once, after the loop converges: *Finalization* below runs it, and `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accepts that record for the exact head SHA or runs the gate itself. A gate per iteration was the loop's largest repeated cost and proved nothing the final run does not re-prove.
+**Do not run fixers, checkers, or the full build inside the review loop.** Per `@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's gate runs exactly once, after the loop converges: *Finalization* below runs it, and `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accepts that record for the exact head SHA or runs the gate itself. A gate per iteration would prove nothing the final run does not re-prove.
 
 Apply each fix, commit it, push it, and let the next review iteration read the new diff.
 
@@ -174,7 +174,7 @@ Apply each fix, commit it, push it, and let the next review iteration read the n
 - **Run the full quality gate now — the branch's gate run happens here.** The loop above deliberately ran no fixers and no checkers, so this is the first point where they execute (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). Convergence of the loop is a **review** verdict; this is the **build** verdict, and the merge requires both. Run the project's full gate, discovered per `@skills/resolve-issue/references/quality-gates.md` with the manifest `env` exported, on the current head. The gate rewrites tracked files and lands a commit, so it is run by the implementing agent (`donatello`), never by a read-only orchestrator or reviewer — `agents/donatello.md` *Bash boundary* permits the gate command for exactly this step.
   - **Green on the first run → nothing more to do here.** Record the command, its result, **and the head SHA it ran on** (`git rev-parse HEAD`) for the `Quality gate:` line of the CR comment — read that SHA **after** the branch's last commit is pushed, since any commit landing afterwards invalidates the record and forces the merge to run the gate again. The SHA is what lets `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accept this run instead of repeating it.
   - **Flaky test:** `@skills/resolve-issue/references/quality-gates.md` *A flaky test outside the diff and the assignment is left alone*.
-  - **Anything reported → resolve it and land it as one final commit**, placed last on the branch: `chore(gate): apply fixer and checker fixes`, or a `fix(<scope>):` subject when resolving it changed behaviour. This is the one commit in this skill that is deliberately **not** a CR item — *Commit granularity — one CR item = one commit* above does not apply to it, and the reconciliation walk treats it as a named non-item commit exactly like a pre-existing-fix or coverage commit. Re-run the gate on the new head and repeat until it passes.
+  - **Anything reported → resolve it and land it as one final commit**, placed last on the branch: `chore(gate): apply pre-merge fixer and checker fixes`, or a `fix(<scope>):` subject when resolving it changed behaviour. This is the one commit in this skill that is deliberately **not** a CR item. Re-run the gate on the new head and repeat until it passes.
   - **Only a gate fix that changes business logic re-opens the review.** Apply `@rules/code-review/general.md` *When another review round runs at all — changed business logic, or a changed assignment* to the fix commit.
 A commit carrying only the verbatim output of the project's fixers changes no business logic, so the converged verdict carries forward — record which fixer produced it. A hand-written change (a static-analysis error resolved by hand, a failing test, a coverage gap closed with new test code, or a `rector` rewrite that changed behaviour) does change it: go back to the Review loop at step 2 rather than promoting the PR.
 When an earlier pass had already promoted it, withdraw both signals now — `references/ready-to-merge-signal.md` *Revert when the review re-opens*. Classify from the commit's own diff, never from its subject line; an unclear case counts as business logic and gets the round.
@@ -200,7 +200,7 @@ This step **assembles** the comment body; **Completion** publishes it. This skil
 - **`## Deferred to sub-issues`** — only when the Review loop deferred a Moderate at round 3: one entry per finding with `file:line`, the original severity, the reason, and the sub-issue URL (`references/round-three-deferral.md` *Reporting the deferral*).
 - **`## Pre-existing fixes`** — only when **Pre-fix phase** landed one: each commit subject with a one-line rationale from the commit body. Omit when none landed.
 
-Never quote or reply to a previous CR comment body — this run's publish updates the same `cr-comment` in place, replacing it. **Lost:** earlier rounds are no longer visible as a comment chain. **Kept:** that comment's `Reviewed revision:` / `Reviewed diff fingerprint:` header lines still carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
+Never quote or reply to a previous CR comment body — this run's publish updates the same `cr-comment` in place, replacing it. That comment's `Reviewed revision:` / `Reviewed diff fingerprint:` header lines carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
 
 
 #### Resolve addressed reviewer threads (GitHub)
@@ -223,22 +223,6 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 - Do **this only on a converged loop.** If the loop stopped at round 3 without converging, the PR stays a Draft — never promote a PR that still carries a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar. A Moderate deferred into a sub-issue is not such a finding: it is resolved for this PR and recorded in the tracker.
 - A PR that was already non-draft stays non-draft; `gh pr ready` is idempotent. If `gh pr ready` is unavailable, fall back to the GitHub MCP server's mark-ready operation.
 - **Write the ready-to-merge phase signal on the source tracker item in this same step**, so the issue shows the work waiting on a merge rather than on a reviewer. The write is unconditional, idempotent, and verified by re-reading through the deterministic loader. The per-tracker procedure, the no-source-issue no-op, and the revert live in `references/ready-to-merge-signal.md`.
-
-#### Per-item justification (required)
-
-Every resolved review point in the PR comment **must** include a brief justification using this format:
-
-```
-- [x] {short finding title}
-  - **Why:** {what was wrong / what the reviewer asked for}
-  - **Reason:** {root cause or rule that was violated}
-  - **Solution:** {what was changed and why this is the best fit}
-```
-
-Rules:
-- Keep each line **one sentence max**.
-- Skip the section only if a point was rejected or deferred — in that case state the rejection reason instead.
-- Do not pad with filler, restate the obvious, or paraphrase the diff.
 
 ---
 

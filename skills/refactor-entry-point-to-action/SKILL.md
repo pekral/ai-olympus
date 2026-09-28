@@ -18,9 +18,9 @@ metadata:
 
 This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
 
-- **`apply` (default)** — perform the entry-point → Action refactoring: create / update the Action, move orchestration, run fixers / checkers, and chain the After Completion review. The Execution and Done-when steps below behave as written.
+- **`apply` (default)** — perform the entry-point → Action refactoring: create / update the Action, move orchestration, run the tests covering the change, and run the inline review (Execution steps 11–12). The Execution and Done-when steps below behave as written.
 - **`cr` (read-only lens — invoked by a caller that explicitly asks for a read-only proposal)** — **never modify code, never create files, never stage / commit / push, never run fixers or checkers, and never chain `code-review` / `process-code-review`.** Scope the analysis to entry points (controller / job / command / listener / Livewire) touched by the PR diff that still hold business orchestration, and return — as markdown only — the proposed Action extraction for each:
-the entry-point `Class::method`, the orchestration that should move out, the target `app/Actions/<Domain>/<ActionName>` and Data Validator, and the rule reference. No code review invokes this mode any more — the two review sections it used to fill are retired (`@rules/code-review/review-process.md` *Refactoring & Tech Debt (DRY) Analysis — retired*), so the proposals are returned to the caller. Execution steps 3–11 below apply to `MODE=apply` only.
+the entry-point `Class::method`, the orchestration that should move out, the target `app/Actions/<Domain>/<ActionName>` and Data Validator, and the rule reference, returned to the caller. Execution steps 3–12 below apply to `MODE=apply` only.
 
 ## Use when
 - A controller, job, command, listener, or Livewire component method contains business orchestration that should be moved into an Action.
@@ -91,7 +91,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 8. Update the entry point to delegate via `$action(...)` and keep its public contract unchanged.
 9. **Do not modify assertion logic of pre-existing tests inside the refactor commit.** The pre-refactor coverage commit fixed the behavior-preservation contract; the refactor commit changes structure only. Mechanical renames forced by the refactor itself (namespace move, constructor / argument shape forced by the extracted DTO) are the only allowed test edits and must be flagged in the commit body. If an assertion would have to change to make the refactor green, you are no longer refactoring — split the behavior change into its own commit. New tests covering newly introduced code paths (e.g. the Data Validator's failure modes that did not exist before) belong in a separate `test(scope): …` commit *after* the refactor.
 **After the refactor commit, re-run the coverage tooling scoped to the changed files and confirm coverage stayed 100% with the pre-existing assertions passing unchanged** — a refactored line that is no longer covered signals an untested path to fix, never a number to restore by editing the pre-refactor tests (step 4 of the **Test Coverage Contract** in `@rules/refactoring/general.md`).
-10. Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`. Run fixers first, then checkers/analyzers on all changed files. Resolve all reported issues.
+10. Run the tests covering the entry point and the Action. Do not run fixers or checkers here — the project's gate runs once at the merge boundary (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*).
 11. **Run the review inline.** Invoke `@skills/code-review/SKILL.md` directly in this skill's context, passing the refactor commit range plus the instruction to return Critical / Moderate findings with their reproducer fields. Do not dispatch the review as a subagent — run it sequentially in the current context.
 12. Run `@skills/process-code-review/SKILL.md` inline (per its own contract) and fix critical or medium findings before finishing.
 
@@ -118,7 +118,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 - The pre-refactor coverage commit reports 100% coverage on the entry-point lines that were refactored, and the assertion logic in those tests is unchanged through the refactor commit (mechanical renames flagged in the commit body excepted).
 - After the refactor, coverage scoped to the changed files was re-verified and **stayed** 100% with the pre-existing assertions passing unchanged.
 - New tests covering paths introduced by the refactor (e.g. Data Validator failure modes) live in a separate `test(scope): …` commit after the refactor.
-- Fixers and checkers ran clean on all changed files.
+- The tests covering the entry point and the Action pass.
 - Internal architecture-focused review was completed and important findings were fixed.
 
 **`MODE=cr`:** the Action-extraction proposal was emitted as markdown for every qualifying entry point in the diff (entry-point `Class::method`, orchestration to move out, target Action / Data Validator, rule reference) and **no files were created or modified**.

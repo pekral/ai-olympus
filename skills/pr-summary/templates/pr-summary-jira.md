@@ -31,7 +31,7 @@ TEMPLATE GUIDANCE. The published comment ends at the line above. The intermediat
 source format has no comment syntax, so this guidance cannot be hidden the way the GitHub
 template hides its own in an HTML comment — the boundary is this marker line, and
 it is structural, not decorative. Written as plain text on purpose: the Wiki
-Markup quote macro this guidance used to sit inside is functional markup, so
+Markup quote macro is functional markup, so
 guidance wrapped in one renders as a real, official-looking quotation if it ever
 reaches the published body - which is exactly how meta-instructions leak
 unnoticed. That macro's name is deliberately not written out anywhere in this
@@ -85,10 +85,9 @@ How to test
 What changed
   Three to five bullets, observable behaviour only, in before -> after form
   where a before exists. It states impact, never mechanism — a bullet that
-  explains how the code now works belongs on the pull request instead. This
-  section replaces the Problem / Cause / Result fields the JIRA template used to
-  open with: Cause asked for a mechanism, and a mechanism is what invited method
-  names into a product manager's ticket.
+  explains how the code works belongs on the pull request instead. The JIRA
+  shape carries no Problem / Cause / Result fields: Cause asks for a mechanism,
+  and a mechanism is what invites method names into a product manager's ticket.
 
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
@@ -112,7 +111,7 @@ Length
   comment runs straight from What changed to the closing links line.
   The Assignment Compliance block does not travel through this slot on JIRA. Its
   verdict is the Acceptance criteria section above, which is why that section is
-  first and no longer optional.
+  first and always rendered.
 
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of

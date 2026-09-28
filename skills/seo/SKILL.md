@@ -147,19 +147,12 @@ Title:  Primary Topic - Specific Modifier | Brand
 Meta:   Action + topic + value proposition + one supporting detail
 ```
 
-## Keyword mapping
-1. Define the search intent.
-2. Gather realistic keyword variants.
-3. Prioritize by intent match, likely value, and competition.
-4. Map one primary keyword/theme to one URL.
-5. Detect and avoid cannibalization (two URLs targeting the same intent).
-
 ## Competitor gap analysis
 Use competitors to find concrete, page-level opportunities — never to copy.
 
 - **Keyword gaps:** queries competitors rank for that the site does not. Map each gap to a new or existing URL, not a generic "write more content" note.
 - **Content gaps:** topics or intents covered by competitors but missing from the site's coverage map.
-- **SERP-feature gaps:** rich results competitors win (FAQ, breadcrumb, review stars) that the site's schema does not yet support.
+- **SERP-feature gaps:** rich results competitors win (breadcrumb, product, review snippets) that the site's schema does not yet support. Confirm that Google still offers the result type for this kind of site before recommending it.
 - **Site-structure gaps:** shallower paths or clearer internal linking that make competitor pages easier to crawl.
 - Output each gap as `[gap type] target query/topic → owning URL → concrete change`, so it slots straight into the audit output below.
 
@@ -170,11 +163,6 @@ Search engines reward Experience, Expertise, Authoritativeness, and Trustworthin
 - **Authoritativeness:** cite primary sources and earn relevant links naturally; do not buy or exchange links.
 - **Trust:** keep content accurate and current, show a clear publish/updated date, and make contact / ownership discoverable.
 - **Helpful-content first:** write for the person with the query. Consolidate or differentiate thin near-duplicate pages instead of keeping them for keyword coverage.
-
-## Internal linking
-- Link from strong pages to pages you want to rank.
-- Use descriptive anchor text; avoid generic anchors when a specific one fits.
-- Backfill links from new pages to relevant existing ones.
 
 ## Measurement and reporting
 Every recommendation needs a measurable outcome; pick the metrics that match the change and capture a baseline before shipping.

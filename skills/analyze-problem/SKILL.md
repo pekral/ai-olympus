@@ -71,7 +71,6 @@ Run this workflow after the issue-tracker pre-flight. Complete these four phases
 Execute the detailed procedures below inside those phases, not after them: Analysis Framework steps 1–3 complete phase 1; phase 2 then gathers project history; steps 4–6 complete phase 3; and steps 7–10 plus the plan artifact complete phase 4.
 
 - Analyze the problem and all available context.
-- Walk through the Analysis Framework below in order — do not skip steps.
 - Separate facts from assumptions and from hypotheses.
 - Identify the most probable root cause and how to validate it.
 - Recommend the smallest safe solution and explain rejected alternatives.
@@ -176,9 +175,4 @@ Record the design verdict in the **Recommended Solution** section using these ex
 
 ## References
 
-- references/debugging-strategies.md
-- references/hypothesis-generation.md
 - references/root-cause-analysis.md
-- references/analysis-good.md
-- references/analysis-missing-context.md
-- references/analysis-multiple-hypotheses.md

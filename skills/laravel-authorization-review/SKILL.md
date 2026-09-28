@@ -12,7 +12,7 @@ metadata:
 - Apply `@rules/security/backend.md` — *Database* (authentication & authorization, least privilege) and *Safe Validation & Error Messages* (a 403-vs-404 distinction that confirms a resource exists is itself an authorization-granularity leak)
 - Apply `@rules/code-review/general.md` — map every finding onto the CR severity scale (Critical / Moderate) so this skill plugs into a Laravel CR run
 - **Advise-only.** Reads files and runs one read-only command (`php artisan route:list --json`). Never edits routes, controllers, policies, or any source; emits a report plus fix sketches for a human to apply.
-- Output in English
+- Apply `@rules/reports/general.md` — output in English, or in the language the project manifest sets in `language.github` when the findings fold into the GitHub PR comment (*Project override — `language.github` in the manifest*).
 
 ---
 

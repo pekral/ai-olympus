@@ -59,17 +59,7 @@ test('the roster ships exactly one code-review agent and it is leonardo (issue #
     expect($agentFiles)->not->toBeEmpty();
 
     foreach ($agentFiles as $agentFile) {
-        $content = (string) file_get_contents($agentFile);
-
-        // leonardo and splinter each keep one historical sentence explaining what the consolidation
-        // replaced — the rationale is the point of the change. Every other agent carries none.
-        if (in_array(basename($agentFile), ['leonardo.md', 'splinter.md'], strict: true)) {
-            expect(substr_count($content, 'argos'))->toBe(1);
-
-            continue;
-        }
-
-        expect($content)->not->toContain('argos');
+        expect((string) file_get_contents($agentFile))->not->toContain('argos');
     }
 });
 
@@ -1288,13 +1278,6 @@ test('the head-SHA gate log is retired along with the repeated builds it dedupli
     foreach (['agents/donatello.md', 'agents/splinter.md'] as $relativePath) {
         expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('## Gate log');
     }
-
-    // The retirement is recorded where the mechanism used to be documented, so a later reader
-    // finds the decision rather than an unexplained absence.
-    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
-    expect($gates)->toContain('### Retired with the repeated builds they deduplicated');
-    expect($gates)->toContain('**Head-SHA push-level dedup (issue #212, retired).**');
-    expect($gates)->toContain('the `## Gate log` brief section it was keyed to is retired with it');
 });
 
 test('leonardo frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {

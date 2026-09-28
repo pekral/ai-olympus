@@ -75,9 +75,11 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // Re-baselined: a project that accepts the DNS-rebinding gap states the acceptance in the
         // PR description instead of a comment at the sink, because a PHP comment carries only
         // `@` annotations. Nothing else in the file moved.
-        'backend.md' => 'c5a00d4934e7eb3d025d6ca9b9d11d5c5a55bdb6dfc71d4889989639a3c6a3e3',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'backend.md' => 'b4612f80b5fabf17c8902693aa097abb17917bc4e3a4e9ff0cdb6705465e6828',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
-        'mobile.md' => 'f72b824c6f6d23f0db84662ab7de8c54c5126b4d65d5118e44b169d2a4115fea',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'mobile.md' => '5ab7dccc7d2b066e1f4da8461ec8f35a2899b1429c97deb3dfca23f493146e04',
     ];
 
     foreach ($expectedBodyHashes as $file => $expectedHash) {
@@ -224,7 +226,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // consumer, the file gained `## Agent Tool Output (`laravel/pao`)`, `## Time` names the
         // manifest `timezone` as the zone that wins, and the exact-semantics exception in `## String
         // Emptiness Checks` is stated in the PR description instead of at the call site.
-        'rules/laravel/laravel.md' => '120ecdd54f8abe061adf2a64525b6717c14a88821724a9a9514141911e849455',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/laravel/laravel.md' => 'e6f9ad0d239e77d2b9501c96dfbddae2cd6d120a4ac4e8ec33442ada8629fc1c',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -255,11 +258,13 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: `## Design Principles` gained *Do not create a class for simple logic that
         // does not repeat*, which keeps simple, non-repeated logic inline instead of in a new Action,
         // Service, DTO, Data Builder, Data Validator, helper, or trait.
-        'rules/php/core-standards.md' => 'a7f36ac6cc3cd11cf5cd5a4c808b5ef54e5acb72bcfbd3c185f7f4d9c6560dba',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/php/core-standards.md' => '80254832993ac0da983c328d3aa4863c7a94e25e6ed62a9c1eb15dedad1ad57b',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
-        'rules/sql/optimalize.md' => '6ef890fd191140ababe4499cabc6787b24fa8757352452493de8ed59f82a9ee8',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/sql/optimalize.md' => '770c9ef9e75c0cd1e742b6911c5284a9fbd62cefec6318bc17591614234d546f',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -399,14 +404,17 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the Action-pattern Critical, *Before you create an Action*, the Moderate
         // severities, and `## Exceptions` now keep simple logic that does not repeat inline instead
         // of in a new Action or another layer class, per `rules/php/core-standards.md`.
-        'rules/laravel/architecture.md' => '2201e12442b2a8791c6292df3a0aca989bb2526fcc04fb540e371f87e7337a59',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/laravel/architecture.md' => 'c964bad29e35c5c10973788ce98b2e12ba0806b6d531c21762a38f17b216bdab',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
-        'rules/laravel/filament.md' => '25256c6b3ac6f618600ad2047a994e1c8e6c922fd9426f66df74fd37a19a7b0a',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/laravel/filament.md' => '51ae5a679770d117ce4ee0301f99d59a5f397c6d462b2d1383a1dc0563d8b675',
         // Re-baselined: the view-size exemption is stated in the PR description instead of the file
         // header, and the Minor tier of the layout-splitting severity rules is gone.
-        'rules/laravel/livewire.md' => '4198570633d18fef4c7a5344374cd8d1215df98f2aee36748543410334177427',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/laravel/livewire.md' => '4eb8f92f74837af8c308d4e85ceafc8c90e154cbad8081bc467fb30da1e561d7',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
         // marker instead of re-posted, and the rule states what that costs (the comment chain is no
@@ -445,7 +453,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // declares its severity as Critical.
         // Re-baselined: *The questions the review settles itself* now sends only questions that still
         // hold and fall within the ticket's scope to the tracker, per the clarifying-questions scope gate.
-        'rules/code-review/general.md' => 'ec4c1e6ac6effaae9bc2bd16b6193f4b67b85b2ade1c8e12a6ccbcdae1a39117',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/code-review/general.md' => '6e5dbb4ece7f03cb7e5647c5b605c1678850d29bdaba1a92c1c254f829f33437',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -469,7 +478,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Finalization or the merge, and AAA phases are separated by blank lines, never comments.
         // Re-baselined: *Flaky Test Prevention* points a flaky test outside the diff and the
         // assignment to the leave-alone section in `skills/resolve-issue/references/quality-gates.md`.
-        'rules/code-testing/general.md' => '7a75310b03f0adb867656508b5351579b7530e779af11995c16e7ae93e4d2795',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/code-testing/general.md' => '5638b1619341e45f4ca2a695f3781c2498e069c02d9b2e13937c6f54d9c5b64a',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
@@ -504,13 +514,15 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // fallback bullet names the no-e-mail case, where the MCP fallback cannot compute the
         // digest either and the run stops as blocked.
         'rules/jira/general.md' => '8d8484189777533656903fe968f7b99339eef2c3d05538491bdf90f7217be99b',
-        'rules/php/dependency-selection.md' => '7633700bab79504ebcad864ec106cd3f9f44cc9b46c3740221e435c4d64a5ea6',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
         // steps of the Test Coverage Contract became authoring guidance and the rule now states
         // what that costs — the proof that behaviour was preserved across a refactor.
         // Re-baselined: step 3 *Introduce the Action pattern* now keeps simple logic that does not
         // repeat in the entry point, per `rules/php/core-standards.md` Design Principles.
-        'rules/refactoring/general.md' => '3bca19e9e2bac423340dd7a73c6ee10a46a57a69008c442f952489e307410b90',
+        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
+        'rules/refactoring/general.md' => '6830a6ffdd5adce36499c79b9da489ee7b7e5a514dab54325f1bdab7074a2638',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves

@@ -78,27 +78,6 @@ Missing `for`/`id` pairing and disconnected error messages are the most commonly
 
 ---
 
-## Semantic HTML
-
-Use the element that matches intent. Screen readers and keyboard users depend on native semantics.
-
-```blade
-{{-- BAD: div has no role, no keyboard support --}}
-<div wire:click="save">Submit</div>
-
-{{-- GOOD: button is focusable, fires on Enter/Space, announced as "button" --}}
-<button type="button" wire:click="save">Submit</button>
-
-{{-- BAD: fake navigation --}}
-<div wire:click="goHome">Home</div>
-{{-- GOOD: real anchor — supports middle-click, right-click, keyboard --}}
-<a href="{{ route('home') }}">Home</a>
-```
-
-Keep heading levels sequential (`h1 → h2 → h3`); never skip a level for styling.
-
----
-
 ## ARIA — only when native HTML is insufficient
 
 Wrong ARIA is worse than none.
@@ -217,7 +196,7 @@ For Alpine transitions, branch on the media query:
 
 ## WCAG 2.2 success criteria
 
-WCAG 2.2 added criteria that templated Blade/Livewire UI frequently misses. These complement the patterns above.
+These criteria are the ones templated Blade/Livewire UI most often misses. They complement the patterns above.
 
 ### Target size — SC 2.5.8 (AA)
 
@@ -235,7 +214,7 @@ Interactive targets must be at least **24×24 CSS px** (or have 24px spacing aro
 </button>
 ```
 
-### Focus appearance — SC 2.4.11 (AA)
+### Focus visible — SC 2.4.7 (AA)
 
 Every focusable element needs a clearly visible focus indicator. Never strip the outline without replacing it; prefer `focus-visible:` so the ring shows for keyboard users without firing on mouse click.
 
@@ -307,7 +286,7 @@ When validation fails and a fix is known, the message must suggest the correctio
 - [ ] Token color pairs meet AA contrast in light and dark; state is not color-only.
 - [ ] Animations respect `motion-reduce:` / `prefers-reduced-motion`.
 - [ ] Interactive targets are at least 24×24 CSS px (SC 2.5.8).
-- [ ] Focus indicators are visible via `focus-visible:` and never stripped without replacement (SC 2.4.11).
+- [ ] Focus indicators are visible via `focus-visible:` and never stripped without replacement (SC 2.4.7).
 - [ ] Multi-step flows never re-ask data already entered (SC 3.3.7).
 - [ ] Drag-to-reorder interactions have a single-pointer alternative (SC 2.5.7).
 - [ ] Validation messages suggest the correction without leaking sensitive data (SC 3.3.3).

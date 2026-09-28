@@ -60,11 +60,11 @@ Every comment opens with two metadata lines, then the body sections. Compose the
 
 - *Authors:* the real change author(s), resolved here — this skill owns the algorithm, no other skill resolves authorship for it:
     1. Collect the commit authors with `git log --pretty='%an <%ae>' base..HEAD | awk 'NF' | sort -u`.
-    2. When PR metadata is available, also collect `author.login` and the unique `commits[].author.login` set.
+    2. When PR metadata is available, also collect the loader's `author` value and the unique `commits[].authors[]` set.
     3. On a JIRA target, prefer the JIRA-account display name when the loader's user lookup — or `assignee` / `reporter` matching the committer — resolves one. Otherwise prefer the GitHub handle `@handle`. Otherwise fall back to the git `Name <email>` form.
     4. List the identities comma-separated in commit order, deduped.
   Never list the agent / publishing identity. When authorship cannot be determined, write *Authors: unknown — git history did not yield a recognisable identity*.
-- *Available behind:* present only when the verified change is reachable only behind a test parameter (admin switch label _NovaSMS API version_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature toggle, allow-listed account). Name the switch label exactly as it appears in the admin UI when one exists (per the forbidden-vocabulary rule — UI labels, not feature keys). When the change is reachable for every user unconditionally, omit the line entirely.
+- *Available behind:* present only when the verified change is reachable only behind a test parameter (admin switch label _NovaSMS API version_, query {{?preview=1}}, feature toggle, allow-listed account). Name the switch label exactly as it appears in the admin UI when one exists (per the forbidden-vocabulary rule — UI labels, not feature keys). A gate with no UI footprint, such as an environment setting, goes to the dev-team report instead. When the change is reachable for every user unconditionally, omit the line entirely.
 
 **Body sections:**
 
@@ -93,7 +93,7 @@ Repeat until the body is clean. **Do not publish a comment that still contains f
 
 ## Related skills (to disambiguate)
 - `@skills/pr-summary/SKILL.md` — the non-technical *What changed* / *How to test* comment for a PR, JIRA ticket, or Bugsnag error. Different audience (project managers, not QA testers), and it credits no authors — this skill resolves its own.
-- **interactive-testing** (when available in the host environment, not shipped with this package) — interactive browser-driven validation. Different flow: an agent walks through scenarios live in a browser instead of producing written instructions for a human tester.
+- `@skills/interactive-testing/SKILL.md` — interactive browser-driven validation. Different flow: an agent walks through scenarios live in a browser instead of producing written instructions for a human tester.
 
 ## Output
 - A single ADF-formatted JIRA comment posted to the originating task.

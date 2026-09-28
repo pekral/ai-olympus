@@ -81,9 +81,10 @@ Apply in this order; stop when the target is met.
    window. Store the computed-at timestamp alongside the value.
 
    ```php
-   $stats = Cache::remember('dashboard:stats', now()->addSeconds(30), fn () =>
-       Order::query()->selectRaw('count(*) c, sum(total) t')->first()
-   );
+   $stats = Cache::remember('dashboard:stats', 30, fn () => [
+       'computed_at' => now(config('app.timezone'))->toIso8601String(),
+       ...Order::query()->selectRaw('count(*) as c, sum(total) as t')->first()->only(['c', 't']),
+   ]);
    ```
 
 3. **Batch small calls and writes.** Combine per-row queries into bulk

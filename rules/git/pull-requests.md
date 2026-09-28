@@ -40,19 +40,19 @@ A pull request is a **Draft** for as long as it is **not yet ready to merge and 
 
 ## PR Lifecycle
 - When merging a PR:
-    - Merge into `main`
+    - Merge into the default branch (`$DEFAULT_BRANCH`, resolved per `@rules/git/general.md` *Pull Policy*)
     - Close the PR
     - Delete the branch
     - Remove the worktree if one was created for this work unit (see `@rules/git/general.md` *Worktrees / Workspaces* for the opt-in / safety rules; `@skills/merge-github-pr/SKILL.md` §5 owns the step)
-    - Switch locally to `main`
+    - Switch locally to the default branch
     - Pull latest changes
 
 - If already deployed:
-    - Only switch to `main` and pull latest changes
+    - Only switch to the default branch and pull latest changes
 
 ## Merging
 - Use rebase and merge strategy
-- **Code review is a hard merge gate — never optional, never skipped.** A PR may be merged only after a code review has been run on its **final diff** (the exact commits being merged) and the review reports **no errors**: **zero Critical findings, and no undeferred Moderate finding**. This gate applies to **every** merge path — manual and orchestrated (`splinter`) — and is owned by `@skills/merge-github-pr/SKILL.md`. Read the second half precisely, because it is where the gate changed:
+- **Code review is a hard merge gate — never optional, never skipped.** A PR may be merged only after a code review has been run on its **final diff** (the exact commits being merged) and the review reports **no errors**: **zero Critical findings, and no undeferred Moderate finding**. This gate applies to **every** merge path — manual and orchestrated (`splinter`) — and is owned by `@skills/merge-github-pr/SKILL.md`. The Moderate half works as follows:
     - **A Critical always blocks**, at every round, with no deferral and no exception.
     - **A Moderate blocks until it is resolved, and it is resolved in one of two ways** — fixed in the review loop, or, at round 3 only, deferred into a tracker sub-issue (`@skills/process-code-review/SKILL.md` *Review loop* step 6 and `references/round-three-deferral.md`). A Moderate that is neither fixed nor deferred still blocks.
     - **A security-relevant Moderate is never deferrable.** A finding meeting the **S1–S3** carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* — produced by a security lens, citing a rule in `@rules/security/**`, or landing on a security surface — blocks the merge until it is fixed. No filing bar, no sub-issue, and no round count changes that.
@@ -76,7 +76,7 @@ A pull request produced by a declared HOTFIX run (`@rules/compound-engineering/o
 
 ### `FAST`-tier pull requests (code-review exemption)
 
-A pull request whose change classifies `FAST` under `skills/_shared/classify-risk.sh` is exempt from the code-review gate (`@rules/compound-engineering/orchestration.md` *Adaptive routing*). The reasoning mirrors the dependency-only exemption above: a documentation edit, a formatting change, a tests-only change, or a small isolated fix with its tests carries no reviewable judgment call, so an LLM review on it produces no actionable finding and only adds a round to routine work.
+A pull request whose change classifies `FAST` under `skills/_shared/classify-risk.sh` is exempt from the code-review gate (`@rules/compound-engineering/orchestration.md` *Adaptive routing*). The reasoning mirrors the dependency-only exemption below: a documentation edit, a formatting change, a tests-only change, or a small isolated fix with its tests carries no reviewable judgment call, so an LLM review on it produces no actionable finding and only adds a round to routine work.
 
 The exemption applies **only** when all of the following hold:
 

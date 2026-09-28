@@ -130,10 +130,6 @@ The always-run set, the conditional set, and the `MODE=cr` read-only contract ea
 Run the lenses from there — the always-run lenses (`prepare-issue-context`, `assignment-compliance-check`, `analyze-problem`, `security-review`, `api-review`) one at a time, inline, then the conditional ones whose trigger the diff fires (the engine-resolved DB lens — `mysql-problem-solver` or `postgres-patterns` with `MODE=cr`, never both — the schema-pattern lens `mysql-patterns` with `MODE=cr` alongside it on MySQL / MariaDB, the three frontend lenses — `frontend-patterns`, `frontend-a11y`, and `design-system`, each with `MODE=cr`, always all three together — the cache lens `redis-patterns` with `MODE=cr`,
 the container lens `docker-patterns` with `MODE=cr`, the asset-build lens `vite-patterns` with `MODE=cr`, the latency lens `latency-critical-systems` with `MODE=cr`, the SEO lens `seo` with `MODE=cr`, the payment lens `machine-payments-protocol` with `MODE=cr`, the test-value lens `test-audit` with `MODE=cr`, I/O review).
 
-### Refactoring & Tech Debt (DRY) Analysis — retired
-
-This pass no longer runs and neither refactoring section is rendered. `@rules/code-review/review-process.md` *Refactoring & Tech Debt (DRY) Analysis — retired* states what went with it, what stays (the reuse-first gate, both refactoring skills as standalone tools, the three frontend lenses), and what is lost.
-
 ### Validation
 - The acceptance criteria themselves were already walked by the **Acceptance-Criteria Gate** above, which runs first and owns the pass/fail verdict — consume its result here, never re-derive it.
 - **Acceptance-criteria use-case coverage** and the full **Coverage gate** (changed-files-only scope, CI-result reuse with the staleness guard, coverage-tooling discovery, short-by-default coverage reporting, and the missing-test-scenario walk) live in `@rules/code-review/review-process.md` *Validation & Coverage Gate*. Every acceptance criterion without a dedicated use-case test, and every uncovered changed line, is a **Critical** finding.
@@ -165,7 +161,7 @@ When every changed line is at 100% coverage and the tool ran successfully, drop 
 On non-Laravel projects (`laravel/framework` not in `composer.json` `require`), the `## Architecture` section is omitted entirely — the section is Laravel-only by design.
 - **`## Documentation Requests` section (issue #151).** Render this section **only** when **Third-Party API & Service Analysis** step 7 produced at least one blocking documentation request. Each entry carries the vendor / service, the version in use (or an explicit `could not determine`), the concrete endpoints / SDK methods / webhook events being verified, and the one-sentence ask for the documentation link. The section never replaces the accompanying **Moderate** finding — it is what makes that finding answerable. Omit the heading entirely when every affected contract resolved a reference in step 2; never render a `None.` placeholder.
 - **Incremental review scope header lines.** Every published review carries `**Reviewed revision:** <full head SHA this round reviewed>`, `**Reviewed diff fingerprint:** <patch-id of the effective PR diff>`, and `**Review scope:** delta since <baseline SHA> (round {n}) — carried-over findings re-reported` or `**Review scope:** full PR (<reason>)` (`@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision*). None is conditional. The SHA enables an ancestry delta; the fingerprint keeps a content-identical history rewrite from creating a useless CR round.
-- **Minor findings are not detected.** The review raises Critical and Moderate findings only (`@rules/code-review/general.md` *Minor findings are not detected*). There is no exception: a security lens maps `Critical` to Critical, `High` / `Medium` / `Low` to Moderate, and does not publish `Info`. The template carries no Minor sub-heading and no Minor slot in the `Counts:` or `Summary:` line. The late-iteration narrowing that used to suppress the bucket from round 3 is retired with it, together with the `iteration` value and the `Report scope:` header line.
+- **Minor findings are not detected.** The review raises Critical and Moderate findings only (`@rules/code-review/general.md` *Minor findings are not detected*). There is no exception: a security lens maps `Critical` to Critical, `High` / `Medium` / `Low` to Moderate, and does not publish `Info`. The template carries no Minor sub-heading and no Minor slot in the `Counts:` or `Summary:` line.
 - **`## Excluded per assignment` section (issue #17).** Render this section **only** when the Assignment-Declared Test-Only Conditions — Exclusion Gate (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*) moved at least one finding into it. Each entry carries `file:line`, the original severity, a verbatim citation of the assignment declaration, the source URL, the declaring account's `author_association`, and the fixed note "excluded per assignment declaration, not resolved". Never render a `None.` placeholder when nothing was excluded — omit the heading entirely. An entry here is never an actionable finding.
 - Use severity levels: **Critical** and **Moderate**. No walk and no lens raises any other severity.
 - Group findings by severity
@@ -185,7 +181,7 @@ A GitHub issue carries *"What changed + How to test"*; a JIRA ticket carries a s
 The CR wrapper passes the `## Assignment Compliance` block `@skills/assignment-compliance-check/SKILL.md` returns as an embedded block to `pr-summary`, which appends it after `How to test` — on JIRA it renders the same verdict as the first section instead — so the linked-tracker audience reads exactly **one comment per CR run** (per issue #498). 
 The block travels on **every** run with a linked tracker and always states the verdict — every criterion met, a criterion not met and what is missing, or no explicit criteria plus the basis judged on (`@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases*); a clean result is published as that explicit sentence, never as silence. Only a PR with no linked tracker returns a skip status, and then there is no tracker comment at all. Technical findings still go directly on the PR comment.
 - **Security, translation, and test-isolation output walks** — apply the per-string / per-diff walks defined in `@rules/code-review/review-process.md` *Output Rules — Security & Translation Walks* and raise one finding per match: **Safe validation & error texts (issue #540)**, **Malicious code & supply-chain indicators (issue #549)**, **Malicious file upload content (issue #680)**, **Translation completeness**, **Test isolation — no real HTTP, no real system processes**, and the **Database Analysis section** rendering rule. Severities are declared there.
-- **Default severity for rule violations:** every unexcused violation a surviving bullet raises defaults to the severity declared in that rule file's CR Severity Rules subsection if present, and otherwise to the stratification in `@rules/code-review/general.md` *Default severity for a rule violation*. The blanket **Strict rule compliance** walk that used to raise a finding for every matched rule pattern is retired (`@rules/code-review/core-analysis.md`) — security, Critical Findings Verification, and the Architecture conformance walk are unaffected by that retirement and run exactly as before.
+- **Default severity for rule violations:** every unexcused violation a bullet raises defaults to the severity declared in that rule file's CR Severity Rules subsection if present, and otherwise to the stratification in `@rules/code-review/general.md` *Default severity for a rule violation*.
 
 ---
 
@@ -198,13 +194,3 @@ Use the template defined in `templates/review-output.md`.
 - references/assignment-conformance-gate.md
 - references/specialized-reviews.md
 - references/third-party-api-analysis.md
-
----
-
-## Principles
-
-- Focus on risks, not style
-- Prefer impact over quantity
-- Avoid duplication of findings
-- Prioritize regression detection
-- Be precise and actionable

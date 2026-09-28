@@ -162,7 +162,7 @@ gh issue list --state open --label "priority: critical" --json number,title,labe
 Everything without a priority label is untriaged — surface it and re-run step 2:
 
 ```bash
-gh issue list --state open --search 'no:label' --json number,title
+gh issue list --state open --search '-label:"priority: critical" -label:"priority: high" -label:"priority: medium" -label:"priority: low"' --json number,title
 ```
 
 ---
