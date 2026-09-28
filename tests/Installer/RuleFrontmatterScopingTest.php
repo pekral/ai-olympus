@@ -467,7 +467,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: coverage and gate discovery point to the manifest-first order in
         // `skills/resolve-issue/references/quality-gates.md`, the gate run is attributed to
         // Finalization or the merge, and AAA phases are separated by blank lines, never comments.
-        'rules/code-testing/general.md' => 'c2a0cf0b305641798e139e2398695bbf7ada3d172a5affc37ea0f75c1c380f90',
+        // Re-baselined: *Flaky Test Prevention* points a flaky test outside the diff and the
+        // assignment to the leave-alone section in `skills/resolve-issue/references/quality-gates.md`.
+        'rules/code-testing/general.md' => '7a75310b03f0adb867656508b5351579b7530e779af11995c16e7ae93e4d2795',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none

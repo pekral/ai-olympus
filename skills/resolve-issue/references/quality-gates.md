@@ -17,6 +17,19 @@ When neither works, **stop and report it** — state what the checker flags, wha
 
 If the manifest sets no `gate` and both fixers and checkers fail or are not found, stop and inform the user.
 
+## A flaky test outside the diff and the assignment is left alone
+
+A flaky test fails on one run and passes on the next, on the same commit, with no change in between. When such a test has nothing to do with the task, fixing it widens the pull request and delays the finish for a problem the task did not create.
+
+1. **Confirm it is flaky.** Re-run the failing test alone on the same commit. It passes → it is flaky. It fails again → it is a real failure, and the gate handles it as any other failure.
+2. **Check that it is unrelated.** The test is unrelated only when all of these hold:
+   - the PR's diff does not add or change the test file;
+   - the test does not cover code the PR changes, and does not call code that the changed code calls;
+   - the test does not belong to the area the assignment describes.
+
+   When one of these does not hold, or it is unclear, the test is related: find and fix the cause per `@rules/code-testing/general.md` *Flaky Test Prevention*.
+3. **Unrelated → ignore it.** Do not modify, skip, or delete the test, and do not file an issue for it. The failure does not block the gate when the re-run in step 1 passed. Name the test, the failure message, and the passing re-run in the handoff and in the merge report.
+
 ## HOTFIX — what the mode relaxes here
 
 A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path*). The mode waives the coverage gates and nothing else; it is declared by the caller and never inferred from how urgent the assignment sounds.
@@ -40,6 +53,25 @@ A branch used to run the project's full build several times: once per implementa
   When it is unclear which of the two applies, treat the commit as behaviour-changing and re-review. The cheap outcome of a wrong guess here is one extra review; the expensive one is an unreviewed change merged under a stale approval.
 
 The rule is one full build at the merge boundary, nothing during the branch's working life — not a full build per phase, not one per push, and never a merge on no gate at all.
+
+## Rebase that moves the head — analyse the incoming changes first
+
+A rebase onto the newest default branch gives the head a new SHA. The branch's own change can stay identical while only the base moved. Re-running the full gate in that case repeats every checker for changes the branch never touched, and it delays the finish of the task. Analyse what the rebase brought in before you decide.
+
+1. **Find the last green gate run.** Take the head SHA `G` from the trusted `Quality gate:` record (the four authenticity conditions in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* apply to it). `H` is the current head. No trusted record, or `G` is not available locally or by `git fetch origin <G>` → run the gate.
+2. **Compare the branch's own change.** Compute the effective-PR-diff fingerprint (`@rules/code-review/general.md` *Incremental Review Scope*) for `G` against its merge base and for `H` against its merge base. A different fingerprint means the branch's own change moved → run the gate, exactly as before.
+3. **List the incoming changes.** `git diff --name-only "$(git merge-base G origin/$DEFAULT_BRANCH)" "$(git merge-base H origin/$DEFAULT_BRANCH)"` lists what the default branch brought in.
+4. **Classify each incoming change as related or unrelated.** An incoming change is **related** when any of these holds:
+   - it touches a file the PR changes, or the rebase had a conflict;
+   - it changes code the PR's changed code calls, extends, or is called by, or a test that covers the PR's changed code;
+   - it falls into the area the assignment describes;
+   - it has a project-wide effect: a dependency manifest or lockfile, a tool or checker configuration, a test bootstrap or shared test helper, a CI workflow, or an environment or build file.
+
+   Search the PR's changed symbols in the incoming files and the incoming symbols in the PR's files; never classify from file names alone. When the classification is unclear, the change is related.
+5. **Related → the rebase behaves exactly as before.** Run the full gate on `H` (*A history rewrite re-runs the gate* in `@rules/git/general.md`).
+6. **Unrelated → carry the gate verdict forward.** Do not run the fixers, checkers, or coverage again on `H`. Run only the dependency advisory audit (for example `composer audit`), because its verdict depends on when it ran. Record in the merge report: `G`, `H`, both fingerprints, the incoming file list, and the reason each change is unrelated.
+
+The trade, stated rather than hidden: the combined tree `H` is not re-tested as a whole. The default branch's own gate covers the incoming changes, and the analysis above covers their interaction with the branch. A related change, an unclear one, or a changed fingerprint always takes the full gate.
 
 ### Retired with the repeated builds they deduplicated
 

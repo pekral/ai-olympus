@@ -140,3 +140,49 @@ test('the withdrawn cherry-pick guarantee is named as withdrawn, not left implie
     expect($rule)->toContain('has since been withdrawn with the rest of the granularity mandate');
     expect($rule)->toContain('neither property is guaranteed today');
 });
+
+test('a rebase that only moved the base carries the gate verdict forward after an analysis of the incoming changes', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    // The analysis decides; a related, unclear, or fingerprint-changing rebase keeps the full gate.
+    expect($gates)->toContain('## Rebase that moves the head — analyse the incoming changes first');
+    expect($gates)->toContain('A different fingerprint means the branch\'s own change moved → run the gate, exactly as before.');
+    expect($gates)->toContain('When the classification is unclear, the change is related.');
+    expect($gates)->toContain('**Related → the rebase behaves exactly as before.**');
+    expect($gates)->toContain('**Unrelated → carry the gate verdict forward.**');
+    expect($gates)->toContain('Run only the dependency advisory audit');
+
+    // Every surface that re-runs the gate after a rebase points at the one analysis.
+    $mustCite = [
+        'rules/git/general.md',
+        'skills/merge-github-pr/SKILL.md',
+        'skills/git-workflow/SKILL.md',
+    ];
+
+    $missing = [];
+    $citation = '*Rebase that moves the head — analyse the incoming changes first*';
+
+    foreach ($mustCite as $relativePath) {
+        if (!str_contains((string) file_get_contents($packageDir . '/' . $relativePath), $citation)) {
+            $missing[] = $relativePath;
+        }
+    }
+
+    expect($missing)->toBe([]);
+});
+
+test('a flaky test outside the diff and the assignment is left unchanged and does not block the gate', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+
+    expect($gates)->toContain('## A flaky test outside the diff and the assignment is left alone');
+    expect($gates)->toContain('It fails again → it is a real failure, and the gate handles it as any other failure.');
+    expect($gates)->toContain('When one of these does not hold, or it is unclear, the test is related');
+    expect($gates)->toContain('Do not modify, skip, or delete the test, and do not file an issue for it.');
+
+    $citation = '*A flaky test outside the diff and the assignment is left alone*';
+
+    expect((string) file_get_contents($packageDir . '/rules/code-testing/general.md'))->toContain($citation);
+    expect((string) file_get_contents($packageDir . '/skills/e2e-testing/SKILL.md'))->toContain($citation);
+});

@@ -2047,14 +2047,14 @@ test('splinter checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('No such primitive is available — today\'s default on this roster, not a hypothetical.');
     expect($content)->toContain('Never fabricate the check');
 
-    // "Every 10 minutes" is an elapsed-time gate, because splinter holds no timer primitive.
+    // "Every 15 minutes" is an elapsed-time gate, because splinter holds no timer primitive.
     expect($content)->toContain('is an elapsed-time gate, not a timer');
-    expect($content)->toContain('**≥ 10 minutes**');
+    expect($content)->toContain('**≥ 15 minutes**');
     expect($content)->toContain('Never describe it to the user as a background timer.');
 
     // Stuck is a sustained absence of progress, never a single busy sample.
     expect($content)->toContain('across **3 consecutive liveness checks**');
-    expect($content)->toContain('**30 minutes of zero externally visible movement**');
+    expect($content)->toContain('**45 minutes of zero externally visible movement**');
 
     // The two counters carry distinct names, so no rule can say "the counter" and leave the reader
     // guessing which of them a reset or a cap applies to.
@@ -2090,7 +2090,7 @@ test('splinter checks the liveness of a long-running dispatch without writing in
     expect($content)->toContain('a write-lock or sweep-lock holder, a stale brief\'s `## PID` line, a locked CR worktree');
 
     // The tail safety net never becomes a step of the golden path.
-    expect($content)->toContain('delivers its handoff before 10 minutes elapse triggers no check at all');
+    expect($content)->toContain('delivers its handoff before 15 minutes elapse triggers no check at all');
 });
 
 test('splinter names the outer recovery for a hung dispatch that leaves no turn to check it (issue #103)', function (): void {
