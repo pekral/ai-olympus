@@ -1816,8 +1816,10 @@ test('each frontend lens states its own responsibility and defers the other two 
         'It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` '
         . 'and token / theme consistency to `@skills/design-system/SKILL.md`',
     );
-    // The retired layout-splitting walk is no longer an owner the lens defers to.
+    // The retired layout-splitting walk is no longer an owner the lens defers to, and the lens
+    // still never proposes extracting a component.
     expect($patterns)->not->toContain('Livewire / Blade layout splitting');
+    expect($patterns)->toContain('never raises a finding whose fix is *extract this*');
 
     $a11y = (string) file_get_contents($packageDir . '/skills/frontend-a11y/SKILL.md');
     expect($a11y)->toContain('every accessibility finding on the diff');
@@ -1840,6 +1842,7 @@ test('each frontend lens states its own responsibility and defers the other two 
     );
     // design-system judges existing components only; it never proposes creating one.
     expect($design)->toContain('never as *build one for them*');
+    expect($design)->toContain('It never raises a finding whose fix is *create a component*.');
     expect($design)->not->toContain('Livewire / Blade layout splitting');
     // Dimension 4 is the live MODE=cr surface that would otherwise read "build one" out of a
     // consistency audit; Mode 1's own component instruction is already skipped wholesale.
