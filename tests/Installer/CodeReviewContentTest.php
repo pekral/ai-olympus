@@ -4496,3 +4496,14 @@ test('code review walks every per-item relation read for N+1 queries and reports
     expect($coreAnalysis)->toContain('Follow the trace into files outside the diff');
     expect($template)->toContain('or by the *N+1 queries* walk of `@rules/code-review/core-analysis.md`');
 });
+
+test('an unmet acceptance criterion states why and mentions the author of the changes', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($general)->toContain('- **One exception: an unmet acceptance criterion.**');
+    expect($summary)->toContain('### An unmet criterion addresses the author');
+    expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
+    expect($summary)->toContain('- **Never guess an account.**');
+});

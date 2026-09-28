@@ -14,7 +14,7 @@
 #
 #   {
 #     "key", "url", "summary", "status", "issueType", "priority",
-#     "assignee", "reporter", "creator", "created", "updated",
+#     "assignee", "assigneeAccountId", "reporter", "creator", "created", "updated",
 #     "resolution", "resolutionDate", "dueDate", "environment",
 #     "labels", "components", "fixVersions",
 #     "parent":  { "key", "summary", "status" } | null,
@@ -528,6 +528,7 @@ def adfMedia:
     issueType: ($f.issuetype.name // null),
     priority: ($f.priority.name // null),
     assignee: ($f.assignee.displayName // null),
+    assigneeAccountId: ($f.assignee.accountId // null),
     reporter: ($f.reporter.displayName // null),
     creator: ($f.creator.displayName // null),
     created: ($f.created // null),

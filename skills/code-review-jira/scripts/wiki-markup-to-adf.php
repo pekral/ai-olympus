@@ -12,13 +12,16 @@ function jiraWikiInlineNodes(string $text): array
 {
     $nodes = [];
     $offset = 0;
-    $pattern = '/\{\{(?<codeText>.+?)\}\}|\[(?<linkText>[^|\]]+)\|(?<href>[^\]]+)\]|\*(?<strongText>[^*]+)\*|_(?<emText>[^_]+)_/u';
+    $pattern = '/\[~accountid:(?<mentionId>[A-Za-z0-9:_-]+)\]|\{\{(?<codeText>.+?)\}\}|\[(?<linkText>[^|\]]+)\|(?<href>[^\]]+)\]|\*(?<strongText>[^*]+)\*|_(?<emText>[^_]+)_/u';
 
     while (preg_match($pattern, $text, $match, PREG_OFFSET_CAPTURE | PREG_UNMATCHED_AS_NULL, $offset) === 1) {
         $position = $match[0][1];
         jiraWikiAppendTextNode($nodes, substr($text, $offset, $position - $offset));
 
-        if ($match['codeText'][1] >= 0) {
+        if ($match['mentionId'][1] >= 0) {
+            // A mention notifies the account, so it becomes an ADF mention node, never plain text.
+            $nodes[] = ['type' => 'mention', 'attrs' => ['id' => $match['mentionId'][0]]];
+        } elseif ($match['codeText'][1] >= 0) {
             // Code spans are literal in JIRA, so their content is never re-parsed.
             jiraWikiAppendTextNode($nodes, $match['codeText'][0], [['type' => 'code']]);
         } elseif ($match['linkText'][1] >= 0) {

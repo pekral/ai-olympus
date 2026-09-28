@@ -4,7 +4,9 @@ h2. Acceptance criteria
 
 [One sentence carrying the verdict: "All N criteria are met." or "N of M met." or, when the assignment states no explicit criteria, the basis the state was judged on.]
 
-* [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing, and who must confirm it. Plain prose.]
+* [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing, why the review judged it so, and who must confirm it. Plain prose.]
+
+[Only when a criterion is not met or partially met: one sentence mentioning the author of the changes as [~accountid:<id>], asking them to confirm and fix the gap, or refute the claim in a reply.]
 
 h2. How to test
 
@@ -62,7 +64,10 @@ Status sentence
 Acceptance criteria
   One verdict sentence, then a bullet only for a criterion that is unmet,
   partially met, or awaiting a human's confirmation. Satisfied criteria are
-  never enumerated one by one — the verdict is the whole report for them. When
+  never enumerated one by one — the verdict is the whole report for them.
+  An unmet or partially met criterion states why, and one closing sentence
+  mentions the author of the changes (@skills/pr-summary/SKILL.md, An unmet
+  criterion addresses the author). When
   the assignment states no explicit criteria, say so and name the basis judged
   instead (the described expected behaviour, the reporter's example, the
   reproduction steps), so "no criteria" never reads as "nobody checked".

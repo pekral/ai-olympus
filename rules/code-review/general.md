@@ -189,7 +189,8 @@ The latency budget of the changed path and the freshness of its data stay with t
 
 **The account that pushed the pull request linked to the issue is the author of the changes.** Read it from the pull request's `author.login` in the loader's PR JSON. Neither the issue reporter, the issue assignee, nor the agent that runs the review is the author.
 
-- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, no TL;DR line, and no tracker comment names the author.
+- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, and no TL;DR line names the author.
+- **One exception: an unmet acceptance criterion.** When the review judges a criterion not met or partially met, the tracker comment states why and mentions the author, who confirms and fixes the gap or refutes the claim. `@skills/pr-summary/SKILL.md` *An unmet criterion addresses the author* owns the wording and the mention syntax per tracker.
 
 ## File and method size is never a code-review finding
 

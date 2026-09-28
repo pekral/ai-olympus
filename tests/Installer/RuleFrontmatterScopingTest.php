@@ -458,7 +458,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: file and method size is never a code-review finding, and the author of
         // the changes is the account that pushed the pull request (internal only, never reported).
-        'rules/code-review/general.md' => 'e7584854e85e7801080438014bd0f8f2b0119276dbc2e40cddebfd0f58c00b26',
+        'rules/code-review/general.md' => '019ca1bebcd24b2e683afdb971975bb3ca6a21b88e428bb5c9b10c4c0dd13cdc',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

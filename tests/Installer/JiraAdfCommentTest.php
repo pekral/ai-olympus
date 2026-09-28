@@ -192,3 +192,11 @@ test('the reporting headline goes where the target template opens, not into a Pr
     expect($splinter)->not->toContain('the opening sentence of the `Problem` field is');
     expect($splinter)->toContain('the status sentence above `h2. Acceptance criteria` on JIRA');
 });
+
+test('a JIRA account mention becomes an ADF mention node', function (): void {
+    $document = jiraAdfConvert('Please confirm, [~accountid:5b10ac8d82e05b22cc7d4ef5].');
+    $paragraph = jiraAdfChildren($document)[0] ?? null;
+    $mention = jiraAdfChildren($paragraph)[1] ?? null;
+
+    expect($mention)->toBe(['type' => 'mention', 'attrs' => ['id' => '5b10ac8d82e05b22cc7d4ef5']]);
+});

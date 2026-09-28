@@ -92,6 +92,19 @@ Conditional — render only when it has content, never as an empty field:
 - **A review-only run replaces the section.** See *Review-only run* below.
 - **Caller-supplied steps win.** When the caller (for example `april` in post-convergence reporting mode) passes pre-authored steps derived from designed test scenarios, use those steps as passed — never compressed, never rewritten. The caller's scenarios are the source of truth for this section.
 
+### An unmet criterion addresses the author
+
+When the assignment verdict names a criterion that is not met or partially met, the comment states why and mentions the author of the changes (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*).
+
+- **State why.** Each unmet criterion names what the change does not do and what the review observed that shows it, in plain prose.
+- **Mention the author once, after the unmet criteria.** One sentence asks the author to confirm the claim and fix the gap, or to refute it in a reply. On JIRA it sits at the end of `Acceptance criteria`; on GitHub and Bugsnag it follows the embedded blocks.
+- **The mention syntax is the tracker's own.**
+  1. GitHub: `@<login>` of the pull request's `author.login`.
+  2. JIRA: `[~accountid:<id>]`, which the JIRA publish helper converts to an ADF mention. Resolve `<id>` from the JIRA accounts the loader returns (`assigneeAccountId`, a comment's `authorAccountId`) whose name or e-mail matches the pull request's author or commit author, or through the JIRA MCP server's user lookup.
+  3. Bugsnag: the author's name as plain text, because the helper carries no mention.
+- **Never guess an account.** When no JIRA account resolves, write the author's name as plain text and state the unresolved mention in the handoff.
+- **Every criterion met: no mention.** The author stays internal information.
+
 ### Review-only run — `Review findings` in place of `How to test`
 
 A review-only run (`/report-code-review`) passes `review-only` together with the findings of the published GitHub pull-request comment. Then:
