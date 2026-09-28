@@ -68,7 +68,7 @@ When no source signs in, the scenario is `Blocked`. State the reason and the exa
 
 1. Read the browser tool documentation and open the project using its supported interactive browser API. Sign in as *Sign-in and test accounts* states.
 2. Observe the rendered page before interacting. Verify the signed-in identity, selected workspace, record state, and relevant permissions from visible UI.
-3. Check data readiness. For example, a task named “draft” may actually have status Error; task creation may require an indexed repository. Do not infer readiness from a record's name or admin access.
+3. Check data readiness from the record's visible state, never from its name or from admin access. A record named "draft" can carry another status, and an action can depend on a prerequisite the page does not show.
 4. If the requested workspace is missing, ask for the correct workspace/account. With authorization to use an existing workspace, select one that meets the scenario's prerequisites. Never invent membership or change status/indexing flags to force a pass.
 5. Record a time boundary for browser console evidence so old errors are not attributed to the current scenario.
 

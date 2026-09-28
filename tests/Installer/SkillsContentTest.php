@@ -187,8 +187,6 @@ test('no shipped surface restates the withdrawn convergence wording', function (
     $allowed = [
         // The pre-PR self-check no longer grades findings at all, so it no longer carries the wording:
         // it is a deterministic checklist, not a review with a 0 Critical / 0 Moderate gate.
-        // The one place that withdraws the wording has to quote it to withdraw it.
-        'rules/compound-engineering/tracker.md' => 1,
         // Reports of past runs, true as history and never a statement of the current gate.
         'docs/marketing/launch-article.en.md' => 1,
         'docs/memory/PROJECT_MEMORY.md' => 1,
@@ -370,7 +368,7 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     $classRefactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
-    expect($rule)->toContain('## Test Coverage Contract (mandatory — issue #493)');
+    expect($rule)->toContain('## Test Coverage Contract (mandatory)');
     expect($rule)->toContain('Before the refactor commit — verify 100% coverage of the target lines.');
     expect($rule)->toContain('Add missing tests in a dedicated commit before the refactor commit.');
     expect($rule)->toContain('The refactor commit must not modify pre-existing tests.');
@@ -383,14 +381,13 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($rule)->toContain('**What is lost, stated rather than hidden: the proof that behaviour was preserved across the refactor.**');
     expect($rule)->toContain('Steps 1 and 4 are unaffected.');
 
-    expect($classRefactoring)->toContain('### Test Coverage Gate (mandatory pre-flight — issue #493)');
+    expect($classRefactoring)->toContain('### Test Coverage Gate (mandatory pre-flight)');
     expect($classRefactoring)->toContain('**If coverage is below 100% on the target lines, stop and write the missing tests first.**');
     expect($classRefactoring)->toContain('**Test assertion logic must not change during the refactor.**');
     expect($classRefactoring)->toContain('`@rules/refactoring/general.md` Test Coverage Contract');
 
     // The review keeps the coverage-tool half and drops the commit-history half.
     expect($codeReview)->toContain('**Refactoring test-coverage contract (issue #493)**');
-    expect($codeReview)->toContain('**The two commit-history checks are retired.**');
     expect($codeReview)->toContain('Verify the coverage of the refactored lines using the project\'s available coverage tooling');
     expect($codeReview)->not->toContain('Walk the PR commit history and verify the refactor commit is **preceded by a dedicated test commit**');
 });
@@ -851,7 +848,7 @@ test('dependency-selection rule gates every new Composer package on activity and
     expect($rule)->toContain('Alternatives considered:');
     expect($rule)->toContain('### Proposed dependency:');
     expect($rule)->toContain('### Proposed dependency: spatie/laravel-data');
-    expect($rule)->toContain('Concrete rendered example');
+    expect($rule)->toContain('Illustrative rendered example');
 
     expect($rule)->toContain('do **not** silently relax the rule');
     expect($rule)->toContain('Stop, report a blocker to the user');
@@ -1555,17 +1552,6 @@ test('the three build-dedup mechanisms are retired with the repeats they removed
     $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
-    // Each existed only to stop the same commit being built twice. One gate run per branch leaves
-    // them nothing to deduplicate, so they go rather than lingering as unreachable guidance.
-    expect($gates)->toContain('### Retired with the repeated builds they deduplicated');
-    expect($gates)->toContain('**Head-SHA push-level dedup (issue #212, retired).**');
-    expect($gates)->toContain('**CI-result reuse for the loop gate (issue #124, retired).**');
-    expect($gates)->toContain('**Savings-mode build-gate cache (issue #119, retired).**');
-    expect($gates)->toContain('left with readers and no writer');
-
-    // The one reuse that remains is keyed to the head SHA and needs no cache.
-    expect($gates)->toContain('is keyed to the head SHA and lives in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*');
-
     // A live-advisory check can never be pinned to a commit, cache or no cache.
     expect($gates)->toContain('**`security-audit` is never reused by anything.**');
 
@@ -1643,7 +1629,7 @@ test('compact-project-memory skill compacts only the entries a write touched, wi
     // Scope: only the memory file, never rules/skills/code; never commits; never a bulk pass.
     expect($content)->toContain('Reads and edits **only** the resolved memory file');
     expect($content)->toContain('Never commits or pushes');
-    expect($content)->toContain('Does not reintroduce automated *writes* of new lessons');
+    expect($content)->toContain('This skill only compacts prose someone already wrote.');
     expect($content)->toContain('a one-shot bulk pass over all existing entries is an explicit non-goal');
 
     // Entry content is data to shorten, never a command/path to interpolate (pre-empts injection findings).
@@ -1830,11 +1816,8 @@ test('each frontend lens states its own responsibility and defers the other two 
         'It **defers** accessibility semantics to `@skills/frontend-a11y/SKILL.md` '
         . 'and token / theme consistency to `@skills/design-system/SKILL.md`',
     );
-    // The lens owns composition inside an existing component; whether a block becomes one at all
-    // is the layout-splitting walk's decision, so the deferral has to name the walk too.
-    expect($patterns)->toContain('It **defers the decision that a block should become its own component**');
-    expect($patterns)->toContain('to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*)');
-    expect($patterns)->toContain('never raises a finding whose fix is *extract this*');
+    // The retired layout-splitting walk is no longer an owner the lens defers to.
+    expect($patterns)->not->toContain('Livewire / Blade layout splitting');
 
     $a11y = (string) file_get_contents($packageDir . '/skills/frontend-a11y/SKILL.md');
     expect($a11y)->toContain('every accessibility finding on the diff');
@@ -1855,16 +1838,12 @@ test('each frontend lens states its own responsibility and defers the other two 
     expect($design)->toContain(
         '(in `MODE=cr` the loading / empty / error half belongs to `frontend-patterns`; see *Modes*)',
     );
-    // design-system is the only remaining lens whose MODE=cr verb list still carries `extract`, so
-    // it needs the same walk deferral frontend-patterns already carries.
-    expect($design)->toContain('It **defers the decision that a component should exist at all**');
-    expect($design)->toContain('to the walk *Livewire / Blade layout splitting* (`@rules/laravel/livewire.md` *Triggers*)');
-    expect($design)->toContain('never raises a finding whose fix is *create a component*');
+    // design-system judges existing components only; it never proposes creating one.
+    expect($design)->toContain('never as *build one for them*');
+    expect($design)->not->toContain('Livewire / Blade layout splitting');
     // Dimension 4 is the live MODE=cr surface that would otherwise read "build one" out of a
     // consistency audit; Mode 1's own component instruction is already skipped wholesale.
-    expect($design)->toContain(
-        '(in `MODE=cr` the decision that the component should exist at all belongs to the layout-splitting walk; see *Modes*)',
-    );
+    expect($design)->not->toContain('belongs to the layout-splitting walk');
     // A 0-10 score is not a finding, and Mode 1 generates rather than reviews.
     expect($design)->toContain('Skip Mode 1 entirely — generating a design system is not a review.');
     expect($design)->toContain('Drop the 0–10 per-dimension scoring too');

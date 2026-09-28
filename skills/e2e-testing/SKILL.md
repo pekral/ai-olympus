@@ -177,7 +177,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
-        with: { php-version: '8.3' }
+        with: { php-version: '8.4' }   # match composer.json require.php
       - run: composer install --no-interaction --prefer-dist
       - uses: actions/setup-node@v4
         with: { node-version: 20 }

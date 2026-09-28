@@ -55,22 +55,22 @@ Whenever a query is **refactored or changed** (Eloquent / query-builder rewrite,
 
 ```sql
 -- Bad — function on indexed column
-SELECT * FROM users WHERE DATE(created_at) = '2025-01-01';
+SELECT id, email FROM user WHERE DATE(created_at) = '2025-01-01';
 
 -- Good — SARGable range
-SELECT * FROM users WHERE created_at BETWEEN '2025-01-01 00:00:00' AND '2025-01-01 23:59:59';
+SELECT id, email FROM user WHERE created_at BETWEEN '2025-01-01 00:00:00' AND '2025-01-01 23:59:59';
 
 -- Bad — OFFSET pagination on large table
-SELECT * FROM users ORDER BY id LIMIT 25 OFFSET 25000;
+SELECT id, email FROM user ORDER BY id LIMIT 25 OFFSET 25000;
 
 -- Good — seek pagination
-SELECT * FROM users WHERE id > 25000 ORDER BY id LIMIT 25;
+SELECT id, email FROM user WHERE id > 25000 ORDER BY id LIMIT 25;
 
 -- Bad — COUNT for existence
-SELECT * FROM users WHERE (SELECT COUNT(*) FROM orders WHERE orders.user_id = users.id) > 0;
+SELECT id, email FROM user WHERE (SELECT COUNT(*) FROM customer_order WHERE customer_order.user_id = user.id) > 0;
 
 -- Good — EXISTS
-SELECT * FROM users WHERE EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id);
+SELECT id, email FROM user WHERE EXISTS (SELECT 1 FROM customer_order WHERE customer_order.user_id = user.id);
 ```
 
 ## Reuse existing indexes first
@@ -415,7 +415,7 @@ SELECT * FROM category_tree;
 ```
 
 ## New storage reuse analysis
-When a diff introduces a new storage surface — a new DB table (`Schema::create(...)` in a migration), a new cache store or Redis namespace, a new filesystem disk, or a new NoSQL / DynamoDB table — an explicit analysis must appear in the PR description or a PR comment before the change merges. The analysis must answer: *"Can this data be stored in an existing storage without a drastic impact on performance?"* It must name the candidate existing storage(s) evaluated and state the reason they were ruled out — or confirm that an existing storage is reused instead. A diff that adds a new storage surface without this documented analysis is a **Moderate** finding in code review (see `@skills/code-review/SKILL.md` *New storage reuse analysis*).
+When a diff introduces a new storage surface — a new DB table (`Schema::create(...)` in a migration), a new cache store or Redis namespace, a new filesystem disk, or a new NoSQL / DynamoDB table — an explicit analysis must appear in the PR description or a PR comment before the change merges. The analysis must answer: *"Can this data be stored in an existing storage without a drastic impact on performance?"* It must name the candidate existing storage(s) evaluated and state the reason they were ruled out — or confirm that an existing storage is reused instead. A diff that adds a new storage surface without this documented analysis is a **Moderate** finding in code review (see `@rules/code-review/core-analysis.md` *New storage reuse analysis*, which `@skills/code-review/SKILL.md` applies).
 Do not flag migrations that only add a column or index to an existing table — only net-new storage surfaces trigger this check.
 
 ## Caching at DB Level

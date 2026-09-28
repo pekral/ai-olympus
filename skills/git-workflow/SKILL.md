@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Commit, PR, and merge conventions live in `@rules/git/general.md` — English `type(scope)` commits, lowercase, no trailing period, no push to `main`, small focused commits, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
+- Commit, PR, and merge conventions live in `@rules/git/general.md` — English `type(scope)` commits, lowercase, no trailing period, no push to `main`, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
 - Branch cleanup is owned by `@skills/cleanup-local-branches/SKILL.md`. Defer to it; do not duplicate.
 - PR merging is owned by `@skills/merge-github-pr/SKILL.md`. Defer to it; do not duplicate.
 - This skill covers only the complementary gaps below.
@@ -52,9 +52,9 @@ Use when preserving exact history matters or several people worked on the branch
 ```bash
 git checkout feature/user-auth
 git fetch origin
-git rebase origin/main         # replays your commits on top of main
+git rebase "origin/$DEFAULT_BRANCH"   # replays your commits on top of the default branch
 ```
-Use to update your local branch with the latest `main` before opening or refreshing a PR. Keeps history linear.
+Use to update your local branch with the latest default branch before opening or refreshing a PR. Keeps history linear. Resolve `DEFAULT_BRANCH` as in *Pull policy* below; never hardcode `origin/main`.
 
 ```bash
 # only if you are the sole contributor on the branch
@@ -100,7 +100,7 @@ A conflict is a question about **intent**, not a formatting problem. Both sides 
 
 **3. Resolve each hunk.** Preserve both intents wherever they are compatible. Where they genuinely conflict, keep the one matching the merge's stated goal and record the trade-off in the merge commit body. **Never invent new behaviour in a conflict resolution** — a merge commit is the worst place to introduce a change nobody reviewed, because reviewers read the diff against each parent and a third behaviour appears in neither.
 
-**4. Run the project's checks.** Discover them rather than assuming — the project's gate command, discovered per `@skills/resolve-issue/references/quality-gates.md`, plus the `package.json` scripts and the CI workflow — and run the full gate. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart.
+**4. Run the tests covering the conflicted code.** Use the project's own test command, discovered per `@skills/resolve-issue/references/quality-gates.md`. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart. The full gate runs once at the merge boundary (see *Hooks* below).
 
 **5. Finish.** Stage and continue (`git commit` for a merge, `git rebase --continue` for a rebase, repeating until every commit is replayed).
 
@@ -116,7 +116,7 @@ git log --merge -p path/to/file  # 2. the commits behind this hunk
 git checkout --ours  path/to/file    # keep current branch version
 git checkout --theirs path/to/file   # keep incoming version
 
-git add path/to/file             # 4. after the project checks pass
+git add path/to/file             # 4. after the covering tests pass
 git commit                       # 5. merge
 git rebase --continue            #    or rebase, until all commits are replayed
 ```
@@ -128,16 +128,6 @@ git rebase --continue            #    or rebase, until all commits are replayed
 Prevention: keep branches small and short-lived, rebase onto the default branch frequently, and coordinate before touching shared files.
 
 Adapted from [mattpocock/skills — resolving-merge-conflicts](https://github.com/mattpocock/skills/blob/main/skills/engineering/resolving-merge-conflicts/SKILL.md).
-
-## Stash workflow
-```bash
-git stash push -m "wip: user auth"   # shelve tracked changes
-git stash push -u -m "wip"           # include untracked files
-git stash list
-git stash pop                        # apply newest and drop it
-git stash apply stash@{2}            # apply a specific stash, keep it
-git stash drop stash@{0}
-```
 
 ## Undoing mistakes
 ```bash

@@ -8,7 +8,7 @@ paths:
 
 ## Compound Memory (per project)
 
-A **per-project memory** file holds durable lessons distilled from past work, so agents reuse them instead of re-deriving them. This memory is project-specific by definition — it lives **in the project being worked on, never in this shared rules package**. A lesson recorded for one project never becomes a global rule shipped to every project; it stays in that project's own memory. Automated writes to this file were removed (issue #77); it is now a hand-curated, historical artifact, maintained manually the same way `CLAUDE.md` is.
+A **per-project memory** file holds durable lessons distilled from past work, so agents reuse them instead of re-deriving them. This memory is project-specific by definition — it lives **in the project being worked on, never in this shared rules package**. A lesson recorded for one project never becomes a global rule shipped to every project; it stays in that project's own memory. The file is hand-curated, the same way `CLAUDE.md` is: no agent appends lessons to it on its own initiative.
 
 ### Where to store it (the memory file)
 
@@ -75,11 +75,11 @@ then include the entries that match.
 
 ### Write protocol (compact after every write)
 
-Every write compounds the file's growth unless something shrinks it back down. Automated *writes of new lessons* stay removed (issue #77) — a human or agent still curates what gets recorded — but a hand-curated entry still needs its token footprint kept in check once it exists, or every future read of the file gets more expensive.
+Every write compounds the file's growth unless something shrinks it back down. A curated entry still needs its token footprint kept in check once it exists, or every future read of the file gets more expensive.
 
 - Any agent, skill, or human-directed run that writes to `docs/memory/PROJECT_MEMORY.md` — appending a new entry or editing an existing one — must run `@skills/compact-project-memory/SKILL.md` on that file **immediately after the write, before the run reports completion**. This is an unconditional default, not an opt-in step.
 - The compaction is scoped to the entries the write actually touched (plus at most 3 demonstrably related ones) — it is part of the write itself, not a separate maintenance pass over the whole file. `@skills/compact-project-memory/SKILL.md` derives that scope deterministically from `git diff` and is a no-op when the file carries no diff.
 - When an agent starts a run and finds the memory file already dirty in git from an earlier, uncompacted write, it may run the skill on that existing diff first, before making its own edit.
-- This protocol never reintroduces the automated lesson-generation mechanism removed in #77 — the skill only shrinks the wording of an entry someone already wrote; it never invents, re-derives, or adds new lesson content, and it never loses a recorded fact.
+- This protocol never generates lessons — the skill only shrinks the wording of an entry someone already wrote; it never invents, re-derives, or adds new lesson content, and it never loses a recorded fact.
 
 See `@skills/compact-project-memory/SKILL.md` for the exact mechanics — touched-range detection, the per-entry budget, and the invariants that guarantee no fact is ever lost.

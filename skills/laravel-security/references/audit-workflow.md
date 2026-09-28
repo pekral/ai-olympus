@@ -282,7 +282,7 @@ The PHP regression test: assert that the `composer audit` CI step exists in the 
 
 ```
 [Area] [Severity] Description of the finding
-Soubor: app/Http/Controllers/PostController.php:42
+File: app/Http/Controllers/PostController.php:42
 Fix: see the Authorization section of @skills/laravel-security/SKILL.md
 Regression test: <the sketch above>
 ```

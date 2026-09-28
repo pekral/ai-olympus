@@ -54,7 +54,7 @@ COPY resources ./resources
 RUN npm run build              # emits public/build via laravel-vite-plugin
 
 # --- Stage: runtime (php-fpm, non-root, opcache) ---
-FROM php:8.3-fpm-alpine AS runtime
+FROM php:8.4-fpm-alpine AS runtime   # match composer.json require.php
 RUN apk add --no-cache fcgi \
     && docker-php-ext-install pdo_mysql opcache bcmath pcntl \
     && addgroup -g 1000 -S app && adduser -S app -u 1000 -G app

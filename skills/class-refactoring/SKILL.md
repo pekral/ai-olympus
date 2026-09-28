@@ -22,9 +22,8 @@ metadata:
 
 This skill runs in one of two modes, selected by the caller via `MODE` (default `apply`):
 
-- **`apply` (default)** — full refactoring: modify code, author the pre-refactor coverage commit, run fixers / checkers, and chain the After Completion review. Every step below behaves as written unless it is explicitly flagged for `MODE=cr`.
+- **`apply` (default)** — full refactoring: modify code, author the pre-refactor coverage commit, run the tests covering the refactored surface, and chain the After Completion review. Every step below behaves as written unless it is explicitly flagged for `MODE=cr`.
 - **`cr` (read-only lens — invoked by a caller that explicitly asks for a read-only proposal)** — **never modify code, never author tests, never stage / commit / push, never run fixers or checkers, and never chain any After Completion review.** Scope the analysis to the lines added or modified by the PR diff and return the refactoring opportunities as markdown only.
-No code review invokes this mode any more — the two review sections it used to fill are retired (`@rules/code-review/review-process.md` *Refactoring & Tech Debt (DRY) Analysis — retired*), so the proposals are returned to the caller.
 Every code-changing instruction below — apply, extract, split, consolidate, collapse, replace, remove, move, or any other verb that would touch code — is emitted as a written proposal, not applied to code; the Test Coverage Gate becomes a read-only audit (report coverage gaps as findings, do not author tests).
 
 ---
@@ -57,7 +56,7 @@ Reading, mapping, and verifying come first; refactoring comes last. This pre-fli
 
 Only after Read, Map, and Verify are complete may the Test Coverage Gate and the refactor proceed.
 
-### Test Coverage Gate (mandatory pre-flight — issue #493)
+### Test Coverage Gate (mandatory pre-flight)
 
 > **`MODE=cr`:** do not write tests or commits. Run the coverage check read-only and report any target lines below 100% coverage as a refactoring finding (a refactor cannot land safely without them) — then continue the analysis. The steps below that author tests / commits apply to `MODE=apply` only.
 
@@ -153,7 +152,7 @@ every rendered branch of the touched view (initial render, `wire:loading`, `@emp
     - what was improved
     - why it matters
   - Summary of test coverage impact
-- **`MODE=cr`:** refactoring opportunities as markdown only (no code) — for each, the `file:line` on the PR diff, the structural problem in one sentence, the concrete consolidation step (target layer per `@rules/laravel/architecture.md`), and the rule reference it satisfies, returned to the caller. No code review invokes this mode any more — the two review sections it used to fill are retired (`@rules/code-review/review-process.md` *Refactoring & Tech Debt (DRY) Analysis — retired*), so the proposals are returned to the caller.
+- **`MODE=cr`:** refactoring opportunities as markdown only (no code) — for each, the `file:line` on the PR diff, the structural problem in one sentence, the concrete consolidation step (target layer per `@rules/laravel/architecture.md`), and the rule reference it satisfies, returned to the caller.
 
 ---
 

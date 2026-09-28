@@ -82,8 +82,7 @@ test('commit granularity is the author\'s judgment, and the package says what th
     // ordered for cherry-pickability, with no commit shipping a symbol its own tree did not call.
     // None of it was ever a review criterion, and it cost a plan table plus a reconciliation pass
     // on every run. Withdrawn, and the withdrawal states its own cost.
-    expect($rule)->toContain('**Commit granularity is the author\'s judgment; no rule prescribes how the work is divided.**');
-    expect($rule)->toContain('What is lost, stated rather than hidden');
+    expect($rule)->toContain('**Commit granularity is the author\'s judgment.**');
 
     $withdrawnMandates = [
         'One phase = one commit.',
@@ -361,7 +360,7 @@ test(
         expect($rule)->toContain('dispatch **must happen synchronously, in the same turn**');
 
         // This is unconditional — a correctness fix, never gated behind an optional mode.
-        expect($rule)->toContain('it applies unconditionally, whether or not `Context-efficient orchestration` below applies');
+        expect($rule)->toContain('not an efficiency trade-off, and it applies unconditionally.');
 
         // splinter (the only orchestrator today) references the rule and applies it every turn.
         expect($splinter)->toContain('*Orchestrator turns must end in a result or a hard blocker, never a narrated plan*');
@@ -395,13 +394,13 @@ test('context-efficient orchestration is the default, with no flag to remember (
     expect($rule)->toContain('**Context efficiency and adaptive routing are orthogonal, and only one of them ever removes a step.**');
 
     // The mechanisms and the preserved-invariant list survive the default-on change unchanged.
-    expect($rule)->toContain('**Build-gate cache — retired.**');
+    expect($rule)->not->toContain('**Build-gate cache');
     expect($rule)->toContain('Single coverage-verdict owner when a CR reviewer runs in an isolated worktree');
     expect($rule)->toContain('Thin orchestration reasoning, by default.');
     expect($rule)->toContain('### What never changes (preserved invariants)');
     expect($rule)->toContain('the same reviewer runs (`leonardo`, whenever the tier calls for one)');
     expect($rule)->not->toContain('`class-refactoring`');
-    expect($rule)->toContain('no mode, flag, or cache has ever been able to merge on an ungated commit, and none can now');
+    expect($rule)->toContain('nothing merges on an ungated commit');
 });
 
 test('context-efficient orchestration advertises no build reuse, since the build-gate dedup mechanisms are retired (issue #31)', function (): void {
@@ -458,7 +457,7 @@ test(
         expect($rule)->toContain('is a no-op when the file carries no diff');
 
         // Never resurrects the automated lesson-generation mechanism removed in #77.
-        expect($rule)->toContain('This protocol never reintroduces the automated lesson-generation mechanism removed in #77');
+        expect($rule)->toContain('This protocol never generates lessons');
         expect($rule)->toContain('it never invents, re-derives, or adds new lesson content');
 
         // Cross-referenced from Entry format, so the per-entry budget has one home.
@@ -1248,7 +1247,6 @@ test('the ready-to-merge phase names its owner, its revert, and the no-source-is
     // Exactly one convergence definition exists in the package, and phase 3 cites it rather than
     // restating an older one beside it.
     expect($rule)->toContain('**Convergence has exactly one definition in this package, and it is not restated here:**');
-    expect($rule)->toContain('that wording is withdrawn rather than left standing beside the newer one');
 
     // Its owner differs from phases 1 and 2: the implementing agent never observes convergence.
     expect($rule)->toContain('**Phase 3 has a different owner than phases 1 and 2.**');

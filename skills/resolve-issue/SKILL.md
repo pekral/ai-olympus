@@ -28,7 +28,7 @@ See `references/source-detection.md` for the detection table and rules.
 ## Preparation
 
 Before starting the resolution flow:
-- Switch to the `main` branch and pull the latest changes so the working tree reflects the current state of the repository before creating the feature branch.
+- Switch to the default branch (resolved per `@rules/git/general.md` *Pull Policy* — `main` or `master`) and pull the latest changes so the working tree reflects the current state of the repository before creating the feature branch.
 
 ## Required approach
 - Fully analyze the issue (description, comments, attachments)
@@ -109,7 +109,7 @@ Only after Read, Map, and Verify are complete may implementation begin.
 
 ### Committing
 
-How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*). This skill used to require a commit plan table written before the first line of code, one commit per enumerated assignment point, ordered for cherry-pickability, reconciled against the table before the PR. None of it was ever a review criterion, and all of it cost a planning pass plus a rebase whenever the plan turned out wrong.
+How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*).
 
 Two constraints remain, and neither is about granularity:
 
@@ -148,7 +148,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 **Do not run fixers, checkers, or the full build in this skill.** Per `references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's full gate runs exactly once, before the merge — in `@skills/process-code-review/SKILL.md` *Finalization*, or in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. Running it here would only prove early what that run proves again on the final head commit.
 
-Author the change, commit each planned point, and push. The self-checks below still run — they read the diff and cost no build.
+Author the change, commit it, and push. The self-checks below still run — they read the diff and cost no build.
 
 ## Pre-PR self-check (lightweight, deterministic)
 

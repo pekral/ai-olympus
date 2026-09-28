@@ -113,7 +113,19 @@ Load entrypoints in your layout `<head>`:
 
 ## @vite + Tailwind
 
-Tailwind compiles through the CSS entrypoint, so no extra Vite wiring is needed:
+Tailwind v4 compiles through its Vite plugin plus the CSS entrypoint:
+
+```js
+// vite.config.js
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+    plugins: [
+        laravel({ input: ['resources/css/app.css', 'resources/js/app.js'], refresh: true }),
+        tailwindcss(),
+    ],
+});
+```
 
 ```css
 /* resources/css/app.css */
@@ -252,10 +264,12 @@ This warms the chunk cache without blocking the initial render.
 
 ## Bundling for Livewire / Filament / Alpine
 
-- **Alpine**: register it from your entrypoint and start it once.
+- **Alpine**: in a Livewire app, Livewire already bundles and starts Alpine — register custom
+  Alpine components in an `alpine:init` listener and never import or start a second copy.
+  Only on a view that loads no Livewire, import Alpine and start it once:
 
 ```js
-// resources/js/app.js
+// resources/js/app.js — only for views without Livewire
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 Alpine.start();

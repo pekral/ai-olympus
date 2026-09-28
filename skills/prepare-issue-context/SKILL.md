@@ -122,7 +122,7 @@ The non-technical comment never contains code identifiers, file paths, or seed-c
 
 ## Integration with other skills
 
-- **`@skills/resolve-issue/SKILL.md`** — invoke this skill as a pre-flight between *Required approach → Comment analysis* and *Problem analysis*. The caller must abort the resolve flow when the status is `blocked` and surface the gaps to the user.
+- **`@skills/resolve-issue/SKILL.md`** — invoke this skill as the *Context preparation* pre-flight between *Comment analysis* and *Problem analysis*. The caller must abort the resolve flow when the status is `blocked` and surface the gaps to the user.
 - **`@skills/test-driven-development/SKILL.md`** — invoke this skill before the first RED step. The seeded dev database becomes the source of truth for the failing test; the reproduction record from step 7 becomes the test's *arrange* block.
 - **`@skills/code-review/SKILL.md`** / `code-review-github` / `code-review-jira` — invoke this skill with `MODE=cr` as part of *Specialized Reviews* (alongside `assignment-compliance-check`). The CR uses the gap report to validate that the PR actually addresses the real assignment scenarios — not just the diff in isolation. CR mode never seeds; it audits.
 - **`@skills/assignment-compliance-check/SKILL.md`** — consumes the scenario table from step 2 directly. When this skill runs before compliance-check, the latter reuses the mapping in step 3 instead of re-deriving it.

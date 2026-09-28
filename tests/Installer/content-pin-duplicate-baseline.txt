@@ -35,7 +35,6 @@ skills/code-review-github/templates/pr-comment-output.md :: only when the walk p
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **New storage reuse analysis**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Request → DTO transformation belongs in the FormRequest, not the controller**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **Test organization (issue #528)**
-skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: **What is lost, stated rather than hidden:**
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: @rules/code-testing/general.md
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: @skills/process-code-review/SKILL.md
 skills/code-review/SKILL.md . literal . codeReviewRuleContents() :: Applies only when `pekral/arch-app-services` is installed

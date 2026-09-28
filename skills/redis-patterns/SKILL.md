@@ -37,17 +37,17 @@ Use Laravel facades throughout. Reach for raw `Redis::command(...)` only for str
 
 ```php
 $product = Cache::remember("product:{$id}", now()->addMinutes(10), fn () =>
-    Product::findOrFail($id),
+    Product::findOrFail($id)->toArray(),
 );
 ```
 
-`remember()` is read-through cache-aside: returns the cached value or runs the closure, stores it, and returns it. Use `rememberForever()` only with an explicit invalidation path.
+`remember()` is read-through cache-aside: returns the cached value or runs the closure, stores it, and returns it. Cache the raw shape, never the model; rehydrate in the consumer. Use `rememberForever()` only with an explicit invalidation path.
 
 ### Write-Through (consistency required)
 
 ```php
 $product->update($data);
-Cache::put("product:{$product->id}", $product->fresh(), now()->addMinutes(10));
+Cache::put("product:{$product->id}", $product->fresh()->toArray(), now()->addMinutes(10));
 // Or simply invalidate so the next read repopulates:
 Cache::forget("product:{$product->id}");
 ```

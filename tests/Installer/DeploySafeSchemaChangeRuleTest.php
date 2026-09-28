@@ -58,7 +58,10 @@ test('the code-review rule raises deploy-safe schema changes with severities and
     expect($rule)->toContain('the fix is moving the backfill out of the migration, not only batching it');
 
     // Findings land in the section the DB lens already owns, not in the generic buckets.
-    expect($rule)->toContain('Fold the findings into the `## Database Analysis` section alongside the `mysql-problem-solver` findings.');
+    expect($rule)->toContain(
+        'Fold the findings into the one `## Database Analysis` section, alongside the findings of the DB lens this review ran '
+        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*).',
+    );
 
     // The code-review rule set declares no `paths:` key, so this bullet loads on every project,
     // while `ALGORITHM` / `LOCK` and the online-schema tools exist only on MySQL. Without the gate
@@ -75,32 +78,19 @@ test('the code-review rule raises deploy-safe schema changes with severities and
 });
 
 /**
- * Issue #67 — the bullet fires on both engines, but its closing sentence names only
- * `mysql-problem-solver`, the lens a PostgreSQL project never runs. The sentence is the owner's
- * mandate from #20 and stays verbatim, so the fix is the explanation that follows it: the section
- * is one per review, and every DB lens that ran folds its findings into it.
+ * Issue #67 — the bullet fires on both engines, so its closing sentence names the DB lens of each
+ * engine: the section is one per review, and every DB lens that ran folds its findings into it.
  */
 test('the code-review rule explains why the fold sentence stays MySQL-named on PostgreSQL (issue #67)', function (): void {
     $rule = codeReviewRuleContents();
 
-    // The explanation is appended, never a rewrite: the #20 mandate is still the sentence directly
-    // above it, so a later edit cannot swap the mandate out and keep this test green.
+    // One sentence names the lens of both engines, so a PostgreSQL reviewer is never sent to a lens
+    // that never ran, and the section stays one per review.
     expect($rule)->toContain(
-        '`mysql-problem-solver` findings.' . "\n"
-        . 'That sentence names `mysql-problem-solver` because it quotes the issue #20 mandate verbatim, '
-        . 'not because the destination changes with the engine.',
+        'Fold the findings into the one `## Database Analysis` section, alongside the findings of the DB lens this review ran '
+        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*).',
     );
-
-    // Without this, a reviewer on a PostgreSQL project is told to fold the finding alongside the
-    // findings of a lens that, by the mutually exclusive branching, never produced any.
-    expect($rule)->toContain('On a PostgreSQL project that lens is `postgres-patterns`, and `mysql-problem-solver` never runs at all');
-    expect($rule)->toContain('Read the sentence above as *alongside the findings of the DB lens this review actually ran*.');
-
-    // One `## Database Analysis` section per review is the whole point of the explanation; a second
-    // wording claiming a per-engine section would put the two sentences back in conflict.
-    expect($rule)->toContain(
-        'A review has exactly one `## Database Analysis` section, and every DB lens the engine resolution ran folds its findings into that one section.',
-    );
+    expect($rule)->not->toContain('That sentence names `mysql-problem-solver` because it quotes the issue #20 mandate verbatim');
 });
 
 test('the code-review and mysql skills run the deploy-safety walk they inherit (issue #20)', function (): void {

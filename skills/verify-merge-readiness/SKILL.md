@@ -164,8 +164,8 @@ fingerprint is present.
   round. Record `CR skipped — content-identical diff` with both fingerprints in the brief.
 
 When review is required, `leonardo` runs the bounded review/fix loop from
-`@skills/process-code-review/SKILL.md`. The loop converges only at zero Critical findings, zero
-unfulfilled assignment criteria, and no undeferred Moderate finding. If it does not converge,
+`@skills/process-code-review/SKILL.md`. The loop converges only on the gate in that skill's
+*Review loop* step 4. If it does not converge,
 leave the PR Draft and stop after publishing a truthful blocked TL;DR.
 
 ### 3. Prove merge readiness on the exact head

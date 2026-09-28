@@ -9,7 +9,7 @@ test('sql optimalize rule carries the New storage reuse analysis section (issue 
     expect($content)->toContain('## New storage reuse analysis');
     expect($content)->toContain('Can this data be stored in an existing storage without a drastic impact on performance?');
     expect($content)->toContain('Schema::create(...)');
-    expect($content)->toContain('@skills/code-review/SKILL.md');
+    expect($content)->toContain('@rules/code-review/core-analysis.md` *New storage reuse analysis*');
     expect($content)->toContain('Do not flag migrations that only add a column or index to an existing table');
 });
 

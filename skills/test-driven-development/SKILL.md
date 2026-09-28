@@ -60,7 +60,7 @@ Run the test and confirm:
 
 If the test passes immediately, it does not prove the new behavior.
 
-**RED is a state of the working tree, never a commit.** Watch the test fail, then go to GREEN and commit the failing test together with the change that makes it pass. Committing the RED state — or a test written to fail so a later commit can "fix" it — leaves a commit that no one can cherry-pick or deploy, which `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* forbids at **Critical** severity — that obligation survives the gate deferral unchanged, because it is about not encoding a lie in the history, not about where the gate runs. The cycle below is unchanged; only the commit boundary is.
+**RED is a state of the working tree, never a commit.** Watch the test fail, then go to GREEN and commit the failing test together with the change that makes it pass. Committing the RED state — or a test written to fail so a later commit can "fix" it — encodes a lie in the history, which `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* forbids at **Critical** severity. The cycle below is unchanged; only the commit boundary is.
 
 ### 3. GREEN
 Write the smallest production change needed to make the test pass.
@@ -94,10 +94,8 @@ One observable regression should normally have one primary regression test at th
 
 ## Post-cycle validation
 1. Verify 100% code coverage for all changed or added code paths — if coverage tooling exists, run it.
-2. Discover available fixers and checkers — the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
-3. Run available fixers on changed files and fix any violations.
-4. Run available checkers/analyzers on changed files and resolve all reported errors.
-5. Check every test written during the TDD cycle against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`, and fix any findings.
+2. Do not run fixers or checkers here; the project's gate runs once at the merge boundary (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*).
+3. Check every test written during the TDD cycle against the *Junk patterns* of `@skills/test-audit/SKILL.md` and `@rules/code-testing/general.md`, and fix any findings.
 
 ## Done when
 - Every implemented behavior is backed by a test
@@ -106,6 +104,5 @@ One observable regression should normally have one primary regression test at th
 - Changed behavior, edge cases, and failure paths with a credible regression are covered, each once at its owner boundary
 - Relevant tests pass
 - 100% code coverage is verified for all changes
-- Code style and quality checks pass (fixers and checkers ran clean)
 - Test review passed with no findings
 - Refactoring did not introduce new behavior
