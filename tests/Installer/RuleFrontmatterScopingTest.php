@@ -443,7 +443,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: `## Reuse Existing Logic` now names DRY one of the most important checks of
         // every review, searches the whole project, covers logic repeated inside the diff, and
         // declares its severity as Critical.
-        'rules/code-review/general.md' => '80deb35bd0a6ef63f992a6d641e17d4743d09452fb42a537575548dfea04410e',
+        // Re-baselined: *The questions the review settles itself* now sends only questions that still
+        // hold and fall within the ticket's scope to the tracker, per the clarifying-questions scope gate.
+        'rules/code-review/general.md' => 'ec4c1e6ac6effaae9bc2bd16b6193f4b67b85b2ade1c8e12a6ccbcdae1a39117',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

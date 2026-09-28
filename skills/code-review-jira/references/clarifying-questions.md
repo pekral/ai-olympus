@@ -1,4 +1,4 @@
-# Clarifying questions — severity gate and already-answered walk
+# Clarifying questions — severity gate, already-answered walk, and scope gate
 
 Expanded procedure for the *Clarifying questions block* of `@skills/code-review-jira/SKILL.md` *JIRA (consolidated non-technical comment)*.
 
@@ -14,3 +14,8 @@ Expanded procedure for the *Clarifying questions block* of `@skills/code-review-
   - **Answered but not implemented → not a question any more.** When (a) holds and (b) does not, the ticket already decided and the code diverges from that decision. Do not re-ask it here; raise it as a finding on the GitHub PR comment against the answering comment as its source (Critical when the decision was an acceptance criterion, Moderate otherwise), so it lands where findings are fixed instead of where questions are asked.
   - **Ambiguous answers stay questions.** A reply that restates the question, defers it ("we will decide later"), or answers a neighbouring question is not an answer. When it is unclear whether a comment settles the question, keep the question — asking twice costs a reader a moment, dropping a live blocker costs a wrong implementation.
   - **Never cite the answering comment in the block.** A dropped question leaves no trace on the JIRA comment; the audit trail is the chronological comment sequence, which already holds both the question and its answer.
+- **Scope gate — only questions that still hold and belong to the ticket.** Run it last, on every question the two filters above kept. Drop a question when either half fails:
+  - **It no longer holds.** Re-read the question against the current head. When the diff no longer contains the behaviour the question asks about, or a later commit already made the decision the question asks for, the question is stale. Drop it, and never carry a question over from an earlier run without this check.
+  - **It is outside the ticket's scope.** The question must decide something the assignment asks for: an acceptance criterion, a behaviour the diff implements for the assignment, or a value, limit, or failure mode on that path. A question about pre-existing behaviour the diff does not touch, a neighbouring feature, a refactoring, an optimization, or a follow-up idea is out of scope. Drop it. When the answer could still change the accept / reject decision on this ticket, it is in scope.
+
+  When it is unclear whether a question holds or is in scope, keep it. A dropped question leaves no trace on the tracker comment, exactly as in the already-answered walk.
