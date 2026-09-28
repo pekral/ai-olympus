@@ -37,7 +37,7 @@ The exception does **not** extend to the reports below. On GitHub, the manifest 
 - the assignment-compliance comment from `assignment-compliance-check` — that follows the assignment language
 - the `pr-summary` comment, regardless of where it is posted — that follows the assignment language. GitHub and Bugsnag carry the same shape: *What changed* (Problem / Cause / Result / What I fixed, plus the conditional *Side benefit* / *Filed separately* fields), then *How to test*, then a closing line linking the PR and the source issue, plus any conditional *Clarifying questions* / *Assignment Compliance* blocks.
 JIRA carries its own order — a status sentence, *Acceptance criteria*, *How to test*, *What changed*, then the same closing line — for the reason *A JIRA comment is written for a non-technical reader* below states. The section headings and the field labels are part of the report's prose, so they are translated too — a Czech assignment renders *Co se změnilo* and *Jak otestovat*, never an English heading above Czech prose.
-One exception drops *How to test*: a review-only run (`/report-code-review`) passes `without How to test`, and `pr-summary` then renders no *How to test* section on any target (`@skills/pr-summary/SKILL.md` *How to test*).
+One exception replaces *How to test*: a review-only run (`/report-code-review`) passes `review-only`, and `pr-summary` renders *Review findings* in its place on every target — a plain-language retelling of the GitHub review that invites the reader's feedback (`@skills/pr-summary/SKILL.md` *Review-only run*).
 
 ### Project override — `language.github` in the manifest
 

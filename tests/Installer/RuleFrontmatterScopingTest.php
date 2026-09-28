@@ -533,8 +533,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the manifest's `language.github` fixes the language of every GitHub report,
         // the technical CR comment included; JIRA and Bugsnag keep the assignment language. The
         // severity vocabulary lost `Minor`.
-        // Re-baselined: a review-only run (`/report-code-review`) omits *How to test*.
-        'rules/reports/general.md' => '6af79c318ae3ce0cf70cb89915532c94602b9129b8a6a59f003add52cdb99244',
+        // Re-baselined: a review-only run (`/report-code-review`) replaces *How to test* with *Review findings*.
+        'rules/reports/general.md' => '26e91cc7e868b58e63bd00a97450f744ba5f3f086de06dd74fb438e550f7344a',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

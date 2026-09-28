@@ -280,7 +280,7 @@ To review a task's pull request and only report the result, use the review-only 
 $code-review-jira https://your-company.atlassian.net/browse/PROJ-123
 ```
 
-`splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary, without a *How to test* section, on the source issue. The workflow fixes nothing, changes no tracker status, and never merges.
+`splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
 
 ### Adaptive routing — how much pipeline a task gets
 

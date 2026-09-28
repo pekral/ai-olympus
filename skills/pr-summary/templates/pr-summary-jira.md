@@ -48,7 +48,9 @@ Who reads this comment
 
 Section order is binding
   Status sentence, then Acceptance criteria, then How to test, then What
-  changed, then the closing links line. The verdict comes first because it is
+  changed, then the closing links line. A review-only run renders Review
+  findings in place of How to test (@skills/pr-summary/SKILL.md, Review-only
+  run). The verdict comes first because it is
   the one thing the reader opens the ticket for. This order is JIRA's own; the
   GitHub and Bugsnag templates keep their What changed / How to test shape.
 

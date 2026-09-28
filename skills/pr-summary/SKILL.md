@@ -89,8 +89,21 @@ Conditional — render only when it has content, never as an empty field:
 - Order the steps by what matters. When one step is the important one, say so in that step.
 - When the change is reachable only behind a test parameter — a feature flag, an ENV switch, a query-string parameter, a request header, an A/B variant, a beta toggle, or an allow-listed account — the **first** step enables it, naming the exact toggle and the value required. There is no separate metadata line for it on any target; the toggle lives inside the step that enables it.
 - Cover the regression too: name the neighbouring flows the tester should exercise to confirm nothing else moved.
-- **A review-only run omits the section.** When the caller passes `without How to test` — a review-only run (`/report-code-review`) — skip step 7 and render no `How to test` heading on any target. A test-parameter toggle then has no step to live in, so it is not rendered either.
+- **A review-only run replaces the section.** See *Review-only run* below.
 - **Caller-supplied steps win.** When the caller (for example `april` in post-convergence reporting mode) passes pre-authored steps derived from designed test scenarios, use those steps as passed — never compressed, never rewritten. The caller's scenarios are the source of truth for this section.
+
+### Review-only run — `Review findings` in place of `How to test`
+
+A review-only run (`/report-code-review`) passes `review-only` together with the findings of the published GitHub pull-request comment. Then:
+
+- **Skip step 7.** Render no `How to test` section on any target. A test-parameter toggle has no step to live in, so it is not rendered either.
+- **Render `Review findings` in the position of `How to test`.** The section retells the technical GitHub report so a non-technical reader understands what the review reported and can respond to it.
+  - Write one bullet per finding: what can go wrong for the user or the business, and what the fix would change. Plain prose only.
+  - Put the points that block the release first, and say in words that they block it. Never write a severity label.
+  - The list in `@rules/reports/general.md` *Never in a JIRA comment* binds this section on every target: no severity labels, finding counts, code names, file paths, or rule references.
+  - End with one sentence that asks the reader to reply in a comment when they disagree with a point or know something that changes it.
+  - When the review found nothing, render one sentence that says so, and no bullets.
+- **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first. Never drop a `Review findings` bullet.
 
 ### Closing line — the PR and the source issue
 

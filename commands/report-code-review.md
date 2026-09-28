@@ -16,7 +16,9 @@ wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
 `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The wrapper
 publishes the result in the output each tracker requires: the technical findings on the GitHub pull
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
-section: the wrapper passes `without How to test` to `@skills/pr-summary/SKILL.md`. Dispatch no implementation, run no
+section. In its place, `Review findings` retells the GitHub report in plain language, so a
+non-technical reader understands what the review reported and can reply with feedback. The wrapper
+passes `review-only` to `@skills/pr-summary/SKILL.md`. Dispatch no implementation, run no
 fix loop, change no tracker status, do not promote the pull request, and never merge. When the task
 has no pull request, stop and report that there is nothing to review.
 

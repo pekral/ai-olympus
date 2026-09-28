@@ -17,7 +17,7 @@ test('report-code-review runs one review-only pass through splinter and leonardo
     expect($splinter)->toContain('`Review report done`');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
     expect($leonardo)->toContain('skip the step-10 fix loop');
-    expect($leonardo)->toContain('pass `without How to test` to `pr-summary`');
+    expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
-        ->toContain('- **A review-only run omits the section.** When the caller passes `without How to test`');
+        ->toContain('### Review-only run — `Review findings` in place of `How to test`');
 });
