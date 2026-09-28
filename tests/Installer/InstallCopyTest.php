@@ -410,14 +410,12 @@ test('install copies all files to every rule, skill, agent, and command director
     $expectedAgentsCount = installerCountFiles($packageDir . '/agents');
     $expectedCodexAgentsCount = installerCountFiles($packageDir . '/codex/agents');
     $expectedCommandsCount = installerCountFiles($packageDir . '/commands');
-    $claudeMdCount = InstallerPath::resolveClaudeMdSource() !== null ? 1 : 0;
     $agentsMdCount = InstallerPath::resolveAgentsMdSource() !== null ? 1 : 0;
     $expectedTotalFiles = $expectedRulesCount * count($rulesTargets)
         + $expectedSkillsCount * count($skillTargets)
         + $expectedAgentsCount * count($agentTargets)
         + $expectedCodexAgentsCount * count($codexAgentTargets)
         + $expectedCommandsCount * count($commandTargets)
-        + $claudeMdCount
         + $agentsMdCount;
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';

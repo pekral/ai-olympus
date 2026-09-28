@@ -11,7 +11,7 @@ baseline.
 
 **Why the baseline is small.** Claude Code enforces a 150 000-character limit on the **total** of
 every always-loaded instruction file — the project `CLAUDE.md`, user memory, and every rule without
-a `paths` key. The always-on baseline plus the shipped `CLAUDE.md` template is therefore held under
+a `paths` key. The always-on baseline is therefore held under
 75 000 bytes, half that limit, so a consuming project keeps room for its own instructions. The
 large activity rules are on demand: each is scoped to its own installed path, so it loads when a
 skill or an agent that names it reads it.

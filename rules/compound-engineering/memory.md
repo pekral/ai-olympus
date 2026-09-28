@@ -14,7 +14,7 @@ A **per-project memory** file holds durable lessons distilled from past work, so
 
 - **Canonical home:** a dedicated, greppable, curated memory file at `docs/memory/PROJECT_MEMORY.md` in the project being worked on. It is the index *and* the body — an index line at the top plus one short entry per lesson, the same shape as a `MEMORY.md` index with one fact per topic.
 - **Keep it separate from the hand-maintained files.** The memory file must stay **distinct** from `CLAUDE.md`, which humans curate by hand for AI behavioural guidelines. Reference the memory file from `CLAUDE.md` (a one-line pointer) so it stays discoverable, exactly as a `MEMORY.md` index makes its facts discoverable.
-- **The installer never touches it.** `docs/memory/PROJECT_MEMORY.md` is project data, not package data — the rules installer only syncs `rules/`, `skills/`, `agents/`, and `CLAUDE.md`, so it never creates, overwrites, or prunes the memory file. The file is therefore a safe, durable home that survives re-installation, the same guarantee `CLAUDE.md` carries.
+- **The installer never touches it.** `docs/memory/PROJECT_MEMORY.md` is project data, not package data — the rules installer only syncs `rules/`, `skills/`, `agents/`, `commands/`, and `AGENTS.md`, so it never creates, overwrites, or prunes the memory file. The file is therefore a safe, durable home that survives re-installation, the same guarantee `CLAUDE.md` carries.
 
 ### Entry format (greppable, one lesson per entry)
 

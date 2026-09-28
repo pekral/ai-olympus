@@ -75,4 +75,4 @@ These instructions apply only to development of this repository. Use `composer b
 
 This repository-specific correction step may run before a push and takes precedence over the deferred-gate timing above. The pre-merge quality gate still applies.
 
-The installer distributes `templates/CLAUDE.md` to consuming projects. Keep repository-specific maintenance instructions in this root `CLAUDE.md`; do not add them to the installed template.
+The installer never generates a `CLAUDE.md` in consuming projects. This root `CLAUDE.md` holds maintenance instructions for this repository only.

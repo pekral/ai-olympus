@@ -107,7 +107,7 @@ jobs:
           test -f .claude/skills/resolve-issue/SKILL.md
           test -f .codex/agents/splinter.toml
           test -f .agents/skills/resolve-issue/SKILL.md
-          cmp vendor/pekral/ai-olympus/templates/CLAUDE.md CLAUDE.md
+          test ! -e CLAUDE.md
           test -f vendor/pekral/ai-olympus/assets/agents/manifest.json
           test -f vendor/pekral/ai-olympus/assets/agents/activity.css
           for agent in splinter donatello leonardo raphael michelangelo april; do

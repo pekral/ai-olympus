@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🗑️ **Removed**: the installer no longer generates a `CLAUDE.md`. `templates/CLAUDE.md` is deleted, `install` writes no root `CLAUDE.md` and, on a Laravel Boost project, no `.ai/guidelines/ai-olympus.md`. An existing `CLAUDE.md` is never touched. `AGENTS.md` is still installed when the project has none, and Claude Code reads it when `CLAUDE.md` is absent. The package owner requested the change directly.
+
 - 🔁 **Added**: code review detects N+1 queries. `rules/code-review/core-analysis.md` gains the mandatory *N+1 queries* walk. It traces every per-item relation read back to the query that produced the collection, also outside the diff, and flags a relation property, a nested chain, a per-item aggregate or relation query, an unloaded relation read by an accessor, an API Resource, a Blade view, or a Livewire render, and a removed eager load. The finding is Moderate, Critical on an unbounded per-request collection, and its Suggested Fix writes out the eager load. The report renders it in `## Database Analysis` with the `N+1:` prefix. The package owner requested the change directly.
 
 - ✍️ **Added**: code review knows the author of the changes. `rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* makes the pull request's `author.login` the author, never the issue reporter, the assignee, or the reviewing agent. The author is internal information for the agent: no header line, finding, TL;DR line, or tracker comment reports it. The package owner requested the change directly.

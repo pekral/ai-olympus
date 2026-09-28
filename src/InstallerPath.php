@@ -96,27 +96,9 @@ final class InstallerPath
         // @codeCoverageIgnoreEnd
     }
 
-    public static function resolveClaudeInstructionsTarget(string $root): string
-    {
-        $claudeMdTarget = self::resolveClaudeMdTarget($root);
-
-        if (is_file($claudeMdTarget) || !self::isBoostProject($root)) {
-            return $claudeMdTarget;
-        }
-
-        return $root . '/.ai/guidelines/ai-olympus.md';
-    }
-
     public static function isBoostProject(string $root): bool
     {
         return is_dir($root . '/vendor/laravel/boost');
-    }
-
-    public static function resolveClaudeMdSource(): ?string
-    {
-        $source = self::getPackageDirectory() . '/templates/CLAUDE.md';
-
-        return is_file($source) ? $source : null;
     }
 
     public static function resolveAgentsMdSource(): ?string
@@ -184,14 +166,6 @@ final class InstallerPath
     public static function resolveCodexAgentsTargetDirectories(string $root): array
     {
         return [$root . '/.codex/agents'];
-    }
-
-    /**
-     * Target path for CLAUDE.md in the project root.
-     */
-    public static function resolveClaudeMdTarget(string $root): string
-    {
-        return $root . '/CLAUDE.md';
     }
 
     public static function resolveAgentsMdTarget(string $root): string

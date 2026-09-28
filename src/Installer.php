@@ -132,27 +132,13 @@ final class Installer
 
     private static function installRootInstructions(string $root): int
     {
-        $claudeMdTarget = InstallerPath::resolveClaudeMdTarget($root);
-        $agentsMdTarget = InstallerPath::resolveAgentsMdTarget($root);
-        $copied = 0;
-
         if (InstallerPath::isBoostProject($root)) {
-            $instructionsTarget = InstallerPath::resolveClaudeInstructionsTarget($root);
-            InstallerPath::ensureDirectory(dirname($instructionsTarget));
-
-            return InstallerFileCopier::installSingleFile(InstallerPath::resolveClaudeMdSource(), $instructionsTarget);
+            return 0;
         }
 
-        if (is_file($claudeMdTarget) || !is_file($agentsMdTarget)) {
-            $copied += InstallerFileCopier::installSingleFile(
-                InstallerPath::resolveClaudeMdSource(),
-                $claudeMdTarget,
-            );
-        }
-
-        return $copied + InstallerFileCopier::installSingleFile(
+        return InstallerFileCopier::installSingleFile(
             InstallerPath::resolveAgentsMdSource(),
-            $agentsMdTarget,
+            InstallerPath::resolveAgentsMdTarget($root),
         );
     }
 

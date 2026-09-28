@@ -150,7 +150,6 @@ Default installation does not read or write global `~/.claude/settings.json`. Th
 | `.codex/rules/`, `.codex/agent-instructions/`, `.codex/agents/` | `install` | always |
 | `.agents/skills/` (and `~/.agents/skills/` with `--global`) | `install` | always |
 | `AGENTS.md` | `install` | only when the project has none; never overwritten |
-| `CLAUDE.md` | `install` | always; never overwrites an existing file |
 
 The installer never writes outside the project directory and the user's home directory, and it never modifies `composer.json` or any project source file.
 

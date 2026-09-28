@@ -189,7 +189,7 @@ Every agent's declared capability sits on one of two footings — **harness-enfo
 
 ## Architecture constraint
 
-**This package ships instructions, never a runtime.** `rules/`, `skills/`, `agents/`, and `CLAUDE.md` are text an agent reads; the installer copies them into a consuming project and stops there. It is deliberately not a permission engine, a logging daemon, or a consent broker — which is why `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* is a self-reported obligation rather than an interceptor, and why *Why Bash stays advisory* above describes a declared boundary rather than one the default install enforces.
+**This package ships instructions, never a runtime.** `rules/`, `skills/`, `agents/`, and `AGENTS.md` are text an agent reads; the installer copies them into a consuming project and stops there. It is deliberately not a permission engine, a logging daemon, or a consent broker — which is why `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* is a self-reported obligation rather than an interceptor, and why *Why Bash stays advisory* above describes a declared boundary rather than one the default install enforces.
 
 ## Handoff contract
 

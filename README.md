@@ -21,7 +21,7 @@ Run the two commands in [Quickstart](#quickstart) from your Composer project roo
 
 ## Configuration
 
-Existing `CLAUDE.md` and `AGENTS.md` are preserved. When a project has an existing `AGENTS.md` but no `CLAUDE.md`, the installer deliberately does not add its `CLAUDE.md` template: Claude Code 2.1.277+ then uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
+The installer never generates a `CLAUDE.md`, and it preserves an existing `CLAUDE.md` and `AGENTS.md`. Without a `CLAUDE.md`, Claude Code 2.1.277+ uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
 
 The same `extra.ai-olympus` key in `composer.json` is the [project manifest](docs/installation.md#project-manifest): it tells the workflows how your project runs its quality gate and coverage, which extra tools validation may run, which paths are critical, and which language, timezone, and tenancy model apply. Your own instructions — `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest — take precedence over the packaged rules; only the security floor stays fixed.
 
@@ -79,7 +79,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 |---|---|---|
 | Requires | PHP + Composer | Claude Code only |
 | Skills, agents | Both Claude Code and Codex locations | Claude Code plugin only |
-| Project instructions | Rules, `CLAUDE.md`, `AGENTS.md` | Rules and `CLAUDE.md` via an extra command |
+| Project instructions | Rules, `AGENTS.md` | None |
 | `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
 
 ### Via the plugin marketplace (no Composer)
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 59 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
+That loads all 59 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -99,7 +99,6 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 
 - `.claude/rules` and `.claude/skills` in the project
 - `.claude/agents` (the six subagents)
-- `CLAUDE.md` in the project root
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
 - `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, and the tracker's code-review wrapper)
