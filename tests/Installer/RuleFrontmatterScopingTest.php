@@ -259,7 +259,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // does not repeat*, which keeps simple, non-repeated logic inline instead of in a new Action,
         // Service, DTO, Data Builder, Data Validator, helper, or trait.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/php/core-standards.md' => '80254832993ac0da983c328d3aa4863c7a94e25e6ed62a9c1eb15dedad1ad57b',
+        // Re-baselined: file and method size is never a code-review finding.
+        'rules/php/core-standards.md' => '33eda439a3dcdb4b349eb61caf5096c2590031ba8d6062b5cdc5eef74c99033d',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -454,7 +455,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *The questions the review settles itself* now sends only questions that still
         // hold and fall within the ticket's scope to the tracker, per the clarifying-questions scope gate.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/code-review/general.md' => '6e5dbb4ece7f03cb7e5647c5b605c1678850d29bdaba1a92c1c254f829f33437',
+        // Re-baselined: file and method size is never a code-review finding, and the author of
+        // the changes is the account that pushed the pull request (internal only, never reported).
+        'rules/code-review/general.md' => 'e7584854e85e7801080438014bd0f8f2b0119276dbc2e40cddebfd0f58c00b26',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -530,7 +533,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the manifest's `language.github` fixes the language of every GitHub report,
         // the technical CR comment included; JIRA and Bugsnag keep the assignment language. The
         // severity vocabulary lost `Minor`.
-        'rules/reports/general.md' => '6a31a2bea63be0a0a0a621001812bd140c9155aa024dde5ece9ea5c8c92824d2',
+        // Re-baselined: a review-only run (`/report-code-review`) omits *How to test*.
+        'rules/reports/general.md' => '6af79c318ae3ce0cf70cb89915532c94602b9129b8a6a59f003add52cdb99244',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

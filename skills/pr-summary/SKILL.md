@@ -89,6 +89,7 @@ Conditional — render only when it has content, never as an empty field:
 - Order the steps by what matters. When one step is the important one, say so in that step.
 - When the change is reachable only behind a test parameter — a feature flag, an ENV switch, a query-string parameter, a request header, an A/B variant, a beta toggle, or an allow-listed account — the **first** step enables it, naming the exact toggle and the value required. There is no separate metadata line for it on any target; the toggle lives inside the step that enables it.
 - Cover the regression too: name the neighbouring flows the tester should exercise to confirm nothing else moved.
+- **A review-only run omits the section.** When the caller passes `without How to test` — a review-only run (`/report-code-review`) — skip step 7 and render no `How to test` heading on any target. A test-parameter toggle then has no step to live in, so it is not rendered either.
 - **Caller-supplied steps win.** When the caller (for example `april` in post-convergence reporting mode) passes pre-authored steps derived from designed test scenarios, use those steps as passed — never compressed, never rewritten. The caller's scenarios are the source of truth for this section.
 
 ### Closing line — the PR and the source issue

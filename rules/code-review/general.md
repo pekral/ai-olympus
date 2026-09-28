@@ -185,6 +185,18 @@ The latency budget of the changed path and the freshness of its data stay with t
 
 **Every finding here states the volume it fails at.** "This is inefficient" is not reviewable. Name the growth — *"one HTTP call per order; a 50 000-order export issues 50 000 calls against a 100/minute rate limit"* — so the author can weigh it, and so a reviewer who disagrees can argue with the number rather than with the adjective. A finding that cannot name the growth is not a finding under this section.
 
+## The author of the changes is the account that pushed the pull request
+
+**The account that pushed the pull request linked to the issue is the author of the changes.** Read it from the pull request's `author.login` in the loader's PR JSON. Neither the issue reporter, the issue assignee, nor the agent that runs the review is the author.
+
+- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, no TL;DR line, and no tracker comment names the author.
+
+## File and method size is never a code-review finding
+
+**A review never reports the size of a file or a method.** Do not raise a finding because a file or a method is over a size threshold, or because the diff grows it — not at any severity, not as a refactoring proposal, and not as a note on the summary line. This overrides the size ratchet in `@rules/php/core-standards.md` *Structure*, which stays authoring guidance only.
+
+- **The defect inside the code is still a finding — the size itself never is.** Mixed responsibilities, an over-built block, and duplicated logic stay findings under their own rules. Anchor such a finding to that defect, and never cite a line count as its reason.
+
 ## A `foreach` is never a code-review finding
 
 **A `foreach` loop is never reported by a review on this project.** Do not raise it, do not count it, and do not mention it — not at any severity, not as a refactoring proposal, and not as a note on the summary line. This holds for every `foreach` the diff adds or modifies, in PHP and in a template, whatever the loop does.

@@ -4467,3 +4467,22 @@ test('the tracker comment carries only clarifying questions that still hold and 
     expect($gate)->toContain('A commit never settles a question on its own');
     expect($wrapperContract)->toContain('only questions that still hold on the current head and fall within the ticket\'s scope');
 });
+
+test('code review never reports file or method size', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $coreAnalysis = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    expect($general)->toContain('## File and method size is never a code-review finding');
+    expect($coreAnalysis)->not->toContain('A file already over the size threshold must not grow');
+});
+
+test('code review names the account that pushed the pull request as the author of the changes', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
+
+    expect($general)->toContain('## The author of the changes is the account that pushed the pull request');
+    expect($general)->toContain('- **The author is internal information for the agent.**');
+    expect($template)->not->toContain('Author of changes');
+});

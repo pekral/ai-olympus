@@ -55,11 +55,11 @@ Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 | **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
 | **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
 | **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
-| **Commands** | `/prepare-issue-for-merge` and `/redesign-page`, the slash commands the package ships | `.claude/commands` |
+| **Commands** | `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review`, the slash commands the package ships | `.claude/commands` |
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
 
-Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness` or `$deliver-page-redesign` and Codex loads it from `.agents/skills`.
+Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness`, `$deliver-page-redesign`, or the tracker's code-review wrapper (`$code-review-github`, `$code-review-jira`, `$code-review-bugsnag`) and Codex loads it from `.agents/skills`.
 
 ## Why This Package
 
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 59 skills, the six agents, and the `/prepare-issue-for-merge` and `/redesign-page` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
+That loads all 59 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules and `CLAUDE.md` in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -102,7 +102,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 - `CLAUDE.md` in the project root
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
-- `.claude/commands` (the `/prepare-issue-for-merge` and `/redesign-page` slash commands; Codex reaches the same workflows as `$verify-merge-readiness` and `$deliver-page-redesign`)
+- `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, and the tracker's code-review wrapper)
 - `AGENTS.md` in the project root
 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -268,6 +268,19 @@ $deliver-page-redesign https://app.example.test/orders/42
 ```
 
 The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `splinter` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
+
+To review a task's pull request and only report the result, use the review-only workflow:
+
+```text
+# Claude Code
+/report-code-review https://github.com/owner/repository/issues/123
+/report-code-review https://your-company.atlassian.net/browse/PROJ-123
+
+# Codex
+$code-review-jira https://your-company.atlassian.net/browse/PROJ-123
+```
+
+`splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary, without a *How to test* section, on the source issue. The workflow fixes nothing, changes no tracker status, and never merges.
 
 ### Adaptive routing — how much pipeline a task gets
 
