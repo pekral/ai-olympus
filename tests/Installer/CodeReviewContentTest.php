@@ -402,9 +402,11 @@ test('clarifying questions are gated by severity and never re-ask what the track
     $skill = crContractText('skills/code-review-jira/SKILL.md');
     $reference = (string) file_get_contents($packageDir . '/skills/code-review-jira/references/clarifying-questions.md');
 
-    // Both gates must be named where the block is assembled, and in this order — a question is
+    // All three gates must be named where the block is assembled, and in this order — a question is
     // classified first and only then checked against the tracker, so a dropped one is never walked.
-    expect($skill)->toContain('put every candidate through the **severity gate** and the **already-answered walk** below, in that order');
+    expect($skill)->toContain(
+        'put every candidate through the **severity gate**, the **already-answered walk**, and the **scope gate** below, in that order',
+    );
 
     expect($skill)->toContain('**Severity gate and already-answered walk (issue #208).**');
     expect($skill)->toContain('`references/clarifying-questions.md`');
@@ -4488,4 +4490,18 @@ test('a question raised during a review gets a verified, architecture-fitting, r
     expect($skill)->toContain('**Reviewer questions:** `references/answering-reviewer-questions.md`.');
     expect($reference)->toContain('Never turn it into a code change the reviewer did not ask for.');
     expect($reference)->toContain('leaves a thread that only asked a question unresolved after its answer is published');
+});
+
+test('the tracker comment carries only clarifying questions that still hold and fall within the ticket scope', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gate = (string) file_get_contents($packageDir . '/skills/code-review-jira/references/clarifying-questions.md');
+
+    expect($gate)->toContain('**Scope gate — only questions that still hold and belong to the ticket.**');
+    expect($gate)->toContain('never carry a question over from an earlier run without this check');
+    expect($gate)->toContain('A question about pre-existing behaviour the diff does not touch');
+    expect($gate)->toContain('When it is unclear whether a question holds or is in scope, keep it.');
+
+    $citation = 'only questions that still hold on the current head and fall within the ticket\'s scope';
+
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))->toContain($citation);
 });
