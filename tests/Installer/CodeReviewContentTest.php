@@ -4495,13 +4495,12 @@ test('a question raised during a review gets a verified, architecture-fitting, r
 test('the tracker comment carries only clarifying questions that still hold and fall within the ticket scope', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gate = (string) file_get_contents($packageDir . '/skills/code-review-jira/references/clarifying-questions.md');
+    $wrapperContract = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
 
     expect($gate)->toContain('**Scope gate — only questions that still hold and belong to the ticket.**');
     expect($gate)->toContain('never carry a question over from an earlier run without this check');
     expect($gate)->toContain('A question about pre-existing behaviour the diff does not touch');
     expect($gate)->toContain('When it is unclear whether a question holds or is in scope, keep it.');
-
-    $citation = 'only questions that still hold on the current head and fall within the ticket\'s scope';
-
-    expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))->toContain($citation);
+    expect($gate)->toContain('A commit never settles a question on its own');
+    expect($wrapperContract)->toContain('only questions that still hold on the current head and fall within the ticket\'s scope');
 });
