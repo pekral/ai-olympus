@@ -21,14 +21,14 @@ If the manifest sets no `gate` and both fixers and checkers fail or are not foun
 
 A flaky test fails on one run and passes on the next, on the same commit, with no change in between. When such a test has nothing to do with the task, fixing it widens the pull request and delays the finish for a problem the task did not create.
 
-1. **Confirm it is flaky.** Re-run the failing test alone on the same commit. It passes → it is flaky. It fails again → it is a real failure, and the gate handles it as any other failure.
+1. **Confirm it is flaky.** Re-run the same test command on the same commit, in the same order — the whole suite, never the test alone. It passes → it is flaky. It fails again → it is a real failure, and the gate handles it as any other failure. A test that fails in the suite but passes alone is order-dependent: the PR may leak state into it, so it counts as related.
 2. **Check that it is unrelated.** The test is unrelated only when all of these hold:
    - the PR's diff does not add or change the test file;
    - the test does not cover code the PR changes, and does not call code that the changed code calls;
    - the test does not belong to the area the assignment describes.
 
    When one of these does not hold, or it is unclear, the test is related: find and fix the cause per `@rules/code-testing/general.md` *Flaky Test Prevention*.
-3. **Unrelated → ignore it.** Do not modify, skip, or delete the test, and do not file an issue for it. The failure does not block the gate when the re-run in step 1 passed. Name the test, the failure message, and the passing re-run in the handoff and in the merge report.
+3. **Unrelated → ignore it.** Do not modify, skip, or delete the test, and do not file an issue for it. The run counts as green when the re-run in step 1 passed. Record it as green on the `Quality gate:` line with the flaky test named (`green — flaky, left alone: <test>`), and name the test, the failure message, and the passing re-run in the handoff and in the merge report.
 
 ## HOTFIX — what the mode relaxes here
 
@@ -44,7 +44,7 @@ A branch used to run the project's full build several times: once per implementa
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
 - **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
-- **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — and it runs the gate itself otherwise — for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes.
+- **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — and it runs the gate itself otherwise — for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes. After a rebase that only moved the base, *Rebase that moves the head — analyse the incoming changes first* below decides whether the recorded run carries forward to the new head.
 - **Fixes from the gate land as a new commit.** When the gate reports anything — a fixer rewrote a file, a checker flagged an error, coverage fell short — resolve it and commit the result as a **new commit** on the branch (`chore(gate): apply pre-merge fixer and checker fixes`, or a `fix(scope):` subject when the resolution changed behaviour). Never amend a commit already under review, and never force-push a branch a reviewer has commented on (`@rules/git/general.md`).
 - **Re-run the gate after the fix commit.** The fix commit is a new tree, so the gate has not passed on it yet. Re-run the full build on the new head and repeat until it is green on the exact commit being merged. A merge proceeds only on a head commit whose own gate run passed.
 - **A behaviour-changing fix re-opens the code review.** Whether the fix commit invalidates the converged review depends on what it changed, and the distinction is load-bearing:
@@ -58,7 +58,7 @@ The rule is one full build at the merge boundary, nothing during the branch's wo
 
 A rebase onto the newest default branch gives the head a new SHA. The branch's own change can stay identical while only the base moved. Re-running the full gate in that case repeats every checker for changes the branch never touched, and it delays the finish of the task. Analyse what the rebase brought in before you decide.
 
-1. **Find the last green gate run.** Take the head SHA `G` from the trusted `Quality gate:` record (the four authenticity conditions in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* apply to it). `H` is the current head. No trusted record, or `G` is not available locally or by `git fetch origin <G>` → run the gate.
+1. **Find the last green gate run.** Take the head SHA `G` (a 40-character hex SHA; anything else means no record) from the trusted `Quality gate:` record (the four authenticity conditions in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* apply to it). `H` is the current head. No trusted record, or `G` is not available locally or by `git fetch origin <G>` → run the gate.
 2. **Compare the branch's own change.** Compute the effective-PR-diff fingerprint (`@rules/code-review/general.md` *Incremental Review Scope*) for `G` against its merge base and for `H` against its merge base. A different fingerprint means the branch's own change moved → run the gate, exactly as before.
 3. **List the incoming changes.** `git diff --name-only "$(git merge-base G origin/$DEFAULT_BRANCH)" "$(git merge-base H origin/$DEFAULT_BRANCH)"` lists what the default branch brought in.
 4. **Classify each incoming change as related or unrelated.** An incoming change is **related** when any of these holds:
@@ -69,7 +69,7 @@ A rebase onto the newest default branch gives the head a new SHA. The branch's o
 
    Search the PR's changed symbols in the incoming files and the incoming symbols in the PR's files; never classify from file names alone. When the classification is unclear, the change is related.
 5. **Related → the rebase behaves exactly as before.** Run the full gate on `H` (*A history rewrite re-runs the gate* in `@rules/git/general.md`).
-6. **Unrelated → carry the gate verdict forward.** Do not run the fixers, checkers, or coverage again on `H`. Run only the dependency advisory audit (for example `composer audit`), because its verdict depends on when it ran. Record in the merge report: `G`, `H`, both fingerprints, the incoming file list, and the reason each change is unrelated.
+6. **Unrelated and CI green on `H` → carry the gate verdict forward.** CI must have run and passed on `H` itself; when it did not run (the billing exception included), run the gate. Do not run the fixers, checkers, or coverage again on `H`. Run only the dependency advisory audit (for example `composer audit`), because its verdict depends on when it ran. Record in the merge report: `G`, `H`, both fingerprints, the incoming file list, and the reason each change is unrelated.
 
 The trade, stated rather than hidden: the combined tree `H` is not re-tested as a whole. The default branch's own gate covers the incoming changes, and the analysis above covers their interaction with the branch. A related change, an unclear one, or a changed fingerprint always takes the full gate.
 

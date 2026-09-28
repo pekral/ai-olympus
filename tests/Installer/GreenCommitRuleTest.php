@@ -150,8 +150,9 @@ test('a rebase that only moved the base carries the gate verdict forward after a
     expect($gates)->toContain('A different fingerprint means the branch\'s own change moved → run the gate, exactly as before.');
     expect($gates)->toContain('When the classification is unclear, the change is related.');
     expect($gates)->toContain('**Related → the rebase behaves exactly as before.**');
-    expect($gates)->toContain('**Unrelated → carry the gate verdict forward.**');
+    expect($gates)->toContain('**Unrelated and CI green on `H` → carry the gate verdict forward.**');
     expect($gates)->toContain('Run only the dependency advisory audit');
+    expect($gates)->toContain('CI must have run and passed on `H` itself');
 
     // Every surface that re-runs the gate after a rebase points at the one analysis.
     $mustCite = [
@@ -180,9 +181,13 @@ test('a flaky test outside the diff and the assignment is left unchanged and doe
     expect($gates)->toContain('It fails again → it is a real failure, and the gate handles it as any other failure.');
     expect($gates)->toContain('When one of these does not hold, or it is unclear, the test is related');
     expect($gates)->toContain('Do not modify, skip, or delete the test, and do not file an issue for it.');
+    expect($gates)->toContain('the whole suite, never the test alone');
+    expect($gates)->toContain('A test that fails in the suite but passes alone is order-dependent');
 
     $citation = '*A flaky test outside the diff and the assignment is left alone*';
 
     expect((string) file_get_contents($packageDir . '/rules/code-testing/general.md'))->toContain($citation);
     expect((string) file_get_contents($packageDir . '/skills/e2e-testing/SKILL.md'))->toContain($citation);
+    expect((string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md'))->toContain($citation);
+    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))->toContain($citation);
 });
