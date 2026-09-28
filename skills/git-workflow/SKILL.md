@@ -73,7 +73,8 @@ git rebase "origin/$DEFAULT_BRANCH"   # 2) bring the latest default branch in
 # resolve conflicts if any, then: git rebase --continue
 git push --force-with-lease           # 3) publish; do NOT git pull again — it would undo the rebase
 ```
-The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted. `<the project gate>` is the project's gate command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
+The rebase in step 2 replayed every commit onto a different base, so the head commit now has a tree that was never gated. That is caught at the merge boundary: `@rules/git/general.md` *The merged head is green; intermediate commits are not gated* runs the project's gate on the new head before the merge, and a reshaped branch never inherits an earlier verdict.
+The one exception is a rebase that only moved the base and brought in changes unrelated to the branch, per `@skills/resolve-issue/references/quality-gates.md` *Rebase that moves the head — analyse the incoming changes first*. Replaying the whole range with `git rebase --exec '<the project gate>' <base>` is available when a bisectable history is wanted. `<the project gate>` is the project's gate command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 
 Run that replay only when you actually want a bisectable history — it executes the whole gate once per commit, which is the cost the single end-of-work gate exists to avoid:
 

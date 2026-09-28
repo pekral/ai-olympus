@@ -36,6 +36,7 @@ A flaky test fails inconsistently, is hard to reproduce, and is often "fixed" by
 - **Keep shared resources parallel-safe.** Parallel runs do not create flakiness — they expose existing shared state: Redis keys, files, temp directories, config cache, static properties, and singletons. Isolate per test with `Storage::fake()`, unique keys / file names, and by avoiding mutable static or singleton state.
 - **Never call external services directly.** Real HTTP requests fail on network issues, rate limits, latency, or sandbox outages — fake every outbound call with `Http::fake()` (and the relevant SDK fakes). See the *External Calls* section below for the full no-network / no-DNS contract.
 - **Guarantee order independence.** A test must pass on its own, repeatedly, and in any order. If a test passes only because another test ran before it, fix the hidden dependency — do not rely on suite ordering.
+- **A flaky test outside the diff and the assignment is not yours to fix.** Leave it unchanged and report it, per `@skills/resolve-issue/references/quality-gates.md` *A flaky test outside the diff and the assignment is left alone*. The rules above apply to the tests the task writes or changes.
 
 ## Data Handling
 - For Laravel:
