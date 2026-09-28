@@ -487,8 +487,11 @@ test('the strict rule compliance walk is retired while architecture conformance 
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md') . "\n" . codeReviewRuleContents();
 
-    // The blanket rule walk does not exist in the review.
+    // The blanket rule walk does not run, and the review states so in the present tense.
     expect($content)->not->toContain('Strict rule compliance');
+    expect($content)->toContain('- **No blanket rule walk.** The review never scans the diff against every rule file it loads');
+    expect($content)->toContain('never from a blanket scan of every loaded rule');
+    expect($content)->not->toContain('**Do** flag every rule violation a fixer does not cover');
     expect($content)->not->toContain('scan the diff for any pattern that matches a numbered or bulleted rule');
 
     // Architecture conformance is a separate walk and still runs.
@@ -3009,7 +3012,7 @@ test('the layout-splitting walk is retired and the three frontend lenses are una
     $rule = codeReviewRuleContents();
 
     expect($rule)->not->toContain('**Gating against the three frontend lenses — one finding per violation, never two.**');
-    expect($rule)->not->toContain('layout-splitting walk');
+    expect($rule)->toContain('The Livewire / Blade layout-splitting walk is not run either');
     expect($rule)->toContain('**The three frontend lenses run as usual.**');
 
     // The lenses themselves still run on a frontend diff.

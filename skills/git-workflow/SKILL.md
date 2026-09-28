@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: "Use when choosing a Git branching strategy or handling merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging — complementing the commit/PR conventions in the git rules."
+description: "Use when choosing a Git branching strategy or handling merge vs rebase, conflicts, undoing mistakes, and release tagging — complementing the commit/PR conventions in the git rules."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -16,7 +16,6 @@ metadata:
 - Choosing or changing a branching strategy.
 - Deciding merge vs rebase for a specific situation.
 - Resolving a merge conflict.
-- Stashing work in progress.
 - Undoing a mistake (bad commit, wrong reset, accidental change).
 - Cutting a release and tagging a version.
 

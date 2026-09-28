@@ -522,7 +522,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: step 3 *Introduce the Action pattern* now keeps simple logic that does not
         // repeat in the entry point, per `rules/php/core-standards.md` Design Principles.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/refactoring/general.md' => '6830a6ffdd5adce36499c79b9da489ee7b7e5a514dab54325f1bdab7074a2638',
+        'rules/refactoring/general.md' => '8075b3662bf39d50559a49f81a3795c1ca225229dfebcf8d2f25e039b39050c3',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
