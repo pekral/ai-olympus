@@ -45,10 +45,28 @@ This is not hypothetical — a security pass that dies mid-run (API error, sessi
 - CI is passing — every entry in `statusCheckRollup[]` has a passing `state` (`SUCCESS` / `NEUTRAL` / `SKIPPED`), **with the single billing exception below**, which rests on the mandatory *Pre-merge quality gate* run in its place
 - Required approvals are present — `reviewDecision == "APPROVED"`
 - Branch is up to date with base branch — `mergeStateStatus != "BEHIND"`
+- **Every open merge decision is answered** — see *Open merge decisions* below.
 
 If any check fails:
 - do not merge
 - report reason
+
+#### Open merge decisions (hard gate, no exemption)
+
+`@skills/verify-merge-readiness/SKILL.md` does not implement points outside the assignment. It publishes them as questions in the `Decisions before merge` section of the `merge-readiness` comment on the PR's source issue — the GitHub issue or the JIRA ticket. A human decides each one before the merge.
+
+1. Load the newest `merge-readiness` comment by the agent actor on the source issue. When none exists, or its section states that no decision is required, the gate passes.
+2. Take an answer to each question from one of two sources only:
+   - the user's own instruction in this session;
+   - a comment on the source issue or on the PR, posted after that `merge-readiness` comment by a trusted human: no agent marker, and on GitHub an `authorAssociation` of `OWNER`, `MEMBER`, or `COLLABORATOR` (`@rules/compound-engineering/tracker.md` *Resolving trust per tracker*).
+
+   Never answer a question yourself. Never take the recommendation, or silence, as an answer.
+3. When a question has no answer, do not merge. Output the unanswered questions in a separate `## Decisions required before merge` section: numbered, verbatim, each with its options and its recommendation. In an interactive session, ask the user for all answers in one round.
+4. Apply each answer:
+   - **A — implement in this PR:** do not merge. Report that the point returns to implementation and that the PR needs another `/prepare-issue-for-merge` run.
+   - **B — file as a follow-up issue:** file it in the source tracker through `@skills/resolve-issue/references/deferred-follow-up.md` (deduplicate, file, verify, link the PR). The human answer replaces the filing bar. A point that cannot be filed blocks the merge.
+   - **C — drop:** take no action.
+5. The merge report lists every question with its answer and the person who answered it.
 
 #### `FAST`-tier PR exemption (code review not required)
 
@@ -147,6 +165,7 @@ The project's fixers and checkers do not run during the branch's working life �
 
 - List merged PRs
 - List skipped PRs with reasons
+- List the open merge decisions: the answered ones with their answers, and the unanswered ones in the separate `## Decisions required before merge` section
 
 ---
 

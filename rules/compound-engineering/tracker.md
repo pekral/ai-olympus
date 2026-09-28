@@ -155,6 +155,8 @@ The single sanctioned exception is the resolve-issue PR opt-out (no PR exists to
 
   **This is a deliberate trade, and it is stated rather than hidden.** A real problem an agent noticed and did not file will be re-noticed by the next run that reads the same code — at the cost of re-deriving it. A filed non-problem is worse: it never leaves the backlog, and every later triage, prioritisation, and selection run pays for it again. The backlog is a queue of work that must actually be done; an agent that files anything else is adding to someone's reading list, not to the project.
 
+  **One exception: a merge-preparation run reports instead of dropping.** A run of `@skills/verify-merge-readiness/SKILL.md` (`/prepare-issue-for-merge`) files none of these points and drops none of them. It publishes each one as an open decision on the source issue, and a human decides at the merge whether it is implemented, filed, or dropped (`@skills/merge-github-pr/SKILL.md` *Open merge decisions*). A human answer *file as a follow-up issue* replaces the filing bar for that point.
+
   **When in doubt, do not file.** Two bullets below still apply to whatever does clear the bar: deduplicate before filing, and verify the issue landed.
 
 - **Where.** The same tracker as the source assignment: a GitHub-originated task files a GitHub issue in the same repository; a JIRA-originated task files a JIRA issue in the same project; a Bugsnag-originated task files a GitHub issue in the repository of the error's linked issue (`linkedIssues[]`).

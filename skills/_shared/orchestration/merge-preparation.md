@@ -11,6 +11,12 @@ not a second implementation of it.
 
 - Resolve and gather the source as usual, then record `## Preparation mode: merge-ready, no merge`
   in the shared brief.
+- **Change only what the assignment and the merge gate require.** Record the scope contract of
+  `@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only* in the shared brief, and
+  repeat it in every `donatello` and `leonardo` dispatch prompt. An optimization, a refactoring, a
+  pre-existing problem outside the security floor, or a nice-to-have point is not implemented and
+  not filed. The agent records it under `## Open decisions` in the brief, and `april` publishes it
+  as a question for a human.
 - **When the source issue resolves to no pull request, deliver it first.** The issue is not
   implemented yet, so run steps 4 to 6 of *The end-to-end run* on it — the optional security-risk
   analysis, `donatello` for the implementation, then the `donatello` ↔ `leonardo` review-and-fix

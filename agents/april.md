@@ -94,8 +94,11 @@ qualified deletions. It is not authorization to merge or to delete anything outs
 2. Compose the final issue comment through `@skills/pr-summary/SKILL.md`, using the template that
    matches the **source tracker** — `templates/pr-summary-github.md` for a GitHub issue,
    `templates/pr-summary-jira.md` for a JIRA ticket. Its first sentence is a TL;DR with the verified
-   merge-readiness verdict. Include the current assignment-compliance block and the exact head SHA,
-   diff fingerprint, gate result, PR URL, and issue URL.
+   merge-readiness verdict. Directly after it, render the `Decisions before merge` section from the
+   brief's `## Open decisions`, in the shape `@skills/verify-merge-readiness/SKILL.md` step 4 defines:
+   one numbered question per decision, with its options and its recommendation. Never drop, merge,
+   or reword a decision into a verdict of your own. Include the current assignment-compliance block
+   and the exact head SHA, diff fingerprint, gate result, PR URL, and issue URL.
 3. Publish through the helper that matches that same tracker. **Never publish to one tracker with
    another tracker's helper, and never improvise a raw `acli` / `gh` write when the one you were
    given does not fit** — that is how a JIRA ticket ends up carrying an unformatted Wiki Markup

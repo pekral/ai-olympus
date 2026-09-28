@@ -228,3 +228,21 @@ test('verify-merge-readiness reads a JIRA issue as the source and resolves its p
         expect(is_file($packageDir . '/skills/code-review-jira/scripts/' . $script))->toBeTrue();
     }
 });
+
+test('verify-merge-readiness changes only the assignment and leaves every other point to a human decision at the merge', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
+    $preparation = (string) file_get_contents($packageDir . '/skills/_shared/orchestration/merge-preparation.md');
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $tracker = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
+
+    expect($skill)->toContain('## Scope — the assignment only');
+    expect($skill)->toContain('## Decisions before merge');
+    expect($skill)->toContain('Never omit the section, because the merge gate reads it');
+    expect($preparation)->toContain('`@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only*');
+    expect($april)->toContain('render the `Decisions before merge` section');
+    expect($merge)->toContain('#### Open merge decisions (hard gate, no exemption)');
+    expect($merge)->toContain('Never take the recommendation, or silence, as an answer');
+    expect($tracker)->toContain('a merge-preparation run reports instead of dropping');
+});

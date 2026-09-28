@@ -13,6 +13,11 @@ issue key or URL, stop and ask for it. Follow the skill in full. Bring the linke
 verified merge-ready state, publish and verify its single source-issue TL;DR, remove only the
 superseded actor-owned preparation comments the skill permits, and stop before merge.
 
+Change only what the assignment's acceptance criteria and the merge gate require. Do not implement
+an optimization, a refactoring, a pre-existing problem, or a nice-to-have point. Publish each one on
+the source tracker as a question in the separate `Decisions before merge` section, so a human
+decides it. The merge requires an answer to every question.
+
 When the issue carries no pull request, `splinter` resolves the task first — implementation and the
 review-and-fix loop to convergence — and then prepares the pull request that delivery opens.
 
