@@ -227,7 +227,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // manifest `timezone` as the zone that wins, and the exact-semantics exception in `## String
         // Emptiness Checks` is stated in the PR description instead of at the call site.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/laravel/laravel.md' => 'e6f9ad0d239e77d2b9501c96dfbddae2cd6d120a4ac4e8ec33442ada8629fc1c',
+        // Re-baselined: *Database and Eloquent* points to the CR *N+1 queries* walk.
+        'rules/laravel/laravel.md' => '36bcd3c9ce1d04731af3f695741f164228f4b1a510861a23e17f41cf012bee4c',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired

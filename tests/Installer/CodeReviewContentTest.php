@@ -4486,3 +4486,13 @@ test('code review names the account that pushed the pull request as the author o
     expect($general)->toContain('- **The author is internal information for the agent.**');
     expect($template)->not->toContain('Author of changes');
 });
+
+test('code review walks every per-item relation read for N+1 queries and reports them', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $coreAnalysis = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    $template = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
+
+    expect($coreAnalysis)->toContain('- **N+1 queries — mandatory walk whenever the diff touches a model relation');
+    expect($coreAnalysis)->toContain('Follow the trace into files outside the diff');
+    expect($template)->toContain('or by the *N+1 queries* walk of `@rules/code-review/core-analysis.md`');
+});

@@ -71,7 +71,7 @@ paths:
   - **When an existing scope already expresses the filter, call it.** The new query composes that scope; it never restates the condition.
   - **When an existing scope almost fits, widen that scope.** Give it the parameter the new call site needs, or compose it with one further condition at the call site. A near-copy under a new name is the violation.
   - **A condition no existing scope expresses is a new scope.** Two scopes over the same column stay two scopes when they apply genuinely different conditions — `scopePublished()` on `published_at <= now()` beside `scopeScheduled()` on `published_at > now()`.
-- Use eager loading to avoid N+1 queries.
+- Use eager loading to avoid N+1 queries. Code review detects them with the *N+1 queries* walk in `@rules/code-review/core-analysis.md`.
 - Do not query inside loops.
 - Use `withCount()` for counts where appropriate.
 - Use chunking for large datasets.

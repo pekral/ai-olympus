@@ -91,7 +91,7 @@
 
 ## Database Analysis
 
-> Render only when the diff touches database operations (raw SQL, Eloquent / query-builder calls, eager loads, model scopes, ModelManager / Repository methods, migrations, seeders, DynamoDB / NoSQL access) **and** at least one finding is produced by the run's DB lens (`@skills/mysql-problem-solver/SKILL.md` on MySQL / MariaDB and on an unresolved engine, `@skills/postgres-patterns/SKILL.md` on PostgreSQL).
+> Render only when the diff touches database operations (raw SQL, Eloquent / query-builder calls, eager loads, model scopes, ModelManager / Repository methods, migrations, seeders, DynamoDB / NoSQL access) **and** at least one finding is produced by the run's DB lens (`@skills/mysql-problem-solver/SKILL.md` on MySQL / MariaDB and on an unresolved engine, `@skills/postgres-patterns/SKILL.md` on PostgreSQL) or by the *N+1 queries* walk of `@rules/code-review/core-analysis.md`. An N+1 finding starts its one-sentence problem with `N+1:`.
 > Render one section whichever lens produced the findings — never a per-engine variant and never two sections. On MySQL / MariaDB the schema-feature trigger may add `@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a second producer of this same section — render its findings here beside the engine lens's, still as one section. Omit the entire section when no DB operations are present in the diff, or when DB ops are present but no findings result — never leave a placeholder or fold it into Coverage. Report only findings and their fix recommendations — never the trigger decision, an inspected `file:line` list, or an EXPLAIN / static-analysis summary.
 
 - **Findings:**

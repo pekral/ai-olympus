@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🔁 **Added**: code review detects N+1 queries. `rules/code-review/core-analysis.md` gains the mandatory *N+1 queries* walk. It traces every per-item relation read back to the query that produced the collection, also outside the diff, and flags a relation property, a nested chain, a per-item aggregate or relation query, an unloaded relation read by an accessor, an API Resource, a Blade view, or a Livewire render, and a removed eager load. The finding is Moderate, Critical on an unbounded per-request collection, and its Suggested Fix writes out the eager load. The report renders it in `## Database Analysis` with the `N+1:` prefix. The package owner requested the change directly.
+
 - ✍️ **Added**: code review knows the author of the changes. `rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* makes the pull request's `author.login` the author, never the issue reporter, the assignee, or the reviewing agent. The author is internal information for the agent: no header line, finding, TL;DR line, or tracker comment reports it. The package owner requested the change directly.
 
 - 📏 **Changed**: code review never reports the size of a file or a method. `rules/code-review/general.md` gains *File and method size is never a code-review finding*, and `rules/code-review/core-analysis.md` drops the walk that raised a Moderate finding when a file over the size threshold grew. The size ratchet in `rules/php/core-standards.md` *Structure* stays authoring guidance only. A defect inside large code, such as mixed responsibilities, stays a finding under its own rule. The package owner requested the change directly.
