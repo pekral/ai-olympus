@@ -491,7 +491,8 @@ test('the strict rule compliance walk is retired while architecture conformance 
     expect($content)->not->toContain('Strict rule compliance');
     expect($content)->toContain('- **No blanket rule walk.** The review never scans the diff against every rule file it loads');
     expect($content)->toContain(
-        'A finding comes only from a check the review is told to run — a catalog bullet, a lens, a gate, or a rule section that addresses the code review by name',
+        'A finding comes only from a check the review is told to run — a catalog bullet, a lens, a gate, '
+        . 'or a rule section that addresses the code review by name',
     );
     expect($content)->toContain('never from a blanket scan of every loaded rule');
     expect($content)->not->toContain('**Do** flag every rule violation a fixer does not cover');
