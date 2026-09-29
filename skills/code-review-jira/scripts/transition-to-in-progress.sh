@@ -163,10 +163,13 @@ assign_to_current_user() {
   return 3
 }
 
+# The search requests summary, not key: key is a top-level attribute, and acli
+# answers a search whose only requested field is key with [null], so an owned
+# issue would read as unowned.
 current_user_owns_issue() {
   local assignment_json
 
-  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields key --limit 1 --json 2>/dev/null)"; then
+  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields summary --limit 1 --json 2>/dev/null)"; then
     return 3
   fi
 

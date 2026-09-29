@@ -33,10 +33,20 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "search" ]]; then
   if [[ "$FAKE_ACLI_VERIFY" == "error" ]]; then
     exit 1
   fi
-  if [[ "$FAKE_ACLI_VERIFY" == "1" ]]; then
-    printf '%s\n' '{"issues":[{"key":"TEAM-42"}]}'
+  fields=""
+  for (( i = 1; i < $#; i++ )); do
+    if [[ "${!i}" == "--fields" ]]; then
+      next=$((i + 1))
+      fields="${!next}"
+    fi
+  done
+  # acli 1.3.39 answers a search whose only requested field is key with [null].
+  if [[ "$FAKE_ACLI_VERIFY" != "1" ]]; then
+    printf '%s\n' '[]'
+  elif [[ "$fields" == "key" ]]; then
+    printf '%s\n' '[null]'
   else
-    printf '%s\n' '{"issues":[]}'
+    printf '%s\n' '[{"key":"TEAM-42","fields":{"summary":"Task"}}]'
   fi
   exit 0
 fi

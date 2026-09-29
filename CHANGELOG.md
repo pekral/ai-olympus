@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🔑 **Fixed**: `skills/code-review-jira/scripts/transition-to-in-progress.sh` recognises an issue that the authenticated user already owns. The ownership lookup requested only the `key` field, and `acli` 1.3.39 answers such a search with `[null]`. An owned issue in review or in progress therefore read as claimed by another run, and the helper refused it with exit 3 or 4. The lookup now requests `summary`, and `key` stays in every result. The test fake of `acli` now returns the real output shape.
+
 - 📣 **Added**: an unmet acceptance criterion addresses the author of the changes. `pr-summary` *An unmet criterion addresses the author* states why each criterion is not met and adds one sentence that mentions the author, who confirms and fixes the gap or refutes the claim: `@login` on GitHub, an ADF mention on JIRA. `wiki-markup-to-adf.php` converts `[~accountid:<id>]` into an ADF mention node, and `load-issue.sh` returns `assigneeAccountId` to help resolve the account. When no JIRA account resolves, the name stays plain text. `rules/code-review/general.md` names this as the one case where the author is reported. The package owner requested the change directly.
 
 - 🗑️ **Removed**: the installer no longer generates a `CLAUDE.md`. `templates/CLAUDE.md` is deleted, `install` writes no root `CLAUDE.md` and, on a Laravel Boost project, no `.ai/guidelines/ai-olympus.md`. An existing `CLAUDE.md` is never touched. `AGENTS.md` is still installed when the project has none, and Claude Code reads it when `CLAUDE.md` is absent. The package owner requested the change directly.
