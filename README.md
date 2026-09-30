@@ -55,11 +55,11 @@ Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 | **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
 | **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
 | **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
-| **Commands** | `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review`, the slash commands the package ships | `.claude/commands` |
+| **Commands** | `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment`, the slash commands the package ships | `.claude/commands` |
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
 
-Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness`, `$deliver-page-redesign`, or the tracker's code-review wrapper (`$code-review-github`, `$code-review-jira`, `$code-review-bugsnag`) and Codex loads it from `.agents/skills`.
+Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, or the tracker's code-review wrapper (`$code-review-github`, `$code-review-jira`, `$code-review-bugsnag`) and Codex loads it from `.agents/skills`.
 
 ## Why This Package
 
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 59 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
+That loads all 60 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -101,7 +101,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 - `.claude/agents` (the six subagents)
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
-- `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, and `/report-code-review` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, and the tracker's code-review wrapper)
+- `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, and the tracker's code-review wrapper)
 - `AGENTS.md` in the project root
 
 Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
@@ -281,6 +281,19 @@ $code-review-jira https://your-company.atlassian.net/browse/PROJ-123
 
 `splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
 
+To test a task's pull request against its assignment and prove that nothing else broke, use the test workflow:
+
+```text
+# Claude Code
+/test-assignment https://your-company.atlassian.net/browse/PROJ-123
+/test-assignment https://github.com/owner/repository/pull/123 fix
+
+# Codex
+$test-assignment https://your-company.atlassian.net/browse/PROJ-123
+```
+
+`splinter` maps every input that reaches the changed behaviour and builds a test matrix of real data. `donatello` runs the whole test suite and the gate on the final head, and `raphael` exercises the running application and compares it with the base branch. In `report` mode (the default) the workflow changes nothing, and `april` publishes the technical report on the pull request and a plain-language summary on the source issue. In `fix` mode `donatello` adds the missing tests and fixes, and the workflow continues as `/prepare-issue-for-merge`. It never merges.
+
 ### Adaptive routing — how much pipeline a task gets
 
 Every `splinter` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
@@ -328,7 +341,7 @@ Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshoo
 
 ## Skill Catalog
 
-59 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
+60 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
 testing, databases, frontend, infrastructure, refactoring, analysis, and tooling. The full table,
 with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skills.md)**.
 

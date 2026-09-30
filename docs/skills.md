@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 59 skills this package ships, grouped by what you reach for them for. Each description is the
+All 60 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -12,7 +12,7 @@ link to read the skill itself.
 | [Issue → PR workflow](#issue--pr-workflow) | 10 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 5 |
-| [Testing](#testing) | 8 |
+| [Testing](#testing) | 9 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 1 |
@@ -69,6 +69,7 @@ link to read the skill itself.
 | [`rewrite-tests-pest`](../skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
 | [`e2e-testing`](../skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
 | [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser |
+| [`test-assignment`](../skills/test-assignment/) | A task's pull request must be tested against its assignment and the test must prove that nothing else broke |
 | [`tester-cookbook`](../skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |
 
 ## Databases

@@ -21,9 +21,9 @@
 #   BODY_FILE   Path to a file holding the comment body, or `-` to read from
 #               stdin. The body must already be in the target tracker markup
 #               (GitHub Markdown).
-#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. Two other
-#               namespaces this package writes: `merge-readiness` (upserted,
-#               same as `cr-comment`) and `agent-note` — the one namespace that
+#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. Three other
+#               namespaces this package writes: `merge-readiness` and
+#               `test-report` (upserted, same as `cr-comment`) and `agent-note` — the one namespace that
 #               is create-only (see step 3 below). A new namespace is an agent
 #               marker only once it is added to the family `@rules/code-review/general.md`
 #               *Authorship trust* defines.

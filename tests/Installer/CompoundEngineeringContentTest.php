@@ -1686,8 +1686,9 @@ test('the marker family is defined once by its own shape, with the namespaces pa
     expect($codeReview)->toContain('**An agent marker is any `<namespace>:actor=` marker a package helper writes into a comment body.**')
         ->and($codeReview)->toContain(
             'The namespaces today are exactly `cr-comment` (the upserted, one-per-actor comment), `merge-readiness` '
-            . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), and '
-            . '`agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
+            . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), '
+            . '`test-report` (the pull-request test report `skills/test-assignment/SKILL.md` and `agents/april.md` publish), '
+            . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
         ->and($codeReview)->toContain('A new namespace joins this list in the same change that first writes it');
 });
@@ -1735,7 +1736,7 @@ function upsertCommentNamespacesInDocs(): array
 }
 
 test('every marker namespace passed to upsert-comment.sh in skills/ or agents/ is in the family Authorship trust defines (issue #156)', function (): void {
-    $allowedNamespaces = ['cr-comment', 'merge-readiness', 'agent-note'];
+    $allowedNamespaces = ['cr-comment', 'merge-readiness', 'test-report', 'agent-note'];
     $foundNamespaces = upsertCommentNamespacesInDocs();
 
     // A regex that silently stopped matching would make every assertion below vacuously true, so
