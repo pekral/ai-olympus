@@ -60,3 +60,17 @@ test('file-deferred-moderate never exits silently once the child issue exists', 
     // them is guarded, so the empty result reaches the explicit message below it.
     expect(substr_count($content, '2>/dev/null || true)'))->toBe(substr_count($content, 'jq -r'));
 });
+
+test('file-deferred-moderate sends the JIRA subtask description as ADF, never as raw Wiki Markup', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/scripts/file-deferred-moderate.sh');
+    $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+
+    // JIRA shows Wiki Markup sent as plain text verbatim, so the body goes through the comment converter first.
+    expect($content)->toContain('php "$SCRIPT_DIR/../../code-review-jira/scripts/wiki-markup-to-adf.php" >"$BODY_FILE"');
+    expect($content)->toContain('.version == 1 and .type == "doc"');
+    expect($content)->toContain('--description-file "$BODY_FILE"');
+
+    expect($rule)->toContain('## Issue Description Format');
+    expect($rule)->toContain('Never pass the Wiki Markup source to `--description`, `--description-file`, or the JIRA MCP server.');
+});

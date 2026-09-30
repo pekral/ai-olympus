@@ -521,7 +521,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // *Every comment an agent publishes on GitHub or JIRA carries a marker*, and the generic
         // fallback bullet names the no-e-mail case, where the MCP fallback cannot compute the
         // digest either and the run stops as blocked.
-        'rules/jira/general.md' => '8d8484189777533656903fe968f7b99339eef2c3d05538491bdf90f7217be99b',
+        // Re-baselined: the file gained `## Issue Description Format` — an issue description reaches
+        // JIRA as ADF converted by `wiki-markup-to-adf.php`, never as raw Wiki Markup.
+        'rules/jira/general.md' => '55d84f914812d40c0c9d6c6209e895b5f777aff7bb706bce5571abc760d5a386',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
