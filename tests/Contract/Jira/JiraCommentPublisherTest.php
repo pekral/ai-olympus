@@ -34,7 +34,13 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   fi
 
   if [[ -f "$FAKE_ACLI_CALLS.created" && -n "${FAKE_ACLI_LIST_AFTER_JSON:-}" ]]; then
-    printf '%s\n' "$FAKE_ACLI_LIST_AFTER_JSON"
+    lagged="$(cat "$FAKE_ACLI_CALLS.lagged" 2>/dev/null || printf '0')"
+    if [[ "$lagged" -lt "${FAKE_ACLI_LIST_LAG:-0}" ]]; then
+      printf '%s\n' "$((lagged + 1))" > "$FAKE_ACLI_CALLS.lagged"
+      printf '%s\n' "${FAKE_ACLI_LIST_JSON:-[]}"
+    else
+      printf '%s\n' "$FAKE_ACLI_LIST_AFTER_JSON"
+    fi
   else
     printf '%s\n' "${FAKE_ACLI_LIST_JSON:-[]}"
   fi
@@ -292,6 +298,10 @@ function removeJiraCommentPublisherFixture(array $fixture): void
 
     if (is_file($fixture['calls'] . '.created')) {
         unlink($fixture['calls'] . '.created');
+    }
+
+    if (is_file($fixture['calls'] . '.lagged')) {
+        unlink($fixture['calls'] . '.lagged');
     }
 
     unlink($fixture['created']);
@@ -868,6 +878,56 @@ test('the JIRA publisher resolves the new comment ID from the re-read issue when
             ->and($calls)->not->toContain('comment delete')
             ->and($process->getErrorOutput())->toContain('action=created id=9005')
             ->and($process->getOutput())->toContain('focusedCommentId=9005');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher resolves the new comment ID when the first re-read after create does not show it yet', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $marker = jiraActorMarker('bot@example.com');
+    $before = json_encode(['fields' => ['comment' => ['comments' => [
+        jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
+    ],
+    ],
+    ],
+    ], JSON_THROW_ON_ERROR);
+    $after = json_encode(['fields' => ['comment' => ['comments' => [
+        jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
+        jiraComment('9005', '2026-01-02T00:00:00.000+0000', 'bot@example.com', $marker),
+    ],
+    ],
+    ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"results":[{"key":"TEAM-42","status":"success"}]}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_AFTER_JSON' => $after,
+        'FAKE_ACLI_LIST_JSON' => $before,
+        // Jira Cloud can answer the first read after a create without the new comment.
+        'FAKE_ACLI_LIST_LAG' => '1',
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Hotovo');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9005 --body-adf')
+            ->and(substr_count($calls, 'comment create'))->toBe(1)
+            ->and($process->getErrorOutput())->toContain('action=created id=9005');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }

@@ -80,6 +80,8 @@
 #      reports a per-work-item status and no comment ID on acli 1.3.x, so the
 #      new ID is resolved by re-reading the comments and taking the comment that
 #      was absent before the create, carries the marker, and has this author.
+#      The re-read runs up to three times, one second apart, because Jira Cloud
+#      can answer the first read after a create without the new comment.
 #
 # One result is one comment. The helper never creates a comment it cannot prove
 # is the first one, so a rerun — including a caller's retry after exit 3 —
@@ -367,20 +369,31 @@ else
   # an older note of this actor's: the snapshot above was taken before the
   # create in every mode, so an older note is always "before" and never
   # matches "absent before the create".
+  # Jira Cloud can answer the first read after a create without the new comment, so the re-read
+  # is tried three times before the ID counts as missing.
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
     BEFORE_IDS="$(printf '%s' "${COMMENTS_JSON:-[]}" | jq -c '[.[] | (.id? // empty) | tostring]' 2>/dev/null || echo '[]')"
-    AFTER_JSON="$(read_comments || true)"
-    TARGET_ID="$(printf '%s' "${AFTER_JSON:-[]}" \
-      | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
-          map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
-              | select(marked and owned))
-          | map((.id | tostring) | select(test("^[0-9]+$")) | tonumber)
-          | max // empty
-          | tostring' 2>/dev/null || true)"
+    for attempt in 1 2 3; do
+      AFTER_JSON="$(read_comments || true)"
+      TARGET_ID="$(printf '%s' "${AFTER_JSON:-[]}" \
+        | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+            map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
+                | select(marked and owned))
+            | map((.id | tostring) | select(test("^[0-9]+$")) | tonumber)
+            | max // empty
+            | tostring' 2>/dev/null || true)"
+      if [[ "$TARGET_ID" =~ ^[0-9]+$ ]]; then
+        break
+      fi
+      [[ $attempt -lt 3 ]] && sleep 1
+    done
   fi
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
+    if [[ -s "$LIST_STDERR" ]]; then
+      echo "upsert-comment.sh: the last of 3 re-reads failed: $(<"$LIST_STDERR")" >&2
+    fi
     echo "upsert-comment.sh: do not publish this result again — the created comment carries this actor's marker, and a rerun of this helper updates it or refuses, never duplicates it" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
