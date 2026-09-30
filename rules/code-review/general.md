@@ -458,10 +458,19 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
 
-1. the header block — `Status:`, `Counts:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, and a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on,
+1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, and a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on,
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
+
+**Merge verdict — the direct answer to "can we merge, and is the assignment met with no Critical finding?".** Every review comment carries it in the header, converged or not. The verdict is `yes` only when all of these hold:
+
+1. The Functional Review verdict is conformant: every acceptance criterion is met.
+2. No Critical finding is open.
+3. No reviewer comment is unfulfilled, and every remaining Moderate carries a `Deferred:` field.
+4. The quality gate is green on the reviewed head.
+
+Otherwise the verdict is `no`, and the line names every blocker in one short clause each. The line also states the two halves of the question on their own: `assignment met` and `open Critical`. The verdict is derived from the same comment and adds no new check. `@skills/merge-github-pr/SKILL.md` still runs its own merge gate, and a `yes` never lifts it.
 
 **It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 

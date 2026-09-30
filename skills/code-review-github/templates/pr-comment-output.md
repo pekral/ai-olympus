@@ -13,6 +13,7 @@
 
 **Status:** clean / needs-fix  *(`clean` when the run converged — no Critical, no unfulfilled reviewer comment, and every remaining Moderate carrying a `Deferred:` field. A Moderate without that field is outstanding, so the status is `needs-fix`.)*
 **Counts:** Critical {n} · Moderate {n}  *(always the real detected counts)*
+**Merge verdict:** {yes | no} — assignment met: {yes | no | no linked issue} · open Critical: {n} · {when no: every blocker in one short clause each — the open Critical findings, the unmet criteria, an unfulfilled reviewer comment, an undeferred Moderate, or a missing green quality gate}  *(always rendered — the one-line answer to "can we merge, and is the assignment met with no Critical finding?". `yes` only when all of `@rules/code-review/general.md` *Merge verdict* holds. It never replaces the merge gate.)*
 **Mode:** HOTFIX — coverage waived, review scoped to assignment + bug fix (declared by {account})  *(render this line only on a declared HOTFIX run; it is the merge gate's only trusted evidence of the mode — `@rules/code-review/general.md` *HOTFIX runs*. Omit it entirely on every ordinary run.)*
 **Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
 **Reviewed diff fingerprint:** {patch-id of the effective PR diff}  *(always rendered — preserves the verdict across a content-identical history rewrite)*
