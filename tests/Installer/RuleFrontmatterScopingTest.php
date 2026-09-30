@@ -462,7 +462,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // `/test-assignment` publishes.
         // Re-baselined: the acceptance criteria themselves are compared with the product
         // documentation, which adds a fourth mismatch shape.
-        'rules/code-review/general.md' => 'dd60896d6cc5bf9d39295a5bd8782a1a6b1c453dfc0aed57defe23af53510ff3',
+        // Re-baselined: a question reaches a person only after the review reads every comment on
+        // the tracker item and the pull request, and an answered question is never asked again.
+        'rules/code-review/general.md' => 'ce293ccf8cc11514517bb14fad2290e0f75bedebf777167262dd522759bf92f5',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
