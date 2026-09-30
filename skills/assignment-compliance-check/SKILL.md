@@ -44,6 +44,12 @@ For the assignment + current comments, enumerate:
 
 Skip generic developer hygiene wishes ("clean code", "tests please"). The check is strictly about business behavior described by the reporter.
 
+### 2a. Compare every requirement with the product documentation
+Apply `@rules/code-review/general.md` *Published product documentation is a requirement the assignment need not restate* to the requirements themselves, before the diff is read.
+- Resolve the documentation source the project declares: the `product-docs` key of the manifest (`skills/_shared/read-manifest.sh`) or the project's `CLAUDE.md`. When the project declares none, record `no documentation source declared` and skip this step.
+- For every requirement from step 2 that describes user-facing behaviour, search the source and give the requirement one status: `consistent`, `contradicts`, or `not documented`. Record the article URL, the sentence for `contradicts`, and what was searched for `not documented`.
+- Return the statuses to the caller beside the block, never inside it. A `contradicts` row is a documentation mismatch that the calling wrapper publishes per that rule: a Moderate finding on the pull request and a *Clarifying questions* entry on the tracker. It is not a Critical gap, and it does not change the verdict of this block.
+
 ### 3. Load the implementation
 - Run `skills/code-review-github/scripts/load-issue.sh <PR-URL>` for the PR and read `files[]`, `body`, and `commits[]`.
 - For each extracted requirement from step 2, locate the matching change in the diff: the function, controller action, Livewire method, job, command, view, or test that should realize the requirement.

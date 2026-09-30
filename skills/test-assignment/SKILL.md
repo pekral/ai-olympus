@@ -41,6 +41,7 @@ metadata:
 - Resolve the source and write the shared brief as `agents/splinter.md` steps 1 and 2 do.
 - Load the description and every comment, including comments addressed to other accounts or agents. A decision a trusted author records in a comment is part of the assignment.
 - Derive the acceptance criteria. Record where each criterion comes from.
+- Compare every criterion that describes user-facing behaviour with the product documentation the project declares, per `@rules/code-review/general.md` *Published product documentation is a requirement the assignment need not restate*. Give each criterion one status: `consistent`, `contradicts`, or `not documented`, with the article URL. A `contradicts` row is a question in `Decisions before merge`, and the owner decides whether the code or the article changes.
 
 ### 2. Map every input that reaches the changed behaviour
 
@@ -101,6 +102,7 @@ metadata:
 ## Output
 
 - **Status:** `Test report done`, `Preparation report done` (`fix` mode), or `Blocked` with the reason.
+- **Documentation:** each criterion with its documentation status and article URL.
 - **Input map:** the table from step 2.
 - **Criteria:** one row per criterion — the input, the scenario, the request or test, the result, and the verdict `Met`, `Not met`, or `Blocked`.
 - **Suite:** the command, the exit code, the test count, and the head SHA; the gate result; the CI state; each failure with its class.
@@ -111,7 +113,7 @@ metadata:
 
 ## Done when
 
-- Every acceptance criterion carries a verdict, backed by a request, a test, or a stated reason for `Blocked`.
+- Every acceptance criterion carries a verdict, backed by a request, a test, or a stated reason for `Blocked`, and a documentation status.
 - Every input from step 2 carries a status.
 - The whole suite and the gate ran on the final head, and every failure has a class.
 - The base-branch comparison shows no difference the assignment does not explain, or the report names each one.

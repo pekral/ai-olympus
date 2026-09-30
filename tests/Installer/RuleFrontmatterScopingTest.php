@@ -460,7 +460,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the changes is the account that pushed the pull request (internal only, never reported).
         // Re-baselined: the marker family gains `test-report`, the pull-request test report that
         // `/test-assignment` publishes.
-        'rules/code-review/general.md' => '90d6d5cfa620591a61a9e5c735e1521ab6ecc7d94f154e377ca6c386ae958483',
+        // Re-baselined: the acceptance criteria themselves are compared with the product
+        // documentation, which adds a fourth mismatch shape.
+        'rules/code-review/general.md' => 'dd60896d6cc5bf9d39295a5bd8782a1a6b1c453dfc0aed57defe23af53510ff3',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
