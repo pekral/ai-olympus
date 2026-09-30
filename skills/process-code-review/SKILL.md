@@ -197,6 +197,7 @@ This step **assembles** the comment body; **Completion** publishes it. This skil
 
 - **`## TL;DR`** — one plain-language line per change the loop landed: each CR item fixed, each pre-existing fix, the gate commit, and the reason any reviewer point was rejected or deferred. It replaces the resolved-items checklist: it says what changed, not which checks ran.
 - **The `Quality gate:` header value** — the command, its verdict, and the head SHA from Finalization. `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* reads it here.
+- **`## Affected behaviour outside the diff`** — only when the last review round listed at least one affected part (`@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*): each entry unchanged. Omit when none was listed.
 - **`## Deferred to sub-issues`** — only when the Review loop deferred a Moderate at round 3: one entry per finding with `file:line`, the original severity, the reason, and the sub-issue URL (`references/round-three-deferral.md` *Reporting the deferral*).
 - **`## Pre-existing fixes`** — only when **Pre-fix phase** landed one: each commit subject with a one-line rationale from the commit body. Omit when none landed.
 

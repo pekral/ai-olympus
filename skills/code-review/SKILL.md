@@ -103,7 +103,7 @@ Identify every affected API, resolve its official public reference through the b
 The full procedure — the source order and its trust tests, the SSRF and exfiltration limits on the lookup, the comparison checklist, and the fields of a documentation request — lives in `references/third-party-api-analysis.md`.
 
 ### Core Analysis
-- Regression risk (shared logic, dependencies)
+- Regression risk (shared logic, dependencies) — the mandatory impact walk `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff* lists every untouched part of the application whose behaviour the diff changes.
 - Architecture and design quality
 - Business logic correctness
 - Missing or incorrect behavior

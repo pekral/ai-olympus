@@ -464,7 +464,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // documentation, which adds a fourth mismatch shape.
         // Re-baselined: a question reaches a person only after the review reads every comment on
         // the tracker item and the pull request, and an answered question is never asked again.
-        'rules/code-review/general.md' => 'ce293ccf8cc11514517bb14fad2290e0f75bedebf777167262dd522759bf92f5',
+        // Re-baselined: the converged comment renders `## Affected behaviour outside the diff`.
+        'rules/code-review/general.md' => '3d004713aaa40b97273739d6bab33af7a918ea6ce83f711822b3c12a4de60d52',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

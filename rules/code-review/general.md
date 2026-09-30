@@ -461,7 +461,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 1. the header block — `Status:`, `Counts:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, and a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on,
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
-4. `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry. An answer follows *Answering a question raised during a review* above.
+4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
 
 **It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 

@@ -1,6 +1,6 @@
 # Code Review
 
-> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## TL;DR`, `## Functional Review`, and the conditional `## Deferred to sub-issues` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
+> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
 > The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 >
 > **Section visibility — render only sections that have content.** Always render the header block (Status / Counts / Last updated / tracker-mirror field) and the final `Summary` line. The `Coverage:` header line, the `## Coverage` section, and the `coverage …` slot in the summary line are conditional — render them **only** when the coverage gate produced something to report (uncovered changed lines or unavailable / non-runnable tooling, both Critical findings per `@skills/code-review/SKILL.md` Coverage gate). When every changed line is at 100% coverage and the tool ran successfully, drop all three coverage surfaces; the Counts line is the clean signal. The `## Architecture` section follows the same conditional rule (issue #530):
@@ -75,6 +75,18 @@
    **Declared by:** `<@author>` (`authorAssociation: OWNER|MEMBER|COLLABORATOR`)
    **Instruction:** one sentence describing what the reviewer asked for.
    **Note:** delegated — not this run's work, not resolved.
+
+---
+
+## Affected behaviour outside the diff
+
+> Render only when the impact walk of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff* listed at least one untouched part of the application whose behaviour the diff changes — on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding. An unintended change also appears as a finding under `## Findings`.
+
+1. **Affected part:** `path/to/Caller.php:42` — {the feature it serves, in plain language}
+   **Before:** {what it did before the diff}
+   **After:** {what it does after the diff}
+   **Asked for by the assignment:** {yes — <criterion> | no — see finding <n>}
+   **Test:** `{test that covers it}` | `no test`
 
 ---
 
