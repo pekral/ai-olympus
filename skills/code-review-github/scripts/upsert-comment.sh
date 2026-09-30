@@ -38,7 +38,13 @@
 #      load-bearing: a marker is visible text anyone can copy into their own
 #      comment, so a lookup matching on the marker alone could PATCH a
 #      stranger's comment.
-#   4. When a match exists, PATCH it via
+#   4. Carry every line the operator added to the matched comment into the new
+#      body verbatim (`skills/_shared/carry-operator-lines.php`). The operator
+#      posts under the same account, so a line counts as the operator's when the
+#      previous version's hidden `<!-- <MARKER_KEY>:lines=... -->` fingerprint of
+#      agent-written lines does not know it. Every published body records that
+#      fingerprint. `agent-note` is never rewritten, so it skips this step.
+#   5. When a match exists, PATCH it via
 #      `gh api repos/<nwo>/issues/comments/<id>`; otherwise POST a new comment
 #      via `gh api repos/<nwo>/issues/<N>/comments`.
 #
@@ -57,7 +63,9 @@
 # Output:
 #   The published comment URL on stdout. `action=updated id=<id>` (an existing
 #   comment was PATCHed) or `action=created id=<id>` (a new one was POSTed) on
-#   stderr, for the calling skill to log in its summary line.
+#   stderr, for the calling skill to log in its summary line. On an update,
+#   stderr also carries `carried_lines=<n>` and one `carried: <line>` per carried
+#   operator line; the calling skill states every carried line in its report.
 #
 # Exit codes:
 #   1  usage / argument error
@@ -92,7 +100,7 @@ if [[ ! "$MARKER_KEY" =~ ^[a-z][a-z0-9-]*$ ]]; then
   exit 1
 fi
 
-for bin in gh jq; do
+for bin in gh jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     echo "upsert-comment.sh: required tool not found: $bin" >&2
     exit 2
@@ -162,7 +170,9 @@ fi
 # the whole CR comment publish — see issue #519.
 ACTOR_STDERR="$(mktemp)"
 LOOKUP_STDERR="$(mktemp)"
-trap 'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR"' EXIT
+NEW_BODY_FILE="$(mktemp)"
+PREVIOUS_BODY_FILE="$(mktemp)"
+trap 'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"' EXIT
 ACTOR=""
 ACTOR_ERR=""
 for attempt in 1 2 3; do
@@ -185,12 +195,6 @@ if [[ -z "$ACTOR" ]]; then
 fi
 
 MARKER="<!-- ${MARKER_KEY}:actor=${ACTOR} -->"
-
-if ! grep -Fq "$MARKER" <<<"$BODY"; then
-  BODY="${BODY}
-
-${MARKER}"
-fi
 
 # Look for a comment this actor already published under the same marker. A
 # failed lookup publishes nothing: a POST without it could duplicate the
@@ -216,6 +220,27 @@ if [[ "$MARKER_KEY" != "agent-note" ]]; then
           '[.[] | select((.user.login // "") == $actor) | select(.body // "" | contains($marker))] | sort_by(.created_at) | last | .id // empty' \
           2>/dev/null || true)"
   fi
+fi
+
+if [[ "$MARKER_KEY" != "agent-note" ]]; then
+  CARRY_ARGS=(markdown "$MARKER_KEY" "$NEW_BODY_FILE")
+  if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$ALL_COMMENTS" \
+      | jq -s 'add // []' \
+      | jq -r --argjson id "$EXISTING_ID" '.[] | select(.id == $id) | .body // ""' > "$PREVIOUS_BODY_FILE"
+    CARRY_ARGS+=("$PREVIOUS_BODY_FILE")
+  fi
+  printf '%s' "$BODY" > "$NEW_BODY_FILE"
+  if ! BODY="$(php "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/carry-operator-lines.php" "${CARRY_ARGS[@]}")"; then
+    echo "upsert-comment.sh: carrying the operator lines failed on ${NWO}#${NUMBER}, nothing was published" >&2
+    exit 3
+  fi
+fi
+
+if ! grep -Fq "$MARKER" <<<"$BODY"; then
+  BODY="${BODY}
+
+${MARKER}"
 fi
 
 # `gh api` body payloads are built via jq and fed through `--input -` so the

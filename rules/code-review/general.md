@@ -480,6 +480,15 @@ Otherwise the verdict is `no`, and the line names every blocker in one short cla
 
 **That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
 
+**A line the operator added survives the rewrite.** The operator posts under the same account as the agents and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`. A plain rewrite would delete it. Every helper that rewrites a comment in place therefore keeps it:
+
+1. Each published version records a fingerprint of the lines the agent wrote: a hidden `<!-- <namespace>:lines=… -->` line on GitHub, a ` lines=…` suffix inside the visible marker on JIRA.
+2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, so a mention and its formatting survive too.
+3. The helper prints `carried_lines=<n>` and one `carried: <line>` per carried line on stderr.
+4. The run that called the helper states every carried line, verbatim, in its report and its handoff.
+
+`skills/_shared/carry-operator-lines.php` implements the carry for both trackers. A previous version without a fingerprint, written before this rule, carries nothing and the helper says `reason=no-fingerprint`. `agent-note` comments are never rewritten, so they carry nothing.
+
 **What is lost, stated rather than hidden:** the chain was the cross-run history. A reader used to scroll the thread and see what round 1 said, then round 2. Update-in-place overwrites the previous body, so only the current round's verdict is visible on the tracker; the tracker's own edit history holds the rest, and nothing in this package reads it.
 
 **What survives, because every gate depends on it:** the header block above carries each value a later round or the merge gate needs, and it is rewritten on every publish. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.

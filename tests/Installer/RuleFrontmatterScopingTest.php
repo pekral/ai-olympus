@@ -466,7 +466,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the tracker item and the pull request, and an answered question is never asked again.
         // Re-baselined: the converged comment renders `## Affected behaviour outside the diff`.
         // Re-baselined: every review comment carries the `Merge verdict:` header line.
-        'rules/code-review/general.md' => '16c6720f8737cb41f7fd2cec772435636d99114f0688dc0bd3404c0a7d944ca1',
+        // Re-baselined: a line the operator added to an agent comment survives the rewrite.
+        'rules/code-review/general.md' => '45e47f3c11439a2fa40077012ad65d79e943397cacea165893c5d730b3126ec4',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

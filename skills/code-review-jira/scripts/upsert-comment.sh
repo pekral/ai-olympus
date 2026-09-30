@@ -63,7 +63,16 @@
 #      own comment, so the author
 #      must match too, and the marker is matched against the comment body alone
 #      rather than against the whole comment object.
-#   5. When a match exists, update it via
+#   5. Carry every top-level ADF node the operator added to the matched comment
+#      into the new body verbatim (`skills/_shared/carry-operator-lines.php`),
+#      mentions and formatting included. The operator posts under the same
+#      account, so a node counts as the operator's when the fingerprint of
+#      agent-written nodes the previous version recorded does not know it. Every
+#      published body records that fingerprint as ` lines=<h>,<h>` inside the
+#      visible marker line. `agent-note` is never rewritten, so it skips this step.
+#      stderr carries `carried_lines=<n>` and one `carried: <text>` per carried
+#      node; the calling skill states every carried line in its report.
+#   6. When a match exists, update it via
 #      `acli jira workitem comment update --body-adf`. Otherwise create a fresh
 #      comment from the ADF file and immediately update that same new comment
 #      through the same `--body-adf` path. Passing ADF to both calls ensures a
@@ -219,7 +228,9 @@ ADF_FILE_TMP="$(mktemp)"
 CREATE_STDERR="$(mktemp)"
 LIST_STDERR="$(mktemp)"
 UPDATE_STDERR="$(mktemp)"
-trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR"' EXIT
+CARRIED_ADF_TMP="$(mktemp)"
+PREVIOUS_BODY_TMP="$(mktemp)"
+trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -314,6 +325,20 @@ if [[ "$MODE" != "agent-note" ]]; then
       exit 3
     fi
   fi
+fi
+
+if [[ "$MODE" != "agent-note" ]]; then
+  CARRY_ARGS=(adf "$MARKER_NAMESPACE" "$ADF_FILE_TMP")
+  if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$COMMENTS_JSON" \
+      | jq -c --arg id "$EXISTING_ID" '[.[] | select(((.id? // "") | tostring) == $id)] | last | .body // null' > "$PREVIOUS_BODY_TMP"
+    CARRY_ARGS+=("$PREVIOUS_BODY_TMP")
+  fi
+  if ! php "$SCRIPT_DIR/../../_shared/carry-operator-lines.php" "${CARRY_ARGS[@]}" > "$CARRIED_ADF_TMP"; then
+    echo "upsert-comment.sh: carrying the operator lines failed on $KEY, nothing was published" >&2
+    exit 3
+  fi
+  cp "$CARRIED_ADF_TMP" "$ADF_FILE_TMP"
 fi
 
 if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then

@@ -349,7 +349,9 @@ WIKI;
             'content' => [
                 [
                     'marks' => [['type' => 'em']],
-                    'text' => jiraActorMarker($email),
+                    // The marker also records the fingerprint of the six agent-written nodes, so the
+                    // next rewrite can tell an operator-added node from an agent one.
+                    'text' => jiraActorMarker($email) . ' lines=1bcbf1dc,6d93965b,feba81db,19618850,9373fcfc,49718f42',
                     'type' => 'text',
                 ],
             ],
@@ -1072,6 +1074,65 @@ test('a MARKER_KEY other than agent-note keeps the cr-comment lookup-and-update 
             ->and($calls)->toContain('comment update --key TEAM-42 --id 9501 --body-adf')
             ->and($calls)->not->toContain('comment create')
             ->and($process->getErrorOutput())->toContain('action=updated id=9501');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher carries a node the operator added to its previous comment verbatim and reports it', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $marker = jiraActorMarker('bot@example.com');
+    $fingerprint = static fn (string $line): string => substr(hash('sha256', $line), 0, 8);
+    $markerNode = static fn (string $text): array => [
+        'type' => 'paragraph',
+        'content' => [['type' => 'text', 'text' => $text, 'marks' => [['type' => 'em']]]],
+    ];
+    $operatorNode = ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Rozhodnuto: limit zůstává 100 položek.']]];
+    $listJson = json_encode([
+        [
+            'author' => ['emailAddress' => 'bot@example.com'],
+            'body' => ['version' => 1, 'type' => 'doc', 'content' => [
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Round one']]],
+                $operatorNode,
+                $markerNode($marker . ' lines=' . $fingerprint('Round one')),
+            ],
+            ],
+            'created' => '2026-01-02T00:00:00.000+0000',
+            'id' => '9002',
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], 'Round two');
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(0)
+            ->and((string) file_get_contents($fixture['calls']))->toContain('comment update --key TEAM-42 --id 9002 --body-adf')
+            ->and(json_decode((string) file_get_contents($fixture['adf']), associative: true, flags: JSON_THROW_ON_ERROR))->toEqual([
+                'content' => [
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Round two']]],
+                    $operatorNode,
+                    $markerNode($marker . ' lines=' . $fingerprint('Round two')),
+                ],
+                'type' => 'doc',
+                'version' => 1,
+            ])
+            ->and($process->getErrorOutput())->toContain("carried_lines=1\ncarried: Rozhodnuto: limit zůstává 100 položek.");
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }

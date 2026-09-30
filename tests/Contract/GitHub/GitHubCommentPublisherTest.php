@@ -314,3 +314,30 @@ test('agent-note mode always POSTs a fresh comment, even one carrying its own ma
         removeGitHubCommentPublisherFixture($fixture);
     }
 });
+
+test('the GitHub publisher carries a line the operator added to its previous comment verbatim and reports it', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+    $fingerprint = static fn (string $line): string => substr(hash('sha256', $line), 0, 8);
+    $previous = "Round one body\nRozhodnuto: merge až po vydání 2.4.\n"
+        . "\n<!-- cr-comment:lines=" . $fingerprint('Round one body') . " -->\n<!-- cr-comment:actor=bot -->";
+    $listJson = json_encode([githubComment(502, '2026-01-02T00:00:00Z', 'bot', $previous)], JSON_THROW_ON_ERROR);
+
+    try {
+        $process = runGitHubCommentPublisher($fixture, [
+            'FAKE_GH_LIST_JSON' => $listJson,
+            'FAKE_GH_RESPONSE' => '{"id":502,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-502"}',
+        ], 'Round two body');
+
+        $expectedBody = "Round two body\n\nRozhodnuto: merge až po vydání 2.4.\n"
+        . "\n<!-- cr-comment:lines=" . $fingerprint('Round two body') . " -->\n\n<!-- cr-comment:actor=bot -->";
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(json_decode((string) file_get_contents($fixture['body']), associative: true, flags: JSON_THROW_ON_ERROR))->toBe(
+                ['body' => $expectedBody],
+            )
+            ->and($process->getErrorOutput())->toContain("carried_lines=1\ncarried: Rozhodnuto: merge až po vydání 2.4.")
+            ->and($process->getErrorOutput())->toContain('action=updated id=502');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});

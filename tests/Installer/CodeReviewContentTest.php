@@ -181,7 +181,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     // now retries up to three times, captures the underlying stderr, and
     // surfaces the real error to the caller.
     expect($githubScriptBody)->toContain('ACTOR_STDERR="$(mktemp)"');
-    expect($githubScriptBody)->toContain('trap \'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR"\' EXIT');
+    expect($githubScriptBody)->toContain('trap \'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"\' EXIT');
     expect($githubScriptBody)->toContain('for attempt in 1 2 3; do');
     expect($githubScriptBody)->toContain('gh api user --jq .login 2>"$ACTOR_STDERR"');
     expect($githubScriptBody)->toContain('failed to resolve current GitHub actor after 3 attempts');
