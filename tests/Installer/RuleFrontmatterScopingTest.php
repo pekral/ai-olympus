@@ -477,7 +477,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Authorship trust* reads every `<namespace>:actor=` marker as agent output,
         // also a namespace a project skill passes to the upsert helpers.
         // Re-baselined: the namespace list gained `support-analysis`, which `analyze-support-issue` writes.
-        'rules/code-review/general.md' => '24294686d1ca869f92f358f58055d59322638ec246752f8fdc3b2f3a265de4a0',
+        // Re-baselined: every review comment carries the `Input consistency:` and `Reuse (DRY):` header lines.
+        'rules/code-review/general.md' => '7eb5ba6d8d2094bab5b97845d255bd8383af6a98b238f162bdf7fe31c5c84d66',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
