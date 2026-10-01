@@ -467,7 +467,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the converged comment renders `## Affected behaviour outside the diff`.
         // Re-baselined: every review comment carries the `Merge verdict:` header line.
         // Re-baselined: a line the operator added to an agent comment survives the rewrite.
-        'rules/code-review/general.md' => '45e47f3c11439a2fa40077012ad65d79e943397cacea165893c5d730b3126ec4',
+        // Re-baselined: every review comment carries the `Input consistency:` and `Reuse (DRY):` header lines.
+        'rules/code-review/general.md' => '2132a94a2dad1d9513f612b6214d83d930fff8c360f647af1908436a24cad2b2',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
