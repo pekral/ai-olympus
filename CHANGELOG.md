@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🔁 **Fixed**: `skills/_shared/carry-operator-lines.php` no longer carries an agent-written JIRA paragraph that contains a mention as an operator line. JIRA stores the display name in `attrs.text` of a `mention` node, while `wiki-markup-to-adf.php` writes only `attrs.id`, so the same paragraph produced two texts and two fingerprints, and every rewrite appended a copy after the footer. `carryAdfText()` now renders a mention from `attrs.id` only, before and after JIRA stores it. Per issue #164.
+
 - 🌿 **Changed**: `/report-code-review` always reviews the current code of the pull request branch. The command, `splinter` *Review-only mode*, and `leonardo` in `review_only` switch the current working tree to the pull request's head branch, pull it, and confirm that local `HEAD` equals the head SHA before the review. A review-only run never reviews in a worktree, from a stale branch, or from the remote diff alone, and it stops when the checkout fails. The package owner requested the change directly.
 
 - 🔁 **Fixed**: the JIRA `upsert-comment.sh` helper finds the comment it has just created. `acli` 1.3.x returns no comment ID from `comment create`, so the helper re-reads the issue to find it. Jira Cloud can answer the first read after a create without the new comment, and the helper then exited 3 with "ID is missing". The comment stayed in its create-time form: the ADF update never ran, so a mention showed as raw `[~accountid:…]` text. The re-read now runs up to three times, one second apart, and the helper prints the error of the last failed re-read. The package owner requested the change directly.
