@@ -42,8 +42,7 @@ function carryAdfText(array $node): string
     $text = is_string($node['text'] ?? null) ? $node['text'] : '';
 
     if (($node['type'] ?? null) === 'mention' && is_array($node['attrs'] ?? null)) {
-        $attrs = $node['attrs'];
-        $text .= is_string($attrs['text'] ?? null) ? $attrs['text'] : '@' . (is_string($attrs['id'] ?? null) ? $attrs['id'] : '');
+        $text .= '@' . (is_string($node['attrs']['id'] ?? null) ? $node['attrs']['id'] : '');
     }
 
     foreach (is_array($node['content'] ?? null) ? $node['content'] : [] as $child) {

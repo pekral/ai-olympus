@@ -90,5 +90,26 @@ test('an operator node added to the previous ADF version is carried verbatim, me
         ->and(json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR))->toEqual(
             $document($paragraph('Round two'), $operatorNode, $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Round two'))),
         )
-        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: @Petr\n");
+        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: @u1\n");
+});
+
+test('an agent paragraph with a mention is not carried once JIRA stored the display name on the mention', function (): void {
+    $document = static fn (array ...$nodes): array => ['version' => 1, 'type' => 'doc', 'content' => $nodes];
+    $marker = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text, 'marks' => [['type' => 'em']]]]];
+    $agentParagraph = static fn (array $mention): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Question for '], $mention]];
+    $publishedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1']];
+    $storedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1', 'text' => '@Jan Novák']];
+    $previousBody = $document($agentParagraph($storedMention), $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1')));
+
+    $process = runCarryOperatorLines(
+        'adf',
+        json_encode($document($agentParagraph($publishedMention), $marker('cr-comment:actor=abc')), JSON_THROW_ON_ERROR),
+        json_encode($previousBody, JSON_THROW_ON_ERROR),
+    );
+
+    expect($process->getExitCode())->toBe(0)
+        ->and(json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR))->toEqual(
+            $document($agentParagraph($publishedMention), $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1'))),
+        )
+        ->and($process->getErrorOutput())->toBe("carried_lines=0\n");
 });
