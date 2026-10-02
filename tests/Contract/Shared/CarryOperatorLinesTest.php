@@ -12,6 +12,23 @@ function carryTestFingerprint(string $line): string
     return substr(hash('sha256', $line), 0, 8);
 }
 
+/**
+ * @param array<string, mixed> ...$nodes
+ * @return array<string, mixed>
+ */
+function carryTestAdfDocument(array ...$nodes): array
+{
+    return ['version' => 1, 'type' => 'doc', 'content' => $nodes];
+}
+
+/**
+ * @return array{type: string, content: array<int, array<string, mixed>>}
+ */
+function carryTestAdfMarker(string $text): array
+{
+    return ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text, 'marks' => [['type' => 'em']]]]];
+}
+
 function runCarryOperatorLines(string $format, string $newBody, ?string $previousBody = null): Process
 {
     $packageDir = dirname(__DIR__, 3);
@@ -71,45 +88,55 @@ test('a previous version without a fingerprint carries nothing and says why', fu
 
 test('an operator node added to the previous ADF version is carried verbatim, mention included', function (): void {
     $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
-    $marker = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text, 'marks' => [['type' => 'em']]]]];
-    $document = static fn (array ...$nodes): array => ['version' => 1, 'type' => 'doc', 'content' => $nodes];
     $operatorNode = ['type' => 'paragraph', 'content' => [
         ['type' => 'text', 'text' => 'Rozhodnuto: '],
         ['type' => 'mention', 'attrs' => ['id' => 'u1', 'text' => '@Petr']],
     ],
     ];
-    $previousBody = $document($paragraph('Round one'), $operatorNode, $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Round one')));
+    $previousBody = carryTestAdfDocument(
+        $paragraph('Round one'),
+        $operatorNode,
+        carryTestAdfMarker('cr-comment:actor=abc lines=' . carryTestFingerprint('Round one')),
+    );
 
     $process = runCarryOperatorLines(
         'adf',
-        json_encode($document($paragraph('Round two'), $marker('cr-comment:actor=abc')), JSON_THROW_ON_ERROR),
+        json_encode(carryTestAdfDocument($paragraph('Round two'), carryTestAdfMarker('cr-comment:actor=abc')), JSON_THROW_ON_ERROR),
         json_encode($previousBody, JSON_THROW_ON_ERROR),
     );
 
     expect($process->getExitCode())->toBe(0)
         ->and(json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR))->toEqual(
-            $document($paragraph('Round two'), $operatorNode, $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Round two'))),
+            carryTestAdfDocument(
+                $paragraph('Round two'),
+                $operatorNode,
+                carryTestAdfMarker('cr-comment:actor=abc lines=' . carryTestFingerprint('Round two')),
+            ),
         )
         ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: @u1\n");
 });
 
 test('an agent paragraph with a mention is not carried once JIRA stored the display name on the mention', function (): void {
-    $document = static fn (array ...$nodes): array => ['version' => 1, 'type' => 'doc', 'content' => $nodes];
-    $marker = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text, 'marks' => [['type' => 'em']]]]];
     $agentParagraph = static fn (array $mention): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Question for '], $mention]];
     $publishedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1']];
     $storedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1', 'text' => '@Jan Novák']];
-    $previousBody = $document($agentParagraph($storedMention), $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1')));
+    $previousBody = carryTestAdfDocument(
+        $agentParagraph($storedMention),
+        carryTestAdfMarker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1')),
+    );
 
     $process = runCarryOperatorLines(
         'adf',
-        json_encode($document($agentParagraph($publishedMention), $marker('cr-comment:actor=abc')), JSON_THROW_ON_ERROR),
+        json_encode(carryTestAdfDocument($agentParagraph($publishedMention), carryTestAdfMarker('cr-comment:actor=abc')), JSON_THROW_ON_ERROR),
         json_encode($previousBody, JSON_THROW_ON_ERROR),
     );
 
     expect($process->getExitCode())->toBe(0)
         ->and(json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR))->toEqual(
-            $document($agentParagraph($publishedMention), $marker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1'))),
+            carryTestAdfDocument(
+                $agentParagraph($publishedMention),
+                carryTestAdfMarker('cr-comment:actor=abc lines=' . carryTestFingerprint('Question for @u1')),
+            ),
         )
         ->and($process->getErrorOutput())->toBe("carried_lines=0\n");
 });
