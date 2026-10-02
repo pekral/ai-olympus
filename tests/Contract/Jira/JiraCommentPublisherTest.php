@@ -1197,3 +1197,45 @@ test('the JIRA publisher carries a node the operator added to its previous comme
         removeJiraCommentPublisherFixture($fixture);
     }
 });
+
+test('--create always creates a new cr-comment, even when this actor already owns a marked comment', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9501', '2026-01-01T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        '--create',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10099"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Review findings');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $created = (string) file_get_contents($fixture['created']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->not->toContain('--id 9501')
+            ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 10099 --body-adf')
+            ->and($process->getErrorOutput())->toContain('action=created id=10099')
+            ->and($created)->toContain(jiraActorMarker('bot@example.com'));
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});

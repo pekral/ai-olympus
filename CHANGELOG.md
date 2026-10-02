@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🆕 **Changed**: `/report-code-review` always publishes new comments and never updates a comment an earlier review left. The GitHub and JIRA `upsert-comment.sh` helpers gain the leading `--create` option: it skips the lookup of an existing marked comment and creates a new one in the same marker namespace, so a later run without the option still updates the newest comment. The review-only run passes it for the GitHub pull-request comment and for the `pr-summary` tracker comment. The package owner requested the change directly.
+
 - 🔁 **Fixed**: `skills/_shared/carry-operator-lines.php` no longer carries an agent-written JIRA paragraph that contains a mention as an operator line. JIRA stores the display name in `attrs.text` of a `mention` node, while `wiki-markup-to-adf.php` writes only `attrs.id`, so the same paragraph produced two texts and two fingerprints, and every rewrite appended a copy after the footer. `carryAdfText()` now renders a mention from `attrs.id` only, before and after JIRA stores it. Per issue #164.
 
 - 🌿 **Changed**: `/report-code-review` always reviews the current code of the pull request branch. The command, `splinter` *Review-only mode*, and `leonardo` in `review_only` switch the current working tree to the pull request's head branch, pull it, and confirm that local `HEAD` equals the head SHA before the review. A review-only run never reviews in a worktree, from a stale branch, or from the remote diff alone, and it stops when the checkout fails. The package owner requested the change directly.

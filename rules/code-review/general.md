@@ -479,6 +479,7 @@ Otherwise the verdict is `no`, and the line names every blocker in one short cla
 **The merge gate reads this one comment.** Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
 
 **That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
+The one exception is a review-only run (`/report-code-review`): it passes `--create` to the helper, so every run leaves a new comment and never rewrites an earlier one.
 
 **A line the operator added survives the rewrite.** The operator posts under the same account as the agents and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`. A plain rewrite would delete it. Every helper that rewrites a comment in place therefore keeps it:
 

@@ -11,10 +11,16 @@
 # as history.
 #
 # Usage:
-#   upsert-comment.sh <NUMBER|URL> <BODY_FILE> [<MARKER_KEY>]
-#   <body-producer> | upsert-comment.sh <NUMBER|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh [--create] <NUMBER|URL> <BODY_FILE> [<MARKER_KEY>]
+#   <body-producer> | upsert-comment.sh [--create] <NUMBER|URL> - [<MARKER_KEY>]
 #
 # Inputs:
+#   --create    Optional. Always POST a new comment in the given namespace and
+#               never look up or PATCH an existing one. A review-only run
+#               (`/report-code-review`) passes it, so every invocation leaves
+#               its own comment. Unlike `agent-note`, the marker namespace stays
+#               unchanged, so a later run without the flag updates the newest
+#               comment as usual.
 #   NUMBER|URL  Bare GitHub issue / PR number (resolved against the current
 #               git remote) or a full github.com URL containing /issues/<N> or
 #               /pull/<N>. The optional `www.` host prefix is tolerated.
@@ -75,8 +81,9 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: upsert-comment.sh <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
+Usage: upsert-comment.sh [--create] <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
+  --create    always POST a new comment; never look up or PATCH an existing one
   NUMBER      bare GitHub issue or PR number (resolved against current git remote)
   URL         any github.com URL containing /issues/<N> or /pull/<N>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -85,6 +92,12 @@ Usage: upsert-comment.sh <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
               review run, per destination).
 EOF
 }
+
+CREATE_ONLY=0
+if [[ "${1:-}" == "--create" ]]; then
+  CREATE_ONLY=1
+  shift
+fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
   usage
@@ -203,9 +216,9 @@ MARKER="<!-- ${MARKER_KEY}:actor=${ACTOR} -->"
 # match runs. `agent-note` is the one namespace this skips entirely — it is
 # create-only, so an existing agent-note comment (a runbook, a note the
 # operator asked an agent to leave as its own comment) is never picked up or
-# overwritten.
+# overwritten. `--create` skips it for the same reason, in any namespace.
 EXISTING_ID=""
-if [[ "$MARKER_KEY" != "agent-note" ]]; then
+if [[ "$MARKER_KEY" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   ALL_COMMENTS=""
   if ! ALL_COMMENTS="$(gh api "repos/${NWO}/issues/${NUMBER}/comments" --paginate 2>"$LOOKUP_STDERR")"; then
     echo "upsert-comment.sh: comment lookup failed on ${NWO}#${NUMBER}, nothing was published: $(cat "$LOOKUP_STDERR")" >&2

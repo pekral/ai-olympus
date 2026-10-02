@@ -116,6 +116,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - The list in `@rules/reports/general.md` *Never in a JIRA comment* binds this section on every target: no severity labels, finding counts, code names, file paths, or rule references.
   - End with one sentence that asks the reader to reply in a comment when they disagree with a point or know something that changes it.
   - When the review found nothing, render one sentence that says so, and no bullets.
+- **Always a new comment.** Pass `--create` as the first argument of the GitHub and JIRA publish helpers, so every review-only run leaves its own comment and never updates an earlier one. The Bugsnag helper creates a new comment on every run already.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first. Never drop a `Review findings` bullet.
 
 ### Closing line — the PR and the source issue

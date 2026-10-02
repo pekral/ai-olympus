@@ -24,7 +24,9 @@ publishes the result in the output each tracker requires: the technical findings
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
 section. In its place, `Review findings` retells the GitHub report in plain language, so a
 non-technical reader understands what the review reported and can reply with feedback. The wrapper
-passes `review-only` to `@skills/pr-summary/SKILL.md`. Dispatch no implementation, run no
+passes `review-only` to `@skills/pr-summary/SKILL.md`. Every comment the run publishes is a new comment: the
+wrapper and `pr-summary` call the publish helper with `--create`, so the run never updates a comment an
+earlier review left. Dispatch no implementation, run no
 fix loop, change no tracker status, do not promote the pull request, and never merge. When the task
 has no pull request, stop and report that there is nothing to review.
 

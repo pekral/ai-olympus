@@ -22,10 +22,17 @@
 # is stable across runs, which is all the lookup needs.
 #
 # Usage:
-#   upsert-comment.sh <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
-#   <body-producer> | upsert-comment.sh <KEY|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh [--create] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
+#   <body-producer> | upsert-comment.sh [--create] <KEY|URL> - [<MARKER_KEY>]
 #
 # Inputs:
+#   --create    Optional. Always create a new comment in the given namespace and
+#               never update an existing one. The before-create snapshot still
+#               runs, because the new comment ID is resolved against it. A
+#               review-only run (`/report-code-review`) passes it, so every
+#               invocation leaves its own comment. The marker namespace stays
+#               unchanged, so a later run without the flag updates the newest
+#               comment as usual.
 #   KEY|URL     Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL,
 #               or any URL containing ?selectedIssue=<KEY>.
 #   BODY_FILE   Path to a file holding the JIRA Wiki Markup source, or `-` to
@@ -120,8 +127,9 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: upsert-comment.sh <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
+Usage: upsert-comment.sh [--create] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
+  --create    always create a new comment; never update an existing one
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -130,6 +138,12 @@ Usage: upsert-comment.sh <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
               cr-comment lookup-and-update behaviour
 EOF
 }
+
+CREATE_ONLY=0
+if [[ "${1:-}" == "--create" ]]; then
+  CREATE_ONLY=1
+  shift
+fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
   usage
@@ -303,8 +317,9 @@ fi
 # could hide the comment a create would duplicate. `agent-note` mode skips
 # this match entirely — it is create-only, so an existing agent-note comment
 # (a runbook, a note the operator asked an agent to leave as its own comment)
-# is never picked up or overwritten, whatever the snapshot found.
-if [[ "$MODE" != "agent-note" ]]; then
+# is never picked up or overwritten, whatever the snapshot found. `--create`
+# skips the match for the same reason, in any namespace.
+if [[ "$MODE" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
     | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
         map(select(marked and owned))

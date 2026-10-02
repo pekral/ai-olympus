@@ -341,3 +341,40 @@ test('the GitHub publisher carries a line the operator added to its previous com
         removeGitHubCommentPublisherFixture($fixture);
     }
 });
+
+test('--create always POSTs a new cr-comment, even when this actor already owns a marked comment', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+    $listJson = json_encode([
+        githubComment(901, '2026-01-01T00:00:00Z', 'bot', "review\n\n<!-- cr-comment:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR);
+
+    $packageDir = dirname(__DIR__, 3);
+    $process = new Process([
+        $packageDir . '/skills/code-review-github/scripts/upsert-comment.sh',
+        '--create',
+        'https://github.com/acme/widgets/pull/42',
+        '-',
+    ], $packageDir, [
+        'FAKE_GH_ACTOR' => 'bot',
+        'FAKE_GH_BODY' => $fixture['body'],
+        'FAKE_GH_CALLS' => $fixture['calls'],
+        'FAKE_GH_LIST_JSON' => $listJson,
+        'FAKE_GH_RESPONSE' => '{"id":960,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-960"}',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . githubCommentSystemPath(),
+    ], 'Review findings');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $payload = (string) file_get_contents($fixture['body']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->not->toContain('--paginate')
+            ->and($calls)->not->toContain('comments/901')
+            ->and($calls)->toContain('repos/acme/widgets/issues/42/comments -X POST')
+            ->and($process->getErrorOutput())->toContain('action=created id=960')
+            ->and($payload)->toContain('<!-- cr-comment:actor=bot -->');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});

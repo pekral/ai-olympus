@@ -14,6 +14,7 @@ test('report-code-review runs one review-only pass through splinter and leonardo
     expect($command)->toContain('Always review the current code of the pull request branch.');
     expect($command)->toContain('confirms that local `HEAD` equals the pull request\'s head SHA');
     expect($command)->toContain('$code-review-jira');
+    expect($command)->toContain('call the publish helper with `--create`');
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
     expect($splinter)->toContain('`Review report done`');
@@ -23,5 +24,8 @@ test('report-code-review runs one review-only pass through splinter and leonardo
     expect($splinter)->toContain('switch the current working tree to the pull request\'s head branch');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
-        ->toContain('### Review-only run — `Review findings` in place of `How to test`');
+        ->toContain('### Review-only run — `Review findings` in place of `How to test`')
+        ->toContain('Pass `--create` as the first argument of the GitHub and JIRA publish helpers');
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
+        ->toContain('**A review-only run always creates new comments.**');
 });

@@ -467,7 +467,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the converged comment renders `## Affected behaviour outside the diff`.
         // Re-baselined: every review comment carries the `Merge verdict:` header line.
         // Re-baselined: a line the operator added to an agent comment survives the rewrite.
-        'rules/code-review/general.md' => '45e47f3c11439a2fa40077012ad65d79e943397cacea165893c5d730b3126ec4',
+        // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
+        'rules/code-review/general.md' => '0a024bd45df2c240a95818204be43cb7fa5a1e040e445e1ca97c0cf9dda5a2db',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -528,7 +529,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // digest either and the run stops as blocked.
         // Re-baselined: the file gained `## Issue Description Format` — an issue description reaches
         // JIRA as ADF converted by `wiki-markup-to-adf.php`, never as raw Wiki Markup.
-        'rules/jira/general.md' => '55d84f914812d40c0c9d6c6209e895b5f777aff7bb706bce5571abc760d5a386',
+        // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
+        'rules/jira/general.md' => '41ddc306be0cdb7ba3671e731a32e391f84da7db9187528c88bb690593f30c37',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
