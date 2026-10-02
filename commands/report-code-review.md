@@ -11,6 +11,12 @@ $ARGUMENTS
 If the reference is missing, or is not exactly one full GitHub issue or pull-request URL, one JIRA
 issue key or URL, or one Bugsnag error URL, stop and ask for it.
 
+Always review the current code of the pull request branch. Before the review, the run switches the
+current working tree to the pull request's head branch: `git fetch origin`, `git checkout
+<headRefName>`, and `git pull`. It then confirms that local `HEAD` equals the pull request's head SHA.
+Never review from the remote diff alone, from a stale local branch, or from a separate worktree. When
+the checkout fails, for example because local changes would be overwritten, stop and report it.
+
 Do not fix anything. `splinter` dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
 `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The wrapper

@@ -211,7 +211,7 @@ Two consequences you act on directly: the **full-delivery** path acquires the wr
 **Trigger:** the user invokes `/report-code-review <reference>`, or asks for a code review of a task that reports the result and fixes nothing. The mode is a reduced end-to-end run:
 
 1. Resolve the source (step 1 below) and write the shared brief (step 2). When the source links no pull request, stop with `Blocked: no pull request to review`.
-2. Dispatch `leonardo` once, blocking, in code review mode with `review_only` in the dispatch prompt (`agents/leonardo.md` *Code review mode*). Dispatch no `donatello`, no `raphael`, and no `april`: the tracker-matching wrapper already publishes both the GitHub pull-request comment and the non-technical tracker summary.
+2. Dispatch `leonardo` once, blocking, in code review mode with `review_only` in the dispatch prompt (`agents/leonardo.md` *Code review mode*). The dispatch tells `leonardo` to switch the current working tree to the pull request's head branch and pull it before the review, never to review in a worktree. Dispatch no `donatello`, no `raphael`, and no `april`: the tracker-matching wrapper already publishes both the GitHub pull-request comment and the non-technical tracker summary.
 3. Change no tracker status, do not promote the pull request, and never merge. Hand the critical out-of-scope findings to the user in the report; do not file them.
 4. Run *Run cleanup*, then report with `Review report done` and the published comment URLs.
 
