@@ -194,7 +194,7 @@ gate to manufacture a ready verdict.
 Dispatch `april` in *Merge-preparation consolidation mode*. It must build the final comment from
 the verified brief and `@skills/pr-summary/SKILL.md`, using the template that matches the **source
 tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub issue,
-`@skills/pr-summary/templates/pr-summary-jira.md` for a JIRA ticket. The rendered comment contains:
+`@skills/pr-summary/templates/pr-summary-jira.md` for a JIRA ticket. On a GitHub issue the rendered comment contains:
 
 - a first-sentence TL;DR stating `ready for merge` or the exact blocker, and the number of open
   decisions a human must answer before the merge;
@@ -222,14 +222,28 @@ End the section with one line: *Reply on this issue with the number and the lett
 for example `1B, 2C`.* When the brief carries no open decision, the section holds one line stating
 that no decision is required. Never omit the section, because the merge gate reads it.
 
-**On a JIRA ticket the last item is not published, and the first three take the JIRA shape.**
+**On a JIRA ticket the TL;DR takes the JIRA shape, and the decisions move to the pull request.**
 `@rules/reports/general.md` *A JIRA comment is written for a non-technical reader* bans the head
 SHA, the diff fingerprint, and the quality-gate result from a JIRA comment, and it is binding on
-this TL;DR like on every other. The evidence is not lost: the merge gate reads those four values
-off the GitHub pull-request comment, which is the surface that consumes them. So on a JIRA source
-publish the status sentence, `Decisions before merge`, `Acceptance criteria`, `How to test`, `What changed`, and the closing
-links line — the order `@skills/pr-summary/templates/pr-summary-jira.md` renders — within that
-rule's 3 000-character cap. On a GitHub issue publish all four items above unchanged.
+this TL;DR like on every other. The evidence is not lost: the merge gate reads those values off the
+GitHub pull-request comment, which is the surface that consumes them. On a JIRA source publish two
+comments:
+
+1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/SKILL.md` *The JIRA shape* defines: the
+   status line with the merge-readiness verdict or the exact blocker, `Acceptance criteria`,
+   `Review findings`, `What changed`, the closing links line, and the footer, within that rule's
+   3 000-character cap. An open question about the assignment closes the bullet of the criterion
+   it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes
+   with its question and its recommendation in one sentence. A decision outside the assignment that is not
+   Critical never reaches JIRA, neither as a finding nor as a question.
+2. **The pull-request `merge-readiness` comment** with the whole `Decisions before merge` section
+   in the shape above — every open decision, the Critical ones included — or the one line stating
+   that no decision is required. It follows the language of the technical pull-request comment
+   (`@rules/reports/general.md`). `@skills/merge-github-pr/SKILL.md` *Open merge decisions* reads
+   the decisions of a JIRA source here, so no decision is lost and the merge still waits for an
+   answer to each one.
+
+On a GitHub issue publish all four items above unchanged, in one comment on the issue.
 
 Publish through the helper that matches the source tracker — never through another tracker's helper,
 and never through an improvised raw `acli` / `gh` write, which is how a JIRA ticket ends up carrying
@@ -239,7 +253,8 @@ unformatted Wiki Markup instead of the ADF document JIRA Cloud stores (`@rules/j
 - **GitHub issue** → `skills/code-review-github/scripts/upsert-comment.sh <ISSUE_URL> - merge-readiness`
 - **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`, which converts the
   Wiki Markup source to ADF and applies it through `--body-adf`; on exit code 2/3 the only sanctioned
-  fallback is the JIRA MCP server with an **ADF** payload.
+  fallback is the JIRA MCP server with an **ADF** payload. The decisions comment goes to the pull
+  request through `skills/code-review-github/scripts/upsert-comment.sh <PR_URL> - merge-readiness`.
 
 Publish and read back the final TL;DR before deleting anything. Protect its returned comment ID for
 every later delete call. The deletion pass below uses the helper that matches the source tracker. On
@@ -287,7 +302,8 @@ protected ID before deletion. A failed check stops the cleanup; never replace it
 `gh api --method DELETE` or `acli jira workitem comment delete` call.
 
 Finally reload both targets. Require exactly one current `merge-readiness` comment by the actor on
-the source issue (on JIRA: every remaining marker-carrying comment by the actor is a protected ID), require every
+the source issue (on JIRA: every remaining marker-carrying comment by the actor is a protected ID,
+and the pull request carries exactly one current `merge-readiness` comment by the actor), require every
 manifested stale ID to be gone (HTTP 404 on GitHub, absent from the issue view on JIRA), and require both protected
 review-evidence IDs to remain readable. A partial or unverified cleanup returns `Blocked` with the
 remaining IDs; it never reports success optimistically.

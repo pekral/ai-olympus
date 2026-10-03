@@ -199,7 +199,7 @@ test('april runs three publication checks before a JIRA comment counts as publis
     // 1. The banned-list walk, and the one thing it must not do instead of removing a hit.
     expect($april)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
     expect($april)->toContain('**Remove each hit — never annotate it**');
-    expect($april)->toContain('shorten `What changed` when it overflows, never `How to test`');
+    expect($april)->toContain('shorten `What changed` when it overflows, never an `Acceptance criteria` or a `Review findings` bullet');
 
     // 2. ADF publication.
     expect($april)->toContain('**Publish as ADF.**');
@@ -217,17 +217,19 @@ test('april runs three publication checks before a JIRA comment counts as publis
     expect($boundary)->toContain('never an `acli` write');
 });
 
-test('the reporting headline goes where the target template opens, not into a Problem field JIRA no longer has (issue #118)', function (): void {
+test('the reporting headline opens the Problem field on GitHub and Bugsnag and never reaches JIRA (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $splinter = splinterContractText();
 
     // Both files instructed the headline into the `Problem` field on every target. The JIRA
-    // template has no such field now, and it does carry a slot of its own.
+    // template has no such field, and its status line states the state of the work in the
+    // assignment language instead of an English headline.
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
-    expect($april)->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
+    expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
+    expect($april)->toContain('On **JIRA** there is no headline: the **status line above `h2. Acceptance criteria`**');
     expect($splinter)->not->toContain('the opening sentence of the `Problem` field is');
-    expect($splinter)->toContain('the status sentence above `h2. Acceptance criteria` on JIRA');
+    expect($splinter)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });
 
 test('a JIRA account mention becomes an ADF mention node', function (): void {

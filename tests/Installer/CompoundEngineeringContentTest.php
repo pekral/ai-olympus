@@ -1741,9 +1741,10 @@ test('every marker namespace passed to upsert-comment.sh in skills/ or agents/ i
 
     // A regex that silently stopped matching would make every assertion below vacuously true, so
     // the extraction itself is proven to still find the one namespace the package already ships
-    // beyond the default: merge-readiness (skills/verify-merge-readiness/SKILL.md, agents/april.md).
+    // beyond the default: merge-readiness (skills/verify-merge-readiness/SKILL.md, agents/april.md),
+    // each naming it twice — the GitHub issue TL;DR and the pull-request decisions of a JIRA source.
     expect($foundNamespaces)->toHaveKey('merge-readiness');
-    expect($foundNamespaces['merge-readiness'])->toHaveCount(2);
+    expect($foundNamespaces['merge-readiness'])->toHaveCount(4);
 
     foreach (array_keys($foundNamespaces) as $namespace) {
         expect($allowedNamespaces)->toContain($namespace);

@@ -149,9 +149,10 @@ test('reports/general.md bans developer content from a JIRA comment and names bo
     expect($content)->toContain('### The technical evidence moves to the pull request; it does not disappear');
     expect($content)->toContain('which is where `@skills/merge-github-pr/SKILL.md` reads it');
 
-    // The cap, and the half of the comment that is never the one shortened.
+    // The cap, and the bullets that are never the ones dropped. A JIRA comment has no How to test.
     expect($content)->toContain('A JIRA comment fits within **3 000 characters**, counted over the published body.');
-    expect($content)->toContain('**Never shorten *How to test***');
+    expect($content)->toContain('**Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**');
+    expect($content)->not->toContain('**Never shorten *How to test***');
 
     // Gating against the sibling section in this same file: the two destinations are disjoint, so
     // no single comment is ever governed by both.
@@ -164,9 +165,15 @@ test('the merge-readiness TL;DR obeys the JIRA banned list on a JIRA source (iss
 
     // This path published the head SHA, the diff fingerprint, and the gate result to whichever
     // tracker the source was — the one route that would have bypassed the new rule.
-    expect($skill)->toContain('**On a JIRA ticket the last item is not published, and the first three take the JIRA shape.**');
+    expect($skill)->toContain('**On a JIRA ticket the TL;DR takes the JIRA shape, and the decisions move to the pull request.**');
     expect($skill)->toContain('A JIRA comment is written for a non-technical reader');
-    expect($skill)->toContain('On a GitHub issue publish all four items above unchanged.');
+    expect($skill)->toContain('On a GitHub issue publish all four items above unchanged, in one comment on the issue.');
+
+    // Only a Critical decision reaches the ticket; the merge gate reads every decision off the PR.
+    expect($skill)->toContain('A decision outside the assignment that is not
+   Critical never reaches JIRA, neither as a finding nor as a question.');
+    expect($skill)->toContain('`@skills/merge-github-pr/SKILL.md` *Open merge decisions* reads
+   the decisions of a JIRA source here');
 });
 
 test('every remaining JIRA publish path renders the JIRA shape rather than another target\'s (issue #118)', function (): void {
@@ -186,5 +193,6 @@ test('every remaining JIRA publish path renders the JIRA shape rather than anoth
     // runs, so it needs the same shape and the same content rules on a JIRA source.
     expect($resolveIssue)->toContain('use the JIRA shape per `references/tracker-follow-up.md`');
     expect($trackerFollowUp)->toContain('**The non-technical report on a JIRA issue takes the JIRA shape.**');
-    expect($trackerFollowUp)->toContain('travel **inside** the `How to test` steps they belong to');
+    expect($trackerFollowUp)->not->toContain('travel **inside** the `How to test` steps they belong to');
+    expect($trackerFollowUp)->toContain('Before the code review runs, `Review findings` is one sentence stating that the review has not run yet.');
 });

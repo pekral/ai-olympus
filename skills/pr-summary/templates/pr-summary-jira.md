@@ -1,25 +1,22 @@
-[One status sentence: the state the work is in and what happens next. Example: "Done. Ready for merge; nothing was merged."]
+[Status line: one to three short sentences — the state of the work, whether the change is ready to merge, and that nothing was merged or deployed. Example: "Code review is done. The change is not ready to merge yet. Nothing was merged or deployed."]
 
 h2. Acceptance criteria
 
-[One sentence carrying the verdict: "All N criteria are met." or "N of M met." or, when the assignment states no explicit criteria, the basis the state was judged on.]
+[One sentence carrying the verdict: "All N criteria are met and an automated test verifies each of them." or "N of M met." or, when the assignment states no explicit criteria, the basis the state was judged on.]
 
-* [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing, why the review judged it so, and who must confirm it. Plain prose.]
+* [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing and why the review judged it so, in plain prose. When a question for a human is open, it is the closing sentence of this bullet.]
 
 [Only when a criterion is not met or partially met: one sentence mentioning the author of the changes as [~accountid:<id>], asking them to confirm and fix the gap, or refute the claim in a reply.]
 
-h2. How to test
+h2. Review findings
 
-# [The concrete input — account, value, screen — followed by the outcome that must hold.]
-# [Next step, same shape.]
-# [Regression: what else the tester exercises, and what must stay unchanged.]
+* [One finding per bullet: what can go wrong for the user or the business, and what the fix would change. A point that blocks the merge comes first and says so in words.]
+* [Next finding. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the finding it belongs to.]
 
 h2. What changed
 
 * [One observable change in behaviour. Where a before exists: before -> after.]
 * [Next. Three to five bullets in total.]
-
-{embedded_blocks}
 
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
@@ -48,18 +45,23 @@ Who reads this comment
   the GitHub pull-request comment, which is where @skills/merge-github-pr reads
   it.
 
-Section order is binding
-  Status sentence, then Acceptance criteria, then How to test, then What
-  changed, then the closing links line. A review-only run renders Review
-  findings in place of How to test (@skills/pr-summary/SKILL.md, Review-only
-  run). The verdict comes first because it is
-  the one thing the reader opens the ticket for. This order is JIRA's own; the
-  GitHub and Bugsnag templates keep their What changed / How to test shape.
+Section order is binding, and it is the same on every run
+  Status line, then Acceptance criteria, then Review findings, then What
+  changed, then the closing links line and the footer. There is no separate
+  section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
+  the post-convergence report, and the merge-readiness TL;DR all render this
+  one shape. The verdict comes first because it is the one thing the reader
+  opens the ticket for. A JIRA comment carries no How to test section: the
+  steps a tester follows live on the GitHub pull request, whose description
+  carries them (@rules/git/pull-requests.md, Testing). This order
+  is JIRA's own; the GitHub and Bugsnag templates keep their What changed /
+  How to test shape.
 
-Status sentence
-  One sentence, above the first heading. It states the state of the work and
-  what happens next — whether anything was merged, deployed, or is waiting on a
-  person. Never a heading of its own.
+Status line
+  One to three short sentences, above the first heading. It states the state of
+  the work, whether the change is ready to merge or what blocks it, and whether
+  anything was merged or deployed. Never a heading of its own, and never an
+  English headline above assignment-language prose.
 
 Acceptance criteria
   One verdict sentence, then a bullet only for a criterion that is unmet,
@@ -79,15 +81,31 @@ Acceptance criteria
   that result is rendered into this section rather than appended as an embedded
   block.
 
-How to test
-  Numbered steps a non-developer follows. Each step names a concrete input —
-  the account, the value, the screen — and then the outcome that must hold. The
-  last step is the regression: what else the tester exercises, and what must
-  stay unchanged. When the change is reachable only behind a test parameter, the
-  first step enables it, naming the exact toggle and value: admin switch label
-  _New pricing preview_, ENV {{BETA_PRICING=1}}, query {{?preview=1}}, feature
-  key {{feature.new_pricing}}. A toggle name and a value the tester types are
-  strings the reader sees, so they are quoted verbatim.
+Questions
+  A JIRA comment has no Clarifying questions section. The caller passes each
+  open question together with what it concerns, and the question becomes the
+  closing sentence of one bullet:
+  - A question about an acceptance criterion closes that criterion's bullet in
+    Acceptance criteria. The criterion is then reported as unmet, partially met,
+    or awaiting a human's confirmation, even when the code meets its wording.
+  - A question that concerns no criterion — a documentation mismatch, a blocking
+    documentation request, a Critical decision outside the assignment — closes
+    the Review findings bullet it belongs to.
+  A question may carry one recommendation sentence after it. Never render a
+  question twice, and never as a bullet of its own.
+
+Review findings
+  A plain-language retelling of the newest GitHub pull-request review, so the
+  reader understands what the review reported and can respond to it.
+  - One bullet per finding: what can go wrong for the user or the business, and
+    what the fix would change. Plain prose only.
+  - A point that blocks the merge comes first and says in words that it blocks
+    the merge. Never write a severity label.
+  - A finding outside the assignment — a pre-existing defect, or behaviour the
+    assignment does not ask for — appears only when it is Critical. Every other
+    finding outside the assignment stays on the pull request.
+  - When the review found nothing to report, or no review has run yet, render
+    one sentence that says so, and no bullets.
 
 What changed
   Three to five bullets, observable behaviour only, in before -> after form
@@ -98,27 +116,23 @@ What changed
 
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
-  Czech assignment renders "h2. Akceptační kritéria", "h2. Jak otestovat",
-  "h2. Co se změnilo". Never mix an English heading with assignment-language
-  prose.
+  Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
+  kódu", "h2. Co se změnilo", and the footer "Tento
+  komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
+  vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
   3 000 characters, counted over the published body. When the comment overflows,
-  shorten What changed — never How to test, whose steps a tester has to follow
-  literally. @rules/reports/general.md owns this cap, and
+  shorten What changed — never drop an Acceptance criteria bullet or a Review
+  findings bullet. @rules/reports/general.md owns this cap, and
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
   one target it applies to.
 
-{embedded_blocks}
-  Render this slot only when the calling CR wrapper passes the
-  "h2. Clarifying questions" block — the open questions the reviewer needs
-  answered before the work can be accepted. The block already uses the
-  intermediate format; append it verbatim. When no block is passed,
-  omit this slot entirely — including the surrounding blank lines — so the
-  comment runs straight from What changed to the closing links line.
-  The Assignment Compliance block does not travel through this slot on JIRA. Its
+No embedded blocks
+  The JIRA template has no {embedded_blocks} slot. The Assignment Compliance
   verdict is the Acceptance criteria section above, which is why that section is
-  first and always rendered.
+  first and always rendered, and every open question sits in a bullet per
+  Questions above.
 
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of

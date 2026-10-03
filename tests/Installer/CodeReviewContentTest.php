@@ -23,7 +23,9 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
 
     expect($githubTemplate)->toContain('{embedded_blocks}');
     expect($githubTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
-    expect($jiraTemplate)->toContain('{embedded_blocks}');
+    // JIRA renders the verdict as its first section and each question inside its bullet, so its
+    // published body carries no slot at all.
+    expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
     expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
 });
 
@@ -32,9 +34,9 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     $templates = [
         (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-github.md'),
-        (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md'),
         (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-bugsnag.md'),
     ];
+    $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
 
     // The top banner duplicated a verdict `assignment-compliance-check` already issues, so the
     // slot and its section are gone. Pinned as an absence: the skill and both original templates
@@ -60,6 +62,12 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
         expect($template)->toContain('omit this slot entirely');
         expect($template)->toContain('@skills/assignment-compliance-check/SKILL.md');
     }
+
+    // JIRA has no slot: the verdict is the first section and each question closes its own bullet.
+    expect($jiraTemplate)->not->toContain('{assignment_verdict}');
+    expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
+    expect($jiraTemplate)->toContain('The JIRA template has no {embedded_blocks} slot.');
+    expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
 });
 
 /**
@@ -86,24 +94,36 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
         expect($jiraTemplate)->not->toContain($droppedField);
     }
 
-    // The binding section order, asserted as an order and not merely as presence.
-    $statusSentence = mb_strpos($body, '[One status sentence:');
+    // The binding section order, asserted as an order and not merely as presence. Every run
+    // renders this one shape: the review is retold in plain language, and there is no How to test.
+    $statusLine = mb_strpos($body, '[Status line:');
     $criteria = mb_strpos($body, 'h2. Acceptance criteria');
-    $howToTest = mb_strpos($body, 'h2. How to test');
+    $findings = mb_strpos($body, 'h2. Review findings');
     $whatChanged = mb_strpos($body, 'h2. What changed');
     $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
-    assert($statusSentence !== false && $criteria !== false && $howToTest !== false && $whatChanged !== false && $closingLine !== false);
+    $footer = mb_strpos($body, '_This comment is generated automatically.');
+    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $closingLine !== false && $footer !== false);
 
-    expect($statusSentence)->toBe(0);
-    expect($criteria)->toBeGreaterThan($statusSentence);
-    expect($howToTest)->toBeGreaterThan($criteria);
-    expect($whatChanged)->toBeGreaterThan($howToTest);
+    expect($statusLine)->toBe(0);
+    expect($criteria)->toBeGreaterThan($statusLine);
+    expect($findings)->toBeGreaterThan($criteria);
+    expect($whatChanged)->toBeGreaterThan($findings);
     expect($closingLine)->toBeGreaterThan($whatChanged);
+    expect($footer)->toBeGreaterThan($closingLine);
+    expect($body)->not->toContain('h2. How to test');
 
-    // The verdict is a section now, not an optional slot, and the slot that remains carries the
-    // clarifying questions alone.
+    // No section of its own for questions: a question closes the criterion bullet it concerns.
+    expect($body)->not->toContain('Clarifying questions');
+    expect($body)->not->toContain('{embedded_blocks}');
+    expect($body)->toContain('When a question for a human is open, it is the closing sentence of this bullet.');
+    expect($jiraTemplate)->toContain('A question about an acceptance criterion closes that criterion\'s bullet in');
+
+    // A finding outside the assignment reaches the ticket only when it is Critical.
+    expect($body)->toContain('A finding outside the assignment appears only when it is Critical.');
+
+    // The verdict is a section now, not an optional slot, and no slot remains for the questions.
     expect($jiraTemplate)->toContain('This section is the only route the assignment verdict takes into this comment');
-    expect($jiraTemplate)->toContain('The Assignment Compliance block does not travel through this slot on JIRA.');
+    expect($jiraTemplate)->toContain('verdict is the Acceptance criteria section above, which is why that section is');
 
     // Scope confirmation (issue #118 is JIRA-only): the other two targets keep their own shape.
     foreach (['github', 'bugsnag'] as $target) {
@@ -118,20 +138,18 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     // fits the cap. The example below is the run behind that issue — a bulk-pipeline change whose
     // published comment was 10 964 B of method names, SHAs, gate results, and coverage figures.
     $filledIn = <<<'WIKI'
-        Done. The pull request is open and waiting for merge; nothing was merged.
+        Code review is done. The change is not ready to merge yet. Nothing was merged or deployed.
 
         h2. Acceptance criteria
 
-        3 of 4 criteria are met.
+        3 of 4 criteria are met and an automated test verifies each of them.
 
-        * Bulk sending to more than 500 recipients is not verified yet. It needs a run on a real account with a list that size, which only you can confirm.
+        * Bulk sending to over 500 recipients is not verified. It needs a run on a real account. Who can run one such send?
 
-        h2. How to test
+        h2. Review findings
 
-        # On {{qa-demo}}, open the campaign _Spring newsletter_ and add the action _Send e-mail_. It must appear in the pipeline at once, without a reload.
-        # Add a second action _Wait 2 days_ below it, then reorder the two by dragging the first one down. The new order must survive a page reload.
-        # Delete the pipeline's last action. The pipeline must stay open, and the remaining actions must keep their order.
-        # Regression: send a single campaign to one recipient on the same account. It must arrive as before, and show the delivery status it showed before.
+        * The merge is blocked by a missing check that a second save keeps another person's action. Without it the data loss can return.
+        * A deleted action stays in the pipeline overview until the page is reloaded, so a user can believe the delete failed and try again.
 
         h2. What changed
 
@@ -140,20 +158,24 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
         * Reordering actions saves on the first attempt. Before, the order silently reverted for pipelines with more than ten actions.
 
         [PR #482|https://github.com/acme/pipelines/pull/482] · [ECOMAIL-6974|https://acme.atlassian.net/browse/ECOMAIL-6974]
+
+        ----
+
+        _This comment is generated automatically. It is written for the person who owns this ticket, not for a developer._
         WIKI;
 
     // Structure first: a length check over a body in the wrong shape would prove nothing.
-    $statusSentence = mb_strpos($filledIn, 'Done. The pull request is open');
+    $statusLine = mb_strpos($filledIn, 'Code review is done.');
     $criteria = mb_strpos($filledIn, 'h2. Acceptance criteria');
-    $howToTest = mb_strpos($filledIn, 'h2. How to test');
+    $findings = mb_strpos($filledIn, 'h2. Review findings');
     $whatChanged = mb_strpos($filledIn, 'h2. What changed');
     $closingLine = mb_strpos($filledIn, '[PR #482|');
-    assert($statusSentence !== false && $criteria !== false && $howToTest !== false && $whatChanged !== false && $closingLine !== false);
+    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $closingLine !== false);
 
-    expect($statusSentence)->toBe(0);
-    expect($criteria)->toBeGreaterThan($statusSentence);
-    expect($howToTest)->toBeGreaterThan($criteria);
-    expect($whatChanged)->toBeGreaterThan($howToTest);
+    expect($statusLine)->toBe(0);
+    expect($criteria)->toBeGreaterThan($statusLine);
+    expect($findings)->toBeGreaterThan($criteria);
+    expect($whatChanged)->toBeGreaterThan($findings);
     expect($closingLine)->toBeGreaterThan($whatChanged);
 
     // The cap the rule states, counted the way the rule states it: characters, not bytes.
@@ -362,9 +384,10 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
     $skill = crContractText('skills/code-review-jira/SKILL.md');
 
-    // The intermediate template carries the same two sections as every target. The helper turns
+    // The intermediate template retells the review instead of listing test steps. The helper turns
     // its supported source constructs into ADF before JIRA receives the body.
-    expect($template)->toContain('h2. How to test');
+    expect($template)->toContain('h2. Review findings');
+    expect(jiraPublishedBody($template))->not->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
     expect($template)->not->toContain('h2. Authors');
@@ -394,7 +417,8 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     expect($skill)->not->toContain('only `How to test`');
     expect($skill)->toContain('There is **no reduced JIRA shape**');
     expect($skill)->toContain('no leaked Markdown');
-    expect($template)->toContain('h2. Clarifying questions');
+    expect(jiraPublishedBody($template))->not->toContain('h2. Clarifying questions');
+    expect($template)->toContain('A JIRA comment has no Clarifying questions section.');
 });
 
 test('clarifying questions are gated by severity and never re-ask what the tracker already answered (issue #208)', function (): void {
@@ -453,7 +477,7 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
     expect($prSummary)->toContain('telegraphic fragments are not terse, only shorter');
 
     // Issue #118: the `Problem` placeholder this literal belongs to is gone from the JIRA
-    // template, which renders `Acceptance criteria` / `How to test` / `What changed` instead.
+    // template, which renders `Acceptance criteria` / `Review findings` / `What changed` instead.
     foreach ([$githubTemplate, $bugsnagTemplate] as $template) {
         expect($template)->toContain('Terse, but every number stays.');
     }
@@ -2181,7 +2205,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders three sections in its own order** → `Acceptance criteria`, `How to test`, `What changed`, under one status sentence.',
+        '**JIRA renders one shape on every run** → a status line, `Acceptance criteria`, `Review findings`, `What changed`. '
+        . 'An open question closes the bullet it belongs to.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -2242,7 +2267,9 @@ test('the pr-summary Length section names JIRA as its one capped target (issue #
     );
 
     // Overflow resolves in one section only, and the template points back at the same rule.
-    expect($prSummary)->toContain('never shorten `How to test`, whose steps are what the reader acts on');
+    expect($prSummary)->toContain(
+        'never drop an `Acceptance criteria` bullet or a `Review findings` bullet, because those are what the reader decides on',
+    );
     expect($jiraTemplate)->toContain('@skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the');
 });
 
@@ -4388,7 +4415,7 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
 
     // The ticket's own sections, restated where this wrapper describes its output.
-    expect($jira)->toContain('Its sections are `Acceptance criteria`, `How to test`, and `What changed`, under one status sentence');
+    expect($jira)->toContain('Its sections are `Acceptance criteria`, `Review findings`, and `What changed`, under one status line and above a footer');
 });
 
 test('a standalone leonardo review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {

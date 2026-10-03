@@ -14,8 +14,9 @@ verified merge-ready state, publish and verify its single source-issue TL;DR, re
 superseded actor-owned preparation comments the skill permits, and stop before merge.
 
 Change only what the assignment's acceptance criteria and the merge gate require. Do not implement
-an optimization, a refactoring, a pre-existing problem, or a nice-to-have point. Publish each one on
-the source tracker as a question in the separate `Decisions before merge` section, so a human
+an optimization, a refactoring, a pre-existing problem, or a nice-to-have point. Publish each one as a
+question in the separate `Decisions before merge` section — on the source GitHub issue, or on the
+pull request for a JIRA source, where the JIRA ticket shows only the Critical ones — so a human
 decides it. The merge requires an answer to every question.
 
 When the issue carries no pull request, `splinter` resolves the task first — implementation and the

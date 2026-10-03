@@ -1,6 +1,6 @@
 # Clarifying questions — severity gate, already-answered walk, and scope gate
 
-Expanded procedure for the *Clarifying questions block* of `@skills/code-review-jira/SKILL.md` *JIRA (consolidated non-technical comment)*.
+Expanded procedure for the *Clarifying questions block* of `@skills/code-review-jira/SKILL.md` *JIRA (consolidated non-technical comment)*. On JIRA the surviving questions render inside the bullets they concern, not as a block of their own (`@skills/pr-summary/SKILL.md` *The JIRA shape*); the gate below decides which questions survive, wherever they render.
 
 - **Severity gate — Critical and Moderate questions only (issue #208).** Classify every candidate question by what its answer changes, and emit only the two top classes:
   - **Critical** — without the answer the change cannot be accepted at all: a missing acceptance criterion the implementation had to guess, a contradiction between the ticket and a comment that points at two incompatible behaviours, or a blocking documentation request from the Third-Party API & Service Analysis step 7.

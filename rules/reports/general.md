@@ -36,8 +36,8 @@ The exception does **not** extend to the reports below. On GitHub, the manifest 
 - the JIRA-side comment from `code-review-jira` (delegated to `pr-summary`) — that follows the assignment language
 - the assignment-compliance comment from `assignment-compliance-check` — that follows the assignment language
 - the `pr-summary` comment, regardless of where it is posted — that follows the assignment language. GitHub and Bugsnag carry the same shape: *What changed* (Problem / Cause / Result / What I fixed, plus the conditional *Side benefit* / *Filed separately* fields), then *How to test*, then a closing line linking the PR and the source issue, plus any conditional *Clarifying questions* / *Assignment Compliance* blocks.
-JIRA carries its own order — a status sentence, *Acceptance criteria*, *How to test*, *What changed*, then the same closing line — for the reason *A JIRA comment is written for a non-technical reader* below states. The section headings and the field labels are part of the report's prose, so they are translated too — a Czech assignment renders *Co se změnilo* and *Jak otestovat*, never an English heading above Czech prose.
-One exception replaces *How to test*: a review-only run (`/report-code-review`) passes `review-only`, and `pr-summary` renders *Review findings* in its place on every target — a plain-language retelling of the GitHub review that invites the reader's feedback (`@skills/pr-summary/SKILL.md` *Review-only run*).
+JIRA carries its own shape on every run — a status line, *Acceptance criteria*, *Review findings*, *What changed*, then the same closing line and a footer, with each open question inside the bullet it concerns — and no *How to test*, for the reason *A JIRA comment is written for a non-technical reader* below states (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The section headings and the field labels are part of the report's prose, so they are translated too — a Czech assignment renders *Co se změnilo* and *Jak otestovat*, never an English heading above Czech prose.
+On GitHub and Bugsnag one exception replaces *How to test*: a review-only run (`/report-code-review`) passes `review-only`, and `pr-summary` renders *Review findings* in its place — a plain-language retelling of the GitHub review that invites the reader's feedback (`@skills/pr-summary/SKILL.md` *Review-only run*).
 
 ### Project override — `language.github` in the manifest
 
@@ -97,7 +97,7 @@ Nothing on the banned list is lost. Every one of those facts belongs on the **pu
 
 ### Length — 3 000 characters
 
-A JIRA comment fits within **3 000 characters**, counted over the published body. When it overflows, shorten *What changed*. **Never shorten *How to test***: a tester follows those steps literally, and a step missing its concrete input or its must-hold outcome is a step nobody can run.
+A JIRA comment fits within **3 000 characters**, counted over the published body. When it overflows, shorten *What changed*. **Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**: those are what the reader decides on. A JIRA comment carries no *How to test*; the steps a tester follows live on the GitHub pull request, whose description carries them and has no length cap.
 
 ### Boundary — this section and the GitHub-PR English exception never fire on the same comment
 

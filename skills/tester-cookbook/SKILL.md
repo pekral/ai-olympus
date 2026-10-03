@@ -92,7 +92,7 @@ Repeat until the body is clean. **Do not publish a comment that still contains f
 - Never change the JIRA task status.
 
 ## Related skills (to disambiguate)
-- `@skills/pr-summary/SKILL.md` — the non-technical *What changed* / *How to test* comment for a PR, JIRA ticket, or Bugsnag error. Different audience (project managers, not QA testers), and it credits no authors — this skill resolves its own.
+- `@skills/pr-summary/SKILL.md` — the non-technical comment for a PR, JIRA ticket, or Bugsnag error (*What changed* / *How to test*; on JIRA the verdict, the review findings, and *What changed*). Different audience (project managers, not QA testers), and it credits no authors — this skill resolves its own.
 - `@skills/interactive-testing/SKILL.md` — interactive browser-driven validation. Different flow: an agent walks through scenarios live in a browser instead of producing written instructions for a human tester.
 
 ## Output

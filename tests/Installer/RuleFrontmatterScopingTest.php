@@ -468,7 +468,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every review comment carries the `Merge verdict:` header line.
         // Re-baselined: a line the operator added to an agent comment survives the rewrite.
         // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
-        'rules/code-review/general.md' => '0a024bd45df2c240a95818204be43cb7fa5a1e040e445e1ca97c0cf9dda5a2db',
+        // Re-baselined: on JIRA a documentation-mismatch question closes the bullet it concerns.
+        'rules/code-review/general.md' => '1203252dde4934399305bb366f9274bde073349779427c6f9e12f5b8360831dd',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -548,7 +549,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the technical CR comment included; JIRA and Bugsnag keep the assignment language. The
         // severity vocabulary lost `Minor`.
         // Re-baselined: a review-only run (`/report-code-review`) replaces *How to test* with *Review findings*.
-        'rules/reports/general.md' => '26e91cc7e868b58e63bd00a97450f744ba5f3f086de06dd74fb438e550f7344a',
+        // Re-baselined: a JIRA comment renders one shape on every run — status line, *Acceptance criteria*,
+        // *Review findings*, *What changed* — with each open question inside the bullet it concerns, and no *How to test*.
+        'rules/reports/general.md' => 'ee76d84d4a595629d72c5de3c7afd8227c397f58fa295a72648cf3d16323b4b7',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

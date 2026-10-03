@@ -53,5 +53,4 @@ skills/code-review/SKILL.md :: Truthful reporting (issue #74)
 skills/code-review/templates/review-output.md :: ## Architecture
 skills/code-review/templates/review-output.md :: only when the walk produces at least one finding
 skills/pr-summary/templates/pr-summary-github.md :: {embedded_blocks}
-skills/pr-summary/templates/pr-summary-jira.md :: {embedded_blocks}
 skills/process-code-review/SKILL.md :: `references/review-loop-scope.md`
