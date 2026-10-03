@@ -102,7 +102,44 @@ test('nested inline markup reaches ADF as its own mark instead of leaking as lit
 
     expect(array_column($nodes, 'text'))->toBe(['Check whether the ', 'modify', ' webhook sends the header.']);
     expect(jiraAdfMarkTypes($nodes[0] ?? null))->toBe(['strong']);
-    expect(jiraAdfMarkTypes($nodes[1] ?? null))->toBe(['code', 'strong']);
+    // ADF allows the code mark beside a link only; JIRA rejects a code + strong span as invalid.
+    expect(jiraAdfMarkTypes($nodes[1] ?? null))->toBe(['code']);
+    expect(jiraAdfMarkTypes($nodes[2] ?? null))->toBe(['strong']);
+});
+
+test('inline code inside emphasis keeps the code mark alone', function (): void {
+    $document = jiraAdfConvert("_Metric {{total_user_open}} only._\n");
+    $paragraph = jiraAdfChildren($document);
+    $nodes = jiraAdfChildren($paragraph[0] ?? null);
+
+    expect(array_column($nodes, 'text'))->toBe(['Metric ', 'total_user_open', ' only.']);
+    expect(jiraAdfMarkTypes($nodes[1] ?? null))->toBe(['code']);
+});
+
+test('an underscore or asterisk inside a word stays literal text', function (): void {
+    $document = jiraAdfConvert("Rozhodnutí: campaign_report_stats and 2*3*4 stay.\n");
+    $paragraph = jiraAdfChildren($document);
+    $nodes = jiraAdfChildren($paragraph[0] ?? null);
+
+    expect($nodes)->toBe([['type' => 'text', 'text' => 'Rozhodnutí: campaign_report_stats and 2*3*4 stay.']]);
+});
+
+test('emphasis and strong delimited by punctuation still convert', function (): void {
+    $document = jiraAdfConvert("(_kurzíva_), *Stav:* hotovo.\n");
+    $paragraph = jiraAdfChildren($document);
+    $nodes = jiraAdfChildren($paragraph[0] ?? null);
+
+    expect(array_column($nodes, 'text'))->toBe(['(', 'kurzíva', '), ', 'Stav:', ' hotovo.']);
+    expect(jiraAdfMarkTypes($nodes[1] ?? null))->toBe(['em']);
+    expect(jiraAdfMarkTypes($nodes[3] ?? null))->toBe(['strong']);
+});
+
+test('a dash list becomes an ADF bullet list like an asterisk list', function (): void {
+    $document = jiraAdfConvert("- A — přiložit vzorek\n- B — follow-up\n----\n");
+    $children = jiraAdfChildren($document);
+
+    expect(array_column($children, 'type'))->toBe(['bulletList', 'rule']);
+    expect(jiraAdfChildren($children[0] ?? null))->toHaveCount(2);
 });
 
 test('a link label carrying inline code keeps both marks on the nested span', function (): void {
