@@ -17,10 +17,12 @@ test('the >4-parameter rule exempts a data carrier\'s own constructor', function
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
 
     // The old wording was an absolute — "The only exempt cases are …" — so a second category could
-    // not be added without replacing it. This pins the replacement and the count it fixes at two.
-    expect($standards)->toContain('Exactly two categories are exempt, and no other case is.');
+    // not be added without replacing it. This pins the replacement and the count it fixes at three.
+    expect($standards)->toContain('Exactly three categories are exempt, and no other case is.');
     expect($standards)->toContain('**First — a signature fixed outside the project.**');
     expect($standards)->toContain('**Second — the data carrier\'s own constructor.**');
+    expect($standards)->toContain('**Third — an Action\'s constructor.**');
+    expect($standards)->toContain('The Action\'s `__invoke()` stays subject to the rule');
 
     // The circularity is the whole reason the exemption exists; without it stated, a later edit
     // reads the exemption as a convenience and removes it.

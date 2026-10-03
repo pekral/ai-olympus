@@ -261,7 +261,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Service, DTO, Data Builder, Data Validator, helper, or trait.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: file and method size is never a code-review finding.
-        'rules/php/core-standards.md' => '33eda439a3dcdb4b349eb61caf5096c2590031ba8d6062b5cdc5eef74c99033d',
+        // Re-baselined: an Action's constructor is the third exemption from the >4-parameter rule.
+        'rules/php/core-standards.md' => '88e62e05b14070ef7a0272c0e1b114522a0742b12cb1949c1638fd0d80680493',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
