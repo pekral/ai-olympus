@@ -1061,6 +1061,13 @@ test('a missing login never ends the UI check of a user-visible change', functio
     expect($skill)->toContain('Without one, the scenario is `Blocked`.');
     expect($skill)->toContain('Never skip the UI check silently.');
 
+    // Missing test data is created, not waited for, inside the same local-only limits.
+    expect($skill)->toContain('## Missing test data');
+    expect($skill)->toContain('A missing record, relation, or record state never ends the walkthrough');
+    expect($skill)->toContain('**A state the application can produce.**');
+    expect($skill)->toContain('**Existing data stays untouched.**');
+    expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Missing test data*');
+
     // The account is runtime data, so raphael's read-only boundary on tracked files still holds.
     expect($raphael)->toContain('that account is runtime data in the local database, not a tracked file');
 
