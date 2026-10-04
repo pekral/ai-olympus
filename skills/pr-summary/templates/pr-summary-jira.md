@@ -18,6 +18,11 @@ h2. What changed
 * [One observable change in behaviour. Where a before exists: before -> after.]
 * [Next. Three to five bullets in total.]
 
+h2. Impact after deployment
+
+* [One part of the application a production deployment of this change can affect: the feature in plain language, and what a user there may notice — or that nothing visible should change.]
+* [Next part. At most five bullets, one feature per bullet.]
+
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
 ----
@@ -47,7 +52,8 @@ Who reads this comment
 
 Section order is binding, and it is the same on every run
   Status line, then Acceptance criteria, then Review findings, then What
-  changed, then the closing links line and the footer. There is no separate
+  changed, then Impact after deployment, then the closing links line and the
+  footer. There is no separate
   section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
   the post-convergence report, and the merge-readiness TL;DR all render this
   one shape. The verdict comes first because it is the one thing the reader
@@ -114,17 +120,32 @@ What changed
   shape carries no Problem / Cause / Result fields: Cause asks for a mechanism,
   and a mechanism is what invites method names into a product manager's ticket.
 
+Impact after deployment
+  The parts of the application a production deployment of the change can
+  affect, so the ticket owner knows what to watch after the release. What
+  changed says what behaves differently; this section says where.
+  - One bullet per affected feature, at most five: the feature in plain
+    language, and what a user there may notice. When a feature runs through
+    the changed code but nothing visible should change, say that.
+  - Source: the features the diff itself changes, plus the parts the newest
+    pull-request review lists under "Affected behaviour outside the diff"
+    (@rules/code-review/core-analysis.md, Behaviour changed outside the diff).
+    Retell each part as a feature, never as a file, a class, or a method.
+  - When no review has listed its impact yet, derive the parts from the diff,
+    and say in the first bullet that the review has not confirmed them.
+
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
   Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
-  kódu", "h2. Co se změnilo", and the footer "Tento
+  kódu", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
+  the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
   3 000 characters, counted over the published body. When the comment overflows,
-  shorten What changed — never drop an Acceptance criteria bullet or a Review
-  findings bullet. @rules/reports/general.md owns this cap, and
+  shorten What changed first, then merge Impact after deployment bullets —
+  never drop an Acceptance criteria bullet or a Review findings bullet. @rules/reports/general.md owns this cap, and
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
   one target it applies to.
 

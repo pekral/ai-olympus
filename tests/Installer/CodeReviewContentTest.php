@@ -100,17 +100,24 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
     $criteria = mb_strpos($body, 'h2. Acceptance criteria');
     $findings = mb_strpos($body, 'h2. Review findings');
     $whatChanged = mb_strpos($body, 'h2. What changed');
+    $impact = mb_strpos($body, 'h2. Impact after deployment');
     $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
     $footer = mb_strpos($body, '_This comment is generated automatically.');
-    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $closingLine !== false && $footer !== false);
+    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false);
+    assert($impact !== false && $closingLine !== false && $footer !== false);
 
     expect($statusLine)->toBe(0);
     expect($criteria)->toBeGreaterThan($statusLine);
     expect($findings)->toBeGreaterThan($criteria);
     expect($whatChanged)->toBeGreaterThan($findings);
-    expect($closingLine)->toBeGreaterThan($whatChanged);
+    expect($impact)->toBeGreaterThan($whatChanged);
+    expect($closingLine)->toBeGreaterThan($impact);
     expect($footer)->toBeGreaterThan($closingLine);
     expect($body)->not->toContain('h2. How to test');
+
+    // The ticket owner learns what to watch once the change is in production.
+    expect($body)->toContain('One part of the application a production deployment of this change can affect');
+    expect($jiraTemplate)->toContain('"h2. Co může změna ovlivnit po nasazení"');
 
     // No section of its own for questions: a question closes the criterion bullet it concerns.
     expect($body)->not->toContain('Clarifying questions');
@@ -157,6 +164,11 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
         * A bulk send now reports the number of recipients it actually reached, instead of always reporting the number requested.
         * Reordering actions saves on the first attempt. Before, the order silently reverted for pipelines with more than ten actions.
 
+        h2. Impact after deployment
+
+        * Campaign pipelines: every save of a pipeline goes through the changed code. A user may notice a slower save on a pipeline with many actions.
+        * Bulk sending: the delivery report shows the reached count, so it can be lower than before for the same send.
+
         [PR #482|https://github.com/acme/pipelines/pull/482] · [ECOMAIL-6974|https://acme.atlassian.net/browse/ECOMAIL-6974]
 
         ----
@@ -169,14 +181,16 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     $criteria = mb_strpos($filledIn, 'h2. Acceptance criteria');
     $findings = mb_strpos($filledIn, 'h2. Review findings');
     $whatChanged = mb_strpos($filledIn, 'h2. What changed');
+    $impact = mb_strpos($filledIn, 'h2. Impact after deployment');
     $closingLine = mb_strpos($filledIn, '[PR #482|');
-    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $closingLine !== false);
+    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $impact !== false && $closingLine !== false);
 
     expect($statusLine)->toBe(0);
     expect($criteria)->toBeGreaterThan($statusLine);
     expect($findings)->toBeGreaterThan($criteria);
     expect($whatChanged)->toBeGreaterThan($findings);
-    expect($closingLine)->toBeGreaterThan($whatChanged);
+    expect($impact)->toBeGreaterThan($whatChanged);
+    expect($closingLine)->toBeGreaterThan($impact);
 
     // The cap the rule states, counted the way the rule states it: characters, not bytes.
     expect(mb_strlen($filledIn))->toBeLessThan(3_000);
@@ -2205,8 +2219,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → a status line, `Acceptance criteria`, `Review findings`, `What changed`. '
-        . 'An open question closes the bullet it belongs to.',
+        '**JIRA renders one shape on every run** → a status line, `Acceptance criteria`, `Review findings`, `What changed`, '
+        . '`Impact after deployment`. An open question closes the bullet it belongs to.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4415,7 +4429,10 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
 
     // The ticket's own sections, restated where this wrapper describes its output.
-    expect($jira)->toContain('Its sections are `Acceptance criteria`, `Review findings`, and `What changed`, under one status line and above a footer');
+    expect($jira)->toContain(
+        'Its sections are `Acceptance criteria`, `Review findings`, `What changed`, and `Impact after deployment`, '
+        . 'under one status line and above a footer',
+    );
 });
 
 test('a standalone leonardo review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {
