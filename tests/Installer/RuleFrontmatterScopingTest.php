@@ -552,7 +552,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review-only run (`/report-code-review`) replaces *How to test* with *Review findings*.
         // Re-baselined: a JIRA comment renders one shape on every run — status line, *Acceptance criteria*,
         // *Review findings*, *What changed* — with each open question inside the bullet it concerns, and no *How to test*.
-        'rules/reports/general.md' => 'ee76d84d4a595629d72c5de3c7afd8227c397f58fa295a72648cf3d16323b4b7',
+        // Re-baselined: the JIRA shape gains *Impact after deployment* after *What changed*, and the length cap
+        // shortens *What changed* first, then merges *Impact after deployment* bullets.
+        'rules/reports/general.md' => '1cf6e8af3f0259afefe4d89cbb77c711667233325d2d471768b51a6439567592',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -79,7 +79,7 @@ Apply `@skills/code-review-github/references/cr-wrapper-contract.md` *Output Rul
 
 ### JIRA (non-technical summary — only here)
 - The non-technical JIRA comment is **produced and posted by `@skills/pr-summary/SKILL.md`**, not by this skill. Do not author or embed a custom template here.
-- It carries no severity counts, no file paths, no line numbers, no code snippets — plain language understandable by non-developers, per @rules/reports/general.md *A JIRA comment is written for a non-technical reader*. Its sections are `Acceptance criteria`, `Review findings`, and `What changed`, under one status line and above a footer, with each open question inside the bullet it belongs to; `pr-summary` owns them, and this skill neither authors nor reorders them.
+- It carries no severity counts, no file paths, no line numbers, no code snippets — plain language understandable by non-developers, per @rules/reports/general.md *A JIRA comment is written for a non-technical reader*. Its sections are `Acceptance criteria`, `Review findings`, `What changed`, and `Impact after deployment`, under one status line and above a footer, with each open question inside the bullet it belongs to; `pr-summary` owns them, and this skill neither authors nor reorders them.
 - The intermediate source constructs (`h2.` / `h3.` headings, `*bold*`, `_italic_`, `{{inline}}`, `{code:php} ... {code}`, `*` / `#` bullets, `[label|url]`, `{quote}`) come from `@skills/pr-summary/templates/pr-summary-jira.md`. The helper converts them to ADF nodes and marks per @rules/jira/general.md.
 
 ### The split, verified per run

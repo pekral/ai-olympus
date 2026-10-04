@@ -231,7 +231,8 @@ comments:
 
 1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/SKILL.md` *The JIRA shape* defines: the
    status line with the merge-readiness verdict or the exact blocker, `Acceptance criteria`,
-   `Review findings`, `What changed`, the closing links line, and the footer, within that rule's
+   `Review findings`, `What changed`, `Impact after deployment`, the closing links line, and the
+   footer, within that rule's
    3 000-character cap. An open question about the assignment closes the bullet of the criterion
    it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes
    with its question and its recommendation in one sentence. A decision outside the assignment that is not
