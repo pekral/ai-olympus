@@ -199,7 +199,9 @@ test('april runs three publication checks before a JIRA comment counts as publis
     // 1. The banned-list walk, and the one thing it must not do instead of removing a hit.
     expect($april)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
     expect($april)->toContain('**Remove each hit — never annotate it**');
-    expect($april)->toContain('shorten `What changed` when it overflows, never an `Acceptance criteria` or a `Review findings` bullet');
+    expect($april)->toContain(
+        'shorten `What changed` first, then merge `Impact after deployment` bullets, never an `Acceptance criteria` or a `Review findings` bullet',
+    );
 
     // 2. ADF publication.
     expect($april)->toContain('**Publish as ADF.**');

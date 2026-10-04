@@ -115,7 +115,7 @@ Review findings
 
 What changed
   Three to five bullets, observable behaviour only, in before -> after form
-  where a before exists. It states impact, never mechanism — a bullet that
+  where a before exists. It states observable behaviour, never mechanism — a bullet that
   explains how the code works belongs on the pull request instead. The JIRA
   shape carries no Problem / Cause / Result fields: Cause asks for a mechanism,
   and a mechanism is what invites method names into a product manager's ticket.
@@ -131,8 +131,12 @@ Impact after deployment
     pull-request review lists under "Affected behaviour outside the diff"
     (@rules/code-review/core-analysis.md, Behaviour changed outside the diff).
     Retell each part as a feature, never as a file, a class, or a method.
-  - When no review has listed its impact yet, derive the parts from the diff,
-    and say in the first bullet that the review has not confirmed them.
+  - When no code-review comment exists for the current head yet, derive the
+    parts from the diff, and say in the first bullet that the review has not
+    confirmed them.
+  - When the review comment carries no "Affected behaviour outside the diff",
+    the review found no affected part outside the diff: list only the features
+    the diff changes, with no caveat.
 
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
