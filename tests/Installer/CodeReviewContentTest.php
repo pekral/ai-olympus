@@ -115,8 +115,12 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
     expect($footer)->toBeGreaterThan($closingLine);
     expect($body)->not->toContain('h2. How to test');
 
-    // The ticket owner learns what to watch once the change is in production.
+    // The ticket owner learns what to watch once the change is in production. A converged review
+    // with nothing affected outside the diff omits that section, so it is never read as "no review".
     expect($body)->toContain('One part of the application a production deployment of this change can affect');
+    expect($jiraTemplate)->toContain('When no code-review comment exists for the current head yet');
+    expect($jiraTemplate)->toContain('the review found no affected part outside the diff');
+    expect($jiraTemplate)->not->toContain('It states impact, never mechanism');
     expect($jiraTemplate)->toContain('"h2. Co může změna ovlivnit po nasazení"');
 
     // No section of its own for questions: a question closes the criterion bullet it concerns.
@@ -4427,6 +4431,13 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     // The split is verified against what was published, not against what was intended.
     expect($jira)->toContain('### The split, verified per run');
     expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
+
+    // The publish step the wrapper follows and the mirror description name the deployment impact too.
+    expect($jira)->toContain(
+        '`What changed`, `Impact after deployment` retold from that comment\'s `## Affected behaviour outside the diff`, '
+        . 'then the closing links line and the footer',
+    );
+    expect($jira)->toContain('(*Acceptance criteria*, *Review findings*, *What changed*, *Impact after deployment*, with the verdict');
 
     // The ticket's own sections, restated where this wrapper describes its output.
     expect($jira)->toContain(
