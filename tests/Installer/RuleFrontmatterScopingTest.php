@@ -408,7 +408,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // severities, and `## Exceptions` now keep simple logic that does not repeat inline instead
         // of in a new Action or another layer class, per `rules/php/core-standards.md`.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/laravel/architecture.md' => 'c964bad29e35c5c10973788ce98b2e12ba0806b6d531c21762a38f17b216bdab',
+        // Re-baselined: all SQL query composition stays in the Repository; *Basic queries only* and the
+        // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
+        'rules/laravel/architecture.md' => '0b4c53a81d389615bb8a41e7293552a512feff0f0d4c9189bb123b4bf48687ee',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
