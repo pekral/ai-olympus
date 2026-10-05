@@ -268,7 +268,7 @@ $deliver-page-redesign https://app.example.test/orders/42
 
 The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `splinter` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
 
-To review a task's pull request and only report the result, use the review-only workflow:
+To review a task's pull request and report the result, use the review-only workflow:
 
 ```text
 # Claude Code
@@ -279,7 +279,7 @@ To review a task's pull request and only report the result, use the review-only 
 $code-review-jira https://your-company.atlassian.net/browse/PROJ-123
 ```
 
-`splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
+`splinter` first dispatches `donatello` once. It adds the tests the pull request's current diff is missing and pushes them in exactly one commit; it never changes the business logic of the change unless you explicitly ask for it. Then `splinter` dispatches `leonardo` once. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. Apart from the missing tests, the workflow fixes nothing, changes no tracker status, and never merges.
 
 To test a task's pull request against its assignment and prove that nothing else broke, use the test workflow:
 
