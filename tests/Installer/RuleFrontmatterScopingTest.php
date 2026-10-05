@@ -267,7 +267,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/sql/optimalize.md' => '770c9ef9e75c0cd1e742b6911c5284a9fbd62cefec6318bc17591614234d546f',
+        // Re-baselined: the chunked-read example keeps its query inside an `OrderRepository` method.
+        'rules/sql/optimalize.md' => '12780e2ad5e9fec8485e39becad875a88f39e1b71a8b0a3b133de0aeaf5cc4eb',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -410,7 +411,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: all SQL query composition stays in the Repository; *Basic queries only* and the
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
-        'rules/laravel/architecture.md' => '0b4c53a81d389615bb8a41e7293552a512feff0f0d4c9189bb123b4bf48687ee',
+        'rules/laravel/architecture.md' => 'da919027cd708fec71c2249a09f27c2b1eeb75a21f4a4c1de1d0a22d6b30ec23',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
@@ -419,7 +420,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the view-size exemption is stated in the PR description instead of the file
         // header, and the Minor tier of the layout-splitting severity rules is gone.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'rules/laravel/livewire.md' => '4eb8f92f74837af8c308d4e85ceafc8c90e154cbad8081bc467fb30da1e561d7',
+        // Re-baselined: a component never runs a direct Eloquent / `DB::` query; reads go through a Repository.
+        'rules/laravel/livewire.md' => 'a578a55d64e7569067cd825993245900b7605dc9b3ad9c6d0921cccc82784654',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
         // marker instead of re-posted, and the rule states what that costs (the comment chain is no

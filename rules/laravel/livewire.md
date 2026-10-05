@@ -17,7 +17,7 @@ paths:
 - Keep component classes slim: accept input, validate, delegate work, update UI state.
 - Do not place business logic directly in Livewire components.
 - Delegate business logic to Actions or Services according to project architecture.
-- Do not execute direct Eloquent queries or `DB::` calls in components unless the repository already uses that pattern consistently.
+- Do not execute direct Eloquent queries or `DB::` calls in components. Reads go through a Repository (`@rules/laravel/architecture.md` *Repositories and ModelManagers*).
 
 ## Dependency Injection
 - Livewire does not support constructor injection — it creates components without DI.
