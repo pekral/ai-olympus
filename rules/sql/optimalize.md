@@ -152,20 +152,20 @@ foreach (Order::all() as $order) {
 }
 
 // Bad — OrderRepository: offset paging while the caller writes to the same filtered set skips rows
-public function chunkNeedingRecalc(int $size, Closure $callback): void
+public function lazyNeedingRecalc(int $size): LazyCollection
 {
-    Order::query()->where('needs_recalc', true)->chunk($size, $callback);
+    return Order::query()->where('needs_recalc', true)->lazy($size);
 }
 
 // Good — OrderRepository: keyset paging cannot skip, and peak memory is one chunk
-public function chunkNeedingRecalc(int $size, Closure $callback): void
+public function lazyNeedingRecalc(int $size): LazyCollection
 {
-    Order::query()->where('needs_recalc', true)->chunkById($size, $callback);
+    return Order::query()->where('needs_recalc', true)->lazyById($size);
 }
 
-// The Action calls the Repository; the query stays in the Repository
-$this->orderRepository->chunkNeedingRecalc(500, function (Collection $orders): void {
-    $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders), 'id');
+// The Action reads through the Repository and writes through the ModelManager
+$this->orderRepository->lazyNeedingRecalc(500)->chunk(500)->each(function (LazyCollection $orders): void {
+    $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders->collect()), 'id');
 });
 
 // Good — an unbounded id list is chunked instead of one oversized statement

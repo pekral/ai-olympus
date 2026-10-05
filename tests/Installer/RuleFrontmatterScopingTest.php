@@ -268,7 +268,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // description instead of a code comment. Nothing else in the file moved.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: the chunked-read example keeps its query inside an `OrderRepository` method.
-        'rules/sql/optimalize.md' => '12780e2ad5e9fec8485e39becad875a88f39e1b71a8b0a3b133de0aeaf5cc4eb',
+        'rules/sql/optimalize.md' => '01c8fcf906f9af6d3262f195b87cbb7f07e3da7c1d11f64eb1ccf7d149cd9949',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -411,7 +411,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: all SQL query composition stays in the Repository; *Basic queries only* and the
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
-        'rules/laravel/architecture.md' => 'da919027cd708fec71c2249a09f27c2b1eeb75a21f4a4c1de1d0a22d6b30ec23',
+        'rules/laravel/architecture.md' => 'b74fa48b1978eaa1209b2e982f22fd97584c3376b2e51042b295e3036295a27c',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
