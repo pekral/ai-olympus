@@ -135,27 +135,35 @@ if [[ "$1" == "api" && "$2" == "--include" ]]; then
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/123 ]]; then
-  printf '%s%s%s\n' \
-    '{"user":{"login":"'"${FAKE_COMMENT_ACTOR:-pekral}"'"},"repository_url":"' \
-    'https://api.github.com/repos/pekral/ai-olympus","issue_url":"' \
+  printf '%s%s\n' \
+    '{"user":{"login":"'"${FAKE_COMMENT_ACTOR:-pekral}"'"},"issue_url":"' \
     'https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"stale"}'
   exit 0
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/997 ]]; then
   printf '%s%s\n' \
-    '{"user":{"login":"pekral"},"repository_url":"' \
-    'https://api.github.com/repos/pekral/ai-olympus","body":"<!-- merge-readiness:actor=pekral -->"}'
+    '{"user":{"login":"pekral"},"issue_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"<!-- merge-readiness:actor=pekral -->"}'
   exit 0
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/996 ]]; then
-  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"not merge evidence"}'
+  printf '%s\n' '{"user":{"login":"pekral"},"issue_url":"https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"not merge evidence"}'
   exit 0
 fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/998 ]]; then
-  printf '%s\n' '{"user":{"login":"pekral"},"repository_url":"https://api.github.com/repos/pekral/ai-olympus","body":"<!-- cr-comment:actor=pekral -->"}'
+  printf '%s%s\n' \
+    '{"user":{"login":"pekral"},"issue_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus/issues/85","body":"<!-- cr-comment:actor=pekral -->"}'
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/995 ]]; then
+  printf '%s%s\n' \
+    '{"user":{"login":"pekral"},"issue_url":"' \
+    'https://api.github.com/repos/pekral/other-repo/issues/85","body":"<!-- cr-comment:actor=pekral -->"}'
   exit 0
 fi
 
@@ -193,6 +201,19 @@ BASH);
 
         expect($foreign->getExitCode())->toBe(4);
         expect($foreign->getErrorOutput())->toContain('not owned by the authenticated actor');
+        expect(is_file($state))->toBeFalse();
+
+        $otherRepository = new Process([
+            $helper,
+            'https://github.com/pekral/ai-olympus/issues/84',
+            '123',
+            '997',
+            '995',
+        ], $packageDir, $baseEnvironment);
+        $otherRepository->run();
+
+        expect($otherRepository->getExitCode())->toBe(4);
+        expect($otherRepository->getErrorOutput())->toContain('protected comment 995 belongs to a different repository');
         expect(is_file($state))->toBeFalse();
 
         $owned = new Process([
