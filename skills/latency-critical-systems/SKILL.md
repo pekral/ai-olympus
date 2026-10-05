@@ -83,7 +83,7 @@ Apply in this order; stop when the target is met.
    ```php
    $stats = Cache::remember('dashboard:stats', 30, fn () => [
        'computed_at' => now(config('app.timezone'))->toIso8601String(),
-       ...Order::query()->selectRaw('count(*) as c, sum(total) as t')->first()->only(['c', 't']),
+       ...$this->orderRepository->getCountAndTotal()->toArray(),
    ]);
    ```
 

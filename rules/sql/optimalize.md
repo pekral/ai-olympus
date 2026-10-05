@@ -151,13 +151,20 @@ foreach (Order::all() as $order) {
     $rows[] = ['id' => $order->id, 'total' => $order->recalculateTotal()];
 }
 
-// Bad — offset paging while writing to the same filtered set skips rows
-Order::query()->where('needs_recalc', true)->chunk(500, function (Collection $orders): void {
-    $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders), 'id');
-});
+// Bad — OrderRepository: offset paging while the caller writes to the same filtered set skips rows
+public function chunkNeedingRecalc(int $size, Closure $callback): void
+{
+    Order::query()->where('needs_recalc', true)->chunk($size, $callback);
+}
 
-// Good — keyset paging cannot skip, and peak memory is one chunk
-Order::query()->where('needs_recalc', true)->chunkById(500, function (Collection $orders): void {
+// Good — OrderRepository: keyset paging cannot skip, and peak memory is one chunk
+public function chunkNeedingRecalc(int $size, Closure $callback): void
+{
+    Order::query()->where('needs_recalc', true)->chunkById($size, $callback);
+}
+
+// The Action calls the Repository; the query stays in the Repository
+$this->orderRepository->chunkNeedingRecalc(500, function (Collection $orders): void {
     $this->orderModelManager->batchUpdate(Order::class, $this->recalculate($orders), 'id');
 });
 
