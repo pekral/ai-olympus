@@ -323,7 +323,7 @@ STUB
   local value
   for value in 'absent' '[]'; do
     if [[ "$value" == absent ]]; then
-      gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
+      gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate-evidence\": \".claude/run/gates\", \"gate\": [\"vendor/bin/gate-ok\"] } } }"
     else
       gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"], \"gate-fresh\": [] } } }"
     fi
@@ -343,6 +343,9 @@ STUB
   check 'a sha that names no commit is refused' "$([[ "$code" -eq 1 ]] && echo pass)"
   code=0; verify_in "$project" --tier pr "$head" || code=$?
   check 'without pr-gate nothing is verified' "$([[ "$code" -eq 5 ]] && echo pass)"
+  gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
+  code=0; verify_in "$project" --tier full "$head" || code=$?
+  check 'a manifest with gate alone is not configured' "$([[ "$code" -eq 5 ]] && echo pass)"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "verify-gate self-test: $failures failure(s)" >&2

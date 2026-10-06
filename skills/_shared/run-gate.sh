@@ -245,6 +245,8 @@ self_test() {
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
 
   local base='"validation": { "executables": ["vendor/bin/gate-ok", "vendor/bin/gate-fail", "vendor/bin/gate-dirty", "vendor/bin/gate-kill", "vendor/bin/fresh-ok", "vendor/bin/fresh-fail", "vendor/bin/pwn"] }'
+  # Any one of pr-gate, gate-fresh, gate-evidence opts a project into the record.
+  local optin='"gate-evidence": ".claude/run/gates"'
 
   OUT=''
   run_in() {
@@ -351,7 +353,7 @@ self_test() {
 
   # --- Failures never record a pass -----------------------------------------------
   local failing="$tmp/failing"
-  gate_selftest_project "$failing" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-fail\", \"vendor/bin/gate-ok\"] } } }"
+  gate_selftest_project "$failing" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-fail\", \"vendor/bin/gate-ok\"] } } }"
   tree="$(git -C "$failing" rev-parse 'HEAD^{tree}')"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$failing" --tier full || code=$?
@@ -359,7 +361,7 @@ self_test() {
     "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 ]] && jq -e ".exit_code == 3 and .commands[0].exit_code == 3" "$failing/.claude/run/gates/$tree.full.json" >/dev/null && echo pass)"
 
   local dirty="$tmp/dirty"
-  gate_selftest_project "$dirty" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-dirty\"] } } }"
+  gate_selftest_project "$dirty" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-dirty\"] } } }"
   tree="$(git -C "$dirty" rev-parse 'HEAD^{tree}')"
   code=0; run_in "$dirty" --tier full || code=$?
   check 'a gate that changes the tree during the run never records a pass' \
@@ -376,7 +378,7 @@ self_test() {
     "$([[ "$full_code" -eq 7 && "$pr_code" -eq 7 && "$(calls gate-ok)" -eq 0 && -z "$(ls -A "$unclean/.claude/run/gates" 2>/dev/null)" ]] && echo pass)"
 
   local interrupted="$tmp/interrupted"
-  gate_selftest_project "$interrupted" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-kill\"] } } }"
+  gate_selftest_project "$interrupted" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-kill\"] } } }"
   code=0; run_in "$interrupted" --tier full || code=$?
   check 'an interrupted run leaves no record, no temporary file, and no lock' \
     "$([[ "$code" -ne 0 && -z "$(ls -A "$interrupted/.claude/run/gates" 2>/dev/null)" ]] && echo pass)"
@@ -390,13 +392,20 @@ self_test() {
   code=0; run_in "$bare" --tier full || code=$?
   check 'a missing gate runs nothing' "$([[ "$code" -eq 5 && "$(calls gate-ok)" -eq 0 && ! -e "$bare/.claude/run/gates" ]] && echo pass)"
 
+  local legacy="$tmp/legacy"
+  gate_selftest_project "$legacy" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$legacy" --tier full || code=$?
+  check 'a manifest with gate alone keeps the built-in path' \
+    "$([[ "$code" -eq 5 && "$(calls gate-ok)" -eq 0 && ! -e "$legacy/.claude/run/gates" ]] && echo pass)"
+
   local chained="$tmp/chained"
-  gate_selftest_project "$chained" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"composer build; touch pwned\"] } } }"
+  gate_selftest_project "$chained" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"composer build; touch pwned\"] } } }"
   code=0; run_in "$chained" --tier full || code=$?
   check 'a chained gate command is refused and never runs' "$([[ "$code" -eq 3 && ! -e "$chained/pwned" ]] && echo pass)"
 
   local branch="$tmp/branch"
-  gate_selftest_project "$branch" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
+  gate_selftest_project "$branch" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
   printf '%s\n' "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/pwn\"], \"gate-fresh\": [\"vendor/bin/pwn\"], \"gate-evidence\": \"elsewhere\" } } }" >"$branch/composer.json"
   git -C "$branch" -c user.name=t -c user.email=t@t commit -q -am 'branch proposes a manifest'
   code=0; run_in "$branch" --tier full || code=$?
@@ -404,7 +413,7 @@ self_test() {
     "$([[ "$code" -eq 0 && ! -e "$branch/pwned" && ! -e "$branch/elsewhere" && -n "$(ls "$branch/.claude/run/gates"/*.full.json)" ]] && echo pass)"
 
   local preload="$tmp/preload"
-  gate_selftest_project "$preload" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"], \"env\": { \"LD_PRELOAD\": \"evil.so\" } } } }"
+  gate_selftest_project "$preload" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-ok\"], \"env\": { \"LD_PRELOAD\": \"evil.so\" } } } }"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$preload" --tier full || code=$?
   check 'a manifest env that preloads a library runs nothing' "$([[ "$code" -eq 3 && "$(calls gate-ok)" -eq 0 ]] && echo pass)"
@@ -425,7 +434,7 @@ self_test() {
   check 'an evidence directory outside gitignore is refused' "$([[ "$code" -eq 3 && ! -e "$unignored/records" ]] && echo pass)"
 
   local linked="$tmp/linked"
-  gate_selftest_project "$linked" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
+  gate_selftest_project "$linked" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
   mkdir -p "$linked/.claude" "$tmp/outside"
   ln -s "$tmp/outside" "$linked/.claude/run"
   code=0; run_in "$linked" --tier full || code=$?

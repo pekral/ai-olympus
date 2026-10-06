@@ -32,7 +32,7 @@ not a second implementation of it.
   rebase changed the head SHA.
 - Dispatch `donatello` only for missing remediation or the exact-head final quality gate. Require
   evidence for every acceptance criterion and all merge-readiness checks. Before a gate dispatch,
-  run `skills/_shared/verify-gate.sh --tier full <head SHA>` when the manifest sets `gate`; on exit
+  run `skills/_shared/verify-gate.sh --tier full <head SHA>`; on exit
   `0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.
 - Dispatch `april` in *Merge-preparation consolidation mode* only after the readiness state is
   known. April owns both the final TL;DR publication and the skill-bounded cleanup; you perform

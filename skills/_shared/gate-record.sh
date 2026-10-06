@@ -80,7 +80,8 @@ gate_now() {
 # Read the tier's commands and the fresh commands from the default-branch
 # manifest (PROJECT_MANIFEST, loaded by load_project_manifest), and validate all
 # of them before anything runs.
-#   returns 5  the manifest sets no command for this tier — the built-in path applies
+#   returns 5  the manifest sets no command for this tier, or none of the record
+#              keys — the built-in path applies
 #   returns 3  a key is malformed or a command is refused (GATE_REASON says which)
 gate_load_commands() {
   local tier="$1" key command reason
@@ -103,6 +104,14 @@ gate_load_commands() {
 
   if [[ "${#GATE_TIER_COMMANDS[@]}" -eq 0 ]]; then
     GATE_REASON="project manifest sets no $key — the built-in gate path applies"
+    return 5
+  fi
+
+  # The machine record is opt-in: a project that sets none of the three record
+  # keys keeps the built-in gate path exactly as before they existed, even when
+  # it already sets `gate`.
+  if ! printf '%s' "$PROJECT_MANIFEST" | jq -e 'has("pr-gate") or has("gate-fresh") or has("gate-evidence")' >/dev/null 2>&1; then
+    GATE_REASON='project manifest sets none of pr-gate, gate-fresh, gate-evidence — the built-in gate path applies'
     return 5
   fi
 

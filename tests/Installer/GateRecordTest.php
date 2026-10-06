@@ -71,6 +71,7 @@ test('run-gate self-test covers the record, the lock, concurrency, and every ref
         'an interrupted run leaves no record, no temporary file, and no lock',
         'a missing pr-gate runs nothing',
         'a missing gate runs nothing',
+        'a manifest with gate alone keeps the built-in path',
         'a chained gate command is refused and never runs',
         'a manifest only the branch carries changes nothing',
         'a manifest env that preloads a library runs nothing',
@@ -109,6 +110,7 @@ test('verify-gate self-test covers tree identity, staleness, fail-closed fields,
         'an option in place of the sha is refused',
         'a sha that names no commit is refused',
         'without pr-gate nothing is verified',
+        'a manifest with gate alone is not configured',
     ] as $label) {
         expect(substr_count($verifier, '\'' . $label . '\''))->toBe(1);
     }
@@ -167,19 +169,20 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
 
-    expect($merge)->toContain('run `skills/_shared/verify-gate.sh --tier full <headRefOid>` on the checked-out head');
+    expect($merge)->toContain('Run `skills/_shared/verify-gate.sh --tier full <headRefOid>` on the checked-out head');
     expect($merge)->toContain(
         'It replaces **only** the acceptance of the textual `Quality gate:` line; CI must still be green on the merged head (step 2)',
     );
     expect($merge)->toContain('Never accept the textual record in its place, and never merge on a non-zero verdict.');
-    expect($merge)->toContain('A refusal is never a pass.');
-    expect($merge)->toContain('When the manifest sets `gate`, run it through `skills/_shared/run-gate.sh --tier full`');
+    expect($merge)->toContain('A refusal is never a pass, and the textual record never stands in for it.');
+    expect($merge)->toContain('Run it through `skills/_shared/run-gate.sh --tier full` and act on its exit code');
 
     // The four textual conditions stay for a project without a machine record (backward compatible).
     expect($merge)->toContain('**The record is authentic.**');
 
     expect($readiness)->toContain('`skills/_shared/verify-gate.sh --tier full <head SHA>` first');
-    expect($readiness)->toContain('the PR is never reported ready on it');
+    expect($readiness)->toContain('`donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported');
+    expect($readiness)->toContain('Exit `3` stops with the reason.');
     expect($readiness)->toContain('Required CI stays a separate condition below.');
 });
 
@@ -188,8 +191,10 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
 
     expect($read('agents/donatello.md'))->toContain('run `skills/_shared/run-gate.sh --tier pr --actor donatello` before each push');
-    expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --tier pr` before each push when the manifest sets `pr-gate`,');
-    expect($read('skills/process-code-review/SKILL.md'))->toContain('run it through `skills/_shared/run-gate.sh --tier full --actor donatello`');
+    expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --tier pr` before each push, and the project');
+    expect($read('agents/donatello.md'))->toContain('Exit `3` or `6` → do not push; return `Blocked` with the reason.');
+    expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello`');
+    expect($read('skills/process-code-review/SKILL.md'))->toContain('Exit `3` is a hard stop, like a gate that cannot be run.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('plus the tree and the record path when `run-gate.sh` wrote a record');
     expect(splinterContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
     expect(splinterContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
@@ -216,7 +221,12 @@ test('the manifest documents the three gate keys and keeps the built-in behaviou
         expect($changelog)->toContain('`' . $key . '`');
     }
 
-    expect($gates)->toContain('A project whose manifest sets neither `gate` nor `pr-gate` gets exit `5` and keeps the textual record exactly as before.');
+    expect($gates)->toContain(
+        'A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and keeps the textual record exactly as before.',
+    );
+    expect($gates)->toContain('The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`.');
+    expect($gates)->toContain('| `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |');
+    expect(gateScript('gate-record.sh'))->toContain('has("pr-gate") or has("gate-fresh") or has("gate-evidence")');
     expect($gates)->toContain('Without `pr-gate` nothing runs before a push, exactly as before.');
     expect(gateScript('gate-record.sh'))->toContain('the built-in gate path applies');
 });
