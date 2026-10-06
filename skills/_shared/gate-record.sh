@@ -190,7 +190,9 @@ gate_evidence_dir() {
   if [[ "$mode" == "write" ]]; then
     (umask 077 && mkdir -p -- "$dir")
     gate_no_symlink "$dir" || return 3
-    chmod 700 -- "$dir"
+    # BSD chmod (macOS) reads a `--` after the mode as a file name. $dir is
+    # validated relative above, and the `./` prefix keeps it from reading as an option.
+    chmod 700 "./$dir"
   fi
 
   GATE_EVIDENCE="$dir"
