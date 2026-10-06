@@ -108,6 +108,8 @@ test('verify-gate self-test covers tree identity, staleness, fail-closed fields,
         'a record carrying a command never executes it',
         'shell syntax in a record field is never evaluated',
         'a failed record is failed',
+        'a record that failed on the first of two commands is failed, not stale',
+        'a passing record that lists only a prefix of the commands is stale',
         'a symlinked record is refused',
         'a failing gate-fresh fails a valid record',
         'a failed record still reports a passing gate-fresh verdict',
@@ -147,6 +149,13 @@ test('a record is accepted only through one check, keyed to the tree and read on
     expect($record)->toContain('record="$GATE_EVIDENCE/$tree.$tier.json"');
     expect($record)->toContain('[[ "$1" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]');
     expect(gateScript('verify-gate.sh'))->toContain('git rev-parse --verify --quiet "$SHA^{commit}"');
+
+    // A failed run stops at its first failing command: a failed record may list a prefix of the
+    // commands and is then failed, never stale; a passing record must list every command.
+    expect(substr_count(
+        $record,
+        '\'[.commands[].command] as $r | $r == $c or (.exit_code != 0 and ($r | length) < ($c | length) and $r == $c[0:($r | length)])\'',
+    ))->toBe(1);
 
     // The evidence directory: relative, ignored, untracked, symlink-free, private.
     expect($record)->toContain('git check-ignore -q -- "$probe"');

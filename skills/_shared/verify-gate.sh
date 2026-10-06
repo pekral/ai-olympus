@@ -307,6 +307,20 @@ self_test() {
     "$([[ "$(printf "%s" "$OUT" | jq -r .fresh_exit_code)" == 0 && "$(printf "%s" "$OUT" | jq -r '.fresh | length')" -eq 1 ]] && echo pass)"
   cp "$tmp/record.bak" "$record"
 
+  # A run stops at its first failing command, so the record lists only a prefix.
+  local failing="$tmp/failing" failing_head failing_record
+  gate_selftest_project "$failing" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-fail\", \"vendor/bin/gate-ok\"], \"gate-fresh\": [\"vendor/bin/fresh-ok\"] } } }"
+  failing_head="$(git -C "$failing" rev-parse HEAD)"
+  failing_record="$failing/.claude/run/gates/$(git -C "$failing" rev-parse 'HEAD^{tree}').full.json"
+  (cd "$failing" && "$runner" --tier full >/dev/null 2>&1) || true
+  code=0; verify_in "$failing" --tier full "$failing_head" || code=$?
+  check 'a record that failed on the first of two commands is failed, not stale' \
+    "$([[ "$code" -eq 11 && "$(printf "%s" "$OUT" | jq -r .reason)" == failed:* ]] && jq -e '.commands | length == 1' "$failing_record" >/dev/null && echo pass)"
+  forge "$failing_record" '.exit_code = 0 | .commands[0].exit_code = 0'
+  code=0; verify_in "$failing" --tier full "$failing_head" || code=$?
+  check 'a passing record that lists only a prefix of the commands is stale' \
+    "$([[ "$code" -eq 12 && "$(printf "%s" "$OUT" | jq -r .reason)" == *commands* ]] && echo pass)"
+
   mv "$record" "$tmp/record.real"
   ln -s "$tmp/record.real" "$record"
   code=0; verify_in "$project" --tier full "$head" || code=$?

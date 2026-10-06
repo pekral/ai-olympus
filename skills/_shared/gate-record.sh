@@ -263,8 +263,14 @@ gate_check_record() {
     return 12
   fi
 
+  # A failed run stops at the first failing command, so its record lists only a
+  # prefix of the commands. That prefix is still this gate: the exit_code check
+  # below then reports the record as failed, never as stale. A passing record
+  # must list every command.
   expected_commands="$(printf '%s\n' "${GATE_TIER_COMMANDS[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')"
-  if ! jq -e --argjson c "$expected_commands" '[.commands[].command] == $c' "$record" >/dev/null 2>&1; then
+  if ! jq -e --argjson c "$expected_commands" \
+    '[.commands[].command] as $r | $r == $c or (.exit_code != 0 and ($r | length) < ($c | length) and $r == $c[0:($r | length)])' \
+    "$record" >/dev/null 2>&1; then
     GATE_REASON='stale: the gate commands differ from the default-branch manifest'
     return 12
   fi
