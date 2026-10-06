@@ -36,7 +36,9 @@
 #   <sha> is a full commit SHA (40 or 64 hex characters) that must name a commit.
 #
 # Output (stdout): one JSON document with status, tier, sha, tree, record,
-#   reason, and the fresh commands with their exit codes.
+#   reason, the fresh commands with their exit codes, and fresh_exit_code: the
+#   gate-fresh verdict (0 passed, 11 failed or refused, null not run). Read the
+#   verdict, never the array: a refused fresh run leaves the array empty.
 #
 # Exit codes
 #   0   the record is valid and every gate-fresh command passed
@@ -67,14 +69,16 @@ EOF
 TIER=''
 SHA=''
 TREE=''
+FRESH_EXIT=''
 
 emit() {
   local status="$1" code="$2" record=''
   [[ -z "$TREE" || -z "$GATE_EVIDENCE" ]] || record="$GATE_EVIDENCE/$TREE.$TIER.json"
   jq -n --arg status "$status" --arg tier "$TIER" --arg sha "$SHA" --arg tree "$TREE" \
     --arg record "$record" --arg reason "$GATE_REASON" --arg fresh_log "$GATE_FRESH_LOG" \
-    --argjson fresh "$GATE_FRESH_RESULTS" --argjson code "$code" \
-    '{status: $status, exit_code: $code, tier: $tier, sha: $sha, tree: $tree, record: $record, reason: $reason, fresh: $fresh, fresh_log: $fresh_log}'
+    --argjson fresh "$GATE_FRESH_RESULTS" --argjson code "$code" --arg fresh_exit "$FRESH_EXIT" \
+    '{status: $status, exit_code: $code, tier: $tier, sha: $sha, tree: $tree, record: $record, reason: $reason, fresh: $fresh,
+      fresh_exit_code: (if $fresh_exit == "" then null else ($fresh_exit | tonumber) end), fresh_log: $fresh_log}'
   return "$code"
 }
 
@@ -135,6 +139,7 @@ verify_gate() {
   # back to running the gate still learns the fresh verdict now.
   local fresh=0
   gate_run_fresh "$TIER" "$TREE" || fresh=$?
+  FRESH_EXIT="$fresh"
 
   case "$status" in
   0)
@@ -298,6 +303,8 @@ self_test() {
   forge "$record" '.exit_code = 2'
   code=0; verify_in "$project" --tier full "$head" || code=$?
   check 'a failed record is failed' "$([[ "$code" -eq 11 ]] && echo pass)"
+  check 'a failed record still reports a passing gate-fresh verdict' \
+    "$([[ "$(printf "%s" "$OUT" | jq -r .fresh_exit_code)" == 0 && "$(printf "%s" "$OUT" | jq -r '.fresh | length')" -eq 1 ]] && echo pass)"
   cp "$tmp/record.bak" "$record"
 
   mv "$record" "$tmp/record.real"
@@ -311,6 +318,17 @@ self_test() {
   gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"], \"gate-fresh\": [\"vendor/bin/fresh-fail\"] } } }"
   code=0; verify_in "$project" --tier full "$head" || code=$?
   check 'a failing gate-fresh fails a valid record' "$([[ "$code" -eq 11 ]] && echo pass)"
+  check 'a failing gate-fresh reports its verdict' "$([[ "$(printf "%s" "$OUT" | jq -r .fresh_exit_code)" == 11 ]] && echo pass)"
+
+  # A refused fresh run leaves the array empty, so only the verdict tells it from a pass.
+  local fresh_log="$project/.claude/run/gates/$tree.full.fresh.log"
+  gate_selftest_manifest "$project" "$manifest"
+  rm -f "$fresh_log"
+  ln -s "$tmp/elsewhere" "$fresh_log"
+  code=0; verify_in "$project" --tier full "$head" || code=$?
+  check 'a refused gate-fresh is a failed verdict with an empty array' \
+    "$([[ "$code" -eq 11 && "$(printf "%s" "$OUT" | jq -r .fresh_exit_code)" == 11 && "$(printf "%s" "$OUT" | jq -r '.fresh | length')" -eq 0 ]] && echo pass)"
+  rm -f "$fresh_log"
 
   # The default fresh command needs a fake `composer` on PATH and a composer.lock.
   mkdir -p "$tmp/fakebin"
@@ -342,7 +360,7 @@ STUB
   code=0; verify_in "$project" --tier full 0000000000000000000000000000000000000000 || code=$?
   check 'a sha that names no commit is refused' "$([[ "$code" -eq 1 ]] && echo pass)"
   code=0; verify_in "$project" --tier pr "$head" || code=$?
-  check 'without pr-gate nothing is verified' "$([[ "$code" -eq 5 ]] && echo pass)"
+  check 'without pr-gate nothing is verified' "$([[ "$code" -eq 5 && "$(printf "%s" "$OUT" | jq -r .fresh_exit_code)" == null ]] && echo pass)"
   gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
   code=0; verify_in "$project" --tier full "$head" || code=$?
   check 'a manifest with gate alone is not configured' "$([[ "$code" -eq 5 ]] && echo pass)"

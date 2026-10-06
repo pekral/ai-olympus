@@ -35,6 +35,9 @@ A flaky test fails on one run and passes on the next, on the same commit, with n
 A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path*). The mode waives the coverage gates and nothing else; it is declared by the caller and never inferred from how urgent the assignment sounds.
 
 - **Step 3 does not block.** Run the coverage command when one exists, record the figure, and proceed even when it falls short. Steps 1 and 2 are untouched — a fixer rewrite, a checker error, a static-analysis error, and a failing test all block a hotfix exactly as they block any other change, because a hotfix that breaks the default branch is a second outage.
+  Under a machine gate record, a `run-gate.sh` exit `4` counts as that shortfall only when both hold, and blocks otherwise:
+  1. the record's `commands` hold every command of the tier, and only the last one has a non-zero `exit_code` — `run-gate.sh` stops at the first failing command, so an earlier failure leaves the later commands unproven;
+  2. `skills/_shared/verify-gate.sh --tier full <sha>`, run after the gate, reports `fresh_exit_code` `0` — `run-gate.sh` skips `gate-fresh` after a failure, and the waiver never covers the dependency audit.
 - **The reproduction stays; the committed test becomes optional.** `@skills/resolve-issue/SKILL.md` *If bug* requires a failing test before the fix. Under HOTFIX that relaxes to: observe the failure before the fix and its absence after, by whatever is fastest — a test, a one-off script, or the running application — and state which was used in the handoff and the pull request.
 - **Write the regression test when it is cheap.** When it is not, say so in the pull request, so the gap is visible rather than assumed. Everything else in the bug branch is unchanged, the data repair included.
 

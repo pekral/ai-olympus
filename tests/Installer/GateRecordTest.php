@@ -110,6 +110,9 @@ test('verify-gate self-test covers tree identity, staleness, fail-closed fields,
         'a failed record is failed',
         'a symlinked record is refused',
         'a failing gate-fresh fails a valid record',
+        'a failed record still reports a passing gate-fresh verdict',
+        'a failing gate-fresh reports its verdict',
+        'a refused gate-fresh is a failed verdict with an empty array',
         'an option in place of the sha is refused',
         'a sha that names no commit is refused',
         'without pr-gate nothing is verified',
@@ -126,6 +129,10 @@ test('verify-gate self-test covers tree identity, staleness, fail-closed fields,
     expect($verifier)->toContain('check "a record without $field fails closed"');
     expect($verifier)->toContain('for value in \'absent\' \'[]\'; do');
     expect($verifier)->toContain('check "a gate-fresh that is $value still runs composer audit"');
+
+    // The gate-fresh verdict is its own field: a refused fresh run leaves the array empty.
+    expect($verifier)->toContain('fresh_exit_code: (if $fresh_exit == "" then null else ($fresh_exit | tonumber) end)');
+    expect(gateExecutableCode('verify-gate.sh'))->toContain('FRESH_EXIT="$fresh"');
 });
 
 test('a record is accepted only through one check, keyed to the tree and read only through jq', function (): void {
@@ -195,6 +202,23 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     // HOTFIX: step 3's exit-code verdict must not contradict step 4's coverage waiver.
     expect($merge)->toContain(
         'The one exception is a qualified HOTFIX PR: an exit `4` whose log shows the coverage threshold as the only failure counts as green under step 4',
+    );
+
+    // HOTFIX waives coverage only: `run-gate.sh` stops at the first failure and then skips gate-fresh,
+    // so the waiver needs the last command as the only failure and a passing fresh verdict.
+    expect($merge)->toContain(
+        'only when the record shows the tier\'s last command as its only failing command'
+        . ' and `verify-gate.sh`, run afterwards, reports `fresh_exit_code` `0`',
+    );
+    $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain(
+        'Under a machine gate record, a `run-gate.sh` exit `4` counts as that shortfall only when both hold, and blocks otherwise:',
+    );
+    expect($gates)->toContain(
+        '1. the record\'s `commands` hold every command of the tier, and only the last one has a non-zero `exit_code`',
+    );
+    expect($gates)->toContain(
+        '2. `skills/_shared/verify-gate.sh --tier full <sha>`, run after the gate, reports `fresh_exit_code` `0`',
     );
 
     // The four textual conditions stay for a project without a machine record (backward compatible).
