@@ -188,7 +188,9 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     expect($merge)->toContain('Never accept the textual record in its place, and never merge on a non-zero verdict.');
     expect($merge)->toContain('A refusal is never a pass, and the textual record never stands in for it.');
     expect($merge)->toContain('Run it through `skills/_shared/run-gate.sh --tier full` and act on its exit code');
-    expect($merge)->toContain('- **Any other non-zero exit** — `1`, `2`, or a code the table does not list: handled like `3`. Report the reason and stop.');
+    expect($merge)->toContain(
+        '- **Any other non-zero exit** — `1`, `2`, or a code the table does not list: handled like `3`. Report the reason and stop.',
+    );
 
     // HOTFIX: step 3's exit-code verdict must not contradict step 4's coverage waiver.
     expect($merge)->toContain(
@@ -247,7 +249,8 @@ test('the manifest documents the three gate keys and keeps the built-in behaviou
     expect($gates)->toContain('The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`.');
     expect($gates)->toContain('| `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |');
     expect($gates)->toContain(
-        '| `1` / `2` | usage error / `git` or `jq` missing | usage error, including an invalid or unknown `<sha>` / `git` or `jq` missing | handled like `3`: stops and reports the reason; never merges on it |',
+        '| `1` / `2` | usage error / `git` or `jq` missing | usage error, including an invalid or unknown `<sha>` / `git` or `jq` missing'
+        . ' | handled like `3`: stops and reports the reason; never merges on it |',
     );
     expect($gates)->toContain('Any other non-zero exit code is handled like `3`. A code the table does not list is never a pass.');
     expect(gateScript('gate-record.sh'))->toContain('has("pr-gate") or has("gate-fresh") or has("gate-evidence")');
