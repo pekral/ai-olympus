@@ -53,6 +53,9 @@ test('the gate scripts run every command as argv, never through a shell, and nev
 test('run-gate self-test covers the record, the lock, concurrency, and every refusal', function (): void {
     $runner = gateScript('run-gate.sh');
 
+    // GNU `stat -f` reports the file system and succeeds, so the GNU form must come first (CI runs Linux).
+    expect(gateScript('gate-record.sh'))->toContain('stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"');
+
     foreach ([
         'a passing gate writes a record and a log',
         'the record carries tier, tree, head, commands, environment, actor, times, exit, log hash',
@@ -158,6 +161,15 @@ test('the trust model is stated where the record is written, read, and documente
         expect(gateScript($name))->toContain('TRUST MODEL — see gate-record.sh. In short: the record is a local cache.');
     }
 
+    // The scripts that run are the installed package copy; a branch diff over that copy is a merge-gate change.
+    expect(gateScript('gate-record.sh'))->toContain('#     vendor/pekral/ai-olympus. A diff over that installed copy is a merge-gate');
+    expect(gateScript('gate-record.sh'))->toContain('#     change: Critical under rules/security/general.md *Code Review Application*.');
+    expect($gates)->toContain('**The gate scripts come from the package install, not from the branch.**');
+    expect($gates)->toContain('is the copy the installer wrote from `vendor/pekral/ai-olympus`.');
+    expect($gates)->toContain(
+        'Review it under `@rules/security/general.md` *Code Review Application* at severity **Critical**, never as an ordinary script edit.',
+    );
+
     expect($gates)->toContain('## Machine gate record — one run per tree');
     expect($gates)->toContain('**Trust model.** The record is a local cache on one machine and one account.');
     expect($gates)->toContain('The defence against hostile branch code is code review, required CI, and a fresh `gate-fresh` run, never the record.');
@@ -176,13 +188,19 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     expect($merge)->toContain('Never accept the textual record in its place, and never merge on a non-zero verdict.');
     expect($merge)->toContain('A refusal is never a pass, and the textual record never stands in for it.');
     expect($merge)->toContain('Run it through `skills/_shared/run-gate.sh --tier full` and act on its exit code');
+    expect($merge)->toContain('- **Any other non-zero exit** — `1`, `2`, or a code the table does not list: handled like `3`. Report the reason and stop.');
+
+    // HOTFIX: step 3's exit-code verdict must not contradict step 4's coverage waiver.
+    expect($merge)->toContain(
+        'The one exception is a qualified HOTFIX PR: an exit `4` whose log shows the coverage threshold as the only failure counts as green under step 4',
+    );
 
     // The four textual conditions stay for a project without a machine record (backward compatible).
     expect($merge)->toContain('**The record is authentic.**');
 
     expect($readiness)->toContain('`skills/_shared/verify-gate.sh --tier full <head SHA>` first');
     expect($readiness)->toContain('`donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported');
-    expect($readiness)->toContain('Exit `3` stops with the reason.');
+    expect($readiness)->toContain('Exit `3` stops with the reason, and any other non-zero exit is handled like `3`.');
     expect($readiness)->toContain('Required CI stays a separate condition below.');
 });
 
@@ -193,11 +211,13 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     expect($read('agents/donatello.md'))->toContain('run `skills/_shared/run-gate.sh --tier pr --actor donatello` before each push');
     expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --tier pr` before each push, and the project');
     expect($read('agents/donatello.md'))->toContain('Exit `3` or `6` → do not push; return `Blocked` with the reason.');
+    expect($read('agents/donatello.md'))->toContain('Any other non-zero exit is handled like `3`: do not push.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello`');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Exit `3` is a hard stop, like a gate that cannot be run.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('plus the tree and the record path when `run-gate.sh` wrote a record');
     expect(splinterContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
     expect(splinterContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
+    expect($read('agents/splinter.md'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
     expect($read('agents/splinter.md'))->toContain('and `skills/_shared/verify-gate.sh` (the machine gate record check;');
     expect($read('skills/_shared/orchestration/merge-preparation.md'))->toContain(
         '`0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.',
@@ -226,6 +246,10 @@ test('the manifest documents the three gate keys and keeps the built-in behaviou
     );
     expect($gates)->toContain('The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`.');
     expect($gates)->toContain('| `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |');
+    expect($gates)->toContain(
+        '| `1` / `2` | usage error / `git` or `jq` missing | usage error, including an invalid or unknown `<sha>` / `git` or `jq` missing | handled like `3`: stops and reports the reason; never merges on it |',
+    );
+    expect($gates)->toContain('Any other non-zero exit code is handled like `3`. A code the table does not list is never a pass.');
     expect(gateScript('gate-record.sh'))->toContain('has("pr-gate") or has("gate-fresh") or has("gate-evidence")');
     expect($gates)->toContain('Without `pr-gate` nothing runs before a push, exactly as before.');
     expect(gateScript('gate-record.sh'))->toContain('the built-in gate path applies');

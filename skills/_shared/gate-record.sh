@@ -23,6 +23,10 @@
 #     that the log is authentic.
 #   - A record is valid only on the machine that wrote it. Elsewhere it is
 #     missing, and the gate runs again.
+#   - The copy of this library, project-commands.sh, run-gate.sh, and
+#     verify-gate.sh that runs is the one the installer wrote from
+#     vendor/pekral/ai-olympus. A diff over that installed copy is a merge-gate
+#     change: Critical under rules/security/general.md *Code Review Application*.
 #
 # Where a record lives
 #   <evidence>/<tree>.<tier>.json   the record
@@ -465,6 +469,8 @@ gate_selftest_manifest() {
   git -C "$dir" update-ref refs/remotes/origin/master "$commit"
 }
 
+# GNU first: GNU `stat -f` reports the file system and succeeds, so it would
+# hide the fallback. BSD `stat -c` fails, so the BSD form then runs.
 gate_selftest_mode() {
-  stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1"
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
 }

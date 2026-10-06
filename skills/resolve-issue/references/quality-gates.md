@@ -78,13 +78,18 @@ What the exit code tells the caller:
 | `4` | the gate or `gate-fresh` failed | — | resolves the problem, commits, and runs the gate again |
 | `10` / `11` / `12` | — | missing / failed / stale, with the reason | runs `run-gate.sh --tier full`, or stops; never merges on it |
 | `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |
+| `1` / `2` | usage error / `git` or `jq` missing | usage error, including an invalid or unknown `<sha>` / `git` or `jq` missing | handled like `3`: stops and reports the reason; never merges on it |
 | `5` | not configured | not configured | follows the built-in path of this file unchanged |
 | `6` | a live run holds the lock | — | stops and reports; never runs a second gate beside it |
 | `7` | the tree is not clean | — | commits the change, then runs the gate |
 
+Any other non-zero exit code is handled like `3`. A code the table does not list is never a pass.
+
 A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and keeps the textual record exactly as before. Run the scripts unconditionally; the exit code says which path applies.
 
 **Trust model.** The record is a local cache on one machine and one account. A public commenter cannot write it, so it is stronger than a textual line in a comment. The code the gate runs — tests and Composer scripts from the branch — runs under the same account and can forge a record, exactly as it can already make its own gate pass. The defence against hostile branch code is code review, required CI, and a fresh `gate-fresh` run, never the record. The SHA-256 of the log detects a damaged or swapped log; it does not prove that the log is authentic. A record from another machine is missing, and the gate runs again.
+
+**The gate scripts come from the package install, not from the branch.** The copy of `run-gate.sh`, `verify-gate.sh`, `gate-record.sh`, and `project-commands.sh` that runs is the copy the installer wrote from `vendor/pekral/ai-olympus`. A project that tracks its installed skills carries that copy in the branch, so a branch can change it, and the merge runs it on the checked-out head. A diff that changes an installed copy of one of these four scripts is therefore a change to the merge gate. Review it under `@rules/security/general.md` *Code Review Application* at severity **Critical**, never as an ordinary script edit.
 
 ## Rebase that moves the head — analyse the incoming changes first
 
