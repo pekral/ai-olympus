@@ -12,7 +12,7 @@ declare(strict_types = 1);
 test('every deterministic orchestration helper is shipped, executable, and self-testing', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $helpers = ['run-validation', 'plan-route', 'check-handoff', 'render-report', 'record-metrics', 'read-manifest'];
+    $helpers = ['run-validation', 'plan-route', 'check-handoff', 'render-report', 'record-metrics', 'read-manifest', 'run-gate', 'verify-gate'];
 
     foreach ($helpers as $helper) {
         $script = $packageDir . '/skills/_shared/' . $helper . '.sh';
@@ -38,17 +38,22 @@ test('every deterministic orchestration helper is shipped, executable, and self-
 test('the validation manifest is executed without a shell and against an allow-list', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
+    // The command checks and the executor are shared with the gate scripts (issue #169), so the
+    // runner sources them rather than carrying its own copy.
+    $commands = (string) file_get_contents($packageDir . '/skills/_shared/project-commands.sh');
 
     // The manifest is written by an agent whose context carries tracker text anyone can write. A
     // manifest reaching a shell would be arbitrary code execution in the one step no human reviews.
     expect($runner)->toContain('SECURITY — why the manifest is not a shell script');
-    expect($runner)->toContain('ALLOWED_EXECUTABLES');
-    expect($runner)->toContain('SHELL_METACHARACTERS');
+    expect($runner)->toContain('. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project-commands.sh"');
+    expect($runner)->toContain('run_command "$command" "$log"');
+    expect($commands)->toContain('ALLOWED_EXECUTABLES=(');
+    expect($commands)->toContain('SHELL_METACHARACTERS=');
 
     // No shell: the command is split into argv and executed directly. Measured on the executable
     // half only — the self-test below legitimately carries `/bin/sh -c uname` as a payload it is
     // required to refuse, and a pin that matched it would fail on the very case it wants covered.
-    $executable = substr($runner, 0, (int) strpos($runner, 'self_test() {'));
+    $executable = substr($runner, 0, (int) strpos($runner, 'self_test() {')) . $commands;
     $code = (string) preg_replace('/^\s*#.*$/m', '', $executable);
     expect($code)->not->toContain('eval ');
     expect($code)->not->toContain('sh -c');
@@ -80,12 +85,14 @@ test('the validation manifest is executed without a shell and against an allow-l
 test('the validation runner extends its allow-list only from the default-branch project manifest', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
+    $commands = (string) file_get_contents($packageDir . '/skills/_shared/project-commands.sh');
     $reader = (string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh');
 
-    expect($runner)->toContain('read-manifest.sh');
-    expect($runner)->toContain('"$reader" --env');
+    expect($runner)->toContain('load_project_manifest || refuse "$PROJECT_REFUSAL"');
+    expect($commands)->toContain('reader="$PROJECT_COMMANDS_DIR/read-manifest.sh"');
+    expect($commands)->toContain('"$reader" --env');
     expect($reader)->toContain('PROTECTED_ENV_RE');
-    expect($runner)->toContain('^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$');
+    expect($commands)->toContain('^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$');
 
     foreach ([
         'a manifest executable runs with the manifest env',

@@ -67,7 +67,7 @@
 #        turns "inert" into "refused", so a manifest that tries is visible
 #        rather than merely harmless.
 #     3. An executable allow-list: the first token must name one of the
-#        project-local tools below. `curl`, `rm`, `git`, and everything else the
+#        project-local tools in project-commands.sh. `curl`, `rm`, `git`, and everything else the
 #        list does not carry is refused, whatever it is passed.
 #   A refusal is `status: invalid` with `escalate: true` — never a silent skip,
 #   and never a pass.
@@ -108,39 +108,12 @@ EOF
 # localises a problem first, so a broken lint does not wait behind a suite.
 CATEGORIES=(lint static_analysis tests)
 
-# Executables a manifest may name. Everything here is a project-local developer
-# tool that a validation step legitimately runs. Anything that writes outside
-# the project, talks to the network, or manipulates history is deliberately
-# absent — this list is the difference between "runs the project's checks" and
-# "runs whatever it was told to".
-ALLOWED_EXECUTABLES=(
-  vendor/bin/pest
-  vendor/bin/phpunit
-  vendor/bin/phpstan
-  vendor/bin/psalm
-  vendor/bin/pint
-  vendor/bin/phpcs
-  vendor/bin/php-cs-fixer
-  vendor/bin/rector
-  vendor/bin/phpcbf
-  composer
-  php
-  artisan
-  npm
-  npx
-  yarn
-  pnpm
-  make
-)
-
-# Characters that have meaning to a shell. This script never invokes one, so
-# these are already inert — the check exists so a manifest that carries them is
-# refused loudly instead of running with them as literal argument text.
-SHELL_METACHARACTERS=';|&$`(){}<>*?!#'
-
-safe_display() {
-  printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-200
-}
+# The command checks and the executor live in project-commands.sh, shared with
+# run-gate.sh and verify-gate.sh, so all three refuse the same things the same
+# way: ALLOWED_EXECUTABLES, SHELL_METACHARACTERS, validate_command, run_command,
+# and load_project_manifest.
+# shellcheck source=project-commands.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project-commands.sh"
 
 json_string() {
   # Escape for a JSON string literal without depending on jq being able to read
@@ -188,108 +161,6 @@ refuse() {
   local reason="$1"
   emit invalid true "$reason"
   exit 3
-}
-
-# Validate one command string and echo its argv, one token per line.
-#
-# Returns 1 with a reason on stderr when the command is refused. The caller
-# turns that into a refusal of the whole manifest: a manifest carrying one
-# unacceptable command is not partially trustworthy.
-validate_command() {
-  local command="$1" token executable allowed found=0
-
-  [[ -n "$command" ]] || { echo 'empty command' >&2; return 1; }
-
-  case "$command" in
-  *$'\n'* | *$'\r'*) echo 'command contains a newline' >&2; return 1 ;;
-  esac
-
-  # A quote would only matter to a shell; this script splits on whitespace, so a
-  # quoted argument would silently become two. Refuse rather than mis-split.
-  case "$command" in
-  *\'* | *\"* | *\\*) echo 'command contains a quote or backslash' >&2; return 1 ;;
-  esac
-
-  local index char
-  for ((index = 0; index < ${#SHELL_METACHARACTERS}; index++)); do
-    char="${SHELL_METACHARACTERS:index:1}"
-    case "$command" in
-    *"$char"*)
-      echo "command contains the shell metacharacter '$char'" >&2
-      return 1
-      ;;
-    esac
-  done
-
-  # No leading `-`: a first token that looks like an option means the manifest
-  # is malformed, and passing it on would let it be read as an option by
-  # whatever ran next.
-  read -r executable _ <<<"$command"
-  case "$executable" in
-  -*) echo 'command starts with an option' >&2; return 1 ;;
-  esac
-
-  # Path traversal in the executable, in the one spelling that escapes the
-  # project: a relative segment climbing out of it.
-  case "$executable" in
-  */../* | ../* | /*) echo 'executable is an absolute path or climbs out of the project' >&2; return 1 ;;
-  esac
-
-  executable="${executable#./}"
-
-  for allowed in "${ALLOWED_EXECUTABLES[@]}"; do
-    if [[ "$executable" == "$allowed" ]]; then
-      found=1
-      break
-    fi
-  done
-
-  if [[ "$found" -ne 1 ]]; then
-    echo "executable is not allow-listed: $(safe_display "$executable")" >&2
-    return 1
-  fi
-
-  # Intentional word splitting: the command has been proven to carry no quote,
-  # no backslash, and no metacharacter, so whitespace is the only separator.
-  # shellcheck disable=SC2086
-  printf '%s\n' $command
-  return 0
-}
-
-PROJECT_ENV=()
-
-# Extend the executable allow-list and the environment from the project
-# manifest. Every entry is checked before any command runs; one unacceptable
-# entry refuses the run.
-load_project_manifest() {
-  local reader project entry
-  reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
-  [[ -f "$reader" ]] || return 0
-  project="$(bash "$reader" 2>/dev/null)" || project='{}'
-
-  if ! printf '%s' "$project" | jq -e '(.validation // {}) | type == "object" and ((.executables // []) | type == "array")' >/dev/null 2>&1; then
-    refuse 'project manifest: validation.executables must be an array'
-  fi
-  while IFS= read -r entry; do
-    if [[ ! "$entry" =~ ^vendor/bin/[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
-      refuse "project manifest: a validation executable must be a vendor/bin/<name> path — $(safe_display "$entry")"
-    fi
-    ALLOWED_EXECUTABLES+=("$entry")
-  done < <(printf '%s' "$project" | jq -r '(.validation // {}).executables // [] | .[] | tostring')
-
-  local env_lines env_status=0 reason
-  env_lines="$(bash "$reader" --env 2>/dev/null)" || env_status=$?
-  if [[ "$env_status" -eq 4 ]]; then
-    reason="$(bash "$reader" --env 2>&1 >/dev/null || true)"
-    refuse "project manifest: $(safe_display "${reason#*: }")"
-  fi
-  [[ "$env_status" -eq 0 ]] || return 0
-
-  while IFS= read -r entry; do
-    [[ -n "$entry" ]] || continue
-    export "${entry?}"
-    PROJECT_ENV+=("$entry")
-  done <<<"$env_lines"
 }
 
 run_manifest() {
@@ -351,7 +222,7 @@ run_manifest() {
     fi
   fi
 
-  load_project_manifest
+  load_project_manifest || refuse "$PROJECT_REFUSAL"
 
   # --- Validate every command before running any of them ---------------------
   #
@@ -397,13 +268,8 @@ run_manifest() {
       [[ "${item%%|*}" == "$category" ]] || continue
       command="${item#*|}"
 
-      local -a argv=()
-      while IFS= read -r token; do
-        argv+=("$token")
-      done < <(validate_command "$command")
-
       set +e
-      "${argv[@]}" >>"$log" 2>&1
+      run_command "$command" "$log"
       status=$?
       set -e
 
