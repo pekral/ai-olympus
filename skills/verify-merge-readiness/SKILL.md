@@ -177,6 +177,14 @@ trusted record for the project-wide command required by
 `@skills/resolve-issue/references/quality-gates.md`. Run that full gate once, after the last
 content-changing commit, and record the command, result, head SHA, and coverage verdict.
 
+The machine gate record decides first, exactly as in `@skills/merge-github-pr/SKILL.md`
+*Pre-merge quality gate*: run `skills/_shared/verify-gate.sh --tier full <head SHA>` first. Exit
+`0` is the green, trusted record, and no gate runs. Exit `10`, `11`, or `12` dispatches
+`donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported
+ready on it. Exit `3` stops with the reason, and any other non-zero exit is handled like `3`.
+Exit `5` keeps the textual-record path above. Record the tree and the record path with the gate
+result. Required CI stays a separate condition below.
+
 The PR is merge-ready only when all of these hold at the same head:
 
 - every acceptance criterion is met;

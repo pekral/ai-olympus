@@ -30,6 +30,9 @@ The host project declares machine-readable settings in its `composer.json` under
 |---|---|---|
 | `auto-install` | bool | The Composer plugin runs `install --force` on every install and update. |
 | `gate` | string[] | The project's full quality gate. Run the commands in order; every command must pass. |
+| `pr-gate` | string[] | The project's fast pre-push gate, run by `skills/_shared/run-gate.sh --tier pr` before each push. Absent: no gate runs while the branch is worked on. |
+| `gate-fresh` | string[] | Commands whose result is never reused, run fresh on every `skills/_shared/verify-gate.sh` call (e.g. `composer audit`). Absent or empty: `composer audit` when `composer.lock` exists. |
+| `gate-evidence` | string | The git-ignored directory for gate records, relative to the project root. Absent: `.claude/run/gates`. Setting any of `pr-gate`, `gate-fresh`, `gate-evidence` opts the project into the machine gate record. |
 | `coverage` | string | The project's coverage command. |
 | `env` | object | Environment variables exported to every project tool command an agent runs, e.g. `{"CLAUDECODE": "1"}`. Export only what `skills/_shared/read-manifest.sh --env` prints; it refuses a name that changes which program runs. |
 | `validation.executables` | string[] | Extra project-local executables (`vendor/bin/<name>` only) that `skills/_shared/run-validation.sh` may run. |

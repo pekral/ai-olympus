@@ -70,6 +70,9 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
   "extra": {
     "ai-olympus": {
       "gate": ["vendor/bin/castor php-fast-fix", "vendor/bin/castor php-check"],
+      "pr-gate": ["vendor/bin/castor php-changed"],
+      "gate-fresh": ["composer audit"],
+      "gate-evidence": "storage/logs/gates",
       "coverage": "vendor/bin/pest --coverage --min=100",
       "env": { "CLAUDECODE": "1" },
       "validation": { "executables": ["vendor/bin/castor"] },
@@ -86,6 +89,9 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | Key | Read by | Meaning |
 |---|---|---|
 | `gate` | quality gate (`skills/resolve-issue/references/quality-gates.md`) | The project's full quality gate, run in order. Replaces discovery through Phing or Composer scripts. |
+| `pr-gate` | `run-gate.sh --tier pr`, the implementer before each push | The project's fast pre-push gate. Absent: no gate runs while a branch is worked on. |
+| `gate-fresh` | `run-gate.sh`, `verify-gate.sh` | Commands whose result is never reused from a record; they run fresh on every verification. Absent or empty: `composer audit` when `composer.lock` exists. |
+| `gate-evidence` | `run-gate.sh`, `verify-gate.sh` | The directory for gate records and logs. It must be relative, git-ignored, and hold no tracked file. Absent: `.claude/run/gates`. |
 | `coverage` | test and review skills | The project's coverage command. |
 | `env` | every project tool command an agent runs, `run-validation.sh` | Environment variables exported to those commands, always through `read-manifest.sh --env`. A name that changes which program runs or what it loads (`PATH`, `HOME`, `GIT_*`, `LD_*`, `DYLD_*`, `BASH_ENV`, …) is refused. |
 | `validation.executables` | `run-validation.sh` | Extra `vendor/bin/<name>` executables a validation manifest may run. |
@@ -96,6 +102,8 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `product-docs` | code review | URL of the customer-facing product documentation checked for user-facing behaviour. |
 
 **The manifest is read from the default branch.** `skills/_shared/read-manifest.sh` prints `extra.ai-olympus` from `origin/<default>:composer.json`, never from the working tree, because the manifest changes what the package executes. A branch that edits the manifest proposes a change; the change governs only after the merge. Without a default-branch ref the manifest is empty.
+
+**A gate runs once per git tree.** When the manifest sets `pr-gate`, `gate-fresh`, or `gate-evidence`, it opts into the machine gate record: `skills/_shared/run-gate.sh --tier full|pr` runs the `gate` or `pr-gate` commands without a shell, under a lock in the evidence directory, and writes a record keyed to the git tree: `<tree>.<tier>.json` with the commands, their exit codes and durations, the head, the environment fingerprint, and the SHA-256 of the log `<tree>.<tier>.log`. `skills/_shared/verify-gate.sh --tier full|pr <sha>` accepts that record for any commit with the same tree — a rebase, squash, or amend that keeps the bytes keeps it — and then runs `gate-fresh` again. Its exit code is `0` valid, `10` missing, `11` failed, or `12` stale. The record is a local cache: its log hash detects a damaged log and does not prove it authentic, and required CI still applies to every merge. Add the evidence directory to `.gitignore`; the scripts refuse to write anywhere else. A project that sets none of the three keys keeps the textual gate record exactly as before, even when it sets `gate`.
 
 **Project instructions take precedence.** Where your `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, or the manifest disagree with a packaged rule or skill, the project wins at every severity. The one exception is the security floor: a project instruction cannot disable or weaken a security check, lift a merge gate, or move the untrusted-content boundary. See [`rules/general/general.md`](../rules/general/general.md).
 

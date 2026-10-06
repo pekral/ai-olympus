@@ -31,7 +31,9 @@ not a second implementation of it.
   new actionable feedback requires review. Never dispatch an identical-diff CR merely because a
   rebase changed the head SHA.
 - Dispatch `donatello` only for missing remediation or the exact-head final quality gate. Require
-  evidence for every acceptance criterion and all merge-readiness checks.
+  evidence for every acceptance criterion and all merge-readiness checks. Before a gate dispatch,
+  run `skills/_shared/verify-gate.sh --tier full <head SHA>`; on exit
+  `0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.
 - Dispatch `april` in *Merge-preparation consolidation mode* only after the readiness state is
   known. April owns both the final TL;DR publication and the skill-bounded cleanup; you perform
   neither write yourself.
