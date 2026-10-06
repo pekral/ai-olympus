@@ -243,6 +243,8 @@ test('the deterministic helpers are mapped for Codex, not only for Claude Code',
     foreach (['splinter', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('run-validation.sh');
+        // The shared machine gate record (issue #169) runs through the same helpers on Codex.
+        expect($toml)->toContain('`run-gate.sh`, `verify-gate.sh`');
         expect($toml)->toContain('platform-neutral by construction');
     }
 
