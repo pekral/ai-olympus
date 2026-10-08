@@ -540,8 +540,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // JIRA as ADF converted by `wiki-markup-to-adf.php`, never as raw Wiki Markup.
         // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
         // Re-baselined: the JIRA helper publishes into a named marker namespace, so one issue keeps
-        // one comment per actor and marker namespace.
-        'rules/jira/general.md' => 'e4140aa6a9f0cb9b74d18f71cba3f8aaa38f728fa790c37a1af1e3adecfe48ee',
+        // one comment per actor and marker namespace. Its MCP fallback carries the caller's namespace,
+        // and a duplicate outside `cr-comment` stays for a human.
+        'rules/jira/general.md' => '4c3d0055655ce020139155d2828d4f871dbf548338f529038d665f6710ab7cde',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
