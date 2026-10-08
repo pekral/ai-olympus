@@ -4425,7 +4425,7 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
         . 'a gate result, a CI status, or a coverage figure to JIRA.',
     );
     expect($jira)->toContain(
-        'the banned-content list, its two exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket',
+        'the banned-content list, its exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket',
     );
 
     // The split is verified against what was published, not against what was intended.

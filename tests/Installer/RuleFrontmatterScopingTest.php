@@ -474,7 +474,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a line the operator added to an agent comment survives the rewrite.
         // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
         // Re-baselined: on JIRA a documentation-mismatch question closes the bullet it concerns.
-        'rules/code-review/general.md' => '1203252dde4934399305bb366f9274bde073349779427c6f9e12f5b8360831dd',
+        // Re-baselined: *Authorship trust* reads every `<namespace>:actor=` marker as agent output,
+        // also a namespace a project skill passes to the upsert helpers.
+        'rules/code-review/general.md' => '86d07db8baf7d9b068eb27eb28076659ab413a289546f30f952a0090d6c25491',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -536,7 +538,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the file gained `## Issue Description Format` — an issue description reaches
         // JIRA as ADF converted by `wiki-markup-to-adf.php`, never as raw Wiki Markup.
         // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
-        'rules/jira/general.md' => '41ddc306be0cdb7ba3671e731a32e391f84da7db9187528c88bb690593f30c37',
+        // Re-baselined: the JIRA helper publishes into a named marker namespace, so one issue keeps
+        // one comment per actor and marker namespace.
+        'rules/jira/general.md' => 'e4140aa6a9f0cb9b74d18f71cba3f8aaa38f728fa790c37a1af1e3adecfe48ee',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
@@ -558,7 +562,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // *Review findings*, *What changed* — with each open question inside the bullet it concerns, and no *How to test*.
         // Re-baselined: the JIRA shape gains *Impact after deployment* after *What changed*, and the length cap
         // shortens *What changed* first, then merges *Impact after deployment* bullets.
-        'rules/reports/general.md' => '1cf6e8af3f0259afefe4d89cbb77c711667233325d2d471768b51a6439567592',
+        // Re-baselined: a JIRA comment may link related tracker items and product documentation articles.
+        'rules/reports/general.md' => 'f70a9d05367d8c935259cb818acb6075d115d83c1f358883664f6ea5d0145f2d',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
