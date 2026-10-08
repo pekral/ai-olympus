@@ -297,7 +297,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraScriptBody)->toContain('acli jira workitem view "$KEY" --fields comment --json');
     expect($jiraScriptBody)->toContain('--arg email "$EMAIL" --arg account "$ACCOUNT_ID"');
     expect($jiraScriptBody)->toContain('def author_of: .author | if type == "object" then . else {} end;');
-    expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | contains($marker);');
+    expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);');
     expect($jiraScriptBody)->toContain('map(select(marked and owned))');
     expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
     // A lookup that cannot be made publishes nothing rather than risk a

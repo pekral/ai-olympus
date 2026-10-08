@@ -1100,7 +1100,112 @@ test('agent-note mode always creates a fresh comment, even one carrying its own 
     }
 });
 
-test('a MARKER_KEY other than agent-note keeps the cr-comment lookup-and-update behaviour (issue #156)', function (): void {
+test('a named MARKER_KEY updates its own comment and never the cr-comment of the same actor', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $digest = substr(hash('sha256', 'bot@example.com'), 0, 16);
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9501', '2026-01-01T00:00:00.000+0000', 'bot@example.com', 'support-analysis:actor=' . $digest),
+            jiraComment('9502', '2026-01-02T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'support-analysis',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+        $adf = (string) file_get_contents($fixture['adf']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9501 --body-adf')
+            ->and($calls)->not->toContain('--id 9502')
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9501')
+            ->and($adf)->toContain('support-analysis:actor=' . $digest);
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('a namespace that ends another namespace never matches its marker', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+    $listJson = json_encode([
+        'comments' => [
+            jiraComment('9601', '2026-01-01T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'comment',
+    ], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Note');
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($calls)->toContain('comment create')
+            ->and($calls)->not->toContain('--id 9601');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('a MARKER_KEY outside the namespace shape is refused before any JIRA call', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $systemPath = jiraCommentSystemPath();
+
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+        'Some Value',
+    ], $packageDir, [
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . $systemPath,
+    ], 'h2. Note');
+
+    try {
+        $process->run();
+
+        expect($process->getExitCode())->toBe(1)
+            ->and($process->getErrorOutput())->toContain('MARKER_KEY must match')
+            ->and((string) file_get_contents($fixture['calls']))->toBe('');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the default MARKER_KEY keeps the cr-comment lookup-and-update behaviour (issue #156)', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
@@ -1114,7 +1219,7 @@ test('a MARKER_KEY other than agent-note keeps the cr-comment lookup-and-update 
         $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
         'TEAM-42',
         '-',
-        'some-legacy-value',
+        'cr-comment',
     ], $packageDir, [
         'FAKE_ACLI_ADF' => $fixture['adf'],
         'FAKE_ACLI_CALLS' => $fixture['calls'],
