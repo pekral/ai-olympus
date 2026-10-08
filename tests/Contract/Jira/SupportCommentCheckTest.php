@@ -40,10 +40,10 @@ test('an estimating word fails the check, matched as a whole word in Czech and i
         ->and($process->getOutput())->toContain('violation: estimate: ' . $word);
 })->with([
     'asi' => ['Je to asi chyba ve feedu.', 'asi'],
-    'pravděpodobně' => ['Pravděpodobně se feed neobnovil.', 'Pravděpodobně'],
-    'snad' => ['Snad to pomůže.', 'Snad'],
     'mělo by' => ['Mělo by to fungovat.', 'Mělo by'],
+    'pravděpodobně' => ['Pravděpodobně se feed neobnovil.', 'Pravděpodobně'],
     'probably' => ['The feed probably failed.', 'probably'],
+    'snad' => ['Snad to pomůže.', 'Snad'],
 ]);
 
 test('a developer token fails the check', function (string $sentence, string $token): void {
@@ -53,13 +53,13 @@ test('a developer token fails the check', function (string $sentence, string $to
         ->and($process->getOutput())->toContain('violation: developer token: ' . $token);
 })->with([
     'file path' => ['Chyba je v app/Helpers/Number.php.', '.php'],
-    'static call' => ['Volá se Number::formatFloat.', '::'],
-    'inline code' => ['Hodnota {{price_vat}} je špatně.', '{{'],
     'hexadecimal hash' => ['Oprava je v commitu a3f9c2d41b.', 'a3f9c2d41b'],
+    'inline code' => ['Hodnota {{price_vat}} je špatně.', '{{'],
+    'static call' => ['Volá se Number::formatFloat.', '::'],
 ]);
 
 test('a source over 3 000 characters fails the check', function (): void {
-    $process = runSupportCommentCheck(str_repeat('ž', 3001));
+    $process = runSupportCommentCheck(str_repeat('ž', 3_001));
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: length: 3001 characters, the limit is 3000');
