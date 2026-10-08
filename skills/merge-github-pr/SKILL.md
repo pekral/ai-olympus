@@ -164,6 +164,7 @@ The project's fixers and checkers do not run during the branch's working life â€
   2. `git worktree remove <path>` â€” removes the worktree directory and its metadata.
   3. `git worktree prune` â€” cleans up any remaining stale worktree metadata.
   If no worktree was explicitly created for this work unit (the default: agent worked in the shared tree), skip this step entirely.
+- **Interactive-testing follow-up issue â€” only for a front-end UI change.** When the project asks for an `interactive-testing` issue after a merge, create it only when the merged diff changes the front-end UI (`@skills/merge-github-pr/references/interactive-testing-follow-up.md`).
 - Confirm merge success
 
 ---
@@ -172,6 +173,7 @@ The project's fixers and checkers do not run during the branch's working life â€
 
 - List merged PRs
 - List skipped PRs with reasons
+- For each merged PR in a project that asks for one, the interactive-testing follow-up issue it got, or `skipped, no front-end UI change`
 - List the open merge decisions: the answered ones with their answers, and the unanswered ones in the separate `## Decisions required before merge` section
 
 ---
