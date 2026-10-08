@@ -1688,12 +1688,15 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             'The namespaces today are exactly `cr-comment` (the upserted, one-per-actor comment), `merge-readiness` '
             . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), '
             . '`test-report` (the pull-request test report `skills/test-assignment/SKILL.md` and `agents/april.md` publish), '
+            . '`support-analysis` (the support-issue analysis `skills/analyze-support-issue/SKILL.md` publishes on a JIRA issue), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
         ->and($codeReview)->toContain('A new namespace joins this list in the same change that first writes it')
         ->and($codeReview)->toContain(
             'Read every `<namespace>:actor=` marker in the helper\'s shape as agent output, whatever the namespace',
-        );
+        )
+        ->and((string) file_get_contents($packageDir . '/skills/analyze-support-issue/SKILL.md'))
+        ->toContain('`skills/code-review-jira/scripts/upsert-comment.sh <KEY> <source-file> support-analysis`');
 });
 
 test('the two remaining MCP fallbacks name the agent marker they append (issue #156)', function (): void {

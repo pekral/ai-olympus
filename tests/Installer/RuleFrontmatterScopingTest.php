@@ -476,7 +476,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: on JIRA a documentation-mismatch question closes the bullet it concerns.
         // Re-baselined: *Authorship trust* reads every `<namespace>:actor=` marker as agent output,
         // also a namespace a project skill passes to the upsert helpers.
-        'rules/code-review/general.md' => '86d07db8baf7d9b068eb27eb28076659ab413a289546f30f952a0090d6c25491',
+        // Re-baselined: the namespace list gained `support-analysis`, which `analyze-support-issue` writes.
+        'rules/code-review/general.md' => '24294686d1ca869f92f358f58055d59322638ec246752f8fdc3b2f3a265de4a0',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

@@ -69,7 +69,7 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **59 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **61 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 
 ## Installation Details
 
@@ -341,7 +341,7 @@ Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshoo
 
 ## Skill Catalog
 
-60 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
+61 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
 testing, databases, frontend, infrastructure, refactoring, analysis, and tooling. The full table,
 with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skills.md)**.
 

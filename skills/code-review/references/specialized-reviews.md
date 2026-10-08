@@ -173,6 +173,7 @@ Criterion: the skill's unit of work is the whole repository, a document, a track
 
 - `simplification-audit` — audits the whole codebase rather than a diff, so it would report on code the pull request never touched.
 - `tester-cookbook` — writes a QA report for a human tester and posts it as a tracker comment.
+- `analyze-support-issue` — analyses a support issue and publishes a tracker comment. It may reproduce a case locally, but its evidence never depends on a running application, so question 3 passes it on to question 4.
 - `smartest-project-addition` — proposes the next addition to this package.
 - `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review still calls `create-issue` after it publishes, to file an out-of-scope item (`agents/leonardo.md`). That call creates a different artifact and reads no diff, so it is not a lens and produces no finding.
 - `cleanup-local-branches` — deletes local branch refs. It writes no file, which is what keeps it here while `git-workflow` sits in group 1.
