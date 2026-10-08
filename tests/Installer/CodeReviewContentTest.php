@@ -297,7 +297,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($jiraScriptBody)->toContain('acli jira workitem view "$KEY" --fields comment --json');
     expect($jiraScriptBody)->toContain('--arg email "$EMAIL" --arg account "$ACCOUNT_ID"');
     expect($jiraScriptBody)->toContain('def author_of: .author | if type == "object" then . else {} end;');
-    expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | contains($marker);');
+    expect($jiraScriptBody)->toContain('def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);');
     expect($jiraScriptBody)->toContain('map(select(marked and owned))');
     expect($jiraScriptBody)->not->toContain('select(tojson | contains($marker))');
     // A lookup that cannot be made publishes nothing rather than risk a
@@ -4425,7 +4425,7 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
         . 'a gate result, a CI status, or a coverage figure to JIRA.',
     );
     expect($jira)->toContain(
-        'the banned-content list, its two exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket',
+        'the banned-content list, its exceptions, and the 3 000-character cap bind every comment this skill puts on a JIRA ticket',
     );
 
     // The split is verified against what was published, not against what was intended.

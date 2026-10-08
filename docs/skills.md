@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 60 skills this package ships, grouped by what you reach for them for. Each description is the
+All 61 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -18,7 +18,7 @@ link to read the skill itself.
 | [Content & writing](#content--writing) | 1 |
 | [Infrastructure & performance](#infrastructure--performance) | 3 |
 | [Refactoring & code quality](#refactoring--code-quality) | 5 |
-| [Analysis & planning](#analysis--planning) | 4 |
+| [Analysis & planning](#analysis--planning) | 5 |
 | [Meta & tooling](#meta--tooling) | 2 |
 
 ## Issue → PR workflow
@@ -125,6 +125,7 @@ link to read the skill itself.
 | Skill | What it is for |
 |-------|----------------|
 | [`analyze-problem`](../skills/analyze-problem/) | Structured problem analysis for debugging, root cause identification, and breaking down complex issues before proposing solutions |
+| [`analyze-support-issue`](../skills/analyze-support-issue/) | A JIRA issue from a support team needs an analysis a non-technical colleague can act on |
 | [`product-capability`](../skills/product-capability/) | A PRD or product intent is clear but the implementation constraints are not |
 | [`understand-propose-implement-verify`](../skills/understand-propose-implement-verify/) | Following a strict problem-solving loop: understand, propose, implement, verify |
 | [`smartest-project-addition`](../skills/smartest-project-addition/) | You want exactly one high-impact, concrete proposal for the next project addition |
