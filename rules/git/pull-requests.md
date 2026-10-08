@@ -64,6 +64,15 @@ A pull request is a **Draft** for as long as it is **not yet ready to merge and 
 - Two exemptions from the code-review gate exist, and no others: a **`FAST`-tier pull request** and a **dependency-only pull request** — see below. Every other gate applies to each of them unchanged.
 - **A HOTFIX is not a third exemption.** A declared HOTFIX still needs a converged code review on its final diff; what changes is the review's own scope and the coverage threshold — see *HOTFIX pull requests* below.
 
+### Waiting for CI — read the checks every 3 minutes
+
+A check that is still running is waited for, never reported as a blocker. When the run's next step depends on CI — a merge, a fix, a report — and a check of the pull request is still pending, the run waits for the result itself.
+
+- **Read the checks every 3 minutes until none is pending.** Run the wait as a background loop, never as a foreground sleep: `gh pr checks <PR-URL> --json name,bucket`, then `sleep 180`. While a check is still pending, read again after the next interval; there is no time limit. The loop ends when no entry has `bucket == "pending"`. This read-only call is the one exception to loading the pull request through `skills/code-review-github/scripts/load-issue.sh`.
+- **A failed read is retried after the next interval**, never a stop.
+- **After the wait, load the pull request again and run every check of the next step again.** A check that finished red blocks as before, and the *GitHub Actions billing exception* in `@skills/merge-github-pr/SKILL.md` applies unchanged.
+- **The wait is for a result the run needs.** A run with no step after CI does not watch CI.
+
 ### HOTFIX pull requests (coverage threshold lifted, review still required)
 
 A pull request produced by a declared HOTFIX run (`@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path*) merges under one changed condition and no others:
