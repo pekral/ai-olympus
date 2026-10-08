@@ -194,14 +194,14 @@ function runGitHubLoader(array $fixture, string $url, array $environment = []): 
     $process = new Process([
         $packageDir . '/skills/code-review-github/scripts/load-issue.sh',
         $url,
-    ], $packageDir, [
-        ...$environment,
-        'FAKE_GH_CALLS' => $fixture['calls'],
+    ], $packageDir, array_merge([
         'FAKE_GH_GRAPHQL_JSON' => githubLoaderSubIssuesJson(),
         'FAKE_GH_ISSUE_JSON' => githubLoaderIssueJson(),
         'FAKE_GH_PR_JSON' => githubLoaderPullRequestJson(),
+    ], $environment, [
+        'FAKE_GH_CALLS' => $fixture['calls'],
         'PATH' => $fixture['bin'],
-    ]);
+    ]));
 
     $process->run();
 
@@ -325,4 +325,26 @@ test('a failed sub-issue GraphQL call degrades to an empty list while the issue 
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'subIssues'))->toBe([]);
     expect(decodedJsonField($output, 'number'))->toBe(445);
+});
+
+test('a running check run reports its status as the state instead of the empty conclusion', function (): void {
+    $fixture = createGitHubLoaderFixture();
+    $pullRequest = (array) json_decode(githubLoaderPullRequestJson(), associative: true, flags: JSON_THROW_ON_ERROR);
+    $pullRequest['statusCheckRollup'] = [
+        ['conclusion' => '', 'name' => 'Quality Checks', 'status' => 'IN_PROGRESS'],
+        ['conclusion' => 'SUCCESS', 'name' => 'Installer', 'status' => 'COMPLETED'],
+        ['context' => 'ci/semaphoreci/push', 'state' => 'PENDING'],
+    ];
+
+    $process = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', [
+        'FAKE_GH_PR_JSON' => json_encode($pullRequest, JSON_THROW_ON_ERROR),
+    ]);
+
+    $output = $process->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'statusCheckRollup.0.state'))->toBe('IN_PROGRESS');
+    expect(decodedJsonField($output, 'statusCheckRollup.1.state'))->toBe('SUCCESS');
+    expect(decodedJsonField($output, 'statusCheckRollup.2.state'))->toBe('PENDING');
 });
