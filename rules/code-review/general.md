@@ -189,8 +189,14 @@ The latency budget of the changed path and the freshness of its data stay with t
 
 **The account that pushed the pull request linked to the issue is the author of the changes.** Read it from the pull request's `author.login` in the loader's PR JSON. Neither the issue reporter, the issue assignee, nor the agent that runs the review is the author.
 
-- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, and no TL;DR line names the author.
-- **One exception: an unmet acceptance criterion.** When the review judges a criterion not met or partially met, the tracker comment states why and mentions the author, who confirms and fixes the gap or refutes the claim. `@skills/pr-summary/SKILL.md` *An unmet criterion addresses the author* owns the wording and the mention syntax per tracker.
+- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, and no TL;DR line names the author, except in the two cases below.
+- **First exception: an unmet acceptance criterion.** When the review judges a criterion not met or partially met, the tracker comment states why and mentions the author, who confirms and fixes the gap or refutes the claim. `@skills/pr-summary/SKILL.md` *An unmet criterion addresses the author* owns the wording and the mention syntax per tracker.
+- **Second exception: a missing test or a DRY finding in a review-only run.** A review-only run (`/report-code-review`) mentions the author on the line of each such point, so the author sees which gap in their own change it names:
+  1. a finding about a missing test — an uncovered changed line, or an acceptance criterion no test proves;
+  2. a test the run's missing-tests commit had to add, because the change shipped without it;
+  3. a DRY finding — logic the diff repeats where *Reuse Existing Logic* above names an existing implementation.
+
+  The GitHub pull-request comment carries the mention in the finding's `Author` field and on each line of `## Missing tests added`. The tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
 
 ## File and method size is never a code-review finding
 

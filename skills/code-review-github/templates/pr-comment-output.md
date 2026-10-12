@@ -59,12 +59,22 @@
   ```php
   // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.md on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
   ```
+- **Author:** `@<login>` — the pull request's `author.login`. *(Render only in a review-only run (`/report-code-review`), and only on a finding about a missing test or a DRY finding, per `@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*. Omit the field on every other finding and on every other run.)*
 
 ### 🟠 Moderate 1. <short title>
 
-(same fields as Critical, Provenance included, plus one field that renders only on a round-3 deferral)
+(same fields as Critical, Provenance and Author included, plus one field that renders only on a round-3 deferral)
 
 - **Deferred:** `<sub-issue URL>` — filed as a sub-issue of the source tracker item per `@skills/process-code-review/references/round-three-deferral.md`; the finding is recorded, not resolved. *(Omit this field entirely unless the finding was deferred.)*
+
+---
+
+## Missing tests added
+
+> Render only in a review-only run (`/report-code-review`) whose missing-tests commit added at least one test. Omit the heading entirely otherwise. Each line is information, not a finding: the test is already on the branch, so it adds nothing to the Counts line. It names the gap the change shipped with and mentions its author, per `@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*.
+
+- **Commit:** `{full SHA of the missing-tests commit}`
+- `path/to/SomethingTest.php` — {the behaviour the test protects, in plain language} — `@<login>`
 
 ---
 

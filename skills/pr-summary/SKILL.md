@@ -127,6 +127,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - The list in `@rules/reports/general.md` *Never in a JIRA comment* binds this section on every target: no severity labels, finding counts, code names, file paths, or rule references.
   - On GitHub and Bugsnag, end with one sentence that asks the reader to reply in a comment when they disagree with a point or know something that changes it. On JIRA the footer carries that role, so no closing sentence is added.
   - On JIRA, a finding outside the assignment appears only when it is Critical (*The JIRA shape* above).
+  - End the bullet that retells a missing-test or a DRY finding with the author mention, and retell `## Missing tests added` as one bullet that names what the added tests protect and ends with the same mention. The syntax is the one *An unmet criterion addresses the author* above defines (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*).
   - When the review found nothing, render one sentence that says so, and no bullets.
 - **Always a new comment.** Pass `--create` as the first argument of the GitHub and JIRA publish helpers, so every review-only run leaves its own comment and never updates an earlier one. The Bugsnag helper creates a new comment on every run already.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first, then merge `Impact after deployment` bullets. Never drop a `Review findings` bullet.

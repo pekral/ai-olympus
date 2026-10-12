@@ -31,7 +31,9 @@ publishes the result in the output each tracker requires: the technical findings
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
 section. In its place, `Review findings` retells the GitHub report in plain language, so a
 non-technical reader understands what the review reported and can reply with feedback. The wrapper
-passes `review-only` to `@skills/pr-summary/SKILL.md`. Every comment the run publishes is a new comment: the
+passes `review-only` to `@skills/pr-summary/SKILL.md`. On each finding about a missing test and each DRY
+finding, and on each test the missing-tests commit added, the report mentions the author of the changes
+(`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). Every comment the run publishes is a new comment: the
 wrapper and `pr-summary` call the publish helper with `--create`, so the run never updates a comment an
 earlier review left. Dispatch no other implementation, run no
 fix loop, change no tracker status, do not promote the pull request, and never merge. When the task

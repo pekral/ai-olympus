@@ -102,7 +102,7 @@ When `splinter` dispatches you in this mode it is because **the deterministic ru
 5. **Run the new tests.** A test that fails against the current code is not committed. Remove it, and report the behaviour it exposed with the test you would have committed, so the review reports it as a finding.
 6. **Commit and push exactly one commit.** Stage every added or changed test file into one commit (`test(<scope>): add missing tests for <subject>`) and push it with plain `git push` to the pull request branch. Never split the tests into several commits, never amend or rebase an existing commit, and never force-push. When the diff is missing no test, create no commit.
 
-**Handoff status in this mode:** `Tests done (missing)` with the commit SHA, the test files, and the result of the tests it ran, or `no missing tests`; `Blocked` with the reason. Omit `Validation manifest` and `Self-check`.
+**Handoff status in this mode:** `Tests done (missing)` with the commit SHA, the test files, the behaviour each one protects, and the result of the tests it ran, or `no missing tests`; `Blocked` with the reason. Omit `Validation manifest` and `Self-check`.
 
 ## Bash boundary
 
