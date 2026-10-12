@@ -73,7 +73,7 @@ If no target site is available, use clean Markdown with one H1, descriptive H2/H
 - For externally verifiable claims, prefer primary sources. Use reputable secondary sources only when primary evidence is unavailable or insufficient.
 - Verify time-sensitive facts with current sources when browsing is available.
 - Maintain an internal claim ledger mapping each consequential claim to its evidence. Do not expose this private working list unless the user asks for it.
-- If a claim cannot be verified, omit it, qualify it transparently, or identify it in the delivery notes. Do not fill gaps with plausible prose.
+- If a claim cannot be verified, omit it, attribute it to its named source, or list it as not verified in the delivery notes. Never soften it into a hedged sentence, and do not fill gaps with plausible prose.
 
 ### 4. Plan before writing
 Create an internal outline that gives each section one job. A useful default arc is:

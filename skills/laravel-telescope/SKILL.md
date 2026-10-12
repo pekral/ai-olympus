@@ -116,7 +116,7 @@ For every recommendation include:
 
 - what to change
 - why it helps
-- expected impact (latency, DB load, memory, throughput)
+- measured baseline (the Telescope duration, query count, or memory this change targets)
 - implementation risk or side effects
 - verification plan (how to measure after change)
 

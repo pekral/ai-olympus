@@ -95,6 +95,7 @@ test('no rule, skill, agent, or command asks an output for a confidence slot, an
         '~Tokens',
         'estimated duration',
         'Expected impact',
+        'expected impact',
     ];
 
     $violations = [];
