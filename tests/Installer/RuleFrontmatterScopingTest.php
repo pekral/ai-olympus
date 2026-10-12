@@ -270,7 +270,9 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // description instead of a code comment. Nothing else in the file moved.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: the chunked-read example keeps its query inside an `OrderRepository` method.
-        'rules/sql/optimalize.md' => '01c8fcf906f9af6d3262f195b87cbb7f07e3da7c1d11f64eb1ccf7d149cd9949',
+        // Re-baselined: a DDL duration is measured on production or a production-size copy, or listed
+        // as not verified — never estimated (`rules/general/general.md` *Verified statements only*).
+        'rules/sql/optimalize.md' => 'aa7284def31a4b3faacc315d28232fbe0d793db32d9d7f00dc671ea13a2fa279',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -489,7 +491,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: an issue with several pull requests gets its remarks and findings split per pull request (issue #175).
         // Re-baselined: the namespace list gained `mysql-report`, the advisory MySQL report `casey` publishes (issue #180).
         // Re-baselined: *Reuse Existing Logic* hands a copied subclass override to the core-analysis bullet.
-        'rules/code-review/general.md' => '1792d22df8184584e3c66e9afb13e526f230499a2e8d89133ddcf21791ada7a6',
+        // Re-baselined: *Safety* reports an open point as not verified, never as an assumption, and the header
+        // block gains the conditional `Not verified:` line (`rules/general/general.md` *Verified statements only*).
+        'rules/code-review/general.md' => '4c8bc19c8f6bad8442473726a0b15adcf5f510f4594c959ee7119d01eee9cf5a',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -582,7 +586,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the JIRA shape gains *Impact after deployment* after *What changed*, and the length cap
         // shortens *What changed* first, then merges *Impact after deployment* bullets.
         // Re-baselined: a JIRA comment may link related tracker items and product documentation articles.
-        'rules/reports/general.md' => 'f70a9d05367d8c935259cb818acb6075d115d83c1f358883664f6ea5d0145f2d',
+        // Re-baselined: with no language signal, the footer says the assignment language was not verified
+        // instead of stating an assumption (`rules/general/general.md` *Verified statements only*).
+        'rules/reports/general.md' => 'e1d08bc74d7238eeb54986b38bf99b1b75b821c0636739d55e9c2f27a7522ec3',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

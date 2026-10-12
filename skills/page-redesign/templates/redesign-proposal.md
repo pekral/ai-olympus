@@ -59,7 +59,7 @@ One row per element. This is what the developer builds from, so no cell is left 
 - The main layout shell: {header, sidebar, navigation, footer} stay exactly as they are.
 - {behaviour, contract, or element the redesign deliberately leaves alone, and why}
 
-## Assumptions and gaps
+## Not verified
 
-- {material that was missing, the assumption made in its place, and what would confirm it}
+- {material that was missing, the choice the proposal made in its place, and what would confirm it}
 - {state left out of scope, with the reason}

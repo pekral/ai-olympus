@@ -138,7 +138,7 @@ The skill must:
 
 - prefer evidence from Telescope data over assumptions
 - match UI request with DB request whenever possible
-- clearly separate confirmed findings from hypotheses
+- report confirmed findings only, and list every unconfirmed point under *Not verified* with the step that settles it (`@rules/general/general.md` *Verified statements only*)
 - avoid recommending changes without measurable validation
 - keep output concise and implementation-oriented
 

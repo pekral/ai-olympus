@@ -23,6 +23,7 @@
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
 **Quality gate:** {command} — {green | reported: <what>} on {full head SHA the gate ran on}{, tree {tree} — record {record path}, when `run-gate.sh` wrote one}  *(rendered on a converged run; `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* reads this line off this comment. Omit it on a run that carries no gate record.)*
+**Not verified:** {each point this run could not verify — what is unknown and the step that settles it; one entry per point, separated by ` · `}  *(render this line only when the run holds at least one such point, on a converged run too — `@rules/code-review/general.md` *Safety*. It carries the database-engine entry of `@skills/code-review/references/specialized-reviews.md` verbatim when that branch fires. Never an assumption, an estimate, or a confidence level. Omit it entirely when every point was verified.)*
 **{tracker-mirror field}:** {tracker-mirror status}  *(field name and status wording are defined per-wrapper in that skill's own Output Rules section — see `@skills/code-review-github/SKILL.md`, `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md` for the concrete values)*
 
 ---
@@ -180,5 +181,4 @@
 ---
 
 **Summary:** {n} Critical · {n} Moderate · assignment conformance: {conformant | N gap(s) | no linked issue}{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass}
-{` · Assumption: <the assumption sentence verbatim from the branch that fired>` — appended **only** when the engine is unresolved or has no dedicated lens and the diff was handled as MySQL, per `@skills/code-review/references/specialized-reviews.md`; omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, and omitted when neither trigger fired at all, so no resolution step ran and no lens is waiting on its answer}
 {` · security: owned by leonardo (<url of leonardo's security comment>)` — appended **only** when the inline `security-review` pass was skipped because the caller set `SECURITY_OWNER=leonardo`; omitted when the pass ran here. **The URL is mandatory**: the token records a delegation, and without a link to the delivered review there is nothing to distinguish a security pass that ran from one that died mid-run. A token with no URL is itself the visible gap, and `@skills/merge-github-pr/SKILL.md` blocks the merge on it} · {tracker-mirror status}

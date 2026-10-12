@@ -140,7 +140,7 @@ test('the worker brief numbers all eight required recommendation fields', functi
         '5. **Smallest credible implementation scope**',
         '6. **Regression risks and migration concerns**',
         '7. **Existing and additional validation required**',
-        '8. **Confidence**',
+        '8. **Not verified**',
     ];
 
     foreach ($fields as $field) {

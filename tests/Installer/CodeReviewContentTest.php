@@ -1116,7 +1116,7 @@ test('code-review skill verifies every Critical finding via analyze-problem befo
     expect($content)->toContain('Walk every **Critical** finding aggregated within this skill\'s run through `@skills/analyze-problem/SKILL.md`');
     expect($content)->toContain('invoke `@skills/analyze-problem/SKILL.md` **inline in this skill\'s context** (do not dispatch as a subagent)');
     expect($content)->toContain(
-        '**Confirmed** — Verified Facts and Probable Root Cause back the finding → keep the Critical finding verbatim in the report',
+        '**Confirmed** — Verified Facts and the verified Root Cause back the finding → keep the Critical finding verbatim in the report',
     );
     expect($content)->toContain('**Refuted** — Verified Facts contradict the finding');
     expect($content)->toContain('**Never silently downgrade** a Critical to Moderate on the basis of this verification');
@@ -2796,7 +2796,7 @@ test('each database engine branch names its own lens and the unresolved case kee
     );
 
     // A project with no resolvable engine must not silently pick a lens — the fallback is the old
-    // behaviour plus a stated assumption. The same branch is the catch-all for a driver that does
+    // behaviour plus a point reported as not verified. The same branch is the catch-all for a driver that does
     // resolve but has no lens of its own (`sqlite`, `sqlsrv`), so no outcome falls through.
     expect($contract)->toContain(
         '- **Engine not resolvable, or resolved to any other driver (`sqlite`, `sqlsrv`, …) '
@@ -2805,12 +2805,12 @@ test('each database engine branch names its own lens and the unresolved case kee
     expect($contract)->toContain(
         'This branch is the catch-all: every outcome of the resolution step lands in exactly one of the three branches',
     );
-    expect($contract)->toContain('states the assumption per `@rules/code-review/general.md` *Safety*');
+    expect($contract)->toContain('The review then reports the point as not verified per `@rules/code-review/general.md` *Safety*');
     expect($contract)->toContain(
-        '`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — handled as MySQL.`',
+        '`Not verified: database engine — not named by config/database.php, .env.example, or composer.json; handled as MySQL.`',
     );
     expect($contract)->toContain(
-        '`Assumption: database engine resolved to <driver>, which has no dedicated lens — handled as MySQL.`',
+        '`Not verified: database engine <driver> has no dedicated lens — handled as MySQL.`',
     );
 
     // One diff is never read through two engines' semantics.
@@ -2881,34 +2881,30 @@ test('every CR wrapper and template renders the Database Analysis section for ei
         expect($content)->toContain('Render one section whichever lens produced the findings — never a per-engine variant and never two sections.');
     }
 
-    // The unresolved / unsupported branch mandates an `Assumption:` on the summary line, so the two
-    // templates that define that line have to carry a slot for it — otherwise the acceptance
-    // criterion is written in the rule and unrepresented in the contract that renders the comment.
+    // The unresolved / unsupported branch mandates a `Not verified:` entry, so the two templates
+    // that render the header block have to carry that line — otherwise the acceptance criterion is
+    // written in the rule and unrepresented in the contract that renders the comment. The old
+    // summary-line `Assumption:` slot is gone: an assumption is never published.
     foreach ([
         'skills/code-review/templates/review-output.md',
         'skills/code-review-github/templates/pr-comment-output.md',
     ] as $summaryTemplate) {
         $content = (string) file_get_contents($packageDir . '/' . $summaryTemplate);
 
+        expect(substr_count(
+            $content,
+            '**Not verified:** {each point this run could not verify — what is unknown and the step that settles it;',
+        ))->toBe(1);
         expect($content)->toContain(
-            '{` · Assumption: <the assumption sentence verbatim from the branch that fired>` '
-            . '— appended **only** when the engine is unresolved or has no dedicated lens and the diff was handled as MySQL',
+            'It carries the database-engine entry of `@skills/code-review/references/specialized-reviews.md` verbatim when that branch fires.',
         );
-        // The second omission case is "no trigger fired", never "the engine could not be
-        // resolved" — an unresolved engine is precisely when the catch-all branch runs a lens
-        // and the slot *must* render. Read in parallel with the clause before it, the earlier
-        // wording said the opposite of what it meant, so the pin holds the disambiguation.
-        expect($content)->toContain(
-            'omitted when the engine resolved to `mysql` / `mariadb` / `pgsql`, '
-            . 'and omitted when neither trigger fired at all, '
-            . 'so no resolution step ran and no lens is waiting on its answer',
-        );
+        expect($content)->not->toContain('Assumption:');
     }
 
-    // The rule that mandates the slot names the templates that define it, so neither side can drift
-    // without the other failing.
+    // The rule that mandates the entry names the templates that define the line, so neither side can
+    // drift without the other failing.
     expect(crContractText('skills/code-review/SKILL.md'))->toContain(
-        'the conditional `Assumption:` slot both render templates define for it '
+        'on the conditional `Not verified:` header line both render templates define '
         . '(`skills/code-review/templates/review-output.md`, `skills/code-review-github/templates/pr-comment-output.md`)',
     );
 
@@ -3280,10 +3276,10 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
         . 'so no lens runs on it and none is missing',
     );
 
-    // One `Assumption:` line, written by whoever resolved the engine — the templates carry one slot.
+    // One database-engine entry, written by whoever resolved the engine — the templates carry one line.
     expect($contract)->toContain(
-        'The assumption goes on the summary line **once**, in the single conditional '
-        . '`Assumption:` slot the two render templates already define, '
+        'The point goes on the `Not verified:` header line **once**, as the single entry '
+        . 'the two render templates already define for it, '
         . 'written by whichever trigger resolved the engine',
     );
     expect($contract)->toContain('when only this trigger fired, this lens writes it');
@@ -3309,9 +3305,9 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
         . 'so no schema-feature diff is ever left with no lens',
     );
 
-    // The unresolved branch must not grow a second Assumption slot — one trigger writes the line,
+    // The unresolved branch must not grow a second database-engine entry — one trigger writes it,
     // and a rule that introduces an output element no template renders is a known past defect.
-    expect($contract)->toContain('**Never state it twice**, and never add a second `Assumption:` slot for this lens');
+    expect($contract)->toContain('**Never state it twice**, and never add a second database-engine entry for this lens');
 });
 
 test('the schema-pattern lens does not re-open the mutually exclusive engine branch (issue #61)', function (): void {
