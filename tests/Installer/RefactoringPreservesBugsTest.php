@@ -68,6 +68,6 @@ test('a carried-over discrepancy is rendered under Deferred to sub-issues on the
     $packageDir = dirname(__DIR__, 2);
 
     expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
-        ->toContain('or a refactoring-only pull request carries over a discrepancy (`@rules/refactoring/general.md` *Code Review Application*)')
+        ->toContain('or a refactoring-only pull request carries over a discrepancy: one entry per finding')
         ->toContain('and the sub-issue or follow-up issue URL');
 });

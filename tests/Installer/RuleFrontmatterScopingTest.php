@@ -556,7 +556,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: *Behaviour stays identical — bugs included* — a refactoring-only change keeps every
         // behaviour, bugs included, and files every discrepancy it finds as a follow-up issue (issue #175).
-        'rules/refactoring/general.md' => '8cc6206d6a2fe9150d56c2fe93bebfc023a6d2bdc9f94494b05850b8b5dbfcbd',
+        // Re-baselined: the behaviour-change bullet carries its gating, one finding per behaviour change (issue #175).
+        'rules/refactoring/general.md' => '1269df8839674f49887a4cca903efe1c2287506c5b2488ee0f5bb6b182949b36',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
