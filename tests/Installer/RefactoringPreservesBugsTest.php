@@ -51,3 +51,22 @@ test('the filing bar, the review, and every skill route a preserved discrepancy 
             ->toContain($owner);
     }
 });
+
+test('a behaviour change in a refactoring-only pull request is raised once, not again per affected caller (issue #175)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    expect((string) file_get_contents($packageDir . '/rules/refactoring/general.md'))
+        ->toContain('**Gating — one finding per behaviour change.** This bullet raises it once, on the changed line.')
+        ->toContain('each affected caller stays an entry in `## Affected behaviour outside the diff`');
+
+    expect((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))
+        ->toContain('A behaviour change in a refactoring-only pull request stays with `@rules/refactoring/general.md` *Code Review Application*, which raises one Critical finding on the changed line.');
+});
+
+test('a carried-over discrepancy is rendered under Deferred to sub-issues on the publish path (issue #175)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+        ->toContain('or a refactoring-only pull request carries over a discrepancy that has a follow-up issue')
+        ->toContain('or per carried-over discrepancy with its follow-up issue URL');
+});

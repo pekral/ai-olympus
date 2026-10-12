@@ -98,7 +98,7 @@ Code review must reject any refactor PR that violates the coverage half of this 
 - Treat this definition as authoritative when reviewing or proposing refactoring.
 - Flag big-bang rewrites and mixed-responsibility entry points as findings.
 - Prefer incremental migration over wholesale rewrites in suggested fixes.
-- **On a refactoring-only pull request, a behaviour change is a Critical finding — a bug fix included.** The Suggested Fix restores the old behaviour and files the fix as a follow-up issue per *Behaviour stays identical — bugs included*.
+- **On a refactoring-only pull request, a behaviour change is a Critical finding — a bug fix included.** The Suggested Fix restores the old behaviour and files the fix as a follow-up issue per *Behaviour stays identical — bugs included*. **Gating — one finding per behaviour change.** This bullet raises it once, on the changed line. `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff* does not raise it again per affected caller: each affected caller stays an entry in `## Affected behaviour outside the diff`.
 - **A discrepancy the refactoring carries over with identical behaviour is not a finding at its own severity.** The pull request is forbidden to fix it, so a finding that asks for the fix can never converge. Settle it by filing instead:
   - When the pull request's `## TODO` links a follow-up issue for it, list it under `## Deferred to sub-issues` with that URL.
   - When no follow-up issue exists, raise one **Moderate** finding: the discrepancy is not filed. Its Suggested Fix files the issue and changes no code.
