@@ -145,9 +145,10 @@ The single sanctioned exception is the resolve-issue PR opt-out (no PR exists to
 
 - **What is considered for filing.** Every item the run itself records as deferred future work: entries in the PR `## TODO` checklist, entries under a `## Deferred to sub-issues` heading in the published CR comment, and pre-existing issues deferred as non-trivial. Each one is a *candidate*; the bar below decides. A point **rejected with a stated reason** (decided against, not postponed) is never a candidate — rejection is a decision, deferral is a promise.
 - **A deferred assignment point stays visible even when it is not filed.** It is recorded in the PR `## TODO` list and named in the run's final report, so a scope cut is never silent. What the bar decides is whether it also becomes a tracker issue — a promise below the bar is a documented gap, not a scheduled task.
-- **The filing bar — exactly two things are filed, and nothing else is.** An agent creates a follow-up tracker issue for one of these two, and for nothing else:
+- **The filing bar — exactly three things are filed, and nothing else is.** An agent creates a follow-up tracker issue for one of these three, and for nothing else:
   1. **A critical gap in the business logic the assignment asked for** — the task required behaviour this run did not deliver, and its absence makes the delivered work wrong or incomplete against the assignment.
   2. **A critical security issue** — still subject to *Never disclose an unfixed vulnerability on a public tracker* in `agents/leonardo.md`, which governs *where* it is filed, never *whether*.
+  3. **A discrepancy a refactoring-only change found and kept unchanged** — at any severity, per `@rules/refactoring/general.md` *Behaviour stays identical — bugs included*. The refactoring is forbidden to fix it, so the follow-up issue is the only place it survives.
 
   **Everything else is ignored, not filed and not reported.** Named, because these are what fills a backlog: a refactoring proposal or follow-up of any kind, an architectural cleanup, technical debt however well argued, a performance idea with no breached limit, a naming, wording, or cosmetic point, nice-to-have work, an observation carrying no concrete step, and a mirror item already recorded somewhere durable.
 

@@ -109,6 +109,7 @@ Rules:
    - Either way, pre-existing fixes follow the same diff-scoped 100% coverage rule as CR fixes.
 4. In the single CR comment posted during **PR update**, list every pre-existing fix under a `## Pre-existing fixes` heading with a one-line rationale, so reviewers can review them independently of the CR thread.
 5. If a pre-existing issue is **non-trivial** (would significantly expand the PR or requires architectural discussion), do **not** fix it. Surface it in the CR comment as a deferred follow-up with the reason, **and file it yourself as a follow-up issue in the originating tracker** per `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*) — do not leave the filing to the reviewer. The entry carries the created issue URL.
+6. **On a refactoring-only pull request, a bug or a security weakness is filed, never fixed** — `@rules/refactoring/general.md` *Behaviour stays identical — bugs included*.
 
 ---
 

@@ -1075,16 +1075,18 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     expect($memory)->toContain('load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`)');
 });
 
-test('the filing bar files exactly two things and ignores everything else (issue #225)', function (): void {
+test('the filing bar files exactly three things and ignores everything else (issue #225)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
 
     // The bar used to admit three broad categories, one of which was "technical debt with a named
     // consequence" — which is every refactoring proposal an agent can argue for. The backlog filled
-    // with work nobody had decided to do. It is now two categories, both critical.
-    expect($rule)->toContain('**The filing bar — exactly two things are filed, and nothing else is.**');
+    // with work nobody had decided to do. It is now two critical categories, plus the discrepancy a
+    // refactoring-only change must keep unchanged and may not fix (issue #175).
+    expect($rule)->toContain('**The filing bar — exactly three things are filed, and nothing else is.**');
     expect($rule)->toContain('**A critical gap in the business logic the assignment asked for**');
     expect($rule)->toContain('**A critical security issue**');
+    expect($rule)->toContain('**A discrepancy a refactoring-only change found and kept unchanged**');
 
     // The withdrawn ways in must be gone, not merely de-emphasised.
     expect($rule)->not->toContain('It blocks or materially complicates a planned capability.');

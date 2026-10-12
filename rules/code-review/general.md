@@ -420,7 +420,7 @@ Each published finding carries one `Provenance` field, with one of two values:
 
 The field exists because the two mean different things to whoever reads the report. A regression is something the previous round's fixes broke, so it is read against those fixes and usually resolved by correcting them. A pre-existing issue is not, and treating one as the other sends the author looking for a cause in the wrong commit. State which; never leave the field blank and never guess it from the finding's age — derive it from whether the cited line is in `git diff <baseline>..HEAD`.
 
-**Provenance changes nothing about severity, counting, or the gate.** Both classes count in the `Counts:` line and both block the merge at Critical and Moderate. A pre-existing Critical is not a lesser Critical.
+**Provenance changes nothing about severity, counting, or the gate.** Both classes count in the `Counts:` line and both block the merge at Critical and Moderate. A pre-existing Critical is not a lesser Critical. The one exception is a discrepancy a refactoring-only pull request carries over unchanged: `@rules/refactoring/general.md` *Code Review Application* settles it by a follow-up issue, because the pull request may not fix it.
 
 ### Filter on detection
 

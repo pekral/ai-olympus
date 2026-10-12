@@ -16,7 +16,7 @@ Round 3 is the loop's last review. It is a **deferral boundary**, not a failure 
 
 ## The filing bar is cross-referenced, never restated
 
-Whether a non-security Moderate may be deferred is decided by the bar that already exists: `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar*. It files exactly two things — a critical gap in the business logic the assignment asked for, and a critical security issue — and ignores everything else, refactoring follow-ups and nice-to-have work included. Read the bar there and apply it verbatim.
+Whether a non-security Moderate may be deferred is decided by the bar that already exists: `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar*. It files exactly three things — a critical gap in the business logic the assignment asked for, a critical security issue, and a discrepancy a refactoring-only change found and kept unchanged — and ignores everything else, refactoring follow-ups and nice-to-have work included. Read the bar there and apply it verbatim.
 
 **The bar is deliberately narrow, so the row below it carries most of the traffic.** A round-3 Moderate that is a refactoring, an architectural cleanup, or a debt item does not become a sub-issue any more: it is fixed in the loop, or it blocks. That is the intended consequence of not filing such work — the finding is resolved rather than queued, and the backlog stays a list of work that must actually be done.
 

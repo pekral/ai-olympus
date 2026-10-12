@@ -120,7 +120,7 @@ Intermediate commits are not individually gated; the project's gate runs once on
 
 ### Pre-existing issue handling
 
-While reading and modifying the files required for the in-scope work, you may encounter problems **unrelated to the current assignment** but already present in those files — bugs, project-rule violations, security vulnerabilities, or unnecessary comments. **Fix a pre-existing issue you encountered in a file you had to read**, in its own `pre-existing — ` commit ordered before the in-scope commits; **do not** scan unrelated files for more, and defer any **non-trivial** one (rule 5) to the *Out of scope (deferred)* group instead of fixing it inline. The full categories, commit conventions, and per-type test-coverage workflow live in `references/pre-existing-issue-handling.md`.
+While reading and modifying the files required for the in-scope work, you may encounter problems **unrelated to the current assignment** but already present in those files — bugs, project-rule violations, security vulnerabilities, or unnecessary comments. **Fix a pre-existing issue you encountered in a file you had to read**, in its own `pre-existing — ` commit ordered before the in-scope commits; **do not** scan unrelated files for more, and defer any **non-trivial** one (rule 5) to the *Out of scope (deferred)* group instead of fixing it inline. A refactoring-only assignment files a bug or a security weakness instead (rule 6). The full categories, commit conventions, and per-type test-coverage workflow live in `references/pre-existing-issue-handling.md`.
 
 ### If bug
 
