@@ -482,7 +482,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // a follow-up issue, the one exception to *Provenance changes nothing about severity, counting, or the gate* (issue #175).
         // Re-baselined: a review-only run mentions the author of the changes on each missing-test and DRY finding,
         // the second exception to *The author of the changes is the account that pushed the pull request* (issue #175).
-        'rules/code-review/general.md' => 'ecb1ba6d1db456da6e46a27dc54c4d9977d6690cf97db9dd2c9d0ec15aebeb25',
+        // Re-baselined: an issue with several pull requests gets its remarks and findings split per pull request (issue #175).
+        'rules/code-review/general.md' => '8876e53760d1f889f0749c848be8bac4017660d3bd20bb7d2c90cd0d3cc0d6b3',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

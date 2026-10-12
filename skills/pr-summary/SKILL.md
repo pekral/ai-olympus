@@ -132,6 +132,10 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
 - **Always a new comment.** Pass `--create` as the first argument of the GitHub and JIRA publish helpers, so every review-only run leaves its own comment and never updates an earlier one. The Bugsnag helper creates a new comment on every run already.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first, then merge `Impact after deployment` bullets. Never drop a `Review findings` bullet.
 
+### An issue with several pull requests
+
+When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them rewrites only that group and carries the others over.
+
 ### Closing line — the PR and the source issue
 
 The comment ends with one line linking the pull request and the source tracker item, separated by ` · ` — a `PR #123` link, then an `ECOMAIL-6974` link, each written in the target's own link syntax (see the three templates). Render whichever of the two links exists; when neither exists, omit the line. It is a navigation aid, never prose, and it is never compressed or translated.
