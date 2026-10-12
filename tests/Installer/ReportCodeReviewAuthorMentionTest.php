@@ -12,13 +12,16 @@ test('a review-only run mentions the author of the changes on each missing-test 
 
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md'))
         ->toContain('- **Author:** `@<login>` — the pull request\'s `author.login`.')
-        ->toContain('## Missing tests added');
+        ->toContain('## Missing tests added')
+        ->toContain('Render it on a run with no finding too.');
 
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
-        ->toContain('mention the author of the changes on each missing-test and DRY finding');
+        ->toContain('mention the author of the changes on each missing-test and DRY finding')
+        ->toContain('`## Missing tests added` on a review-only run whose missing-tests commit added a test,');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
-        ->toContain('End the bullet that retells a missing-test or a DRY finding with the author mention');
+        ->toContain('End the bullet that retells a missing-test or a DRY finding with the author mention')
+        ->toContain('When the review found nothing and the missing-tests commit added no test, render one sentence that says so, and no bullets.');
 
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('Pass the `donatello` missing-tests handoff to the wrapper');
