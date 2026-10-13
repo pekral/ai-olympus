@@ -228,7 +228,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Emptiness Checks` is stated in the PR description instead of at the call site.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: *Database and Eloquent* points to the CR *N+1 queries* walk.
-        'rules/laravel/laravel.md' => '36bcd3c9ce1d04731af3f695741f164228f4b1a510861a23e17f41cf012bee4c',
+        // Re-baselined: a query condition applied in two or more places is a local scope on the model.
+        'rules/laravel/laravel.md' => 'febe9efb75c8631c4c4532f334280a5dab0962b82b3a2bf57ec77d95b0763517',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -414,7 +415,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/architecture.md' => 'b74fa48b1978eaa1209b2e982f22fd97584c3376b2e51042b295e3036295a27c',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
-        'rules/laravel/dynamodb.md' => '22922785dd5b8e14fcc36dffd36cc7a154084064c93ce65f26dc031d3d41a23c',
+        // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.
+        'rules/laravel/dynamodb.md' => '91919167b99716e9819fc259eec042aabd1e8cdad7ad48e2ae5e81cdf288e2af',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/laravel/filament.md' => '51ae5a679770d117ce4ee0301f99d59a5f397c6d462b2d1383a1dc0563d8b675',
         // Re-baselined: the view-size exemption is stated in the PR description instead of the file
