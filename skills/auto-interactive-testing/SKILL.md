@@ -59,7 +59,7 @@ A defect issue that is already closed by a merged pull request needs nothing.
 
 ### 4. Prepare the environment
 
-Check these before the first scenario, and check them again after every merge:
+Check and prepare the local environment as `@skills/interactive-testing/SKILL.md` *Local readiness* states. Check these too, before the first scenario and again after every merge:
 
 1. The working tree is the default branch, freshly pulled and clean.
 2. The front-end build matches the head commit, and no dev-server hot file sends the assets to a server the browser cannot reach.
