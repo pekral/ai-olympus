@@ -1691,6 +1691,7 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), '
             . '`test-report` (the pull-request test report `skills/test-assignment/SKILL.md` and `agents/april.md` publish), '
             . '`support-analysis` (the support-issue analysis `skills/analyze-support-issue/SKILL.md` publishes on a JIRA issue), '
+            . '`mysql-report` (the advisory MySQL report `agents/casey.md` publishes on a pull request; never a code-review comment), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
         ->and($codeReview)->toContain('A new namespace joins this list in the same change that first writes it')
@@ -1744,7 +1745,7 @@ function upsertCommentNamespacesInDocs(): array
 }
 
 test('every marker namespace passed to upsert-comment.sh in skills/ or agents/ is in the family Authorship trust defines (issue #156)', function (): void {
-    $allowedNamespaces = ['cr-comment', 'merge-readiness', 'test-report', 'agent-note'];
+    $allowedNamespaces = ['cr-comment', 'merge-readiness', 'test-report', 'mysql-report', 'agent-note'];
     $foundNamespaces = upsertCommentNamespacesInDocs();
 
     // A regex that silently stopped matching would make every assertion below vacuously true, so

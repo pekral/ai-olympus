@@ -46,7 +46,7 @@ In Codex, request the role by name:
 Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, an advisory MySQL report to `casey` after a MySQL change is reviewed, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -127,7 +127,7 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-The six specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
+The seven specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
 
 <table>
 <tr>
@@ -136,9 +136,9 @@ The six specialists keep their existing responsibilities and permissions under t
 
 **Splinter (`splinter`) — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
@@ -202,11 +202,23 @@ Writes release announcements and publishes the final tracker report after review
 
 </td>
 </tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/casey.png"><img src="assets/agents/thumbnails/casey.png" alt="Casey Jones avatar" width="80"></a></td>
+<td valign="top">
+
+**Casey Jones (`casey`) — advisory MySQL analyst** · read-only
+
+Runs after the code review of a MySQL change converged. It reads the diff through `mysql-problem-solver` and publishes one pull-request comment that proposes optimizations for critical MySQL problems only. The report is advisory: it never blocks convergence or the merge. On PostgreSQL it does not run.
+
+**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`)
+
+</td>
+</tr>
 </table>
 
 ### Avatars and activity animations
 
-All six agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). They follow Cockpit’s Krang mascot style. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All seven agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). Six of them follow Cockpit’s Krang mascot style; `casey` carries the universal placeholder until its portrait is drawn. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 

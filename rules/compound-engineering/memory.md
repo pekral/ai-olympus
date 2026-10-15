@@ -26,10 +26,10 @@ Each entry is short and scannable — prefer one rule per lesson over a long ess
 - Rule:    <the decision / what to do next time>
 - Example: <a concrete pointer: file / area / symbol>
 - Source:  <PR / issue link>   Added: <YYYY-MM-DD>
-- Role:    <splinter | donatello | raphael | leonardo | michelangelo | april | shared>
+- Role:    <splinter | donatello | raphael | leonardo | michelangelo | april | casey | shared>
 ```
 
-The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `splinter` = orchestration / briefing / dispatch decisions, plus the backlog tier it runs inline (triage / priority / splitting a subject into deliverable issues); `donatello` = implementation / PR mechanics / test authoring / scoped validation; `raphael` = acceptance verification against the running application; `leonardo` = code review / security / CR loop; `april` = announcement / marketing content / post-convergence reporting; `michelangelo` = page redesign — layout, state coverage, and the developer handoff. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
+The `Role:` field scopes the lesson to the agent role that benefits most from it. Use `shared` for lessons relevant to all roles. `splinter` = orchestration / briefing / dispatch decisions, plus the backlog tier it runs inline (triage / priority / splitting a subject into deliverable issues); `donatello` = implementation / PR mechanics / test authoring / scoped validation; `raphael` = acceptance verification against the running application; `leonardo` = code review / security / CR loop; `april` = announcement / marketing content / post-convergence reporting; `michelangelo` = page redesign — layout, state coverage, and the developer handoff; `casey` = the advisory MySQL report of a code review. A lesson may carry only one role value — when it applies to two or more roles, prefer `shared`.
 
 The per-entry token budget an entry is compacted back down to after every write — so this shape stays short and scannable instead of drifting into an essay — has one home in `### Write protocol` below.
 
@@ -38,7 +38,7 @@ The per-entry token budget an entry is compacted back down to after every write 
 The memory only compounds if it is **read at the start of each task**, before re-deriving anything:
 
 - The **splinter gather phase** reads the **full** memory file (it is the orchestrator and must see all roles) so it can slice it correctly later, but it never folds the file unfiltered into the shared brief — see *Per-dispatch memory slice* below for what actually travels to each dispatched specialist.
-- Each **specialist agent** (`donatello`, `leonardo`, `april`, `raphael`, `michelangelo`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
+- Each **specialist agent** (`donatello`, `leonardo`, `april`, `raphael`, `michelangelo`, `casey`) reads only the entries where `Role:` matches its own role **or** `Role: shared` — narrowing the context to the lessons it can directly act on.
 - `@skills/analyze-problem` (*Context extraction*) and `@skills/prepare-issue-context` consult the memory file before mapping scenarios to code, filtering by the calling agent's role.
 
 #### Per-dispatch memory slice

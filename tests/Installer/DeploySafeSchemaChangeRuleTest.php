@@ -60,7 +60,8 @@ test('the code-review rule raises deploy-safe schema changes with severities and
     // Findings land in the section the DB lens already owns, not in the generic buckets.
     expect($rule)->toContain(
         'Fold the findings into the one `## Database Analysis` section, alongside the findings of the DB lens this review ran '
-        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*).',
+        . '(`postgres-patterns` on PostgreSQL, `mysql-patterns` on MySQL / MariaDB — see *Specialized Reviews*). '
+        . 'The advisory `casey` report on MySQL is not part of this section.',
     );
 
     // The code-review rule set declares no `paths:` key, so this bullet loads on every project,
@@ -88,7 +89,8 @@ test('the code-review rule explains why the fold sentence stays MySQL-named on P
     // that never ran, and the section stays one per review.
     expect($rule)->toContain(
         'Fold the findings into the one `## Database Analysis` section, alongside the findings of the DB lens this review ran '
-        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*).',
+        . '(`postgres-patterns` on PostgreSQL, `mysql-patterns` on MySQL / MariaDB — see *Specialized Reviews*). '
+        . 'The advisory `casey` report on MySQL is not part of this section.',
     );
     expect($rule)->not->toContain('That sentence names `mysql-problem-solver` because it quotes the issue #20 mandate verbatim');
 });

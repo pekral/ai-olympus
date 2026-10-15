@@ -1970,7 +1970,9 @@ test('the latency lens states its budget-and-freshness scope and both hand-overs
         'to the walk *Bulk Data & Batch Processing (issue #223)* (`@rules/code-review/general.md`)',
     );
     expect($latency)->toContain('It **defers the performance of a query and its plan**');
-    expect($latency)->toContain('to `@skills/mysql-problem-solver/SKILL.md`. It never raises a finding either of those owns.');
+    expect($latency)->toContain(
+        'on MySQL, to the advisory `casey` report (`@skills/mysql-problem-solver/SKILL.md`). It never raises a finding either of those owns.',
+    );
 
     // The dimensions half. Without it the hand-overs read as "one owner speaks on this line" and
     // would suppress a budget finding that no other owner raises (issue #63 precedent).

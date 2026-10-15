@@ -69,6 +69,15 @@
       "summary": "Explains what changed, how to test it and what the team delivered.",
       "portrait": "april.png",
       "thumbnail": "thumbnails/april.png"
+    },
+    {
+      "id": "casey",
+      "displayName": "Casey Jones",
+      "role": "MySQL report",
+      "accent": "#8fbcbb",
+      "summary": "Reads a reviewed MySQL change and proposes optimizations for its critical problems.",
+      "portrait": "casey.png",
+      "thumbnail": "thumbnails/casey.png"
     }
   ]
 }

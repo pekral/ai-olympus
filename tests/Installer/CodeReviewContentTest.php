@@ -2748,7 +2748,7 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
     // `postgres-patterns`, a skill no CR path ever invoked.
     $contract = crContractText('skills/code-review/SKILL.md');
 
-    expect($contract)->toContain('**Database operations detected in the diff → exactly one DB lens is mandatory.**');
+    expect($contract)->toContain('**Database operations detected in the diff → the engine decides where the query analysis runs.**');
 
     // The pattern list still decides whether a lens runs at all, so a diff that touches no DB
     // operation keeps running neither lens.
@@ -2781,11 +2781,11 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
 test('each database engine branch names its own lens and the unresolved case keeps the MySQL default (issue #62)', function (): void {
     $contract = crContractText('skills/code-review/SKILL.md');
 
-    // MySQL is a no-op branch by design — the regression bar for this change is that a MySQL
-    // project reviews exactly as it did before.
+    // Issue #180: on MySQL the review runs no inline query lens; the advisory `casey` report owns it.
     expect($contract)->toContain(
-        '- **`mysql` / `mariadb` → `@skills/mysql-problem-solver/SKILL.md`.**',
+        '- **`mysql` / `mariadb` → no inline DB lens; the `casey` agent writes the MySQL report.**',
     );
+    expect($contract)->toContain('The review never runs `mysql-problem-solver` inline.');
 
     // PostgreSQL gets the lens the rules already redirect it to, in its read-only mode, carrying
     // the engine's own deploy-safe fix rather than the MySQL one.
@@ -2800,27 +2800,26 @@ test('each database engine branch names its own lens and the unresolved case kee
     // resolve but has no lens of its own (`sqlite`, `sqlsrv`), so no outcome falls through.
     expect($contract)->toContain(
         '- **Engine not resolvable, or resolved to any other driver (`sqlite`, `sqlsrv`, …) '
-        . '→ `@skills/mysql-problem-solver/SKILL.md`**, the default',
+        . '→ the MySQL branch**, the default',
     );
     expect($contract)->toContain(
         'This branch is the catch-all: every outcome of the resolution step lands in exactly one of the three branches',
     );
     expect($contract)->toContain('states the assumption per `@rules/code-review/general.md` *Safety*');
     expect($contract)->toContain(
-        '`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — reviewed with the MySQL lens.`',
+        '`Assumption: database engine not resolved from config/database.php, .env.example, or composer.json — handled as MySQL.`',
     );
     expect($contract)->toContain(
-        '`Assumption: database engine resolved to <driver>, which has no dedicated lens — reviewed with the MySQL lens.`',
+        '`Assumption: database engine resolved to <driver>, which has no dedicated lens — handled as MySQL.`',
     );
 
-    // Two lenses on one diff would double-report a single defect under one heading — the gating
-    // `@rules/compound-engineering/general.md` asks for whenever two bullets can fire on one line.
-    expect($contract)->toContain('- **Never run both lenses on the same diff.**');
-    expect($contract)->toContain('Running both would report one query defect twice under one `## Database Analysis` heading');
+    // One diff is never read through two engines' semantics.
+    expect($contract)->toContain('- **Never analyse one diff through two engines.**');
+    expect($contract)->toContain('A PostgreSQL diff never gets a `casey` report, and a MySQL diff never runs `postgres-patterns`.');
 
-    // One section, whichever branch filled it.
-    expect($contract)->toContain('Pass the diff scope to the resolved lens and capture its findings');
-    expect($contract)->toContain('under the single dedicated `## Database Analysis` section described in **Output Rules**, whichever lens produced them');
+    // The PostgreSQL lens still fills the one section.
+    expect($contract)->toContain('On PostgreSQL, pass the diff scope to `postgres-patterns` and capture its findings');
+    expect($contract)->toContain('under the single dedicated `## Database Analysis` section described in **Output Rules**, never silently absorbed');
 
     // Exactly one trigger, so a later edit cannot reintroduce a second, unconditional DB bullet.
     expect(substr_count($contract, 'Database operations detected in the diff'))->toBe(1);
@@ -2836,7 +2835,10 @@ test('the Database Analysis contract is one section whichever engine lens filled
         'when the conditional DB-lens trigger fires (see **Specialized Reviews** '
         . 'for the trigger pattern list and the engine branch that resolves the lens',
     );
-    expect($rule)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL)');
+    expect($rule)->toContain(
+        '`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL; on MySQL / MariaDB and on an unresolved engine '
+        . 'the query-performance analysis is the advisory `casey` report, never a section of the review)',
+    );
     expect($rule)->toContain('those belong to the DB lens\'s internal investigation');
     expect($rule)->toContain('The section is **one** section whichever lens filled it — never a per-engine variant, never two sections on one review.');
 
@@ -2846,7 +2848,7 @@ test('the Database Analysis contract is one section whichever engine lens filled
     // mandate and this change is filed separately as issue #67.
     expect($rule)->toContain(
         'alongside the other findings of the run\'s DB lens '
-        . '(`mysql-problem-solver` on MySQL / MariaDB, `postgres-patterns` on PostgreSQL — see *Specialized Reviews*)',
+        . '(`postgres-patterns` on PostgreSQL, `mysql-patterns` on MySQL / MariaDB — see *Specialized Reviews*)',
     );
 });
 
@@ -2854,13 +2856,16 @@ test('every CR wrapper and template renders the Database Analysis section for ei
     $packageDir = dirname(__DIR__, 2);
 
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    expect($skill)->toContain('the engine-resolved DB lens — `mysql-problem-solver` or `postgres-patterns` with `MODE=cr`, never both');
+    expect($skill)->toContain(
+        'the engine-resolved DB lens — `postgres-patterns` with `MODE=cr` on PostgreSQL, '
+        . 'while on MySQL / MariaDB the query analysis is the advisory `casey` report and never runs inline',
+    );
 
     foreach (['skills/code-review-github/SKILL.md', 'skills/code-review-jira/SKILL.md', 'skills/code-review-bugsnag/SKILL.md'] as $wrapper) {
         $contract = crContractText($wrapper);
 
-        expect($contract)->toContain('**Database operations detected in the diff → exactly one DB lens is mandatory.**');
-        expect($contract)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` on PostgreSQL, never both on one diff');
+        expect($contract)->toContain('**Database operations detected in the diff → the engine decides where the query analysis runs.**');
+        expect($contract)->toContain('`@skills/postgres-patterns/SKILL.md` with `MODE=cr` inline on PostgreSQL; on MySQL / MariaDB');
         expect($contract)->toContain('The section reports only the DB lens\'s findings, whichever engine branch produced them');
     }
 
@@ -2887,7 +2892,7 @@ test('every CR wrapper and template renders the Database Analysis section for ei
 
         expect($content)->toContain(
             '{` · Assumption: <the assumption sentence verbatim from the branch that fired>` '
-            . '— appended **only** when a lens ran on an engine that is unresolved or has no dedicated lens',
+            . '— appended **only** when the engine is unresolved or has no dedicated lens and the diff was handled as MySQL',
         );
         // The second omission case is "no trigger fired", never "the engine could not be
         // resolved" — an unresolved engine is precisely when the catch-all branch runs a lens
@@ -2907,10 +2912,11 @@ test('every CR wrapper and template renders the Database Analysis section for ei
         . '(`skills/code-review/templates/review-output.md`, `skills/code-review-github/templates/pr-comment-output.md`)',
     );
 
-    // The reviewer agent lists the conditional lenses it lets the wrapper drive; a stale list there
-    // reads as "the DB lens is mysql-problem-solver" and re-opens the gap this issue closed.
+    // The reviewer agent lists the conditional lenses it lets the wrapper drive; since issue #180 it
+    // runs no MySQL query lens and points at the advisory `casey` report instead.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    expect($leonardo)->toContain('the engine-resolved DB lens (`mysql-problem-solver`, or `postgres-patterns` with `MODE=cr` on PostgreSQL)');
+    expect($leonardo)->toContain('the engine-resolved DB lens (`postgres-patterns` with `MODE=cr` on PostgreSQL)');
+    expect($leonardo)->toContain('`mysql-problem-solver` belongs to the `casey` agent\'s advisory report');
 });
 
 test('a Blade or Livewire diff triggers all three frontend lenses (issue #60)', function (): void {
@@ -3314,15 +3320,14 @@ test('the schema-pattern lens does not re-open the mutually exclusive engine bra
     $contract = crContractText('skills/code-review/SKILL.md');
 
     expect($contract)->toContain('- **This lens is not a fourth engine branch.**');
-    expect($contract)->toContain('The *Never run both lenses on the same diff* rule above does not reach it.');
-    expect($contract)->toContain('That rule governs the two mutually exclusive *engine* lenses');
+    expect($contract)->toContain('The *Never analyse one diff through two engines* rule above does not reach it.');
     expect($contract)->toContain(
         'The schema-pattern lens is a second *dimension* over the one resolved engine, not a second engine, '
-        . 'so on MySQL / MariaDB it runs **alongside** `mysql-problem-solver`, never instead of it.',
+        . 'so on MySQL / MariaDB it runs inline in the review **beside** the `casey` report, never instead of it.',
     );
 
-    // #62's own sentence has to survive intact — this change must not widen or narrow it.
-    expect($contract)->toContain('- **Never run both lenses on the same diff.**');
+    // #62's own sentence has to survive — this change must not widen or narrow it.
+    expect($contract)->toContain('- **Never analyse one diff through two engines.**');
     expect($contract)->toContain('The branches are mutually exclusive by construction');
 });
 
@@ -3331,13 +3336,13 @@ test('the schema-pattern lens is gated against mysql-problem-solver on both side
     $packageDir = dirname(__DIR__, 2);
     $contract = crContractText('skills/code-review/SKILL.md');
 
-    expect($contract)->toContain('**That lens owns the performance of a query and its plan**');
+    expect($contract)->toContain('**That report owns the performance of a query and its plan**');
     expect($contract)->toContain('**The schema-pattern lens owns the shape of the feature**');
     expect($contract)->toContain(
-        'a slow query over a new partition carries one performance finding from `mysql-problem-solver` '
-        . 'and one partition-shape finding from `mysql-patterns`',
+        'a slow query over a new partition carries one performance item in the `casey` report '
+        . 'and one partition-shape finding from `mysql-patterns` in the review',
     );
-    expect($contract)->toContain('What neither does is restate the other\'s finding in its own words.');
+    expect($contract)->toContain('What neither does is restate the other\'s point in its own words.');
 
     // The other carrier of the same boundary.
     $solver = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
@@ -3346,9 +3351,9 @@ test('the schema-pattern lens is gated against mysql-problem-solver on both side
         '**In a code review this skill owns query performance and its plan, '
         . 'never the shape of a schema feature.**',
     );
-    expect($solver)->toContain('`@skills/mysql-patterns/SKILL.md` with `MODE=cr` runs alongside this skill');
+    expect($solver)->toContain('`@skills/mysql-patterns/SKILL.md` with `MODE=cr` runs in the review beside this skill\'s `casey` report');
     expect($solver)->toContain('never restate a schema-shape finding in your own words');
-    expect($solver)->toContain('Both lenses fold into the review\'s single `## Database Analysis` section.');
+    expect($solver)->toContain('this skill\'s items stay in the `casey` report.');
 });
 
 test('mysql-patterns declares the read-only MODE=cr contract the CR invokes it with (issue #61)', function (): void {
@@ -3369,7 +3374,7 @@ test('mysql-patterns declares the read-only MODE=cr contract the CR invokes it w
     // finding is not its own.
     expect($skill)->toContain('**What this lens owns in a CR:**');
     expect($skill)->toContain('It **defers the performance of a query and its plan**');
-    expect($skill)->toContain('`@skills/mysql-problem-solver/SKILL.md`, and never raises a finding that lens owns');
+    expect($skill)->toContain('`@skills/mysql-problem-solver/SKILL.md`, and never raises a finding that skill owns');
 });
 
 test('every Database Analysis producer list names the schema-pattern lens (issue #61)', function (): void {
@@ -3381,25 +3386,25 @@ test('every Database Analysis producer list names the schema-pattern lens (issue
     $rule = codeReviewRuleContents();
     expect($rule)->toContain(
         'and equally when the schema-feature trigger fires alongside it and adds '
-        . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a second producer on MySQL / MariaDB',
+        . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a producer on MySQL / MariaDB',
     );
 
     // The skill's own conditional-lens list, or the trigger is unreachable from the one file that
     // says which conditional lenses to run.
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    expect($skill)->toContain('the schema-pattern lens `mysql-patterns` with `MODE=cr` alongside it on MySQL / MariaDB');
+    expect($skill)->toContain('the schema-pattern lens `mysql-patterns` with `MODE=cr` on MySQL / MariaDB');
 
     // Every wrapper that publishes the section.
     foreach (['skills/code-review-github/SKILL.md', 'skills/code-review-jira/SKILL.md', 'skills/code-review-bugsnag/SKILL.md'] as $wrapper) {
         $contract = crContractText($wrapper);
 
         expect($contract)->toContain(
-            'additionally runs `@skills/mysql-patterns/SKILL.md` with `MODE=cr` **alongside** the engine lens; '
+            'runs `@skills/mysql-patterns/SKILL.md` with `MODE=cr` inline; '
             . 'its findings land in that same single section, never a second one',
         );
         expect($contract)->toContain(
             'When the schema-feature trigger also fired on MySQL / MariaDB, '
-            . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` is a second producer of the same section',
+            . '`@skills/mysql-patterns/SKILL.md` with `MODE=cr` is a producer of the same section',
         );
     }
 
@@ -3414,9 +3419,9 @@ test('every Database Analysis producer list names the schema-pattern lens (issue
 
         expect($content)->toContain(
             'On MySQL / MariaDB the schema-feature trigger may add `@skills/mysql-patterns/SKILL.md` '
-            . 'with `MODE=cr` as a second producer of this same section',
+            . 'with `MODE=cr` as a producer of this same section',
         );
-        expect($content)->toContain('render its findings here beside the engine lens\'s, still as one section');
+        expect($content)->toContain('render its findings here beside the rule walks\' findings, still as one section');
     }
 });
 
@@ -4082,7 +4087,7 @@ test('the latency lens is gated against the bulk-data walk and the query lens (i
         . 'Two owners already read the same hot-path lines',
     ))->toBe(1);
     expect($contract)->toContain('**owns how much a loop holds at once and the per-item work inside it**');
-    expect($contract)->toContain('**owns the performance of a query and its plan**');
+    expect($contract)->toContain('**own the performance of a query and its plan**');
     expect($contract)->toContain('**The latency lens owns the budget of the path and the freshness of its data**');
     expect($contract)->toContain(
         'The three divide the *dimensions* of a hot-path change, never its lines:',

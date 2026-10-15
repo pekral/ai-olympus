@@ -559,6 +559,7 @@ test(
         // issue #179 and never came back.
         $expected = [
             'april' => 'medium',
+            'casey' => 'high',
             'donatello' => 'high',
             'leonardo' => 'high',
             'michelangelo' => 'medium',
