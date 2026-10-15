@@ -3336,7 +3336,8 @@ test('the schema-pattern lens is gated against mysql-problem-solver on both side
     $packageDir = dirname(__DIR__, 2);
     $contract = crContractText('skills/code-review/SKILL.md');
 
-    expect($contract)->toContain('**That report owns the performance of a query and its plan**');
+    expect($contract)->toContain('**That report owns the rest of the performance of a query and its plan**');
+    expect($contract)->toContain('keep running on every engine and keep gating');
     expect($contract)->toContain('**The schema-pattern lens owns the shape of the feature**');
     expect($contract)->toContain(
         'a slow query over a new partition carries one performance item in the `casey` report '

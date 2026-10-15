@@ -110,7 +110,7 @@ jobs:
           test ! -e CLAUDE.md
           test -f vendor/pekral/ai-olympus/assets/agents/manifest.json
           test -f vendor/pekral/ai-olympus/assets/agents/activity.css
-          for agent in splinter donatello leonardo raphael michelangelo april; do
+          for agent in splinter donatello leonardo raphael michelangelo april casey; do
             test -f "vendor/pekral/ai-olympus/assets/agents/$agent.png"
             test -f "vendor/pekral/ai-olympus/assets/agents/thumbnails/$agent.png"
           done

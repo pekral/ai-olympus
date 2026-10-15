@@ -2260,7 +2260,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('## Bash capability boundary (advisory, not harness-enforced)');
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
-    expect($rule)->toContain('Read-only agents (`leonardo`, `april`, `splinter`) never create, modify, or delete a tracked file through Bash');
+    expect($rule)->toContain('Read-only agents (`leonardo`, `april`, `splinter`, `casey`) never create, modify, or delete a tracked file through Bash');
     expect($rule)->toContain('**Residual risk — stated plainly, never assumed away.**');
     expect($rule)->toContain('not expressible');
     expect($rule)->toContain('session-wide, not per agent');
@@ -2295,6 +2295,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
         'leonardo' => 'Write, Edit',
         'april' => 'Write, Edit',
         'splinter' => 'Write, Edit',
+        'casey' => 'Write, Edit',
         'donatello' => 'WebSearch, WebFetch',
     ];
 

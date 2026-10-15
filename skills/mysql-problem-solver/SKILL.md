@@ -30,7 +30,8 @@ Focus on:
 
 - **Default (no `MODE`)** — investigate a reported problem and answer with the full analysis report below.
 - **`MODE=cr-report`** — the code-review report the `casey` agent writes (`agents/casey.md`, `@skills/code-review/references/specialized-reviews.md` *MySQL report — the `casey` agent*). The review itself never runs this skill inline. In this mode the skill:
-  - is **read-only** — it never writes a migration, an index, a query, or a configuration change, and never runs a statement that changes data or schema; `EXPLAIN` and `SHOW` statements only;
+  - runs against a **locally started database only** — never a shared, staging, or production host. With no local database, it analyses statically and says so;
+  - is **read-only** — it never writes a migration, an index, a query, or a configuration change, and never runs a statement that changes data or schema. Plain `EXPLAIN` and `SHOW` only; `EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only — never on `INSERT` / `UPDATE` / `DELETE`;
   - is **diff-scoped** — every item anchors to a `file:line` the diff added or modified; a pre-existing query the diff does not touch is out of scope;
   - reports **critical items only** — a full scan, `filesort`, or `temporary` on a realistically large table on a hot path, a per-row query in a loop, an N+1 on a list, a DDL that blocks writes during a deploy, or a comparable outage or data-loss risk. A non-critical observation is omitted, never downgraded into the report;
   - gives each item its evidence (`file:line`, the reconstructed SQL, the `EXPLAIN` baseline when DB access exists, or the stated limitation when it does not) and one proposed optimization held against *Performance Non-Regression on Query Changes* in `@rules/sql/optimalize.md`;
@@ -120,7 +121,7 @@ If access fails, continue statically and say so.
 
 ## Output Format
 
-Use the template defined in `templates/analysis-report.md`. In `MODE=cr-report`, render only its sections for the critical items and their proposed optimizations.
+Use the template defined in `templates/analysis-report.md`. In `MODE=cr-report`, use `templates/cr-report.md` instead.
 ---
 
 ## Principles

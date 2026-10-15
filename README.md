@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 62 skills, the six agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
+That loads all 62 skills, the seven agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
