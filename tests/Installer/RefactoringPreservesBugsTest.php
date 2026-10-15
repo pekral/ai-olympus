@@ -12,7 +12,7 @@ test('a refactoring-only change keeps every behaviour, bugs included, and files 
         ->and($rule)->toContain('**Every discrepancy becomes a follow-up issue.**')
         ->and($rule)->toContain('a preserved discrepancy always clears the filing bar there')
         ->and($rule)->toContain('**A security weakness keeps the security floor.**')
-        ->and($rule)->toContain('**On a refactoring-only pull request, a behaviour change is a Critical finding — a bug fix included.**')
+        ->and($rule)->toContain('**On a refactoring-only pull request, a behaviour change is a Moderate finding — a bug fix included.**')
         ->and($rule)->toContain('**A discrepancy the refactoring carries over with identical behaviour is not a finding at its own severity.**');
 
     // The process steps that used to fix bugs and race conditions inside the refactoring are gone.
@@ -61,7 +61,7 @@ test('a behaviour change in a refactoring-only pull request is raised once, not 
 
     expect((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))
         ->toContain('A behaviour change in a refactoring-only pull request stays with `@rules/refactoring/general.md` *Code Review Application*')
-        ->toContain('which raises one Critical finding on the changed line.');
+        ->toContain('which raises one Moderate finding on the changed line.');
 });
 
 test('a carried-over discrepancy is rendered under Deferred to sub-issues on the publish path (issue #175)', function (): void {
@@ -70,4 +70,24 @@ test('a carried-over discrepancy is rendered under Deferred to sub-issues on the
     expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
         ->toContain('or a refactoring-only pull request carries over a discrepancy: one entry per finding')
         ->toContain('and the sub-issue or follow-up issue URL');
+});
+
+test('a review of a refactoring-only change checks first that the logic stayed the original', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    $rule = (string) file_get_contents($packageDir . '/rules/refactoring/general.md');
+    expect($rule)->toContain('**On a refactoring-only pull request, behaviour preservation is the primary check.** Run it before every other lens')
+        ->and($rule)->toContain('It is never deferred to a sub-issue at round 3')
+        ->and($rule)->not->toContain('a behaviour change is a Critical finding');
+
+    expect((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))
+        ->toContain('behaviour preservation is the primary check, and the review compares the old and the new logic of every restructured unit first')
+        ->toContain('a behaviour change in it is a Moderate finding');
+
+    expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
+        ->toContain('**Refactoring agenda:** when the assignment is refactoring-only')
+        ->toContain('is a **Moderate** finding whose Suggested Fix restores the old behaviour');
+
+    expect((string) file_get_contents($packageDir . '/skills/process-code-review/references/round-three-deferral.md'))
+        ->toContain('A behaviour change in a refactoring-only pull request is such a Moderate too');
 });
