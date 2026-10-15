@@ -1091,6 +1091,7 @@ test('the local environment is prepared before the walkthrough inside fixed limi
     expect($skill)->toContain('**Local target only.**');
     expect($skill)->toContain('**Tracked files stay untouched.**');
     expect($skill)->toContain('delete a local branch this run created');
+    expect($skill)->toContain('switch back to the branch the run started on, and delete a local branch this run created');
     expect($skill)->toContain('Leave a process this run restarted running');
 
     // The dependency install is the one outbound request: lock files only, with an audit line.
