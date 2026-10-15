@@ -263,8 +263,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: file and method size is never a code-review finding.
         // Re-baselined: an Action's constructor is the third exemption from the >4-parameter rule.
-        // Re-baselined: *Structure* — a subclass does not copy a parent method to change one step of it.
-        'rules/php/core-standards.md' => 'c1cbc5a838b9f248dc4b86950259eff0c155a8047806cd219e697fa7ed72458e',
+        // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
+        'rules/php/core-standards.md' => '7b40b35509cd6ae43664fc182ab8b058053f7be36788f7971da8035bc3b140fa',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -487,7 +487,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the second exception to *The author of the changes is the account that pushed the pull request* (issue #175).
         // Re-baselined: an issue with several pull requests gets its remarks and findings split per pull request (issue #175).
         // Re-baselined: the namespace list gained `mysql-report`, the advisory MySQL report `casey` publishes (issue #180).
-        'rules/code-review/general.md' => 'f8c6220e7344622cfc9fce41bb29d1cdca86d832eefb454bd968474f6c655752',
+        // Re-baselined: *Reuse Existing Logic* hands a copied subclass override to the core-analysis bullet.
+        'rules/code-review/general.md' => '1792d22df8184584e3c66e9afb13e526f230499a2e8d89133ddcf21791ada7a6',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

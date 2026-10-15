@@ -161,6 +161,7 @@ A reviewer may not silently downgrade below this stratification. When a rule's s
     2. **If some logic is genuinely needed, does an equivalent implementation already exist to reuse?** Search the codebase for an existing implementation that already does the same thing (helper, Service, Action, Data Builder, DTO, trait, ModelManager, Repository, scope, etc.).
 - If equivalent logic already exists, flag the change and require reusing it instead of introducing a parallel implementation.
 - The goal is unified logic across the application; both a parallel implementation of an existing behavior and net-new logic for a need an existing implementation already covers are a finding (DRY).
+- **A subclass override that copies its parent method and changes one step of it is not this finding.** `@rules/code-review/core-analysis.md` *Override that copies its parent method to change one step* owns it at Moderate, and this rule raises nothing on it.
 - **The same logic repeated inside the diff is the same finding.** Two or more places in the diff that carry the same steps are extracted once, into the layer that owns them.
 - Severity: **Critical**. Duplicated logic drifts apart the moment one copy changes, and the caller of the stale copy keeps working while it produces the wrong result. The **Suggested Fix** names the existing implementation with its `file:line` and the call that replaces the new code.
 
