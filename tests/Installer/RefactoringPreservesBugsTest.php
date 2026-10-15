@@ -77,7 +77,10 @@ test('a review of a refactoring-only change checks first that the logic stayed t
 
     $rule = (string) file_get_contents($packageDir . '/rules/refactoring/general.md');
     expect($rule)->toContain('**On a refactoring-only pull request, behaviour preservation is the primary check.** Run it before every other lens')
-        ->and($rule)->toContain('It is never deferred to a sub-issue at round 3')
+        ->and($rule)->toContain('It is never deferred at round 3 — neither to a sub-issue nor by linking an existing issue')
+        ->and($rule)->toContain(
+            'The Assignment Conformance Gate (`@skills/code-review/references/assignment-conformance-gate.md`) does not raise it again either.',
+        )
         ->and($rule)->not->toContain('a behaviour change is a Critical finding');
 
     expect((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))
@@ -89,5 +92,9 @@ test('a review of a refactoring-only change checks first that the logic stayed t
         ->toContain('is a **Moderate** finding whose Suggested Fix restores the old behaviour');
 
     expect((string) file_get_contents($packageDir . '/skills/process-code-review/references/round-three-deferral.md'))
-        ->toContain('A behaviour change in a refactoring-only pull request is such a Moderate too');
+        ->toContain('A behaviour change in a refactoring-only pull request is such a Moderate too')
+        ->toContain('| **Moderate: a behaviour change in a refactoring-only pull request**');
+
+    expect((string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md'))
+        ->toContain('This gate does not raise it again and does not count it in `N`.');
 });
