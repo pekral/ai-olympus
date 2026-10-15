@@ -1077,6 +1077,36 @@ test('a missing login never ends the UI check of a user-visible change', functio
     expect($orchestration)->toContain('**`raphael` runs whenever the answer is yes**, at `FAST`, `STANDARD`, and `CRITICAL` alike.');
 });
 
+test('the local environment is prepared before the walkthrough inside fixed limits', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
+    $auto = (string) file_get_contents($packageDir . '/skills/auto-interactive-testing/SKILL.md');
+    $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    // One owner section states the readiness items and their limits.
+    expect($skill)->toContain('## Local readiness');
+    expect($skill)->toContain('git pull --ff-only');
+    expect($skill)->toContain('Never run `migrate:fresh`, a rollback, or a wipe.');
+    expect($skill)->toContain('**Local target only.**');
+    expect($skill)->toContain('**Tracked files stay untouched.**');
+    expect($skill)->toContain('delete a local branch this run created');
+    expect($skill)->toContain('Leave a process this run restarted running');
+
+    // The dependency install is the one outbound request: lock files only, with an audit line.
+    expect($skill)->toContain('never run `composer update`, `composer require`, or `npm install`');
+    expect($skill)->toContain('append one `outbound-request` audit line for each install');
+    expect($raphael)->toContain('never `composer update`, `composer require`, or `npm install`');
+    expect($orchestration)->toContain('never `composer update`, `composer require`, or `npm install`');
+    expect($orchestration)->toContain('| `raphael` | Install the dependencies the committed lock files pin (package-registry download) | L1 |');
+
+    // The agent and the auto skill reference the section and do not restate its items.
+    expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Local readiness*');
+    expect($auto)->toContain('`@skills/interactive-testing/SKILL.md` *Local readiness*');
+    expect($auto)->not->toContain('The front-end build matches the head commit');
+    expect($auto)->not->toContain('The queue workers run the current code');
+});
+
 test('agents directory ships the raphael acceptance-tester subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $agentPath = $packageDir . '/agents/raphael.md';

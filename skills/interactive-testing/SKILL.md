@@ -37,8 +37,8 @@ This section owns how a testing agent prepares the local environment before the 
 
 Check every item before the first scenario. When an item is not ready, prepare it yourself with the project's own documented command, then check it again. A preparation step never makes you wait for the user.
 
-1. **The checkout is the revision under test.** The working tree is on the head of the requested change. When it is on another revision and the tree is clean, switch to the head (`gh pr checkout <PR>` or `git switch <branch>`) and pull it. Record the branch the run started on.
-2. **The dependencies match the lock files.** When `vendor/` or `node_modules/` does not match `composer.lock` or the JavaScript lock file, run `composer install` or the project's install command (for example `npm ci`).
+1. **The checkout is the revision under test.** The working tree is on the head of the requested change. When it is on another revision and the tree is clean, switch to the head (`gh pr checkout <PR>` or `git switch <branch>`) and pull it with `git pull --ff-only`. Record the branch the run started on.
+2. **The dependencies match the lock files.** When `vendor/` or `node_modules/` does not match `composer.lock` or the JavaScript lock file, run `composer install` or the project's install command (for example `npm ci`). Install only from the committed lock files: never run `composer update`, `composer require`, or `npm install`. The package-registry download is an outbound request: append one `outbound-request` audit line for each install, per `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes*.
 3. **The environment file exists.** When `.env` is missing, create it through the project's documented setup step, for example a copy of `.env.example` and `php artisan key:generate`. Never edit an existing `.env`.
 4. **The local database is migrated.** When `php artisan migrate:status` (or the framework's equivalent) shows a pending migration, run the migrations. Never run `migrate:fresh`, a rollback, or a wipe.
 5. **The application caches are current.** Clear a stale configuration, route, or view cache, for example with `php artisan optimize:clear`.
@@ -50,7 +50,7 @@ Preparing the environment is allowed only inside these limits:
 - **Local target only.** The same rule as *Sign-in and test accounts*: never prepare, migrate, or restart anything on a production, staging, or other shared remote environment.
 - **The project's own commands.** Use the commands the project documents in its instructions, README, `composer.json` scripts, `package.json` scripts, or container files. Never invent a bootstrap the project does not have.
 - **Tracked files stay untouched.** Never edit, commit, or revert a tracked file. Never stash, reset, or discard uncommitted changes. When the working tree carries changes that do not belong to the requested change, do not switch the checkout: the walkthrough is `Blocked`, and the report names the files.
-- **Traceable.** Report every preparation step under **Scope**: the item, the command, and its result. At the end, stop the processes this run started and switch back to the branch the run started on, unless the user needs them to reproduce a failure; then list them under **Cleanup**.
+- **Traceable.** Report every preparation step under **Scope**: the item, the command, and its result. At the end, stop the processes this run started, delete a local branch this run created, and switch back to the branch the run started on, unless the user needs them to reproduce a failure; then list them under **Cleanup**. Leave a process this run restarted running, and list it under **Cleanup**.
 
 When an item cannot be made ready inside these limits, every scenario that depends on it is `Blocked`. State the failing command, its error, and the exact step that unblocks it. Continue the scenarios that do not depend on it.
 
@@ -151,7 +151,7 @@ Return a concise report in the user's language:
 - **Result:** one row per scenario with expected behavior, actual interactions and observation, evidence, and verdict.
 - **Findings:** reproducible failures, transient observations, and environment blockers kept distinct; never claim a regression without evidence linking it to the change.
 - **Untested:** exact scenarios and missing prerequisites.
-- **Cleanup:** restored values, the restored checkout, processes this run started and left running, any remaining test artifacts, every test account this run created, and every test record this run created or left in place.
+- **Cleanup:** restored values, the restored checkout, processes this run started or restarted and left running, any remaining test artifacts, every test account this run created, and every test record this run created or left in place.
 - **Next step:** implementation fixes, access/data preparation, or acceptance when all required rows passed.
 
 Report in the current task by default. Do not post messages to external trackers or create a new agent/task unless asked.
