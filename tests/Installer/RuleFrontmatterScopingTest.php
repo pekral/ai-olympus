@@ -493,7 +493,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Reuse Existing Logic* hands a copied subclass override to the core-analysis bullet.
         // Re-baselined: *Safety* reports an open point as not verified, never as an assumption, and the header
         // block gains the conditional `Not verified:` line (`rules/general/general.md` *Verified statements only*).
-        'rules/code-review/general.md' => '4c8bc19c8f6bad8442473726a0b15adcf5f510f4594c959ee7119d01eee9cf5a',
+        'rules/code-review/general.md' => 'eafb3add3bc80e5519e9c5609743552270f1bad99ad50db946dfe0e2f95992cd',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

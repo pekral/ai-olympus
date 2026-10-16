@@ -18,7 +18,7 @@ The trigger, the dispatch rule, and the advisory status are defined once in `@sk
 The dispatch carries:
 
 - the pull request URL and its head SHA;
-- the resolved database engine (`mysql`, `mariadb`, or `unresolved` / another driver with the `Assumption:` sentence the review wrote);
+- the resolved database engine (`mysql`, `mariadb`, or `unresolved` / another driver with the `Not verified:` entry the review wrote);
 - the shared brief path, when `splinter` orchestrates the run.
 
 When the dispatch names `pgsql`, stop with `Not applicable — PostgreSQL project` and publish nothing. `postgres-patterns` already ran inside the review.

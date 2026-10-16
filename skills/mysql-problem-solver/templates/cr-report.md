@@ -1,7 +1,7 @@
 ## MySQL report — critical optimizations (advisory)
 
 Advisory only: this report does not block the merge and is not part of the code review.
-Engine: <mysql | mariadb | unresolved — the review's Assumption sentence> · Head: <short SHA> · DB access: <EXPLAIN run | static analysis only — <reason>>
+Engine: <mysql | mariadb | unresolved — the review's `Not verified:` entry> · Head: <short SHA> · DB access: <EXPLAIN run | static analysis only — <reason>>
 
 ### 1. <one-sentence problem> — `<file>:<line>`
 - **Evidence:** <reconstructed SQL, EXPLAIN baseline or the stated limitation, table size when known>
