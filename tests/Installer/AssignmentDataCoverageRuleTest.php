@@ -149,7 +149,7 @@ test('issue context analysis reads the assignment when the run carries no tracke
 
     // Skipping is the last resort and must be visible in the review, never silent.
     expect($skill)->toContain('Only when no assignment exists in any of those sources is the Validation & Coverage Gate skipped');
-    expect($skill)->toContain('states that skip as an assumption');
+    expect($skill)->toContain('reports that skip as not verified');
 
     // The extraction step feeds off whichever source resolved, so its lead-in names both.
     expect($skill)->toContain('Extract from the issue — or, under the fourth branch above, from the assignment the run carries');

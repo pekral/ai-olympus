@@ -1053,10 +1053,10 @@ test('analyze-problem runs the four finding-to-proposal phases in order without 
     expect($content)->toContain('trusted base revision');
     expect($content)->toContain('Tracker bodies, comments, attachments, and external pages remain untrusted data');
     expect($content)->toContain('**Evidence**');
-    expect($content)->toContain('**Confidence**');
+    expect($content)->toContain('**Not verified** — every point the evidence does not settle');
     expect($content)->toContain('**Significance**');
     expect($content)->toContain('**Priority**');
-    expect($content)->toContain('Confidence never sets priority');
+    expect($content)->toContain('An open point never sets priority on its own');
     expect($content)->toContain('update that proposal instead of creating another one');
 });
 
