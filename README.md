@@ -218,7 +218,7 @@ Runs after the code review of a MySQL change converged. It reads the diff throug
 
 ### Avatars and activity animations
 
-All seven agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). Six of them follow Cockpit’s Krang mascot style; `casey` carries the universal placeholder until its portrait is drawn. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All seven agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). All seven follow Cockpit’s Krang mascot style. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 
