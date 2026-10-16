@@ -1,6 +1,6 @@
 # Redesign — {page name}
 
-> Fill every section. Write in the language of the assignment (`@rules/reports/general.md`); keep every on-screen label verbatim in the language the application uses. Delete a section only when it does not apply, and say why in *Assumptions and gaps*.
+> Fill every section. Write in the language of the assignment (`@rules/reports/general.md`); keep every on-screen label verbatim in the language the application uses. Delete a section only when it does not apply, and say why in *Not verified*.
 
 **Page:** {route} · {view file} · {component or controller class}
 **Viewport:** {width × height the application is actually used at}

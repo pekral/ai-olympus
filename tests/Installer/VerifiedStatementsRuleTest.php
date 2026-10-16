@@ -91,6 +91,7 @@ test('no rule, skill, agent, or command asks an output for a confidence slot, an
         'scheduling assumption',
         'important assumptions',
         'material assumptions',
+        'Assumptions and gaps',
         '~tokens',
         '~Tokens',
         'estimated duration',
