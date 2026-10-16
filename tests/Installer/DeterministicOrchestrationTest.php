@@ -12,7 +12,17 @@ declare(strict_types = 1);
 test('every deterministic orchestration helper is shipped, executable, and self-testing', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    $helpers = ['run-validation', 'plan-route', 'check-handoff', 'render-report', 'record-metrics', 'read-manifest', 'run-gate', 'verify-gate'];
+    $helpers = [
+        'run-validation',
+        'plan-route',
+        'check-handoff',
+        'render-report',
+        'record-metrics',
+        'read-manifest',
+        'run-gate',
+        'verify-gate',
+        'gate-context',
+    ];
 
     foreach ($helpers as $helper) {
         $script = $packageDir . '/skills/_shared/' . $helper . '.sh';
@@ -247,6 +257,7 @@ test('the deterministic helpers are mapped for Codex, not only for Claude Code',
         expect($toml)->toContain('run-validation.sh');
         // The shared machine gate record (issue #169) runs through the same helpers on Codex.
         expect($toml)->toContain('`run-gate.sh`, `verify-gate.sh`');
+        expect($toml)->toContain('`gate-context.sh`');
         expect($toml)->toContain('platform-neutral by construction');
     }
 
@@ -255,4 +266,56 @@ test('the deterministic helpers are mapped for Codex, not only for Claude Code',
     $agents = (string) file_get_contents($packageDir . '/AGENTS.md');
     expect($agents)->toContain('Deterministic work is not an LLM\'s job.');
     expect($agents)->toContain('a green verdict needs no session');
+});
+
+test('the context relevance gate decides cheaply and defaults to false', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gate = (string) file_get_contents($packageDir . '/skills/_shared/gate-context.sh');
+
+    expect($gate)->toContain('context_required');
+    expect($gate)->toContain('confidence');
+    expect($gate)->toContain('domains');
+    expect($gate)->toContain('sources');
+    expect($gate)->toContain('budget');
+    expect($gate)->toContain('reason');
+
+    foreach ([
+        'default outcome skips retrieval with context_required false',
+        'default verdict turns every source off with an empty budget',
+        'ambiguous task without paths, symbols, or labels skips retrieval',
+        'a concrete class in a known domain returns context_required true',
+        'symbol match enables relevant sources and sets domains',
+        'each knowledge source can be enabled or disabled independently',
+        'deterministic detection is preferred over LLM',
+        'insufficient deterministic signals escalate to LLM classification',
+        'budget smaller than available evidence still produces valid verdict',
+        'task type docs or formatting skips retrieval',
+        'quotes and control characters in input still give valid JSON',
+        'mixed-case auth words in keywords map to the security domain',
+        'a symbol that maps to no domain escalates to LLM classification',
+        'a documentation label with changed files does not skip retrieval',
+        'reason never carries a caller input value',
+    ] as $label) {
+        expect($gate)->toContain('\'' . $label . '\'');
+    }
+
+    // One vocabulary for the sensitive domains: the gate and the risk classifier source the same
+    // word lists, so a word added for one verdict cannot silently miss the other.
+    $vocabulary = (string) file_get_contents($packageDir . '/skills/_shared/domain-vocabulary.sh');
+    $classifier = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+
+    foreach (['AUTH_RE', 'DATA_RE', 'QUEUE_RE'] as $name) {
+        $definition = '/^' . $name . '=/m';
+        expect($vocabulary)->toMatch($definition);
+        expect($gate)->not->toMatch($definition);
+        expect($classifier)->not->toMatch($definition);
+    }
+
+    foreach ([$gate, $classifier] as $script) {
+        expect($script)->toContain('. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/domain-vocabulary.sh"');
+    }
+
+    $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
+    expect($recorder)->toContain('\'context gate counters are stored as counts\'');
+    expect(splinterContractText())->toContain('`--context-gate-executed`, `--context-requested`, `--context-skipped`');
 });

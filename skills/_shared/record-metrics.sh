@@ -25,11 +25,19 @@
 #                     [--agent-dispatches <n>] [--escalated-dispatches <n>]
 #                     [--review-rounds <n>] [--critical <n>] [--moderate <n>]
 #                     [--input-tokens <n>] [--output-tokens <n>] [--cache-read-tokens <n>]
+#                     [--context-gate-executed <n>] [--context-requested <n>] [--context-skipped <n>]
+#                     [--sources-searched <n>] [--items-returned <n>] [--estimated-tokens-returned <n>]
 #                     [--gate-record <path>]... [--store <path>]
 #   record-metrics.sh --self-test
 #
 #   Token counts are optional by design: no runtime here reports them reliably,
 #   and a fabricated number is worse than an absent one.
+#
+#   The --context-* counters, --sources-searched, --items-returned, and
+#   --estimated-tokens-returned come from the run's `gate-context.sh` verdicts:
+#   how often the gate ran, how often it asked for context or skipped it, and
+#   what the retrieval it allowed actually returned. They measure the context
+#   the gate saved.
 #
 #   --gate-record names a gate record that `run-gate.sh` wrote; repeat it once
 #   per record. Only its `duration_seconds` is read, and the entry stores the
@@ -79,6 +87,8 @@ record() {
   local dispatches=0 escalated=0 rounds=0 critical=0 moderate=0
   local input_tokens="" output_tokens="" cache_tokens=""
   local gate_runs=0 gate_seconds=0 gate_duration
+  local context_gate_executed="" context_requested="" context_skipped=""
+  local sources_searched="" items_returned="" estimated_tokens_returned=""
   local store="${AI_OLYMPUS_HOME:-$HOME/.ai-olympus}/metrics.jsonl"
 
   while [[ $# -gt 0 ]]; do
@@ -104,7 +114,7 @@ record() {
       gate_seconds=$((gate_seconds + gate_duration))
       shift 2
       ;;
-    --agent-dispatches | --escalated-dispatches | --review-rounds | --critical | --moderate | --input-tokens | --output-tokens | --cache-read-tokens)
+    --agent-dispatches | --escalated-dispatches | --review-rounds | --critical | --moderate | --input-tokens | --output-tokens | --cache-read-tokens | --context-gate-executed | --context-requested | --context-skipped | --sources-searched | --items-returned | --estimated-tokens-returned)
       [[ $# -ge 2 ]] || { usage; return 1; }
       if ! is_count "$value"; then
         echo "$PROG: $flag takes a non-negative integer" >&2
@@ -119,6 +129,12 @@ record() {
       --input-tokens) input_tokens="$value" ;;
       --output-tokens) output_tokens="$value" ;;
       --cache-read-tokens) cache_tokens="$value" ;;
+      --context-gate-executed) context_gate_executed="$value" ;;
+      --context-requested) context_requested="$value" ;;
+      --context-skipped) context_skipped="$value" ;;
+      --sources-searched) sources_searched="$value" ;;
+      --items-returned) items_returned="$value" ;;
+      --estimated-tokens-returned) estimated_tokens_returned="$value" ;;
       esac
       shift 2
       ;;
@@ -153,6 +169,12 @@ record() {
     [[ -n "$output_tokens" ]] && printf ',"output_tokens":%s' "$output_tokens"
     [[ -n "$cache_tokens" ]] && printf ',"cache_read_tokens":%s' "$cache_tokens"
     [[ "$gate_runs" -gt 0 ]] && printf ',"gate_runs":%s,"gate_seconds":%s' "$gate_runs" "$gate_seconds"
+    [[ -n "$context_gate_executed" ]] && printf ',"context_gate_executed":%s' "$context_gate_executed"
+    [[ -n "$context_requested" ]] && printf ',"context_requested":%s' "$context_requested"
+    [[ -n "$context_skipped" ]] && printf ',"context_skipped":%s' "$context_skipped"
+    [[ -n "$sources_searched" ]] && printf ',"sources_searched":%s' "$sources_searched"
+    [[ -n "$items_returned" ]] && printf ',"items_returned":%s' "$items_returned"
+    [[ -n "$estimated_tokens_returned" ]] && printf ',"estimated_tokens_returned":%s' "$estimated_tokens_returned"
     printf '}\n'
   } >>"$store"
 
@@ -199,6 +221,13 @@ self_test() {
   expect_exit 'a gate record without a duration is refused' 1 \
     --initial-tier STANDARD --final-tier STANDARD --status success --gate-record "$tmp/gate-broken.json"
 
+  expect_exit 'context gate counters are appended' 0 \
+    --initial-tier FAST --final-tier FAST --status success \
+    --context-gate-executed 2 --context-requested 1 --context-skipped 1 \
+    --sources-searched 2 --items-returned 3 --estimated-tokens-returned 900
+  expect_exit 'a non-numeric context counter is refused' 1 \
+    --initial-tier FAST --final-tier FAST --status success --items-returned some
+
   expect_exit 'an unknown tier is refused' 1 --initial-tier HOT --final-tier FAST --status success
   expect_exit 'an unknown status is refused' 1 --initial-tier FAST --final-tier FAST --status vibes
   expect_exit 'a non-numeric counter is refused' 1 \
@@ -206,13 +235,13 @@ self_test() {
   expect_exit 'an unknown flag is refused' 1 \
     --initial-tier FAST --final-tier FAST --status success --branch feature/secret
 
-  # Every line must parse, and the store must hold exactly the three valid entries.
+  # Every line must parse, and the store must hold exactly the four valid entries.
   local lines
   lines="$(wc -l <"$store" | tr -d ' ')"
-  if [[ "$lines" == "3" ]]; then
+  if [[ "$lines" == "4" ]]; then
     printf 'ok    %-54s %s entries\n' 'only valid entries reach the store' "$lines"
   else
-    printf 'FAIL  %-54s expected 3 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
+    printf 'FAIL  %-54s expected 4 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
     failures=$((failures + 1))
   fi
 
@@ -232,10 +261,19 @@ self_test() {
     printf 'ok    %-54s\n' 'no task content is persisted'
   fi
 
-  if jq -e 'select(.gate_runs == 2 and .gate_seconds == 150)' <(tail -1 "$store") >/dev/null 2>&1; then
+  if jq -e 'select(.gate_runs == 2 and .gate_seconds == 150)' <(sed -n 3p "$store") >/dev/null 2>&1; then
     printf 'ok    %-54s\n' 'gate durations are summed, never copied'
   else
     printf 'FAIL  %-54s\n' 'gate durations are summed, never copied' >&2
+    failures=$((failures + 1))
+  fi
+
+  if jq -e 'select(.context_gate_executed == 2 and .context_requested == 1 and .context_skipped == 1
+      and .sources_searched == 2 and .items_returned == 3 and .estimated_tokens_returned == 900)' \
+    <(tail -1 "$store") >/dev/null 2>&1; then
+    printf 'ok    %-54s\n' 'context gate counters are stored as counts'
+  else
+    printf 'FAIL  %-54s\n' 'context gate counters are stored as counts' >&2
     failures=$((failures + 1))
   fi
 
