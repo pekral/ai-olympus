@@ -414,7 +414,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: all SQL query composition stays in the Repository; *Basic queries only* and the
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
         // Re-baselined: *Before you create an Action* searches every Action for repeated steps, and CR Severity Rules hands a repeated fragment to *Reuse Existing Logic*.
-        'rules/laravel/architecture.md' => 'cf6094e995a0bf01e7aed61b3b281b0458b65e3a2ecc3b0b1d612cd3179b3f74',
+        'rules/laravel/architecture.md' => 'c5b5ead6c171cc090e13638076551be133b55117f1d87b361f1e30c4e578002f',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.

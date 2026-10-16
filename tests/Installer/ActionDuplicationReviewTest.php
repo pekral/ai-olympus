@@ -17,6 +17,7 @@ test('the review compares every Action the diff touches with every flow for dupl
         ->toContain('A sequence that crosses layers and that no such Action runs is **not** a finding.')
         ->toContain('- A repeated sequence is one finding, never one per copy.')
         ->toContain('Raise that bullet once, list every copy, and raise nothing here.')
+        ->toContain('A block that crosses layers is the orchestration of the use case, not general logic, and is not this finding')
         ->toContain('This bullet owns the Action\'s existence and every step sequence another flow already repeats.')
         ->toContain('A fragment another flow already repeats is a duplicate, and the *Reuse of existing logic* bullet owns it.');
 
@@ -24,6 +25,7 @@ test('the review compares every Action the diff touches with every flow for dupl
         ->toContain('- **Search every flow for repeated steps, not only the target domain folder for the use case.**')
         ->toContain('A sequence that crosses layers and that no such Action runs is each Action\'s own orchestration and stays.')
         ->toContain('One shared collaborator call is not a repeated sequence.')
+        ->toContain('A block that crosses layers — a Data Validator, then a Data Builder, then a Model Service — is the orchestration')
         ->toContain('A fragment another flow already repeats is a duplicate, owned by `@rules/code-review/general.md`');
 
     expect((string) file_get_contents($packageDir . '/skills/code-review/SKILL.md'))
