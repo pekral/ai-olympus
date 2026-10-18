@@ -154,7 +154,7 @@ Retired identifiers `zeus`, `argos`, and `apollon` are never reused. The former 
 
 ## Avatar and activity assets
 
-Open the [avatar preview](../assets/agents/preview.html) to compare all six portraits and activity states. The [manifest](../assets/agents/manifest.json) records stable identifiers, display names, roles, previous identifiers, portrait and thumbnail paths, accent colours, and animation states. Its paths are relative to `assets/agents/`. These assets ship with the package for future Cockpit integration; this change does not connect or run agents inside Cockpit.
+Open the [avatar preview](../assets/agents/preview.html) to compare the six portraits it shows and the activity states. The [manifest](../assets/agents/manifest.json) records stable identifiers, display names, roles, previous identifiers, portrait and thumbnail paths, accent colours, and animation states. Its paths are relative to `assets/agents/`. These assets ship with the package for future Cockpit integration; this change does not connect or run agents inside Cockpit.
 
 Portraits and 160-pixel thumbnails are transparent PNGs. Use the [shared stylesheet](../assets/agents/activity.css) for the same gentle portrait tilt and three-dot animation as Krang. `thinking`, `working`, and `responding` animate; `queued` is static; `idle` hides the bubble. Reduced-motion preferences and `data-motion="paused"` stop animation.
 

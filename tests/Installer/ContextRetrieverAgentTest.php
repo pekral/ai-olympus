@@ -45,6 +45,7 @@ test('splinter requests context through the structured interface instead of read
         ->and($splinter)->toContain(
             '--output ${BRIEF%.md}.context.json --started-at <the value>`, so a cache hit carries the measured retrieval duration.',
         )
+        ->and($splinter)->toContain('Exit `3` is a miss: continue. Any other exit is also a miss: continue without a package.')
         ->and($splinter)->toContain('omit `--retrieval-seconds` alone when `metadata.retrieval_seconds` is `null`')
         ->and($splinter)->toContain('**No package is not a blocker.**')
         ->and($splinter)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/pack-context\.sh lookup`/m');

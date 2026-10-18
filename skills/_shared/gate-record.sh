@@ -157,13 +157,14 @@ gate_no_symlink() {
 
 # A relative, git-ignored, untracked path with no symlink in it. Every probe
 # must be ignored, so a file the scripts write there never dirties the tree.
-#   gate_scratch_path <path> <probe>...
+#   gate_scratch_path <name> <path> <probe>...
+#   <name> is the setting or option that supplied <path>; the refusal names it.
 #   returns 3 with GATE_REASON when the path is not acceptable
 gate_scratch_path() {
-  local path="$1" probe
-  shift
+  local name="$1" path="$2" probe
+  shift 2
   if [[ ! "$path" =~ ^[A-Za-z0-9._/-]+$ || "$path" == /* || "$path" == '..' || "$path" == ../* || "$path" == */.. || "$path" == */../* ]]; then
-    GATE_REASON="refused: $(safe_display "$path") must be a relative path inside the project"
+    GATE_REASON="refused: $name must be a relative path inside the project — $(safe_display "$path")"
     return 3
   fi
 
@@ -196,7 +197,7 @@ gate_evidence_dir() {
 
   # Every path the scripts write must be ignored, so a record never dirties the
   # tree it describes and a branch can never commit one.
-  gate_scratch_path "$dir" "$dir/0.full.json" "$dir/0.full.log" "$dir/gate.lock/holder" || return 3
+  gate_scratch_path gate-evidence "$dir" "$dir/0.full.json" "$dir/0.full.log" "$dir/gate.lock/holder" || return 3
 
   if [[ "$mode" == "write" ]]; then
     (umask 077 && mkdir -p -- "$dir")

@@ -218,7 +218,7 @@ PACK_FILTER='
   | build($selected)
 '
 
-# scratch_path_ok <path> <probe>... — the shared path guard, reported on stderr.
+# scratch_path_ok <name> <path> <probe>... — the shared path guard, reported on stderr.
 scratch_path_ok() {
   if ! gate_scratch_path "$@"; then
     echo "$PROG: $GATE_REASON" >&2
@@ -286,7 +286,7 @@ run() {
     return 1
   fi
 
-  scratch_path_ok "$output" "$output" || return 1
+  scratch_path_ok --output "$output" "$output" || return 1
 
   local seconds=""
   if [[ -n "$started_at" ]]; then
@@ -301,7 +301,7 @@ run() {
   # The cache key, or "bypass" when the repository state cannot key one.
   local cache="off" key="" tree canonical tmp
   if [[ -n "$cache_dir" ]]; then
-    scratch_path_ok "$cache_dir" "$cache_dir/0.json" || return 1
+    scratch_path_ok --cache-dir "$cache_dir" "$cache_dir/0.json" || return 1
     cache="bypass"
     if tree="$(gate_tree_of HEAD)" && [[ -z "$(git status --porcelain --untracked-files=all)" ]]; then
       canonical="$(jq -c --arg tree "$tree" '{
