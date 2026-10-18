@@ -22,6 +22,7 @@
 #     "gate": <the gate-context.sh verdict that applies>,
 #     "task": { "type": "bug", "description": "...", "domains": [], "symbols": [], "paths": [] }
 #   }
+#   The request and the candidates file are each exactly one JSON document.
 #   `gate` is the verdict verbatim. When the verdict's classifier is `llm`,
 #   splinter copies its own classification into `context_required` and
 #   `sources` and keeps `classifier: "llm"`. A request whose
@@ -67,9 +68,10 @@
 #   or gate.budget.max_tokens is left out, and the next one is tried. The token
 #   count is an estimate by a stated method: ceil(characters / 4) of the whole
 #   compact package JSON, metadata included. metadata.estimated_tokens carries it.
+#   A budget below the size of the empty package cannot be met: pack refuses it.
 #
 # Cache
-#   Key: sha256 of { git tree of HEAD, domains, symbols, enabled sources, budget }.
+#   Key: sha256 of { git tree of HEAD, domains, symbols, paths, enabled sources, budget }.
 #   The cache is used only when the working tree is clean, so a package is never
 #   reused after the repository state changed: a new commit is a new tree, and
 #   an uncommitted change bypasses the cache. The cache directory and the output
@@ -216,26 +218,12 @@ PACK_FILTER='
   | build($selected)
 '
 
-# A relative, git-ignored, untracked path with no symlink in it, or a refusal.
+# scratch_path_ok <path> <probe>... — the shared path guard, reported on stderr.
 scratch_path_ok() {
-  local path="$1" probe="$2"
-  if [[ ! "$path" =~ ^[A-Za-z0-9._/-]+$ || "$path" == /* || "$path" == '..' || "$path" == ../* || "$path" == */.. || "$path" == */../* ]]; then
-    echo "$PROG: refused: $(safe_display "$path") must be a relative path inside the project" >&2
-    return 1
-  fi
-  if ! gate_no_symlink "$path"; then
+  if ! gate_scratch_path "$@"; then
     echo "$PROG: $GATE_REASON" >&2
     return 1
   fi
-  if ! git check-ignore -q -- "$probe" 2>/dev/null; then
-    echo "$PROG: refused: $(safe_display "$path") is not git-ignored" >&2
-    return 1
-  fi
-  if [[ -n "$(git ls-files -- "$path" 2>/dev/null)" ]]; then
-    echo "$PROG: refused: $(safe_display "$path") is tracked" >&2
-    return 1
-  fi
-  return 0
 }
 
 # write_file <path> <content> — written whole through a temporary file, 0600.
@@ -292,8 +280,9 @@ run() {
     return 1
   fi
 
-  if ! jq -e "$REQUEST_FILTER" "$request" >/dev/null 2>&1; then
-    echo "$PROG: refused: the request is not valid, or its gate verdict did not require context" >&2
+  # -s: exactly one JSON document. jq -e reads only the last of several.
+  if ! jq -e -s 'length == 1 and (.[0] | ('"$REQUEST_FILTER"'))' "$request" >/dev/null 2>&1; then
+    echo "$PROG: refused: the request is not one valid JSON document, or its gate verdict did not require context" >&2
     return 1
   fi
 
@@ -319,6 +308,7 @@ run() {
         tree: $tree,
         domains: ((.gate.domains // []) + (.task.domains // []) | map(ascii_downcase) | unique),
         symbols: (.task.symbols // [] | map(ascii_downcase) | unique),
+        paths: (.task.paths // [] | unique),
         sources: [.gate.sources | to_entries[] | select(.value == true) | .key] | sort,
         budget: { max_items: .gate.budget.max_items, max_tokens: .gate.budget.max_tokens }
       }' "$request")"
@@ -347,14 +337,20 @@ run() {
     return 0
   fi
 
-  if ! jq -e --slurpfile req "$request" '$req[0] as $req | '"$CANDIDATES_FILTER" "$candidates" >/dev/null 2>&1; then
-    echo "$PROG: refused: the candidates are not valid, or name a source the gate did not enable" >&2
+  if ! jq -e -s --slurpfile req "$request" '$req[0] as $req | length == 1 and (.[0] | ('"$CANDIDATES_FILTER"'))' "$candidates" >/dev/null 2>&1; then
+    echo "$PROG: refused: the candidates are not one valid JSON document, or name a source the gate did not enable" >&2
     return 1
   fi
 
   if ! package="$(jq -c --slurpfile req "$request" --arg cache "$cache" --arg key "$key" --arg seconds "$seconds" \
     '$req[0] as $req | '"$PACK_FILTER" "$candidates")"; then
     echo "$PROG: the package could not be built" >&2
+    return 1
+  fi
+
+  # The empty package has a size of its own. A budget below it cannot be met.
+  if ! printf '%s' "$package" | jq -e '.metadata.estimated_tokens <= .metadata.budget.max_tokens' >/dev/null 2>&1; then
+    echo "$PROG: refused: the package cannot fit the token budget" >&2
     return 1
   fi
 
@@ -513,6 +509,23 @@ EOF
     pack --request scratch/request.json --candidates scratch/candidates.json --output "$repo/scratch/abs.json"
   expect_exit 'unknown flag exits with usage error' 1 pack --unrecognized-flag x
 
+  # One JSON document each: jq -e alone would judge only the last of several.
+  printf '{"queried":["rules"],"items":[{"kind":"rules","text":"t","source":{"type":"rules","id":"r"}}]}\n' \
+    >"$repo/scratch/multi-candidates.json"
+  cat "$repo/scratch/candidates.json" >>"$repo/scratch/multi-candidates.json"
+  expect_exit 'candidates of several JSON documents are refused' 1 \
+    pack --request scratch/request.json --candidates scratch/multi-candidates.json --output scratch/x.json
+  printf '%s' "$gate" | jq -c '{gate: (.context_required = false), task: {type: "bug"}}' >"$repo/scratch/multi-request.json"
+  cat "$repo/scratch/request.json" >>"$repo/scratch/multi-request.json"
+  expect_exit 'a request of several JSON documents is refused' 1 \
+    pack --request scratch/multi-request.json --candidates scratch/candidates.json --output scratch/x.json
+
+  # A budget below the empty package is refused, never packed over budget.
+  printf '{"gate":%s,"task":{"type":"bug"}}\n' \
+    "$(printf '%s' "$gate" | jq -c '.budget = {max_items: 5, max_tokens: 50}')" >"$repo/scratch/tiny.json"
+  expect_exit 'a token budget below the empty package is refused' 1 \
+    pack --request scratch/tiny.json --candidates scratch/candidates.json --output scratch/tiny-out.json
+
   # Cache: a clean tree stores the package and a lookup hits it.
   expect_exit 'a lookup on an empty cache is a miss' 3 \
     lookup --request scratch/request.json --cache-dir scratch/cache --output scratch/hit.json
@@ -523,6 +536,9 @@ EOF
   expect_exit 'a lookup on the same repository state is a hit' 0 \
     lookup --request scratch/request.json --cache-dir scratch/cache --output scratch/hit.json
   expect_jq 'a cache hit is reported as a hit' "$repo/scratch/hit.json" '.metadata.cache == "hit"'
+  jq -c '.task.paths = ["app/Other/Path.php"]' "$repo/scratch/request.json" >"$repo/scratch/other-paths.json"
+  expect_exit 'a lookup with other task paths is a miss' 3 \
+    lookup --request scratch/other-paths.json --cache-dir scratch/cache --output scratch/hit-paths.json
 
   printf 'y\n' >>"$repo/app/Order.php"
   expect_exit 'an uncommitted change never reuses the cached package' 3 \
