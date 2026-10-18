@@ -7,7 +7,7 @@ declare(strict_types = 1);
 // Per the project's test-isolation rule a Pest test cannot exec a real .sh, so the behavioural proof
 // lives in the script's own `--self-test` (the precedent is `tests/Installer/FindingRecordsTest.php`).
 // The pins below fix the contract that self-test enforces, the wiring that makes it run in the build,
-// and the promise that no existing workflow calls the analysis.
+// and the promise that no existing workflow names the analysis script: only `feedback-loop.sh` does (issue #189).
 
 test('the analysis and the collection are shipped, executable, self-testing, and run by the build', function (string $relativePath): void {
     $packageDir = dirname(__DIR__, 2);
@@ -190,7 +190,7 @@ test('the two settings are documented in the project manifest table of the rule 
         ->toContain('| `recurrence.window-days` | `analyze-recurrence.sh` |');
 });
 
-test('no existing workflow calls the analysis, so an unavailable analysis blocks no pull request', function (): void {
+test('no existing workflow names the analysis script, so an unavailable analysis blocks no pull request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $claudeAgents = glob($packageDir . '/agents/*.md');
     $codexAgents = glob($packageDir . '/codex/agents/*.toml');
