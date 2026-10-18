@@ -90,7 +90,10 @@ test('github-release-roadmap classifies issues semantically and keeps label prop
     expect($skill)->toContain('**desired release outcomes, not automatically as GitHub labels**');
     expect($skill)->toContain('the change type — `bugfix`, `feature`, or `breaking`');
     expect($skill)->toContain('the matching existing label(s), if any');
-    expect($skill)->toContain('the inclusion recommendation, its rationale, its dependencies, and a confidence level');
+    expect($skill)->toContain(
+        'the inclusion recommendation, its rationale, its dependencies, '
+        . 'and every point the issue content does not settle, under *Not verified*',
+    );
 
     expect($skill)->toContain('**Labels are additive, never substitutive.**');
     expect($skill)->toContain('Never replace an existing label.');
@@ -113,7 +116,8 @@ test('github-release-roadmap presents one confirmation package carrying every li
         'the existing Project to reuse, the template Project to copy, or the blank Project to create',
         'the Project fields and the per-item dates and priorities to add or update',
         'any new issues to create',
-        'all assumptions, risks, and manual steps, plus the expected number and type of mutations',
+        'every point not verified (each with the question that settles it), the risks, and the manual steps, '
+        . 'plus the number and type of mutations the plan performs',
     ] as $item) {
         expect($skill)->toContain($item);
     }
