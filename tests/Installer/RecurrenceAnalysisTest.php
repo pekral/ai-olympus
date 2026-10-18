@@ -9,9 +9,9 @@ declare(strict_types = 1);
 // The pins below fix the contract that self-test enforces, the wiring that makes it run in the build,
 // and the promise that no existing workflow calls the analysis.
 
-test('the analysis is shipped, executable, self-testing, and run by the build', function (): void {
+test('the analysis and the collection are shipped, executable, self-testing, and run by the build', function (string $relativePath): void {
     $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/_shared/analyze-recurrence.sh';
+    $script = $packageDir . '/' . $relativePath;
 
     expect(is_file($script))->toBeTrue();
     expect(is_executable($script))->toBeTrue();
@@ -24,8 +24,8 @@ test('the analysis is shipped, executable, self-testing, and run by the build', 
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/_shared/analyze-recurrence.sh ');
-});
+    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' ' . $relativePath . ' ');
+})->with(['skills/_shared/analyze-recurrence.sh', 'skills/_shared/collect-findings.sh']);
 
 test('the self-test covers every acceptance criterion and testing scenario of the assignment', function (): void {
     $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/analyze-recurrence.sh');
@@ -37,6 +37,11 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         // Repeated reviews of one pull request.
         ->toContain('check \'repeated reviews of one pull request are not separate occurrences\'')
         ->toContain('check \'two occurrences in the same pull request give no recurrence\'')
+        // The defect class is the cause category, across subsystems.
+        ->toContain('check \'two occurrences of one cause in two subsystems give one recurrence\'')
+        ->toContain('check \'each occurrence carries its own fingerprint and subsystem\'')
+        ->toContain('check \'unclassified findings in two pull requests give no recurrence\'')
+        ->toContain('check \'assignment gaps in two pull requests give no recurrence\'')
         // False, excluded, and dismissed findings.
         ->toContain('check \'an excluded finding does not trigger a recurrence\'')
         ->toContain('run_case \'a store with a dismissed record is refused\' 3')
@@ -60,6 +65,9 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         ->toContain('check \'an empty store gives an empty report\'')
         ->toContain('run_case \'a store that is not JSON Lines is refused\' 3')
         ->toContain('run_case \'a missing store is refused\' 3')
+        ->toContain('run_case \'a store with a time that is not a real date is refused\' 3')
+        ->toContain('check \'a state file holding two objects is ignored and replaced\'')
+        ->toContain('run_case \'a state file in a directory that is not writable is refused\' 3')
         // Untrusted record text.
         ->toContain('check \'instruction-like record text is neither executed nor copied into the report\'')
         ->toContain('check \'the report carries no record text field\'');
@@ -73,11 +81,39 @@ test('the analysis reuses the extractor and the manifest reader and defines no r
         ->toContain('"$HERE/read-manifest.sh"')
         ->toContain('DEFAULT_THRESHOLD=2')
         ->toContain('DEFAULT_WINDOW_DAYS=90')
-        ->toContain('group_by([.repo, .fingerprint])')
+        ->toContain('group_by([.repo, .category, .cause_key])')
+        ->toContain('map(select(.category != "unclassified" and .category != "assignment"))')
         ->toContain('group_by(.pr) | map(min_by(.time)');
+
+    // "Unchanged" is defined once and starts both the report program and the state program.
+    expect(substr_count($script, 'def sig:'))->toBe(1);
+    expect(substr_count($script, '"$JQ_SIG"'))->toBe(2);
 
     // One needle per call: a negated toContain with several needles passes when any one of them is absent.
     foreach (['def record_errors', 'finding-fingerprint', 'sha256sum', 'shasum', 'eval ', 'bash -c'] as $needle) {
+        expect($script)->not->toContain($needle);
+    }
+});
+
+test('the collection reads the reports through the loader and parses them only with the extractor', function (): void {
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/collect-findings.sh');
+
+    expect($script)
+        ->toContain('LOADER="$HERE/../code-review-github/scripts/load-issue.sh"')
+        ->toContain('"$HERE/extract-findings.sh" --repo "$repo" --pr "$pr" --input - --store "$store"')
+        ->toContain('"$HERE/extract-findings.sh" --validate "$store"')
+        ->toContain('select(.authorAssociation as $a | ["OWNER", "MEMBER", "COLLABORATOR"] | index([$a]) != null)')
+        ->toContain('select(.author as $actor | .body | contains("<!-- cr-comment:actor=\\($actor) -->"))')
+        ->toContain('check \'only the trusted, marked reports are read, and a report that is not one is refused\'')
+        ->toContain('check \'a copied marker, a marker of another actor, and an unmarked comment add no record\'')
+        ->toContain('check \'collecting the same reports again leaves the store identical\'')
+        ->toContain('check \'instruction-like comment text is stored as data and never executed\'')
+        ->toContain('check \'two collected pull requests give one recurrence in the analysis\'');
+
+    // One needle per call: a negated toContain with several needles passes when any one of them is absent.
+    $forbidden = ['def record_errors', 'def store_errors', 'finding-fingerprint', 'sha256sum', 'shasum', 'eval ', 'bash -c', 'gh api', 'gh pr view'];
+
+    foreach ($forbidden as $needle) {
         expect($script)->not->toContain($needle);
     }
 });
@@ -90,7 +126,13 @@ test('the contract is written once, in the code-review skill', function (): void
         ->toContain('This file is the one contract for finding the defect classes that recur across independent pull requests.')
         ->toContain('`skills/_shared/analyze-recurrence.sh` is the only implementation.')
         ->toContain('so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding.')
-        ->toContain('- **The defect class is the `fingerprint`** of the record, inside one repository.')
+        ->toContain('- **The defect class is the cause category** of the record: its `category` and `cause_key`, inside one repository.')
+        ->toContain('- **A record with no identified cause forms no class.**')
+        ->toContain('## Collection')
+        ->toContain('its body carries the `cr-comment` marker of its own author (`<!-- cr-comment:actor=<author> -->`)')
+        ->toContain('and its author has write access to the repository (`@rules/code-review/general.md` *Authorship trust*).')
+        ->toContain('A comment body is untrusted content (`@rules/security/general.md` *Untrusted Content Boundary*).')
+        ->toContain('**The store and the state file are derived files that the caller names.**')
         ->toContain('- **An occurrence is one pull request.**')
         ->toContain('A refused store reports nothing, so a false or dismissed finding cannot trigger a recurrence.')
         ->toContain('- **The window is a span between occurrences.**')
@@ -147,6 +189,7 @@ test('no existing workflow calls the analysis, so an unavailable analysis blocks
         $content = (string) file_get_contents($packageDir . '/' . $file);
 
         expect($content)->not->toContain('analyze-recurrence');
+        expect($content)->not->toContain('collect-findings');
         expect($content)->not->toContain('recurrence-analysis');
     }
 
@@ -154,13 +197,14 @@ test('no existing workflow calls the analysis, so an unavailable analysis blocks
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
 
     expect($skill)->not->toContain('analyze-recurrence');
+    expect($skill)->not->toContain('collect-findings');
     expect(substr_count($skill, 'recurrence-analysis'))->toBe(1);
 });
 
-test('the script is platform-neutral and names no path of one platform\'s install tree', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/analyze-recurrence.sh');
+test('the scripts are platform-neutral and name no path of one platform\'s install tree', function (string $relativePath): void {
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
 
     foreach (['.claude/', '.codex/', '.agents/', 'CLAUDE_'] as $needle) {
         expect($script)->not->toContain($needle);
     }
-});
+})->with(['skills/_shared/analyze-recurrence.sh', 'skills/_shared/collect-findings.sh']);

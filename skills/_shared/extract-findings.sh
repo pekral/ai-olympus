@@ -128,7 +128,9 @@ def record_errors:
         (if isstr($r.repo; "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") then empty else "repo must be owner/name" end),
         (if ($r.pr | type) == "number" and ($r.pr | floor) == $r.pr and $r.pr > 0 then empty else "pr must be a positive integer" end),
         (if isstr($r.revision; "^[0-9a-f]{7,64}$") then empty else "revision must be a lowercase commit SHA" end),
-        (if isstr($r.time; "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") then empty else "time must be UTC ISO-8601 with a trailing Z" end),
+        (if isstr($r.time; "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") then
+           (if (try ($r.time | fromdateiso8601) catch null) != null then empty else "time is not a valid date and time" end)
+         else "time must be UTC ISO-8601 with a trailing Z" end),
         (if ($r.severity == "critical" or $r.severity == "moderate") then empty else "severity must be critical or moderate" end),
         (if isstr($r.category; "^[a-z0-9_./-]+$") then empty else "category must match [a-z0-9_./-]+" end),
         (if isstr($r.cause_key; "^[a-z0-9-]+$") then empty else "cause_key must match [a-z0-9-]+" end),
@@ -748,6 +750,9 @@ self_test() {
   jq -c '. + {extra: 1}' "$tmp/store.jsonl" >"$tmp/extra.jsonl"
   run_case 'an unknown key is rejected by --validate' 3 yes -- --validate "$tmp/extra.jsonl"
   run_case 'a missing record file is rejected by --validate' 3 yes -- --validate "$tmp/none.jsonl"
+  jq -c '.time = "2026-13-45T10:00:00Z"' "$tmp/store.jsonl" >"$tmp/badclock.jsonl"
+  run_case 'a time that is not a real date is rejected by --validate' 3 yes -- --validate "$tmp/badclock.jsonl"
+  check 'the rejection names the invalid time' "$(grep -q 'time is not a valid date and time' "$tmp/case.err" && echo 0 || echo 1)"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "extract-findings self-test: $failures failure(s)" >&2

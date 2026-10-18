@@ -5,7 +5,7 @@
 #   Phase 1 of the recurring-defect epic (#185) turns each published code review into fingerprinted
 #   finding records. One review loop fixes its own findings, so nothing yet notices that the same
 #   class of defect shows up in pull request after pull request. This script reads a record store,
-#   groups the records by fingerprint, and reports the groups that reach the threshold of distinct
+#   groups the records by cause category, and reports the groups that reach the threshold of distinct
 #   pull requests inside the window, with a link to every source.
 #
 #   What counts, how the window works, and the report shape are written once, in
@@ -80,10 +80,12 @@ require_tools() {
   fi
 }
 
+# What makes a record unchanged, for the report and for the state file alike. Both programs start with it.
+JQ_SIG='def sig: "\(.revision) \(.time) \(.status)";'
+
 # The report shape lives here once: an empty report and a full one differ only in their values.
 JQ_REPORT=''
 IFS= read -r -d '' JQ_REPORT <<'EOF' || true
-def sig: "\(.revision) \(.time) \(.status)";
 def epoch: fromdateiso8601;
 
 ($state.records // {}) as $seen
@@ -98,7 +100,9 @@ def epoch: fromdateiso8601;
     processed: ($recs | map(select(.changed)) | length),
     unchanged: ($recs | map(select(.changed | not)) | length),
     recurrences: (
-      $recs | group_by([.repo, .fingerprint])
+      # A record with no identified cause names no defect class.
+      $recs | map(select(.category != "unclassified" and .category != "assignment"))
+      | group_by([.repo, .category, .cause_key])
       | map(
           .[0] as $head
           # One occurrence per pull request: its earliest record.
@@ -111,20 +115,18 @@ def epoch: fromdateiso8601;
           | select(($members | length) > 0 and ($members | any(.changed)))
           | {
               repo: $head.repo,
-              fingerprint: $head.fingerprint,
               category: $head.category,
               cause_key: $head.cause_key,
-              subsystem: $head.subsystem,
               prs: ($members | length),
               first: $members[0].time,
               last: $members[-1].time,
               occurrences: ($members | map({
-                repo, pr, url: "https://github.com/\(.repo)/pull/\(.pr)", finding: .id, severity,
-                revision, time, disposition, status
+                repo, pr, url: "https://github.com/\(.repo)/pull/\(.pr)", finding: .id, fingerprint, subsystem,
+                severity, revision, time, disposition, status
               }))
             }
         )
-      | sort_by([.repo, .fingerprint])
+      | sort_by([.repo, .category, .cause_key])
     )
   }
 EOF
@@ -152,8 +154,9 @@ manifest_setting() {
 resolve_setting() {
   local name="$1" flag="$2" key="$3" min="$4" default="$5" value
   if [[ -n "$flag" ]]; then
-    [[ "$flag" =~ ^[0-9]{1,4}$ ]] && [[ "$((10#$flag))" -ge "$min" ]] \
-      || die_usage "--$name must be a whole number of at least $min, got: $(safe_display "$flag")"
+    if ! [[ "$flag" =~ ^[0-9]{1,4}$ ]] || ((10#$flag < min)); then
+      die_usage "--$name must be a whole number of at least $min, got: $(safe_display "$flag")"
+    fi
     echo "$((10#$flag))"
     return 0
   fi
@@ -215,9 +218,11 @@ cmd_analyze() {
   if [[ -n "$state" ]]; then
     [[ ! -L "$state" ]] || bail "state file is a symbolic link: $(safe_display "$state")"
     [[ -d "$(dirname "$state")" ]] || bail "state file directory does not exist: $(safe_display "$(dirname "$state")")"
+    [[ -w "$(dirname "$state")" ]] || bail "state file directory is not writable: $(safe_display "$(dirname "$state")")"
     if [[ -e "$state" ]]; then
       [[ -f "$state" ]] || bail "state file is not a regular file: $(safe_display "$state")"
-      if state_json="$(jq -c 'select(type == "object" and .schema == 1 and (.records | type) == "object")' "$state" 2>/dev/null)" \
+      # A state file is exactly one JSON object; anything else, such as two objects, is not one.
+      if state_json="$(jq -c -s 'if length == 1 and (.[0] | type == "object" and .schema == 1 and (.records | type) == "object") then .[0] else empty end' "$state" 2>/dev/null)" \
         && [[ -n "$state_json" ]]; then
         :
       else
@@ -233,15 +238,17 @@ cmd_analyze() {
   trap "rm -rf '$tmp'" EXIT
 
   jq -n -c '[inputs]' "$store" >"$tmp/records.json"
-  jq -c --argjson n "$threshold" --argjson w "$window" --argjson state "$state_json" "$JQ_REPORT" "$tmp/records.json" >"$tmp/report.json"
+  jq -c --argjson n "$threshold" --argjson w "$window" --argjson state "$state_json" "$JQ_SIG"$'\n'"$JQ_REPORT" "$tmp/records.json" >"$tmp/report.json"
   cat "$tmp/report.json"
 
   if [[ -n "$state" ]]; then
     local out
-    out="$(mktemp "$state.XXXXXX")"
+    if ! out="$(mktemp "$state.XXXXXX" 2>/dev/null)"; then
+      echo "$PROG: state file cannot be written: $(safe_display "$state")" >&2
+      exit 3
+    fi
     jq -c --argjson n "$threshold" --argjson w "$window" \
-      'def sig: "\(.revision) \(.time) \(.status)";
-       {schema: 1, threshold: $n, window_days: $w, records: (map({key: .id, value: sig}) | from_entries)}' \
+      "$JQ_SIG"' {schema: 1, threshold: $n, window_days: $w, records: (map({key: .id, value: sig}) | from_entries)}' \
       "$tmp/records.json" >"$out"
     mv -f "$out" "$state"
   fi
@@ -282,33 +289,38 @@ self_test() {
     fi
   }
 
-  # rec <repo> <pr> <fingerprint> <time> [status] [disposition] [revision] — one valid record.
+  # rec <repo> <pr> <fingerprint> <time> [status] [disposition] [revision] [subsystem] — one valid record.
+  # FP_B is the missing-authorization cause; every other fingerprint is the N+1 cause.
   rec() {
-    local fp="$3"
+    local fp="$3" cause=n-plus-one-queries
+    if [[ "$fp" == "$FP_B" ]]; then
+      cause=missing-authorization
+    fi
     jq -n -c --arg repo "$1" --argjson pr "$2" --arg fp "$fp" --arg time "$4" --arg status "${5:-open}" \
       --arg disposition "${6:-confirmed}" --arg rev "${7:-1111111111111111111111111111111111111111}" \
-      --arg id "$(printf 'f-%.8s%08x' "$fp" "$2")" \
+      --arg subsystem "${8:-app/actions}" --arg cause "$cause" --arg id "$(printf 'f-%.8s%08x' "$fp" "$2")" \
       '{schema: 1, id: $id, repo: $repo, pr: $pr, revision: $rev, time: $time, severity: "critical",
-        category: "rules/code-review/core-analysis", cause_key: "n-plus-one-queries", fingerprint: $fp,
-        subsystem: "app/actions", cause_hypothesis: "Each order loads its items with a separate query.",
+        category: "rules/code-review/core-analysis", cause_key: $cause, fingerprint: $fp,
+        subsystem: $subsystem, cause_hypothesis: "Each order loads its items with a separate query.",
         reproducer: "$orders->each(fn ($o) => $o->items);", expected_behavior: "One query loads every item.",
         proposed_fix: "$orders->load(\"items\");", disposition: $disposition, status: $status}'
   }
 
-  local FP_A=aaaaaaaaaaaaaaaa FP_B=bbbbbbbbbbbbbbbb
+  local FP_A=aaaaaaaaaaaaaaaa FP_B=bbbbbbbbbbbbbbbb FP_C=cccccccccccccccc
 
   # Happy path: the same defect class in two pull requests within 30 days is one recurrence.
   { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 9 $FP_A 2026-09-25T10:00:00Z; } >"$tmp/two.jsonl"
   run_case 'two pull requests inside the window analyse cleanly' 0 -- --store "$tmp/two.jsonl"
   check 'two occurrences in two pull requests within 30 days give one recurrence' "$(jq -e '
       (.recurrences | length) == 1 and .valid == true and .threshold == 2 and .window_days == 90
-      and .recurrences[0].prs == 2 and .recurrences[0].fingerprint == "aaaaaaaaaaaaaaaa"
-      and .recurrences[0].cause_key == "n-plus-one-queries" and .recurrences[0].subsystem == "app/actions"
+      and .recurrences[0].prs == 2 and .recurrences[0].category == "rules/code-review/core-analysis"
+      and .recurrences[0].cause_key == "n-plus-one-queries"
+      and (.recurrences[0].occurrences | map(.fingerprint + " " + .subsystem) | unique) == ["aaaaaaaaaaaaaaaa app/actions"]
       and .recurrences[0].first == "2026-09-01T10:00:00Z" and .recurrences[0].last == "2026-09-25T10:00:00Z"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   check 'the report links every source pull request and finding' "$(jq -e '
       (.recurrences[0].occurrences | map(.url)) == ["https://github.com/acme/shop/pull/7", "https://github.com/acme/shop/pull/9"]
       and (.recurrences[0].occurrences | all(.finding | test("^f-[0-9a-f]{16}$")))
-      and (.recurrences[0].occurrences | all(has("revision") and has("time") and has("severity") and has("status")))' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+      and (.recurrences[0].occurrences | all(has("revision") and has("time") and has("severity") and has("status") and has("fingerprint") and has("subsystem")))' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   cp "$tmp/out" "$tmp/two.report"
   cp "$tmp/two.jsonl" "$tmp/two.before"
   "$script" --store "$tmp/two.jsonl" >"$tmp/out2"
@@ -338,6 +350,28 @@ self_test() {
   "$HERE/extract-findings.sh" --repo acme/shop --pr 9 --input "$tmp/p9r1.md" --store "$tmp/real.jsonl" >/dev/null
   run_case 'a store with a second pull request is analysed' 0 -- --store "$tmp/real.jsonl"
   check 'the same defect class in a second pull request is a recurrence' "$(jq -e '(.recurrences | length) == 1 and .recurrences[0].prs == 2 and .records == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+
+  # One cause category in two subsystems is one defect class: the fingerprints differ, the recurrence does not.
+  report "$tmp/p11r1.md" 6666666666666666666666666666666666666666 2026-10-12T10:00:00Z app/Http/Controllers/OrderController.php:7
+  rm -f "$tmp/subs.jsonl"
+  "$HERE/extract-findings.sh" --repo acme/shop --pr 7 --input "$tmp/p7r1.md" --store "$tmp/subs.jsonl" >/dev/null
+  "$HERE/extract-findings.sh" --repo acme/shop --pr 11 --input "$tmp/p11r1.md" --store "$tmp/subs.jsonl" >/dev/null
+  run_case 'one cause in two subsystems is analysed' 0 -- --store "$tmp/subs.jsonl"
+  check 'two occurrences of one cause in two subsystems give one recurrence' "$(jq -e '
+      (.recurrences | length) == 1 and .recurrences[0].prs == 2 and .recurrences[0].cause_key == "n-plus-one-queries"
+      and (.recurrences[0].occurrences | map(.subsystem)) == ["app/actions", "app/http"]
+      and (.recurrences[0].occurrences | map(.fingerprint) | unique | length) == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 9 $FP_C 2026-09-02T10:00:00Z open confirmed 1111111111111111111111111111111111111111 app/http; } >"$tmp/subs2.jsonl"
+  run_case 'a hand-written store with one cause in two subsystems is analysed' 0 -- --store "$tmp/subs2.jsonl"
+  check 'each occurrence carries its own fingerprint and subsystem' "$(jq -e '(.recurrences | length) == 1 and (.recurrences[0].occurrences | map([.fingerprint, .subsystem])) == [["aaaaaaaaaaaaaaaa", "app/actions"], ["cccccccccccccccc", "app/http"]]' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+
+  # A record with no identified cause names no defect class, so it never makes a recurrence.
+  jq -c '.category = "unclassified" | .cause_key = "general"' "$tmp/two.jsonl" >"$tmp/unclassified.jsonl"
+  run_case 'a store of unclassified records is analysed' 0 -- --store "$tmp/unclassified.jsonl"
+  check 'unclassified findings in two pull requests give no recurrence' "$(jq -e '(.recurrences | length) == 0 and .records == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  jq -c '.category = "assignment" | .cause_key = "unmet-requirement"' "$tmp/two.jsonl" >"$tmp/assignment.jsonl"
+  run_case 'a store of assignment gaps is analysed' 0 -- --store "$tmp/assignment.jsonl"
+  check 'assignment gaps in two pull requests give no recurrence' "$(jq -e '(.recurrences | length) == 0 and .records == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
 
   # One pull request twice in a hand-written store is still one pull request.
   { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 7 $FP_A 2026-09-02T10:00:00Z open confirmed 2222222222222222222222222222222222222222 | jq -c '.id = "f-00000000000000aa"'; } >"$tmp/samepr.jsonl"
@@ -372,10 +406,10 @@ self_test() {
   # Another cause, or another repository, is another class.
   { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 9 $FP_B 2026-09-02T10:00:00Z; } >"$tmp/causes.jsonl"
   run_case 'two different causes are analysed' 0 -- --store "$tmp/causes.jsonl"
-  check 'two different fingerprints give no recurrence' "$(jq -e '(.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'two different causes give no recurrence' "$(jq -e '(.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/blog 9 $FP_A 2026-09-02T10:00:00Z; } >"$tmp/repos.jsonl"
   run_case 'two repositories are analysed' 0 -- --store "$tmp/repos.jsonl"
-  check 'the same fingerprint in two repositories gives no recurrence' "$(jq -e '(.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'the same defect class in two repositories gives no recurrence' "$(jq -e '(.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
 
   # The window: 120 days apart is outside the default 90, exactly 90 days is inside, a wider window changes the result.
   { rec acme/shop 7 $FP_A 2026-01-01T10:00:00Z; rec acme/shop 9 $FP_A 2026-05-01T10:00:00Z; } >"$tmp/far.jsonl"
@@ -452,9 +486,21 @@ self_test() {
   printf 'not a state file\n' >"$tmp/badstate.json"
   run_case 'a damaged state file is analysed' 0 -- --store "$tmp/two.jsonl" --state "$tmp/badstate.json"
   check 'a damaged state file is replaced and every record is processed' "$(jq -e '.processed == 2' "$tmp/out" >/dev/null && grep -q 'not a state file' "$tmp/err" && jq -e '.schema == 1' "$tmp/badstate.json" >/dev/null && echo 0 || echo 1)"
+  { cat "$tmp/state.json"; cat "$tmp/state.json"; } >"$tmp/twostate.json"
+  run_case 'a state file holding two objects is analysed' 0 -- --store "$tmp/two.jsonl" --state "$tmp/twostate.json"
+  check 'a state file holding two objects is ignored and replaced' "$(jq -e '.processed == 2 and .unchanged == 0' "$tmp/out" >/dev/null && grep -q 'not a state file' "$tmp/err" && [[ "$(jq -s 'length' "$tmp/twostate.json")" == 1 ]] && echo 0 || echo 1)"
   ln -sf "$tmp/state.json" "$tmp/linkstate.json"
   run_case 'a state file that is a symbolic link is refused' 3 -- --store "$tmp/two.jsonl" --state "$tmp/linkstate.json"
   run_case 'a state file in a missing directory is refused' 3 -- --store "$tmp/two.jsonl" --state "$tmp/none/state.json"
+  mkdir -p "$tmp/locked"
+  chmod 555 "$tmp/locked"
+  if [[ -w "$tmp/locked" ]]; then
+    printf 'skip  %s (the user can write to a read-only directory)\n' 'a state file in a directory that is not writable is refused'
+  else
+    run_case 'a state file in a directory that is not writable is refused' 3 -- --store "$tmp/two.jsonl" --state "$tmp/locked/state.json"
+    check 'an unwritable state directory gives an empty report and one message' "$(jq -e '(.recurrences | length) == 0' "$tmp/out" >/dev/null && grep -q 'state file directory is not writable' "$tmp/err" && [[ "$(wc -l <"$tmp/out" | tr -d ' ')" == 1 ]] && echo 0 || echo 1)"
+  fi
+  chmod 755 "$tmp/locked"
 
   # Empty or malformed input gives an empty report and never a crash.
   : >"$tmp/empty.jsonl"
@@ -465,6 +511,9 @@ self_test() {
   check 'a malformed store gives an empty report and one message' "$(jq -e '(.recurrences | length) == 0 and .valid == false' "$tmp/out" >/dev/null && [[ -s "$tmp/err" ]] && echo 0 || echo 1)"
   jq -c 'del(.fingerprint)' "$tmp/two.jsonl" >"$tmp/incomplete.jsonl"
   run_case 'a store with an incomplete record is refused' 3 -- --store "$tmp/incomplete.jsonl"
+  jq -c '.time = "2026-13-45T10:00:00Z"' "$tmp/two.jsonl" >"$tmp/badclock.jsonl"
+  run_case 'a store with a time that is not a real date is refused' 3 -- --store "$tmp/badclock.jsonl"
+  check 'a time that is not a real date gives an empty report and names the time' "$(jq -e '(.recurrences | length) == 0 and .valid == false' "$tmp/out" >/dev/null && grep -q 'time is not a valid date and time' "$tmp/err" && echo 0 || echo 1)"
   check 'an incomplete record gives an empty report' "$(jq -e '(.recurrences | length) == 0 and .valid == false' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run_case 'a missing store is refused' 3 -- --store "$tmp/does-not-exist.jsonl"
   check 'a missing store gives an empty report' "$(jq -e '(.recurrences | length) == 0 and .valid == false' "$tmp/out" >/dev/null && echo 0 || echo 1)"
