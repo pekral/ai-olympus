@@ -73,8 +73,8 @@ require_tools() {
   fi
 }
 
-# The published review reports, oldest first. A report counts only when it carries the cr-comment marker
-# of its own author, and that author holds write access to the repository (rules/code-review/general.md
+# The published review reports. A report counts only when it carries the cr-comment marker of its own
+# author, and that author holds write access to the repository (rules/code-review/general.md
 # *Authorship trust*). The marker is visible text anyone can copy, so the marker alone proves nothing.
 # Passing this test decides whose report is collected; it never makes the report text trusted.
 JQ_REPORTS=''
@@ -83,8 +83,25 @@ IFS= read -r -d '' JQ_REPORTS <<'EOF' || true
   | select((.author | type) == "string" and (.body | type) == "string")
   | select(.authorAssociation as $a | ["OWNER", "MEMBER", "COLLABORATOR"] | index([$a]) != null)
   | select(.author as $actor | .body | contains("<!-- cr-comment:actor=\($actor) -->")) ]
-| sort_by([(.updatedAt // .createdAt // ""), (.createdAt // "")])
 EOF
+
+# extractor_verdict <exit-code> <report-index> — 0 when the extractor accepted the report. A refused report
+# is counted and named, and the function returns 1. A missing tool or another failure ends the collection.
+extractor_verdict() {
+  case "$1" in
+  0) return 0 ;;
+  3)
+    refused=$((refused + 1))
+    echo "$PROG: report refused: $(safe_display "$(jq -r --argjson i "$2" '.[$i].url // "(no url)"' "$tmp/reports.json")"): $(safe_display "$(head -n 1 "$tmp/extract.err")")" >&2
+    return 1
+    ;;
+  2)
+    echo "$PROG: a tool the extractor needs is missing: $(safe_display "$(head -n 1 "$tmp/extract.err")")" >&2
+    exit 2
+    ;;
+  *) fail_input "the pull request payload cannot be extracted: $(safe_display "$(head -n 1 "$tmp/extract.err")")" ;;
+  esac
+}
 
 cmd_collect() {
   local url='' loaded='' store=''
@@ -146,25 +163,33 @@ cmd_collect() {
 
   local count i collected=0 refused=0 rc
   count="$(jq 'length' "$tmp/reports.json")"
+
+  # The order is the report's own Last updated time, then the comment's creation time. The loader returns
+  # no updatedAt for a top-level comment, so the comment cannot say when its report was last rewritten.
+  : >"$tmp/order.jsonl"
   for ((i = 0; i < count; i++)); do
+    rc=0
+    set +e
+    jq -j --argjson i "$i" '.[$i].body' "$tmp/reports.json" \
+      | "$HERE/extract-findings.sh" --header --input - >"$tmp/header.json" 2>"$tmp/extract.err"
+    rc=$?
+    set -e
+    if extractor_verdict "$rc" "$i"; then
+      jq -c --argjson i "$i" --slurpfile header "$tmp/header.json" \
+        '{i: $i, time: $header[0].time, created: (.[$i].createdAt // "")}' "$tmp/reports.json" >>"$tmp/order.jsonl"
+    fi
+  done
+
+  for i in $(jq -s -r 'sort_by([.time, .created]) | .[].i' "$tmp/order.jsonl"); do
     rc=0
     set +e
     jq -j --argjson i "$i" '.[$i].body' "$tmp/reports.json" \
       | "$HERE/extract-findings.sh" --repo "$repo" --pr "$pr" --input - --store "$store" >/dev/null 2>"$tmp/extract.err"
     rc=$?
     set -e
-    case "$rc" in
-    0) collected=$((collected + 1)) ;;
-    3)
-      refused=$((refused + 1))
-      echo "$PROG: report refused: $(safe_display "$(jq -r --argjson i "$i" '.[$i].url // "(no url)"' "$tmp/reports.json")"): $(safe_display "$(head -n 1 "$tmp/extract.err")")" >&2
-      ;;
-    2)
-      echo "$PROG: a tool the extractor needs is missing: $(safe_display "$(head -n 1 "$tmp/extract.err")")" >&2
-      exit 2
-      ;;
-    *) fail_input "the pull request payload cannot be extracted: $(safe_display "$(head -n 1 "$tmp/extract.err")")" ;;
-    esac
+    if extractor_verdict "$rc" "$i"; then
+      collected=$((collected + 1))
+    fi
   done
 
   jq -n -c --arg repo "$repo" --argjson pr "$pr" --argjson comments "$comments" --argjson reports "$count" \
@@ -216,15 +241,22 @@ self_test() {
     printf -- '- **Expected behavior:** one query.\n- **Test hint:** feature test.\n- **Suggested fix:** `$orders->load("items");`\n'
   }
 
-  # comment <author> <association> <updatedAt> <marker-actor|-> <body-file> — one loader comment object.
+  # clean <revision> <time> — a converged review report that carries no finding.
+  clean() {
+    printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 0\n'
+    printf '**Reviewed revision:** %s\n**Last updated:** %s\n\n## TL;DR\n\n- Fixed.\n' "$1" "$2"
+  }
+
+  # comment <author> <association> <createdAt> <marker-actor|-> <body-file> — one loader comment object, in
+  # the shape the loader returns for a top-level pull request comment: its updatedAt is always null.
   comment() {
     local marker=''
     if [[ "$4" != '-' ]]; then
       marker=$'\n\n'"<!-- cr-comment:actor=$4 -->"
     fi
     jq -n -c --arg author "$1" --arg assoc "$2" --arg at "$3" --rawfile body "$5" --arg marker "$marker" \
-      '{author: $author, authorAssociation: $assoc, body: ($body + $marker), createdAt: "2026-09-30T10:00:00Z",
-        updatedAt: $at, url: "https://github.com/acme/shop/pull/7#issuecomment-\($at | gsub("[^0-9]"; ""))"}'
+      '{author: $author, authorAssociation: $assoc, body: ($body + $marker), createdAt: $at,
+        updatedAt: null, url: "https://github.com/acme/shop/pull/7#issuecomment-\($at | gsub("[^0-9]"; ""))"}'
   }
 
   # payload <pr> <comments-file> — the loader output for one pull request.
@@ -266,6 +298,24 @@ self_test() {
   cp "$tmp/store.jsonl" "$tmp/store.before"
   run_case 'the same pull request is collected again' 0 -- --loaded "$tmp/pr7.json" --store "$tmp/store.jsonl"
   check 'collecting the same reports again leaves the store identical' "$(cmp -s "$tmp/store.before" "$tmp/store.jsonl" && echo 0 || echo 1)"
+
+  # Two trusted authors: the converged report was posted first and rewritten later, so its comment was created
+  # before the finding report, while its own Last updated time is the newest. The report order decides.
+  clean 6666666666666666666666666666666666666666 2026-10-05T10:00:00Z >"$tmp/converged.md"
+  report 7777777777777777777777777777777777777777 2026-10-02T10:00:00Z "$N1" app/Actions/ListOrders.php:4 >"$tmp/finding.md"
+  {
+    comment alice OWNER 2026-10-01T09:00:00Z alice "$tmp/converged.md"
+    comment bob COLLABORATOR 2026-10-02T09:00:00Z bob "$tmp/finding.md"
+  } >"$tmp/comments11.jsonl"
+  payload 11 "$tmp/comments11.jsonl" >"$tmp/pr11.json"
+  rm -f "$tmp/authors.jsonl"
+  run_case 'reports of two trusted authors are collected' 0 -- --loaded "$tmp/pr11.json" --store "$tmp/authors.jsonl"
+  check 'reports are extracted in the order of their own Last updated time, not of the comments' "$(jq -e -s '
+      length == 1 and .[0].status == "resolved" and .[0].time == "2026-10-05T10:00:00Z"
+      and .[0].revision == "6666666666666666666666666666666666666666"' "$tmp/authors.jsonl" >/dev/null && echo 0 || echo 1)"
+  cp "$tmp/authors.jsonl" "$tmp/authors.before"
+  run_case 'reports of two trusted authors are collected again' 0 -- --loaded "$tmp/pr11.json" --store "$tmp/authors.jsonl"
+  check 'collecting two trusted authors again leaves the store identical' "$(cmp -s "$tmp/authors.before" "$tmp/authors.jsonl" && echo 0 || echo 1)"
 
   # Untrusted comment text is stored as data and never executed.
   comment leonardo-bot OWNER 2026-10-02T12:00:00Z leonardo-bot "$tmp/evil.md" >"$tmp/comments-evil.jsonl"

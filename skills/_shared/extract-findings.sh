@@ -13,6 +13,7 @@
 #
 # Usage
 #   extract-findings.sh --repo <owner/name> --pr <number> [--input <file|->] [--store <file>]
+#   extract-findings.sh --header [--input <file|->]
 #   extract-findings.sh --validate <file>
 #   extract-findings.sh --self-test
 #
@@ -22,6 +23,8 @@
 #              finding of one pull request stays one record however many rounds report it. The file is
 #              created when it does not exist and is replaced atomically. One writer at a time.
 #              Without --store the extracted records are printed to standard output, one per line.
+#   --header   read the report and write nothing. Print its `Reviewed revision` and its `Last updated` time
+#              in UTC, from the same parse the extraction uses. A report the parse refuses is refused.
 #   --validate check every line of a record file against the schema and refuse a duplicate `id`.
 #
 # The report is untrusted input (rules/security/general.md). It is read as data: no line of it is
@@ -30,7 +33,8 @@
 #
 # Output
 #   stdout  the records (no --store), or one summary line {"repo","pr","extracted","added","updated",
-#           "resolved","records"} (--store), or {"valid":true,"records":N} (--validate)
+#           "resolved","records"} (--store), {"revision","time"} (--header), or {"valid":true,"records":N}
+#           (--validate)
 #   stderr  one line per problem, each prefixed with the script name
 #
 # Exit codes
@@ -48,6 +52,7 @@ MAX_DEFERRALS=200
 usage() {
   cat >&2 <<'EOF'
 Usage: extract-findings.sh --repo <owner/name> --pr <number> [--input <file|->] [--store <file>]
+       extract-findings.sh --header [--input <file|->]
        extract-findings.sh --validate <file>
        extract-findings.sh --self-test
 
@@ -339,28 +344,10 @@ cmd_validate() {
   printf '{"valid":true,"records":%s}\n' "$count"
 }
 
-cmd_extract() {
-  local repo='' pr='' input='-' store=''
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-    --repo) [[ $# -ge 2 ]] || die_usage '--repo needs a value'; repo="$2"; shift 2 ;;
-    --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr="$2"; shift 2 ;;
-    --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
-    --store) [[ $# -ge 2 ]] || die_usage '--store needs a value'; store="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
-    esac
-  done
-
-  [[ -n "$repo" ]] || die_usage '--repo is required'
-  [[ -n "$pr" ]] || die_usage '--pr is required'
-  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die_usage "--repo must be owner/name, got: $(safe_display "$repo")"
-  [[ "$pr" =~ ^[1-9][0-9]{0,8}$ ]] || die_usage "--pr must be a positive integer, got: $(safe_display "$pr")"
-
-  local tmp
-  tmp="$(mktemp -d)"
-  # shellcheck disable=SC2064
-  trap "rm -rf '$tmp'" EXIT
-
+# read_report <file|-> <dir> — read one review report and write the parse to <dir>/parsed.json. Exit 3 when
+# the report is missing, larger than the cap, or malformed. The extraction and --header share this step.
+read_report() {
+  local input="$1" tmp="$2"
   if [[ "$input" == '-' ]]; then
     head -c $((MAX_INPUT_BYTES + 1)) >"$tmp/report"
   else
@@ -383,6 +370,49 @@ cmd_extract() {
     done <<<"$errors"
     exit 3
   fi
+}
+
+cmd_header() {
+  local input='-'
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
+    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    esac
+  done
+
+  local tmp
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+
+  read_report "$input" "$tmp"
+  jq -c '{revision, time}' "$tmp/parsed.json"
+}
+
+cmd_extract() {
+  local repo='' pr='' input='-' store=''
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --repo) [[ $# -ge 2 ]] || die_usage '--repo needs a value'; repo="$2"; shift 2 ;;
+    --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr="$2"; shift 2 ;;
+    --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
+    --store) [[ $# -ge 2 ]] || die_usage '--store needs a value'; store="$2"; shift 2 ;;
+    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    esac
+  done
+
+  [[ -n "$repo" ]] || die_usage '--repo is required'
+  [[ -n "$pr" ]] || die_usage '--pr is required'
+  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die_usage "--repo must be owner/name, got: $(safe_display "$repo")"
+  [[ "$pr" =~ ^[1-9][0-9]{0,8}$ ]] || die_usage "--pr must be a positive integer, got: $(safe_display "$pr")"
+
+  local tmp
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+
+  read_report "$input" "$tmp"
 
   # The hashes are computed here because jq has no digest function. The inputs are restricted to the
   # patterns checked above, so none of them holds a tab or a newline.
@@ -523,6 +553,11 @@ self_test() {
   "$script" --repo acme/shop --pr 7 --input "$tmp/r2.md" >"$tmp/r2.out"
   check 'different wording and line keep the same fingerprint and id' "$([[ "$(jq -r .fingerprint "$tmp/r1.out")" == "$(jq -r .fingerprint "$tmp/r2.out")" && "$(jq -r .id "$tmp/r1.out")" == "$(jq -r .id "$tmp/r2.out")" ]] && echo 0 || echo 1)"
   check 'a time with an offset is stored as UTC' "$([[ "$(jq -r .time "$tmp/r2.out")" == 2026-10-02T08:00:00Z ]] && echo 0 || echo 1)"
+
+  # --header reads the revision and the time from the same parse and writes nothing.
+  run_case 'the header of a report is read from standard input' 0 no -- --header --input - <"$tmp/r2.md"
+  check 'the header mode prints the revision and the time in UTC' "$(jq -e -s '
+      . == [{revision: "2222222222222222222222222222222222222222", time: "2026-10-02T08:00:00Z"}]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
 
   # The same defect in another file of the same subsystem is the same fingerprint; another pull request is another id.
   report "$tmp/r3.md" "$SHA1" 2026-10-01T10:00:00Z "$R1" "app/Actions/Invoice/ListInvoices.php:9" "Invoices load their lines one query at a time."
@@ -721,6 +756,9 @@ self_test() {
   run_case 'a finding without a Rule is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/norule.md" --store "$tmp/bad.jsonl"
   check 'the rejection names the finding and the field' "$(grep -q 'finding 1 (critical, "Some title in some words"): missing required field(s): rule' "$tmp/case.err" && echo 0 || echo 1)"
   check 'a rejected input leaves no store behind' "$([[ ! -e "$tmp/bad.jsonl" ]] && echo 0 || echo 1)"
+  run_case 'a text that is not a review report is refused by --header' 3 yes -- --header --input "$tmp/prose.md"
+  run_case 'a report the extraction refuses is refused by --header' 3 yes -- --header --input "$tmp/norule.md"
+  run_case 'an unknown argument of --header is a usage error' 1 yes -- --header --bogus
   { cat "$tmp/r1.md"; printf -- '- **Impact:** a second impact\n'; } >"$tmp/dupfield.md"
   run_case 'a repeated field is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/dupfield.md"
   { cat "$tmp/r1.md"; printf -- '- **Deferred:** later\n'; } >"$tmp/baddefer.md"
@@ -775,6 +813,10 @@ fi
 require_tools
 
 case "$1" in
+--header)
+  shift
+  cmd_header "$@"
+  ;;
 --validate)
   shift
   cmd_validate "$@"
