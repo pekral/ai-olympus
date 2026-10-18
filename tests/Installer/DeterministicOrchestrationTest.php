@@ -249,6 +249,12 @@ test('splinter records the run metrics that make the next tuning decision eviden
     expect($splinter)->toContain('ai-olympus stats --last=7d');
 });
 
+test('splinter may run the context relevance gate it is told to run first', function (): void {
+    $splinter = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/splinter.md');
+
+    expect($splinter)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/gate-context\.sh`/m');
+});
+
 test('the deterministic helpers are mapped for Codex, not only for Claude Code', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
