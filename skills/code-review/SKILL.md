@@ -193,5 +193,8 @@ Use the template defined in `templates/review-output.md`.
 ## References
 
 - references/assignment-conformance-gate.md
+- references/finding-records.md
+- references/prevention-proposal.md
+- references/recurrence-analysis.md
 - references/specialized-reviews.md
 - references/third-party-api-analysis.md
