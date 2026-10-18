@@ -75,6 +75,35 @@ test('generation is idempotent over an unchanged tree', function (): void {
     installerRemoveDirectory($root);
 });
 
+test('a file with a non-UTF-8 config key is still indexed and the graph is written', function (): void {
+    $root = GraphFixture::project();
+    installerWriteFile(
+        $root . '/src/Latin1Config.php',
+        "<?php\n\nnamespace App;\n\nfunction limit(): int\n{\n    return config(\"kl\xED\xE8.limit\");\n}\n",
+    );
+
+    [$exitCode, $summary] = graphRun($root, 'build');
+
+    expect($exitCode)->toBe(0);
+    expect($summary)->toContain('"files":9,"parsed":9');
+    expect(file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH))->toContain('"src/Latin1Config.php": {');
+
+    installerRemoveDirectory($root);
+});
+
+test('a graph that cannot be written fails the build instead of reporting success', function (): void {
+    $root = GraphFixture::project();
+    mkdir($root . '/' . GraphCommand::RELATIVE_PATH, recursive: true);
+
+    [$exitCode, $stdout, $stderr] = graphRun($root, 'build');
+
+    expect($exitCode)->toBe(1);
+    expect($stdout)->toBe('');
+    expect($stderr)->toStartWith('Cannot write the knowledge graph file ')->toEndWith(GraphCommand::RELATIVE_PATH . '.' . PHP_EOL);
+
+    installerRemoveDirectory($root);
+});
+
 test('a graph from another version is rebuilt rather than trusted', function (): void {
     $root = GraphFixture::project();
     installerWriteFile($root . '/' . GraphCommand::RELATIVE_PATH, '{"version": 0, "files": {}}');
