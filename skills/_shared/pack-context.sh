@@ -536,6 +536,11 @@ EOF
   expect_exit 'a lookup on the same repository state is a hit' 0 \
     lookup --request scratch/request.json --cache-dir scratch/cache --output scratch/hit.json
   expect_jq 'a cache hit is reported as a hit' "$repo/scratch/hit.json" '.metadata.cache == "hit"'
+  expect_exit 'a lookup with a start time is a hit' 0 \
+    lookup --request scratch/request.json --cache-dir scratch/cache --output scratch/hit-timed.json \
+    --started-at "$(($(date +%s) - 7))"
+  expect_jq 'a cache hit carries the measured retrieval duration' "$repo/scratch/hit-timed.json" \
+    '.metadata.cache == "hit" and (.metadata.retrieval_seconds | type == "number") and .metadata.retrieval_seconds >= 7'
   jq -c '.task.paths = ["app/Other/Path.php"]' "$repo/scratch/request.json" >"$repo/scratch/other-paths.json"
   expect_exit 'a lookup with other task paths is a miss' 3 \
     lookup --request scratch/other-paths.json --cache-dir scratch/cache --output scratch/hit-paths.json

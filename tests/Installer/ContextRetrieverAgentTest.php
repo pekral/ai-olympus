@@ -41,6 +41,11 @@ test('splinter requests context through the structured interface instead of read
         ->and($splinter)->toContain('Never dispatch it when the effective verdict is `context_required: false`.')
         ->and($splinter)->toContain('## Retrieved context  <path to the Context Package')
         ->and($splinter)->toContain('so `donatello`, `leonardo`, `raphael`, and `april` read the same package')
+        ->and($splinter)->toContain('Run `date +%s` first and keep the value.')
+        ->and($splinter)->toContain(
+            '--output ${BRIEF%.md}.context.json --started-at <the value>`, so a cache hit carries the measured retrieval duration.',
+        )
+        ->and($splinter)->toContain('omit `--retrieval-seconds` alone when `metadata.retrieval_seconds` is `null`')
         ->and($splinter)->toContain('**No package is not a blocker.**')
         ->and($splinter)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/pack-context\.sh lookup`/m');
 });
@@ -64,6 +69,7 @@ test('the context package is ranked, deduplicated, bounded, provenanced, and cac
         'an item from a source that was not queried is refused',
         'an output path that is not git-ignored is refused',
         'a lookup on the same repository state is a hit',
+        'a cache hit carries the measured retrieval duration',
         'an uncommitted change never reuses the cached package',
         'a new commit never reuses the cached package',
         'the summary carries counts and the measured retrieval duration',
