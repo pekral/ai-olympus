@@ -51,10 +51,10 @@ test('the rendered PNG is bound to the SVG it was rendered from (issue #193)', f
     $svg = (string) file_get_contents($packageDir . '/assets/social-preview.svg');
 
     expect(hash('sha256', str_replace("\r\n", "\n", $svg)))
-        ->toBe('2f9af97a16b6d0b4e4e24051b0541a9a744e7ab66133d8f48b6b788608d08412');
+        ->toBe('6e01d871d139b278ea0a1d7eb2ce40d1ef2f2ff34f6ac364ba7e9c4611ea5e1a');
 
     expect(hash_file('sha256', $packageDir . '/assets/social-preview.png'))
-        ->toBe('3e9f8710cb13328d9309ac79049e134985913785f4e2264a0c5e06e633d75caf');
+        ->toBe('72a0e341ffe711f88beabd1ba6b927b62855db70741bc3b8edae545bca75f8f4');
 
     // The dimensions GitHub renders a social preview at; a re-render at the wrong size would
     // otherwise pass the digest check the moment someone updated it without looking.

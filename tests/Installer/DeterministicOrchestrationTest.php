@@ -22,6 +22,7 @@ test('every deterministic orchestration helper is shipped, executable, and self-
         'run-gate',
         'verify-gate',
         'gate-context',
+        'pack-context',
     ];
 
     foreach ($helpers as $helper) {

@@ -159,7 +159,7 @@ test('a record is accepted only through one check, keyed to the tree and read on
 
     // The evidence directory: relative, ignored, untracked, symlink-free, private.
     expect($record)->toContain('git check-ignore -q -- "$probe"');
-    expect($record)->toContain('git ls-files -- "$dir"');
+    expect($record)->toContain('git ls-files -- "$path"');
     // BSD chmod (macOS) reads a `--` after the mode as a file name and prints a false error.
     expect($record)->toContain('chmod 700 "./$dir"');
     expect($record)->not->toContain('chmod 700 -- ');
