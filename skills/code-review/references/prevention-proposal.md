@@ -25,7 +25,8 @@ The script decides what can be decided, and the caller writes only the judgment.
 
 | Part | Source |
 | --- | --- |
-| The defect class, the fingerprints, the links, the dates, the severities | The report, from schema-restricted fields |
+| The defect class and the window | The report, from schema-restricted fields |
+| Every occurrence: the link, the fingerprint, the subsystem, the severity, the status, the date | The store record of the occurrence, validated by `extract-findings.sh --validate`. The report names the record, and the record must belong to the class and the pull request that the report names |
 | The record text of the first three occurrences | The store, quoted as data |
 | The root cause, the safeguards checked, the mechanism, the files, the steps, the verification, the false positives, the impact, the limits | The analysis file, written by the caller |
 | The section layout, the level names, the approval statement, the dedupe marker | The script |
@@ -111,11 +112,12 @@ The dedupe key is `<repo>:<category>:<cause_key>`. It does not read the fingerpr
 
 Filing a tracker issue is a write that other people see. The steps below run only when the user asks for them or when the wiring phase (#189) assigns them to a role. The run that files follows `@rules/compound-engineering/tracker.md`.
 
-1. Run `propose-prevention.sh` with `--out` set to a file in the scratch directory. Stop when the status is `none`. File nothing and say the reason.
-2. Search the tracker of `class.repo` for the marker words: `gh api -X GET search/issues -f q='repo:<owner>/<name> is:issue in:body "prevention-proposal"' -f per_page=100 >results.json`. Run `propose-prevention.sh --find --key <key> --results results.json`.
-3. When the action is `create`, file the body file unchanged through `@skills/create-issue/SKILL.md`. The first line of the file is the title. That skill assigns the issue to the current user and selects one existing label under `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*. Phase 3 adds no label and no second issue-creation path.
-4. When the action is `update`, publish the body file with `skills/code-review-github/scripts/upsert-comment.sh <number> <body-file> prevention-proposal`. The helper replaces this actor's earlier comment of that namespace on the issue. The issue body, its labels, and its state stay as a human left them. A closed proposal is reported to the human and is never reopened by the run.
-5. Read the issue or the comment back through the tracker loader and confirm it landed. Delete the scratch files.
+1. Run `skills/_shared/assert-current-repo.sh <class.repo>`. Stop on any non-zero exit, and file nothing: steps 3 to 5 act on the current checkout, so they must not run in a checkout of another repository. Exit `4` is a different repository and exit `5` is an ownership that cannot be proven.
+2. Run `propose-prevention.sh` with `--out` set to a file in the scratch directory. Stop when the status is `none`. File nothing and say the reason.
+3. Search the tracker of `class.repo` for the marker words: `gh api -X GET search/issues -f q='repo:<owner>/<name> is:issue in:body "prevention-proposal"' -f per_page=100 >results.json`. Run `propose-prevention.sh --find --key <key> --results results.json`.
+4. When the action is `create`, file the body file unchanged through `@skills/create-issue/SKILL.md`. The first line of the file is the title. That skill assigns the issue to the current user and selects one existing label under `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*. Phase 3 adds no label and no second issue-creation path.
+5. When the action is `update`, publish the body file with `skills/code-review-github/scripts/upsert-comment.sh <url> <body-file> prevention-proposal`, where `<url>` is the `url` that the `--find` line prints. A bare number resolves against the current git remote, so it never replaces the `url`. The helper replaces this actor's earlier comment of that namespace on the issue. The issue body, its labels, and its state stay as a human left them. A closed proposal is reported to the human and is never reopened by the run.
+6. Read the issue or the comment back through the tracker loader and confirm it landed. Delete the scratch files.
 
 ## Untrusted text
 
