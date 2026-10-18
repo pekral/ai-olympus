@@ -49,3 +49,46 @@ test('a query takes a file path, a short class name, or a method symbol', functi
 
     installerRemoveDirectory($root);
 });
+
+test('a Laravel request is traversable from its route through the controller and the Action to the model and its table', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    $route = GraphQuery::slice($files, 'route:POST:/orders');
+    $controller = GraphQuery::slice($files, 'App\Http\Controllers\OrderController::store');
+    $action = GraphQuery::slice($files, 'App\Actions\CreateOrderAction');
+    $model = GraphQuery::slice($files, 'App\Models\Order');
+    $table = GraphQuery::slice($files, 'table:orders');
+
+    expect(GraphFixture::describe($route['outgoing']))->toBe(['route:POST:/orders ROUTE_HANDLED_BY App\Http\Controllers\OrderController::store']);
+    expect(GraphFixture::describe($controller['outgoing'], 'INJECTS'))->toContain(
+        'App\Http\Controllers\OrderController::store INJECTS App\Actions\CreateOrderAction',
+    );
+    expect(GraphFixture::describe($action['outgoing'], 'CALLS'))->toContain('App\Actions\CreateOrderAction::handle CALLS App\Models\Order::create');
+    expect(GraphFixture::describe($model['outgoing'], 'USES_TABLE'))->toBe(['App\Models\Order USES_TABLE table:orders']);
+    expect($table['entities'])->toBe([
+        ['id' => 'table:orders', 'kind' => 'table', 'line' => 11, 'file' => 'database/migrations/2024_01_01_000000_create_orders_table.php'],
+    ]);
+    expect(GraphFixture::describe($table['incoming'], 'MIGRATES_TABLE'))->toBe([
+        'file:database/migrations/2024_01_01_000000_create_orders_table.php MIGRATES_TABLE table:orders',
+        'file:database/migrations/2024_02_01_000000_drop_legacy_from_orders_table.php MIGRATES_TABLE table:orders',
+    ]);
+
+    installerRemoveDirectory($root);
+});
+
+test('a relation defined on a trait is attributed to the model that uses the trait', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    $slice = GraphQuery::slice($files, 'App\Models\Order');
+
+    $relations = array_filter($slice['outgoing'], static fn (array $edge): bool => $edge['type'] === 'HAS_RELATION');
+    expect(array_map(static fn (array $edge): string => $edge['from'] . ' -> ' . $edge['to'] . ' @ ' . $edge['file'], array_values($relations)))->toBe([
+        'App\Models\Order::customer -> App\Models\User @ app/Models/Order.php',
+        'App\Models\Order::comments -> App\Models\Comment @ app/Models/Order.php',
+        'App\Models\Order::items -> App\Models\OrderItem @ app/Models/Concerns/HasItems.php',
+    ]);
+
+    installerRemoveDirectory($root);
+});

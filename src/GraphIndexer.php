@@ -18,7 +18,7 @@ use SplFileInfo;
 final class GraphIndexer
 {
 
-    public const int VERSION = 1;
+    public const int VERSION = 2;
 
     private const array SKIPPED_DIRECTORIES = ['vendor', 'node_modules'];
 
@@ -80,7 +80,7 @@ final class GraphIndexer
     private static function sourceDirectories(string $root): array
     {
         $composer = is_file($root . '/composer.json') ? json_decode((string) file_get_contents($root . '/composer.json'), associative: true) : null;
-        $directories = ['config'];
+        $directories = ['config', 'routes', 'database/migrations'];
 
         foreach (['autoload', 'autoload-dev'] as $section) {
             foreach (self::AUTOLOAD_TYPES as $type) {

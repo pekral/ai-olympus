@@ -1,0 +1,25 @@
+<?php
+
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ShowDashboard;
+use App\Jobs\ProcessOrder;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
+
+Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
+    Route::get('/dashboard', ShowDashboard::class);
+});
+
+Route::group(['prefix' => 'api', 'middleware' => 'auth:sanctum'], function () {
+    Route::apiResource('orders', OrderController::class);
+});
+
+Route::post('/orders/{order}/retry', function () {
+    ProcessOrder::dispatch();
+    dispatch(function () {
+        logger('queued closure');
+    });
+});
+
+Route::get('/health', fn () => 'ok');

@@ -50,4 +50,9 @@ final class GraphNameResolver
         return $this->namespace === '' ? $name : $this->namespace . '\\' . $name;
     }
 
+    public static function shortName(string $name): string
+    {
+        return substr((string) strrchr('\\' . $name, '\\'), 1);
+    }
+
 }

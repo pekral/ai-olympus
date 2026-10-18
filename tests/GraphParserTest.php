@@ -57,6 +57,7 @@ test('a config file is a config entity and a file under tests is a test file ent
     expect(GraphFixture::describe($test['edges']))->toBe([
         'file:tests/UserRepositoryTest.php USES App\UserRepository',
         'file:tests/UserRepositoryTest.php CALLS App\UserRepository',
+        'file:tests/UserRepositoryTest.php TESTS App\UserRepository',
     ]);
 });
 

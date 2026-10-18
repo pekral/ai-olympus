@@ -35,12 +35,38 @@ test('build stores the graph and reports what it parsed, and query prints one sl
     expect($buildExit)->toBe(0);
     expect($summary)->toBe('{"graph":".claude/run/graph.json","files":8,"parsed":8,"reused":0,"removed":0,"errors":["src/Broken.php"]}' . PHP_EOL);
     expect(file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH))->toStartWith(
-        "{\n    \"version\": 1,\n    \"files\": {\n        \"config/app.php\": {",
+        "{\n    \"version\": 2,\n    \"files\": {\n        \"config/app.php\": {",
     );
     expect($queryExit)->toBe(0);
     expect(json_decode($slice, associative: true))->toMatchArray([
         'query' => 'UserService',
         'entities' => [['id' => 'App\UserService', 'kind' => 'class', 'line' => 7, 'file' => 'src/UserService.php']],
+        'incoming' => [],
+        'files' => [],
+    ]);
+
+    installerRemoveDirectory($root);
+});
+
+test('querying a Laravel route prints only its slice as JSON', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    graphRun($root, 'build');
+
+    [$exitCode, $stdout] = graphRun($root, 'query', 'route:GET:/admin/dashboard');
+
+    expect($exitCode)->toBe(0);
+    expect(json_decode($stdout, associative: true))->toBe([
+        'query' => 'route:GET:/admin/dashboard',
+        'entities' => [['id' => 'route:GET:/admin/dashboard', 'kind' => 'route', 'line' => 11, 'file' => 'routes/web.php']],
+        'outgoing' => [
+            [
+                'from' => 'route:GET:/admin/dashboard',
+                'type' => 'ROUTE_HANDLED_BY',
+                'to' => 'App\Http\Controllers\ShowDashboard::__invoke',
+                'line' => 11,
+                'file' => 'routes/web.php',
+            ],
+        ],
         'incoming' => [],
         'files' => [],
     ]);
@@ -106,7 +132,7 @@ test('a graph that cannot be written fails the build instead of reporting succes
 
 test('a graph from another version is rebuilt rather than trusted', function (): void {
     $root = GraphFixture::project();
-    installerWriteFile($root . '/' . GraphCommand::RELATIVE_PATH, '{"version": 0, "files": {}}');
+    installerWriteFile($root . '/' . GraphCommand::RELATIVE_PATH, '{"version": 1, "files": {}}');
 
     [$queryExit, , $stderr] = graphRun($root, 'query', 'UserService');
     [, $summary] = graphRun($root, 'build');
