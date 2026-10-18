@@ -1,0 +1,10 @@
+<?php
+
+use App\UserRepository;
+
+$limit = 10;
+
+test('counts', function () use ($limit) {
+    expect((new UserRepository())->count())->toBe($limit);
+    $this->assertTrue(true);
+});

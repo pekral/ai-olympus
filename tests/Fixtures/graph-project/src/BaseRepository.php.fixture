@@ -1,0 +1,10 @@
+<?php
+
+namespace App;
+
+abstract class BaseRepository
+{
+    public function boot(): void
+    {
+    }
+}
