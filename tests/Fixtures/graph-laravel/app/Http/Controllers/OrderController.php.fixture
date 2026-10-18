@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Actions\CreateOrderAction;
+use App\Http\Requests\StoreOrderRequest;
+use App\Services\PaymentService;
+
+final class OrderController extends Controller
+{
+    public function __construct(private readonly PaymentService $payments)
+    {
+    }
+
+    public function store(StoreOrderRequest $request, CreateOrderAction $createOrder, int $quantity = 1): int
+    {
+        return $createOrder->handle($request->validated())->id;
+    }
+}

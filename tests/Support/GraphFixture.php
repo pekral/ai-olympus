@@ -12,21 +12,22 @@ use SplFileInfo;
 final class GraphFixture
 {
 
-    private const string DIRECTORY = __DIR__ . '/../Fixtures/graph-project';
+    private const string DIRECTORY = __DIR__ . '/../Fixtures/';
 
-    public static function source(string $path): string
+    public static function source(string $path, string $fixture = 'graph-project'): string
     {
-        return (string) file_get_contents(self::DIRECTORY . '/' . $path . '.fixture');
+        return (string) file_get_contents(self::DIRECTORY . $fixture . '/' . $path . '.fixture');
     }
 
-    public static function project(): string
+    public static function project(string $fixture = 'graph-project'): string
     {
         $root = installerCreateProjectRoot();
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(self::DIRECTORY, FilesystemIterator::SKIP_DOTS));
+        $directory = self::DIRECTORY . $fixture;
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS));
 
         foreach ($files as $file) {
             assert($file instanceof SplFileInfo);
-            $path = substr($file->getPathname(), strlen(self::DIRECTORY));
+            $path = substr($file->getPathname(), strlen($directory));
             installerWriteFile($root . preg_replace('~\.fixture$~', '', $path), (string) file_get_contents($file->getPathname()));
         }
 
@@ -37,9 +38,11 @@ final class GraphFixture
      * @param list<array{from: string, type: string, to: string, line: int}> $edges
      * @return list<string>
      */
-    public static function describe(array $edges): array
+    public static function describe(array $edges, string ...$types): array
     {
-        return array_map(static fn (array $edge): string => $edge['from'] . ' ' . $edge['type'] . ' ' . $edge['to'], $edges);
+        $edges = array_filter($edges, static fn (array $edge): bool => $types === [] || in_array($edge['type'], $types, strict: true));
+
+        return array_values(array_map(static fn (array $edge): string => $edge['from'] . ' ' . $edge['type'] . ' ' . $edge['to'], $edges));
     }
 
 }

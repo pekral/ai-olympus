@@ -15,6 +15,8 @@ use PhpToken;
 final class GraphParser
 {
 
+    use GraphLaravelExtractors;
+
     private const array NAME_TOKENS = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE, T_STATIC];
 
     private const array OPEN_BRACES = ['{', T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES];
@@ -48,7 +50,7 @@ final class GraphParser
     /**
      * @param list<\PhpToken> $tokens
      */
-    private function __construct(private readonly string $fileId, private readonly array $tokens)
+    private function __construct(private readonly string $fileId, private readonly string $fileKind, private readonly array $tokens)
     {
         $this->names = new GraphNameResolver();
     }
@@ -66,8 +68,9 @@ final class GraphParser
             return ['hash' => $hash, 'error' => sprintf('%s on line %d', $error->getMessage(), $error->getLine()), 'nodes' => [], 'edges' => []];
         }
 
-        $parser = new self('file:' . $path, array_values(array_filter($tokens, static fn (PhpToken $token): bool => !$token->isIgnorable())));
-        $parser->addNode($parser->fileId, preg_match('~(^|/)tests/|Test\.php$~', $path) === 1 ? 'test' : 'file', 1);
+        $kind = preg_match('~(^|/)tests/|Test\.php$~', $path) === 1 ? 'test' : self::laravelFileKind($path);
+        $parser = new self('file:' . $path, $kind, array_values(array_filter($tokens, static fn (PhpToken $token): bool => !$token->isIgnorable())));
+        $parser->addNode($parser->fileId, $kind, 1);
 
         if (preg_match('~^config/([^/]+)\.php$~', $path, $matches) === 1) {
             $parser->addNode('config:' . $matches[1], 'config', 1);
@@ -92,6 +95,7 @@ final class GraphParser
 
             if ($token->is(self::OPEN_BRACES)) {
                 $this->depth++;
+                $this->openRouteGroup();
 
                 continue;
             }
@@ -108,11 +112,15 @@ final class GraphParser
 
     private function closeBrace(): void
     {
+        unset($this->routeGroups[$this->depth]);
         $this->depth--;
 
-        if ($this->class !== null && $this->depth < $this->classDepth) {
-            $this->class = null;
+        if ($this->class === null || $this->depth >= $this->classDepth) {
+            return;
         }
+
+        $this->closeModel();
+        $this->class = null;
     }
 
     private function handle(PhpToken $token, int $index): int
@@ -123,6 +131,7 @@ final class GraphParser
             isset(self::DECLARATIONS[$token->id]) => $this->readDeclaration($token, $index),
             $token->is(T_FUNCTION) => $this->readMethod($index),
             $token->is(T_NEW) => $this->readNew($index),
+            $token->is(T_VARIABLE) && $this->class !== null && $this->depth === $this->classDepth => $this->readProperty($token, $index),
             default => $this->readCall($token, $index),
         };
     }
@@ -181,7 +190,7 @@ final class GraphParser
 
     private function addImport(string $name, int $index): int
     {
-        $alias = substr((string) strrchr('\\' . $name, '\\'), 1);
+        $alias = GraphNameResolver::shortName($name);
 
         if ($this->tokenIs($index + 1, T_AS)) {
             $index += 2;
@@ -201,7 +210,6 @@ final class GraphParser
         }
 
         $id = $this->names->qualify($this->tokens[$index + 1]->text);
-        $this->addNode($id, self::DECLARATIONS[$token->id], $token->line);
 
         $this->class = $id;
         $this->parent = 'parent';
@@ -210,6 +218,9 @@ final class GraphParser
         for ($index += 2; $this->isBefore($index, '{');) {
             $index = $this->readRelation($id, $this->tokenIs($index, T_EXTENDS) ? 'EXTENDS' : 'IMPLEMENTS', $index + 1);
         }
+
+        $this->classKind = $this->declarationKind(self::DECLARATIONS[$token->id], $token->line);
+        $this->addNode($id, $this->classKind, $token->line);
 
         return $index - 1;
     }
@@ -242,6 +253,7 @@ final class GraphParser
         if ($name->is(T_STRING)) {
             $this->method = $this->class . '::' . $name->text;
             $this->addNode($this->method, 'method', $name->line);
+            $this->readSignature($name->text, $this->skipTo($index, '('));
         }
 
         return $index;
@@ -252,7 +264,7 @@ final class GraphParser
         $name = $this->tokens[$index + 1];
 
         if ($name->is(self::NAME_TOKENS)) {
-            $this->addEdge($this->scope(), 'CALLS', $this->resolve($name->text), $name->line);
+            $this->addCall($this->resolve($name->text), $name->line);
         }
 
         return $index;
@@ -260,6 +272,8 @@ final class GraphParser
 
     private function readCall(PhpToken $token, int $index): int
     {
+        $this->readDispatch($token, $index);
+
         if (!$this->tokenIs($index + 2, T_STRING) || !$this->tokenIs($index + 3, '(')) {
             return $this->readConfig($token, $index);
         }
@@ -267,11 +281,13 @@ final class GraphParser
         $member = $this->tokens[$index + 2];
 
         if ($token->is(self::NAME_TOKENS) && $this->tokenIs($index + 1, T_DOUBLE_COLON)) {
-            $this->addEdge($this->scope(), 'CALLS', $this->resolve($token->text) . '::' . $member->text, $member->line);
+            $this->addCall($this->resolve($token->text) . '::' . $member->text, $member->line);
+            $this->readStaticCall($this->resolve($token->text), $member, $index);
         }
 
         if ($this->class !== null && $token->text === '$this' && $this->tokenIs($index + 1, [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR])) {
             $this->addEdge($this->scope(), 'CALLS', $this->class . '::' . $member->text, $member->line);
+            $this->readEloquentRelation($member, $index + 3);
         }
 
         return $index;
@@ -288,7 +304,7 @@ final class GraphParser
             return $index;
         }
 
-        $name = strtok(trim($this->tokens[$index + 2]->text, '\'"'), '.');
+        $name = strtok((string) $this->literal($index + 2), '.');
 
         if ($name !== false) {
             $this->addEdge($this->scope(), 'USES_CONFIG', 'config:' . $name, $token->line);

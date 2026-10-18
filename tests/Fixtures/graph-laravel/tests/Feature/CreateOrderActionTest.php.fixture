@@ -1,0 +1,10 @@
+<?php
+
+use App\Actions\CreateOrderAction;
+use App\Models\Order;
+
+test('an order is created', function () {
+    $order = (new CreateOrderAction())->handle(['total' => 10]);
+
+    expect(Order::query()->count())->toBe(1);
+});

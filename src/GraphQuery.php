@@ -64,7 +64,27 @@ final class GraphQuery
             }
         }
 
-        return $edges;
+        return [...$edges, ...self::attributeTraitRelations($edges)];
+    }
+
+    /**
+     * @param list<SliceEdge> $edges
+     * @return list<SliceEdge>
+     */
+    private static function attributeTraitRelations(array $edges): array
+    {
+        $relations = array_filter($edges, static fn (array $edge): bool => $edge['type'] === 'HAS_RELATION');
+        $attributed = [];
+
+        foreach ($edges as $use) {
+            foreach ($relations as $relation) {
+                if ($use['type'] === 'USES' && !str_starts_with($use['from'], 'file:') && self::touches($relation['from'], [$use['to']])) {
+                    $attributed[] = ['from' => $use['from'] . substr($relation['from'], strlen($use['to']))] + $relation;
+                }
+            }
+        }
+
+        return $attributed;
     }
 
     /**

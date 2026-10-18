@@ -365,12 +365,14 @@ The summary answers the questions a single run cannot: how often `FAST` runs esc
 
 An agent can ask the repository a structural question instead of reading it. `graph build` indexes the PHP files under the Composer autoload directories and `config/` into `.claude/run/graph.json`: classes, interfaces, traits, methods, config files, and test files, with their `EXTENDS`, `IMPLEMENTS`, `USES`, `CALLS`, and `USES_CONFIG` relations. A rebuild re-parses only the files whose content hash changed and drops the files that no longer exist.
 
+In a Laravel project the graph also indexes `routes/` and `database/migrations/` and records the framework entities: routes, controllers, Eloquent models, jobs, events, listeners, migrations, and database tables. The relations are `ROUTE_HANDLED_BY` (a route to its controller method), `INJECTS` (a controller or job method to the classes injected into its signature or constructor), `HAS_RELATION` (a model to the model of each relation, including a relation defined on a trait the model uses), `USES_TABLE` (a model to its table), `DISPATCHES` (code to the job or event it dispatches), `LISTENS_TO` (a listener to its event, registered in `$listen`, by `Event::listen()`, or discovered in `Listeners/`), `MIGRATES_TABLE` (a migration to the tables it creates, changes, or drops), and `TESTS` (a test to the classes it instantiates or calls).
+
 ```bash
 vendor/bin/ai-olympus graph build
 vendor/bin/ai-olympus graph query 'App\Models\User'
 ```
 
-`graph query` takes a file path, a class, or a `Class::method` symbol and prints one JSON slice: the matching entities, their outgoing and incoming relations, and the files that use them. An unknown entity prints an empty slice. The graph is a useful approximation, not a static call graph: a call is recorded only where its target is visible in the source.
+`graph query` takes a file path, a class, a `Class::method` symbol, a route (`route:POST:/orders`), or a table (`table:orders`) and prints one JSON slice: the matching entities, their outgoing and incoming relations, and the files that use them. An unknown entity prints an empty slice. The graph is a useful approximation, not a static call graph: a call is recorded only where its target is visible in the source.
 
 Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 

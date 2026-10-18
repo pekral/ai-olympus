@@ -62,3 +62,17 @@ test('a project without a composer autoload indexes only its config directory', 
 
     installerRemoveDirectory($root);
 });
+
+test('a Laravel project also indexes its route files and its migrations', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    expect(array_keys($files))->toContain(
+        'routes/web.php',
+        'database/migrations/2024_01_01_000000_create_orders_table.php',
+        'database/migrations/2024_02_01_000000_drop_legacy_from_orders_table.php',
+    );
+
+    installerRemoveDirectory($root);
+});

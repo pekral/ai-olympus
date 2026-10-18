@@ -1,0 +1,23 @@
+<?php
+
+namespace App\Providers;
+
+use App\Events\OrderPlaced;
+use App\Listeners\AuditOrder;
+use App\Listeners\NotifyWarehouse;
+use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Event;
+
+final class EventServiceProvider extends ServiceProvider
+{
+    protected $listen = [
+        OrderPlaced::class => [
+            NotifyWarehouse::class,
+        ],
+    ];
+
+    public function boot(): void
+    {
+        Event::listen(OrderPlaced::class, [AuditOrder::class, 'handle']);
+    }
+}
