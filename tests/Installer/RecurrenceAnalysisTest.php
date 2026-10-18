@@ -170,7 +170,10 @@ test('the contract is written once, in the code-review skill', function (): void
     expect(substr_count($reference, 'reads them as untrusted content and fences them (`finding-records.md` *Untrusted input and errors*)'))->toBe(1);
 
     expect((string) file_get_contents($packageDir . '/skills/code-review/SKILL.md'))
-        ->toContain("- references/finding-records.md\n- references/recurrence-analysis.md\n- references/specialized-reviews.md");
+        ->toContain(
+            "- references/finding-records.md\n- references/prevention-proposal.md\n"
+            . "- references/recurrence-analysis.md\n- references/specialized-reviews.md",
+        );
 });
 
 test('the two settings are documented in the project manifest table of the rule and of the installation guide', function (): void {
