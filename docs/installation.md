@@ -96,6 +96,8 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `env` | every project tool command an agent runs, `run-validation.sh` | Environment variables exported to those commands, always through `read-manifest.sh --env`. A name that changes which program runs or what it loads (`PATH`, `HOME`, `GIT_*`, `LD_*`, `DYLD_*`, `BASH_ENV`, …) is refused. |
 | `validation.executables` | `run-validation.sh` | Extra `vendor/bin/<name>` executables a validation manifest may run. |
 | `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. |
+| `recurrence.threshold` | `analyze-recurrence.sh` | Pull requests in which one defect class must appear to count as a recurrence. At least 2. Absent: 2. |
+| `recurrence.window-days` | `analyze-recurrence.sh` | Days in which those occurrences must fall. At least 1. Absent: 90. |
 | `language.github` | reports, pull requests, commits | Language of everything published to GitHub. Trackers outside GitHub keep the assignment's language. |
 | `timezone` | PHP standards | The zone the code computes and stores in; every date call passes it explicitly. |
 | `tenancy` | authorization review, Laravel architecture | `database` when each tenant has its own database, so the tenant connection is the tenant boundary. |
