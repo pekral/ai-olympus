@@ -58,7 +58,7 @@ final class GraphParser
      */
     public static function parse(string $path, string $code): array
     {
-        $hash = hash('xxh128', $code);
+        $hash = self::hash($code);
 
         try {
             $tokens = PhpToken::tokenize($code, TOKEN_PARSE);
@@ -76,6 +76,11 @@ final class GraphParser
         $parser->walk();
 
         return ['hash' => $hash, 'nodes' => $parser->nodes, 'edges' => array_values($parser->edges)];
+    }
+
+    public static function hash(string $code): string
+    {
+        return hash('xxh128', $code);
     }
 
     private function walk(): void

@@ -39,6 +39,11 @@ final class InstallerFailure extends RuntimeException
         return new self(sprintf('Cannot write Claude settings file %s: %s.', $path, $reason));
     }
 
+    public static function graphWriteFailed(string $path): self
+    {
+        return new self(sprintf('Cannot write the knowledge graph file %s.', $path));
+    }
+
     public static function settingsSubagentWritesInvalid(string $path, string $reason): self
     {
         return new self(sprintf('Invalid subagent-write permissions for %s: %s.', $path, $reason));

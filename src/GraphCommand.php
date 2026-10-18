@@ -12,7 +12,7 @@ final class GraphCommand
 
     public const string RELATIVE_PATH = '.claude/run/graph.json';
 
-    private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
+    private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
 
     /**
      * @param array<int, string> $argv
@@ -41,7 +41,14 @@ final class GraphCommand
         $result = GraphIndexer::index($root, self::read($path) ?? []);
 
         InstallerPath::ensureDirectory(dirname($path));
-        file_put_contents($path, json_encode($result['graph'], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL);
+
+        set_error_handler(static fn (): bool => true);
+        $written = file_put_contents($path, json_encode($result['graph'], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL);
+        restore_error_handler();
+
+        if ($written === false) {
+            throw InstallerFailure::graphWriteFailed($path);
+        }
 
         echo json_encode(['graph' => self::RELATIVE_PATH] + $result['summary'], self::JSON_FLAGS) . PHP_EOL;
 

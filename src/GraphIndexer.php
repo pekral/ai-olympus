@@ -37,7 +37,7 @@ final class GraphIndexer
             $code = (string) file_get_contents($root . '/' . $path);
             $record = $previous[$path] ?? null;
 
-            if ($record === null || $record['hash'] !== hash('xxh128', $code)) {
+            if ($record === null || $record['hash'] !== GraphParser::hash($code)) {
                 $record = GraphParser::parse($path, $code);
                 $summary['parsed']++;
             } else {
