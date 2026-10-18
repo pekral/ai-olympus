@@ -10,12 +10,14 @@ The contract adds no review format. It reads the two reports the review already 
 
 ```text
 extract-findings.sh --repo <owner/name> --pr <number> [--input <file|->] [--store <file>]
+extract-findings.sh --header [--input <file|->]
 extract-findings.sh --validate <file>
 extract-findings.sh --self-test
 ```
 
 - Without `--store`, the script prints the extracted records, one JSON object per line.
 - With `--store`, the script merges the records into that JSON Lines file by `id` and replaces the file atomically. It prints one summary line. One writer uses a store at a time.
+- With `--header`, the script reads one report and writes nothing. It prints `{"revision","time"}`: the `Reviewed revision` and the `Last updated` time in UTC, from the same parse the extraction uses. It refuses with exit `3` every report that the extraction refuses while reading it.
 - Exit `0` is success, `1` a usage error, `2` a missing tool, `3` a malformed or incomplete report or store. After exit `3` nothing is written.
 
 ## What the extractor reads

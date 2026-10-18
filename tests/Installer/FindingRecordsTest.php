@@ -138,7 +138,7 @@ test('the contract is written once, in the code-review skill, and lists the reco
     expect($documented)->toHaveCount(17);
 
     expect((string) file_get_contents($packageDir . '/skills/code-review/SKILL.md'))
-        ->toContain("- references/assignment-conformance-gate.md\n- references/finding-records.md\n- references/specialized-reviews.md");
+        ->toContain("- references/finding-records.md\n- references/recurrence-analysis.md\n- references/specialized-reviews.md");
 });
 
 test('the review output and the review loop do not change, and no agent needs a platform binding', function (): void {
