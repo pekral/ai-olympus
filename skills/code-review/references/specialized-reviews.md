@@ -130,6 +130,7 @@ That pattern list is the whole gate: **a diff matching none of those patterns ru
 **Gating — one finding per violation, never two.** `@rules/code-review/core-analysis.md` *Test organization* owns a test's placement, file name, description, and AAA order; *Visibility widened for a test* owns a private member reached through reflection or a widened visibility; *Job-dispatch assertions carry no payload closure* owns dispatch closures; `@rules/code-review/review-process.md` *Test isolation* owns real network, process, and DNS access; its *Acceptance-criteria use-case coverage* owns the mapping between the stated criteria and the tests; its *Coverage gate* owns an uncovered changed line.
 **The test-value lens owns whether each added or modified test earns its place** — what it protects, the regression it catches, its owner boundary, its overlap with other tests, the production seams it demands, and every junk pattern. When a test both proves no criterion and matches a junk pattern, the lens's finding is the one published.
     - I/O or external calls → I/O review
+    - **Safeguard pull request → the safeguard review runs.** Trigger it whenever the pull request body carries a `## Safeguard` section (`@skills/resolve-issue/references/safeguard-implementation.md` *The pull request*). Apply that file's *Review of a safeguard* to the diff and run the commands of its four proofs. It is part of this review and adds no section, no skill, and no severity of its own. A pull request without that section never triggers it.
 
 ## Skills deliberately not run
 

@@ -279,6 +279,7 @@ IFS= read -r -d '' JQ_MARKER_FIND <<'EOF' || true
   | select((.pull_request // null) == null)
   | select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR"))
   | select(.html_url | test("^https://github\\.com/" + $repo_re + "/issues/[0-9]+$"))
+  | select(.html_url | ascii_downcase | startswith("https://github.com/" + ($key_repo | ascii_downcase) + "/issues/"))
   | select((.body // "") | split("\n") | any(sub("[ \t\r]+$"; "") == $marker)) ]
 | sort_by(.number)
 | .[0]
@@ -428,7 +429,7 @@ cmd_find() {
   jq -e -s 'length == 1 and (.[0] | type == "object" and (.items | type) == "array" and .incomplete_results == false and .total_count == (.items | length))' "$results" >/dev/null 2>&1 \
     || { echo "$PROG: the search result is malformed or incomplete; the existing proposal cannot be ruled out" >&2; exit 3; }
 
-  jq -c -s --arg marker "<!-- prevention-proposal:key=$key -->" --arg repo_re "$REPO_RE" ".[0] | $JQ_MARKER_FIND" "$results"
+  jq -c -s --arg marker "<!-- prevention-proposal:key=$key -->" --arg repo_re "$REPO_RE" --arg key_repo "${key%%:*}" ".[0] | $JQ_MARKER_FIND" "$results"
 }
 
 # The fixtures below are Markdown and JSON that carry backticks and dollar signs; none of it is meant to expand.
@@ -741,10 +742,10 @@ JSON
   # Dedupe: one defect class is one proposal. The lookup reads the issues that carry the marker of the class.
   key='acme/shop:rules/code-review/core-analysis:n-plus-one-queries'
   marker="<!-- prevention-proposal:key=$key -->"
-  # issue <number> <association> <state> <body> [pr] — one search item.
+  # issue <number> <association> <state> <body> [pr] [repo] — one search item.
   issue() {
-    jq -n -c --argjson n "$1" --arg a "$2" --arg s "$3" --arg b "$4" --arg pr "${5:-}" \
-      '{number: $n, state: $s, author_association: $a, body: $b, html_url: "https://github.com/acme/shop/issues/\($n)"} + (if $pr == "" then {} else {pull_request: {url: "x"}} end)'
+    jq -n -c --argjson n "$1" --arg a "$2" --arg s "$3" --arg b "$4" --arg pr "${5:-}" --arg repo "${6:-acme/shop}" \
+      '{number: $n, state: $s, author_association: $a, body: $b, html_url: "https://github.com/\($repo)/issues/\($n)"} + (if $pr == "" then {} else {pull_request: {url: "x"}} end)'
   }
   # search <items-file> — wrap items into a complete search result.
   search() { jq -s -c '{total_count: length, incomplete_results: false, items: .}' "$1" >"$tmp/search.json"; }
@@ -778,6 +779,16 @@ JSON
   search "$tmp/items.jsonl"
   run_case 'a lookup with a marker on a line of its own runs' 0 -- --find --key "$key" --results "$tmp/search.json"
   check 'a marker on its own line is found even with trailing spaces and Windows line breaks' "$(jq -e '.action == "update" and .number == 40' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { issue 40 OWNER open "$marker" '' evil/shop; issue 41 OWNER open "$marker" '' acme/shop-clone; } >"$tmp/items.jsonl"
+  search "$tmp/items.jsonl"
+  run_case 'a lookup with proposals of other repositories runs' 0 -- --find --key "$key" --results "$tmp/search.json"
+  check 'a result that points to another owner or repository is not the proposal of this class' "$(jq -e '.action == "create"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { issue 40 OWNER open "$marker" '' Acme/Shop; } >"$tmp/items.jsonl"
+  search "$tmp/items.jsonl"
+  run_case 'a lookup with a differently spelled repository runs' 0 -- --find --key "$key" --results "$tmp/search.json"
+  check 'the repository of the result is compared without regard to case' "$(jq -e '.action == "update" and .number == 40 and .url == "https://github.com/Acme/Shop/issues/40"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { issue 40 OWNER open "$marker"; } >"$tmp/items.jsonl"
+  search "$tmp/items.jsonl"
   jq -c '. + {incomplete_results: true}' "$tmp/search.json" >"$tmp/incomplete.json"
   run_case 'an incomplete search result is refused' 3 -- --find --key "$key" --results "$tmp/incomplete.json"
   check 'an incomplete search result does not allow a second issue' "$(grep -q 'cannot be ruled out' "$tmp/err" && [[ ! -s "$tmp/out" ]] && echo 0 || echo 1)"

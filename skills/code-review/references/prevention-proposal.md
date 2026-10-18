@@ -104,7 +104,7 @@ The script renders these sections in this order. Every mandatory field of the ep
 
 The dedupe key is `<repo>:<category>:<cause_key>`. It does not read the fingerprints, because one class has one fingerprint for each subsystem. The last line of every proposal is the marker `<!-- prevention-proposal:key=<key> -->`.
 
-- **The lookup finds the proposal that exists.** `propose-prevention.sh --find` reads a search result and prints `{"action":"create"}` or `{"action":"update",…}`. A proposal exists when an issue, and not a pull request, carries the marker alone on a line, and its author has write access (`OWNER`, `MEMBER`, or `COLLABORATOR`, `@rules/code-review/general.md` *Authorship trust*). A marker is visible text that anyone can copy, so the marker alone proves nothing. A closed proposal still counts. The oldest of several proposals wins.
+- **The lookup finds the proposal that exists.** `propose-prevention.sh --find` reads a search result and prints `{"action":"create"}` or `{"action":"update",…}`. A proposal exists when an issue, and not a pull request, carries the marker alone on a line, and its author has write access (`OWNER`, `MEMBER`, or `COLLABORATOR`, `@rules/code-review/general.md` *Authorship trust*), and its URL belongs to the repository of the key (compared without regard to case). A marker is visible text that anyone can copy, so the marker alone proves nothing. A closed proposal still counts. The oldest of several proposals wins.
 - **A search that may hide the proposal stops the run.** A result with `incomplete_results` or with more matches than items exits `3`. Creating an issue then could break the rule of one issue for one class.
 - **A second run updates and never creates.** The same class gives the same key, so the second run finds the first proposal.
 
@@ -114,7 +114,7 @@ Filing a tracker issue is a write that other people see. The steps below run onl
 
 1. Run `skills/_shared/assert-current-repo.sh <class.repo>`. Stop on any non-zero exit, and file nothing: steps 3 to 5 act on the current checkout, so they must not run in a checkout of another repository. Exit `4` is a different repository and exit `5` is an ownership that cannot be proven.
 2. Run `propose-prevention.sh` with `--out` set to a file in the scratch directory. Stop when the status is `none`. File nothing and say the reason.
-3. Search the tracker of `class.repo` for the marker words: `gh api -X GET search/issues -f q='repo:<owner>/<name> is:issue in:body "prevention-proposal"' -f per_page=100 >results.json`. Run `propose-prevention.sh --find --key <key> --results results.json`.
+3. Run `skills/_shared/feedback-loop.sh lookup --key <key>`. It searches the tracker of `class.repo` for the marker words (`repo:<owner>/<name> is:issue in:body "prevention-proposal"`), reads every page of the result, and runs `propose-prevention.sh --find` on it. The number of proposals in the repository therefore never blocks the lookup. A search that GitHub cuts at 1000 results is refused with exit `3`.
 4. When the action is `create`, file the body file unchanged through `@skills/create-issue/SKILL.md`. The first line of the file is the title. That skill assigns the issue to the current user and selects one existing label under `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*. Phase 3 adds no label and no second issue-creation path.
 5. When the action is `update`, publish the body file with `skills/code-review-github/scripts/upsert-comment.sh <url> <body-file> prevention-proposal`, where `<url>` is the `url` that the `--find` line prints. A bare number resolves against the current git remote, so it never replaces the `url`. The helper replaces this actor's earlier comment of that namespace on the issue. The issue body, its labels, and its state stay as a human left them. A closed proposal is reported to the human and is never reopened by the run.
 6. Read the issue or the comment back through the tracker loader and confirm it landed. Delete the scratch files.
@@ -134,6 +134,6 @@ Without an approval nothing is implemented. The proposal states it. The script w
 
 ## What this phase leaves to later phases
 
-- Deciding which role runs the analysis, the collection, and the proposal, and when, belongs to the wiring phase (#189). It also owns the consent level of the filing for each role in `@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*.
-- A canonical `repo` value for the grouping belongs to #189.
-- Nothing in `@skills/resolve-issue/SKILL.md`, `@skills/process-code-review/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, or an agent definition calls the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.
+- Phase 4 (#189) assigned the roles in `feedback-loop.md`: `splinter` runs the analysis and files the proposal, `leonardo` writes the analysis file, and the filing is **L1** for `splinter` in a feedback-analysis run that the user asked for (`@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*).
+- A canonical `repo` value is the `nameWithOwner` that `skills/_shared/feedback-loop.sh` resolves before it writes a record.
+- Only `skills/_shared/feedback-loop.sh` and the feedback-analysis run of `splinter` call the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.

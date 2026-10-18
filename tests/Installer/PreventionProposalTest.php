@@ -250,7 +250,7 @@ test('issue creation and labelling keep their behaviour: no second creation path
     }
 });
 
-test('no existing workflow calls the proposal, so an unavailable proposal blocks no pull request', function (): void {
+test('no existing workflow names the proposal script, so an unavailable proposal blocks no pull request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $claudeAgents = glob($packageDir . '/agents/*.md');
     $codexAgents = glob($packageDir . '/codex/agents/*.toml');

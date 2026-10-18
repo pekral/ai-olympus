@@ -32,8 +32,8 @@
 # The record text fields are untrusted content (rules/security/general.md). The report never carries
 # one: it holds only values the record schema restricts to a fixed pattern, and links.
 #
-# Nothing in the review, resolve-issue, or merge workflows calls this script, and none of them reads its
-# exit code. A missing store, a missing tool, or a crash of this script blocks no pull request.
+# Only skills/_shared/feedback-loop.sh calls this script, and no review, resolve-issue, or merge workflow
+# reads its exit code. A missing store, a missing tool, or a crash of this script blocks no pull request.
 #
 # Output
 #   stdout  one JSON line: the report {"schema","threshold","window_days","valid","records","processed",
