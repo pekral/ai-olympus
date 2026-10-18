@@ -43,6 +43,7 @@ set -euo pipefail
 PROG="${0##*/}"
 
 MAX_INPUT_BYTES=1048576
+MAX_DEFERRALS=200
 
 usage() {
   cat >&2 <<'EOF'
@@ -190,8 +191,10 @@ def subsystem_of($text):
       elif ($l | test("^#{3,6}\\s")) then close
       elif ($l | test("^---\\s*$")) then close
       elif .cur == null and (.section | test("^Deferred to sub-issues"; "i")) then
-        if ($l | test("^\\s*([-*]|[0-9]+\\.)\\s")) then .defer += [$l]
-        elif ($l | test("\\S")) and (.defer | length) > 0 then .defer |= (.[:-1] + [.[-1] + " " + $l])
+        if ($l | test("^\\s*([-*]|[0-9]+\\.)\\s")) then
+          (if (.defer | length) <= $maxDefer then .defer += [$l[0:4000]] else . end)
+        elif ($l | test("\\S")) and (.defer | length) > 0 and (.defer[-1] | length) < 4000 then
+          .defer[-1] |= ((. + " " + $l) | .[0:4000])
         else . end
       elif .cur != null and $f != null then
         fieldkey($f.name) as $k
@@ -259,6 +262,7 @@ def subsystem_of($text):
         (if ($missing | length) > 0 then "input is not a code-review report: missing header line(s): \($missing | map(ascii_upcase[:1] + .[1:]) | join(", "))" else empty end),
         (if ($missing | index(["reviewed revision"]) | not) and ($rev | test("^[0-9a-f]{7,64}$") | not) then "header \"Reviewed revision\" is not a commit SHA" else empty end),
         (if ($missing | index(["last updated"]) | not) and $time == null then "header \"Last updated\" is not an ISO-8601 timestamp with a UTC offset" else empty end),
+        (if ($s.defer | length) > $maxDefer then "the Deferred to sub-issues section lists more than \($maxDefer) entries" else empty end),
         ($conv[] | .error | select(. != ""))
       ]),
     findings: ($conv | map(.finding))
@@ -365,7 +369,7 @@ cmd_extract() {
     fail_input "the review report is larger than $MAX_INPUT_BYTES bytes"
   fi
 
-  if ! jq -R -s -c "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
+  if ! jq -R -s -c --argjson maxDefer "$MAX_DEFERRALS" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
     fail_input "the review report could not be read: $(safe_display "$(head -n 1 "$tmp/jq.err")")"
   fi
 
@@ -670,6 +674,33 @@ self_test() {
   "$script" --repo acme/shop --pr 13 --input "$tmp/m2.md" --store "$tmp/mstore.jsonl" >/dev/null
   "$script" --repo acme/shop --pr 13 --input "$tmp/c1.md" --store "$tmp/mstore.jsonl" >/dev/null
   check 'a Critical is never deferred by a deferral entry' "$(jq -e '.disposition == "confirmed" and .status == "resolved"' "$tmp/mstore.jsonl" >/dev/null && echo 0 || echo 1)"
+
+  # A deferral entry with a continuation paragraph (the shape of a real converged report) still defers.
+  converged "$tmp/c4.md" '- `src/Foo/Bar.php:1` — Moderate — copied step.
+  Continuation paragraph of the same entry, filed as https://github.com/acme/shop/issues/55 after the review.'
+  rm -f "$tmp/mstore.jsonl"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c4.md" --store "$tmp/mstore.jsonl" >/dev/null
+  check 'a deferral entry whose URL sits in a continuation line defers the record' "$(jq -e '.disposition == "deferred" and .status == "open"' "$tmp/mstore.jsonl" >/dev/null && echo 0 || echo 1)"
+
+  # A near-1 MiB Deferred section finishes in bounded time: continuation lines stop at the entry cap.
+  {
+    printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 1\n'
+    printf '**Reviewed revision:** %s\n**Last updated:** 2026-10-04T10:00:00Z\n\n## Deferred to sub-issues\n\n' "$SHA3"
+    printf -- '- `src/Foo/Bar.php:1` — Moderate — see https://github.com/acme/shop/issues/55\n'
+    awk 'BEGIN { for (i = 0; i < 200000; i++) print "a/b" }'
+  } >"$tmp/bigdefer.md"
+  SECONDS=0
+  run_case 'a near-1 MiB Deferred section is read' 0 no -- --repo acme/shop --pr 13 --input "$tmp/bigdefer.md"
+  check 'a near-1 MiB Deferred section finishes within 60 seconds' "$([[ "$SECONDS" -lt 60 ]] && echo 0 || echo 1)"
+  {
+    printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 0\n'
+    printf '**Reviewed revision:** %s\n**Last updated:** 2026-10-04T10:00:00Z\n\n## Deferred to sub-issues\n\n' "$SHA3"
+    awk 'BEGIN { for (i = 0; i < 250000; i++) print "- a" }'
+  } >"$tmp/manydefer.md"
+  SECONDS=0
+  run_case 'a Deferred section with more than 200 entries is rejected' 3 yes -- --repo acme/shop --pr 13 --input "$tmp/manydefer.md"
+  check 'the rejection names the Deferred entry limit' "$(grep -q 'more than 200 entries' "$tmp/case.err" && [[ "$SECONDS" -lt 60 ]] && echo 0 || echo 1)"
 
   # Malformed or incomplete input is rejected with exit 3 and writes nothing.
   rm -f "$tmp/bad.jsonl"
