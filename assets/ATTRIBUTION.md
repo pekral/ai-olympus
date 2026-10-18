@@ -4,19 +4,24 @@ The PHP logo by Colin Viebrock comes from the [official PHP logo downloads](http
 
 The Laravel logo comes from the official [laravel/art repository](https://github.com/laravel/art/blob/master/laravel-logo.svg). `brands/laravel.svg` preserves the downloaded artwork and its original red colour. Laravel is a trademark of Laravel Holdings Inc. The logos identify the supported technologies and do not imply endorsement.
 
-The banner composition in `social-preview.svg` and its rendered `social-preview.png` and `logo.png` variants is distributed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This artwork licence does not change the package code's MIT licence.
+The banner composition in `social-preview.svg` and its rendered `social-preview.png`, `logo.png`, and `logo.webp` variants is distributed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This artwork licence does not change the package code's MIT licence.
+
+The header also uses the original [GitHub white Invertocat](https://brand.github.com/GitHub_Logos.zip), [Jira app icon](https://atlassian.design/foundations/logos), [Playwright logo](https://playwright.dev/img/playwright-logo.svg), [MySQL organisation portrait](https://github.com/mysql), and [BugSnag site icon](https://www.bugsnag.com/). These identify the tools used by the agents. Their colours and proportions are preserved; they do not imply endorsement.
 
 ## Rendering
 
-The SVG contains embedded portrait and logo images and needs no network access to render. With [librsvg](https://gitlab.gnome.org/GNOME/librsvg) installed, run from the repository root:
+The SVG references the existing `agents/*.png` portraits and `brands/*.svg` logos using relative paths, so the repository stores each original once. The other five tool logos are embedded. Rendering needs the asset directory together and no network access. With [librsvg](https://gitlab.gnome.org/GNOME/librsvg) and [cwebp](https://developers.google.com/speed/webp/docs/cwebp) installed, run from the repository root:
 
 ```bash
 rsvg-convert -w 1280 -h 640 assets/social-preview.svg -o assets/social-preview.png
 rsvg-convert -w 960 -h 480 assets/social-preview.svg -o assets/logo.png
+cwebp -quiet -lossless -z 9 -exact assets/logo.png -o assets/logo.webp
 ```
 
-Update both digest values in `tests/Installer/SocialPreviewAssetTest.php` after rendering. Upload `social-preview.png` in GitHub **Settings → General → Social preview**; committing the file does not configure GitHub's repository setting.
+The README loads the 960 × 480 lossless WebP. The 1280 × 640 PNG is the GitHub social preview; `logo.png` is the PNG fallback. PNGs may be losslessly recompressed after rendering. Update both digest values in `tests/Installer/SocialPreviewAssetTest.php` after the final PNG optimisation. All banner variants are excluded from Composer distributions.
 
-The 1254 × 1254 transparent agent portraits in `agents/*.png` were generated from the Cockpit Krang style reference. The matching 160 × 160 transparent PNGs in `agents/thumbnails/` are used in the README and role documentation. Generation prompts and the reference source are recorded in `agents/prompts.json`. The English character identities are Splinter, Donatello, Leonardo, Raphael, Michelangelo, and April O’Neil.
+Upload `social-preview.png` in GitHub **Settings → General → Social preview**; committing the file does not configure GitHub's repository setting.
+
+The 1254 × 1254 transparent agent portraits in `agents/*.png` were generated from the Cockpit Krang style reference. The matching 160 × 160 transparent PNGs in `agents/thumbnails/` are used in the README and role documentation. Generation prompts and the reference source are recorded in `agents/prompts.json`. The English character identities are Splinter, Donatello, Leonardo, Raphael, Michelangelo, April O’Neil, and Casey Jones.
 
 Teenage Mutant Ninja Turtles character names and likenesses belong to their respective rights holders. These themed agent portraits do not imply affiliation or endorsement. This character artwork is separate from the PHP and Laravel logo licences above.

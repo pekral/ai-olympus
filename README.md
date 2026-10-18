@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="AI Olympus — six AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
+  <img src="assets/logo.webp" alt="AI Olympus — seven AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
 
 <h1>AI Olympus — An AI Development Team for Laravel</h1>
 
