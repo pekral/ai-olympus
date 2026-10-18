@@ -41,7 +41,7 @@ final class GraphQuery
 
         foreach ($files as $path => $record) {
             foreach ($record['nodes'] as $node) {
-                if ($path === $query || $node['id'] === $query || self::shortName($node['id']) === $query) {
+                if ($path === $query || $node['id'] === $query || GraphNameResolver::shortName($node['id']) === $query) {
                     $entities[] = $node + ['file' => $path];
                 }
             }
@@ -99,13 +99,6 @@ final class GraphQuery
         }
 
         return false;
-    }
-
-    private static function shortName(string $id): string
-    {
-        $separator = strrpos($id, '\\');
-
-        return $separator === false ? $id : substr($id, $separator + 1);
     }
 
 }

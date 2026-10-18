@@ -224,8 +224,10 @@ trait GraphLaravelExtractors
     {
         $this->addEdge($this->scope(), 'CALLS', $target, $line);
 
-        if ($this->fileKind === 'test') {
-            $this->addEdge($this->scope(), 'TESTS', explode('::', $target)[0], $line);
+        $class = explode('::', $target)[0];
+
+        if ($this->fileKind === 'test' && $class !== $this->class && $class !== $this->parent) {
+            $this->addEdge($this->scope(), 'TESTS', $class, $line);
         }
     }
 

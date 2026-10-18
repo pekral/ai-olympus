@@ -155,3 +155,15 @@ test('a test is connected to the production classes it instantiates or calls', f
         'file:tests/Feature/CreateOrderActionTest.php TESTS App\Models\Order',
     ]);
 });
+
+test('a PHPUnit test class is connected to the production class only, not to itself or to its parent test case', function (): void {
+    $code = "<?php\n\nnamespace Tests\\Unit;\n\nuse App\\Services\\Foo;\nuse Tests\\TestCase;\n\nfinal class FooTest extends TestCase\n{\n"
+        . "    protected function setUp(): void\n    {\n        parent::setUp();\n    }\n\n"
+        . "    public function testIt(): void\n    {\n        self::assertSame(1, (new Foo())->run());\n    }\n}\n";
+
+    $record = GraphParser::parse('tests/Unit/FooTest.php', $code);
+
+    expect(GraphFixture::describe($record['edges'], 'TESTS'))->toBe([
+        'Tests\Unit\FooTest::testIt TESTS App\Services\Foo',
+    ]);
+});
