@@ -164,10 +164,18 @@ def addline($l):
 # A field value without its code fences, trimmed and capped. Null when it is empty.
 def body: split("\n") | map(select(test("^\\s*(```|~~~)") | not)) | join("\n") | trim | .[0:4000] | if . == "" then null else . end;
 def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$"; "") | if . == "" then "general" else . end;
+# The subsystem of the first path-like token of a text: its first two directories, lowercase. Null when the text has no path.
+def subsystem_of($text):
+  ([ $text | match("[A-Za-z0-9_.@+-][A-Za-z0-9_./@+-]*"; "g") | .string
+     | select(test("/") or test("\\.[A-Za-z0-9]{1,8}$")) ] | first // null) as $path
+  | if $path == null then null else
+      ($path | split("/") | .[:-1] | map(select(. != "" and . != "." and . != "..")) | .[:2] | join("/") | ascii_downcase
+       | if . == "" then "." else . end)
+    end;
 
 (gsub("\r"; "") | gsub("[\\x00-\\x08\\x0b-\\x1f\\x7f]"; "") | split("\n")) as $lines
 | (reduce $lines[] as $l (
-    {fence: false, section: "", inHead: true, head: {}, items: [], cur: null, field: null, skip: false};
+    {fence: false, section: "", inHead: true, head: {}, items: [], cur: null, field: null, skip: false, defer: []};
     ($l | cap("^#{3,6}\\s+(?:\\S+\\s+)?(?<sev>Critical|Moderate)\\s+[0-9]+\\.\\s*(?<title>.*)$")) as $h
     | ($l | cap("^\\s*-\\s+\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $f
     | ($l | cap("^\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $hd
@@ -181,6 +189,10 @@ def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$";
           .cur = {severity: ($h.sev | ascii_downcase), title: ($h.title | trim), section: .section, fields: {}, dups: []} end
       elif ($l | test("^#{3,6}\\s")) then close
       elif ($l | test("^---\\s*$")) then close
+      elif .cur == null and (.section | test("^Deferred to sub-issues"; "i")) then
+        if ($l | test("^\\s*([-*]|[0-9]+\\.)\\s")) then .defer += [$l]
+        elif ($l | test("\\S")) and (.defer | length) > 0 then .defer |= (.[:-1] + [.[-1] + " " + $l])
+        else . end
       elif .cur != null and $f != null then
         fieldkey($f.name) as $k
         | (if $k != "_ignored" and (.cur.fields | has($k)) then .cur.dups += [$k] else . end)
@@ -204,14 +216,10 @@ def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$";
     | ($v.fields.deferred // "" | body) as $deferred
     | (($v.fields.location // "" | body) // "") as $loc
     | (($v.fields.rule // "" | body) // "") as $rule
-    | ([ $loc | match("[A-Za-z0-9_.@+-][A-Za-z0-9_./@+-]*"; "g") | .string
-         | select(test("/") or test("\\.[A-Za-z0-9]{1,8}$")) ] | first // null) as $path
-    | (if $path == null then "." else
-        ($path | split("/") | .[:-1] | map(select(. != "" and . != "." and . != "..")) | .[:2] | join("/") | ascii_downcase
-         | if . == "" then "." else . end)
-      end) as $sub
-    | ($rule | cap("(?<ref>@(?:rules|skills)/[A-Za-z0-9_][A-Za-z0-9_./-]*(?:#[A-Za-z0-9_-]+)?)(?:`)?(?:\\s+\\*(?<ital>[^*]+)\\*)?")) as $r
-    | ($r.ref // null | if . == null then null else sub("[./-]+$"; "") end) as $ref
+    | (subsystem_of($loc) // ".") as $sub
+    | ($rule | cap("`(?<ref>@(?:rules|skills)/[A-Za-z0-9_][A-Za-z0-9_./-]*)(?:#(?<anchor>[^`]+))?`(?:\\s+\\*(?<ital>[^*]+)\\*)?")) as $rb
+    | ($rb // ($rule | cap("(?<ref>@(?:rules|skills)/[A-Za-z0-9_][A-Za-z0-9_./-]*(?:#[A-Za-z0-9_-]+)?)(?:`)?(?:\\s+\\*(?<ital>[^*]+)\\*)?"))) as $r
+    | ($r.ref // null | if . == null then null else (. + (if ($r.anchor // null) != null then "#" + $r.anchor else "" end) | sub("[./-]+$"; "")) end) as $ref
     | (if $ref != null then ($ref | sub("^@"; "") | split("#")) else null end) as $parts
     | {
         error: ([
@@ -236,9 +244,17 @@ def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$";
         }
       }
   )) as $conv
+| ($s.defer | map(
+    . as $e
+    | ($e | cap("(?<url>https?://[^\\s)>\\]`]+)")) as $u
+    | ($e | gsub("https?://[^\\s)>\\]`]+"; " ")) as $rest
+    | select($u != null)
+    | {subsystem: subsystem_of($rest), url: $u.url}
+    | select(.subsystem != null))) as $deferrals
 | {
     revision: $rev,
     time: $time,
+    deferrals: $deferrals,
     errors: ([
         (if ($missing | length) > 0 then "input is not a code-review report: missing header line(s): \($missing | map(ascii_upcase[:1] + .[1:]) | join(", "))" else empty end),
         (if ($missing | index(["reviewed revision"]) | not) and ($rev | test("^[0-9a-f]{7,64}$") | not) then "header \"Reviewed revision\" is not a commit SHA" else empty end),
@@ -274,13 +290,20 @@ JQ_MERGE=''
 IFS= read -r -d '' JQ_MERGE <<'EOF' || true
 (.new | map(.id)) as $newids
 | .old as $old
-# A confirmed, open record of this pull request that a later report no longer carries is resolved. A
-# deferred record is never resolved by absence, and an older report never resolves a newer record.
+# A confirmed, open record of this pull request that a later report no longer carries is resolved, unless a
+# Moderate of the same subsystem is listed under `## Deferred to sub-issues` with a sub-issue URL: then it
+# becomes deferred and stays open. Either change takes the revision and time of the report that made it, so
+# replaying an older report afterwards changes nothing. A deferred record is never resolved by absence, and
+# an older report never resolves a newer record.
 | ($old | map(
     .id as $id
+    | .subsystem as $sub
     | if .repo == $repo and .pr == $pr and .disposition == "confirmed" and .status == "open"
          and (.time < $time) and (($newids | index([$id])) == null)
-      then .status = "resolved" else . end)) as $kept
+      then (if .severity == "moderate" and ($deferred | index([$sub])) != null
+            then .disposition = "deferred" else .status = "resolved" end)
+           | .revision = $rev | .time = $time
+      else . end)) as $kept
 | (reduce .new[] as $n ({records: $kept, added: 0, updated: 0};
     (.records | map(.id) | index([$n.id])) as $ix
     | if $ix == null then .records += [$n] | .added += 1
@@ -406,7 +429,9 @@ cmd_extract() {
 
   jq -n -c --slurpfile old "$tmp/old.json" --slurpfile new "$tmp/new.json" \
     '{old: $old[0], new: $new[0]}' >"$tmp/pair.json"
-  jq -c --arg repo "$repo" --argjson pr "$pr" --arg time "$time" "$JQ_MERGE" "$tmp/pair.json" >"$tmp/merged.json"
+  jq -c --arg repo "$repo" --argjson pr "$pr" --arg rev "$revision" --arg time "$time" \
+    --argjson deferred "$(jq -c '[.deferrals[].subsystem] | unique' "$tmp/parsed.json")" \
+    "$JQ_MERGE" "$tmp/pair.json" >"$tmp/merged.json"
 
   local out
   out="$(mktemp "$store.XXXXXX")"
@@ -537,6 +562,10 @@ self_test() {
   } >"$tmp/clean.md"
   "$script" --repo acme/shop --pr 7 --input "$tmp/clean.md" --store "$tmp/store.jsonl" >"$tmp/clean.out"
   check 'a later report without the finding resolves it and writes no new record' "$(jq -e '.resolved == 1 and .extracted == 0 and .records == 1' "$tmp/clean.out" >/dev/null && jq -e '.status == "resolved"' "$tmp/store.jsonl" >/dev/null && echo 0 || echo 1)"
+  check 'the resolving report sets the revision and time of the resolved record' "$(jq -e '.status == "resolved" and .time == "2026-10-04T10:00:00Z"' "$tmp/store.jsonl" >/dev/null && echo 0 || echo 1)"
+  cp "$tmp/store.jsonl" "$tmp/store.resolved"
+  "$script" --repo acme/shop --pr 7 --input "$tmp/i3.md" --store "$tmp/store.jsonl" >/dev/null
+  check 'replaying the last finding round after the resolving report leaves the store identical' "$(cmp -s "$tmp/store.resolved" "$tmp/store.jsonl" && echo 0 || echo 1)"
   report "$tmp/i4.md" "$SHA3" 2026-10-05T10:00:00Z "$R1" "$LOC" "Back again."
   "$script" --repo acme/shop --pr 7 --input "$tmp/i4.md" --store "$tmp/store.jsonl" >/dev/null
   check 'a reopened finding stays one record and is open again' "$([[ "$(wc -l <"$tmp/store.jsonl" | tr -d ' ')" == 1 ]] && jq -e '.status == "open"' "$tmp/store.jsonl" >/dev/null && echo 0 || echo 1)"
@@ -594,6 +623,53 @@ self_test() {
   report "$tmp/long.md" "$SHA1" 2026-10-01T10:00:00Z "$R1" "$LOC" "$(awk 'BEGIN { for (i = 0; i < 9000; i++) printf "a" }')"
   "$script" --repo acme/shop --pr 7 --input "$tmp/long.md" >"$tmp/long.out"
   check 'a field longer than 4000 characters is capped' "$(jq -e '.cause_hypothesis | length == 4000' "$tmp/long.out" >/dev/null && echo 0 || echo 1)"
+
+  # A backticked anchor with spaces is slugged whole; the italic section name gives the same cause.
+  report "$tmp/a1.md" "$SHA1" 2026-10-01T10:00:00Z "@rules/php/core-standards.md#PHP Practices" "$LOC" "Anchor with a space."
+  report "$tmp/a2.md" "$SHA1" 2026-10-01T10:00:00Z '@rules/php/core-standards.md` *PHP Practices*' "$LOC" "Italic section name."
+  report "$tmp/a3.md" "$SHA1" 2026-10-01T10:00:00Z "@rules/php/core-standards.md#PHP Naming" "$LOC" "Another section."
+  for n in a1 a2 a3; do "$script" --repo acme/shop --pr 7 --input "$tmp/$n.md" >"$tmp/$n.out"; done
+  check 'a backticked anchor with spaces gives the cause php-practices' "$(jq -e '.cause_key == "php-practices"' "$tmp/a1.out" >/dev/null && echo 0 || echo 1)"
+  check 'the anchor and the italic section name give the same fingerprint' "$([[ "$(jq -r .fingerprint "$tmp/a1.out")" == "$(jq -r .fingerprint "$tmp/a2.out")" ]] && echo 0 || echo 1)"
+  check 'two anchors that share a first word give different fingerprints' "$([[ "$(jq -r .fingerprint "$tmp/a1.out")" != "$(jq -r .fingerprint "$tmp/a3.out")" ]] && echo 0 || echo 1)"
+
+  # A Moderate that the converged report lists under `## Deferred to sub-issues` becomes deferred, not resolved.
+  report "$tmp/m1.md" "$SHA1" 2026-10-01T10:00:00Z "@rules/php/core-standards.md#structure" "src/Foo/Bar.php:1" "A step is copied." Moderate
+  converged() {
+    local file="$1" entry="$2"
+    {
+      printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 1\n'
+      printf '**Reviewed revision:** %s\n**Last updated:** 2026-10-04T10:00:00Z\n\n## TL;DR\n\n- Fixed.\n\n' "$SHA3"
+      printf '## Deferred to sub-issues\n\n%s\n' "$entry"
+    } >"$file"
+  }
+  converged "$tmp/c1.md" '- `src/Foo/Bar.php:1` — Moderate — copied step, see https://github.com/acme/shop/issues/55'
+  rm -f "$tmp/mstore.jsonl"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c1.md" --store "$tmp/mstore.jsonl" >"$tmp/c1.out"
+  check 'a Moderate listed under Deferred to sub-issues becomes deferred and stays open' "$(jq -e '.disposition == "deferred" and .status == "open" and .severity == "moderate" and .time == "2026-10-04T10:00:00Z"' "$tmp/mstore.jsonl" >/dev/null && jq -e '.resolved == 0 and .extracted == 0' "$tmp/c1.out" >/dev/null && echo 0 || echo 1)"
+  cp "$tmp/mstore.jsonl" "$tmp/mstore.before"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  check 'replaying the converged report and the round report leaves the deferred record identical' "$(cmp -s "$tmp/mstore.before" "$tmp/mstore.jsonl" && echo 0 || echo 1)"
+
+  converged "$tmp/c2.md" '- `src/Other/Thing.php:9` — Moderate — another finding, see https://github.com/acme/shop/issues/56'
+  rm -f "$tmp/mstore.jsonl"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c2.md" --store "$tmp/mstore.jsonl" >/dev/null
+  check 'a deferral of another subsystem does not defer the record, which is resolved' "$(jq -e '.disposition == "confirmed" and .status == "resolved"' "$tmp/mstore.jsonl" >/dev/null && echo 0 || echo 1)"
+
+  converged "$tmp/c3.md" '- `src/Foo/Bar.php:1` — Moderate — copied step, no sub-issue was filed'
+  rm -f "$tmp/mstore.jsonl"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c3.md" --store "$tmp/mstore.jsonl" >/dev/null
+  check 'a deferral entry without a sub-issue URL defers nothing' "$(jq -e '.disposition == "confirmed" and .status == "resolved"' "$tmp/mstore.jsonl" >/dev/null && echo 0 || echo 1)"
+
+  report "$tmp/m2.md" "$SHA1" 2026-10-01T10:00:00Z "@rules/php/core-standards.md#structure" "src/Foo/Bar.php:1" "A step is copied." Critical
+  rm -f "$tmp/mstore.jsonl"
+  "$script" --repo acme/shop --pr 13 --input "$tmp/m2.md" --store "$tmp/mstore.jsonl" >/dev/null
+  "$script" --repo acme/shop --pr 13 --input "$tmp/c1.md" --store "$tmp/mstore.jsonl" >/dev/null
+  check 'a Critical is never deferred by a deferral entry' "$(jq -e '.disposition == "confirmed" and .status == "resolved"' "$tmp/mstore.jsonl" >/dev/null && echo 0 || echo 1)"
 
   # Malformed or incomplete input is rejected with exit 3 and writes nothing.
   rm -f "$tmp/bad.jsonl"
