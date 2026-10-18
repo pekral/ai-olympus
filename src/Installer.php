@@ -25,6 +25,10 @@ final class Installer
                 return MetricsCommand::run($normalizedArgv);
             }
 
+            if ($command === 'graph') {
+                return GraphCommand::run($normalizedArgv);
+            }
+
             if ($command !== 'install') {
                 fwrite(STDERR, sprintf('Unknown command: %s%s', $command, PHP_EOL));
 
@@ -68,10 +72,12 @@ final class Installer
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
         echo "                                 [--disable-co-author-attribution]\n\n";
-        echo "  vendor/bin/ai-olympus stats [--last=7d|30d|all]\n\n";
+        echo "  vendor/bin/ai-olympus stats [--last=7d|30d|all]\n";
+        echo "  vendor/bin/ai-olympus graph build | graph query <path|class|symbol>\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n";
-        echo "  stats                   Summarise local orchestration metrics (tiers, dispatches, escalations).\n\n";
+        echo "  stats                   Summarise local orchestration metrics (tiers, dispatches, escalations).\n";
+        echo "  graph                   Build the repository knowledge graph, or query one slice of it as JSON.\n\n";
         self::showInstallOptions();
 
         return 0;

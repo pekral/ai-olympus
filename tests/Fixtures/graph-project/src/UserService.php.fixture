@@ -1,0 +1,15 @@
+<?php
+
+namespace App;
+
+use App\{UserRepository as Users};
+
+final class UserService
+{
+    public function find(Users $users): int
+    {
+        $users->config('ignored');
+
+        return $users->count() + count([new Users()]) + Users::class;
+    }
+}

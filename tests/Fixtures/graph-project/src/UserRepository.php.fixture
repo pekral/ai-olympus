@@ -1,0 +1,39 @@
+<?php
+
+namespace App;
+
+use App\Concerns\Loggable;
+use App\Contracts\Repository;
+use App\Support;
+use function App\helper;
+
+final class UserRepository extends BaseRepository implements Repository
+{
+    use Loggable {
+        log as protected;
+    }
+
+    public function count(Support\Clock $clock = new Support\Clock()): int
+    {
+        parent::boot();
+
+        return config('app.limit') + \config('app') + "{$clock->now()}";
+    }
+
+    public function &all(): array
+    {
+        $this->log();
+        $handler = new class {
+            public function handle(): void
+            {
+            }
+        };
+
+        return self::empty() + static::empty() + namespace\Helper::run() + [new static()];
+    }
+
+    private static function empty(): array
+    {
+        return [];
+    }
+}

@@ -361,6 +361,17 @@ vendor/bin/ai-olympus stats --last=7d
 
 The summary answers the questions a single run cannot: how often `FAST` runs escalate (the tier is routing real work past the review), how often reviews find nothing (the tier is buying a pass that changes no outcome), and how often the expensive model tier is used. Token counts appear only where the runtime reports them — an absent number rather than an estimated one.
 
+### Querying the repository graph
+
+An agent can ask the repository a structural question instead of reading it. `graph build` indexes the PHP files under the Composer autoload directories and `config/` into `.claude/run/graph.json`: classes, interfaces, traits, methods, config files, and test files, with their `EXTENDS`, `IMPLEMENTS`, `USES`, `CALLS`, and `USES_CONFIG` relations. A rebuild re-parses only the files whose content hash changed and drops the files that no longer exist.
+
+```bash
+vendor/bin/ai-olympus graph build
+vendor/bin/ai-olympus graph query 'App\Models\User'
+```
+
+`graph query` takes a file path, a class, or a `Class::method` symbol and prints one JSON slice: the matching entities, their outgoing and incoming relations, and the files that use them. An unknown entity prints an empty slice. The graph is a useful approximation, not a static call graph: a call is recorded only where its target is visible in the source.
+
 Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
 ## Skill Catalog
