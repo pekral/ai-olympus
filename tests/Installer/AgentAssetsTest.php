@@ -47,5 +47,10 @@ test('distribution exclusions keep the agent assets available without shipping t
     expect($composer['archive']['exclude'])->not->toContain('/assets', '/assets/agents');
     expect($composer['archive']['exclude'])->toContain('/assets/social-preview.png', '/assets/logo.png', '/assets/logo.webp', '/assets/brands');
     expect($attributes)->not->toMatch('~^/?assets(?:/agents)?/?\s+export-ignore~m');
-    expect($attributes)->toContain('/assets/social-preview.png export-ignore', '/assets/logo.png export-ignore', '/assets/logo.webp export-ignore', '/assets/brands export-ignore');
+    expect($attributes)->toContain(
+        '/assets/social-preview.png export-ignore',
+        '/assets/logo.png export-ignore',
+        '/assets/logo.webp export-ignore',
+        '/assets/brands export-ignore',
+    );
 });
