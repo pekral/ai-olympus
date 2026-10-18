@@ -78,6 +78,15 @@
       "summary": "Reads a reviewed MySQL change and proposes optimizations for its critical problems.",
       "portrait": "casey.png",
       "thumbnail": "thumbnails/casey.png"
+    },
+    {
+      "id": "metalhead",
+      "displayName": "Metalhead",
+      "role": "Context retrieval",
+      "accent": "#88c0d0",
+      "summary": "Gathers the project context a task needs and returns it as one compact package.",
+      "portrait": "metalhead.png",
+      "thumbnail": "thumbnails/metalhead.png"
     }
   ]
 }

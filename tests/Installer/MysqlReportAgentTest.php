@@ -81,7 +81,7 @@ test('the casey report shape has one owner and the roster surfaces name casey (i
         ->and((string) file_get_contents($packageDir . '/agents/casey.md'))
         ->toContain('The report follows `skills/mysql-problem-solver/templates/cr-report.md`')
         ->and((string) file_get_contents($packageDir . '/codex/agents/splinter.toml'))
-        ->toContain('`michelangelo`, `april`, or `casey`')
+        ->toContain('`michelangelo`, `april`, `casey`, or `metalhead`')
         ->and((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'))
-        ->toContain('for agent in splinter donatello leonardo raphael michelangelo april casey; do');
+        ->toContain('for agent in splinter donatello leonardo raphael michelangelo april casey metalhead; do');
 });

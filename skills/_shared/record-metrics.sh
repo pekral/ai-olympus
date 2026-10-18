@@ -27,6 +27,8 @@
 #                     [--input-tokens <n>] [--output-tokens <n>] [--cache-read-tokens <n>]
 #                     [--context-gate-executed <n>] [--context-requested <n>] [--context-skipped <n>]
 #                     [--sources-searched <n>] [--items-returned <n>] [--estimated-tokens-returned <n>]
+#                     [--items-inspected <n>] [--context-cache-hits <n>] [--context-cache-misses <n>]
+#                     [--retrieval-seconds <n>]
 #                     [--gate-record <path>]... [--store <path>]
 #   record-metrics.sh --self-test
 #
@@ -38,6 +40,12 @@
 #   how often the gate ran, how often it asked for context or skipped it, and
 #   what the retrieval it allowed actually returned. They measure the context
 #   the gate saved.
+#
+#   --items-inspected, --context-cache-hits, --context-cache-misses, and
+#   --retrieval-seconds come from the Context Packages `pack-context.sh` wrote:
+#   how many candidates the retriever ranked, how often a cached package was
+#   reused or rebuilt, and how long retrieval took. They measure how well the
+#   retrieval worked.
 #
 #   --gate-record names a gate record that `run-gate.sh` wrote; repeat it once
 #   per record. Only its `duration_seconds` is read, and the entry stores the
@@ -89,6 +97,7 @@ record() {
   local gate_runs=0 gate_seconds=0 gate_duration
   local context_gate_executed="" context_requested="" context_skipped=""
   local sources_searched="" items_returned="" estimated_tokens_returned=""
+  local items_inspected="" cache_hits="" cache_misses="" retrieval_seconds=""
   local store="${AI_OLYMPUS_HOME:-$HOME/.ai-olympus}/metrics.jsonl"
 
   while [[ $# -gt 0 ]]; do
@@ -114,7 +123,7 @@ record() {
       gate_seconds=$((gate_seconds + gate_duration))
       shift 2
       ;;
-    --agent-dispatches | --escalated-dispatches | --review-rounds | --critical | --moderate | --input-tokens | --output-tokens | --cache-read-tokens | --context-gate-executed | --context-requested | --context-skipped | --sources-searched | --items-returned | --estimated-tokens-returned)
+    --agent-dispatches | --escalated-dispatches | --review-rounds | --critical | --moderate | --input-tokens | --output-tokens | --cache-read-tokens | --context-gate-executed | --context-requested | --context-skipped | --sources-searched | --items-returned | --estimated-tokens-returned | --items-inspected | --context-cache-hits | --context-cache-misses | --retrieval-seconds)
       [[ $# -ge 2 ]] || { usage; return 1; }
       if ! is_count "$value"; then
         echo "$PROG: $flag takes a non-negative integer" >&2
@@ -135,6 +144,10 @@ record() {
       --sources-searched) sources_searched="$value" ;;
       --items-returned) items_returned="$value" ;;
       --estimated-tokens-returned) estimated_tokens_returned="$value" ;;
+      --items-inspected) items_inspected="$value" ;;
+      --context-cache-hits) cache_hits="$value" ;;
+      --context-cache-misses) cache_misses="$value" ;;
+      --retrieval-seconds) retrieval_seconds="$value" ;;
       esac
       shift 2
       ;;
@@ -175,6 +188,10 @@ record() {
     [[ -n "$sources_searched" ]] && printf ',"sources_searched":%s' "$sources_searched"
     [[ -n "$items_returned" ]] && printf ',"items_returned":%s' "$items_returned"
     [[ -n "$estimated_tokens_returned" ]] && printf ',"estimated_tokens_returned":%s' "$estimated_tokens_returned"
+    [[ -n "$items_inspected" ]] && printf ',"items_inspected":%s' "$items_inspected"
+    [[ -n "$cache_hits" ]] && printf ',"context_cache_hits":%s' "$cache_hits"
+    [[ -n "$cache_misses" ]] && printf ',"context_cache_misses":%s' "$cache_misses"
+    [[ -n "$retrieval_seconds" ]] && printf ',"retrieval_seconds":%s' "$retrieval_seconds"
     printf '}\n'
   } >>"$store"
 
@@ -225,6 +242,9 @@ self_test() {
     --initial-tier FAST --final-tier FAST --status success \
     --context-gate-executed 2 --context-requested 1 --context-skipped 1 \
     --sources-searched 2 --items-returned 3 --estimated-tokens-returned 900
+  expect_exit 'retrieval counters are appended' 0 \
+    --initial-tier STANDARD --final-tier STANDARD --status success \
+    --items-inspected 12 --context-cache-hits 1 --context-cache-misses 0 --retrieval-seconds 41
   expect_exit 'a non-numeric context counter is refused' 1 \
     --initial-tier FAST --final-tier FAST --status success --items-returned some
 
@@ -235,13 +255,13 @@ self_test() {
   expect_exit 'an unknown flag is refused' 1 \
     --initial-tier FAST --final-tier FAST --status success --branch feature/secret
 
-  # Every line must parse, and the store must hold exactly the four valid entries.
+  # Every line must parse, and the store must hold exactly the five valid entries.
   local lines
   lines="$(wc -l <"$store" | tr -d ' ')"
-  if [[ "$lines" == "4" ]]; then
+  if [[ "$lines" == "5" ]]; then
     printf 'ok    %-54s %s entries\n' 'only valid entries reach the store' "$lines"
   else
-    printf 'FAIL  %-54s expected 4 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
+    printf 'FAIL  %-54s expected 5 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
     failures=$((failures + 1))
   fi
 
@@ -270,10 +290,18 @@ self_test() {
 
   if jq -e 'select(.context_gate_executed == 2 and .context_requested == 1 and .context_skipped == 1
       and .sources_searched == 2 and .items_returned == 3 and .estimated_tokens_returned == 900)' \
-    <(tail -1 "$store") >/dev/null 2>&1; then
+    <(sed -n 4p "$store") >/dev/null 2>&1; then
     printf 'ok    %-54s\n' 'context gate counters are stored as counts'
   else
     printf 'FAIL  %-54s\n' 'context gate counters are stored as counts' >&2
+    failures=$((failures + 1))
+  fi
+
+  if jq -e 'select(.items_inspected == 12 and .context_cache_hits == 1 and .context_cache_misses == 0
+      and .retrieval_seconds == 41)' <(tail -1 "$store") >/dev/null 2>&1; then
+    printf 'ok    %-54s\n' 'retrieval counters are stored as counts'
+  else
+    printf 'FAIL  %-54s\n' 'retrieval counters are stored as counts' >&2
     failures=$((failures + 1))
   fi
 

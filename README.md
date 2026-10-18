@@ -46,7 +46,7 @@ In Codex, request the role by name:
 Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, an advisory MySQL report to `casey` after a MySQL change is reviewed, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, an advisory MySQL report to `casey` after a MySQL change is reviewed, context retrieval to `metalhead` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 63 skills, the seven agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
+That loads all 63 skills, the eight agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -127,7 +127,7 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-The seven specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
+The eight specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
 
 <table>
 <tr>
@@ -136,9 +136,9 @@ The seven specialists keep their existing responsibilities and permissions under
 
 **Splinter (`splinter`) — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `metalhead` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `metalhead`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
@@ -214,11 +214,23 @@ Runs after the code review of a MySQL change converged. It reads the diff throug
 
 </td>
 </tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/metalhead.png"><img src="assets/agents/thumbnails/metalhead.png" alt="Metalhead avatar" width="80"></a></td>
+<td valign="top">
+
+**Metalhead (`metalhead`) — context retriever** · read-only
+
+Runs only when the relevance gate decides that a task needs project knowledge. It reads only the sources the gate enabled, plus the task's own code and tests, and returns one Context Package: ranked, deduplicated statements with their sources, related code, related tests, risks, and suggested skills, within the gate's token budget. Every later agent reads the same package. It never implements, reviews, plans, or publishes.
+
+**Orchestrates:** `pack-context.sh` (deterministic ranking, deduplication, budget, and cache)
+
+</td>
+</tr>
 </table>
 
 ### Avatars and activity animations
 
-All seven agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). All seven follow Cockpit’s Krang mascot style. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). Seven follow Cockpit’s Krang mascot style; `metalhead` uses the universal [`placeholder.svg`](assets/agents/placeholder.svg) until its own portrait exists. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 
