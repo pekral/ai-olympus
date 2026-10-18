@@ -109,4 +109,4 @@ The record carries what the next phases read, so they need no second extraction:
 - A prevention proposal cites `category`, `cause_key`, `subsystem`, `reproducer`, and `expected_behavior`.
 - Routing by tier reads `severity`.
 
-Phase 1 does not run the extractor from the review loop, store records anywhere by default, or group them. Those belong to the later phases.
+Phase 1 does not run the extractor from the review loop, store records anywhere by default, or group them. Phase 4 wires those steps: `skills/_shared/feedback-loop.sh` runs the extractor, and `feedback-loop.md` fixes the store and passes the canonical `nameWithOwner` as `--repo`.

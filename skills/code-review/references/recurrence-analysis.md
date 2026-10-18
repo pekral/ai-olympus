@@ -72,10 +72,13 @@ One JSON object: `schema`, `threshold`, `window_days`, `valid`, `records`, `proc
 
 ## Analysis never blocks a pull request
 
-Nothing in `@skills/resolve-issue/SKILL.md`, `@skills/process-code-review/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, or an agent definition calls the collection or the analysis, or reads their exit codes. The review loop, the merge gate, and the issue-to-pull-request pipeline run as they did before. A missing `jq`, a missing store, a failed collection, or a failed analysis changes nothing for a pull request.
+The review loop records its rounds and the issue-to-pull-request pipeline runs as before. `@skills/process-code-review/SKILL.md` calls `skills/_shared/feedback-loop.sh` after each round and after the publish, and no step reads the result of the call to decide anything. `@skills/resolve-issue/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, and the merge gate call neither the collection nor the analysis. A missing `jq`, a missing store, a failed collection, or a failed analysis changes nothing for a pull request (`feedback-loop.md` *When the analysis is unavailable*).
 
-## What this phase leaves to later phases
+## What the wiring phase decided
 
-- Deciding what runs the collection and the analysis, and when, belongs to the wiring phase (#189).
-- A canonical `repo` value for the grouping belongs to #189.
-- A prevention proposal for a reported class, and the handling of special characters in record text, belong to #188.
+`feedback-loop.md` owns the wiring of phase 4 (#189):
+
+- The collection and the analysis run from `skills/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `splinter` runs the analysis when the user asks for it.
+- The store is one file for each pull request in a derived, git-ignored directory. `analyze` merges them.
+- The `repo` value is the canonical `nameWithOwner` that GitHub reports, resolved by `feedback-loop.sh` before any record is written.
+- A prevention proposal for a reported class is the subject of `prevention-proposal.md`.

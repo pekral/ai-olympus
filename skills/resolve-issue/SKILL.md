@@ -167,7 +167,7 @@ Walk these items and record each one's result in the handoff:
 
 **This is not a review, and it never substitutes for one.** It does **not** run `code-review` / `security-review` over its own diff, produces no severity-graded findings, and gates nothing on a finding count. Anything needing a reviewer's judgment belongs to `leonardo`, on a tier that dispatches it.
 
-**Blocked, not shipped.** When an item cannot be satisfied — a criterion has no implementation, the tests covering the change fail, static analysis is red — stop as **Blocked** and surface it rather than opening a pull request that knowingly carries it. The procedure, the boundary, and what the removed duplicate review cost live in `references/pre-pr-self-check.md`.
+**Blocked, not shipped.** When an item cannot be satisfied — a criterion has no implementation, the tests covering the change fail, static analysis is red — stop as **Blocked** and surface it rather than opening a pull request that knowingly carries it. The procedure, the boundary, and what the removed duplicate review cost live in `references/pre-pr-self-check.md`. Prevention proposal sources also need the `references/safeguard-implementation.md` proofs.
 
 ## Security remediation checklist (when a pre-implementation security plan exists)
 
