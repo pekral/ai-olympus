@@ -15,7 +15,7 @@ propose-prevention.sh --self-test
 ```
 
 - `--report` is the report that `analyze-recurrence.sh` prints. `--store` is the record store of that analysis. `--analysis` is the judgment file described in *The analysis file* below.
-- The script prints one JSON line. `{"status":"ready"}` carries the `key`, the `title`, the `marker`, the `body_file`, the `level`, and the number of `occurrences`. `{"status":"none"}` carries a `reason`: `not-recurring` or `covered`.
+- The script prints one JSON line. `{"status":"ready"}` carries the `key`, the `title`, the `marker`, the `body_file`, the `level`, and the number of `occurrences`. `{"status":"none"}` carries a `reason`: `not-recurring` or `covered`. A class that an existing knowledge file of the `target` covers in full also carries `covered_by`, the path of that file.
 - The script writes `--out` only when the status is `ready`. It writes no other file. It files nothing, comments nothing, and changes no rule, no configuration, and no safeguard of any project.
 - Exit `0` is a command that ran, `1` a usage error, `2` a missing tool, `3` an input that is missing or malformed or an output that cannot be written, `4` an analysis that breaks this contract. After exit `4` nothing is written, and each message names the broken field and never echoes its value.
 
@@ -52,6 +52,7 @@ The analysis is one JSON object. Every field below is required unless the table 
 | `mechanism` | The recommended mechanism: `level`, `name`, `summary`, `skipped`, and the optional `extends`, `limitation`, and `alternative`. |
 | `affected_files`, `steps`, `verification`, `false_positives` | Lists of 1 or more texts |
 | `impact`, `limits` | Texts |
+| `target` | Optional. The knowledge file that a promotion candidate changes: `type`, `path`, `change`, `knowledge`, and the optional `supersedes` (`learning-promotion.md` *The target*). A `knowledge` file with the coverage `full` gives `{"status":"none","reason":"covered"}`, and one with the coverage `partial` must be the `path`. |
 
 ### Root-cause analysis
 
@@ -98,6 +99,7 @@ The script renders these sections in this order. Every mandatory field of the ep
 | `## Verification plan` | The regression verification |
 | `## False positives` | The false positives |
 | `## Impact and limits` | The impact and the limits |
+| `## Promotion target` | Only with a `target`: the type, the path, the change, the existing knowledge checked, the candidates it supersedes, and the statement that an approval holds only for this exact text |
 | `## Approval` | The statement that nothing is implemented before a human approves |
 
 ## One defect class, one proposal
