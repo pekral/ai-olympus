@@ -39,7 +39,7 @@ function graphSlice(string $json): array
 }
 
 test('build stores the graph and reports what it parsed, and query prints one slice as JSON', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
 
     [$buildExit, $summary] = graphRun($root, 'build');
     [$queryExit, $slice] = graphRun($root, 'query', 'UserService');
@@ -62,7 +62,7 @@ test('build stores the graph and reports what it parsed, and query prints one sl
 });
 
 test('querying a Laravel route prints only its slice as JSON', function (): void {
-    $root = GraphFixture::project('graph-laravel');
+    $root = GraphFixture::repository('graph-laravel');
     graphRun($root, 'build');
 
     [$exitCode, $stdout] = graphRun($root, 'query', 'route:GET:/admin/dashboard');
@@ -98,7 +98,7 @@ test('querying a Laravel route prints only its slice as JSON', function (): void
 });
 
 test('querying an entity that does not exist prints an empty, well-formed result', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
     graphRun($root, 'build');
 
     [$exitCode, $stdout, $stderr] = graphRun($root, 'query', 'App\Missing');
@@ -114,7 +114,7 @@ test('querying an entity that does not exist prints an empty, well-formed result
 });
 
 test('generation is idempotent over an unchanged tree', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
     $path = $root . '/' . GraphCommand::RELATIVE_PATH;
     graphRun($root, 'build');
     $first = (string) file_get_contents($path);
@@ -128,7 +128,7 @@ test('generation is idempotent over an unchanged tree', function (): void {
 });
 
 test('a file with a non-UTF-8 config key is still indexed and the graph is written', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
     installerWriteFile(
         $root . '/src/Latin1Config.php',
         "<?php\n\nnamespace App;\n\nfunction limit(): int\n{\n    return config(\"kl\xED\xE8.limit\");\n}\n",
@@ -144,7 +144,7 @@ test('a file with a non-UTF-8 config key is still indexed and the graph is writt
 });
 
 test('a graph that cannot be written fails the build instead of reporting success', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
     mkdir($root . '/' . GraphCommand::RELATIVE_PATH, recursive: true);
 
     [$exitCode, $stdout, $stderr] = graphRun($root, 'build');
@@ -156,8 +156,46 @@ test('a graph that cannot be written fails the build instead of reporting succes
     installerRemoveDirectory($root);
 });
 
+test('a build refuses to write a graph at a location git does not ignore, and writes nothing', function (string $setup): void {
+    $root = GraphFixture::repository();
+    $path = $root . '/' . GraphCommand::RELATIVE_PATH;
+    putenv('GIT_CONFIG_GLOBAL=/dev/null');
+    putenv('GIT_CONFIG_NOSYSTEM=1');
+
+    try {
+        match ($setup) {
+            'no gitignore entry' => unlink($root . '/.gitignore'),
+            'not a git repository' => installerRemoveDirectory($root . '/.git'),
+            default => (function () use ($root, $path): void {
+                installerWriteFile($path, '{}');
+                exec('git -C ' . escapeshellarg($root) . ' add -f ' . escapeshellarg(GraphCommand::RELATIVE_PATH) . ' 2>&1');
+            })(),
+        };
+        $before = is_file($path) ? file_get_contents($path) : null;
+
+        [$exitCode, $stdout, $stderr] = graphRun($root, 'build');
+    } finally {
+        putenv('GIT_CONFIG_GLOBAL');
+        putenv('GIT_CONFIG_NOSYSTEM');
+    }
+
+    expect($exitCode)->toBe(1);
+    expect($stdout)->toBe('');
+    expect($stderr)->toBe(
+        'Refusing to write the knowledge graph: .claude/run/graph.json is not git-ignored or is tracked. '
+        . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.' . PHP_EOL,
+    );
+    expect(is_file($path) ? file_get_contents($path) : null)->toBe($before);
+
+    installerRemoveDirectory($root);
+})->with([
+    'a graph file that git tracks' => ['tracked'],
+    'a location with no gitignore entry' => ['no gitignore entry'],
+    'a project that is not a git repository' => ['not a git repository'],
+]);
+
 test('a graph from another version is rebuilt rather than trusted', function (): void {
-    $root = GraphFixture::project();
+    $root = GraphFixture::repository();
     installerWriteFile($root . '/' . GraphCommand::RELATIVE_PATH, '{"version": 1, "files": {}}');
 
     [$queryExit, , $stderr] = graphRun($root, 'query', 'UserService');
@@ -200,7 +238,7 @@ test('the help text advertises the graph command', function (): void {
 });
 
 test('a query over a graph the repository has moved past answers from the current files and says it refreshed', function (): void {
-    $root = GraphFixture::project('graph-laravel');
+    $root = GraphFixture::repository('graph-laravel');
     graphRun($root, 'build');
     unlink($root . '/tests/Feature/CreateOrderActionTest.php');
     installerWriteFile(
@@ -229,7 +267,7 @@ test('a query over a graph the repository has moved past answers from the curren
 });
 
 test('a query with a limit prints the bounded slice and what it omitted', function (): void {
-    $root = GraphFixture::project('graph-laravel');
+    $root = GraphFixture::repository('graph-laravel');
     graphRun($root, 'build');
 
     [$exitCode, $stdout] = graphRun($root, 'query', 'App\Actions\CreateOrderAction', '--limit', '2');
@@ -243,7 +281,7 @@ test('a query with a limit prints the bounded slice and what it omitted', functi
 });
 
 test('the graph names the files to read for one Action instead of the whole repository', function (): void {
-    $root = GraphFixture::project('graph-laravel');
+    $root = GraphFixture::repository('graph-laravel');
     graphRun($root, 'build');
     $indexed = array_keys(GraphIndexer::index($root, [])->files);
 

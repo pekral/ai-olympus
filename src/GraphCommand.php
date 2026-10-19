@@ -40,6 +40,8 @@ final class GraphCommand
 
     private static function build(string $root, string $path): int
     {
+        self::assertLocationIgnored($root);
+
         $result = GraphIndexer::index($root, self::read($path) ?? []);
 
         InstallerPath::ensureDirectory(dirname($path));
@@ -58,6 +60,24 @@ final class GraphCommand
         echo json_encode(['graph' => self::RELATIVE_PATH] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
+    }
+
+    private static function assertLocationIgnored(string $root): void
+    {
+        $git = 'git -C ' . escapeshellarg($root);
+        $location = escapeshellarg(self::RELATIVE_PATH);
+
+        exec($git . ' check-ignore -q -- ' . $location . ' 2>&1', result_code: $ignored);
+
+        $tracked = [];
+
+        if ($ignored === 0) {
+            exec($git . ' ls-files -- ' . $location . ' 2>&1', $tracked);
+        }
+
+        if ($ignored !== 0 || $tracked !== []) {
+            throw InstallerFailure::graphLocationNotIgnored(self::RELATIVE_PATH);
+        }
     }
 
     /**
@@ -84,7 +104,7 @@ final class GraphCommand
 
         $current = GraphIndexer::index($root, $files);
         $changed = $current->summary->parsed + $current->summary->removed;
-        $graph = ['state' => $changed === 0 ? 'fresh' : 'refreshed', 'files' => $current->summary->files, 'changed' => $changed];
+        $graph = new SliceGraph($changed === 0 ? 'fresh' : 'refreshed', $current->summary->files, $changed);
 
         echo json_encode([...GraphQuery::slice($current->files, $entity, $limit)->jsonSerialize(), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
 

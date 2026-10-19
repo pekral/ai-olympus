@@ -37,6 +37,18 @@ final class GraphFixture
     }
 
     /**
+     * A git repository whose `.gitignore` covers the graph location, as `graph build` requires.
+     */
+    public static function repository(string $fixture = 'graph-project'): string
+    {
+        $root = self::project($fixture);
+        installerWriteFile($root . '/.gitignore', ".claude/run/\n");
+        exec('git -C ' . escapeshellarg($root) . ' init -q 2>&1');
+
+        return $root;
+    }
+
+    /**
      * @param list<\Pekral\AiOlympus\GraphEdge|\Pekral\AiOlympus\SliceEdge> $edges
      * @return list<string>
      */

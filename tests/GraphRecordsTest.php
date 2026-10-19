@@ -9,6 +9,7 @@ use Pekral\AiOlympus\GraphSummary;
 use Pekral\AiOlympus\Slice;
 use Pekral\AiOlympus\SliceEdge;
 use Pekral\AiOlympus\SliceEntity;
+use Pekral\AiOlympus\SliceGraph;
 use Pekral\AiOlympus\SliceOmitted;
 use Pekral\AiOlympus\SliceRelated;
 
@@ -71,4 +72,8 @@ test('a graph summary serializes its counters and the files that failed to parse
     $summary = new GraphSummary(files: 3, parsed: 2, reused: 1, removed: 0, errors: ['src/Broken.php']);
 
     expect(json_encode($summary, JSON_THROW_ON_ERROR))->toBe('{"files":3,"parsed":2,"reused":1,"removed":0,"errors":["src\/Broken.php"]}');
+});
+
+test('the graph freshness block serializes its state, the indexed files and the changed files in that order', function (): void {
+    expect(json_encode(new SliceGraph('refreshed', files: 16, changed: 2), JSON_THROW_ON_ERROR))->toBe('{"state":"refreshed","files":16,"changed":2}');
 });

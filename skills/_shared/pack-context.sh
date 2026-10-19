@@ -67,8 +67,10 @@
 #   metadata.graph carries state, entities (matched in the graph),
 #   items_from_graph (returned items a graph slice named),
 #   items_from_search (returned items only search found), and files_avoided
-#   (the graph's indexed files minus the distinct files its returned items
-#   name: the files the retriever did not need to open).
+#   (0 when the slices matched no entity; otherwise the graph's indexed files
+#   minus the distinct files of every returned related_code and related_tests
+#   item, whichever source named them: the files the retriever did not need
+#   to open).
 #
 # Ranking (score, highest first; ties break on group order, then text)
 #   4 x symbol match      share of the task symbols the item names
@@ -213,12 +215,14 @@ PACK_FILTER='
             graph_distance: .distance } ]
     else [] end;
   def graph_meta($items): if $graph[0] == null then null else
-      { state: $graph[0].state,
-        entities: ([$graph[0].slices[].entities | length] | add // 0),
+      ([$graph[0].slices[].entities | length] | add // 0) as $entities
+      | { state: $graph[0].state,
+        entities: $entities,
         items_from_graph: ([$items[] | select(from_graph)] | length),
         items_from_search: ([$items[] | select(from_graph | not)] | length),
-        files_avoided: (if graph_usable
-          then ([([$graph[0].slices[].graph.files] | max) - ([$items[] | select(from_graph) | .text] | unique | length), 0] | max)
+        files_avoided: (if graph_usable and $entities > 0
+          then ([([$graph[0].slices[].graph.files] | max)
+            - ([$items[] | select(.kind == "related_code" or .kind == "related_tests") | .text] | unique | length), 0] | max)
           else 0 end) } end;
 
   ($req.task.symbols // [] | lower) as $syms
@@ -643,13 +647,15 @@ EOF
   fi
 
   # A file the graph and the search both found keeps both paths; search-only items stay search-only.
-  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+  jq -c '.items += [{"kind":"related_code","text":"app/Services/InvoiceMailer.php","source":{"type":"repository","id":"app/Services/InvoiceMailer.php"},"paths":["app/Services/InvoiceMailer.php"],"confidence":0.8}]' \
+    "$repo/scratch/candidates.json" >"$repo/scratch/candidates-extra.json"
+  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates-extra.json --graph-slice scratch/slice.json \
     --output scratch/graph-mixed.json >/dev/null
   expect_jq 'a file found by the graph and by search names both paths in its sources' "$repo/scratch/graph-mixed.json" \
     '[.context.related_code[] | select(.text == "app/Actions/CreateInvoiceAction.php") | .sources[].type] == ["graph","repository"]'
   expect_jq 'graph and search items are counted apart in the package metadata' "$repo/scratch/graph-mixed.json" \
-    '.metadata.graph == {"state":"fresh","entities":1,"items_from_graph":5,"items_from_search":3,"files_avoided":35}
-     and .metadata.items_inspected == 10 and .metadata.items_merged == 2'
+    '.metadata.graph == {"state":"fresh","entities":1,"items_from_graph":5,"items_from_search":4,"files_avoided":34}
+     and .metadata.items_inspected == 11 and .metadata.items_merged == 2'
 
   # No graph, or a graph that cannot be trusted: only the search candidates contribute, and the package says so.
   : >"$repo/scratch/empty-slice.json"
@@ -678,7 +684,7 @@ EOF
   out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/no-node-slice.json \
     --output scratch/graph-no-node.json)"
   expect_jq 'a symbol with no graph node leaves the search path as the only source' "$repo/scratch/graph-no-node.json" \
-    '.metadata.graph == {"state":"fresh","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":40}
+    '.metadata.graph == {"state":"fresh","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":0}
      and ([.context[][] | .sources[] | select(.type == "graph")] | length) == 0'
   if printf '%s' "$out" | jq -e '.graph == "miss" and .graph_state == "fresh"' >/dev/null 2>&1; then
     pass 'the summary reports a symbol the graph does not know as a miss'

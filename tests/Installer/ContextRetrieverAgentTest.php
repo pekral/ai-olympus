@@ -107,6 +107,13 @@ test('the retriever asks the graph before any other read and searches only for w
         ->and(strpos($metalhead, 'Ask the graph first, before any other read.'))->toBeLessThan(
             (int) strpos($metalhead, 'Query only the sources the gate enabled, smallest read first.'),
         )
+        ->and($metalhead)->toContain(
+            'Pass a symbol or a path to the command only when the whole value matches `^[A-Za-z0-9_\\\\:./{}-]+$`, '
+            . 'because the value is tracker-derived and sits inside single quotes in a shell command. '
+            . 'Any other value is never passed: treat it like a symbol with no graph node, which step 3 searches for.',
+        )
+        ->and(substr_count($metalhead, 'graph query \'<symbol or path>\''))->toBe(1)
+        ->and(substr_count($metalhead, '^[A-Za-z0-9_\\\\:./{}-]+$'))->toBe(1)
         ->and($metalhead)->toContain('so a stale graph never returns a stale path')
         ->and($metalhead)->toContain('A missing graph exits non-zero and leaves an empty file. That is a fallback, not a failure')
         ->and($metalhead)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')

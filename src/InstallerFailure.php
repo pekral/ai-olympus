@@ -44,6 +44,15 @@ final class InstallerFailure extends RuntimeException
         return new self(sprintf('Cannot write the knowledge graph file %s.', $path));
     }
 
+    public static function graphLocationNotIgnored(string $path): self
+    {
+        return new self(sprintf(
+            'Refusing to write the knowledge graph: %s is not git-ignored or is tracked. '
+            . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.',
+            $path,
+        ));
+    }
+
     public static function settingsSubagentWritesInvalid(string $path, string $reason): self
     {
         return new self(sprintf('Invalid subagent-write permissions for %s: %s.', $path, $reason));
