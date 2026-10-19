@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Pekral\AiOlympus;
 
 /**
- * @phpstan-import-type GraphRecord from \Pekral\AiOlympus\GraphParser
+ * @phpstan-import-type RecordData from \Pekral\AiOlympus\GraphRecord
  */
 final class GraphCommand
 {
@@ -27,35 +27,72 @@ final class GraphCommand
             return self::build($root, $path);
         }
 
-        if ($action === 'query' && isset($argv[3])) {
-            return self::query($path, $argv[3]);
+        $limit = self::limit($argv);
+
+        if ($action === 'query' && isset($argv[3]) && $limit !== false) {
+            return self::query($root, $path, $argv[3], $limit);
         }
 
-        fwrite(STDERR, 'Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol>' . PHP_EOL);
+        fwrite(STDERR, 'Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol> [--limit <n>]' . PHP_EOL);
 
         return 1;
     }
 
     private static function build(string $root, string $path): int
     {
+        self::assertLocationIgnored($root);
+
         $result = GraphIndexer::index($root, self::read($path) ?? []);
 
         InstallerPath::ensureDirectory(dirname($path));
 
         set_error_handler(static fn (): bool => true);
-        $written = file_put_contents($path, json_encode($result['graph'], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL);
+        $written = file_put_contents(
+            $path,
+            json_encode(['version' => GraphIndexer::VERSION, 'files' => $result->files], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL,
+        );
         restore_error_handler();
 
         if ($written === false) {
             throw InstallerFailure::graphWriteFailed($path);
         }
 
-        echo json_encode(['graph' => self::RELATIVE_PATH] + $result['summary'], self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode(['graph' => self::RELATIVE_PATH] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }
 
-    private static function query(string $path, string $entity): int
+    private static function assertLocationIgnored(string $root): void
+    {
+        $git = 'git -C ' . escapeshellarg($root);
+        $location = escapeshellarg(self::RELATIVE_PATH);
+
+        exec($git . ' check-ignore -q -- ' . $location . ' 2>&1', result_code: $ignored);
+
+        $tracked = [];
+
+        if ($ignored === 0) {
+            exec($git . ' ls-files -- ' . $location . ' 2>&1', $tracked);
+        }
+
+        if ($ignored !== 0 || $tracked !== []) {
+            throw InstallerFailure::graphLocationNotIgnored(self::RELATIVE_PATH);
+        }
+    }
+
+    /**
+     * @param array<int, string> $argv
+     */
+    private static function limit(array $argv): null|int|false
+    {
+        if (!isset($argv[4])) {
+            return null;
+        }
+
+        return $argv[4] === '--limit' && preg_match('/^[1-9][0-9]{0,8}$/', $argv[5] ?? '') === 1 ? (int) $argv[5] : false;
+    }
+
+    private static function query(string $root, string $path, string $entity, ?int $limit): int
     {
         $files = self::read($path);
 
@@ -65,13 +102,17 @@ final class GraphCommand
             return 1;
         }
 
-        echo json_encode(GraphQuery::slice($files, $entity), self::JSON_FLAGS) . PHP_EOL;
+        $current = GraphIndexer::index($root, $files);
+        $changed = $current->summary->parsed + $current->summary->removed;
+        $graph = new SliceGraph($changed === 0 ? 'fresh' : 'refreshed', $current->summary->files, $changed);
+
+        echo json_encode([...GraphQuery::slice($current->files, $entity, $limit)->jsonSerialize(), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }
 
     /**
-     * @return array<string, GraphRecord>|null
+     * @return array<string, \Pekral\AiOlympus\GraphRecord>|null
      */
     private static function read(string $path): ?array
     {
@@ -85,10 +126,10 @@ final class GraphCommand
             return null;
         }
 
-        /** @var array<string, GraphRecord> $files */
+        /** @var array<string, RecordData> $files */
         $files = $graph['files'];
 
-        return $files;
+        return array_map(GraphRecord::fromArray(...), $files);
     }
 
 }

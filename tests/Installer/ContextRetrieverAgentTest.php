@@ -96,3 +96,94 @@ test('retrieval telemetry is recorded as counts (issue #133)', function (): void
             '`--context-cache-hits` / `--context-cache-misses` count the packages whose `metadata.cache` is `hit` / `miss`',
         );
 });
+
+test('the retriever asks the graph before any other read and searches only for what the graph cannot answer (issue #136)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $metalhead = (string) file_get_contents($packageDir . '/agents/metalhead.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/metalhead.toml');
+
+    expect($metalhead)->toContain('2. **Ask the graph first, before any other read.**')
+        ->and($metalhead)->toContain('vendor/bin/ai-olympus graph query \'<symbol or path>\' --limit <gate.budget.max_items>')
+        ->and(strpos($metalhead, 'Ask the graph first, before any other read.'))->toBeLessThan(
+            (int) strpos($metalhead, 'Query only the sources the gate enabled, smallest read first.'),
+        )
+        ->and($metalhead)->toContain(
+            'Pass a symbol or a path to the command only when the whole value matches `^[A-Za-z0-9_\\\\:./{}-]+$`, '
+            . 'because the value is tracker-derived and sits inside single quotes in a shell command. '
+            . 'Any other value is never passed: treat it like a symbol with no graph node, which step 3 searches for.',
+        )
+        ->and(substr_count($metalhead, 'graph query \'<symbol or path>\''))->toBe(1)
+        ->and(substr_count($metalhead, '^[A-Za-z0-9_\\\\:./{}-]+$'))->toBe(1)
+        ->and($metalhead)->toContain(
+            '`git log --oneline -- \'<path>\'` for each task path that fully matches the allow-list of step 2 '
+            . '(any other path is skipped for this step, because it is tracker-derived and sits inside single quotes in a shell command)',
+        )
+        ->and(substr_count($metalhead, 'git log --oneline -- \'<path>\''))->toBe(1)
+        ->and(substr_count($metalhead, 'git log --oneline -- <path>'))->toBe(0)
+        ->and(substr_count($metalhead, 'the allow-list of step 2'))->toBe(1)
+        ->and($metalhead)->toContain('so a stale graph never returns a stale path')
+        ->and($metalhead)->toContain('A missing graph exits non-zero and leaves an empty file. That is a fallback, not a failure')
+        ->and($metalhead)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')
+        ->and($metalhead)->toContain('Never search for a file a slice already names.')
+        ->and($metalhead)->toContain('Use `Grep` and `Glob` only for what the graph cannot answer')
+        ->and($metalhead)->toContain('--graph-slice <slice> --output <package>')
+        ->and($metalhead)->toContain('When `vendor/bin/ai-olympus` does not exist, skip this step and pass no `--graph-slice`')
+        ->and($metalhead)->toContain('run `vendor/bin/ai-olympus graph query` (it prints one slice to stdout and writes nothing else)')
+        ->and($codex)->not->toContain('graph query')
+        ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
+});
+
+test('the graph slice is bounded by the gate budget and the graph stays in git-ignored scratch (issue #136)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $command = (string) file_get_contents($packageDir . '/src/GraphCommand.php');
+    $packer = (string) file_get_contents($packageDir . '/skills/_shared/pack-context.sh');
+
+    expect($command)->toContain('public const string RELATIVE_PATH = \'.claude/run/graph.json\';')
+        ->and($packer)->toContain('GRAPH_PATH=\'.claude/run/graph.json\'')
+        ->and($packer)->toContain('gate_scratch_path graph "$GRAPH_PATH" "$GRAPH_PATH"')
+        ->and($packer)->toContain('The slice limit is the gate\'s')
+        ->and($packer)->toContain('budget.max_items, so the slice is cut by the same budget as the package.');
+});
+
+test('the packer ranks by graph distance, names the graph entity, and degrades without a graph (issue #136)', function (): void {
+    $packer = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/pack-context.sh');
+
+    foreach ([
+        'a package built without a graph slice is unchanged and has no graph metadata',
+        'graph items carry provenance naming the graph entity',
+        'the graph routes the test file to related tests and the other files to related code',
+        'graph distance alone ranks the closer file above the farther one',
+        'the graph slice reports how many files the retriever did not need to open',
+        'the summary carries the graph telemetry as counts and fixed words',
+        'a file found by the graph and by search names both paths in its sources',
+        'graph and search items are counted apart in the package metadata',
+        'a missing graph degrades to the search candidates and says so in the metadata',
+        'the summary reports a missing graph as a miss',
+        'a slice that is not a valid slice is treated as a missing graph',
+        'a graph the repository moved past is reported as refreshed',
+        'a symbol with no graph node leaves the search path as the only source',
+        'the summary reports a symbol the graph does not know as a miss',
+        'a graph location that is not git-ignored is refused and never read',
+        'a graph slice that is not git-ignored is refused',
+        'a candidate cannot claim the graph source',
+        'a lookup takes no graph slice',
+    ] as $label) {
+        expect($packer)->toContain('\'' . $label . '\'');
+    }
+
+    expect($packer)->toContain('#   2 x graph proximity   1 / (1 + graph distance); 0 for an item with no graph distance');
+});
+
+test('graph telemetry is recorded as counts and splinter derives it from the package (issue #136)', function (): void {
+    $recorder = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/record-metrics.sh');
+
+    expect($recorder)->toContain('\'graph counters are stored as counts\'')
+        ->and($recorder)->toContain('--graph-hits) graph_hits="$value" ;;')
+        ->and($recorder)->toContain('--graph-misses) graph_misses="$value" ;;')
+        ->and($recorder)->toContain('--items-from-graph) items_from_graph="$value" ;;')
+        ->and($recorder)->toContain('--items-from-search) items_from_search="$value" ;;')
+        ->and($recorder)->toContain('--files-avoided) files_avoided="$value" ;;')
+        ->and(splinterContractText())->toContain(
+            '`--graph-hits` / `--graph-misses` count the packages whose `metadata.graph.entities` is above zero / zero',
+        );
+});

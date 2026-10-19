@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Support;
 
 use FilesystemIterator;
+use Pekral\AiOlympus\GraphEdge;
+use Pekral\AiOlympus\SliceEdge;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -35,14 +37,26 @@ final class GraphFixture
     }
 
     /**
-     * @param list<array{from: string, type: string, to: string, line: int}> $edges
+     * A git repository whose `.gitignore` covers the graph location, as `graph build` requires.
+     */
+    public static function repository(string $fixture = 'graph-project'): string
+    {
+        $root = self::project($fixture);
+        installerWriteFile($root . '/.gitignore', ".claude/run/\n");
+        exec('git -C ' . escapeshellarg($root) . ' init -q 2>&1');
+
+        return $root;
+    }
+
+    /**
+     * @param list<\Pekral\AiOlympus\GraphEdge|\Pekral\AiOlympus\SliceEdge> $edges
      * @return list<string>
      */
     public static function describe(array $edges, string ...$types): array
     {
-        $edges = array_filter($edges, static fn (array $edge): bool => $types === [] || in_array($edge['type'], $types, strict: true));
+        $edges = array_filter($edges, static fn (GraphEdge|SliceEdge $edge): bool => $types === [] || in_array($edge->type, $types, strict: true));
 
-        return array_values(array_map(static fn (array $edge): string => $edge['from'] . ' ' . $edge['type'] . ' ' . $edge['to'], $edges));
+        return array_values(array_map(static fn (GraphEdge|SliceEdge $edge): string => $edge->from . ' ' . $edge->type . ' ' . $edge->to, $edges));
     }
 
 }
