@@ -15,6 +15,7 @@
 #
 # Usage
 #   analyze-recurrence.sh --store <file> [--threshold <n>] [--window-days <days>] [--state <file>]
+#   analyze-recurrence.sh --store <file> --patterns [--min-occurrences <n>] [--min-distinct-tasks <n>] [--min-confidence <percent>]
 #   analyze-recurrence.sh --self-test
 #
 #   --store        the JSON Lines record store that skills/_shared/extract-findings.sh writes. It is only
@@ -28,6 +29,14 @@
 #                  that did not change since that run is not processed again. The file is created when
 #                  it does not exist and replaced atomically. Without --state every record is processed
 #                  and nothing is written.
+#   --patterns     print the pattern report of the promotion lifecycle instead: every defect class with its
+#                  maturity, its evidence, and whether it reaches the promotion thresholds
+#                  (skills/code-review/references/learning-promotion.md). It takes no --threshold,
+#                  --window-days, or --state.
+#   --min-occurrences, --min-distinct-tasks, --min-confidence
+#                  the promotion thresholds. They resolve like the settings above, from `extra.ai-olympus`
+#                  `promotion` `min-occurrences` / `min-distinct-tasks` / `min-confidence`, then the built-in
+#                  3, 2, and 0. The first two are at least 2; the confidence is a percentage from 0 to 100.
 #
 # The record text fields are untrusted content (rules/security/general.md). The report never carries
 # one: it holds only values the record schema restricts to a fixed pattern, and links.
@@ -53,10 +62,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DEFAULT_THRESHOLD=2
 DEFAULT_WINDOW_DAYS=90
+DEFAULT_MIN_OCCURRENCES=3
+DEFAULT_MIN_DISTINCT_TASKS=2
+DEFAULT_MIN_CONFIDENCE=0
 
 usage() {
   cat >&2 <<'EOF'
 Usage: analyze-recurrence.sh --store <file> [--threshold <n>] [--window-days <days>] [--state <file>]
+       analyze-recurrence.sh --store <file> --patterns [--min-occurrences <n>] [--min-distinct-tasks <n>] [--min-confidence <percent>]
        analyze-recurrence.sh --self-test
 
 Exit 3 when the record store is missing or malformed; the report on stdout is then empty.
@@ -83,6 +96,19 @@ require_tools() {
 # What makes a record unchanged, for the report and for the state file alike. Both programs start with it.
 JQ_SIG='def sig: "\(.revision) \(.time) \(.status)";'
 
+# The defect class and the occurrence are written once. The recurrence report and the pattern report both start with them.
+JQ_CLASS=''
+IFS= read -r -d '' JQ_CLASS <<'EOF' || true
+# A record with no identified cause names no defect class.
+def classes: map(select(.category != "unclassified" and .category != "assignment")) | group_by([.repo, .category, .cause_key]);
+# One occurrence per pull request: its earliest record.
+def per_pr: group_by(.pr) | map(min_by(.time));
+def occurrence: {
+  repo, pr, url: "https://github.com/\(.repo)/pull/\(.pr)", finding: .id, fingerprint, subsystem,
+  severity, revision, time, disposition, status
+};
+EOF
+
 # The report shape lives here once: an empty report and a full one differ only in their values.
 JQ_REPORT=''
 IFS= read -r -d '' JQ_REPORT <<'EOF' || true
@@ -100,13 +126,10 @@ def epoch: fromdateiso8601;
     processed: ($recs | map(select(.changed)) | length),
     unchanged: ($recs | map(select(.changed | not)) | length),
     recurrences: (
-      # A record with no identified cause names no defect class.
-      $recs | map(select(.category != "unclassified" and .category != "assignment"))
-      | group_by([.repo, .category, .cause_key])
+      $recs | classes
       | map(
           .[0] as $head
-          # One occurrence per pull request: its earliest record.
-          | (group_by(.pr) | map(min_by(.time) | . + {t: (.time | epoch)}) | sort_by([.t, .pr])) as $occ
+          | (per_pr | map(. + {t: (.time | epoch)}) | sort_by([.t, .pr])) as $occ
           # A window opens at an occurrence and spans $w days; it qualifies when it holds $n pull requests.
           | ([ range(0; $occ | length) as $i
                | $occ[$i].t as $start
@@ -120,10 +143,7 @@ def epoch: fromdateiso8601;
               prs: ($members | length),
               first: $members[0].time,
               last: $members[-1].time,
-              occurrences: ($members | map({
-                repo, pr, url: "https://github.com/\(.repo)/pull/\(.pr)", finding: .id, fingerprint, subsystem,
-                severity, revision, time, disposition, status
-              }))
+              occurrences: ($members | map(occurrence))
             }
         )
       | sort_by([.repo, .category, .cause_key])
@@ -131,67 +151,119 @@ def epoch: fromdateiso8601;
   }
 EOF
 
-# empty_report <threshold> <window-days> — the report of an unusable store.
-empty_report() {
-  jq -n -c --argjson n "$1" --argjson w "$2" \
-    '{schema: 1, threshold: $n, window_days: $w, valid: false, records: 0, processed: 0, unchanged: 0, recurrences: []}'
-}
+# The pattern report of the promotion lifecycle. A pattern is one defect class with all of its records; an eligible
+# pattern is also listed under `recurrences`, in the shape of the recurrence report, so propose-prevention.sh reads it.
+JQ_PATTERNS=''
+IFS= read -r -d '' JQ_PATTERNS <<'EOF' || true
+(classes
+ | map(
+     .[0] as $head
+     | length as $count
+     | (map(.pr) | unique | length) as $tasks
+     | ((map(select(.status == "resolved")) | length) * 100 / $count | floor) as $confidence
+     | (per_pr | sort_by([.time, .pr])) as $occ
+     | {
+         key: "\($head.repo):\($head.category):\($head.cause_key)",
+         repo: $head.repo,
+         category: $head.category,
+         cause_key: $head.cause_key,
+         maturity: (if $tasks < 2 then "observation" else "learning" end),
+         eligible: ($count >= $mo and $tasks >= $mt and $confidence >= $mc),
+         occurrences: $count,
+         tasks: $tasks,
+         confidence: $confidence,
+         findings: (map(.id) | sort),
+         first: $occ[0].time,
+         last: $occ[-1].time,
+         _occ: ($occ | map(occurrence))
+       })
+ | sort_by(.key)) as $patterns
+| {
+    schema: 1,
+    valid: true,
+    records: length,
+    min_occurrences: $mo,
+    min_distinct_tasks: $mt,
+    min_confidence: $mc,
+    patterns: ($patterns | map(del(._occ))),
+    recurrences: ($patterns | map(select(.eligible) | {repo, category, cause_key, prs: .tasks, first, last, occurrences: ._occ}))
+  }
+EOF
 
-# manifest_setting <key> — the `recurrence` setting of the default-branch manifest: empty when it is absent,
+# manifest_setting <section> <key> — a setting of the default-branch manifest: empty when it is absent,
 # `invalid` when it is not a number.
 manifest_setting() {
   local manifest
   manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || manifest='{}'
-  printf '%s' "$manifest" | jq -r --arg k "$1" '
+  printf '%s' "$manifest" | jq -r --arg s "$1" --arg k "$2" '
     try (
-      (.recurrence // {}) as $r
+      (.[$s] // {}) as $r
       | if ($r | type) != "object" then "invalid"
         else ($r[$k] | if . == null then empty elif type == "number" then tostring else "invalid" end) end
     ) catch empty' 2>/dev/null || true
 }
 
-# resolve_setting <name> <flag-value> <manifest-key> <minimum> <default> — the flag, else the manifest, else the default.
+# resolve_setting <name> <flag-value> <section.key> <minimum> <default> [maximum] — the flag, else the manifest,
+# else the default. A manifest value outside the range is ignored, and the script says so on standard error.
 resolve_setting() {
-  local name="$1" flag="$2" key="$3" min="$4" default="$5" value
+  local name="$1" flag="$2" key="$3" min="$4" default="$5" max="${6:-9999}" value range
+  range="at least $min"
+  [[ "$max" == 9999 ]] || range="from $min to $max"
   if [[ -n "$flag" ]]; then
-    if ! [[ "$flag" =~ ^[0-9]{1,4}$ ]] || ((10#$flag < min)); then
-      die_usage "--$name must be a whole number of at least $min, got: $(safe_display "$flag")"
+    if ! [[ "$flag" =~ ^[0-9]{1,4}$ ]] || ((10#$flag < min || 10#$flag > max)); then
+      die_usage "--$name must be a whole number $range, got: $(safe_display "$flag")"
     fi
     echo "$((10#$flag))"
     return 0
   fi
-  value="$(manifest_setting "$key")"
+  value="$(manifest_setting "${key%%.*}" "${key#*.}")"
   if [[ -z "$value" ]]; then
     echo "$default"
-  elif [[ "$value" =~ ^[0-9]{1,4}$ ]] && [[ "$((10#$value))" -ge "$min" ]]; then
+  elif [[ "$value" =~ ^[0-9]{1,4}$ ]] && ((10#$value >= min && 10#$value <= max)); then
     echo "$((10#$value))"
   else
-    echo "$PROG: manifest recurrence.$key is not a whole number of at least $min — using $default" >&2
+    echo "$PROG: manifest $key is not a whole number $range — using $default" >&2
     echo "$default"
   fi
 }
 
 cmd_analyze() {
-  local store='' state='' flag_threshold='' flag_window=''
+  local store='' state='' flag_threshold='' flag_window='' patterns=0 flag_mo='' flag_mt='' flag_mc=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --store) [[ $# -ge 2 ]] || die_usage '--store needs a value'; store="$2"; shift 2 ;;
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --threshold) [[ $# -ge 2 ]] || die_usage '--threshold needs a value'; flag_threshold="$2"; shift 2 ;;
     --window-days) [[ $# -ge 2 ]] || die_usage '--window-days needs a value'; flag_window="$2"; shift 2 ;;
+    --patterns) patterns=1; shift ;;
+    --min-occurrences) [[ $# -ge 2 ]] || die_usage '--min-occurrences needs a value'; flag_mo="$2"; shift 2 ;;
+    --min-distinct-tasks) [[ $# -ge 2 ]] || die_usage '--min-distinct-tasks needs a value'; flag_mt="$2"; shift 2 ;;
+    --min-confidence) [[ $# -ge 2 ]] || die_usage '--min-confidence needs a value'; flag_mc="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
     esac
   done
   [[ -n "$store" ]] || die_usage '--store is required'
 
-  local threshold window
-  threshold="$(resolve_setting threshold "$flag_threshold" threshold 2 "$DEFAULT_THRESHOLD")"
-  window="$(resolve_setting window-days "$flag_window" window-days 1 "$DEFAULT_WINDOW_DAYS")"
+  local threshold='' window='' mo='' mt='' mc='' empty
+  if [[ "$patterns" == 1 ]]; then
+    [[ -z "$state$flag_threshold$flag_window" ]] || die_usage '--patterns takes no --threshold, --window-days, or --state'
+    mo="$(resolve_setting min-occurrences "$flag_mo" promotion.min-occurrences 2 "$DEFAULT_MIN_OCCURRENCES")"
+    mt="$(resolve_setting min-distinct-tasks "$flag_mt" promotion.min-distinct-tasks 2 "$DEFAULT_MIN_DISTINCT_TASKS")"
+    mc="$(resolve_setting min-confidence "$flag_mc" promotion.min-confidence 0 "$DEFAULT_MIN_CONFIDENCE" 100)"
+    empty="$(jq -n -c --argjson mo "$mo" --argjson mt "$mt" --argjson mc "$mc" \
+      '{schema: 1, valid: false, records: 0, min_occurrences: $mo, min_distinct_tasks: $mt, min_confidence: $mc, patterns: [], recurrences: []}')"
+  else
+    [[ -z "$flag_mo$flag_mt$flag_mc" ]] || die_usage 'the promotion thresholds need --patterns'
+    threshold="$(resolve_setting threshold "$flag_threshold" recurrence.threshold 2 "$DEFAULT_THRESHOLD")"
+    window="$(resolve_setting window-days "$flag_window" recurrence.window-days 1 "$DEFAULT_WINDOW_DAYS")"
+    empty="$(jq -n -c --argjson n "$threshold" --argjson w "$window" \
+      '{schema: 1, threshold: $n, window_days: $w, valid: false, records: 0, processed: 0, unchanged: 0, recurrences: []}')"
+  fi
 
   # bail <message> — report the problem, print the empty report, and stop without crashing.
   bail() {
     echo "$PROG: $1" >&2
-    empty_report "$threshold" "$window"
+    printf '%s\n' "$empty"
     exit 3
   }
 
@@ -210,8 +282,14 @@ cmd_analyze() {
     while IFS= read -r line; do
       echo "$PROG: record store: $(safe_display "$line")" >&2
     done <<<"$problems"
-    empty_report "$threshold" "$window"
+    printf '%s\n' "$empty"
     exit 3
+  fi
+
+  if [[ "$patterns" == 1 ]]; then
+    jq -n -c '[inputs]' "$store" \
+      | jq -c --argjson mo "$mo" --argjson mt "$mt" --argjson mc "$mc" "$JQ_CLASS"$'\n'"$JQ_PATTERNS"
+    return 0
   fi
 
   local state_json='{}'
@@ -238,7 +316,7 @@ cmd_analyze() {
   trap "rm -rf '$tmp'" EXIT
 
   jq -n -c '[inputs]' "$store" >"$tmp/records.json"
-  jq -c --argjson n "$threshold" --argjson w "$window" --argjson state "$state_json" "$JQ_SIG"$'\n'"$JQ_REPORT" "$tmp/records.json" >"$tmp/report.json"
+  jq -c --argjson n "$threshold" --argjson w "$window" --argjson state "$state_json" "$JQ_SIG"$'\n'"$JQ_CLASS"$'\n'"$JQ_REPORT" "$tmp/records.json" >"$tmp/report.json"
   cat "$tmp/report.json"
 
   if [[ -n "$state" ]]; then
@@ -521,6 +599,59 @@ self_test() {
   rm -f "$tmp/refused.state"
   run_case 'a refused store leaves the state file alone' 3 -- --store "$tmp/corrupt.jsonl" --state "$tmp/refused.state"
   check 'a refused store writes no state file' "$([[ ! -e "$tmp/refused.state" ]] && echo 0 || echo 1)"
+
+  # The pattern report of the promotion lifecycle: every class with its maturity, its evidence, and the thresholds.
+  local FP_D=dddddddddddddddd
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z; rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z; } >"$tmp/learn3.jsonl"
+  run_case 'three learnings in three pull requests give a pattern report' 0 -- --store "$tmp/learn3.jsonl" --patterns
+  check 'three learnings of one class are one eligible pattern whose evidence names all three' "$(jq -e '
+      .valid == true and .min_occurrences == 3 and .min_distinct_tasks == 2 and .min_confidence == 0
+      and (.patterns | length) == 1 and .patterns[0].key == "acme/shop:rules/code-review/core-analysis:n-plus-one-queries"
+      and .patterns[0].maturity == "learning" and .patterns[0].eligible == true
+      and .patterns[0].occurrences == 3 and .patterns[0].tasks == 3 and (.patterns[0].findings | length) == 3
+      and (.recurrences | length) == 1 and .recurrences[0].prs == 3
+      and (.recurrences[0].occurrences | map(.url)) == ["https://github.com/acme/shop/pull/7", "https://github.com/acme/shop/pull/9", "https://github.com/acme/shop/pull/11"]' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run_case 'two learnings with a threshold of three give a pattern report' 0 -- --store "$tmp/two.jsonl" --patterns
+  check 'two occurrences with a threshold of three give no eligible pattern' "$(jq -e '(.patterns | length) == 1 and .patterns[0].eligible == false and .patterns[0].maturity == "learning" and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 7 $FP_C 2026-09-01T11:00:00Z open confirmed 1111111111111111111111111111111111111111 app/http;
+    rec acme/shop 7 $FP_D 2026-09-01T12:00:00Z open confirmed 1111111111111111111111111111111111111111 app/models; } >"$tmp/onepr3.jsonl"
+  run_case 'three records of one pull request give a pattern report' 0 -- --store "$tmp/onepr3.jsonl" --patterns --min-distinct-tasks 2 --min-occurrences 2
+  check 'three records of one pull request are one distinct task and no eligible pattern' "$(jq -e '.patterns[0].occurrences == 3 and .patterns[0].tasks == 1 and .patterns[0].maturity == "observation" and .patterns[0].eligible == false and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z; rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z; } >"$tmp/conf.jsonl"
+  run_case 'a confidence below the threshold gives a pattern report' 0 -- --store "$tmp/conf.jsonl" --patterns --min-confidence 50
+  check 'the confidence is the share of resolved records and gates the pattern' "$(jq -e '.patterns[0].confidence == 33 and .patterns[0].eligible == false and .min_confidence == 50' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run_case 'a confidence at the threshold gives a pattern report' 0 -- --store "$tmp/conf.jsonl" --patterns --min-confidence 33
+  check 'a confidence at the threshold makes the pattern eligible' "$(jq -e '.patterns[0].eligible == true' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run_case 'unclassified records give a pattern report' 0 -- --store "$tmp/unclassified.jsonl" --patterns
+  check 'a record with no identified cause forms no pattern' "$(jq -e '(.patterns | length) == 0 and .records == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  jq -c '.cause_hypothesis = "A reworded impact." | .reproducer = "Another example."' "$tmp/learn3.jsonl" >"$tmp/reworded.jsonl"
+  "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/p1.json"
+  "$script" --store "$tmp/reworded.jsonl" --patterns >"$tmp/p2.json"
+  check 'rewording the text of a learning changes neither its key nor its evidence' "$(cmp -s "$tmp/p1.json" "$tmp/p2.json" && echo 0 || echo 1)"
+  check 'the pattern report carries no record text' "$(grep -q -e 'Each order loads' -e 'orders->' "$tmp/p1.json" && echo 1 || echo 0)"
+  local prepo="$tmp/promotion"
+  mkdir -p "$prepo"
+  git -C "$prepo" init -q
+  printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 4, "min-distinct-tasks": 3, "min-confidence": 10 } } } }' >"$prepo/composer.json"
+  git -C "$prepo" add composer.json
+  git -C "$prepo" -c user.name=t -c user.email=t@t commit -q -m manifest
+  git -C "$prepo" update-ref refs/remotes/origin/master HEAD
+  printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 2, "min-distinct-tasks": 2, "min-confidence": 0 } } } }' >"$prepo/composer.json"
+  (cd "$prepo" && "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/out" 2>"$tmp/err")
+  check 'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern' "$(jq -e '.min_occurrences == 4 and .min_distinct_tasks == 3 and .min_confidence == 10 and .patterns[0].eligible == false' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 1, "min-distinct-tasks": 1, "min-confidence": 101 } } } }' >"$prepo/composer.json"
+  git -C "$prepo" add composer.json
+  git -C "$prepo" -c user.name=t -c user.email=t@t commit -q -m low
+  git -C "$prepo" update-ref refs/remotes/origin/master HEAD
+  (cd "$prepo" && "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/out" 2>"$tmp/err")
+  check 'a promotion threshold below 2 is ignored and the script says so' "$(jq -e '.min_occurrences == 3 and .min_distinct_tasks == 2 and .min_confidence == 0' "$tmp/out" >/dev/null && grep -q 'promotion.min-occurrences is not a whole number at least 2' "$tmp/err" && grep -q 'promotion.min-distinct-tasks is not a whole number at least 2' "$tmp/err" && grep -q 'promotion.min-confidence is not a whole number from 0 to 100' "$tmp/err" && echo 0 || echo 1)"
+  run_case 'a minimum of one occurrence is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-occurrences 1
+  run_case 'a minimum of one distinct task is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-distinct-tasks 1
+  run_case 'a confidence over 100 is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-confidence 101
+  run_case 'a pattern report with a state file is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --state "$tmp/state.json"
+  run_case 'a promotion threshold without --patterns is a usage error' 1 -- --store "$tmp/learn3.jsonl" --min-occurrences 3
+  run_case 'a pattern report of a malformed store is refused' 3 -- --store "$tmp/corrupt.jsonl" --patterns
+  check 'a malformed store gives an empty pattern report' "$(jq -e '.valid == false and (.patterns | length) == 0 and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
 
   # Usage errors.
   run_case 'a missing --store is a usage error' 1 -- --threshold 2

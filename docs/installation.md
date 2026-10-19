@@ -98,6 +98,9 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. |
 | `recurrence.threshold` | `analyze-recurrence.sh` | Pull requests in which one defect class must appear to count as a recurrence. At least 2. Absent: 2. |
 | `recurrence.window-days` | `analyze-recurrence.sh` | Days in which those occurrences must fall. At least 1. Absent: 90. |
+| `promotion.min-occurrences` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Validated records one pattern needs before it becomes a promotion candidate. At least 2. Absent: 3. |
+| `promotion.min-distinct-tasks` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Distinct pull requests those records must come from. At least 2. Absent: 2. |
+| `promotion.min-confidence` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Share of those records that a fix resolved, in percent. 0 to 100. Absent: 0. |
 | `language.github` | reports, pull requests, commits | Language of everything published to GitHub. Trackers outside GitHub keep the assignment's language. |
 | `timezone` | PHP standards | The zone the code computes and stores in; every date call passes it explicitly. |
 | `tenancy` | authorization review, Laravel architecture | `database` when each tenant has its own database, so the tenant connection is the tenant boundary. |

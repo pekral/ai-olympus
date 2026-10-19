@@ -254,7 +254,7 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the loader and the search can be replaced without a seam.
   mkdir -p "$tmp/skills/_shared" "$tmp/skills/code-review-github/scripts" "$tmp/bin" "$tmp/fixture"
-  cp "$HERE"/{feedback-loop,extract-findings,collect-findings,analyze-recurrence,propose-prevention,read-manifest}.sh "$tmp/skills/_shared/"
+  cp "$HERE"/{feedback-loop,extract-findings,collect-findings,analyze-recurrence,propose-prevention,proposal-identity,read-manifest}.sh "$tmp/skills/_shared/"
   script="$tmp/skills/_shared/feedback-loop.sh"
 
   # The loader returns the payload of the pull request, with the repository spelled as the URL spells it.

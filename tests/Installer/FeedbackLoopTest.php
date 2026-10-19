@@ -114,9 +114,11 @@ test('the loop script reuses the earlier scripts, reads no network of its own, a
 test('the lookup refuses a result of another repository and the proposal contract says so', function (): void {
     $script = feedbackFile('skills/_shared/propose-prevention.sh');
 
+    expect(feedbackFile('skills/_shared/proposal-identity.sh'))
+        ->toContain('and (.url | ascii_downcase | startswith("https://github.com/" + ($key | split(":")[0] | ascii_downcase) + "/issues/"))');
+
     expect($script)
-        ->toContain('| select(.html_url | ascii_downcase | startswith("https://github.com/" + ($key_repo | ascii_downcase) + "/issues/"))')
-        ->toContain('--arg key_repo "${key%%:*}"')
+        ->toContain('jq -c -s --arg key "$key" "$JQ_PROPOSAL"$\'\\n\'".[0] | $JQ_MARKER_FIND" "$results"')
         ->toContain('check \'a result that points to another owner or repository is not the proposal of this class\'')
         ->toContain('check \'the repository of the result is compared without regard to case\'');
 

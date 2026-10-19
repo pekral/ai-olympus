@@ -8,11 +8,13 @@ This file is the one contract for finding the defect classes that recur across i
 
 ```text
 analyze-recurrence.sh --store <file> [--threshold <n>] [--window-days <days>] [--state <file>]
+analyze-recurrence.sh --store <file> --patterns [--min-occurrences <n>] [--min-distinct-tasks <n>] [--min-confidence <percent>]
 analyze-recurrence.sh --self-test
 ```
 
 - `--store` is the JSON Lines record store that `extract-findings.sh` writes. The analysis only reads it.
 - Without `--state`, every record is processed and nothing is written.
+- `--patterns` prints the pattern report of the promotion lifecycle instead: every class with its maturity, its evidence, and the promotion thresholds (`learning-promotion.md` *Patterns and evidence*). It takes no window and no state file.
 - The script prints one JSON line, the report. Exit `0` is an analysis that ran, `1` a usage error, `2` a missing tool, `3` a missing or malformed store, or a state file that cannot be used or written.
 
 ## Collection
@@ -50,6 +52,8 @@ A recurrence is one defect class that appears in at least `threshold` different 
 | --- | --- | --- | --- |
 | Pull requests that make a recurrence | `recurrence.threshold` | 2 | 2 |
 | Window in days | `recurrence.window-days` | 90 | 1 |
+
+The promotion thresholds of `--patterns` resolve the same way. `learning-promotion.md` *Settings* lists them.
 
 A setting resolves in this order: the flag, then the manifest key of the default branch (`@rules/general/general.md` *Project manifest*), then the default. The script reads the manifest only through `read-manifest.sh`, never from the working tree. A manifest value that is not a whole number of at least the minimum is ignored, and the script says so on standard error.
 

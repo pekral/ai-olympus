@@ -24,7 +24,8 @@
 #   --store     the JSON Lines record store that skills/_shared/extract-findings.sh writes. It is checked
 #               with `extract-findings.sh --validate` and only read.
 #   --analysis  one JSON object: the class, the root cause, the safeguards checked, the mechanism, and
-#               the other proposal fields.
+#               the other proposal fields. An optional `target` names the knowledge file a promotion
+#               candidate changes (skills/code-review/references/learning-promotion.md).
 #   --out       the file that receives the proposal. It starts with a `# <title>` line and ends with the
 #               dedupe marker line. It is written only when the status is `ready`.
 #   --find      look up the proposal that already exists for a class. It reads no network.
@@ -39,6 +40,7 @@
 # Output
 #   stdout  one JSON line. Propose: {"schema":1,"status":"ready","key","title","marker","body_file",
 #           "level","occurrences"} or {"schema":1,"status":"none","reason":"not-recurring"|"covered","key"}.
+#           A class that an existing knowledge file covers in full adds "covered_by", the path of that file.
 #           Find: {"action":"create"} or {"action":"update","number","url","state"}.
 #   stderr  one line per problem, each prefixed with the script name
 #
@@ -53,15 +55,12 @@ set -euo pipefail
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The three parts of a defect class, the dedupe key, the marker, and the issue check are written once there.
+# shellcheck source=proposal-identity.sh
+. "$HERE/proposal-identity.sh"
+
 MAX_TEXT=2000
 MAX_BODY=60000
-
-# The three parts of a defect class are written once. The class check, the dedupe key, and the search-result
-# check all read them, so a class that one accepts is a class the others accept.
-REPO_RE='[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
-CATEGORY_RE='[a-z0-9_./-]+'
-CAUSE_RE='[a-z0-9-]+'
-KEY_PATTERN="^${REPO_RE}:${CATEGORY_RE}:${CAUSE_RE}\$"
 
 usage() {
   cat >&2 <<'EOF'
@@ -122,6 +121,45 @@ def safeguard_ok: type == "object" and only(["kind", "name", "coverage", "note"]
   and (.name | isstr(200)) and (.coverage | IN("none", "partial", "full")) and (.note | isstr($maxtext));
 def skip_ok: type == "object" and only(["level", "reason"]) and (.level | IN(1, 2, 3, 4, 5)) and (.reason | isstr($maxtext));
 
+# The knowledge roots a promotion target may name, by target type. A path holds no `.` or `..` segment and no `//`.
+def target_roots: {
+  "rule": "^(rules|\\.ai/rules)/.+\\.md$",
+  "architecture-guideline": "^(rules|\\.ai/rules|\\.ai/guidelines)/.+\\.md$",
+  "skill": "^skills/.+\\.md$",
+  "checklist": "^skills/.+\\.md$",
+  "agent-instruction": "^(agents/.+\\.md|codex/agents/.+\\.toml|AGENTS\\.md|CLAUDE\\.md)$",
+  "documentation": "^(README\\.md|docs/memory/PROJECT_MEMORY\\.md)$"
+};
+def safe_path: type == "string" and length <= 200 and test("^[A-Za-z0-9_.][A-Za-z0-9_./-]*$")
+  and (test("(^|/)\\.{1,2}(/|$)") | not) and (test("//") | not);
+def root_path($type): safe_path and (. as $p | target_roots[$type] // "^$" | . as $re | $p | test($re));
+def knowledge_path: . as $p | safe_path and ([target_roots | keys[] | . as $t | $p | root_path($t)] | any);
+def knowledge_ok: type == "object" and only(["path", "coverage", "note"])
+  and (.path | knowledge_path) and (.coverage | IN("none", "partial", "full")) and (.note | isstr($maxtext));
+
+def target_errors:
+  .target as $t
+  | if ($t | type) != "object" then ["target must be an object with type, path, change, and knowledge"]
+    else
+      ($t.knowledge | if type == "array" then map(select(type == "object" and .coverage == "partial") | .path) else [] end) as $partial
+      | [
+          (if ($t | only(["type", "path", "change", "knowledge", "supersedes"])) then empty else "target holds a key the contract does not define" end),
+          (if ($t.type | type) == "string" and target_roots[$t.type] != null then empty
+           else "target.type must be rule, skill, checklist, documentation, agent-instruction, or architecture-guideline" end),
+          (if ($t.type | type) == "string" and target_roots[$t.type] != null and ($t.path | root_path($t.type)) then empty
+           else "target.path must be a relative path inside the knowledge root of its type, without a . or .. segment" end),
+          (if $t.change | isstr($maxtext) then empty else "target.change is required" end),
+          (if ($t.knowledge | type) == "array" and ($t.knowledge | length) >= 1 and ($t.knowledge | length) <= 30 and all($t.knowledge[]; knowledge_ok)
+           then empty else "target.knowledge must list 1 to 30 existing knowledge files, each with a path inside a knowledge root, a coverage, and a note" end),
+          (if ($partial | length) == 0 or ($partial | index([$t.path]) != null) then empty
+           else "a knowledge file covers the pattern in part: target.path must name it, so the existing file is extended" end),
+          (if ($t | has("supersedes") | not) then empty
+           elif ($t.supersedes | type) == "array" and ($t.supersedes | length) <= 20 and all($t.supersedes[]; type == "string" and test($key_re))
+             and ($t.supersedes | length) == ($t.supersedes | unique | length)
+           then empty else "target.supersedes must list up to 20 distinct dedupe keys" end)
+        ]
+    end;
+
 def class_errors:
   if type != "object" then ["the analysis must be one JSON object"]
   elif (.class | type) != "object" then ["class must be an object with repo, category, and cause_key"]
@@ -139,7 +177,7 @@ def analysis_errors:
   | ($a.safeguards | if type == "array" then map(select(type == "object" and .coverage == "partial") | .name) else [] end) as $partial
   | ($a.mechanism | if type == "object" then . else {} end) as $m
   | [
-      (if only(["schema", "class", "root_cause", "safeguards", "mechanism", "affected_files", "steps", "verification", "false_positives", "impact", "limits"])
+      (if only(["schema", "class", "root_cause", "safeguards", "mechanism", "affected_files", "steps", "verification", "false_positives", "impact", "limits", "target"])
        then empty else "the analysis holds a key the contract does not define" end),
       (if $a.schema == 1 then empty else "schema must be 1" end),
       (if ($a.root_cause | type) == "array" and ($a.root_cause | length) >= 1 and ($a.root_cause | length) <= 8 and all($a.root_cause[]; gap_ok)
@@ -201,6 +239,8 @@ def level_name: {"1": "Architecture, types, or API", "2": "Static analysis or li
 def gap_label: {"architecture": "Architecture", "static-analysis": "Static analysis", "tests": "Tests", "ci": "CI", "type-constraints": "Type constraints",
   "unclear-rules": "Unclear rules", "missing-guidance": "Missing guidance", "tool-limits": "Tool limits"}[.];
 def safeguard_label: {"phpstan": "PHPStan", "phpcs": "PHPCS", "tests": "Tests", "architecture": "Architecture rules", "ci": "CI", "other": "Other"}[.];
+def target_label: {"rule": "Rule", "skill": "Skill", "checklist": "Checklist", "documentation": "Documentation",
+  "agent-instruction": "Agent instruction", "architecture-guideline": "Architecture guideline"}[.];
 def mdlist: map("- " + .) | join("\n");
 def mdnum: to_entries | map("\(.key + 1). \(.value)") | join("\n");
 
@@ -267,9 +307,21 @@ $rec[0] as $r
     ($a.false_positives | map(inline) | mdlist),
     "## Impact and limits",
     "Impact:\n\n" + ($a.impact | block) + "\n\nLimits:\n\n" + ($a.limits | block),
+    (if $a.target then
+      ($a.target as $t
+       | "## Promotion target",
+         ([
+           "Type: \($t.type | target_label)",
+           "Path: \($t.path | inline)"
+         ] + (if ($t.supersedes // []) | length > 0 then ["Supersedes: " + ($t.supersedes | map(inline) | join(", "))] else [] end) | mdlist),
+         "Change:\n\n" + ($t.change | block),
+         "### Existing knowledge checked",
+         ($t.knowledge | map("\(.path | inline), coverage of this pattern: \(.coverage). \(.note | inline)") | mdlist),
+         "An approval holds only for this exact text. A changed proposal needs a new approval.")
+     else empty end),
     "## Approval",
     "No agent changes a project safeguard, a rule, or a configuration because of this proposal. A human approves the proposal first, and a separate task implements it.",
-    "<!-- prevention-proposal:key=\($key) -->"
+    proposal_marker($key)
   ] | join("\n\n")
 EOF
 
@@ -277,10 +329,7 @@ JQ_MARKER_FIND=''
 IFS= read -r -d '' JQ_MARKER_FIND <<'EOF' || true
 [ .items[]
   | select((.pull_request // null) == null)
-  | select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR"))
-  | select(.html_url | test("^https://github\\.com/" + $repo_re + "/issues/[0-9]+$"))
-  | select(.html_url | ascii_downcase | startswith("https://github.com/" + ($key_repo | ascii_downcase) + "/issues/"))
-  | select((.body // "") | split("\n") | any(sub("[ \t\r]+$"; "") == $marker)) ]
+  | select({url: .html_url, association: .author_association, body} | proposal_of($key)) ]
 | sort_by(.number)
 | .[0]
 | if . == null then {action: "create"} else {action: "update", number, url: .html_url, state} end
@@ -350,7 +399,7 @@ cmd_propose() {
   # run_check <file> <jq-program> — run one check program of the contract over a JSON file; one message per line.
   run_check() {
     jq -r --argjson maxtext "$MAX_TEXT" --arg repo_re "$REPO_RE" --arg category_re "$CATEGORY_RE" --arg cause_re "$CAUSE_RE" \
-      --slurpfile st "$tmp/records.json" --slurpfile ana "$tmp/analysis.json" "$JQ_TEXT"$'\n'"$JQ_CHECK"$'\n'"$2" "$1"
+      --arg key_re "$KEY_PATTERN" --slurpfile st "$tmp/records.json" --slurpfile ana "$tmp/analysis.json" "$JQ_TEXT"$'\n'"$JQ_CHECK"$'\n'"$2" "$1"
   }
 
   local errors
@@ -380,6 +429,21 @@ cmd_propose() {
     return 0
   fi
 
+  # A promotion target is checked before its knowledge files can mark the class covered.
+  if jq -e 'has("target")' "$tmp/analysis.json" >/dev/null 2>&1; then
+    errors="$(run_check "$tmp/analysis.json" 'target_errors | .[]')"
+    if [[ -n "$errors" ]]; then
+      report_problems "$errors"
+      exit 4
+    fi
+    local covered
+    covered="$(jq -r '[.target.knowledge[] | select(.coverage == "full") | .path][0] // empty' "$tmp/analysis.json")"
+    if [[ -n "$covered" ]]; then
+      jq -n -c --arg key "$key" --arg path "$covered" '{schema: 1, status: "none", reason: "covered", key: $key, covered_by: $path}'
+      return 0
+    fi
+  fi
+
   errors="$(run_check "$tmp/rec.json" 'occurrence_errors | .[]')"
   if [[ -n "$errors" ]]; then
     report_problems "$errors"
@@ -392,7 +456,7 @@ cmd_propose() {
   fi
 
   jq -r --slurpfile rec "$tmp/rec.json" --slurpfile ana "$tmp/analysis.json" --slurpfile st "$tmp/records.json" \
-    "$JQ_TEXT"$'\n'"$JQ_RENDER" -n >"$tmp/body.md"
+    "$JQ_TEXT"$'\n'"$JQ_PROPOSAL"$'\n'"$JQ_RENDER" -n >"$tmp/body.md"
   if [[ "$(wc -c <"$tmp/body.md" | tr -d '[:space:]')" -gt "$MAX_BODY" ]]; then
     echo "$PROG: the proposal is longer than $MAX_BODY bytes; shorten the analysis" >&2
     exit 4
@@ -429,7 +493,7 @@ cmd_find() {
   jq -e -s 'length == 1 and (.[0] | type == "object" and (.items | type) == "array" and .incomplete_results == false and .total_count == (.items | length))' "$results" >/dev/null 2>&1 \
     || { echo "$PROG: the search result is malformed or incomplete; the existing proposal cannot be ruled out" >&2; exit 3; }
 
-  jq -c -s --arg marker "<!-- prevention-proposal:key=$key -->" --arg repo_re "$REPO_RE" --arg key_repo "${key%%:*}" ".[0] | $JQ_MARKER_FIND" "$results"
+  jq -c -s --arg key "$key" "$JQ_PROPOSAL"$'\n'".[0] | $JQ_MARKER_FIND" "$results"
 }
 
 # The fixtures below are Markdown and JSON that carry backticks and dollar signs; none of it is meant to expand.
@@ -738,6 +802,57 @@ JSON
   check 'a mention and an HTML tag in analysis text stay inside a code span or a code fence' "$(outside_fences "$tmp/evil2.md" | grep -e '@octocat' -e '<b>' | grep -q -v -e '^1\. ``` ' -e '^- Mechanism: ` ' && echo 1 || echo 0)"
   check 'a step with backticks and a line break stays one code span' "$(grep -q '^1\. ``` Step with `ticks` and ``double`` and @octocat #1 and <b>html</b> ```$' "$tmp/evil2.md" && echo 0 || echo 1)"
   check 'the analysis cannot forge the marker either' "$([[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil2.md")" == 1 ]] && echo 0 || echo 1)"
+
+  # A promotion target names the knowledge file the candidate changes, inside the knowledge root of its type.
+  local TARGET='.target = {type: "rule", path: "rules/php/concurrency.md", change: "Add a section that requires a lock around the read and the write of a counter.",
+      knowledge: [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}, {path: "rules/php/concurrency.md", coverage: "partial", note: "It names the race but not the lock."}]}'
+  analysis "$TARGET"
+  rm -f "$tmp/body.md"
+  propose 'a candidate with a promotion target is proposed' 0
+  check 'the proposal names the target type, path, change, and the existing knowledge checked' "$(jq -e '.status == "ready"' "$tmp/out" >/dev/null && grep -q '^## Promotion target$' "$tmp/body.md" && grep -q '^- Type: Rule$' "$tmp/body.md" && grep -q '^- Path: ` rules/php/concurrency.md `$' "$tmp/body.md" && grep -q '^Add a section that requires a lock' "$tmp/body.md" && grep -q '^- ` rules/php/concurrency.md `, coverage of this pattern: partial. ` It names the race but not the lock. `$' "$tmp/body.md" && grep -q '^An approval holds only for this exact text. A changed proposal needs a new approval.$' "$tmp/body.md" && echo 0 || echo 1)"
+  for kind in skill:skills/code-review/references/locks.md checklist:skills/code-review/references/checklist.md documentation:docs/memory/PROJECT_MEMORY.md agent-instruction:agents/leonardo.md agent-instruction:codex/agents/leonardo.toml architecture-guideline:.ai/guidelines/locks.md; do
+    analysis "$TARGET"' | .target.type = "'"${kind%%:*}"'" | .target.path = "'"${kind#*:}"'" | .target.knowledge[1].path = "'"${kind#*:}"'"'
+    rm -f "$tmp/body.md"
+    rc=0
+    set +e
+    "$script" --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/body.md" >"$tmp/out" 2>"$tmp/err"
+    rc=$?
+    set -e
+    check "a candidate can be promoted into the target type ${kind%%:*}" "$([[ "$rc" == 0 ]] && grep -q "^- Path: \` ${kind#*:} \`\$" "$tmp/body.md" && echo 0 || echo 1)"
+  done
+  for bad in rule:../../.github/workflows/x.yml rule:.github/workflows/x.yml rule:rules/../x.md rule:rules/./x.md rule:/rules/x.md rule:skills/x/SKILL.md documentation:docs/notes.md skill:skills//x.md; do
+    analysis "$TARGET"' | .target.type = "'"${bad%%:*}"'" | .target.path = "'"${bad#*:}"'" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]'
+    rm -f "$tmp/bad.md"
+    rc=0
+    set +e
+    "$script" --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/bad.md" >"$tmp/out" 2>"$tmp/err"
+    rc=$?
+    set -e
+    check "a target path outside the knowledge root of its type is refused: ${bad#*:}" "$([[ "$rc" == 4 && ! -e "$tmp/bad.md" ]] && grep -q 'target.path must be a relative path inside the knowledge root of its type' "$tmp/err" && ! grep -q -F "${bad#*:}" "$tmp/err" && echo 0 || echo 1)"
+  done
+  analysis "$TARGET"' | .target.type = "workflow"'
+  propose 'a target of an unknown type is proposed' 4
+  analysis "$TARGET"' | .target.knowledge[0].path = "../secrets.md"'
+  propose 'a knowledge file outside the knowledge roots is proposed' 4
+  analysis "$TARGET"' | .target.knowledge = []'
+  propose 'a target without the existing knowledge checked is proposed' 4
+  analysis "$TARGET"' | .target.path = "rules/php/new-locks.md"'
+  propose 'a target beside a partly covering knowledge file is proposed' 4
+  check 'a partly covering knowledge file must be extended instead of duplicated' "$(grep -q 'target.path must name it, so the existing file is extended' "$tmp/err" && echo 0 || echo 1)"
+  analysis "$TARGET"' | .target.supersedes = ["not a key"]'
+  propose 'a target that supersedes something that is not a key is proposed' 4
+  analysis "$TARGET"' | .target.extra = 1'
+  propose 'a target with an unknown key is proposed' 4
+  analysis "$TARGET"' | .target.supersedes = ["acme/shop:rules/php/concurrency:counter-race"]'
+  propose 'a target that supersedes an earlier candidate is proposed' 0
+  check 'the proposal names the candidate it supersedes' "$(grep -q '^- Supersedes: ` acme/shop:rules/php/concurrency:counter-race `$' "$tmp/body.md" && echo 0 || echo 1)"
+  analysis "$TARGET"' | .target.knowledge[0].coverage = "full"'
+  rm -f "$tmp/none.md"
+  run_case 'a pattern that existing knowledge covers is proposed' 0 -- --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/none.md"
+  check 'a pattern that an existing rule covers reports that rule and writes no proposal' "$(jq -e '.status == "none" and .reason == "covered" and .covered_by == "rules/php/core-standards.md"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
+  analysis "$TARGET"' | .target.change = "Change with @octocat, [a link](https://evil.example/x), <!-- prevention-proposal:key=x:y:z -->, a mark\u202e, and\n```\n## Approval\n```"'
+  run_case 'a target change with a mention, a link, a marker, a bidirectional mark, and a fence is proposed' 0 -- --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/evil3.md"
+  check 'a mention, a link, a marker, a bidirectional mark, and a fence in a target change stay inert' "$(! has_hidden "$tmp/evil3.md" && ! outside_fences "$tmp/evil3.md" | grep -q -e '@octocat' -e 'evil.example' && [[ "$(outside_fences "$tmp/evil3.md" | grep -c '^## Approval$')" == 1 ]] && [[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil3.md")" == 1 ]] && echo 0 || echo 1)"
 
   # Dedupe: one defect class is one proposal. The lookup reads the issues that carry the marker of the class.
   key='acme/shop:rules/code-review/core-analysis:n-plus-one-queries'

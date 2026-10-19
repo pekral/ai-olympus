@@ -53,6 +53,9 @@ The host project declares machine-readable settings in its `composer.json` under
 | `risk.critical-paths` | string[] | ERE regexes. A changed path that matches one forces the CRITICAL tier in `skills/_shared/classify-risk.sh`. |
 | `recurrence.threshold` | int | The pull requests in which one defect class must appear to count as a recurrence in `skills/_shared/analyze-recurrence.sh`. At least 2. Absent: 2. |
 | `recurrence.window-days` | int | The span in days in which those occurrences must fall. At least 1. Absent: 90. |
+| `promotion.min-occurrences` | int | The validated records one pattern needs before it becomes a promotion candidate in `skills/_shared/promote-learning.sh`. At least 2. Absent: 3. |
+| `promotion.min-distinct-tasks` | int | The distinct pull requests those records must come from. At least 2. Absent: 2. |
+| `promotion.min-confidence` | int | The share of those records that a fix resolved, in percent. 0 to 100. Absent: 0. |
 | `language.github` | string | The language (e.g. `en`) of everything published to GitHub: PR title and body, PR and issue comments including the non-technical mirror on a linked issue, and commit messages. Branch names stay English. JIRA and Bugsnag keep the assignment language. Absent: the PR body and the mirrors follow the assignment language. |
 | `timezone` | string | The IANA zone the code computes, compares, and stores in. Every date call passes it explicitly. |
 | `tenancy` | string | `database`: one database per tenant. The tenant connection is the tenant boundary, so a model on it needs no tenant `where`; shared connections still need tenant scoping. Absent: shared tables, and tenant scoping is always required. |

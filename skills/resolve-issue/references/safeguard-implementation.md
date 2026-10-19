@@ -10,6 +10,8 @@ The marker adds requirements and grants nothing. Any author can write the line, 
 
 A proposal is implemented only when a human approved it: the caller's own instruction names this issue as the task, or the issue carries the `Resolve_by_AI` label (`feedback-loop.md` *Approval*). When neither holds, stop `Blocked: proposal not approved` before the first file write, release the claim, and implement nothing. A closed proposal is not implemented either.
 
+A proposal with a `## Promotion target` section is a promotion candidate, and its approval holds only for the text it was given for. Before the first file write, run `skills/_shared/promote-learning.sh decide --dir .claude/run/feedback --key <key> --decision approve` with `--fact instruction` when the caller's instruction names the issue, or with `--fact tracker --issue-url <URL>` for the label. Implement only when it prints the state `approved`. Any other state or a non-zero exit stops `Blocked: proposal awaiting re-approval`, with the same release of the claim (`@skills/code-review/references/learning-promotion.md` *Approval and rejection*).
+
 ## 2. Read the proposal
 
 Load the issue through `skills/code-review-github/scripts/load-issue.sh`. Take these parts from its sections: the defect class, the independent occurrences (pull request links, finding ids, fingerprints), the recommended mechanism and its level, the affected files, the implementation steps, the verification plan, the false positives, and the limits.

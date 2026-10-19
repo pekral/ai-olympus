@@ -81,5 +81,6 @@ Every write compounds the file's growth unless something shrinks it back down. A
 - The compaction is scoped to the entries the write actually touched (plus at most 3 demonstrably related ones) — it is part of the write itself, not a separate maintenance pass over the whole file. `@skills/compact-project-memory/SKILL.md` derives that scope deterministically from `git diff` and is a no-op when the file carries no diff.
 - When an agent starts a run and finds the memory file already dirty in git from an earlier, uncompacted write, it may run the skill on that existing diff first, before making its own edit.
 - This protocol never generates lessons — the skill only shrinks the wording of an entry someone already wrote; it never invents, re-derives, or adds new lesson content, and it never loses a recorded fact.
+- A lesson that review keeps finding is promoted through `@skills/code-review/references/learning-promotion.md`, never written here by the lifecycle itself. A promotion whose target is this file is written by the implementing run after a human approved it, through this protocol, compaction included.
 
 See `@skills/compact-project-memory/SKILL.md` for the exact mechanics — touched-range detection, the per-entry budget, and the invariants that guarantee no fact is ever lost.

@@ -15,7 +15,7 @@ propose-prevention.sh --self-test
 ```
 
 - `--report` is the report that `analyze-recurrence.sh` prints. `--store` is the record store of that analysis. `--analysis` is the judgment file described in *The analysis file* below.
-- The script prints one JSON line. `{"status":"ready"}` carries the `key`, the `title`, the `marker`, the `body_file`, the `level`, and the number of `occurrences`. `{"status":"none"}` carries a `reason`: `not-recurring` or `covered`.
+- The script prints one JSON line. `{"status":"ready"}` carries the `key`, the `title`, the `marker`, the `body_file`, the `level`, and the number of `occurrences`. `{"status":"none"}` carries a `reason`: `not-recurring` or `covered`. A class that an existing knowledge file of the `target` covers in full also carries `covered_by`, the path of that file.
 - The script writes `--out` only when the status is `ready`. It writes no other file. It files nothing, comments nothing, and changes no rule, no configuration, and no safeguard of any project.
 - Exit `0` is a command that ran, `1` a usage error, `2` a missing tool, `3` an input that is missing or malformed or an output that cannot be written, `4` an analysis that breaks this contract. After exit `4` nothing is written, and each message names the broken field and never echoes its value.
 
@@ -52,6 +52,7 @@ The analysis is one JSON object. Every field below is required unless the table 
 | `mechanism` | The recommended mechanism: `level`, `name`, `summary`, `skipped`, and the optional `extends`, `limitation`, and `alternative`. |
 | `affected_files`, `steps`, `verification`, `false_positives` | Lists of 1 or more texts |
 | `impact`, `limits` | Texts |
+| `target` | Optional. The knowledge file that a promotion candidate changes: `type`, `path`, `change`, `knowledge`, and the optional `supersedes` (`learning-promotion.md` *The target*). A `knowledge` file with the coverage `full` gives `{"status":"none","reason":"covered"}`, and one with the coverage `partial` must be the `path`. |
 
 ### Root-cause analysis
 
@@ -98,13 +99,14 @@ The script renders these sections in this order. Every mandatory field of the ep
 | `## Verification plan` | The regression verification |
 | `## False positives` | The false positives |
 | `## Impact and limits` | The impact and the limits |
+| `## Promotion target` | Only with a `target`: the type, the path, the change, the existing knowledge checked, the candidates it supersedes, and the statement that an approval holds only for this exact text |
 | `## Approval` | The statement that nothing is implemented before a human approves |
 
 ## One defect class, one proposal
 
 The dedupe key is `<repo>:<category>:<cause_key>`. It does not read the fingerprints, because one class has one fingerprint for each subsystem. The last line of every proposal is the marker `<!-- prevention-proposal:key=<key> -->`.
 
-- **The lookup finds the proposal that exists.** `propose-prevention.sh --find` reads a search result and prints `{"action":"create"}` or `{"action":"update",…}`. A proposal exists when an issue, and not a pull request, carries the marker alone on a line, and its author has write access (`OWNER`, `MEMBER`, or `COLLABORATOR`, `@rules/code-review/general.md` *Authorship trust*), and its URL belongs to the repository of the key (compared without regard to case). A marker is visible text that anyone can copy, so the marker alone proves nothing. A closed proposal still counts. The oldest of several proposals wins.
+- **The lookup finds the proposal that exists.** `propose-prevention.sh --find` reads a search result and prints `{"action":"create"}` or `{"action":"update",…}`. A proposal exists when an issue, and not a pull request, carries the marker alone on a line, and its author has write access (`OWNER`, `MEMBER`, or `COLLABORATOR`, `@rules/code-review/general.md` *Authorship trust*), and its URL belongs to the repository of the key (compared without regard to case). A marker is visible text that anyone can copy, so the marker alone proves nothing. `skills/_shared/proposal-identity.sh` holds this test and the dedupe key once, and `promote-learning.sh` applies the same test. A closed proposal still counts. The oldest of several proposals wins.
 - **A search that may hide the proposal stops the run.** A result with `incomplete_results` or with more matches than items exits `3`. Creating an issue then could break the rule of one issue for one class.
 - **A second run updates and never creates.** The same class gives the same key, so the second run finds the first proposal.
 
