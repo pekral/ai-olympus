@@ -245,7 +245,7 @@ test('a query with a limit prints the bounded slice and what it omitted', functi
 test('the graph names the files to read for one Action instead of the whole repository', function (): void {
     $root = GraphFixture::project('graph-laravel');
     graphRun($root, 'build');
-    $indexed = array_keys(GraphIndexer::index($root, [])['graph']['files']);
+    $indexed = array_keys(GraphIndexer::index($root, [])->files);
 
     [, $stdout] = graphRun($root, 'query', 'App\Actions\CreateOrderAction');
 

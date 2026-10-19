@@ -11,10 +11,6 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
-/**
- * @phpstan-import-type GraphRecord from \Pekral\AiOlympus\GraphParser
- * @phpstan-type GraphSummary array{files: int, parsed: int, reused: int, removed: int, errors: list<string>}
- */
 final class GraphIndexer
 {
 
@@ -25,36 +21,34 @@ final class GraphIndexer
     private const array AUTOLOAD_TYPES = ['psr-4', 'psr-0', 'classmap'];
 
     /**
-     * @param array<string, GraphRecord> $previous
-     * @return array{graph: array{version: int, files: array<string, GraphRecord>}, summary: GraphSummary}
+     * @param array<string, \Pekral\AiOlympus\GraphRecord> $previous
      */
-    public static function index(string $root, array $previous): array
+    public static function index(string $root, array $previous): GraphIndexResult
     {
         $files = [];
-        $summary = ['files' => 0, 'parsed' => 0, 'reused' => 0, 'removed' => 0, 'errors' => []];
+        $parsed = 0;
+        $reused = 0;
+        $errors = [];
 
         foreach (self::listPhpFiles($root) as $path) {
             $code = (string) file_get_contents($root . '/' . $path);
             $record = $previous[$path] ?? null;
 
-            if ($record === null || $record['hash'] !== GraphParser::hash($code)) {
+            if ($record === null || $record->hash !== GraphParser::hash($code)) {
                 $record = GraphParser::parse($path, $code);
-                $summary['parsed']++;
+                $parsed++;
             } else {
-                $summary['reused']++;
+                $reused++;
             }
 
-            if (isset($record['error'])) {
-                $summary['errors'][] = $path;
+            if ($record->error !== null) {
+                $errors[] = $path;
             }
 
             $files[$path] = $record;
         }
 
-        $summary['files'] = count($files);
-        $summary['removed'] = count(array_diff_key($previous, $files));
-
-        return ['graph' => ['version' => self::VERSION, 'files' => $files], 'summary' => $summary];
+        return new GraphIndexResult($files, new GraphSummary(count($files), $parsed, $reused, count(array_diff_key($previous, $files)), $errors));
     }
 
     /**

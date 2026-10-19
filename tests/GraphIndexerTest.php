@@ -3,12 +3,13 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\GraphIndexer;
+use Pekral\AiOlympus\GraphSummary;
 use Tests\Support\GraphFixture;
 
 test('generation reads the composer autoload directories and config, never vendor, hidden or other directories', function (): void {
     $root = GraphFixture::project();
 
-    $files = GraphIndexer::index($root, [])['graph']['files'];
+    $files = GraphIndexer::index($root, [])->files;
 
     expect(array_keys($files))->toBe([
         'config/app.php',
@@ -29,27 +30,28 @@ test('a file with a syntax error does not abort the whole generation', function 
 
     $result = GraphIndexer::index($root, []);
 
-    expect($result['summary'])->toBe(['files' => 8, 'parsed' => 8, 'reused' => 0, 'removed' => 0, 'errors' => ['src/Broken.php']]);
-    expect($result['graph']['files']['src/Broken.php'])->toMatchArray(['nodes' => [], 'edges' => []]);
-    expect($result['graph']['files']['src/Broken.php']['error'] ?? '')->toEndWith('on line 3');
-    expect($result['graph']['files']['src/UserService.php']['nodes'])->not->toBe([]);
+    expect($result->summary)->toEqual(new GraphSummary(files: 8, parsed: 8, reused: 0, removed: 0, errors: ['src/Broken.php']));
+    expect($result->files['src/Broken.php']->nodes)->toBe([]);
+    expect($result->files['src/Broken.php']->edges)->toBe([]);
+    expect($result->files['src/Broken.php']->error)->toEndWith('on line 3');
+    expect($result->files['src/UserService.php']->nodes)->not->toBe([]);
 
     installerRemoveDirectory($root);
 });
 
 test('an incremental run re-parses only changed files and removes deleted or renamed ones', function (): void {
     $root = GraphFixture::project();
-    $previous = GraphIndexer::index($root, [])['graph']['files'];
+    $previous = GraphIndexer::index($root, [])->files;
     rename($root . '/src/UserService.php', $root . '/src/AccountService.php');
     unlink($root . '/src/BaseRepository.php');
     file_put_contents($root . '/src/Broken.php', "<?php\n\nnamespace App;\n\nfinal class Fixed\n{\n}\n");
 
     $result = GraphIndexer::index($root, $previous);
 
-    expect($result['summary'])->toBe(['files' => 7, 'parsed' => 2, 'reused' => 5, 'removed' => 2, 'errors' => []]);
-    expect($result['graph']['files'])->not->toHaveKeys(['src/UserService.php', 'src/BaseRepository.php']);
-    expect($result['graph']['files']['src/AccountService.php']['nodes'][1]['id'])->toBe('App\UserService');
-    expect($result['graph']['files']['src/UserRepository.php'])->toBe($previous['src/UserRepository.php']);
+    expect($result->summary)->toEqual(new GraphSummary(files: 7, parsed: 2, reused: 5, removed: 2, errors: []));
+    expect($result->files)->not->toHaveKeys(['src/UserService.php', 'src/BaseRepository.php']);
+    expect($result->files['src/AccountService.php']->nodes[1]->id)->toBe('App\UserService');
+    expect($result->files['src/UserRepository.php'])->toBe($previous['src/UserRepository.php']);
 
     installerRemoveDirectory($root);
 });
@@ -58,7 +60,7 @@ test('a project without a composer autoload indexes only its config directory', 
     $root = GraphFixture::project();
     unlink($root . '/composer.json');
 
-    expect(array_keys(GraphIndexer::index($root, [])['graph']['files']))->toBe(['config/app.php']);
+    expect(array_keys(GraphIndexer::index($root, [])->files))->toBe(['config/app.php']);
 
     installerRemoveDirectory($root);
 });
@@ -66,7 +68,7 @@ test('a project without a composer autoload indexes only its config directory', 
 test('a Laravel project also indexes its route files and its migrations', function (): void {
     $root = GraphFixture::project('graph-laravel');
 
-    $files = GraphIndexer::index($root, [])['graph']['files'];
+    $files = GraphIndexer::index($root, [])->files;
 
     expect(array_keys($files))->toContain(
         'routes/web.php',

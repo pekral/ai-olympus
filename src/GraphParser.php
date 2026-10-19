@@ -7,11 +7,6 @@ namespace Pekral\AiOlympus;
 use CompileError;
 use PhpToken;
 
-/**
- * @phpstan-type GraphNode array{id: string, kind: string, line: int}
- * @phpstan-type GraphEdge array{from: string, type: string, to: string, line: int}
- * @phpstan-type GraphRecord array{hash: string, error?: string, nodes: list<array{id: string, kind: string, line: int}>, edges: list<array{from: string, type: string, to: string, line: int}>}
- */
 final class GraphParser
 {
 
@@ -38,12 +33,12 @@ final class GraphParser
     private ?string $method = null;
 
     /**
-     * @var list<GraphNode>
+     * @var list<\Pekral\AiOlympus\GraphNode>
      */
     private array $nodes = [];
 
     /**
-     * @var array<string, GraphEdge>
+     * @var array<string, \Pekral\AiOlympus\GraphEdge>
      */
     private array $edges = [];
 
@@ -55,17 +50,14 @@ final class GraphParser
         $this->names = new GraphNameResolver();
     }
 
-    /**
-     * @return GraphRecord
-     */
-    public static function parse(string $path, string $code): array
+    public static function parse(string $path, string $code): GraphRecord
     {
         $hash = self::hash($code);
 
         try {
             $tokens = PhpToken::tokenize($code, TOKEN_PARSE);
         } catch (CompileError $error) {
-            return ['hash' => $hash, 'error' => sprintf('%s on line %d', $error->getMessage(), $error->getLine()), 'nodes' => [], 'edges' => []];
+            return new GraphRecord($hash, [], [], sprintf('%s on line %d', $error->getMessage(), $error->getLine()));
         }
 
         $kind = preg_match('~(^|/)tests/|Test\.php$~', $path) === 1 ? 'test' : self::laravelFileKind($path);
@@ -78,7 +70,7 @@ final class GraphParser
 
         $parser->walk();
 
-        return ['hash' => $hash, 'nodes' => $parser->nodes, 'edges' => array_values($parser->edges)];
+        return new GraphRecord($hash, $parser->nodes, array_values($parser->edges));
     }
 
     public static function hash(string $code): string
@@ -358,12 +350,12 @@ final class GraphParser
 
     private function addNode(string $id, string $kind, int $line): void
     {
-        $this->nodes[] = ['id' => $id, 'kind' => $kind, 'line' => $line];
+        $this->nodes[] = new GraphNode($id, $kind, $line);
     }
 
     private function addEdge(string $from, string $type, string $to, int $line): void
     {
-        $this->edges[$from . '|' . $type . '|' . $to] ??= ['from' => $from, 'type' => $type, 'to' => $to, 'line' => $line];
+        $this->edges[$from . '|' . $type . '|' . $to] ??= new GraphEdge($from, $type, $to, $line);
     }
 
 }

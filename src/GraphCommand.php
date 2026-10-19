@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Pekral\AiOlympus;
 
 /**
- * @phpstan-import-type GraphRecord from \Pekral\AiOlympus\GraphParser
+ * @phpstan-import-type RecordData from \Pekral\AiOlympus\GraphRecord
  */
 final class GraphCommand
 {
@@ -45,14 +45,17 @@ final class GraphCommand
         InstallerPath::ensureDirectory(dirname($path));
 
         set_error_handler(static fn (): bool => true);
-        $written = file_put_contents($path, json_encode($result['graph'], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL);
+        $written = file_put_contents(
+            $path,
+            json_encode(['version' => GraphIndexer::VERSION, 'files' => $result->files], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL,
+        );
         restore_error_handler();
 
         if ($written === false) {
             throw InstallerFailure::graphWriteFailed($path);
         }
 
-        echo json_encode(['graph' => self::RELATIVE_PATH] + $result['summary'], self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode(['graph' => self::RELATIVE_PATH] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }
@@ -80,16 +83,16 @@ final class GraphCommand
         }
 
         $current = GraphIndexer::index($root, $files);
-        $changed = $current['summary']['parsed'] + $current['summary']['removed'];
-        $graph = ['state' => $changed === 0 ? 'fresh' : 'refreshed', 'files' => $current['summary']['files'], 'changed' => $changed];
+        $changed = $current->summary->parsed + $current->summary->removed;
+        $graph = ['state' => $changed === 0 ? 'fresh' : 'refreshed', 'files' => $current->summary->files, 'changed' => $changed];
 
-        echo json_encode([...GraphQuery::slice($current['graph']['files'], $entity, $limit), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode([...GraphQuery::slice($current->files, $entity, $limit)->jsonSerialize(), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }
 
     /**
-     * @return array<string, GraphRecord>|null
+     * @return array<string, \Pekral\AiOlympus\GraphRecord>|null
      */
     private static function read(string $path): ?array
     {
@@ -103,10 +106,10 @@ final class GraphCommand
             return null;
         }
 
-        /** @var array<string, GraphRecord> $files */
+        /** @var array<string, RecordData> $files */
         $files = $graph['files'];
 
-        return $files;
+        return array_map(GraphRecord::fromArray(...), $files);
     }
 
 }
