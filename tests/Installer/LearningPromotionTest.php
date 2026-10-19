@@ -60,6 +60,8 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         ->toContain('check \'a rejected candidate records its reason\'')
         ->toContain('check \'a rejected candidate is not regenerated from the same evidence\'')
         ->toContain('check \'new evidence regenerates a rejected candidate\'')
+        ->toContain('check \'a proposal closed as not planned keeps the key suppressed while it stays closed\'')
+        ->toContain('check \'a reopened proposal lets new evidence bring the candidate back\'')
         ->toContain('check \'a promoted candidate that a broader one covers is marked superseded, not deleted\'')
         // Thresholds.
         ->toContain('check \'two occurrences with a threshold of three produce no candidate\'')
@@ -209,6 +211,7 @@ test('the contract is written once and names the states, the facts, the history,
             . 'or to the first text of the key when no label approved it yet. '
             . 'An approval by the user\'s instruction and a rejection do not move that point',
         )
+        ->toContain('- **A proposal closed as not planned keeps the key suppressed until a human reopens the proposal issue.**')
         ->toContain('- **Named runs record the decisions.**')
         ->toContain('The test reads the pull request, not one of its commits, so a merge commit, a squash, and a rebase merge count alike.')
         ->toContain('- **The history is never read from a branch.**')

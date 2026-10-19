@@ -821,6 +821,16 @@ EOF
   run 'new evidence of a rejected candidate is proposed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/again.md"
   check 'new evidence regenerates a rejected candidate' "$(jq -e '.status == "ready" and .state == "candidate" and (.evidence | length) == 4' "$tmp/out" >/dev/null && echo 0 || echo 1)"
 
+  # A proposal closed as not planned keeps the key suppressed until a human reopens the proposal issue.
+  run 'new evidence of a key whose proposal stays closed as not planned is rejected again' 0 decide --dir "$D" --key "$K3" --decision reject --fact tracker --issue-url https://github.com/acme/shop/issues/50 --reason 'closed as not planned'
+  check 'a proposal closed as not planned keeps the key suppressed while it stays closed' "$([[ "$(field '.patterns[] | select(.key == "'"$K3"'") | .state')" == rejected ]] && echo 0 || echo 1)"
+  { cat "$proj/$D/merged.jsonl"; rec stale-cache 29 2026-09-23T12:00:00Z; } >"$tmp/m4.jsonl"
+  mv "$tmp/m4.jsonl" "$proj/$D/merged.jsonl"
+  run 'new evidence after the proposal is reopened is proposed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/again.md"
+  issue 50 OPEN '' '[]' "$tmp/reject.md"
+  run 'a reopened proposal is not a rejection' 4 decide --dir "$D" --key "$K3" --decision reject --fact tracker --issue-url https://github.com/acme/shop/issues/50 --reason 'closed as not planned'
+  check 'a reopened proposal lets new evidence bring the candidate back' "$([[ "$(field '.patterns[] | select(.key == "'"$K3"'") | .state')" == candidate ]] && echo 0 || echo 1)"
+
   # An approval by the instruction says nothing about the label: a label on the issue still binds the first text.
   local K4='acme/shop:rules/php/concurrency:lost-update'
   { cat "$proj/$D/merged.jsonl"; rec lost-update 31 2026-09-24T10:00:00Z; rec lost-update 33 2026-09-25T10:00:00Z; rec lost-update 35 2026-09-26T10:00:00Z; } >"$tmp/m5.jsonl"
