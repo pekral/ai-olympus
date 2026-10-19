@@ -114,6 +114,12 @@ test('the retriever asks the graph before any other read and searches only for w
         )
         ->and(substr_count($metalhead, 'graph query \'<symbol or path>\''))->toBe(1)
         ->and(substr_count($metalhead, '^[A-Za-z0-9_\\\\:./{}-]+$'))->toBe(1)
+        ->and($metalhead)->toContain(
+            '`git log --oneline -- <path>` for each task path that fully matches the allow-list of step 2 '
+            . '(any other path is skipped for this step, because it is tracker-derived and sits in a shell command)',
+        )
+        ->and(substr_count($metalhead, 'git log --oneline -- <path>'))->toBe(1)
+        ->and(substr_count($metalhead, 'the allow-list of step 2'))->toBe(1)
         ->and($metalhead)->toContain('so a stale graph never returns a stale path')
         ->and($metalhead)->toContain('A missing graph exits non-zero and leaves an empty file. That is a fallback, not a failure')
         ->and($metalhead)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')
