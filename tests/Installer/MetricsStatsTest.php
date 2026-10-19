@@ -154,6 +154,69 @@ test('the report degrades rather than failing on absent or malformed fields', fu
     expect($report)->toContain('Review zero-findings  no reviewed runs recorded');
 });
 
+test('the report sums every context and graph counter the recorder writes (issue #195)', function (string $expectedLine): void {
+    $counters = [
+        'context_gate_executed' => 3,
+        'context_requested' => 2,
+        'context_skipped' => 1,
+        'sources_searched' => 4,
+        'items_returned' => 5,
+        'estimated_tokens_returned' => 548,
+        'items_inspected' => 6,
+        'context_cache_hits' => 1,
+        'context_cache_misses' => 2,
+        'retrieval_seconds' => 23,
+        'graph_hits' => 1,
+        'graph_misses' => 2,
+        'items_from_graph' => 3,
+        'items_from_search' => 4,
+        'files_avoided' => 7,
+    ];
+    $entries = [
+        array_merge(metricsEntry('STANDARD', 'STANDARD'), $counters),
+        array_merge(metricsEntry('CRITICAL', 'CRITICAL'), $counters),
+    ];
+
+    $report = MetricsReport::render($entries, 'all time');
+
+    expect($report)->toContain($expectedLine . PHP_EOL);
+})->with([
+    'context cache hits' => ['Context cache hits    2'],
+    'context cache misses' => ['Context cache misses  4'],
+    'context gate runs' => ['Context gate runs     6'],
+    'context requested' => ['Context requested     4'],
+    'context skipped' => ['Context skipped       2'],
+    'estimated tokens returned' => ['Est. tokens returned  1096'],
+    'files avoided' => ['Files avoided         14'],
+    'graph hits' => ['Graph hits            2'],
+    'graph misses' => ['Graph misses          4'],
+    'items from graph' => ['Items from graph      6'],
+    'items from search' => ['Items from search     8'],
+    'items inspected' => ['Items inspected       12'],
+    'items returned' => ['Items returned        10'],
+    'retrieval seconds' => ['Retrieval seconds     46'],
+    'sources searched' => ['Sources searched      8'],
+]);
+
+test('the report says a counter was not recorded instead of printing zero for older entries (issue #195)', function (): void {
+    $older = metricsEntry('FAST', 'FAST');
+    $malformed = metricsEntry('FAST', 'FAST');
+    $malformed['graph_hits'] = 'many';
+    $newer = metricsEntry('STANDARD', 'STANDARD');
+    $newer['graph_hits'] = 0;
+    $newer['context_gate_executed'] = 2;
+
+    $olderOnly = MetricsReport::render([$older, $malformed], 'all time');
+    $mixed = MetricsReport::render([$older, $malformed, $newer], 'all time');
+
+    expect($olderOnly)->toContain('Context gate runs     not recorded' . PHP_EOL)
+        ->and($olderOnly)->toContain('Graph hits            not recorded' . PHP_EOL)
+        ->and($olderOnly)->toContain('Files avoided         not recorded' . PHP_EOL)
+        ->and($mixed)->toContain('Context gate runs     2' . PHP_EOL)
+        ->and($mixed)->toContain('Graph hits            0' . PHP_EOL)
+        ->and($mixed)->toContain('Retrieval seconds     not recorded' . PHP_EOL);
+});
+
 test('an empty store reports the window rather than an empty table', function (): void {
     expect(MetricsReport::render([], 'the last 7 day(s)'))->toBe('No runs recorded for the last 7 day(s).' . PHP_EOL);
 });
