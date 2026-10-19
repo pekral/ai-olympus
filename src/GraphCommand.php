@@ -27,11 +27,13 @@ final class GraphCommand
             return self::build($root, $path);
         }
 
-        if ($action === 'query' && isset($argv[3])) {
-            return self::query($path, $argv[3]);
+        $limit = self::limit($argv);
+
+        if ($action === 'query' && isset($argv[3]) && $limit !== false) {
+            return self::query($root, $path, $argv[3], $limit);
         }
 
-        fwrite(STDERR, 'Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol>' . PHP_EOL);
+        fwrite(STDERR, 'Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol> [--limit <n>]' . PHP_EOL);
 
         return 1;
     }
@@ -55,7 +57,19 @@ final class GraphCommand
         return 0;
     }
 
-    private static function query(string $path, string $entity): int
+    /**
+     * @param array<int, string> $argv
+     */
+    private static function limit(array $argv): null|int|false
+    {
+        if (!isset($argv[4])) {
+            return null;
+        }
+
+        return $argv[4] === '--limit' && preg_match('/^[1-9][0-9]{0,8}$/', $argv[5] ?? '') === 1 ? (int) $argv[5] : false;
+    }
+
+    private static function query(string $root, string $path, string $entity, ?int $limit): int
     {
         $files = self::read($path);
 
@@ -65,7 +79,11 @@ final class GraphCommand
             return 1;
         }
 
-        echo json_encode(GraphQuery::slice($files, $entity), self::JSON_FLAGS) . PHP_EOL;
+        $current = GraphIndexer::index($root, $files);
+        $changed = $current['summary']['parsed'] + $current['summary']['removed'];
+        $graph = ['state' => $changed === 0 ? 'fresh' : 'refreshed', 'files' => $current['summary']['files'], 'changed' => $changed];
+
+        echo json_encode([...GraphQuery::slice($current['graph']['files'], $entity, $limit), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }

@@ -12,7 +12,7 @@
 #
 # Subcommands
 #   pack    --request <file> --candidates <file> --output <file>
-#           [--cache-dir <dir>] [--started-at <epoch seconds>]
+#           [--cache-dir <dir>] [--started-at <epoch seconds>] [--graph-slice <file>]...
 #   lookup  --request <file> --cache-dir <dir> --output <file>
 #           [--started-at <epoch seconds>]
 #   --self-test
@@ -48,6 +48,28 @@
 #   `key` is optional: the retriever sets one shared key on items that state the
 #   same fact in different words. Without it, the normalised text is the key.
 #
+# Graph slices (written by `ai-olympus graph query <symbol> --limit <n>`, one per symbol)
+#   The retriever asks the graph first and passes each slice with --graph-slice.
+#   The script builds the graph items itself, so a candidates file never carries
+#   one and a candidate can never claim the `graph` source. Each file the slice
+#   relates to becomes one related_code or related_tests item whose source is
+#   { type: "graph", id: <the graph entity it came from> } and whose
+#   graph distance (0 the entity's own file, 1 a direct neighbour) joins the
+#   score. A search candidate for the same file merges with it, so the item's
+#   `sources` shows both paths that found it. The slice limit is the gate's
+#   budget.max_items, so the slice is cut by the same budget as the package.
+#   --graph-slice is absent when the graph step did not run: the package then
+#   carries no `graph` metadata and equals one built before the graph existed.
+#   A slice that is absent, empty, or not a slice marks the graph `missing`; a
+#   graph location that is not git-ignored and untracked marks it `refused`;
+#   either way only the search candidates contribute. The slice states whether
+#   the graph was `fresh` or `refreshed` against the files on disk.
+#   metadata.graph carries state, entities (matched in the graph),
+#   items_from_graph (returned items a graph slice named),
+#   items_from_search (returned items only search found), and files_avoided
+#   (the graph's indexed files minus the distinct files its returned items
+#   name: the files the retriever did not need to open).
+#
 # Ranking (score, highest first; ties break on group order, then text)
 #   4 x symbol match      share of the task symbols the item names
 #   3 x domain match      share of the task and gate domains the item carries
@@ -55,7 +77,7 @@
 #   1 x recency           1 / (1 + age_days / 30); 0 without age_days
 #   2 x confidence        the item's confidence; 0.5 without one
 #   + 0.5 per extra reference after duplicates merge
-#   Graph distance joins the score once the repository graph (#134) is a source.
+#   2 x graph proximity   1 / (1 + graph distance); 0 for an item with no graph distance
 #
 # Deduplication
 #   Items with the same key merge into one item. The highest-scored member
@@ -80,8 +102,10 @@
 # Output
 #   pack and lookup write the package to --output and print one summary line on
 #   stdout: status, cache, sources_queried, items_inspected, items_returned,
-#   estimated_tokens, retrieval_seconds. Every summary field is a count or a
-#   fixed word, so it can go to record-metrics.sh as it is.
+#   estimated_tokens, retrieval_seconds. When the graph step ran it adds
+#   graph (hit or miss), graph_state, items_from_graph, items_from_search, and
+#   files_avoided. Every summary field is a count or a fixed word, so it can go
+#   to record-metrics.sh as it is.
 #
 # Exit codes
 #   0  package written (pack), or cache hit written (lookup)
@@ -98,7 +122,7 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: pack-context.sh pack   --request <file> --candidates <file> --output <file>
-                              [--cache-dir <dir>] [--started-at <epoch>]
+                              [--cache-dir <dir>] [--started-at <epoch>] [--graph-slice <file>]...
        pack-context.sh lookup --request <file> --cache-dir <dir> --output <file>
                               [--started-at <epoch>]
        pack-context.sh --self-test
@@ -141,6 +165,24 @@ CANDIDATES_FILTER='
     and ((.key // "") | type == "string" and length <= 200)))
 '
 
+# The graph location `ai-olympus graph build` writes (src/GraphCommand.php RELATIVE_PATH).
+GRAPH_PATH='.claude/run/graph.json'
+
+# One graph slice, as `ai-olympus graph query` prints it.
+# shellcheck disable=SC2016
+GRAPH_SLICE_FILTER='
+  type == "object"
+  and (.entities | type == "array")
+  and (.related | type == "array")
+  and (.graph.state == "fresh" or .graph.state == "refreshed")
+  and (.graph.files | type == "number" and . >= 0 and . == floor)
+  and all(.related[];
+    (.file | type == "string" and length > 0 and length <= 500)
+    and (.entity | type == "string" and length > 0)
+    and (.role == "code" or .role == "test")
+    and (.distance | type == "number" and . >= 0))
+'
+
 # Ranking, deduplication, grouping, and the budget cut.
 # shellcheck disable=SC2016
 PACK_FILTER='
@@ -159,21 +201,42 @@ PACK_FILTER='
           | common($a; $b) / ([($a | length), ($b | length), 1] | max)) end ] | max end;
   def tokens: (tojson | length + 3) / 4 | floor;
   def round3: . * 1000 | round / 1000;
+  def graph_usable: $graph[0] != null and ($graph[0].state == "fresh" or $graph[0].state == "refreshed");
+  def from_graph: any(.sources[]; .type == "graph");
+  def graph_items: if graph_usable then
+      [ $graph[0].slices[].related[]
+        | { kind: (if .role == "test" then "related_tests" else "related_code" end),
+            text: .file,
+            source: { type: "graph", id: (.entity | .[:200]) },
+            paths: [.file],
+            symbols: [.entity | split("::")[0] | split("\\")[-1] | select(test("^[A-Za-z0-9_]+$"))],
+            graph_distance: .distance } ]
+    else [] end;
+  def graph_meta($items): if $graph[0] == null then null else
+      { state: $graph[0].state,
+        entities: ([$graph[0].slices[].entities | length] | add // 0),
+        items_from_graph: ([$items[] | select(from_graph)] | length),
+        items_from_search: ([$items[] | select(from_graph | not)] | length),
+        files_avoided: (if graph_usable
+          then ([([$graph[0].slices[].graph.files] | max) - ([$items[] | select(from_graph) | .text] | unique | length), 0] | max)
+          else 0 end) } end;
 
   ($req.task.symbols // [] | lower) as $syms
   | (($req.gate.domains // []) + ($req.task.domains // []) | lower) as $doms
   | ($req.task.paths // []) as $tpaths
   | $req.gate.budget as $budget
-  | (.queried | unique) as $queried
-  | (.items | length) as $inspected
+  | (.queried + (if graph_usable then ["graph"] else [] end) | unique) as $queried
+  | (.items + graph_items) as $candidates
+  | ($candidates | length) as $inspected
 
-  | [ .items[]
+  | [ $candidates[]
       | . + { score: (
             4 * share($syms; (.symbols // [] | lower))
           + 3 * share($doms; (.domains // [] | lower))
           + 2 * proximity($tpaths)
           + (if .age_days == null then 0 else 1 / (1 + .age_days / 30) end)
-          + 2 * (.confidence // 0.5)),
+          + 2 * (.confidence // 0.5)
+          + 2 * (if .graph_distance == null then 0 else 1 / (1 + .graph_distance) end)),
           class: (if (.kind | statement) then "statement" else .kind end),
           dedup: (if (.key // "") != "" then .key
             else (.text | ascii_downcase | gsub("\\s+"; " ") | gsub("^ +| +$"; "") | gsub("[.!;:,]+$"; "")) end) } ]
@@ -209,6 +272,8 @@ PACK_FILTER='
           cache: $cache,
           cache_key: (if $key == "" then null else $key end),
           retrieval_seconds: (if $seconds == "" then null else ($seconds | tonumber) end) } }
+      | (graph_meta($items)) as $graph_meta
+      | if $graph_meta == null then . else .metadata.graph = $graph_meta end
       | .metadata.estimated_tokens = tokens
       | .metadata.estimated_tokens = tokens
       | .metadata.estimated_tokens = tokens;
@@ -245,19 +310,53 @@ summary() {
     items_returned: .metadata.items_returned,
     estimated_tokens: .metadata.estimated_tokens,
     retrieval_seconds: .metadata.retrieval_seconds
-  }'
+  } + (.metadata.graph // null | if . == null then {} else {
+    graph: (if .entities > 0 then "hit" else "miss" end),
+    graph_state: .state,
+    items_from_graph: .items_from_graph,
+    items_from_search: .items_from_search,
+    files_avoided: .files_avoided
+  } end)'
+}
+
+# graph_input <slice>... — the graph JSON the filter reads: `null` when no slice
+# was named, else { state, slices }. A graph location that is not safe to read
+# is `refused`, and no usable slice is `missing`; both leave the search
+# candidates as the only source.
+graph_input() {
+  local slice valid=()
+  if [[ $# -eq 0 ]]; then
+    printf 'null'
+    return 0
+  fi
+  if ! gate_scratch_path graph "$GRAPH_PATH" "$GRAPH_PATH"; then
+    echo "$PROG: graph ignored: $GATE_REASON" >&2
+    printf '{"state":"refused","slices":[]}'
+    return 0
+  fi
+  for slice in "$@"; do
+    if [[ -s "$slice" ]] && jq -e -s 'length == 1 and (.[0] | ('"$GRAPH_SLICE_FILTER"'))' "$slice" >/dev/null 2>&1; then
+      valid+=("$slice")
+    fi
+  done
+  if [[ ${#valid[@]} -eq 0 ]]; then
+    printf '{"state":"missing","slices":[]}'
+    return 0
+  fi
+  jq -cs '{state: (if any(.[]; .graph.state == "refreshed") then "refreshed" else "fresh" end), slices: .}' "${valid[@]}"
 }
 
 run() {
   local mode="$1"
   shift
-  local request="" candidates="" output="" cache_dir="" started_at=""
+  local request="" candidates="" output="" cache_dir="" started_at="" graph_slices=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --request | --candidates | --output | --cache-dir | --started-at)
+    --request | --candidates | --output | --cache-dir | --started-at | --graph-slice)
       [[ $# -ge 2 ]] || { usage; return 1; }
       case "$1" in
+      --graph-slice) graph_slices+=("$2") ;;
       --request) request="$2" ;;
       --candidates) candidates="$2" ;;
       --output) output="$2" ;;
@@ -275,7 +374,7 @@ run() {
   done
 
   if [[ -z "$request" || -z "$output" ]] || { [[ "$mode" == pack ]] && [[ -z "$candidates" ]]; } \
-    || { [[ "$mode" == lookup ]] && [[ -z "$cache_dir" ]]; }; then
+    || { [[ "$mode" == lookup ]] && { [[ -z "$cache_dir" ]] || [[ ${#graph_slices[@]} -gt 0 ]]; }; }; then
     usage
     return 1
   fi
@@ -342,7 +441,13 @@ run() {
     return 1
   fi
 
-  if ! package="$(jq -c --slurpfile req "$request" --arg cache "$cache" --arg key "$key" --arg seconds "$seconds" \
+  local slice
+  for slice in ${graph_slices[@]+"${graph_slices[@]}"}; do
+    scratch_path_ok --graph-slice "$slice" "$slice" || return 1
+  done
+
+  if ! package="$(jq -c --slurpfile req "$request" --slurpfile graph <(graph_input ${graph_slices[@]+"${graph_slices[@]}"}) \
+    --arg cache "$cache" --arg key "$key" --arg seconds "$seconds" \
     '$req[0] as $req | '"$PACK_FILTER" "$candidates")"; then
     echo "$PROG: the package could not be built" >&2
     return 1
@@ -374,7 +479,7 @@ self_test() {
   (
     cd "$repo"
     git init -q
-    printf '/scratch/\n' >.gitignore
+    printf '/scratch/\n/.claude/run/\n' >.gitignore
     printf 'x\n' >app/Order.php
     git add .gitignore app/Order.php
     git -c user.name=t -c user.email=t@t commit -q -m init
@@ -488,6 +593,114 @@ EOF
   in_repo pack --request scratch/tight.json --candidates scratch/many.json --output scratch/tight-out.json >/dev/null
   expect_jq 'the token budget caps the package when the item budget does not' "$repo/scratch/tight-out.json" \
     '.metadata.items_returned < 12 and .metadata.estimated_tokens <= 300 and (tojson | length + 3) / 4 <= 300'
+
+
+  # Regression: a package built with no graph slice is the package built before the graph existed.
+  if [[ "$(cat "$repo/scratch/rank-out.json")" == '{"version":1,"context":{"rules":[],"architecture":[],"learnings":[{"text":"Invoice jobs need idempotency checks.","sources":[{"type":"learnings","id":"m2"}],"score":7.3},{"text":"Unrelated note about mail templates.","sources":[{"type":"learnings","id":"m1"}],"score":1.8}],"memory":[],"related_code":[],"related_tests":[],"risks":[],"suggested_skills":[]},"metadata":{"classifier":"deterministic","confidence":0.9,"estimated_tokens":182,"estimator":"ceil(characters / 4) of the compact package JSON","budget":{"max_items":5,"max_tokens":1500},"sources_queried":["learnings"],"items_inspected":2,"items_merged":0,"items_returned":2,"items_dropped":0,"truncated":false,"cache":"off","cache_key":null,"retrieval_seconds":null}}' ]]; then
+    pass 'a package built without a graph slice is unchanged and has no graph metadata'
+  else
+    fail 'a package built without a graph slice is unchanged and has no graph metadata' "$(cat "$repo/scratch/rank-out.json")"
+  fi
+
+  # Graph: the slice feeds related code and tests, ranked by distance, with provenance naming the entity.
+  cat >"$repo/scratch/slice.json" <<'EOF'
+{"query":"App\\Actions\\CreateInvoiceAction","entities":[{"id":"App\\Actions\\CreateInvoiceAction","kind":"class","line":10,"file":"app/Actions/CreateInvoiceAction.php"}],"outgoing":[],"incoming":[],"files":[],
+ "related":[
+  {"file":"app/Actions/CreateInvoiceAction.php","entity":"App\\Actions\\CreateInvoiceAction","role":"code","distance":0},
+  {"file":"app/Http/Controllers/InvoiceController.php","entity":"App\\Http\\Controllers\\InvoiceController::store","role":"code","distance":1},
+  {"file":"app/Jobs/InvoiceJob.php","entity":"App\\Jobs\\InvoiceJob","role":"code","distance":1},
+  {"file":"app/Models/Invoice.php","entity":"App\\Models\\Invoice","role":"code","distance":1},
+  {"file":"tests/Feature/CreateInvoiceTest.php","entity":"file:tests/Feature/CreateInvoiceTest.php","role":"test","distance":1}],
+ "graph":{"state":"fresh","files":40,"changed":0}}
+EOF
+  printf '{"gate":%s,"task":{"type":"bug","symbols":["CreateInvoiceAction"],"paths":["app/Actions/CreateInvoiceAction.php"]}}\n' \
+    "$(printf '%s' "$gate" | jq -c '.budget = {max_items: 20, max_tokens: 4000}')" >"$repo/scratch/graph-request.json"
+  printf '{"queried":["repository"],"items":[]}\n' >"$repo/scratch/none.json"
+  local out
+  out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/none.json --graph-slice scratch/slice.json \
+    --output scratch/graph-only.json)"
+  expect_jq 'graph items carry provenance naming the graph entity' "$repo/scratch/graph-only.json" \
+    '[.context.related_code[] | {text, sources}] | map(select(.text == "app/Models/Invoice.php")) == [{"text":"app/Models/Invoice.php","sources":[{"type":"graph","id":"App\\Models\\Invoice"}]}]'
+  expect_jq 'the graph routes the test file to related tests and the other files to related code' "$repo/scratch/graph-only.json" \
+    '[.context.related_tests[].text] == ["tests/Feature/CreateInvoiceTest.php"]
+     and [.context.related_code[].text] == ["app/Actions/CreateInvoiceAction.php","app/Jobs/InvoiceJob.php","app/Models/Invoice.php","app/Http/Controllers/InvoiceController.php"]'
+  jq -c '.related = [
+      {"file":"app/Jobs/FarJob.php","entity":"App\\Jobs\\FarJob","role":"code","distance":1},
+      {"file":"app/Jobs/NearJob.php","entity":"App\\Jobs\\NearJob","role":"code","distance":0}]' \
+    "$repo/scratch/slice.json" >"$repo/scratch/distance-slice.json"
+  in_repo pack --request scratch/graph-request.json --candidates scratch/none.json --graph-slice scratch/distance-slice.json \
+    --output scratch/graph-distance.json >/dev/null
+  expect_jq 'graph distance alone ranks the closer file above the farther one' "$repo/scratch/graph-distance.json" \
+    '[.context.related_code[] | {text, score}] == [{"text":"app/Jobs/NearJob.php","score":4},{"text":"app/Jobs/FarJob.php","score":3}]'
+  expect_jq 'the graph slice reports how many files the retriever did not need to open' "$repo/scratch/graph-only.json" \
+    '.metadata.graph == {"state":"fresh","entities":1,"items_from_graph":5,"items_from_search":0,"files_avoided":35}
+     and (.metadata.sources_queried | index("graph")) != null and .metadata.items_inspected == 5'
+  if printf '%s' "$out" | jq -e '.graph == "hit" and .graph_state == "fresh" and .items_from_graph == 5
+      and .items_from_search == 0 and .files_avoided == 35' >/dev/null 2>&1; then
+    pass 'the summary carries the graph telemetry as counts and fixed words'
+  else
+    fail 'the summary carries the graph telemetry as counts and fixed words' "$out"
+  fi
+
+  # A file the graph and the search both found keeps both paths; search-only items stay search-only.
+  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+    --output scratch/graph-mixed.json >/dev/null
+  expect_jq 'a file found by the graph and by search names both paths in its sources' "$repo/scratch/graph-mixed.json" \
+    '[.context.related_code[] | select(.text == "app/Actions/CreateInvoiceAction.php") | .sources[].type] == ["graph","repository"]'
+  expect_jq 'graph and search items are counted apart in the package metadata' "$repo/scratch/graph-mixed.json" \
+    '.metadata.graph == {"state":"fresh","entities":1,"items_from_graph":5,"items_from_search":3,"files_avoided":35}
+     and .metadata.items_inspected == 10 and .metadata.items_merged == 2'
+
+  # No graph, or a graph that cannot be trusted: only the search candidates contribute, and the package says so.
+  : >"$repo/scratch/empty-slice.json"
+  out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/empty-slice.json \
+    --output scratch/graph-missing.json)"
+  expect_jq 'a missing graph degrades to the search candidates and says so in the metadata' "$repo/scratch/graph-missing.json" \
+    '.metadata.graph == {"state":"missing","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":0}
+     and (.metadata.sources_queried | index("graph")) == null
+     and ([.context[][] | .sources[] | select(.type == "graph")] | length) == 0'
+  if printf '%s' "$out" | jq -e '.graph == "miss" and .graph_state == "missing"' >/dev/null 2>&1; then
+    pass 'the summary reports a missing graph as a miss'
+  else
+    fail 'the summary reports a missing graph as a miss' "$out"
+  fi
+  jq -c '.related[0].role = "other"' "$repo/scratch/slice.json" >"$repo/scratch/bad-slice.json"
+  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/bad-slice.json \
+    --output scratch/graph-bad.json >/dev/null
+  expect_jq 'a slice that is not a valid slice is treated as a missing graph' "$repo/scratch/graph-bad.json" \
+    '.metadata.graph.state == "missing" and .metadata.graph.items_from_graph == 0'
+  jq -c '.graph.state = "refreshed"' "$repo/scratch/slice.json" >"$repo/scratch/refreshed-slice.json"
+  in_repo pack --request scratch/graph-request.json --candidates scratch/none.json --graph-slice scratch/refreshed-slice.json \
+    --output scratch/graph-refreshed.json >/dev/null
+  expect_jq 'a graph the repository moved past is reported as refreshed' "$repo/scratch/graph-refreshed.json" \
+    '.metadata.graph.state == "refreshed" and .metadata.graph.items_from_graph == 5'
+  jq -c '.entities = [] | .related = []' "$repo/scratch/slice.json" >"$repo/scratch/no-node-slice.json"
+  out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/no-node-slice.json \
+    --output scratch/graph-no-node.json)"
+  expect_jq 'a symbol with no graph node leaves the search path as the only source' "$repo/scratch/graph-no-node.json" \
+    '.metadata.graph == {"state":"fresh","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":40}
+     and ([.context[][] | .sources[] | select(.type == "graph")] | length) == 0'
+  if printf '%s' "$out" | jq -e '.graph == "miss" and .graph_state == "fresh"' >/dev/null 2>&1; then
+    pass 'the summary reports a symbol the graph does not know as a miss'
+  else
+    fail 'the summary reports a symbol the graph does not know as a miss' "$out"
+  fi
+
+  # The graph location must be git-ignored, or it is refused and never read.
+  printf '/scratch/\n' >"$repo/.gitignore"
+  out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+    --output scratch/graph-refused.json 2>/dev/null)"
+  (cd "$repo" && git checkout -q -- .gitignore)
+  expect_jq 'a graph location that is not git-ignored is refused and never read' "$repo/scratch/graph-refused.json" \
+    '.metadata.graph == {"state":"refused","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":0}'
+  expect_exit 'a graph slice that is not git-ignored is refused' 1 \
+    pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice slice.json --output scratch/x.json
+  printf '{"queried":["graph"],"items":[{"kind":"related_code","text":"app/Models/Invoice.php","source":{"type":"graph","id":"App\\\\Models\\\\Invoice"}}]}\n' \
+    >"$repo/scratch/forged.json"
+  expect_exit 'a candidate cannot claim the graph source' 1 \
+    pack --request scratch/graph-request.json --candidates scratch/forged.json --output scratch/x.json
+  expect_exit 'a lookup takes no graph slice' 1 \
+    lookup --request scratch/graph-request.json --cache-dir scratch/cache --output scratch/x.json --graph-slice scratch/slice.json
 
   # Refusals: the gate decides what is retrieved.
   printf '%s' "$gate" | jq -c '{gate: (.context_required = false), task: {type: "bug"}}' >"$repo/scratch/skip.json"

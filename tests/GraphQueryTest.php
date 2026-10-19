@@ -92,3 +92,63 @@ test('a relation defined on a trait is attributed to the model that uses the tra
 
     installerRemoveDirectory($root);
 });
+
+test('a task naming one Action gets its callers, model, job, event and test as related files nearest first', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    $slice = GraphQuery::slice($files, 'App\Actions\CreateOrderAction');
+
+    expect($slice['related'])->toBe([
+        ['file' => 'app/Actions/CreateOrderAction.php', 'entity' => 'App\Actions\CreateOrderAction', 'role' => 'code', 'distance' => 0],
+        ['file' => 'app/Events/OrderPlaced.php', 'entity' => 'App\Events\OrderPlaced', 'role' => 'code', 'distance' => 1],
+        [
+            'file' => 'app/Http/Controllers/OrderController.php',
+            'entity' => 'App\Http\Controllers\OrderController::store',
+            'role' => 'code',
+            'distance' => 1,
+        ],
+        ['file' => 'app/Jobs/ProcessOrder.php', 'entity' => 'App\Jobs\ProcessOrder', 'role' => 'code', 'distance' => 1],
+        ['file' => 'app/Models/Order.php', 'entity' => 'App\Models\Order', 'role' => 'code', 'distance' => 1],
+        [
+            'file' => 'tests/Feature/CreateOrderActionTest.php',
+            'entity' => 'file:tests/Feature/CreateOrderActionTest.php',
+            'role' => 'test',
+            'distance' => 1,
+        ],
+    ]);
+    expect($slice)->not->toHaveKey('omitted');
+
+    installerRemoveDirectory($root);
+});
+
+test('a result limit keeps the nearest related files and counts what it left out', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    $slice = GraphQuery::slice($files, 'App\Actions\CreateOrderAction', 3);
+
+    expect(array_column($slice['related'], 'file'))->toBe([
+        'app/Actions/CreateOrderAction.php',
+        'app/Events/OrderPlaced.php',
+        'app/Http/Controllers/OrderController.php',
+    ]);
+    expect(count($slice['outgoing']))->toBe(3);
+    expect(count($slice['incoming']))->toBe(3);
+    expect($slice['files'])->toBe(['app/Http/Controllers/OrderController.php', 'tests/Feature/CreateOrderActionTest.php']);
+    expect($slice['omitted'] ?? null)->toBe(['files' => 0, 'incoming' => 2, 'outgoing' => 3, 'related' => 3]);
+
+    installerRemoveDirectory($root);
+});
+
+test('a symbol with no graph node has no related files', function (): void {
+    $root = GraphFixture::project('graph-laravel');
+    $files = GraphIndexer::index($root, [])['graph']['files'];
+
+    $slice = GraphQuery::slice($files, 'App\Actions\Unknown', 5);
+
+    expect($slice['related'])->toBe([]);
+    expect($slice['omitted'] ?? null)->toBe(['files' => 0, 'incoming' => 0, 'outgoing' => 0, 'related' => 0]);
+
+    installerRemoveDirectory($root);
+});
