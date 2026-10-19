@@ -17,6 +17,27 @@ final class MetricsReport
 
     private const array TIERS = ['FAST', 'STANDARD', 'CRITICAL'];
 
+    private const array CONTEXT_COUNTERS = [
+        'context_cache_hits' => 'Context cache hits',
+        'context_cache_misses' => 'Context cache misses',
+        'context_gate_executed' => 'Context gate runs',
+        'context_requested' => 'Context requested',
+        'context_skipped' => 'Context skipped',
+        'estimated_tokens_returned' => 'Est. tokens returned',
+        'items_inspected' => 'Items inspected',
+        'items_returned' => 'Items returned',
+        'retrieval_seconds' => 'Retrieval seconds',
+        'sources_searched' => 'Sources searched',
+    ];
+
+    private const array GRAPH_COUNTERS = [
+        'files_avoided' => 'Files avoided',
+        'graph_hits' => 'Graph hits',
+        'graph_misses' => 'Graph misses',
+        'items_from_graph' => 'Items from graph',
+        'items_from_search' => 'Items from search',
+    ];
+
     /**
      * @param list<array<string, mixed>> $entries
      */
@@ -40,6 +61,17 @@ final class MetricsReport
         $lines[] = self::renderFastEscalation($entries);
         $lines[] = self::renderZeroFindings($entries);
         $lines[] = self::renderTokens($entries);
+        $lines[] = '';
+
+        foreach (self::CONTEXT_COUNTERS as $key => $label) {
+            $lines[] = self::renderCounter($entries, $key, $label);
+        }
+
+        $lines[] = '';
+
+        foreach (self::GRAPH_COUNTERS as $key => $label) {
+            $lines[] = self::renderCounter($entries, $key, $label);
+        }
 
         return implode(PHP_EOL, array_filter($lines, static fn (string $line): bool => $line !== ' ')) . PHP_EOL;
     }
@@ -65,6 +97,20 @@ final class MetricsReport
         }
 
         return $total;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function renderCounter(array $entries, string $key, string $label): string
+    {
+        $recorded = array_values(array_filter($entries, static fn (array $entry): bool => is_int($entry[$key] ?? null)));
+
+        if ($recorded === []) {
+            return sprintf('%-21s not recorded', $label);
+        }
+
+        return sprintf('%-21s %d', $label, self::sum($recorded, $key));
     }
 
     /**

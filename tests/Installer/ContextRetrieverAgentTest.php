@@ -103,7 +103,10 @@ test('the retriever asks the graph before any other read and searches only for w
     $codex = (string) file_get_contents($packageDir . '/codex/agents/metalhead.toml');
 
     expect($metalhead)->toContain('2. **Ask the graph first, before any other read.**')
-        ->and($metalhead)->toContain('vendor/bin/ai-olympus graph query \'<symbol or path>\' --limit <gate.budget.max_items>')
+        ->and($metalhead)->toContain(
+            'Use `vendor/bin/ai-olympus` as `<binary>` when that file exists, otherwise `bin/ai-olympus`, the binary of the ai-olympus repository itself.',
+        )
+        ->and($metalhead)->toContain('`<binary> graph query \'<symbol or path>\' --limit <gate.budget.max_items>')
         ->and(strpos($metalhead, 'Ask the graph first, before any other read.'))->toBeLessThan(
             (int) strpos($metalhead, 'Query only the sources the gate enabled, smallest read first.'),
         )
@@ -127,8 +130,11 @@ test('the retriever asks the graph before any other read and searches only for w
         ->and($metalhead)->toContain('Never search for a file a slice already names.')
         ->and($metalhead)->toContain('Use `Grep` and `Glob` only for what the graph cannot answer')
         ->and($metalhead)->toContain('--graph-slice <slice> --output <package>')
-        ->and($metalhead)->toContain('When `vendor/bin/ai-olympus` does not exist, skip this step and pass no `--graph-slice`')
-        ->and($metalhead)->toContain('run `vendor/bin/ai-olympus graph query` (it prints one slice to stdout and writes nothing else)')
+        ->and($metalhead)->toContain('When neither `vendor/bin/ai-olympus` nor `bin/ai-olympus` exists, skip this step and pass no `--graph-slice`')
+        ->and($metalhead)->toContain(
+            'run `vendor/bin/ai-olympus graph query`, or `bin/ai-olympus graph query` when only that binary exists '
+            . '(it prints one slice to stdout and writes nothing else)',
+        )
         ->and($codex)->not->toContain('graph query')
         ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
 });
