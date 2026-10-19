@@ -359,7 +359,7 @@ Each completed run appends **counts only** to a local store outside the reposito
 vendor/bin/ai-olympus stats --last=7d
 ```
 
-The summary answers the questions a single run cannot: how often `FAST` runs escalate (the tier is routing real work past the review), how often reviews find nothing (the tier is buying a pass that changes no outcome), and how often the expensive model tier is used. Token counts appear only where the runtime reports them — an absent number rather than an estimated one.
+The summary answers the questions a single run cannot: how often `FAST` runs escalate (the tier is routing real work past the review), how often reviews find nothing (the tier is buying a pass that changes no outcome), and how often the expensive model tier is used. Token counts appear only where the runtime reports them — an absent number rather than an estimated one. The summary also prints one line for each of the ten context counters and the five graph counters that `record-metrics.sh` writes, and `not recorded` for a counter that no run in the window recorded.
 
 ### Querying the repository graph
 
