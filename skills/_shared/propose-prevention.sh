@@ -55,15 +55,12 @@ set -euo pipefail
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The three parts of a defect class, the dedupe key, the marker, and the issue check are written once there.
+# shellcheck source=proposal-identity.sh
+. "$HERE/proposal-identity.sh"
+
 MAX_TEXT=2000
 MAX_BODY=60000
-
-# The three parts of a defect class are written once. The class check, the dedupe key, and the search-result
-# check all read them, so a class that one accepts is a class the others accept.
-REPO_RE='[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
-CATEGORY_RE='[a-z0-9_./-]+'
-CAUSE_RE='[a-z0-9-]+'
-KEY_PATTERN="^${REPO_RE}:${CATEGORY_RE}:${CAUSE_RE}\$"
 
 usage() {
   cat >&2 <<'EOF'
@@ -324,7 +321,7 @@ $rec[0] as $r
      else empty end),
     "## Approval",
     "No agent changes a project safeguard, a rule, or a configuration because of this proposal. A human approves the proposal first, and a separate task implements it.",
-    "<!-- prevention-proposal:key=\($key) -->"
+    proposal_marker($key)
   ] | join("\n\n")
 EOF
 
@@ -332,10 +329,7 @@ JQ_MARKER_FIND=''
 IFS= read -r -d '' JQ_MARKER_FIND <<'EOF' || true
 [ .items[]
   | select((.pull_request // null) == null)
-  | select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR"))
-  | select(.html_url | test("^https://github\\.com/" + $repo_re + "/issues/[0-9]+$"))
-  | select(.html_url | ascii_downcase | startswith("https://github.com/" + ($key_repo | ascii_downcase) + "/issues/"))
-  | select((.body // "") | split("\n") | any(sub("[ \t\r]+$"; "") == $marker)) ]
+  | select({url: .html_url, association: .author_association, body} | proposal_of($key)) ]
 | sort_by(.number)
 | .[0]
 | if . == null then {action: "create"} else {action: "update", number, url: .html_url, state} end
@@ -462,7 +456,7 @@ cmd_propose() {
   fi
 
   jq -r --slurpfile rec "$tmp/rec.json" --slurpfile ana "$tmp/analysis.json" --slurpfile st "$tmp/records.json" \
-    "$JQ_TEXT"$'\n'"$JQ_RENDER" -n >"$tmp/body.md"
+    "$JQ_TEXT"$'\n'"$JQ_PROPOSAL"$'\n'"$JQ_RENDER" -n >"$tmp/body.md"
   if [[ "$(wc -c <"$tmp/body.md" | tr -d '[:space:]')" -gt "$MAX_BODY" ]]; then
     echo "$PROG: the proposal is longer than $MAX_BODY bytes; shorten the analysis" >&2
     exit 4
@@ -499,7 +493,7 @@ cmd_find() {
   jq -e -s 'length == 1 and (.[0] | type == "object" and (.items | type) == "array" and .incomplete_results == false and .total_count == (.items | length))' "$results" >/dev/null 2>&1 \
     || { echo "$PROG: the search result is malformed or incomplete; the existing proposal cannot be ruled out" >&2; exit 3; }
 
-  jq -c -s --arg marker "<!-- prevention-proposal:key=$key -->" --arg repo_re "$REPO_RE" --arg key_repo "${key%%:*}" ".[0] | $JQ_MARKER_FIND" "$results"
+  jq -c -s --arg key "$key" "$JQ_PROPOSAL"$'\n'".[0] | $JQ_MARKER_FIND" "$results"
 }
 
 # The fixtures below are Markdown and JSON that carry backticks and dollar signs; none of it is meant to expand.

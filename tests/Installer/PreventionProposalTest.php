@@ -112,24 +112,29 @@ test('the script reuses the extractor, reads no network, files nothing, and writ
     expect($script)
         ->toContain('"$HERE/extract-findings.sh" --validate "$store"')
         ->toContain('mv -f "$staged" "$out"')
-        ->toContain('"<!-- prevention-proposal:key=$key -->"')
-        ->toContain('KEY_PATTERN="^${REPO_RE}:${CATEGORY_RE}:${CAUSE_RE}\\$"')
-        ->toContain('select(.author_association | IN("OWNER", "MEMBER", "COLLABORATOR"))')
+        ->toContain('. "$HERE/proposal-identity.sh"')
+        ->toContain('select({url: .html_url, association: .author_association, body} | proposal_of($key))')
         ->toContain('select((.pull_request // null) == null)')
         ->toContain('.incomplete_results == false and .total_count == (.items | length)');
 
-    // The title and the marker are read from the body, so each is written once.
+    // The title is read from the body and the marker comes from the shared identity, so each is written once.
     expect(substr_count($script, '| "Prevent the recurring defect class \($r.cause_key)'))->toBe(1);
-    expect(substr_count($script, '"<!-- prevention-proposal:key=\($key) -->"'))->toBe(1);
-    expect(substr_count($script, '--arg marker "<!-- prevention-proposal:key=$key -->"'))->toBe(1);
+    expect(substr_count($script, 'proposal_marker($key)'))->toBe(1);
+    expect($script)->not->toContain('"<!-- prevention-proposal:key=\($key) -->"');
 
-    // The class patterns are written once, and an occurrence is rendered from its validated store record.
-    expect(substr_count($script, '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'))->toBe(1);
-    expect(substr_count($script, '[a-z0-9_./-]+'))->toBe(2);
+    // The class patterns and the issue check are written once, in the shared identity.
+    $identity = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/proposal-identity.sh');
+
+    expect(substr_count($script, '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'))->toBe(0);
+    expect(substr_count($script, '[a-z0-9_./-]+'))->toBe(1);
+    expect($identity)
+        ->toContain('KEY_PATTERN="^${REPO_RE}:${CATEGORY_RE}:${CAUSE_RE}\\$"')
+        ->toContain('def proposal_marker($key): "<!-- prevention-proposal:key=\($key) -->";')
+        ->toContain('(.association | IN("OWNER", "MEMBER", "COLLABORATOR"))')
+        ->toContain('and (.url | type == "string" and test("^https://github\\\\.com/" + proposal_repo_re + "/issues/[0-9]+$"))');
     expect($script)
         ->toContain('($r.occurrences | map($byid[.finding])) as $occ')
-        ->toContain('--arg repo_re "$REPO_RE"')
-        ->toContain('select(.html_url | test("^https://github\\\\.com/" + $repo_re + "/issues/[0-9]+$"))');
+        ->toContain('--arg repo_re "$REPO_RE"');
 
     // One needle per call: a negated toContain with several needles passes when any one of them is absent.
     $forbidden = [

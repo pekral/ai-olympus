@@ -97,8 +97,10 @@ test('the self-test proves every item of the security plan', function (): void {
         ->toContain('check \'a refreshed approved proposal is not approved and awaits re-approval\'')
         ->toContain('run \'the label that approved the earlier text does not approve the changed one\' 4')
         ->toContain(
-            'check \'a label approves the first text since the last decision, so a text refreshed before the run saw the label awaits re-approval\'',
+            'check \'a label approves the first text since the last label approval, so a text refreshed before the run saw the label awaits re-approval\'',
         )
+        ->toContain('check \'a label never approves a text that followed an approval by the instruction\'')
+        ->toContain('run \'a copy of the proposal by an author without write access approves nothing\' 4')
         // Moderate: text stays inert, identity reads schema fields, the target stays inside the knowledge roots.
         ->toContain('check \'a mention, a link, a marker, a bidirectional mark, and a fence in learning text stay inert\'')
         ->toContain('check \'rewording the text of a learning changes neither the candidate id, the dedupe key, the title, nor the suppression key\'')
@@ -109,7 +111,13 @@ test('the self-test proves every item of the security plan', function (): void {
         // Moderate: the approver, the rejection, the suppression, and the promotion.
         ->toContain('check \'the recorded approver comes from the trusted fact, never from a comment\'')
         ->toContain('check \'a comment that asks for rejection leaves the candidate a candidate\'')
-        ->toContain('check \'a candidate whose change is on an unmerged branch stays approved\'');
+        ->toContain('check \'a candidate whose change is on an unmerged branch stays approved\'')
+        ->toContain('run \'an open pull request is not a promotion\' 4')
+        ->toContain('run \'a merge commit that is not on the default branch is not a promotion\' 4')
+        ->toContain('run \'a pull request that closes no proposal of the key is not a promotion\' 4')
+        ->toContain('run \'a pull request that closes a copy of the proposal by an author without write access is not a promotion\' 4')
+        ->toContain('run \'a pull request that does not change the target file is not a promotion\' 4')
+        ->toContain('check \'a pull request merged by rebase whose target change is not in its last commit promotes the candidate\'');
 
     expect(promotionFile('skills/_shared/analyze-recurrence.sh'))
         ->toContain('check \'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern\'')
@@ -146,6 +154,11 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
         expect($production)->not->toContain($needle);
     }
 
+    // The dedupe key and the proposal check come from the shared identity, never from a second copy.
+    expect($production)->not->toContain('KEY_RE=');
+    expect($production)->not->toContain('prevention-proposal:key=');
+    expect($production)->not->toContain('[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+');
+
     // The source holds escapes, never the invisible characters themselves.
     expect(
         preg_match(
@@ -166,6 +179,12 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
             '"$HERE/propose-prevention.sh" --report "$TMP/patterns.json" --store "$dir/merged.jsonl" --analysis "$TMP/effective.json" --out "$out"',
         )
         ->toContain('"$HERE/read-manifest.sh" --default-ref')
+        ->toContain('. "$HERE/proposal-identity.sh"')
+        ->toContain('and ({url, association: .authorAssociation, body} | proposal_of($key))\'')
+        ->toContain('load "$pr" "$TMP/pr.json" \'the pull request\'')
+        ->toContain('.state == "MERGED"\'')
+        ->toContain('[.files[]?.path] | index($p) != null')
+        ->toContain('.closingIssues[]?.url | strings')
         ->toContain('git merge-base --is-ancestor "$full" "$ref"')
         ->toContain('.state == "OPEN" and ((.labels // []) | index("Resolve_by_AI") != null)')
         ->toContain('.state == "CLOSED" and .stateReason == "NOT_PLANNED"');
@@ -185,6 +204,13 @@ test('the contract is written once and names the states, the facts, the history,
         ->toContain('- **The approver comes from the fact.**')
         ->toContain('- **An approval is bound to the exact text.**')
         ->toContain('- **One label approves one text.**')
+        ->toContain(
+            'binds the approval to the first proposal text rendered since the last approval by a label, '
+            . 'or to the first text of the key when no label approved it yet. '
+            . 'An approval by the user\'s instruction and a rejection do not move that point',
+        )
+        ->toContain('- **Named runs record the decisions.**')
+        ->toContain('The test reads the pull request, not one of its commits, so a merge commit, a squash, and a rebase merge count alike.')
         ->toContain('- **The history is never read from a branch.**')
         ->toContain(
             'No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, '
@@ -196,7 +222,15 @@ test('the contract is written once and names the states, the facts, the history,
             '| `promotion.jsonl` | The promotion history: candidates, decisions, and promotions (`learning-promotion.md` *The promotion history*). |',
         )
         ->toContain('An approval holds for the exact text it was given for.')
-        ->toContain('5. **Record the promotions.** Run `promote-learning.sh status --dir <dir>`.');
+        ->toContain('5. **Record the promotions.** Run `promote-learning.sh status --dir <dir>`.')
+        ->toContain('to `promote-learning.sh promote --dir <dir> --key <key> --pr <URL>`.')
+        ->toContain(
+            'When the lookup returns a promotion candidate whose `state` is `closed`, skip the approval and the `update`. '
+            . 'Run `promote-learning.sh decide --dir <dir> --key <key> --decision reject --fact tracker --issue-url <url> '
+            . '--reason "closed as not planned"` instead',
+        )
+        ->toContain('**A rejection by the user\'s instruction is recorded by this run.**')
+        ->toContain('--decision reject --fact instruction --reason "<the user\'s reason>"');
 
     expect(promotionFile('skills/resolve-issue/references/safeguard-implementation.md'))
         ->toContain('A proposal with a `## Promotion target` section is a promotion candidate, and its approval holds only for the text it was given for.')

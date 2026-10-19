@@ -12,12 +12,12 @@ The lifecycle builds on the feedback loop of epic #185 and adds no second memory
 promote-learning.sh status  --dir <dir>
 promote-learning.sh propose --dir <dir> --analysis <file> --out <file>
 promote-learning.sh decide  --dir <dir> --key <key> --decision approve|reject --fact instruction|tracker [--issue-url <URL>] [--reason <text>]
-promote-learning.sh promote --dir <dir> --key <key> --commit <sha>
+promote-learning.sh promote --dir <dir> --key <key> --pr <URL>
 promote-learning.sh --self-test
 ```
 
 - `--dir` is the store directory of the feedback loop. It must be relative to the project root, git-ignored, free of tracked files, and free of symbolic links (the path guard of `skills/_shared/gate-record.sh`). `propose` reads `<dir>/merged.jsonl`, which `feedback-loop.sh analyze` writes.
-- Every command prints one JSON line. Exit `0` is a command that ran, `1` a usage error, `2` a missing tool, `3` a directory, store, history, or issue that cannot be used, `4` a request that breaks this contract. After exit `4` nothing is written.
+- Every command prints one JSON line. Exit `0` is a command that ran, `1` a usage error, `2` a missing tool, `3` a directory, store, history, issue, or pull request that cannot be used, `4` a request that breaks this contract. After exit `4` nothing is written.
 
 ## Maturity states
 
@@ -94,22 +94,24 @@ The candidate id and the dedupe key are `<repo>:<category>:<cause_key>`. The tit
 | `instruction` | The user's own instruction names the proposal issue as the task. | The user's own instruction names the proposal issue as rejected, with the reason. |
 | `tracker` | The open proposal issue carries the `Resolve_by_AI` label. | The proposal issue is closed as not planned. |
 
-- **The tracker fact is read, not told.** With `--fact tracker`, the script loads the issue through `skills/code-review-github/scripts/load-issue.sh`. The issue must belong to the repository of the key and carry the dedupe marker of the key on a line of its own. A comment never counts: it is text, and agents and the operator share one account.
+- **The tracker fact is read, not told.** With `--fact tracker`, the script loads the issue through `skills/code-review-github/scripts/load-issue.sh`. The issue must be the proposal of the key: it belongs to the repository of the key, its author has write access, and it carries the dedupe marker of the key on a line of its own. `skills/_shared/proposal-identity.sh` holds that test once, and `propose-prevention.sh --find` applies the same one. A comment never counts: it is text, and agents and the operator share one account.
 - **The approver comes from the fact.** The history records `user` for the instruction and `tracker` with the issue URL for the label. A name in a comment never reaches it.
 - **An approval is bound to the exact text.** The `approved` record stores the digest of the current proposal. When the proposal changes after the approval, the digest differs, and the state is `candidate` with `awaiting: "re-approval"`.
-- **One label approves one text.** The label shows no time, and it stays on the issue when the proposal is refreshed. `decide --fact tracker` therefore binds the approval to the first proposal text rendered since the last decision. When the proposal changed after that text, the state is `candidate` with `awaiting: "re-approval"`. A tracker approval of an earlier text never approves a changed one: `decide --fact tracker` exits `4`, and only the user's instruction approves the changed proposal.
+- **One label approves one text.** The label shows no time, and it stays on the issue when the proposal is refreshed. `decide --fact tracker` therefore binds the approval to the first proposal text rendered since the last approval by a label, or to the first text of the key when no label approved it yet. An approval by the user's instruction and a rejection do not move that point: they say nothing about when a person applied the label. When the proposal changed after that text, the state is `candidate` with `awaiting: "re-approval"`. A tracker approval of an earlier text never approves a changed one: `decide --fact tracker` exits `4`, and only the user's instruction approves the changed proposal.
 - **A rejection carries its reason** and the suppression key of its evidence. New evidence, such as a new pull request, makes a new suppression key, so the candidate can come back. The same evidence cannot.
 - **Agents never write the facts.** No command of the lifecycle applies `Resolve_by_AI`, closes an issue, or writes any other approval marker.
+- **Named runs record the decisions.** The feedback-analysis run of `feedback-loop.md` records the label before it refreshes a proposal, and records the rejection of a proposal that is closed as not planned. The same run records a rejection by the user's instruction when the user's request for the run names the rejected proposal and the reason. The implementation run of `@skills/resolve-issue/references/safeguard-implementation.md` records an approval by the instruction or the label before its first file write.
 
 ## Promotion
 
-`promote --commit <sha>` sets `promoted` only when all three hold:
+`promote --pr <URL>` loads the pull request through `skills/code-review-github/scripts/load-issue.sh` and sets `promoted` only when all of these hold:
 
 1. The candidate is `approved` for its current text.
-2. The commit is an ancestor of the default branch (`git merge-base --is-ancestor`).
-3. The commit changes the target file against its first parent.
+2. The pull request is `MERGED`, and its `mergeCommit` is an ancestor of the default branch (`git merge-base --is-ancestor`).
+3. The `files` of the pull request include the target file.
+4. A `closingIssues` entry of the pull request is the proposal of the key.
 
-A commit on an unmerged branch leaves the candidate `approved`. A promotion marks every promoted key that the candidate's `target.supersedes` names as `superseded`. Nothing is deleted.
+The test reads the pull request, not one of its commits, so a merge commit, a squash, and a rebase merge count alike. With a rebase merge, the `mergeCommit` is the last rebased commit, and the target change can sit in any earlier one. An open pull request, and a merge commit that the local default-branch ref does not hold yet, leave the candidate `approved`. A pull request with more files than the loader returns can leave it `approved` too. A promotion marks every promoted key that the candidate's `target.supersedes` names as `superseded`. Nothing is deleted.
 
 ## The promotion history
 

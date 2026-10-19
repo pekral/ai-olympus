@@ -101,7 +101,7 @@ function githubLoaderPullRequestJson(): string
 function githubLoaderSubIssuesJson(): string
 {
     return (string) json_encode([
-        'data' => ['repository' => ['issue' => ['subIssues' => ['nodes' => [
+        'data' => ['repository' => ['issue' => ['authorAssociation' => 'OWNER', 'subIssues' => ['nodes' => [
             [
                 'author' => ['login' => 'maintainer'],
                 'body' => 'Cover the 2 MB boundary.',
@@ -308,6 +308,30 @@ test('sub-issues are returned when the GraphQL call succeeds', function (): void
     expect(decodedJsonField($output, 'subIssues'))->toHaveCount(1);
     expect(decodedJsonField($output, 'subIssues.0.number'))->toBe(446);
     expect(decodedJsonField($output, 'subIssues.0.labels'))->toBe(['test']);
+});
+
+test('the association of the issue author is read by the same GraphQL call', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $process = runGitHubLoader($fixture, 'https://github.com/acme/widgets/issues/445');
+
+    $output = $process->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'authorAssociation'))->toBe('OWNER');
+});
+
+test('a failed GraphQL call leaves the association of the issue author null, which a caller reads as untrusted', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $process = runGitHubLoader($fixture, 'https://github.com/acme/widgets/issues/445', ['FAKE_GH_GRAPHQL_OK' => '0']);
+
+    $output = $process->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'authorAssociation'))->toBeNull();
 });
 
 test('a failed sub-issue GraphQL call degrades to an empty list while the issue still loads', function (): void {

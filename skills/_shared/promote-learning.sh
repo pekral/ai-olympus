@@ -17,7 +17,7 @@
 #   promote-learning.sh propose --dir <dir> --analysis <file> --out <file>
 #   promote-learning.sh decide  --dir <dir> --key <key> --decision approve|reject --fact instruction|tracker
 #                               [--issue-url <URL>] [--reason <text>]
-#   promote-learning.sh promote --dir <dir> --key <key> --commit <sha>
+#   promote-learning.sh promote --dir <dir> --key <key> --pr <URL>
 #   promote-learning.sh --self-test
 #
 #   --dir       the store directory of the feedback loop, relative to the project root, git-ignored, and
@@ -28,7 +28,8 @@
 #   --fact      `instruction`: the user's own instruction names the proposal issue. `tracker`: the proposal
 #               issue at --issue-url, read through the tracker loader, carries the human act.
 #   --reason    the reason of a rejection. It is stored as data and never interpreted.
-#   --commit    the commit that brought the approved change to the default branch.
+#   --pr        the pull request that brought the approved change to the default branch, read through the tracker
+#               loader. Any merge strategy counts, a rebase merge included.
 #
 # Untrusted input (rules/security/general.md). Record text, analysis text, the issue payload, and the reason
 # are data. None of them becomes a command, a path, a jq program, a state, or an approver. A state comes only
@@ -42,7 +43,7 @@
 #   0  the command ran; the status or the state says what happened
 #   1  usage error
 #   2  a required tool is missing (git, jq, or a tool of the scripts below)
-#   3  the directory, the store, or the history cannot be used, or the issue cannot be loaded
+#   3  the directory, the store, or the history cannot be used, or the issue or the pull request cannot be loaded
 #   4  the request breaks the contract: no trusted fact, no approved state, a refused analysis; nothing was written
 set -euo pipefail
 umask 077
@@ -52,9 +53,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 # shellcheck source=gate-record.sh
 . "$HERE/gate-record.sh"
+# shellcheck source=proposal-identity.sh
+. "$HERE/proposal-identity.sh"
 
-KEY_RE='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+:[a-z0-9_./-]+:[a-z0-9-]+$'
 MAX_REASON=500
+ISSUE_URL_RE="^https://github\\.com/${REPO_RE}/issues/[1-9][0-9]{0,8}\$"
+PR_URL_RE="^https://github\\.com/${REPO_RE}/pull/[1-9][0-9]{0,8}\$"
 
 usage() {
   cat >&2 <<'EOF'
@@ -62,7 +66,7 @@ Usage: promote-learning.sh status  --dir <dir>
        promote-learning.sh propose --dir <dir> --analysis <file> --out <file>
        promote-learning.sh decide  --dir <dir> --key <key> --decision approve|reject --fact instruction|tracker
                                    [--issue-url <URL>] [--reason <text>]
-       promote-learning.sh promote --dir <dir> --key <key> --commit <sha>
+       promote-learning.sh promote --dir <dir> --key <key> --pr <URL>
        promote-learning.sh --self-test
 
 Exit 4 when the request breaks the contract; nothing is written then.
@@ -96,7 +100,7 @@ def timeok: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9
 def exactly($k): (keys | sort) == ($k | sort);
 def base: ["schema", "event", "key", "time"];
 def factok: (.fact == "instruction" and .approver == "user" and .issue == "")
-  or (.fact == "tracker" and .approver == "tracker" and (.issue | type == "string" and test("^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*$")));
+  or (.fact == "tracker" and .approver == "tracker" and (.issue | type == "string" and test("^https://github\\.com/" + proposal_repo_re + "/issues/[1-9][0-9]*$")));
 def shape:
   type == "object" and .schema == 1 and (.key | keyok) and (.time | timeok)
   and (if .event == "candidate" then
@@ -170,7 +174,7 @@ load_history() {
   fi
   [[ -f "$HISTORY" && ! -L "$HISTORY" ]] || fail 3 'the promotion history is not a regular file'
   jq -n -c '[inputs]' "$HISTORY" >"$tmp/history.json" 2>/dev/null || fail 3 'the promotion history is not JSON Lines'
-  errors="$(jq -r --arg key_re "$KEY_RE" --argjson max_reason "$MAX_REASON" "$JQ_HISTORY"$'\n''history_errors | .[]' "$tmp/history.json")"
+  errors="$(jq -r --arg key_re "$KEY_PATTERN" --argjson max_reason "$MAX_REASON" "$JQ_PROPOSAL$JQ_HISTORY"$'\n''history_errors | .[]' "$tmp/history.json")"
   if [[ -n "$errors" ]]; then
     while IFS= read -r line; do
       echo "$PROG: promotion history: $line" >&2
@@ -182,8 +186,8 @@ load_history() {
 # append_event <tmp> <json> — append one record to the history, replacing the file atomically.
 append_event() {
   local tmp="$1" event="$2" staged
-  printf '%s\n' "$event" | jq -e -s --arg key_re "$KEY_RE" --argjson max_reason "$MAX_REASON" \
-    --slurpfile h "$tmp/history.json" "$JQ_HISTORY"$'\n''($h[0] + .) | history_errors | length == 0' >/dev/null \
+  printf '%s\n' "$event" | jq -e -s --arg key_re "$KEY_PATTERN" --argjson max_reason "$MAX_REASON" \
+    --slurpfile h "$tmp/history.json" "$JQ_PROPOSAL$JQ_HISTORY"$'\n''($h[0] + .) | history_errors | length == 0' >/dev/null \
     || fail 3 'refused to write a record that breaks the promotion history'
   staged="$(mktemp "$HISTORY.XXXXXX")" || fail 3 'the promotion history cannot be written'
   [[ ! -e "$HISTORY" ]] || cat "$HISTORY" >"$staged"
@@ -287,7 +291,7 @@ cmd_propose() {
   [[ -s "$TMP/analysis.json" ]] || fail 3 'the analysis is not exactly one JSON object'
   local key
   key="$(jq -r 'try "\(.class.repo):\(.class.category):\(.class.cause_key)" catch ""' "$TMP/analysis.json")"
-  [[ "$key" =~ $KEY_RE ]] || fail 4 'the analysis names no valid class'
+  [[ "$key" =~ $KEY_PATTERN ]] || fail 4 'the analysis names no valid class'
   jq -e '.target | type == "object"' "$TMP/analysis.json" >/dev/null || fail 4 'a promotion candidate needs a target'
 
   patterns "$TMP" "$dir/merged.jsonl"
@@ -320,7 +324,7 @@ cmd_propose() {
   local superseded
   while IFS= read -r superseded; do
     [[ -n "$superseded" ]] || continue
-    [[ "$superseded" =~ $KEY_RE && "$superseded" != "$key" ]] || fail 4 'target.supersedes must name the dedupe keys of other candidates'
+    [[ "$superseded" =~ $KEY_PATTERN && "$superseded" != "$key" ]] || fail 4 'target.supersedes must name the dedupe keys of other candidates'
     [[ "$(jq -r '.state // ""' <<<"$(key_state "$TMP" "$superseded")")" == promoted ]] \
       || fail 4 'target.supersedes names a candidate that is not promoted'
   done < <(jq -r '(.target.supersedes // [])[] | strings' "$TMP/analysis.json")
@@ -367,22 +371,29 @@ cmd_propose() {
           evidence: $p[0].findings, tasks: $p[0].tasks, confidence: $p[0].confidence}' "$TMP/proposal.json"
 }
 
-# tracker_fact <tmp> <key> <url> <decision> — load the proposal issue and confirm the human act on it.
-tracker_fact() {
-  local tmp="$1" key="$2" url="$3" decision="$4" rc=0
-  [[ "$url" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}$ ]] \
-    || die_usage '--issue-url must be a GitHub issue URL'
+# load <url> <file> <what> — the loader payload of one GitHub issue or pull request, written to <file>.
+load() {
+  local rc=0
   set +e
-  "$LOADER" "$url" >"$tmp/issue.json" 2>"$tmp/issue.err"
+  "$LOADER" "$1" >"$2" 2>"$2.err"
   rc=$?
   set -e
-  [[ "$rc" -eq 0 ]] || fail 3 "the proposal issue cannot be loaded: $(safe_display "$(head -n 1 "$tmp/issue.err")")"
-  # The issue is the proposal of the key: an issue of the key's repository whose body carries the marker on a line.
-  jq -e --arg key "$key" --arg url "$url" '
-      type == "object" and .kind == "issue" and (.url | ascii_downcase) == ($url | ascii_downcase)
-      and (.url | ascii_downcase | startswith("https://github.com/" + ($key | split(":")[0] | ascii_downcase) + "/issues/"))
-      and ((.body // "") | split("\n") | any(sub("[ \t\r]+$"; "") == "<!-- prevention-proposal:key=\($key) -->"))' \
-    "$tmp/issue.json" >/dev/null || fail 4 'the issue is not the proposal of this key'
+  [[ "$rc" -eq 0 ]] || fail 3 "$3 cannot be loaded: $(safe_display "$(head -n 1 "$2.err")")"
+}
+
+# is_proposal <file> <key> [url] — the loaded issue is the proposal of the key (proposal-identity.sh), at the URL when given.
+is_proposal() {
+  jq -e --arg key "$2" --arg url "${3:-}" "$JQ_PROPOSAL"'
+      type == "object" and .kind == "issue" and ($url == "" or (.url | ascii_downcase) == ($url | ascii_downcase))
+      and ({url, association: .authorAssociation, body} | proposal_of($key))' "$1" >/dev/null
+}
+
+# tracker_fact <tmp> <key> <url> <decision> — load the proposal issue and confirm the human act on it.
+tracker_fact() {
+  local tmp="$1" key="$2" url="$3" decision="$4"
+  [[ "$url" =~ $ISSUE_URL_RE ]] || die_usage '--issue-url must be a GitHub issue URL'
+  load "$url" "$tmp/issue.json" 'the proposal issue'
+  is_proposal "$tmp/issue.json" "$key" "$url" || fail 4 'the issue is not the proposal of this key'
   if [[ "$decision" == approve ]]; then
     jq -e '.state == "OPEN" and ((.labels // []) | index("Resolve_by_AI") != null)' "$tmp/issue.json" >/dev/null \
       || fail 4 'no trusted approval: the open proposal issue does not carry the Resolve_by_AI label'
@@ -405,7 +416,7 @@ cmd_decide() {
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
     esac
   done
-  [[ "$key" =~ $KEY_RE ]] || die_usage '--key must be a dedupe key'
+  [[ "$key" =~ $KEY_PATTERN ]] || die_usage '--key must be a dedupe key'
   [[ "$decision" == approve || "$decision" == reject ]] || die_usage '--decision must be approve or reject'
   [[ "$fact" == instruction || "$fact" == tracker ]] || die_usage '--fact must be instruction or tracker'
   [[ "$fact" == tracker || -z "$url" ]] || die_usage '--issue-url belongs to the tracker fact'
@@ -443,11 +454,12 @@ cmd_decide() {
       '[$h[0][] | select(.key == $key and .event == "approved" and .fact == "tracker" and .digest != $d)] | length > 0' -n >/dev/null; then
       fail 4 'the label approved an earlier text of this proposal: the changed proposal needs the user'"'"'s instruction'
     fi
-    # The label shows no time, so it approves the first text rendered since the last decision. A later text needs the instruction.
+    # The label shows no time, so it approves the first text rendered since the last approval by a label, or the first
+    # text of the key. An approval by the instruction and a rejection say nothing about the label. A later text needs the instruction.
     if [[ "$fact" == tracker ]]; then
       digest="$(jq -r --arg key "$key" --arg current "$digest" --slurpfile h "$TMP/history.json" -n '
         [$h[0][] | select(.key == $key)] as $e
-        | ([$e | to_entries[] | select(.value.event == "approved" or .value.event == "rejected") | .key] | max // -1) as $last
+        | ([$e | to_entries[] | select(.value.event == "approved" and .value.fact == "tracker") | .key] | max // -1) as $last
         | [$e | to_entries[] | select(.key > $last and .value.event == "candidate") | .value.digest] | first // $current')"
     fi
     if jq -e '.state == "approved"' <<<"$state" >/dev/null; then
@@ -469,17 +481,17 @@ cmd_decide() {
 }
 
 cmd_promote() {
-  local dir='' key='' commit=''
+  local dir='' key='' pr=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --dir) [[ $# -ge 2 ]] || die_usage '--dir needs a value'; dir="$2"; shift 2 ;;
     --key) [[ $# -ge 2 ]] || die_usage '--key needs a value'; key="$2"; shift 2 ;;
-    --commit) [[ $# -ge 2 ]] || die_usage '--commit needs a value'; commit="$2"; shift 2 ;;
+    --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
     esac
   done
-  [[ "$key" =~ $KEY_RE ]] || die_usage '--key must be a dedupe key'
-  [[ "$commit" =~ ^[0-9a-f]{7,40}$ ]] || die_usage '--commit must be a commit SHA'
+  [[ "$key" =~ $KEY_PATTERN ]] || die_usage '--key must be a dedupe key'
+  [[ "$pr" =~ $PR_URL_RE ]] || die_usage '--pr must be a GitHub pull request URL'
   check_dir "$dir"
   new_tmp
   load_history "$TMP"
@@ -488,13 +500,28 @@ cmd_promote() {
   state="$(key_state "$TMP" "$key")"
   jq -e '. != null and .state == "approved"' <<<"$state" >/dev/null || fail 4 'only an approved candidate is promoted'
 
-  local ref full path
+  # The pull request decides, not one of its commits: a rebase merge puts the target change in any of them.
+  local ref commit full path closing found=''
+  load "$pr" "$TMP/pr.json" 'the pull request'
+  jq -e --arg url "$pr" 'type == "object" and .kind == "pr" and (.url | ascii_downcase) == ($url | ascii_downcase) and .state == "MERGED"' \
+    "$TMP/pr.json" >/dev/null || fail 4 'the pull request is not merged: the candidate stays approved'
   ref="$("$HERE/read-manifest.sh" --default-ref 2>/dev/null)" || fail 3 'no default-branch ref'
-  full="$(git rev-parse --verify --quiet "$commit^{commit}")" || fail 4 'the commit does not exist'
-  git merge-base --is-ancestor "$full" "$ref" || fail 4 'the commit is not on the default branch: the candidate stays approved'
+  commit="$(jq -r '.mergeCommit | strings' "$TMP/pr.json")"
+  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail 4 'the pull request names no merge commit'
+  full="$(git rev-parse --verify --quiet "$commit^{commit}")" || fail 4 'the merge commit is not in this clone: fetch the default branch first'
+  git merge-base --is-ancestor "$full" "$ref" || fail 4 'the merge commit is not on the default branch: the candidate stays approved'
   path="$(jq -r '.candidate.target_path' <<<"$state")"
-  git diff --name-only "$full^1" "$full" -- 2>/dev/null | grep -Fxq -- "$path" \
-    || fail 4 'the commit does not change the target file of the candidate'
+  jq -e --arg p "$path" '[.files[]?.path] | index($p) != null' "$TMP/pr.json" >/dev/null \
+    || fail 4 'the pull request does not change the target file of the candidate'
+  while IFS= read -r closing; do
+    [[ "$closing" =~ $ISSUE_URL_RE ]] || continue
+    load "$closing" "$TMP/closing.json" 'a closing issue of the pull request'
+    if is_proposal "$TMP/closing.json" "$key"; then
+      found=1
+      break
+    fi
+  done < <(jq -r '.closingIssues[]?.url | strings' "$TMP/pr.json")
+  [[ -n "$found" ]] || fail 4 'the pull request closes no proposal issue of this key'
 
   append_event "$TMP" "$(jq -c -n --arg key "$key" --arg time "$(gate_now)" --arg d "$(jq -r '.candidate.digest' <<<"$state")" --arg c "$full" \
     '{schema: 1, event: "promoted", key: $key, time: $time, digest: $d, commit: $c}')"
@@ -525,13 +552,14 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the tracker loader is a fixture and not the network.
   mkdir -p "$tmp/skills/_shared" "$tmp/skills/code-review-github/scripts" "$tmp/fixture"
-  cp "$HERE"/{promote-learning,analyze-recurrence,extract-findings,propose-prevention,read-manifest,gate-record,project-commands}.sh "$tmp/skills/_shared/"
+  cp "$HERE"/{promote-learning,analyze-recurrence,extract-findings,propose-prevention,proposal-identity,read-manifest,gate-record,project-commands}.sh "$tmp/skills/_shared/"
   script="$tmp/skills/_shared/promote-learning.sh"
   cat >"$tmp/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash
-number="\${1##*/}"
-[[ -f "$tmp/fixture/issue-\$number.json" ]] || { echo 'no such issue' >&2; exit 4; }
-cat "$tmp/fixture/issue-\$number.json"
+item="\${1#https://github.com/*/*/}"
+file="$tmp/fixture/\${item/\\//-}.json"
+[[ -f "\$file" ]] || { echo 'no such issue or pull request' >&2; exit 4; }
+cat "\$file"
 EOF
   chmod +x "$tmp/skills/code-review-github/scripts/load-issue.sh"
 
@@ -621,11 +649,18 @@ EOF
     } | '"${2:-.}" >"$tmp/a.json"
   }
 
-  # issue <number> <state> <state-reason> <labels-json> <body-file> [comment] — a loader payload of a proposal issue.
+  # issue <number> <state> <state-reason> <labels-json> <body-file> [comment] [association] — a loader payload of a proposal issue.
   issue() {
-    jq -n -c --argjson n "$1" --arg s "$2" --arg r "$3" --argjson l "$4" --rawfile b "$5" --arg c "${6:-}" \
+    jq -n -c --argjson n "$1" --arg s "$2" --arg r "$3" --argjson l "$4" --rawfile b "$5" --arg c "${6:-}" --arg a "${7:-OWNER}" \
       '{kind: "issue", number: $n, url: "https://github.com/acme/shop/issues/\($n)", state: $s, stateReason: $r, labels: $l, body: $b,
-        author: "pekral", comments: (if $c == "" then [] else [{author: "pekral", body: $c}] end)}' >"$tmp/fixture/issue-$1.json"
+        author: "pekral", authorAssociation: $a, comments: (if $c == "" then [] else [{author: "pekral", body: $c}] end)}' >"$tmp/fixture/issues-$1.json"
+  }
+
+  # pr <number> <state> <merge-commit> <closing-issue-numbers-json> <paths-json> — a loader payload of a pull request.
+  pr() {
+    jq -n -c --argjson n "$1" --arg s "$2" --arg m "$3" --argjson c "$4" --argjson f "$5" \
+      '{kind: "pr", number: $n, url: "https://github.com/acme/shop/pull/\($n)", state: $s, mergeCommit: (if $m == "" then null else $m end),
+        closingIssues: ($c | map({number: ., url: "https://github.com/acme/shop/issues/\(.)"})), files: ($f | map({path: .}))}' >"$tmp/fixture/pull-$1.json"
   }
 
   local D=.claude/run/feedback K='acme/shop:rules/php/concurrency:counter-race'
@@ -693,10 +728,13 @@ EOF
   check 'the recorded approver comes from the trusted fact, never from a comment' "$(jq -e -s 'map(select(.event == "approved")) | .[0] | .approver == "tracker" and .issue == "https://github.com/acme/shop/issues/40"' "$proj/$D/promotion.jsonl" >/dev/null && ! grep -q mallory "$proj/$D/promotion.jsonl" && echo 0 || echo 1)"
 
   # Promotion needs the change on the default branch: an unmerged branch leaves the candidate approved.
-  local unmerged
+  local unmerged P=https://github.com/acme/shop/pull
   unmerged="$(land 'feat: locks' rules/php/concurrency.md '# Concurrency with locks' unmerged)"
   git -C "$proj" update-ref refs/heads/feature "$unmerged"
-  run 'a commit of an unmerged branch is not a promotion' 4 promote --dir "$D" --key "$K" --commit "$unmerged"
+  pr 70 OPEN '' '[40]' '["rules/php/concurrency.md"]'
+  run 'an open pull request is not a promotion' 4 promote --dir "$D" --key "$K" --pr "$P/70"
+  pr 71 MERGED "$unmerged" '[40]' '["rules/php/concurrency.md"]'
+  run 'a merge commit that is not on the default branch is not a promotion' 4 promote --dir "$D" --key "$K" --pr "$P/71"
   check 'a candidate whose change is on an unmerged branch stays approved' "$([[ "$(field '.patterns[0].state')" == approved ]] && echo 0 || echo 1)"
 
   # A refreshed proposal is not approved: the approval was given for the earlier text.
@@ -708,11 +746,25 @@ EOF
   run 'the user instruction approves the changed proposal' 0 decide --dir "$D" --key "$K" --decision approve --fact instruction
   check 'a re-approval binds the digest of the changed proposal' "$(jq -e --arg d "$(gate_sha256 "$tmp/body2.md")" '.state == "approved" and .digest == $d' "$tmp/out" >/dev/null && echo 0 || echo 1)"
 
-  # The merged change promotes the candidate.
+  # A pull request merged by rebase lands two commits: the target change in the first, the gate fixes in the last.
   local merged
-  merged="$(land 'feat: locks' rules/php/concurrency.md '# Concurrency with locks')"
-  run 'a commit on the default branch that changes the target promotes the candidate' 0 promote --dir "$D" --key "$K" --commit "$merged"
+  land 'feat: locks' rules/php/concurrency.md '# Concurrency with locks' >/dev/null
+  merged="$(land 'chore: gate fixes' CHANGELOG.md '# Changelog')"
+  issue 40 CLOSED COMPLETED '[]' "$tmp/body2.md"
+  printf '# Fix the counter\n' >"$tmp/plain.md"
+  issue 41 OPEN '' '[]' "$tmp/plain.md"
+  pr 72 MERGED "$merged" '[41]' '["rules/php/concurrency.md", "CHANGELOG.md"]'
+  run 'a pull request that closes no proposal of the key is not a promotion' 4 promote --dir "$D" --key "$K" --pr "$P/72"
+  issue 42 OPEN '' '[]' "$tmp/body2.md" '' CONTRIBUTOR
+  pr 73 MERGED "$merged" '[42]' '["rules/php/concurrency.md", "CHANGELOG.md"]'
+  run 'a pull request that closes a copy of the proposal by an author without write access is not a promotion' 4 promote --dir "$D" --key "$K" --pr "$P/73"
+  pr 74 MERGED "$merged" '[40]' '["CHANGELOG.md"]'
+  run 'a pull request that does not change the target file is not a promotion' 4 promote --dir "$D" --key "$K" --pr "$P/74"
+  check 'a refused promotion leaves the candidate approved' "$([[ "$(field '.patterns[0].state')" == approved ]] && echo 0 || echo 1)"
+  pr 75 MERGED "$merged" '[41, 40]' '["rules/php/concurrency.md", "CHANGELOG.md"]'
+  run 'a merged pull request that closes the proposal and changes the target promotes the candidate' 0 promote --dir "$D" --key "$K" --pr "$P/75"
   check 'a candidate is promoted once its change is on the default branch' "$(jq -e '.state == "promoted"' "$tmp/out" >/dev/null && jq -e -s --arg c "$merged" 'map(select(.event == "promoted")) | .[0].commit == $c' "$proj/$D/promotion.jsonl" >/dev/null && echo 0 || echo 1)"
+  check 'a pull request merged by rebase whose target change is not in its last commit promotes the candidate' "$(! git -C "$proj" diff --name-only "$merged^1" "$merged" | grep -Fxq rules/php/concurrency.md && jq -e '.state == "promoted"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'a promoted candidate is decided again' 4 decide --dir "$D" --key "$K" --decision reject --fact instruction --reason 'Too late.'
   analysis counter-race
   run 'a promoted pattern is proposed again' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/body3.md"
@@ -725,7 +777,9 @@ EOF
   run 'a broader candidate is proposed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/broad.md"
   run 'the broader candidate is approved' 0 decide --dir "$D" --key "$K2" --decision approve --fact instruction
   merged="$(land 'feat: shared state' skills/locks/SKILL.md '# Locks for shared state')"
-  run 'the broader candidate is promoted' 0 promote --dir "$D" --key "$K2" --commit "$merged"
+  issue 45 CLOSED COMPLETED '[]' "$tmp/broad.md"
+  pr 76 MERGED "$merged" '[45]' '["skills/locks/SKILL.md"]'
+  run 'the broader candidate is promoted' 0 promote --dir "$D" --key "$K2" --pr "$P/76"
   check 'a promoted candidate that a broader one covers is marked superseded, not deleted' "$([[ "$(field '.patterns[] | select(.key == "'"$K"'") | .state')" == superseded ]] && [[ "$(field '.patterns[] | select(.key == "'"$K"'") | .superseded_by')" == "$K2" ]] && [[ "$(jq -s --arg k "$K" 'map(select(.key == $k and .event == "candidate")) | length' "$proj/$D/promotion.jsonl")" -ge 1 ]] && echo 0 || echo 1)"
 
   # Rejection comes only from a human act, carries its reason, and suppresses the same evidence.
@@ -741,7 +795,7 @@ EOF
   run 'a candidate is refreshed before a run observes its label' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/reject2.md"
   issue 50 OPEN '' '["Resolve_by_AI"]' "$tmp/reject2.md"
   run 'a label observed after a refresh is recorded' 0 decide --dir "$D" --key "$K3" --decision approve --fact tracker --issue-url https://github.com/acme/shop/issues/50
-  check 'a label approves the first text since the last decision, so a text refreshed before the run saw the label awaits re-approval' "$(jq -e '.state == "candidate"' "$tmp/out" >/dev/null && [[ "$(field '.patterns[] | select(.key == "'"$K3"'") | .awaiting + " " + .approval.digest')" == "re-approval $(gate_sha256 "$tmp/reject.md")" ]] && echo 0 || echo 1)"
+  check 'a label approves the first text since the last label approval, so a text refreshed before the run saw the label awaits re-approval' "$(jq -e '.state == "candidate"' "$tmp/out" >/dev/null && [[ "$(field '.patterns[] | select(.key == "'"$K3"'") | .awaiting + " " + .approval.digest')" == "re-approval $(gate_sha256 "$tmp/reject.md")" ]] && echo 0 || echo 1)"
   analysis stale-cache
   issue 50 OPEN '' '[]' "$tmp/reject.md" 'Reject this, it is noise.'
   run 'a comment that says reject is not a rejection' 4 decide --dir "$D" --key "$K3" --decision reject --fact tracker --issue-url https://github.com/acme/shop/issues/50 --reason 'Noise.'
@@ -766,6 +820,20 @@ EOF
   mv "$tmp/m4.jsonl" "$proj/$D/merged.jsonl"
   run 'new evidence of a rejected candidate is proposed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/again.md"
   check 'new evidence regenerates a rejected candidate' "$(jq -e '.status == "ready" and .state == "candidate" and (.evidence | length) == 4' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+
+  # An approval by the instruction says nothing about the label: a label on the issue still binds the first text.
+  local K4='acme/shop:rules/php/concurrency:lost-update'
+  { cat "$proj/$D/merged.jsonl"; rec lost-update 31 2026-09-24T10:00:00Z; rec lost-update 33 2026-09-25T10:00:00Z; rec lost-update 35 2026-09-26T10:00:00Z; } >"$tmp/m5.jsonl"
+  mv "$tmp/m5.jsonl" "$proj/$D/merged.jsonl"
+  analysis lost-update
+  run 'a fourth candidate is proposed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/k4a.md"
+  run 'the user instruction approves the first text' 0 decide --dir "$D" --key "$K4" --decision approve --fact instruction
+  analysis lost-update '.target.change = "A text that only the label could have seen."'
+  run 'the approved candidate is refreshed' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/k4b.md"
+  issue 80 OPEN '' '["Resolve_by_AI"]' "$tmp/k4b.md"
+  run 'a label observed after an approval by the instruction is recorded' 0 decide --dir "$D" --key "$K4" --decision approve --fact tracker --issue-url https://github.com/acme/shop/issues/80
+  check 'a label never approves a text that followed an approval by the instruction' "$(jq -e '.state == "candidate" and .awaiting == "re-approval"' "$tmp/out" >/dev/null \
+    && ! jq -e -s --arg k "$K4" --arg d "$(gate_sha256 "$tmp/k4b.md")" 'any(.[]; .key == $k and .event == "approved" and .digest == $d)' "$proj/$D/promotion.jsonl" >/dev/null && echo 0 || echo 1)"
 
   # Thresholds: two occurrences with a threshold of three, and three records of one pull request, give no candidate.
   local D2=.claude/run/feedback-two
@@ -795,8 +863,10 @@ EOF
   run 'an issue that cannot be loaded is refused' 3 decide --dir "$D" --key "$K3" --decision approve --fact tracker --issue-url https://github.com/acme/shop/issues/99
   issue 60 OPEN '' '["Resolve_by_AI"]' "$tmp/body.md"
   run 'the issue of another key is not the proposal of this key' 4 decide --dir "$D" --key "$K3" --decision approve --fact tracker --issue-url https://github.com/acme/shop/issues/60
-  run 'promoting a key that is not approved is refused' 4 promote --dir "$D" --key "$K3" --commit "$merged"
-  run 'a commit that is not a SHA is a usage error' 1 promote --dir "$D" --key "$K2" --commit 'HEAD;true'
+  issue 61 OPEN '' '["Resolve_by_AI"]' "$tmp/reject.md" '' NONE
+  run 'a copy of the proposal by an author without write access approves nothing' 4 decide --dir "$D" --key "$K3" --decision approve --fact tracker --issue-url https://github.com/acme/shop/issues/61
+  run 'promoting a key that is not approved is refused' 4 promote --dir "$D" --key "$K3" --pr "$P/76"
+  run 'a pull request that is not a GitHub pull request URL is a usage error' 1 promote --dir "$D" --key "$K2" --pr "$P/76;true"
   run 'an unknown command is a usage error' 1 bogus
 
   # The full lifecycle wrote no permanent knowledge, made no commit, and left the hand-curated memory as it was.
