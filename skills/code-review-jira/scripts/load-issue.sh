@@ -26,7 +26,7 @@
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
 #     "subtasks":    [ { "key", "summary", "status", "type",
-#                        "descriptionText", "descriptionAdf",
+#                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
 #                        "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ] } ],
 #     "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
@@ -586,6 +586,7 @@ def viewCommentIdx:
           type: ($st.fields.issuetype.name // null),
           descriptionAdf: $sdesc,
           descriptionText: (if $sdesc == null then "" else ($sdesc | adfPlain) end),
+          descriptionMediaRefs: (if $sdesc == null then [] else ($sdesc | mediaRefs($sf.attachment // [])) end),
           comments: (if $d == null then [] else (($sf | viewCommentIdx) as $subIdx | ($d.comments // []) | map(commentOut($subIdx; $sf.attachment // []))) end),
           attachments: (if $sf == null then [] else (($sf.attachment // []) | map({
             id: (.id // null),

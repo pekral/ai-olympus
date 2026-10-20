@@ -98,3 +98,15 @@ test('a review of a refactoring-only change checks first that the logic stayed t
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/assignment-conformance-gate.md'))
         ->toContain('This gate does not raise it again and does not count it in `N`.');
 });
+
+test('a Suggested Fix that proposes a refactoring is compared with the current code and states that it is behaviour-neutral', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    expect((string) file_get_contents($packageDir . '/rules/refactoring/general.md'))
+        ->toContain('**A Suggested Fix that proposes a refactoring is behaviour-neutral, and the finding says so.**')
+        ->toContain('compare the current code with the proposed code path by path')
+        ->toContain('The proposed change is behaviour-neutral.')
+        ->toContain('Navrhovaná změna je z hlediska chování neutrální.')
+        ->toContain('name each behaviour change it brings in the Suggested Fix and leave the sentence out')
+        ->toContain('Never write the sentence for a comparison this run did not perform');
+});
