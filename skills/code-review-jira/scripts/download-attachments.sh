@@ -16,7 +16,7 @@
 #   setup hint — it never falls back to an unauthenticated or silent attempt.
 #
 # Attachment endpoint: GET https://<site>/rest/api/3/attachment/content/<id>
-# (taken verbatim from each attachment's contentUrl in load-issue.sh).
+# (each attachment's contentUrl from load-issue.sh, which serves it through the site host).
 #
 # Exit codes:
 #   1  usage error
