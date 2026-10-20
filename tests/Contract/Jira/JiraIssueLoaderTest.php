@@ -656,6 +656,7 @@ test('the download manifest names the description, comment, or subtask descripti
         'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtask),
         'JIRA_API_EMAIL' => 'bot@acme.test',
         'JIRA_API_TOKEN' => 'secret',
+        'JIRA_SITE' => 'acme.atlassian.net',
     ], 'download-attachments.sh');
 
     $manifest = (string) file_get_contents($scratch . '/attachments/jira/attachments-manifest.json');

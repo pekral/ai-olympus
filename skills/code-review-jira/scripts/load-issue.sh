@@ -33,7 +33,8 @@
 #     "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ],  # "id" is a string
 #     "customFields":  { "customfield_XXXXX": <parsed value>, … },
 #     "devSummary":    { "pullRequestCount", "branchCount", "commitCount", "state", "isStale", "byInstance" } | null,
-#     "pullRequests":  [ { "number", "title", "url", "state", "headRefName", "baseRefName", "isDraft", "mergedAt", "author" } ]
+#     "pullRequests":  [ { "number", "title", "url", "state", "headRefName", "baseRefName", "isDraft", "mergedAt", "author" } ],
+#     "attachmentSite": "<configured *.atlassian.net site>" | null
 #   }
 #
 # Notes:
@@ -648,6 +649,7 @@ def viewCommentIdx:
       isStale: (($devCached.pullrequest.overall.stateCount // 0) == 0),
       byInstance: ($devCached.pullrequest.byInstanceType // null)
     } end),
+    attachmentSite: (if $contentHost == "" then null else $contentHost end),
     pullRequests: ($prs | map({
       number: .number,
       title: .title,

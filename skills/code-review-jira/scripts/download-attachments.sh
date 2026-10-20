@@ -110,9 +110,17 @@ if [[ -z "$ISSUE_JSON" ]] || ! printf '%s' "$ISSUE_JSON" | jq -e . >/dev/null 2>
   exit 3
 fi
 
+# The API token goes only to the configured site, never to a host the payload names. The loader
+# takes the site from JIRA_SITE or the acli profile, never from the URL argument.
+SITE="$(printf '%s' "$ISSUE_JSON" | jq -r '.attachmentSite // empty')"
+if [[ -z "$SITE" ]]; then
+  echo "${PROG}: no configured JIRA site. Export JIRA_SITE=<site>.atlassian.net or log in with acli." >&2
+  exit 2
+fi
+
 # `referencedBy` names where each file was pasted: `description`, `comment:<id>`, or the same
 # prefixed with the subtask key, so the analysis reads a screenshot next to its comment.
-INVENTORY="$(printf '%s' "$ISSUE_JSON" | jq -c '
+INVENTORY="$(printf '%s' "$ISSUE_JSON" | jq -c --arg site "$SITE" '
   def refs($prefix):
     [ ((.descriptionMediaRefs // [])[] | { attachmentId, where: ($prefix + "description") }),
       ((.comments // [])[] | .id as $cid | (.mediaRefs // [])[] | { attachmentId, where: ($prefix + "comment:" + ($cid | tostring)) }) ];
@@ -120,7 +128,11 @@ INVENTORY="$(printf '%s' "$ISSUE_JSON" | jq -c '
   | [ (.attachments // [])[], ((.subtasks // [])[] | (.attachments // [])[]) ]
   | map((.id | tostring) as $id
       | { id: $id, name: .name, declaredMime: .mimeType, size: .size, contentUrl: .contentUrl,
-          referencedBy: ([ $refs[] | select(.attachmentId == $id) | .where ] | unique) })
+          referencedBy: ([ $refs[] | select(.attachmentId == $id) | .where ] | unique) }
+      | if ((.contentUrl // "") | test("^https://" + ($site | gsub("\\."; "\\.")) + "/rest/api/3/attachment/content/[0-9]+$"))
+        then .
+        else . + { blockReason: ("contentUrl is not on the configured site " + $site + " — the API token is never sent to another host") }
+        end)
 ')"
 
 COUNT="$(printf '%s' "$INVENTORY" | jq 'length')"
