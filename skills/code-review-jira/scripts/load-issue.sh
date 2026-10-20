@@ -306,11 +306,8 @@ else
   exit 1
 fi
 
-resolve_host() {
-  if [[ -n "$HOST_FROM_URL" ]]; then
-    printf '%s' "$HOST_FROM_URL"
-    return 0
-  fi
+# The configured site: JIRA_SITE, then the site of the current acli profile.
+resolve_configured_site() {
   if [[ -n "${JIRA_SITE:-}" ]]; then
     printf '%s' "$JIRA_SITE"
     return 0
@@ -321,7 +318,22 @@ resolve_host() {
   fi
 }
 
+resolve_host() {
+  if [[ -n "$HOST_FROM_URL" ]]; then
+    printf '%s' "$HOST_FROM_URL"
+    return 0
+  fi
+  resolve_configured_site
+}
+
 HOST="$(resolve_host || true)"
+# The attachment download host comes only from the configured site, never from the URL argument:
+# the URL can come from untrusted text, and download-attachments.sh sends the API token to this host.
+CONTENT_HOST="$(resolve_configured_site || true)"
+CONTENT_HOST="$(printf '%s' "$CONTENT_HOST" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+if [[ ! "$CONTENT_HOST" =~ ^[a-z0-9][a-z0-9-]*\.atlassian\.net$ ]]; then
+  CONTENT_HOST=""
+fi
 DEV_FIELD="${JIRA_DEV_SUMMARY_FIELD:-customfield_10000}"
 
 VIEW_JSON="$(acli jira workitem view "$KEY" --fields '*all' --json 2>/dev/null || true)"
@@ -385,6 +397,7 @@ fi
 jq -n \
   --arg key "$KEY" \
   --arg host "$HOST" \
+  --arg contentHost "$CONTENT_HOST" \
   --arg devField "$DEV_FIELD" \
   --argjson view "$VIEW_JSON" \
   --argjson commentsResp "$COMMENTS_JSON" \
@@ -486,14 +499,15 @@ def adfPlain: adfText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "");
 # of a media reference both go through it and a consumer can join them with `==`.
 def attachmentId: if (.id // null) == null then null else (.id | tostring) end;
 
-# `attachmentContentUrl` serves the attachment content through the JIRA site host. acli can return
-# the URL on an internal Atlassian host (`*.prod.atl-paas.net`) that a client outside Atlassian cannot
-# reach; the path is the same on the site host. Without a resolved site host the URL stays as returned.
+# `attachmentContentUrl` serves the attachment content through the configured JIRA site. acli can
+# return the URL on an internal Atlassian host (`*.prod.atl-paas.net`) that a client outside Atlassian
+# cannot reach; the path is the same on the site. Only such an internal URL is rewritten, and only to
+# the configured `*.atlassian.net` site; every other URL stays as returned.
 def attachmentContentUrl:
   (.content // null) as $u
-  | if $u == null or $host == "" then $u
-    else ($u | capture("^https://[^/]+(?<path>/rest/api/3/attachment/content/.+)$")? // null) as $m
-    | if $m == null then $u else "https://" + $host + $m.path end
+  | if $u == null or $contentHost == "" then $u
+    else ($u | capture("^https://[a-z0-9.-]+\\.prod\\.atl-paas\\.net(?<path>/rest/api/3/attachment/content/[0-9]+)$")? // null) as $m
+    | if $m == null then $u else "https://" + $contentHost + $m.path end
     end;
 
 # `mediaRefs($atts)` lists every media node of an ADF document. `attachmentId` joins the node to the

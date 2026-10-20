@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-- 🐛 **Fixed**: `skills/code-review-jira/scripts/download-attachments.sh` timed out on every attachment of a JIRA Cloud issue. `acli` returns the attachment `content` URL on an internal Atlassian host (`*.prod.atl-paas.net`) that a client outside Atlassian cannot reach. `load-issue.sh` now returns `contentUrl` on the JIRA site host with the same `/rest/api/3/attachment/content/<id>` path; a URL with another path, or an issue whose site host is not resolved, stays as returned.
+- 🐛 **Fixed**: `skills/code-review-jira/scripts/download-attachments.sh` timed out on every attachment of a JIRA Cloud issue. `acli` returns the attachment `content` URL on an internal Atlassian host (`*.prod.atl-paas.net`) that a client outside Atlassian cannot reach. `load-issue.sh` now rewrites such an internal URL to the configured site with the same `/rest/api/3/attachment/content/<id>` path. The site comes only from `JIRA_SITE` or the current `acli` profile and must be a `*.atlassian.net` host, never from the URL argument, because `download-attachments.sh` sends the API token to that host and the argument can come from untrusted text. Every other URL stays as returned.
 
 - ⚖️ **Changed**: a code-review finding whose Suggested Fix proposes a refactoring must keep the behaviour identical and say so (`rules/refactoring/general.md` *Code Review Application*). The review compares the current and the proposed code path by path, and the Suggested Fix ends with *"The proposed change is behaviour-neutral."* in the report language. A proposal that changes behaviour names each change instead, and on a refactoring-only pull request it becomes a follow-up issue.
 
