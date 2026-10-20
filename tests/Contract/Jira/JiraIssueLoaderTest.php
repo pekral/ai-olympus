@@ -20,7 +20,9 @@ if [[ "$3" == "view" ]]; then
     exit 1
   fi
 
-  printf '%s\n' "$FAKE_ACLI_VIEW_JSON"
+  # A subtask is loaded with its own `view` call; FAKE_ACLI_VIEW_JSON_<KEY with _ for -> answers it.
+  per_key_view="FAKE_ACLI_VIEW_JSON_${4//-/_}"
+  printf '%s\n' "${!per_key_view:-$FAKE_ACLI_VIEW_JSON}"
   exit 0
 fi
 
@@ -107,7 +109,11 @@ function jiraLoaderCommentsJson(): string
  */
 function jiraLoaderRequiredBinaries(): array
 {
-    return ['bash', 'jq', 'sed', 'awk', 'cat', 'grep', 'head', 'dirname'];
+    return [
+        'bash', 'jq', 'sed', 'awk', 'cat', 'grep', 'head', 'dirname',
+        // `download-attachments.sh` and the scan it hands every file to need these as well.
+        'base64', 'basename', 'chmod', 'cp', 'file', 'mkdir', 'mktemp', 'mv', 'rm', 'sha256sum', 'shasum', 'tr', 'wc',
+    ];
 }
 
 /**
@@ -450,4 +456,227 @@ test('a date node renders its day, and an unrenderable timestamp degrades to its
 
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'comments.0.body'))->toBe('2023-11-141e25-99999999999999999999');
+});
+
+/**
+ * The shallow subtask reference the parent view embeds; the loader fetches the subtask itself by key.
+ *
+ * @return array<string, mixed>
+ */
+function jiraLoaderSubtaskReference(): array
+{
+    return ['fields' => ['issuetype' => ['name' => 'Sub-task'], 'status' => ['name' => 'Open'], 'summary' => 'Sub'], 'key' => 'ACME-2'];
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function jiraLoaderMediaNode(string $alt): array
+{
+    return ['attrs' => ['alt' => $alt, 'id' => 'media-' . $alt, 'type' => 'file'], 'type' => 'media'];
+}
+
+/**
+ * @param list<string> $alts
+ * @return array<string, mixed>
+ */
+function jiraLoaderMediaDoc(array $alts): array
+{
+    return [
+        'content' => array_map(
+            static fn (string $alt): array => ['content' => [jiraLoaderMediaNode($alt)], 'type' => 'mediaSingle'],
+            $alts,
+        ),
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
+
+/**
+ * @return array{content: string, filename: string, id: int, mimeType: string}
+ */
+function jiraLoaderAttachment(int $id, string $filename): array
+{
+    return [
+        'content' => 'https://acme.atlassian.net/rest/api/3/attachment/content/' . $id,
+        'filename' => $filename,
+        'id' => $id,
+        'mimeType' => 'text/plain',
+    ];
+}
+
+/**
+ * The issue view the pasted-file tests share: a comment carrying a screenshot and a log, where the
+ * log filename belongs to two attachments and so joins to none.
+ *
+ * @return array<mixed, mixed>
+ */
+function jiraLoaderPastedFileView(): array
+{
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['attachment'] = [
+        jiraLoaderAttachment(10_500, 'error.png'),
+        jiraLoaderAttachment(10_501, 'log.txt'),
+        jiraLoaderAttachment(10_502, 'log.txt'),
+    ];
+    $body = [
+        'content' => [
+            jiraLoaderParagraph([['text' => 'The upload fails:', 'type' => 'text']]),
+            ['content' => [jiraLoaderMediaNode('error.png')], 'type' => 'mediaSingle'],
+            ['content' => [jiraLoaderMediaNode('log.txt')], 'type' => 'mediaGroup'],
+        ],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+    $view['fields']['comment'] = ['comments' => [['body' => $body, 'id' => '10001']]];
+
+    return $view;
+}
+
+test('a file pasted into a comment renders in place and joins to its issue attachment', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $process = runJiraLoader($fixture, 'ACME-1234', ['FAKE_ACLI_VIEW_JSON' => (string) json_encode(jiraLoaderPastedFileView())]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'comments.0.body'))->toBe("The upload fails:\n[attachment: error.png]\n[attachment: log.txt]");
+    expect(decodedJsonField($output, 'comments.0.mediaRefs'))->toBe([
+        ['adfId' => 'media-error.png', 'altText' => 'error.png', 'attachmentId' => '10500'],
+        ['adfId' => 'media-log.txt', 'altText' => 'log.txt', 'attachmentId' => null],
+    ]);
+});
+
+test('parse-comments passes the media references of a comment through', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $process = runJiraLoader(
+        $fixture,
+        'ACME-1234',
+        ['FAKE_ACLI_VIEW_JSON' => (string) json_encode(jiraLoaderPastedFileView())],
+        'parse-comments.sh',
+    );
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, '0.mediaRefs'))->toBe([
+        ['adfId' => 'media-error.png', 'altText' => 'error.png', 'attachmentId' => '10500'],
+        ['adfId' => 'media-log.txt', 'altText' => 'log.txt', 'attachmentId' => null],
+    ]);
+});
+
+test('a file pasted into a subtask description joins to the subtask attachment', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['subtasks'] = [jiraLoaderSubtaskReference()];
+    $subtask = ['fields' => [
+        'attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')],
+        'description' => jiraLoaderMediaDoc(['sub-notes.txt']),
+    ],
+    ];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+        'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtask),
+    ]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'subtasks.0.descriptionMediaRefs'))->toBe([
+        ['adfId' => 'media-sub-notes.txt', 'altText' => 'sub-notes.txt', 'attachmentId' => '10600'],
+    ]);
+});
+
+test('attachment ids are strings, the same type as the attachmentId of the media references that join them', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = jiraLoaderPastedFileView();
+    assert(is_array($view['fields']));
+    $view['fields']['subtasks'] = [jiraLoaderSubtaskReference()];
+    $subtask = ['fields' => [
+        'attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')],
+        'description' => jiraLoaderMediaDoc(['sub-notes.txt']),
+    ],
+    ];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+        'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtask),
+    ]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'attachments.0.id'))->toBe('10500');
+    expect(decodedJsonField($output, 'comments.0.mediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'attachments.0.id'));
+    expect(decodedJsonField($output, 'subtasks.0.attachments.0.id'))->toBe('10600');
+    expect(decodedJsonField($output, 'subtasks.0.descriptionMediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'subtasks.0.attachments.0.id'));
+});
+
+test('the download manifest names the description, comment, or subtask description that references each file', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $scratch = sys_get_temp_dir() . '/ai-olympus-jira-scratch-' . bin2hex(random_bytes(6));
+    // The download is the one network call; a fake curl writes the file instead of fetching it.
+    file_put_contents($fixture['bin'] . '/curl', <<<'BASH'
+        #!/usr/bin/env bash
+        while [[ $# -gt 0 ]]; do
+          if [[ "$1" == "--output" ]]; then printf 'plain text' > "$2"; fi
+          shift
+        done
+        BASH);
+    chmod($fixture['bin'] . '/curl', 0o700);
+
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['attachment'] = [
+        jiraLoaderAttachment(10_500, 'notes.txt'),
+        jiraLoaderAttachment(10_501, 'log.txt'),
+        jiraLoaderAttachment(10_502, 'other.txt'),
+    ];
+    $view['fields']['description'] = jiraLoaderMediaDoc(['notes.txt']);
+    $view['fields']['comment'] = ['comments' => [['body' => jiraLoaderMediaDoc(['log.txt']), 'id' => '10001']]];
+    $view['fields']['subtasks'] = [jiraLoaderSubtaskReference()];
+    $subtask = ['fields' => [
+        'attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')],
+        'description' => jiraLoaderMediaDoc(['sub-notes.txt']),
+    ],
+    ];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', [
+        'CLAUDE_SCRATCHPAD_DIR' => $scratch,
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+        'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtask),
+        'JIRA_API_EMAIL' => 'bot@acme.test',
+        'JIRA_API_TOKEN' => 'secret',
+    ], 'download-attachments.sh');
+
+    $manifest = (string) file_get_contents($scratch . '/attachments/jira/attachments-manifest.json');
+    (new Process(['rm', '-rf', $scratch]))->run();
+    unlink($fixture['bin'] . '/curl');
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+
+    $entries = array_map(
+        static fn (int $index): array => [
+            decodedJsonField($manifest, 'attachments.' . $index . '.name'),
+            decodedJsonField($manifest, 'attachments.' . $index . '.referencedBy'),
+        ],
+        range(0, 3),
+    );
+
+    expect($entries)->toBe([
+        ['notes.txt', ['description']],
+        ['log.txt', ['comment:10001']],
+        ['other.txt', []],
+        ['sub-notes.txt', ['ACME-2:description']],
+    ]);
 });

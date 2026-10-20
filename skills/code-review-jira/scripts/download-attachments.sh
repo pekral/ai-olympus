@@ -110,9 +110,17 @@ if [[ -z "$ISSUE_JSON" ]] || ! printf '%s' "$ISSUE_JSON" | jq -e . >/dev/null 2>
   exit 3
 fi
 
+# `referencedBy` names where each file was pasted: `description`, `comment:<id>`, or the same
+# prefixed with the subtask key, so the analysis reads a screenshot next to its comment.
 INVENTORY="$(printf '%s' "$ISSUE_JSON" | jq -c '
-  [ (.attachments // [])[], ((.subtasks // [])[] | (.attachments // [])[]) ]
-  | map({ id: (.id|tostring), name: .name, declaredMime: .mimeType, size: .size, contentUrl: .contentUrl })
+  def refs($prefix):
+    [ ((.descriptionMediaRefs // [])[] | { attachmentId, where: ($prefix + "description") }),
+      ((.comments // [])[] | .id as $cid | (.mediaRefs // [])[] | { attachmentId, where: ($prefix + "comment:" + ($cid | tostring)) }) ];
+  ( refs("") + ([ (.subtasks // [])[] | refs(.key + ":") ] | add // []) ) as $refs
+  | [ (.attachments // [])[], ((.subtasks // [])[] | (.attachments // [])[]) ]
+  | map((.id | tostring) as $id
+      | { id: $id, name: .name, declaredMime: .mimeType, size: .size, contentUrl: .contentUrl,
+          referencedBy: ([ $refs[] | select(.attachmentId == $id) | .where ] | unique) })
 ')"
 
 COUNT="$(printf '%s' "$INVENTORY" | jq 'length')"
