@@ -680,3 +680,22 @@ test('the download manifest names the description, comment, or subtask descripti
         ['sub-notes.txt', ['ACME-2:description']],
     ]);
 });
+
+test('an attachment content URL on an internal Atlassian host is served through the site host', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['attachment'] = [
+        ['content' => 'https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/attachment/content/77223', 'filename' => 'error.png', 'id' => '77223'],
+        ['content' => 'https://cdn.example.com/error.png', 'filename' => 'other.png', 'id' => '77224'],
+    ];
+
+    $process = runJiraLoader($fixture, 'https://acme.atlassian.net/browse/ACME-1234', ['FAKE_ACLI_VIEW_JSON' => (string) json_encode($view)]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'attachments.0.contentUrl'))->toBe('https://acme.atlassian.net/rest/api/3/attachment/content/77223');
+    expect(decodedJsonField($output, 'attachments.1.contentUrl'))->toBe('https://cdn.example.com/error.png');
+});

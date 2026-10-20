@@ -486,6 +486,16 @@ def adfPlain: adfText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "");
 # of a media reference both go through it and a consumer can join them with `==`.
 def attachmentId: if (.id // null) == null then null else (.id | tostring) end;
 
+# `attachmentContentUrl` serves the attachment content through the JIRA site host. acli can return
+# the URL on an internal Atlassian host (`*.prod.atl-paas.net`) that a client outside Atlassian cannot
+# reach; the path is the same on the site host. Without a resolved site host the URL stays as returned.
+def attachmentContentUrl:
+  (.content // null) as $u
+  | if $u == null or $host == "" then $u
+    else ($u | capture("^https://[^/]+(?<path>/rest/api/3/attachment/content/.+)$")? // null) as $m
+    | if $m == null then $u else "https://" + $host + $m.path end
+    end;
+
 # `mediaRefs($atts)` lists every media node of an ADF document. `attachmentId` joins the node to the
 # issue attachment whose filename equals the `alt` of the node, and stays null when no attachment or more
 # than one attachment carries that filename.
@@ -600,7 +610,7 @@ def viewCommentIdx:
             name: (.filename // null),
             size: (.size // null),
             mimeType: (.mimeType // null),
-            contentUrl: (.content // null),
+            contentUrl: attachmentContentUrl,
             author: (if (.author | type) == "object" then (.author.displayName // null) else .author end),
             created: (.created // null)
           })) end)
@@ -611,7 +621,7 @@ def viewCommentIdx:
       name: (.filename // null),
       size: (.size // null),
       mimeType: (.mimeType // null),
-      contentUrl: (.content // null),
+      contentUrl: attachmentContentUrl,
       author: (if (.author | type) == "object" then (.author.displayName // null) else .author end),
       created: (.created // null)
     })),
