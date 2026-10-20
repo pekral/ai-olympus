@@ -8,6 +8,7 @@
 #   2. sources this file
 #   3. resolves the attachment inventory as a JSON array of
 #        { "id", "name", "declaredMime", "size", "contentUrl" }
+#      plus an optional "referencedBy" list the manifest carries through unchanged
 #   4. writes a curl auth config file (chmod 600) carrying ONLY the auth header
 #      (empty string when the source needs no auth)
 #   5. calls att_run "<inventory_json>" "<auth_config_file>" "<dest_dir>" "<tracker>" "<ref>"
@@ -177,6 +178,7 @@ att_run() {
         localPath: (if $lp == "" then null else $lp end),
         status: $st,
         reason: (if $rs == "" then null else $rs end),
+        referencedBy: ($e.referencedBy // null),
         safePath: null
       }]' <<< "$entries")"
   done

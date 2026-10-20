@@ -451,3 +451,37 @@ test('a date node renders its day, and an unrenderable timestamp degrades to its
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'comments.0.body'))->toBe('2023-11-141e25-99999999999999999999');
 });
+
+test('a file pasted into a comment renders in place and joins to its issue attachment', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['attachment'] = [
+        ['content' => 'https://acme.atlassian.net/rest/api/3/attachment/content/10500', 'filename' => 'error.png', 'id' => 10_500],
+        ['content' => 'https://acme.atlassian.net/rest/api/3/attachment/content/10501', 'filename' => 'log.txt', 'id' => 10_501],
+        ['content' => 'https://acme.atlassian.net/rest/api/3/attachment/content/10502', 'filename' => 'log.txt', 'id' => 10_502],
+    ];
+    $media = static fn (string $alt): array => ['attrs' => ['alt' => $alt, 'id' => 'media-' . $alt, 'type' => 'file'], 'type' => 'media'];
+    $body = [
+        'content' => [
+            jiraLoaderParagraph([['text' => 'The upload fails:', 'type' => 'text']]),
+            ['content' => [$media('error.png')], 'type' => 'mediaSingle'],
+            ['content' => [$media('log.txt')], 'type' => 'mediaGroup'],
+        ],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+    $view['fields']['comment'] = ['comments' => [['body' => $body, 'id' => '10001']]];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', ['FAKE_ACLI_VIEW_JSON' => (string) json_encode($view)]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'comments.0.body'))->toBe("The upload fails:\n[attachment: error.png]\n[attachment: log.txt]");
+    expect(decodedJsonField($output, 'comments.0.mediaRefs'))->toBe([
+        ['adfId' => 'media-error.png', 'altText' => 'error.png', 'attachmentId' => '10500'],
+        ['adfId' => 'media-log.txt', 'altText' => 'log.txt', 'attachmentId' => null],
+    ]);
+});
