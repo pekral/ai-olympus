@@ -30,7 +30,7 @@
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
 #                        "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ] } ],
 #     "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
-#     "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ],
+#     "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ],  # "id" is a string
 #     "customFields":  { "customfield_XXXXX": <parsed value>, … },
 #     "devSummary":    { "pullRequestCount", "branchCount", "commitCount", "state", "isStale", "byInstance" } | null,
 #     "pullRequests":  [ { "number", "title", "url", "state", "headRefName", "baseRefName", "isDraft", "mergedAt", "author" } ]
@@ -67,6 +67,7 @@
 #     text as `[attachment: <filename>]` at the place it was pasted. `descriptionMediaRefs[]` and
 #     each comment's `mediaRefs[]` list those nodes; `attachmentId` joins a node to the
 #     `attachments[]` entry by filename, and is null when the filename is missing or not unique.
+#     `attachmentId` equals that entry's `id`: both are strings, whatever type acli returns.
 #     The ADF `adfId` is a Media API ID, not the attachment ID.
 #   - `devSummary` is a convenience projection derived from
 #     customFields[$JIRA_DEV_SUMMARY_FIELD] (default `customfield_10000`,
@@ -479,13 +480,19 @@ def adfPlain: adfText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "");
 # `comment list` body is the flattening acli does itself, which drops mentions, emoji, and every list item —
 # a decision written as a bullet disappears from it entirely. The flattened text stays the fallback
 # for a comment the view did not embed.
+
+# `attachmentId` is the id of an attachment as a string, or null when it has none. acli returns the id
+# as a number or as a string depending on the endpoint, so `attachments[].id` and the `attachmentId`
+# of a media reference both go through it and a consumer can join them with `==`.
+def attachmentId: if (.id // null) == null then null else (.id | tostring) end;
+
 # `mediaRefs($atts)` lists every media node of an ADF document. `attachmentId` joins the node to the
 # issue attachment whose filename equals the `alt` of the node, and stays null when no attachment or more
 # than one attachment carries that filename.
 def mediaRefs($atts):
   [ .. | objects | select((.type // "") | IN("media","mediaInline"))
     | (.attrs.alt // null) as $alt
-    | ([$atts[] | select($alt != null and .filename == $alt) | (.id // null | tostring)]) as $hits
+    | ([$atts[] | select($alt != null and .filename == $alt) | attachmentId]) as $hits
     | { adfId: (.attrs.id // null),
         altText: $alt,
         attachmentId: (if ($hits | length) == 1 then $hits[0] else null end) } ];
@@ -589,7 +596,7 @@ def viewCommentIdx:
           descriptionMediaRefs: (if $sdesc == null then [] else ($sdesc | mediaRefs($sf.attachment // [])) end),
           comments: (if $d == null then [] else (($sf | viewCommentIdx) as $subIdx | ($d.comments // []) | map(commentOut($subIdx; $sf.attachment // []))) end),
           attachments: (if $sf == null then [] else (($sf.attachment // []) | map({
-            id: (.id // null),
+            id: attachmentId,
             name: (.filename // null),
             size: (.size // null),
             mimeType: (.mimeType // null),
@@ -600,7 +607,7 @@ def viewCommentIdx:
         })),
     comments: ($commentsResp.comments // [] | map(commentOut($viewCommentIdx; $att))),
     attachments: ($att | map({
-      id: (.id // null),
+      id: attachmentId,
       name: (.filename // null),
       size: (.size // null),
       mimeType: (.mimeType // null),

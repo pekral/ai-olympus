@@ -595,6 +595,32 @@ test('a file pasted into a subtask description joins to the subtask attachment',
     ]);
 });
 
+test('attachment ids are strings, the same type as the attachmentId of the media references that join them', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $view = jiraLoaderPastedFileView();
+    assert(is_array($view['fields']));
+    $view['fields']['subtasks'] = [jiraLoaderSubtaskReference()];
+    $subtask = ['fields' => [
+        'attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')],
+        'description' => jiraLoaderMediaDoc(['sub-notes.txt']),
+    ],
+    ];
+
+    $process = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+        'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtask),
+    ]);
+
+    $output = $process->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect($process->getExitCode())->toBe(0);
+    expect(decodedJsonField($output, 'attachments.0.id'))->toBe('10500');
+    expect(decodedJsonField($output, 'comments.0.mediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'attachments.0.id'));
+    expect(decodedJsonField($output, 'subtasks.0.attachments.0.id'))->toBe('10600');
+    expect(decodedJsonField($output, 'subtasks.0.descriptionMediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'subtasks.0.attachments.0.id'));
+});
+
 test('the download manifest names the description, comment, or subtask description that references each file', function (): void {
     $fixture = createJiraLoaderFixture();
     $scratch = sys_get_temp_dir() . '/ai-olympus-jira-scratch-' . bin2hex(random_bytes(6));
