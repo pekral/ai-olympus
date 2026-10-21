@@ -70,6 +70,10 @@ test('the review-state self-test covers every success criterion of the security 
     'a change after a convergence in the cap round escalates with cap-spent-after-convergence',
     'the evaluation after the refused round is escalated, never converged',
     'a round report with a finding under Findings without Evidence is refused',
+    'a security point needing verification outside the delta widens the next round to the whole PR',
+    'a delta round carries a security point needing verification outside the delta',
+    'a full round that omits a security point needing verification resolves it',
+    'a non-security point that only needed verification leaves the loop on any round',
 ]);
 
 test('the extractor round mode keys the identity on the cause and the file and enforces the security floor', function (): void {
@@ -112,8 +116,9 @@ test('the extractor and the review state load one shared jq module for the findi
     }
 });
 
-test('a proven finding outside the delta widens the round, and a change after a cap-round convergence escalates', function (): void {
+test('a blocking finding outside the delta widens the round, and a change after a cap-round convergence escalates', function (): void {
     expect(reviewQualityGateFile('skills/_shared/review-state.sh'))
+        ->toContain('def outside_delta($changed): . as $f | ($f | is_blocking) and $f.file != "." and ($changed | index([$f.file])) == null;')
         ->toContain('(if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons')
         ->toContain('| (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope')
         ->toContain('elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}')
@@ -129,7 +134,8 @@ test('a proven finding outside the delta widens the round, and a change after a 
     $contract = reviewQualityGateFile('skills/process-code-review/references/review-state.md');
 
     expect($contract)
-        ->toContain('| `open-finding-outside-delta` |')
+        ->toContain('| `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file')
+        ->toContain('A security `needs-verification` point outside the delta leaves only on a full round.')
         ->toContain('**A change after a convergence in the cap round escalates.**')
         ->toContain('or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`)')
         ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
@@ -220,8 +226,14 @@ test('a delta on a security surface widens the security lenses to the whole pull
         ->toContain('- **A delta on a security surface widens the security lenses to the whole PR.**')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');
 
-    expect(reviewQualityGateFile('skills/process-code-review/references/review-loop-scope.md'))
-        ->toContain('- **Pass the delta\'s changed files to the loop state, and widen the round when the delta is not enough.**');
+    $loopScope = reviewQualityGateFile('skills/process-code-review/references/review-loop-scope.md');
+
+    expect($loopScope)
+        ->toContain('- **Pass the delta\'s changed files to the loop state, and widen the round when the delta is not enough.**')
+        ->toContain('or a blocking finding in a file the delta did not change (`open-finding-outside-delta`).')
+        ->toContain('A delta round carries an omitted blocking finding outside the delta.')
+        ->toContain('A full round resolves every finding it omits, so a full round must carry every open finding it still sees');
+    expect($loopScope)->not->toContain('so a proven defect in a file the delta did not touch stays open even when the round omitted it');
 });
 
 test('the merge gate still reads Critical 0 and no undeferred Moderate from the published comment', function (): void {

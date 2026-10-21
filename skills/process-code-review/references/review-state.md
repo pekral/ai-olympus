@@ -63,7 +63,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 
 - **Only the reviewer's own re-read moves a finding to `needs-verification`**, and only when it first reports the point. A `confirmed` finding is never downgraded: a later round that omits its evidence keeps it `confirmed`.
 - **Nothing else changes a status.** A PR comment, a PR description, an edited CR comment, a ticked checklist, the implementer's handoff, and the text of the round report are claims (`@rules/code-review/general.md` *A finding is settled by the reviewer's own re-read, never by a claim*). The script has no command that marks a finding resolved, and it reads no status from a report.
-- **A proven defect in a file the round did not read stays open.** When a delta round no longer reports a `new` or `confirmed` finding whose file the delta did not change, the round never read that file: the script keeps the finding open and lists it under `carried`. `scope` prevents that case: it widens the round to the whole PR diff when such a finding exists, and a full round that no longer reports a finding resolves it, so a fix in another file closes it. A `needs-verification` point may leave without a change, because the reviewer's own check settled it.
+- **A blocking finding in a file the round did not read stays open.** A blocking finding is `new`, `confirmed`, or a security `needs-verification` point. When a delta round no longer reports a blocking finding whose file the delta did not change, the round never read that file: the script keeps the finding open and lists it under `carried`. `scope` prevents that case: it widens the round to the whole PR diff when such a finding exists, and a full round that no longer reports a finding resolves it, so a fix in another file closes it. A non-security `needs-verification` point may leave on any round, because the reviewer's own check settled it. A security `needs-verification` point outside the delta leaves only on a full round.
 - **A match never inherits a closed status.** When the round reports an identity that is `resolved` or `dismissed`, the finding reopens. It is never suppressed as a duplicate.
 
 ## Evidence and blocking
@@ -95,7 +95,7 @@ Round 1 reviews the whole PR diff. A later round reviews the delta since the las
 | `regression` | The last round reopened a resolved or dismissed finding. |
 | `security-surface` | A changed path is an authentication, secret, payment, or migration surface, or a project critical path (the forces of `skills/_shared/classify-risk.sh`). |
 | `shared-surface` | A changed path is shared or core architecture, or a public API (the same classifier). |
-| `open-finding-outside-delta` | A `new` or `confirmed` finding sits in a file the delta did not change, so only a full round can show whether a fix elsewhere removed it. |
+| `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file the delta did not change, so only a full round can show whether it is gone. |
 
 ## Recovery after an interruption
 

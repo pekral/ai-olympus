@@ -110,8 +110,8 @@ def is_open: .status == "new" or .status == "confirmed" or .status == "needs-ver
 def is_blocking: .status == "new" or .status == "confirmed" or (.status == "needs-verification" and .security);
 # A hard blocker is never deferred: a security finding, or a severity at or above the blocking threshold.
 def is_hard($threshold): .security or ((.severity | severity_rank) >= ($threshold | severity_rank));
-# A proven open finding in a file the delta did not change: a delta review cannot show whether it is gone.
-def outside_delta($changed): . as $f | ($f.status == "new" or $f.status == "confirmed") and $f.file != "." and ($changed | index([$f.file])) == null;
+# A blocking finding in a file the delta did not change: a delta review cannot show whether it is gone.
+def outside_delta($changed): . as $f | ($f | is_blocking) and $f.file != "." and ($changed | index([$f.file])) == null;
 
 # Every problem the state has; an empty array means the state is valid.
 def state_errors:
@@ -238,10 +238,10 @@ EOF
 
 # Merge one round into the state. Reads the state; $cur is the round's records, $changed the delta's paths or
 # null. A finding the round carries keeps its identity; one it no longer carries is resolved by the reviewer's
-# re-read. The one exception is a delta round and a proven finding whose file is outside the delta: that round
+# re-read. The one exception is a delta round and a blocking finding whose file is outside the delta: that round
 # never read the file, so the finding stays open. A round counts as a delta round unless `scope` recorded
-# `full` for it, and round 1 is always full. A point that only needed verification may leave without a change:
-# the reviewer's own check settled it.
+# `full` for it, and round 1 is always full. A non-security point that only needed verification may leave on any
+# round: the reviewer's own check settled it.
 JQ_RECORD=''
 IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 . as $s
@@ -547,7 +547,7 @@ cmd_scope() {
     jq -r '.[]' "$TMP/changed.json" >"$TMP/changed.txt"
     signals="$("$HERE/classify-risk.sh" --files "$TMP/changed.txt" 2>/dev/null | sed -n 's/^signal=[^|]*|\([a-z-]*\)|.*/\1/p' || true)"
   fi
-  # The next `record` reads the scope stored here: a proven finding outside a delta round stays open.
+  # The next `record` reads the scope stored here: a blocking finding outside a delta round stays open.
   jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" "$JQ_STATE"'
     ($signals | split("\n") | map(select(. != ""))) as $sig
     | [ (if .iteration == 0 then "first-round" else empty end),
@@ -797,9 +797,23 @@ self_test() {
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/c2.md" >/dev/null)
+  run_case 'a delta that leaves a security point needing verification untouched is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-none"
+  check 'a security point needing verification outside the delta widens the next round to the whole PR' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
   report "$tmp/c5.md" 2
-  run_case 'the reviewer verifies the security point as absent without a code change' 0 -- record --state "$S" --input "$tmp/c5.md" --changed-files "$tmp/changed-none"
-  check 'a point that only needed verification leaves the loop on the reviewer'"'"'s re-read' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
+  run_case 'the broad round verifies the security point as absent without a code change' 0 -- record --state "$S" --input "$tmp/c5.md" --changed-files "$tmp/changed-none"
+  check 'a full round that omits a security point needing verification resolves it' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/c2.md" >/dev/null)
+  run_case 'a delta round without scope omits the security point' 0 -- record --state "$S" --input "$tmp/c5.md" --changed-files "$tmp/changed-none"
+  check 'a delta round carries a security point needing verification outside the delta' "$(q '.verdict == "continue" and (.carried | length) == 1 and .counts.resolved == 0 and .blocking[0].status == "needs-verification"')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/c1.md" >/dev/null)
+  run_case 'a delta that leaves a non-security point needing verification untouched is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-none"
+  check 'a non-security point needing verification does not widen the round' "$(q '.scope == "delta" and .reasons == []')"
+  run_case 'a delta round omits the non-security point' 0 -- record --state "$S" --input "$tmp/c5.md" --changed-files "$tmp/changed-none"
+  check 'a non-security point that only needed verification leaves the loop on any round' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
 
   # --- dismissal: only a trusted author, never a security finding ------------------------------------------
   rm -f "$repo/$S"
