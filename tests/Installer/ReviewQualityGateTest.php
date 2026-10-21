@@ -84,6 +84,8 @@ test('the review-state self-test covers every success criterion of the security 
     'a comment on another pull request is refused',
     'a rejection the loader cannot load is refused',
     'the dismissal reads the association from the loaded pull request',
+    'a trusted comment that does not name the finding is refused',
+    'one comment dismisses only the finding it names',
 ]);
 
 test('the extractor round mode keys the identity on the cause and the file and enforces the security floor', function (): void {
@@ -169,7 +171,8 @@ test('a dismissal reads the author association from the GitHub loader, never fro
         ->toContain('"$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"')
         ->toContain('elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then')
         ->toContain('elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then')
-        ->toContain('association="$(rejection_association "$comment")"')
+        ->toContain('elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \\($id)"')
+        ->toContain('association="$(rejection_association "$comment" "$id")"')
         ->toContain('isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")')
         ->toContain('# The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.');
     expect($script)->not->toContain('association="$2"');
@@ -181,7 +184,8 @@ test('a dismissal reads the author association from the GitHub loader, never fro
     expect($contract)
         ->toContain('`review-state.sh dismiss --state <file> --finding <id> --comment <URL of the rejection comment on the pull request>`')
         ->toContain('- **The script verifies the author of a rejection; the caller never states it.**')
-        ->toContain('the author of the rejection is not trusted or cannot be verified');
+        ->toContain('the author of the rejection is not trusted or cannot be verified, the rejection comment does not name the `finding_id`')
+        ->toContain('and when the body does not name the `finding_id` it rejects. One comment therefore dismisses only the findings it names.');
     expect($contract)->not->toContain('--association');
 });
 

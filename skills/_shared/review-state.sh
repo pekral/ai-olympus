@@ -32,8 +32,8 @@
 #                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
 #                    request through skills/code-review-github/scripts/load-issue.sh and reads the comment's author
 #                    association itself. It refuses a comment it cannot load or find, an association other than
-#                    OWNER, MEMBER, or COLLABORATOR, and a comment that carries an agent marker. No caller states
-#                    the association.
+#                    OWNER, MEMBER, or COLLABORATOR, a comment that carries an agent marker, and a comment that does
+#                    not name the finding_id it rejects. No caller states the association.
 #
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
@@ -569,11 +569,11 @@ cmd_scope() {
   jq -c '.verdict' "$TMP/scoped.json"
 }
 
-# rejection_association <comment-url> — the author association of the rejection comment, read from the
-# GitHub loader's payload of the state's own pull request, never from the caller. Exit 4 when the comment cannot
-# be verified as a trusted author's own comment (rules/code-review/general.md *Authorship trust*).
+# rejection_association <comment-url> <finding-id> — the author association of the rejection comment, read from
+# the GitHub loader's payload of the state's own pull request, never from the caller. Exit 4 when the comment cannot
+# be verified as a trusted author's own comment that names the finding (rules/code-review/general.md *Authorship trust*).
 rejection_association() {
-  local url="$1" repo pr rc=0 verdict
+  local url="$1" id="$2" repo pr rc=0 verdict
   repo="$(jq -r '.repo' "$TMP/state.json")"
   pr="$(jq -r '.pr' "$TMP/state.json")"
   set +e
@@ -581,7 +581,7 @@ rejection_association() {
   rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(safe_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
-  verdict="$(jq -r --arg url "$url" --arg repo "$repo" --argjson pr "$pr" '
+  verdict="$(jq -r --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" '
     if type != "object" or .kind != "pr" or .number != $pr
        or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
     then "refused:the loader returned another item than the pull request of the state"
@@ -589,6 +589,7 @@ rejection_association() {
     | if ($m | length) != 1 then "refused:the pull request of the state has no comment with this URL"
       elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then
         "refused:the comment carries an agent marker; agent output is never a trusted rejection"
+      elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \($id)"
       elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then
         "refused:the author association \($m[0].authorAssociation // "null") is not trusted"
       else "trusted:\($m[0].authorAssociation)" end
@@ -625,7 +626,7 @@ cmd_dismiss() {
   jq -e '.status == "new" or .status == "confirmed" or .status == "needs-verification"' <<<"$finding" >/dev/null \
     || fail 4 "finding $id is not open; the status is unchanged"
   local association
-  association="$(rejection_association "$comment")"
+  association="$(rejection_association "$comment" "$id")"
 
   local config cap threshold
   config="$(effective_config)"
@@ -876,15 +877,17 @@ EOF
   # --- dismissal: only a trusted author, never a security finding ------------------------------------------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/d1.md" 1 "$F_STRUCT" "$F_SQL"
+  report "$tmp/d1.md" 1 "$F_STRUCT" "$F_SQL" "$(finding Moderate 'Copied step' 'src/Foo/Qux.php:5' "$STRUCT" 'rule-violation — the step is copied')"
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/d1.md" >/dev/null)
-  local struct_id sql_id
+  local struct_id sql_id other_id
   struct_id="$(jq -r '.findings[] | select(.file == "src/Foo/Bar.php") | .finding_id' "$repo/$S")"
   sql_id="$(jq -r '.findings[] | select(.file == "app/Http/Orders.php") | .finding_id' "$repo/$S")"
+  other_id="$(jq -r '.findings[] | select(.file == "src/Foo/Qux.php") | .finding_id' "$repo/$S")"
   cp "$repo/$S" "$tmp/before-dismiss"
   local C=https://github.com/acme/shop/pull/7#issuecomment-
-  pr_comments "$(comment 11 CONTRIBUTOR 'Not a defect, please drop it.')" "$(comment 12 OWNER 'Not a defect, please drop it.')" \
-    "$(comment 13 OWNER $'Dropped by the owner.\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 15 NONE 'Not a defect.')" "$(jq -n -c '{author: "x", body: "Not a defect.", url: "https://github.com/acme/shop/pull/7#issuecomment-16"}')"
+  pr_comments "$(comment 11 CONTRIBUTOR "Not a defect, please drop $struct_id.")" "$(comment 12 OWNER "Not a defect, please drop $struct_id.")" \
+    "$(comment 13 OWNER $'Dropped by the owner.\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 14 OWNER 'LGTM, thanks for the quick turnaround.')" \
+    "$(comment 15 NONE "Not a defect: $struct_id.")" "$(jq -n -c --arg id "$struct_id" '{author: "x", body: "Not a defect: \($id).", url: "https://github.com/acme/shop/pull/7#issuecomment-16"}')"
   run_case 'a caller-stated association is no longer accepted' 1 -- dismiss --state "$S" --finding "$struct_id" --association OWNER
   run_case 'a rejection by a CONTRIBUTOR is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}11"
   check 'the refused rejection leaves the status open' "$(cmp -s "$tmp/before-dismiss" "$repo/$S" && echo 0 || echo 1)"
@@ -892,6 +895,8 @@ EOF
   run_case 'a rejection whose association the loader does not return is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}16"
   run_case 'agent output from an OWNER account is never a trusted rejection' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}13"
   check 'the refused agent output names the agent marker' "$(grep -q 'carries an agent marker' "$tmp/err" && echo 0 || echo 1)"
+  run_case 'a trusted comment that does not name the finding is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}14"
+  check 'the refused rejection names the finding it does not mention' "$(grep -q "the comment does not name finding $struct_id" "$tmp/err" && echo 0 || echo 1)"
   run_case 'a comment the pull request does not carry is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}99"
   run_case 'a comment on another pull request is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment https://github.com/acme/shop/pull/8#issuecomment-12
   run_case 'a rejection URL that is not a pull-request comment is a usage error' 1 -- dismiss --state "$S" --finding "$struct_id" --comment https://evil.example/acme/shop/pull/7#issuecomment-12
@@ -906,6 +911,8 @@ EOF
   check 'the dismissal reads the association from the loaded pull request' "$(grep -qx 'https://github.com/acme/shop/pull/7' "$tmp/loader-calls" && echo 0 || echo 1)"
   check 'the dismissal is recorded with its trusted actor' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "dismissed"
       and any(.transitions[]; .finding_id == $id and .to == "dismissed" and .actor == "trusted:OWNER")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'one comment dismisses only the finding it names' 4 -- dismiss --state "$S" --finding "$other_id" --comment "${C}12"
+  check 'the finding the comment does not name stays open' "$(jq -e --arg id "$other_id" '(.findings[] | select(.finding_id == $id) | .status) == "new"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   report "$tmp/d2.md" 2 "$F_STRUCT" "$F_SQL"
   run_case 'the reviewer reports the dismissed finding again' 0 -- record --state "$S" --input "$tmp/d2.md" --changed-files "$tmp/changed-both"
   check 'a dismissed finding the code still carries reopens instead of being suppressed' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
