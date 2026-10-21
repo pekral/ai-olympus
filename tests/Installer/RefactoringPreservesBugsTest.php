@@ -77,7 +77,7 @@ test('a review of a refactoring-only change checks first that the logic stayed t
 
     $rule = (string) file_get_contents($packageDir . '/rules/refactoring/general.md');
     expect($rule)->toContain('**On a refactoring-only pull request, behaviour preservation is the primary check.** Run it before every other lens')
-        ->and($rule)->toContain('It is never deferred at round 3 — neither to a sub-issue nor by linking an existing issue')
+        ->and($rule)->toContain('It is never deferred at the cap round — neither to a sub-issue nor by linking an existing issue')
         ->and($rule)->toContain(
             'The Assignment Conformance Gate (`@skills/code-review/references/assignment-conformance-gate.md`) does not raise it again either.',
         )

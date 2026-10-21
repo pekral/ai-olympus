@@ -494,7 +494,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Safety* reports an open point as not verified, never as an assumption, and the header
         // block gains the conditional `Not verified:` line (`rules/general/general.md` *Verified statements only*).
         // Re-baselined: the namespace list gained `prevention-proposal`, which the prevention proposal refresh writes (issue #188).
-        'rules/code-review/general.md' => '1df23f04418f7bf0b25e3f6eeef25da1332145fa9a0b5023ede8674a1a7031ba',
+        // Re-baselined: *Incremental Review Scope* widens the security lenses to the whole PR when a delta touches
+        // a security surface, and the whole review after a regression or a shared-surface delta (issue #225).
+        'rules/code-review/general.md' => '90e801b76f1b87cbf5b8bcc6fad360c0b50dc41ad2af06f755a54f0af9f9efe5',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -559,7 +561,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the JIRA helper publishes into a named marker namespace, so one issue keeps
         // one comment per actor and marker namespace. Its MCP fallback carries the caller's namespace,
         // and a duplicate outside `cr-comment` stays for a human.
-        'rules/jira/general.md' => '4c3d0055655ce020139155d2828d4f871dbf548338f529038d665f6710ab7cde',
+        // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
+        'rules/jira/general.md' => '5dda8a0f3ffe4b29bc24bea458a913de8367f6639ff469674dde60d58e4164df',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
@@ -573,7 +576,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the behaviour-change bullet carries its gating, one finding per behaviour change (issue #175).
         // Re-baselined: behaviour preservation is the primary check of a refactoring-only review, and a
         // behaviour change in it is a Moderate finding instead of a Critical one.
-        'rules/refactoring/general.md' => '2bbcdef0449f23b09fee320ddd4e926fd71228f90cbc1a77aa83308b9992af38',
+        // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
+        'rules/refactoring/general.md' => 'd865b457d50220809f9d7428514a51f66f3b2e13062ddb389185286e8917c84f',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves

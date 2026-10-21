@@ -13,6 +13,7 @@
 #
 # Usage
 #   extract-findings.sh --repo <owner/name> --pr <number> [--input <file|->] [--store <file>]
+#   extract-findings.sh --round --repo <owner/name> --pr <number> [--input <file|->]
 #   extract-findings.sh --header [--input <file|->]
 #   extract-findings.sh --validate <file>
 #   extract-findings.sh --self-test
@@ -25,16 +26,19 @@
 #              Without --store the extracted records are printed to standard output, one per line.
 #   --header   read the report and write nothing. Print its `Reviewed revision` and its `Last updated` time
 #              in UTC, from the same parse the extraction uses. A report the parse refuses is refused.
-#   --validate check every line of a record file against the schema and refuse a duplicate `id`.
+#   --round    read one round report of the review loop and print one review-loop record (schema 2) per
+#              finding identity. It writes nothing; skills/_shared/review-state.sh keeps the loop state.
+#   --validate check every line of a record file against the schema of its records and refuse a repeated
+#              identity. A file holds records of one schema: store records (1) or review-loop records (2).
 #
 # The report is untrusted input (rules/security/general.md). It is read as data: no line of it is
 # executed, evaluated, or used to build a command, a path, or a jq program. Every value is checked
 # against a fixed pattern or capped before it reaches a record.
 #
 # Output
-#   stdout  the records (no --store), or one summary line {"repo","pr","extracted","added","updated",
-#           "resolved","records"} (--store), {"revision","time"} (--header), or {"valid":true,"records":N}
-#           (--validate)
+#   stdout  the records (no --store, and --round), or one summary line {"repo","pr","extracted","added",
+#           "updated","resolved","records"} (--store), {"revision","time"} (--header), or
+#           {"valid":true,"records":N} (--validate)
 #   stderr  one line per problem, each prefixed with the script name
 #
 # Exit codes
@@ -52,6 +56,7 @@ MAX_DEFERRALS=200
 usage() {
   cat >&2 <<'EOF'
 Usage: extract-findings.sh --repo <owner/name> --pr <number> [--input <file|->] [--store <file>]
+       extract-findings.sh --round --repo <owner/name> --pr <number> [--input <file|->]
        extract-findings.sh --header [--input <file|->]
        extract-findings.sh --validate <file>
        extract-findings.sh --self-test
@@ -154,6 +159,54 @@ def record_errors:
 def store_errors:
   [ to_entries[] | .key as $i | .value | record_errors[] | "record \($i + 1): \(.)" ]
   + [ group_by(.id?)[] | select(length > 1) | "duplicate id \(.[0].id)" ];
+
+# A text field of a review-loop record: non-empty, capped, and free of control characters.
+def textok($v): isstr($v; "\\S") and ($v | length) <= 4000 and ($v | test("[\\x00-\\x08\\x0b-\\x1f\\x7f]") | not);
+def severity_rank: {"low": 1, "medium": 2, "high": 3, "critical": 4}[.] // 0;
+def status_rank: {"dismissed": 1, "resolved": 2, "needs-verification": 3, "new": 4, "confirmed": 5}[.] // 0;
+
+# Every problem one review-loop record (schema 2) has; an empty array means the record is valid.
+def round_record_errors:
+  . as $r
+  | if ($r | type) != "object" then ["not a JSON object"] else
+    ["schema", "finding_id", "repo", "pr", "revision", "time", "category", "cause_key", "severity", "security",
+     "file", "line", "description", "impact", "evidence", "recommendation", "status"] as $keys
+    | [
+        (($r | keys) - $keys | .[] | "unknown key \(.)"),
+        ($keys - ($r | keys) | .[] | "missing key \(.)"),
+        (if $r.schema == 2 then empty else "schema must be 2" end),
+        (if isstr($r.finding_id; "^r-[0-9a-f]{16}$") then empty else "finding_id must be r- followed by 16 hex digits" end),
+        (if isstr($r.repo; "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") then empty else "repo must be owner/name" end),
+        (if ($r.pr | type) == "number" and ($r.pr | floor) == $r.pr and $r.pr > 0 then empty else "pr must be a positive integer" end),
+        (if isstr($r.revision; "^[0-9a-f]{7,64}$") then empty else "revision must be a lowercase commit SHA" end),
+        (if isstr($r.time; "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") then
+           (if (try ($r.time | fromdateiso8601) catch null) != null then empty else "time is not a valid date and time" end)
+         else "time must be UTC ISO-8601 with a trailing Z" end),
+        (if isstr($r.category; "^[a-z0-9_./-]+$") then empty else "category must match [a-z0-9_./-]+" end),
+        (if isstr($r.cause_key; "^[a-z0-9-]+$") then empty else "cause_key must match [a-z0-9-]+" end),
+        (if ($r.severity | severity_rank) > 0 then empty else "severity must be critical, high, medium, or low" end),
+        (if ($r.security | type) == "boolean" then empty else "security must be true or false" end),
+        (if isstr($r.file; "^[A-Za-z0-9_./@+-]{1,300}$") then empty else "file must be a path of at most 300 characters" end),
+        (if $r.line == null or (($r.line | type) == "number" and ($r.line | floor) == $r.line and $r.line > 0) then empty
+         else "line must be null or a positive integer" end),
+        (if textok($r.description) then empty else "description must be a non-empty text of at most 4000 characters" end),
+        (if textok($r.impact) then empty else "impact must be a non-empty text of at most 4000 characters" end),
+        (if $r.evidence == null or textok($r.evidence) then empty else "evidence must be null or a non-empty text of at most 4000 characters" end),
+        (if textok($r.recommendation) then empty else "recommendation must be a non-empty text of at most 4000 characters" end),
+        (if ($r.status | status_rank) > 0 then empty else "status must be new, confirmed, resolved, dismissed, or needs-verification" end),
+        (if $r.status == "dismissed" and $r.security == true then "a security finding (S1-S3) is never dismissed" else empty end),
+        (if ($r.status == "new" or $r.status == "confirmed") and $r.evidence == null then "status \($r.status) needs evidence" else empty end)
+      ]
+    end;
+
+# Every problem a record file has. A file holds records of one schema, each checked against that schema.
+def file_errors:
+  if length == 0 then []
+  elif (map(if type == "object" then .schema else null end) | unique | length) > 1 then ["the file mixes record schemas"]
+  elif (.[0] | type) == "object" and .[0].schema == 2 then
+    [ to_entries[] | .key as $i | .value | round_record_errors[] | "record \($i + 1): \(.)" ]
+    + [ group_by(.finding_id?)[] | select(length > 1) | "duplicate finding_id \(.[0].finding_id)" ]
+  else store_errors end;
 EOF
 
 # Stage A: read the report as lines and return {head, findings, errors}. The report is data only.
@@ -163,7 +216,7 @@ def unq: trim | sub("^`+"; "") | sub("`+$"; "") | trim;
 def close: (if .cur != null then .items += [.cur] | .cur = null else . end) | .field = null;
 def fieldkey($n):
   ($n | ascii_downcase | gsub("\\s+"; " ") | trim) as $k
-  | if ["location", "rule", "provenance", "impact", "faulty example", "test hint", "suggested fix", "deferred"] | index([$k]) then $k
+  | if ["location", "rule", "provenance", "impact", "faulty example", "test hint", "suggested fix", "deferred", "evidence", "level"] | index([$k]) then $k
     elif $k == "expected behavior" or $k == "expected behaviour" then "expected behavior"
     else "_ignored" end;
 def addline($l):
@@ -172,10 +225,14 @@ def addline($l):
 # A field value without its code fences, trimmed and capped. Null when it is empty.
 def body: split("\n") | map(select(test("^\\s*(```|~~~)") | not)) | join("\n") | trim | .[0:4000] | if . == "" then null else . end;
 def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$"; "") | if . == "" then "general" else . end;
+# The first path-like token of a text and the line number written after it. Null when the text has no path.
+def path_of($text):
+  [ $text | match("([A-Za-z0-9_.@+-][A-Za-z0-9_./@+-]*)(?::([0-9]{1,9}))?"; "g")
+    | {path: .captures[0].string, line: .captures[1].string}
+    | select(.path | test("/") or test("\\.[A-Za-z0-9]{1,8}$")) ] | first // null;
 # The subsystem of the first path-like token of a text: its first two directories, lowercase. Null when the text has no path.
 def subsystem_of($text):
-  ([ $text | match("[A-Za-z0-9_.@+-][A-Za-z0-9_./@+-]*"; "g") | .string
-     | select(test("/") or test("\\.[A-Za-z0-9]{1,8}$")) ] | first // null) as $path
+  (path_of($text) | if . == null then null else .path end) as $path
   | if $path == null then null else
       ($path | split("/") | .[:-1] | map(select(. != "" and . != "." and . != "..")) | .[:2] | join("/") | ascii_downcase
        | if . == "" then "." else . end)
@@ -227,6 +284,8 @@ def subsystem_of($text):
     | (($v.fields.location // "" | body) // "") as $loc
     | (($v.fields.rule // "" | body) // "") as $rule
     | (subsystem_of($loc) // ".") as $sub
+    | (path_of($loc) // {path: ".", line: null}) as $at
+    | ($v.fields.level // "" | body | if . == null then null else ascii_downcase end) as $level
     | ($rule | cap("`(?<ref>@(?:rules|skills)/[A-Za-z0-9_][A-Za-z0-9_./-]*)(?:#(?<anchor>[^`]+))?`(?:\\s+\\*(?<ital>[^*]+)\\*)?")) as $rb
     | ($rb // ($rule | cap("(?<ref>@(?:rules|skills)/[A-Za-z0-9_][A-Za-z0-9_./-]*(?:#[A-Za-z0-9_-]+)?)(?:`)?(?:\\s+\\*(?<ital>[^*]+)\\*)?"))) as $r
     | ($r.ref // null | if . == null then null else (. + (if ($r.anchor // null) != null then "#" + $r.anchor else "" end) | sub("[./-]+$"; "")) end) as $ref
@@ -235,7 +294,8 @@ def subsystem_of($text):
         error: ([
           (if ($v.dups | length) > 0 then "\($label): duplicate field(s): \($v.dups | unique | join(", "))" else empty end),
           (if ($absent | length) > 0 then "\($label): missing required field(s): \($absent | join(", "))" else empty end),
-          (if $deferred != null and ($deferred | test("https?://[^\\s]+") | not) then "\($label): Deferred field carries no sub-issue URL" else empty end)
+          (if $deferred != null and ($deferred | test("https?://[^\\s]+") | not) then "\($label): Deferred field carries no sub-issue URL" else empty end),
+          (if $level != null and ($level | test("^(high|medium|low)$") | not) then "\($label): Level must be High, Medium, or Low" else empty end)
         ] | join("; ")),
         finding: {
           severity: $v.severity,
@@ -250,7 +310,13 @@ def subsystem_of($text):
           reproducer: ($v.fields["faulty example"] // "" | body),
           expected_behavior: ($v.fields["expected behavior"] // "" | body),
           proposed_fix: ($v.fields["suggested fix"] // "" | body),
-          disposition: (if $deferred != null then "deferred" else "confirmed" end)
+          disposition: (if $deferred != null then "deferred" else "confirmed" end),
+          title: ($v.title | trim | .[0:4000]),
+          file: ($at.path | sub("^(\\./)+"; "") | .[0:300] | if . == "" then "." else . end),
+          line: ($at.line | if . == null then null else (tonumber | if . > 0 then . else null end) end),
+          evidence: ($v.fields.evidence // "" | body),
+          level: $level,
+          verify: ($v.section | test("^Needs verification"; "i"))
         }
       }
   )) as $conv
@@ -280,6 +346,7 @@ EOF
 JQ_BUILD=''
 IFS= read -r -d '' JQ_BUILD <<'EOF' || true
 [ .findings | to_entries[]
+  | select(.value.verify | not)
   | .key as $i | .value as $f
   | {schema: 1, id: $hashes[$i][1], repo: $repo, pr: $pr, revision: $rev, time: $time, severity: $f.severity,
      category: $f.category, cause_key: $f.cause_key, fingerprint: $hashes[$i][0], subsystem: $f.subsystem,
@@ -292,6 +359,37 @@ IFS= read -r -d '' JQ_BUILD <<'EOF' || true
     | if $ix == null then . + [$r]
       else .[$ix].severity = (if $r.severity == "critical" or .[$ix].severity == "critical" then "critical" else "moderate" end)
         | .[$ix].disposition = (if $r.disposition == "confirmed" or .[$ix].disposition == "confirmed" then "confirmed" else "deferred" end)
+      end)
+EOF
+
+# Round mode: build the review-loop records (schema 2) from the parsed findings and the identities computed
+# outside jq. A finding is security-relevant (the S1-S3 carve-out) when its rule is a security rule or a
+# security lens, or when its rule, location, or title names a security surface. The match is broad on
+# purpose: a false positive keeps a finding blocking, a false negative would let it be dismissed or deferred.
+JQ_ROUND=''
+IFS= read -r -d '' JQ_ROUND <<'EOF' || true
+def is_security($f):
+  ($f.category | test("^(rules/security/|skills/(security-review|laravel-authorization-review)(/|$))"))
+  or ([$f.category, $f.cause_key, $f.file, $f.title] | join(" ") | ascii_downcase
+      | test("auth|login|passw|session|cookie|token|csrf|xss|inject|secret|credential|crypt|signature|permission|polic|privilege|idor|ssrf|open.?redirect|upload|traversal|payment|billing|pii|rate.?limit|brute|security|sanitiz|escap|deserializ|mass.?assign|\\bcsp\\b|\\bcors\\b|\\btls\\b|certificat"));
+
+[ .findings | to_entries[]
+  | .key as $i | .value as $f
+  | {schema: 2, finding_id: $ids[$i], repo: $repo, pr: $pr, revision: $rev, time: $time,
+     category: $f.category, cause_key: $f.cause_key,
+     severity: (if $f.severity == "critical" then "critical" else ($f.level // "medium") end),
+     security: is_security($f), file: $f.file, line: $f.line,
+     description: (if ($f.title | test("\\S")) then $f.title else ($f.cause_hypothesis | .[0:200]) end),
+     impact: $f.cause_hypothesis, evidence: $f.evidence, recommendation: $f.proposed_fix,
+     status: (if $f.verify or $f.evidence == null then "needs-verification" else "new" end)} ]
+# One identity is one record: the higher severity, the more blocking status, and a security flag on either side win.
+| reduce .[] as $r ([];
+    (map(.finding_id) | index([$r.finding_id])) as $ix
+    | if $ix == null then . + [$r]
+      else .[$ix] |= (
+          (if ($r.severity | severity_rank) > (.severity | severity_rank) then .severity = $r.severity else . end)
+          | (if ($r.status | status_rank) > (.status | status_rank) then .status = $r.status | .evidence = $r.evidence else . end)
+          | .security = (.security or $r.security))
       end)
 EOF
 
@@ -324,16 +422,21 @@ IFS= read -r -d '' JQ_MERGE <<'EOF' || true
    resolved: ([ range(0; $old | length) as $i | select($old[$i].status == "open" and $kept[$i].status == "resolved") ] | length)}
 EOF
 
-# validate_store <file> — print the problems with a record file (one per line). Silent when valid.
+# validate_store <file> — print the problems with a record store (schema 1, one per line). Silent when valid.
 validate_store() {
   jq -n -r "$JQ_COMMON"' [inputs] | store_errors[]' "$1" 2>&1 || true
+}
+
+# validate_file <file> — print the problems with a record file of either schema (one per line). Silent when valid.
+validate_file() {
+  jq -n -r "$JQ_COMMON"' [inputs] | file_errors[]' "$1" 2>&1 || true
 }
 
 cmd_validate() {
   local file="${1:-}" problems count
   [[ -n "$file" ]] || die_usage '--validate needs a file'
   [[ -f "$file" ]] || fail_input "record file not found: $(safe_display "$file")"
-  problems="$(validate_store "$file")"
+  problems="$(validate_file "$file")"
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
       echo "$PROG: $(safe_display "$file"): $(safe_display "$line")" >&2
@@ -477,6 +580,55 @@ cmd_extract() {
   jq -c --arg repo "$repo" --argjson pr "$pr" --argjson extracted "$(jq 'length' "$tmp/new.json")" \
     '{repo: $repo, pr: $pr, extracted: $extracted, added: .added, updated: .updated, resolved: .resolved, records: (.records | length)}' \
     "$tmp/merged.json"
+}
+
+# cmd_round — print the review-loop records (schema 2) of one round report, one per finding identity.
+cmd_round() {
+  local repo='' pr='' input='-'
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --repo) [[ $# -ge 2 ]] || die_usage '--repo needs a value'; repo="$2"; shift 2 ;;
+    --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr="$2"; shift 2 ;;
+    --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
+    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    esac
+  done
+
+  [[ -n "$repo" ]] || die_usage '--repo is required'
+  [[ -n "$pr" ]] || die_usage '--pr is required'
+  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die_usage "--repo must be owner/name, got: $(safe_display "$repo")"
+  [[ "$pr" =~ ^[1-9][0-9]{0,8}$ ]] || die_usage "--pr must be a positive integer, got: $(safe_display "$pr")"
+
+  local tmp
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+
+  read_report "$input" "$tmp"
+
+  # The identity is the cause and the file, never the line or the wording. The inputs are restricted to fixed
+  # patterns by the parse, so none of them holds a tab or a newline.
+  : >"$tmp/ids"
+  local category cause file
+  while IFS=$'\t' read -r category cause file; do
+    printf 'r-%s\n' "$(sha16 "ai-olympus/finding-id/v2"$'\n'"$repo"$'\n'"$pr"$'\n'"$category"$'\n'"$cause"$'\n'"$file")" >>"$tmp/ids"
+  done < <(jq -r '.findings[] | [.category, .cause_key, .file] | @tsv' "$tmp/parsed.json")
+  local ids
+  ids="$(jq -R -s -c 'split("\n") | map(select(. != ""))' "$tmp/ids")"
+
+  jq -c --arg repo "$repo" --argjson pr "$pr" --arg rev "$(jq -r '.revision' "$tmp/parsed.json")" \
+    --arg time "$(jq -r '.time' "$tmp/parsed.json")" --argjson ids "$ids" \
+    "$JQ_COMMON"$'\n'"$JQ_ROUND" "$tmp/parsed.json" >"$tmp/round.json"
+
+  local problems
+  problems="$(jq -r "$JQ_COMMON"' file_errors[]' "$tmp/round.json")"
+  if [[ -n "$problems" ]]; then
+    while IFS= read -r line; do
+      echo "$PROG: $(safe_display "$line")" >&2
+    done <<<"$problems"
+    exit 3
+  fi
+  jq -c '.[]' "$tmp/round.json"
 }
 
 # The fixtures below are Markdown that carries backticks and dollar signs; none of it is meant to expand.
@@ -792,6 +944,75 @@ self_test() {
   run_case 'a time that is not a real date is rejected by --validate' 3 yes -- --validate "$tmp/badclock.jsonl"
   check 'the rejection names the invalid time' "$(grep -q 'time is not a valid date and time' "$tmp/case.err" && echo 0 || echo 1)"
 
+  # --round: one review-loop record (schema 2) per finding identity.
+  # finding <severity> <title> <location> <rule> <evidence|-> [level]
+  finding() {
+    printf '### 🔴 %s 1. %s\n\n- **Location:** `%s`\n- **Rule:** `%s`\n' "$1" "$2" "$3" "$4"
+    [[ -n "${6:-}" ]] && printf -- '- **Level:** %s\n' "$6"
+    printf -- '- **Provenance:** `regression — introduced in this revision`\n- **Impact:** %s impact.\n' "$2"
+    [[ "$5" != '-' ]] && printf -- '- **Evidence:** %s\n' "$5"
+    printf -- '- **Faulty Example:** x\n- **Expected behavior:** y\n- **Test hint:** z\n- **Suggested fix:** n/a — w\n\n'
+  }
+  head_of() {
+    printf '# Code Review\n\n**Status:** needs-fix\n**Counts:** Critical 1 · Moderate 0\n'
+    printf '**Reviewed revision:** %s\n**Last updated:** %s\n\n## Findings\n\n' "$1" "$2"
+  }
+  local SEC="@rules/security/backend.md#database" STRUCT="@rules/php/core-standards.md#structure"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'failing-test — tests/Feature/OrdersTest.php fails'; } >"$tmp/q1.md"
+  { head_of "$SHA2" 2026-10-02T10:00:00Z; finding Critical 'The sort reaches a raw query' 'app/Http/Orders.php:57' "$SEC" 'exploit-path — sort=1;DROP'; } >"$tmp/q2.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q1.md" >"$tmp/q1.out"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q2.md" >"$tmp/q2.out"
+  check 'round: a finding with evidence is a new schema-2 record with file and line' "$(jq -e '
+      (keys | length) == 17 and .schema == 2 and (.finding_id | test("^r-[0-9a-f]{16}$")) and .status == "new"
+      and .severity == "critical" and .security == true and .file == "app/Http/Orders.php" and .line == 42' "$tmp/q1.out" >/dev/null && echo 0 || echo 1)"
+  check 'round: the same finding on another line in other words keeps its finding_id' "$([[ "$(jq -r .finding_id "$tmp/q1.out")" == "$(jq -r .finding_id "$tmp/q2.out")" ]] && echo 0 || echo 1)"
+
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'exploit-path — a'; finding Critical 'Raw query' 'app/Http/Invoices.php:8' "$SEC" 'exploit-path — b'; } >"$tmp/q3.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q3.md" >"$tmp/q3.out"
+  "$script" --repo acme/shop --pr 7 --input "$tmp/q3.md" >"$tmp/q3.store"
+  check 'round: two similar defects of one rule section in two files of one subsystem stay two identities' "$([[ "$(jq -s 'map(.finding_id) | unique | length' "$tmp/q3.out")" == 2 && "$(wc -l <"$tmp/q3.store" | tr -d ' ')" == 1 ]] && echo 0 || echo 1)"
+
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; finding Critical 'Copied step again' 'src/Foo/Bar.php:30' "$STRUCT" 'rule-violation — the step is copied at line 30'; } >"$tmp/q4.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q4.md" >"$tmp/q4.out"
+  check 'round: two records with one identity keep the higher severity and the more blocking status' "$(jq -e -s 'length == 1 and .[0].severity == "critical" and .[0].status == "new" and (.[0].evidence | test("line 30"))' "$tmp/q4.out" >/dev/null && echo 0 || echo 1)"
+
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q5.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q5.md" >"$tmp/q5.out"
+  check 'round: a finding without evidence is needs-verification at its Level' "$(jq -e '.status == "needs-verification" and .severity == "low" and .security == false and .evidence == null' "$tmp/q5.out" >/dev/null && echo 0 || echo 1)"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Maybe a race' 'src/Cache/Store.php:3' "$STRUCT" 'logic-trace — two writers'; } >"$tmp/q6.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.out"
+  "$script" --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.store"
+  check 'round: an entry under Needs verification is needs-verification and never a store record' "$(jq -e '.status == "needs-verification" and .severity == "medium"' "$tmp/q6.out" >/dev/null && [[ ! -s "$tmp/q6.store" ]] && echo 0 || echo 1)"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Session token is logged' 'src/Foo/Bar.php:1' "$STRUCT" 'logic-trace — x'; } >"$tmp/q7.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q7.md" >"$tmp/q7.out"
+  check 'round: a finding that names a security surface is security-relevant' "$(jq -e '.security == true' "$tmp/q7.out" >/dev/null && echo 0 || echo 1)"
+
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'exploit-path — run $(touch '"$tmp"'/pwned-ev); `rm -rf /` | sh && echo ok > x'; } >"$tmp/q8.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q8.md" >"$tmp/q8.out"
+  check 'round: evidence with shell metacharacters is stored as inert text and never executed' "$([[ ! -e "$tmp/pwned-ev" ]] && jq -e '.evidence | test("touch") and test("rm -rf")' "$tmp/q8.out" >/dev/null && echo 0 || echo 1)"
+  local long ctl
+  long="$(awk 'BEGIN { for (i = 0; i < 9000; i++) printf "e" }')"
+  ctl="$(printf 'bell\001here\033[31m')"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical "Raw query" 'app/Http/Orders.php:42' "$SEC" "$ctl$long"; } | sed "s/^- \*\*Impact:\*\* .*/- **Impact:** $ctl$long/" >"$tmp/q9.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q9.md" >"$tmp/q9.out"
+  check 'round: evidence and impact are capped at 4000 characters with control characters removed' "$(jq -e '(.evidence | length) == 4000 and (.impact | length) == 4000
+      and (.evidence | startswith("bellhere[31m")) and (.evidence + .impact | test("[\\x00-\\x08\\x0b-\\x1f\\x7f]") | not)' "$tmp/q9.out" >/dev/null && echo 0 || echo 1)"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Urgent; } >"$tmp/q10.md"
+  run_case 'round: a Level other than High, Medium, or Low is rejected' 3 yes -- --round --repo acme/shop --pr 7 --input "$tmp/q10.md"
+  run_case 'round: a missing --pr is a usage error' 1 yes -- --round --repo acme/shop --input "$tmp/q1.md"
+
+  # --validate checks a review-loop record file against schema 2.
+  run_case 'a valid review-loop record file passes --validate' 0 no -- --validate "$tmp/q3.out"
+  jq -c '.status = "dismissed"' "$tmp/q1.out" >"$tmp/sec-dismissed.jsonl"
+  run_case 'a dismissed security (S1-S3) record is rejected by --validate' 3 yes -- --validate "$tmp/sec-dismissed.jsonl"
+  check 'the rejection names the S1-S3 floor' "$(grep -q 'a security finding (S1-S3) is never dismissed' "$tmp/case.err" && echo 0 || echo 1)"
+  jq -c '.status = "dismissed"' "$tmp/q5.out" >"$tmp/dismissed2.jsonl"
+  run_case 'a dismissed non-security record passes --validate' 0 no -- --validate "$tmp/dismissed2.jsonl"
+  jq -c '.status = "confirmed" | .evidence = null' "$tmp/q1.out" >"$tmp/noevidence.jsonl"
+  run_case 'a blocking status without evidence is rejected by --validate' 3 yes -- --validate "$tmp/noevidence.jsonl"
+  { cat "$tmp/q1.out"; cat "$tmp/store.jsonl"; } >"$tmp/mixed.jsonl"
+  run_case 'a file that mixes record schemas is rejected by --validate' 3 yes -- --validate "$tmp/mixed.jsonl"
+
   if [[ "$failures" -gt 0 ]]; then
     echo "extract-findings self-test: $failures failure(s)" >&2
     return 4
@@ -820,6 +1041,10 @@ case "$1" in
 --validate)
   shift
   cmd_validate "$@"
+  ;;
+--round)
+  shift
+  cmd_round "$@"
   ;;
 -h | --help)
   usage

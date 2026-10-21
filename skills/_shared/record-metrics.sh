@@ -31,7 +31,7 @@
 #                     [--retrieval-seconds <n>]
 #                     [--graph-hits <n>] [--graph-misses <n>] [--items-from-graph <n>]
 #                     [--items-from-search <n>] [--files-avoided <n>]
-#                     [--gate-record <path>]... [--store <path>]
+#                     [--gate-record <path>]... [--review-state <path>] [--store <path>]
 #   record-metrics.sh --self-test
 #
 #   Token counts are optional by design: no runtime here reports them reliably,
@@ -62,6 +62,13 @@
 #   number of records and the sum of their durations — never a path or a field
 #   of the record itself.
 #
+#   --review-state names the review-loop state that `review-state.sh` kept for the run's
+#   pull request. The state is validated by that script's own `evaluate`, and the entry
+#   stores only its counts and codes under `review`: the rounds, the new findings per
+#   round, the confirmed, resolved, dismissed, reopened, deferred, and unverified
+#   findings, the blocking findings left, the result, and the escalation reason —
+#   never a finding text, a path, or a URL.
+#
 #   The default store is `${AI_OLYMPUS_HOME:-$HOME/.ai-olympus}/metrics.jsonl`,
 #   outside any repository, so a project can never commit it by accident.
 #
@@ -71,6 +78,7 @@
 set -euo pipefail
 
 PROG="${0##*/}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'EOF'
@@ -109,6 +117,7 @@ record() {
   local sources_searched="" items_returned="" estimated_tokens_returned=""
   local items_inspected="" cache_hits="" cache_misses="" retrieval_seconds=""
   local graph_hits="" graph_misses="" items_from_graph="" items_from_search="" files_avoided=""
+  local review="" review_json
   local store="${AI_OLYMPUS_HOME:-$HOME/.ai-olympus}/metrics.jsonl"
 
   while [[ $# -gt 0 ]]; do
@@ -132,6 +141,18 @@ record() {
       fi
       gate_runs=$((gate_runs + 1))
       gate_seconds=$((gate_seconds + gate_duration))
+      shift 2
+      ;;
+    --review-state)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      if ! review_json="$("$HERE/review-state.sh" evaluate --state "$value" 2>/dev/null)"; then
+        echo "$PROG: --review-state must name a valid review state" >&2
+        return 1
+      fi
+      review="$(jq -c '{iterations: .iteration, new_per_iteration: (.rounds | map(.new)), new: .counts.new,
+        confirmed: .counts.confirmed, resolved: .counts.resolved, dismissed: .counts.dismissed, reopened: .counts.reopened,
+        deferred: .counts.deferred, needs_verification: .counts.needs_verification,
+        remaining_blocking: .counts.remaining_blocking, result: .status, escalation_reason}' <<<"$review_json")"
       shift 2
       ;;
     --agent-dispatches | --escalated-dispatches | --review-rounds | --critical | --moderate | --input-tokens | --output-tokens | --cache-read-tokens | --context-gate-executed | --context-requested | --context-skipped | --sources-searched | --items-returned | --estimated-tokens-returned | --items-inspected | --context-cache-hits | --context-cache-misses | --retrieval-seconds | --graph-hits | --graph-misses | --items-from-graph | --items-from-search | --files-avoided)
@@ -213,6 +234,7 @@ record() {
     [[ -n "$items_from_graph" ]] && printf ',"items_from_graph":%s' "$items_from_graph"
     [[ -n "$items_from_search" ]] && printf ',"items_from_search":%s' "$items_from_search"
     [[ -n "$files_avoided" ]] && printf ',"files_avoided":%s' "$files_avoided"
+    [[ -n "$review" ]] && printf ',"review":%s' "$review"
     printf '}\n'
   } >>"$store"
 
@@ -266,6 +288,21 @@ self_test() {
   expect_exit 'retrieval counters are appended' 0 \
     --initial-tier STANDARD --final-tier STANDARD --status success \
     --items-inspected 12 --context-cache-hits 1 --context-cache-misses 0 --retrieval-seconds 41
+  printf '%s\n' '{"schema":1,"repo":"acme/shop","pr":7,"iteration":1,"max_iterations":3,"blocking_threshold":"critical",
+    "status":"open","escalation_reason":null,"revision":"1111111111111111111111111111111111111111",
+    "findings":[{"schema":2,"finding_id":"r-0123456789abcdef","repo":"acme/shop","pr":7,
+      "revision":"1111111111111111111111111111111111111111","time":"2026-10-01T10:00:00Z","category":"rules/php/core-standards",
+      "cause_key":"structure","severity":"medium","security":false,"file":"src/Foo/Bar.php","line":3,
+      "description":"Copied step","impact":"drift","evidence":"rule-violation — copied","recommendation":"extract it",
+      "status":"new"}],
+    "deferrals":[],"transitions":[{"iteration":1,"finding_id":"r-0123456789abcdef","from":null,"to":"new","actor":"reviewer"}],
+    "rounds":[{"iteration":1,"revision":"1111111111111111111111111111111111111111","new":1,"confirmed":0,"resolved":0,
+      "dismissed":0,"reopened":0,"needs_verification":0,"remaining_blocking":1,"verdict":"continue"}]}' >"$tmp/review.json"
+  printf '{"schema":1}\n' >"$tmp/review-broken.json"
+  expect_exit 'review-loop counters are appended' 0 \
+    --initial-tier STANDARD --final-tier STANDARD --status success --review-state "$tmp/review.json"
+  expect_exit 'an invalid review state is refused' 1 \
+    --initial-tier STANDARD --final-tier STANDARD --status success --review-state "$tmp/review-broken.json"
   expect_exit 'graph counters are appended' 0 \
     --initial-tier STANDARD --final-tier STANDARD --status success \
     --graph-hits 1 --graph-misses 2 --items-from-graph 4 --items-from-search 3 --files-avoided 35
@@ -281,13 +318,13 @@ self_test() {
   expect_exit 'an unknown flag is refused' 1 \
     --initial-tier FAST --final-tier FAST --status success --branch feature/secret
 
-  # Every line must parse, and the store must hold exactly the six valid entries.
+  # Every line must parse, and the store must hold exactly the seven valid entries.
   local lines
   lines="$(wc -l <"$store" | tr -d ' ')"
-  if [[ "$lines" == "6" ]]; then
+  if [[ "$lines" == "7" ]]; then
     printf 'ok    %-54s %s entries\n' 'only valid entries reach the store' "$lines"
   else
-    printf 'FAIL  %-54s expected 6 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
+    printf 'FAIL  %-54s expected 7 entries, got %s\n' 'only valid entries reach the store' "$lines" >&2
     failures=$((failures + 1))
   fi
 
@@ -328,6 +365,15 @@ self_test() {
     printf 'ok    %-54s\n' 'retrieval counters are stored as counts'
   else
     printf 'FAIL  %-54s\n' 'retrieval counters are stored as counts' >&2
+    failures=$((failures + 1))
+  fi
+
+  if jq -e 'select(.review == {iterations: 1, new_per_iteration: [1], new: 1, confirmed: 0, resolved: 0, dismissed: 0,
+      reopened: 0, deferred: 0, needs_verification: 0, remaining_blocking: 1, result: "open", escalation_reason: null})' \
+    <(sed -n 6p "$store") >/dev/null 2>&1; then
+    printf 'ok    %-54s\n' 'review-loop counters are stored as counts and codes'
+  else
+    printf 'FAIL  %-54s\n' 'review-loop counters are stored as counts and codes' >&2
     failures=$((failures + 1))
   fi
 
