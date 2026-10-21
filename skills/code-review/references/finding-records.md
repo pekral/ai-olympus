@@ -172,7 +172,8 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 ### Status from the round report
 
 - A finding with an `Evidence` field is `new`.
-- A finding without one, and every entry under `## Needs verification`, is `needs-verification`.
+- A finding under `## Findings` without one is refused: `--round` exits 3 with `Evidence is required; move an unproven point under ## Needs verification`. Store mode still reads it, so reports written before the field existed keep their records.
+- Every entry under `## Needs verification` is `needs-verification`.
 - `confirmed`, `resolved`, and `dismissed` are never read from a report. `skills/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
 
 ### Security relevance

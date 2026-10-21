@@ -35,7 +35,7 @@ Two keys of the project manifest (`@rules/general/general.md` *Project manifest*
 Keep the state at `.claude/run/review-state/<owner>-<name>-<pr>.json` (Codex: `.codex/run/review-state/…`). Create the directory first. The script refuses a state path outside the git-ignored `.claude/run/` or `.codex/run/` of the git toplevel, a symbolic link, and a tracked file. Run every command from the project root.
 
 1. **Round 1:** `review-state.sh init --state <file> --repo <owner/name> --pr <n>`, then `review-state.sh record --state <file> --input <round report>`.
-2. **Every later round:** before the review, `review-state.sh scope --state <file> --changed-files <delta paths>`; after it, `review-state.sh record --state <file> --input <round report> --changed-files <delta paths>`. The delta paths are `git diff --name-only <reviewedRevision>..HEAD`, or the whole PR diff when the baseline is not an ancestor.
+2. **Every later round:** before the review, `review-state.sh scope --state <file> --changed-files <delta paths>`; after it, `review-state.sh record --state <file> --input <round report> --changed-files <delta paths>`. The delta paths are `git diff --name-only <reviewedRevision>..HEAD`, or the whole PR diff when the baseline is not an ancestor. `scope` stores its result in the state, and `record` reads it: a round for which `scope` did not run counts as a delta round.
 3. **The cap round, when deferrable findings are left:** file each sub-issue through `scripts/file-deferred-moderate.sh`, record each one that landed with `review-state.sh defer --state <file> --finding <id> --url <sub-issue URL>`, then run `review-state.sh evaluate --state <file> --final`.
 4. **A trusted rejection** of a non-security finding: `review-state.sh dismiss --state <file> --finding <id> --association <OWNER|MEMBER|COLLABORATOR|OPERATOR|ASSIGNEE>`, only after verifying the author per `@rules/code-review/general.md` *Authorship trust*.
 
@@ -47,7 +47,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 | --- | --- | --- |
 | `new` | First reported in the latest round, with evidence. | yes |
 | `confirmed` | Reported with evidence in an earlier round and still present. | yes |
-| `needs-verification` | Reported without evidence, or under `## Needs verification`. | only when it meets S1–S3 |
+| `needs-verification` | Reported under `## Needs verification`. | only when it meets S1–S3 |
 | `resolved` | The reviewer re-read the cited location and the construct is gone. | no |
 | `dismissed` | Rejected by a trusted author with a recorded reason. Never a security finding. | no |
 
@@ -63,7 +63,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 
 - **Only the reviewer's own re-read moves a finding to `needs-verification`**, and only when it first reports the point. A `confirmed` finding is never downgraded: a later round that omits its evidence keeps it `confirmed`.
 - **Nothing else changes a status.** A PR comment, a PR description, an edited CR comment, a ticked checklist, the implementer's handoff, and the text of the round report are claims (`@rules/code-review/general.md` *A finding is settled by the reviewer's own re-read, never by a claim*). The script has no command that marks a finding resolved, and it reads no status from a report.
-- **A proven defect in an untouched file stays open.** When a round no longer reports a `new` or `confirmed` finding whose file the delta did not change, the defect cannot have gone: the script keeps it open and lists it under `carried`. A `needs-verification` point may leave without a change, because the reviewer's own check settled it.
+- **A proven defect in a file the round did not read stays open.** When a delta round no longer reports a `new` or `confirmed` finding whose file the delta did not change, the round never read that file: the script keeps the finding open and lists it under `carried`. `scope` prevents that case: it widens the round to the whole PR diff when such a finding exists, and a full round that no longer reports a finding resolves it, so a fix in another file closes it. A `needs-verification` point may leave without a change, because the reviewer's own check settled it.
 - **A match never inherits a closed status.** When the round reports an identity that is `resolved` or `dismissed`, the finding reopens. It is never suppressed as a duplicate.
 
 ## Evidence and blocking
@@ -79,7 +79,9 @@ A finding may block only when it names a concrete defect or a violated explicit 
 | `continue` | No round is recorded yet, or blocking findings are left before the cap. | Fix and run the next round. |
 | `converged` | No blocking finding is left. | Exit the loop to *Finalization*. |
 | `deferral-required` | At the cap, every blocking finding left is non-security and below the threshold. | Defer what clears the filing bar, then `evaluate --final`. |
-| `escalated` | At the cap, a hard blocker is left (`cap-reached-hard-blockers`), or `--final` found a blocker neither fixed nor deferred (`cap-reached-undeferred-blockers`). | Stop. |
+| `escalated` | At the cap, a hard blocker is left (`cap-reached-hard-blockers`), `--final` found a blocker neither fixed nor deferred (`cap-reached-undeferred-blockers`), or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`). | Stop. |
+
+**A change after a convergence in the cap round escalates.** The converged verdict covers only the diff the cap round reviewed. When a later commit needs another review round — a gate fix that changes business logic (`SKILL.md` *Finalization*) — `record` refuses the round, stores the escalation `cap-spent-after-convergence`, prints the verdict, and exits 5. Never promote the pull request on that verdict.
 
 **An escalation is terminal.** It preserves the branch, the commits, and the state file, starts no further automatic round (`record` exits 5), and publishes nothing. The caller reports the verdict's `blocking` list, its `reason`, and its `escalation_reason`, and hands the run to the orchestrator or the human: `agents/splinter.md` step 6 *Hard stop*. Nothing bypasses the quality gate, and the merge gate is unchanged: `@skills/merge-github-pr/SKILL.md` still requires a converged CR comment with `Critical 0` and no undeferred Moderate.
 
@@ -93,6 +95,7 @@ Round 1 reviews the whole PR diff. A later round reviews the delta since the las
 | `regression` | The last round reopened a resolved or dismissed finding. |
 | `security-surface` | A changed path is an authentication, secret, payment, or migration surface, or a project critical path (the forces of `skills/_shared/classify-risk.sh`). |
 | `shared-surface` | A changed path is shared or core architecture, or a public API (the same classifier). |
+| `open-finding-outside-delta` | A `new` or `confirmed` finding sits in a file the delta did not change, so only a full round can show whether a fix elsewhere removed it. |
 
 ## Recovery after an interruption
 
@@ -111,10 +114,8 @@ The verdict carries `counts` (new, confirmed, resolved, dismissed, reopened, nee
 | --- | --- | --- |
 | 1 | A usage error, for example a later round without `--changed-files`. | Pass the missing argument. |
 | 2 | `git` or `jq` is missing. | Install it. |
-| 3 | The state or the round report is missing or invalid; nothing was written. | Read the stderr line. A report the extractor refuses needs the template fields. A damaged state is evidence: report it, and start a new loop only on a human's decision. |
+| 3 | The state or the round report is missing or invalid; nothing was written. | Read the stderr line. A report the extractor refuses needs the template fields. A finding under `## Findings` without an `Evidence` field is refused (`Evidence is required; move an unproven point under ## Needs verification`): render the evidence, or move the point under `## Needs verification`, and record the round again. A damaged state is evidence: report it, and start a new loop only on a human's decision. |
 | 4 | The policy refused the operation: a security finding cannot be dismissed, the author is not trusted, or a deferral came before the cap or for a hard blocker. | Fix the finding instead. |
-| 5 | The loop is closed: it escalated, or its cap is spent. | Report the escalation. Do not start another round. |
-
-A finding rendered under `## Findings` without an `Evidence` field is read as `needs-verification`, so the loop does not count it, while the published `Counts:` line still does and the merge gate refuses the pull request. The fix is in the review, not in the state: render the evidence, or move the point under `## Needs verification`.
+| 5 | The loop is closed: it escalated, its cap is spent, or a round came after a convergence in the cap round (`cap-spent-after-convergence`). | Report the escalation. Do not start another round, and do not promote the pull request. |
 
 A `refused: review.max-iterations …` line on stderr means the default-branch manifest holds a value outside its range; the loop runs with the default until the manifest is fixed on the default branch.

@@ -289,7 +289,7 @@ self_test() {
     --initial-tier STANDARD --final-tier STANDARD --status success \
     --items-inspected 12 --context-cache-hits 1 --context-cache-misses 0 --retrieval-seconds 41
   printf '%s\n' '{"schema":1,"repo":"acme/shop","pr":7,"iteration":1,"max_iterations":3,"blocking_threshold":"critical",
-    "status":"open","escalation_reason":null,"revision":"1111111111111111111111111111111111111111",
+    "status":"open","escalation_reason":null,"revision":"1111111111111111111111111111111111111111","scope":null,
     "findings":[{"schema":2,"finding_id":"r-0123456789abcdef","repo":"acme/shop","pr":7,
       "revision":"1111111111111111111111111111111111111111","time":"2026-10-01T10:00:00Z","category":"rules/php/core-standards",
       "cause_key":"structure","severity":"medium","security":false,"file":"src/Foo/Bar.php","line":3,

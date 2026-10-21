@@ -49,6 +49,7 @@
 set -euo pipefail
 
 PROG="${0##*/}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 MAX_INPUT_BYTES=1048576
 MAX_DEFERRALS=200
@@ -101,9 +102,11 @@ sha16() {
 }
 
 # The jq definitions below are shared by the parser and the merge step. They are program text this
-# script ships; the report never contributes to them.
+# script ships; the report never contributes to them. finding-defs.jq holds the ones review-state.sh shares.
 JQ_COMMON=''
 IFS= read -r -d '' JQ_COMMON <<'EOF' || true
+include "finding-defs";
+
 def cap($re): first(capture($re), null);
 def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
 
@@ -121,8 +124,6 @@ def norm_time:
           | ($e - $off) | todateiso8601
         end
     end;
-
-def isstr($v; $re): ($v | type) == "string" and ($v | test($re));
 
 # Every problem one record has against the schema; an empty array means the record is valid.
 def record_errors:
@@ -162,8 +163,6 @@ def store_errors:
 
 # A text field of a review-loop record: non-empty, capped, and free of control characters.
 def textok($v): isstr($v; "\\S") and ($v | length) <= 4000 and ($v | test("[\\x00-\\x08\\x0b-\\x1f\\x7f]") | not);
-def severity_rank: {"low": 1, "medium": 2, "high": 3, "critical": 4}[.] // 0;
-def status_rank: {"dismissed": 1, "resolved": 2, "needs-verification": 3, "new": 4, "confirmed": 5}[.] // 0;
 
 # Every problem one review-loop record (schema 2) has; an empty array means the record is valid.
 def round_record_errors:
@@ -381,7 +380,7 @@ def is_security($f):
      security: is_security($f), file: $f.file, line: $f.line,
      description: (if ($f.title | test("\\S")) then $f.title else ($f.cause_hypothesis | .[0:200]) end),
      impact: $f.cause_hypothesis, evidence: $f.evidence, recommendation: $f.proposed_fix,
-     status: (if $f.verify or $f.evidence == null then "needs-verification" else "new" end)} ]
+     status: (if $f.verify then "needs-verification" else "new" end)} ]
 # One identity is one record: the higher severity, the more blocking status, and a security flag on either side win.
 | reduce .[] as $r ([];
     (map(.finding_id) | index([$r.finding_id])) as $ix
@@ -424,12 +423,12 @@ EOF
 
 # validate_store <file> — print the problems with a record store (schema 1, one per line). Silent when valid.
 validate_store() {
-  jq -n -r "$JQ_COMMON"' [inputs] | store_errors[]' "$1" 2>&1 || true
+  jq -n -r -L "$HERE" "$JQ_COMMON"' [inputs] | store_errors[]' "$1" 2>&1 || true
 }
 
 # validate_file <file> — print the problems with a record file of either schema (one per line). Silent when valid.
 validate_file() {
-  jq -n -r "$JQ_COMMON"' [inputs] | file_errors[]' "$1" 2>&1 || true
+  jq -n -r -L "$HERE" "$JQ_COMMON"' [inputs] | file_errors[]' "$1" 2>&1 || true
 }
 
 cmd_validate() {
@@ -461,7 +460,7 @@ read_report() {
     fail_input "the review report is larger than $MAX_INPUT_BYTES bytes"
   fi
 
-  if ! jq -R -s -c --argjson maxDefer "$MAX_DEFERRALS" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
+  if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
     fail_input "the review report could not be read: $(safe_display "$(head -n 1 "$tmp/jq.err")")"
   fi
 
@@ -537,7 +536,7 @@ cmd_extract() {
 
   # The records built here must satisfy the schema before they leave the script.
   local problems
-  problems="$(jq -r "$JQ_COMMON"' store_errors[]' "$tmp/new.json")"
+  problems="$(jq -r -L "$HERE" "$JQ_COMMON"' store_errors[]' "$tmp/new.json")"
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
       echo "$PROG: $(safe_display "$line")" >&2
@@ -606,6 +605,18 @@ cmd_round() {
 
   read_report "$input" "$tmp"
 
+  # A blocking finding of a review round names its evidence. Store mode keeps reading reports written
+  # before the Evidence field existed; a round of the loop never does.
+  local unproven
+  unproven="$(jq -r '.findings | to_entries[] | select((.value.verify | not) and .value.evidence == null)
+    | "Evidence is required; move an unproven point under ## Needs verification: finding \(.key + 1) (\(.value.severity), \"\(.value.title | gsub("[^\\x20-\\x7e]"; "") | .[0:60])\")"' "$tmp/parsed.json")"
+  if [[ -n "$unproven" ]]; then
+    while IFS= read -r line; do
+      echo "$PROG: $(safe_display "$line")" >&2
+    done <<<"$unproven"
+    exit 3
+  fi
+
   # The identity is the cause and the file, never the line or the wording. The inputs are restricted to fixed
   # patterns by the parse, so none of them holds a tab or a newline.
   : >"$tmp/ids"
@@ -616,12 +627,12 @@ cmd_round() {
   local ids
   ids="$(jq -R -s -c 'split("\n") | map(select(. != ""))' "$tmp/ids")"
 
-  jq -c --arg repo "$repo" --argjson pr "$pr" --arg rev "$(jq -r '.revision' "$tmp/parsed.json")" \
+  jq -c -L "$HERE" --arg repo "$repo" --argjson pr "$pr" --arg rev "$(jq -r '.revision' "$tmp/parsed.json")" \
     --arg time "$(jq -r '.time' "$tmp/parsed.json")" --argjson ids "$ids" \
     "$JQ_COMMON"$'\n'"$JQ_ROUND" "$tmp/parsed.json" >"$tmp/round.json"
 
   local problems
-  problems="$(jq -r "$JQ_COMMON"' file_errors[]' "$tmp/round.json")"
+  problems="$(jq -r -L "$HERE" "$JQ_COMMON"' file_errors[]' "$tmp/round.json")"
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
       echo "$PROG: $(safe_display "$line")" >&2
@@ -635,7 +646,7 @@ cmd_round() {
 # shellcheck disable=SC2016
 self_test() {
   local failures=0 script tmp
-  script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
+  script="$HERE/$PROG"
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
@@ -972,13 +983,18 @@ self_test() {
   "$script" --repo acme/shop --pr 7 --input "$tmp/q3.md" >"$tmp/q3.store"
   check 'round: two similar defects of one rule section in two files of one subsystem stay two identities' "$([[ "$(jq -s 'map(.finding_id) | unique | length' "$tmp/q3.out")" == 2 && "$(wc -l <"$tmp/q3.store" | tr -d ' ')" == 1 ]] && echo 0 || echo 1)"
 
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; finding Critical 'Copied step again' 'src/Foo/Bar.php:30' "$STRUCT" 'rule-violation — the step is copied at line 30'; } >"$tmp/q4.md"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Copied step again' 'src/Foo/Bar.php:30' "$STRUCT" 'rule-violation — the step is copied at line 30'; printf '## Needs verification\n\n'; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q4.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q4.md" >"$tmp/q4.out"
   check 'round: two records with one identity keep the higher severity and the more blocking status' "$(jq -e -s 'length == 1 and .[0].severity == "critical" and .[0].status == "new" and (.[0].evidence | test("line 30"))' "$tmp/q4.out" >/dev/null && echo 0 || echo 1)"
 
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q5.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q5.md" >"$tmp/q5.out"
-  check 'round: a finding without evidence is needs-verification at its Level' "$(jq -e '.status == "needs-verification" and .severity == "low" and .security == false and .evidence == null' "$tmp/q5.out" >/dev/null && echo 0 || echo 1)"
+  run_case 'round: a finding under Findings without Evidence is refused' 3 yes -- --round --repo acme/shop --pr 7 --input "$tmp/q5.md"
+  check 'the refusal tells the reviewer to move the point under Needs verification' "$(grep -q 'Evidence is required; move an unproven point under ## Needs verification: finding 1 (moderate, "Copied step")' "$tmp/case.err" && echo 0 || echo 1)"
+  run_case 'store mode still reads a finding without Evidence' 0 no -- --repo acme/shop --pr 7 --input "$tmp/q5.md"
+  check 'store mode writes the record of the finding without Evidence' "$([[ "$(wc -l <"$tmp/case.out" | tr -d ' ')" == 1 ]] && echo 0 || echo 1)"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q5v.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q5v.md" >"$tmp/q5.out"
+  check 'round: an unproven point under Needs verification is needs-verification at its Level' "$(jq -e '.status == "needs-verification" and .severity == "low" and .security == false and .evidence == null' "$tmp/q5.out" >/dev/null && echo 0 || echo 1)"
   { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Maybe a race' 'src/Cache/Store.php:3' "$STRUCT" 'logic-trace — two writers'; } >"$tmp/q6.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.out"
   "$script" --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.store"

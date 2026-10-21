@@ -65,6 +65,11 @@ test('the review-state self-test covers every success criterion of the security 
     'the evidence is stored as text and never executed, and it does not change the cap',
     'a medium finding at or above the threshold is never deferrable',
     'a Moderate neither fixed nor deferred at the cap escalates on the final evaluation',
+    'a proven finding outside the delta widens the next round to the whole PR',
+    'a finding fixed in another file is resolved by the broad round and the loop converges',
+    'a change after a convergence in the cap round escalates with cap-spent-after-convergence',
+    'the evaluation after the refused round is escalated, never converged',
+    'a round report with a finding under Findings without Evidence is refused',
 ]);
 
 test('the extractor round mode keys the identity on the cause and the file and enforces the security floor', function (): void {
@@ -81,6 +86,60 @@ test('the extractor round mode keys the identity on the cause and the file and e
         ->toContain('check \'round: evidence with shell metacharacters is stored as inert text and never executed\'')
         ->toContain('check \'round: evidence and impact are capped at 4000 characters with control characters removed\'')
         ->toContain('run_case \'a dismissed security (S1-S3) record is rejected by --validate\' 3 yes');
+});
+
+test('the extractor and the review state load one shared jq module for the finding definitions', function (): void {
+    $module = dirname(__DIR__, 2) . '/skills/_shared/finding-defs.jq';
+    $definitions = reviewQualityGateFile('skills/_shared/finding-defs.jq');
+
+    expect(is_file($module))->toBeTrue()
+        ->and(is_executable($module))->toBeFalse()
+        ->and(substr_count($definitions, 'def isstr($v; $re):'))->toBe(1)
+        ->and(substr_count($definitions, 'def severity_rank:'))->toBe(1)
+        ->and(substr_count($definitions, 'def status_rank:'))->toBe(1);
+    expect($definitions)->not->toStartWith('#!');
+
+    foreach (['skills/_shared/extract-findings.sh' => '"$JQ_COMMON"', 'skills/_shared/review-state.sh' => '"$JQ_STATE"'] as $path => $program) {
+        $script = reviewQualityGateFile($path);
+
+        expect($script)
+            ->toContain('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
+            ->toContain("include \"finding-defs\";\n")
+            ->and(substr_count($script, '-L "$HERE"'))->toBe(substr_count($script, $program));
+        expect($script)->not->toContain('def isstr(');
+        expect($script)->not->toContain('def severity_rank:');
+        expect($script)->not->toContain('def status_rank:');
+    }
+});
+
+test('a proven finding outside the delta widens the round, and a change after a cap-round convergence escalates', function (): void {
+    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))
+        ->toContain('(if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons')
+        ->toContain('| (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope')
+        ->toContain('elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}')
+        ->toContain('if [[ "$status" == \'converged\' && "$iteration" -ge "$cap" ]]; then')
+        ->toContain('.escalation_reason = "cap-spent-after-convergence"');
+
+    expect(reviewQualityGateFile('skills/_shared/extract-findings.sh'))
+        ->toContain('Evidence is required; move an unproven point under ## Needs verification: finding')
+        ->toContain('status: (if $f.verify then "needs-verification" else "new" end)} ]')
+        ->toContain('run_case \'round: a finding under Findings without Evidence is refused\' 3 yes')
+        ->toContain('run_case \'store mode still reads a finding without Evidence\' 0 no');
+
+    $contract = reviewQualityGateFile('skills/process-code-review/references/review-state.md');
+
+    expect($contract)
+        ->toContain('| `open-finding-outside-delta` |')
+        ->toContain('**A change after a convergence in the cap round escalates.**')
+        ->toContain('or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`)')
+        ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
+    expect($contract)->not->toContain('is read as `needs-verification`, so the loop does not count it');
+
+    expect(reviewQualityGateFile('skills/process-code-review/SKILL.md'))
+        ->toContain('After a cap-round convergence, `review-state.sh record` refuses it (`cap-spent-after-convergence`): escalate.');
+
+    expect(reviewQualityGateFile('agents/splinter.md'))
+        ->toContain('the `skills/_shared/review-state.sh` verdict `escalated`, including `cap-spent-after-convergence`');
 });
 
 test('the round cap and the blocking threshold come only from the default-branch manifest', function (): void {

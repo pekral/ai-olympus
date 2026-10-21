@@ -44,7 +44,8 @@
 #   record, evaluate, dismiss, defer
 #             the verdict: {"verdict", "status", "escalation_reason", "iteration", "max_iterations",
 #             "blocking_threshold", "reason", "counts", "rounds", "blocking", "deferrable", "carried"}
-#   scope     {"scope": "delta"|"full", "reasons": [...], "baseline": <sha>|null}
+#   scope     {"scope": "delta"|"full", "reasons": [...], "baseline": <sha>|null}; the scope is also stored
+#             for the next `record`
 #
 # Exit codes
 #   0  success — the verdict is in the output, never in the exit code
@@ -98,24 +99,26 @@ require_tools() {
 }
 
 # The jq definitions every command shares. They are program text this script ships; no input contributes to them.
+# finding-defs.jq holds the ones extract-findings.sh shares.
 JQ_STATE=''
 IFS= read -r -d '' JQ_STATE <<'EOF' || true
-def isstr($v; $re): ($v | type) == "string" and ($v | test($re));
+include "finding-defs";
+
 def isint($v; $min): ($v | type) == "number" and ($v | floor) == $v and $v >= $min;
-def severity_rank: {"low": 1, "medium": 2, "high": 3, "critical": 4}[.] // 0;
-def status_rank: {"dismissed": 1, "resolved": 2, "needs-verification": 3, "new": 4, "confirmed": 5}[.] // 0;
 def is_open: .status == "new" or .status == "confirmed" or .status == "needs-verification";
 # A finding blocks when it carries evidence, or when it is security-relevant even without evidence (the S1-S3 floor).
 def is_blocking: .status == "new" or .status == "confirmed" or (.status == "needs-verification" and .security);
 # A hard blocker is never deferred: a security finding, or a severity at or above the blocking threshold.
 def is_hard($threshold): .security or ((.severity | severity_rank) >= ($threshold | severity_rank));
+# A proven open finding in a file the delta did not change: a delta review cannot show whether it is gone.
+def outside_delta($changed): . as $f | ($f.status == "new" or $f.status == "confirmed") and $f.file != "." and ($changed | index([$f.file])) == null;
 
 # Every problem the state has; an empty array means the state is valid.
 def state_errors:
   . as $s
   | if ($s | type) != "object" then ["the state is not a JSON object"] else
     ["schema", "repo", "pr", "iteration", "max_iterations", "blocking_threshold", "status", "escalation_reason",
-     "revision", "findings", "deferrals", "transitions", "rounds"] as $keys
+     "revision", "scope", "findings", "deferrals", "transitions", "rounds"] as $keys
     | (($s.findings // []) | if type == "array" then map(.finding_id) else [] end) as $ids
     | [
         (($s | keys) - $keys | .[] | "unknown key \(.)"),
@@ -141,10 +144,12 @@ def state_errors:
         (if ($s.status == "escalated") == ($s.escalation_reason != null) then empty
          else "escalation_reason must be set exactly when the status is escalated" end),
         (if $s.escalation_reason == null
-            or (["cap-reached-hard-blockers", "cap-reached-undeferred-blockers"] | index([$s.escalation_reason])) != null
+            or (["cap-reached-hard-blockers", "cap-reached-undeferred-blockers", "cap-spent-after-convergence"]
+                | index([$s.escalation_reason])) != null
          then empty else "escalation_reason is not a known reason" end),
         (if $s.status == "converged" and $s.iteration == 0 then "a state without a review round is never converged" else empty end),
         (if $s.revision == null or isstr($s.revision; "^[0-9a-f]{7,64}$") then empty else "revision must be null or a commit SHA" end),
+        (if $s.scope == null or $s.scope == "delta" or $s.scope == "full" then empty else "scope must be null, delta, or full" end),
         (if ($s.findings | type) == "array" and all($s.findings[]; type == "object" and .repo == $s.repo and .pr == $s.pr)
          then empty else "every finding must belong to the pull request of the state" end),
         (if ($s.deferrals | type) == "array" and all($s.deferrals[];
@@ -202,6 +207,7 @@ def output($cap; $threshold; $carried):
                elif $v.verdict == "continue" and $s.iteration == 0 then "no review round is recorded yet"
                elif $v.verdict == "continue" then "\($v.open | length) blocking finding(s) are left after round \($s.iteration) of \($cap)"
                elif $v.verdict == "deferral-required" then "the round cap of \($cap) is reached; \($v.deferrable | length) blocking finding(s) are left that are neither security-relevant nor at or above the blocking threshold: fix or defer each one, or escalate"
+               elif $s.escalation_reason == "cap-spent-after-convergence" then "the loop converged in the cap round of \($cap), and a later change needs a review round the cap no longer allows"
                elif $s.escalation_reason == "cap-reached-undeferred-blockers" then "the round cap of \($cap) is reached and \($v.open | length) blocking finding(s) were neither fixed nor deferred"
                else "the round cap of \($cap) is reached and \($v.open | length) blocking finding(s) are left, at least one of them security-relevant or at or above the blocking threshold" end),
       counts: {
@@ -232,14 +238,17 @@ EOF
 
 # Merge one round into the state. Reads the state; $cur is the round's records, $changed the delta's paths or
 # null. A finding the round carries keeps its identity; one it no longer carries is resolved by the reviewer's
-# re-read, unless it carries evidence and its file is outside the delta, where a proven defect cannot have gone.
-# A point that only needed verification may leave without a change: the reviewer's own check settled it.
+# re-read. The one exception is a delta round and a proven finding whose file is outside the delta: that round
+# never read the file, so the finding stays open. A round counts as a delta round unless `scope` recorded
+# `full` for it, and round 1 is always full. A point that only needed verification may leave without a change:
+# the reviewer's own check settled it.
 JQ_RECORD=''
 IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 . as $s
 | ($s.iteration + 1) as $n
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
+| (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope
 | def lift: if . == "new" then "confirmed" else . end;
   [ $cur[] | . as $c | $prev[$c.finding_id] as $p
     | if $p == null then {rec: $c, from: null, carried: false}
@@ -256,8 +265,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
       end ]
   + [ $s.findings[] | select($now[.finding_id] == null) | . as $f
       | if ($f | is_open | not) then {rec: $f, from: $f.status, carried: false}
-        elif ($f.status == "new" or $f.status == "confirmed") and $changed != null and $f.file != "."
-             and ($changed | index([$f.file])) == null then {rec: $f, from: $f.status, carried: true}
+        elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}
         else {rec: ($f | .status = "resolved" | .revision = $rev | .time = $time), from: $f.status, carried: false} end ]
   | . as $merged
   | [ $merged[] | select(.from != .rec.status)
@@ -265,6 +273,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
   | $s
   | .iteration = $n
   | .revision = $rev
+  | .scope = null
   | .findings = ($merged | map(.rec) | sort_by(.finding_id))
   | .transitions += $moves
   | . as $next
@@ -338,7 +347,7 @@ load_state() {
   if ! jq -e -s 'length == 1' "$file" >/dev/null 2>&1; then
     fail 3 "the review state is not one JSON document; the loop is not converged"
   fi
-  problems="$(jq -r "$JQ_STATE"' state_errors[]' "$file" 2>&1 || true)"
+  problems="$(jq -r -L "$HERE" "$JQ_STATE"' state_errors[]' "$file" 2>&1 || true)"
   if [[ -z "$problems" ]]; then
     jq -c '.findings[]' "$file" >"$out.findings"
     if [[ -s "$out.findings" ]]; then
@@ -415,7 +424,7 @@ cmd_init() {
 
   jq -n -c --arg repo "$repo" --argjson pr "$pr" --argjson cap "$cap" --arg t "$threshold" \
     '{schema: 1, repo: $repo, pr: $pr, iteration: 0, max_iterations: $cap, blocking_threshold: $t, status: "open",
-      escalation_reason: null, revision: null, findings: [], deferrals: [], transitions: [], rounds: []}' >"$TMP/new.json"
+      escalation_reason: null, revision: null, scope: null, findings: [], deferrals: [], transitions: [], rounds: []}' >"$TMP/new.json"
   write_state "$TMP/new.json" "$state"
   jq -c '{resumed: false, iteration, status, max_iterations, blocking_threshold}' "$TMP/new.json"
 }
@@ -444,6 +453,14 @@ cmd_record() {
   iteration="$(jq -r '.iteration' "$TMP/state.json")"
   status="$(jq -r '.status' "$TMP/state.json")"
   [[ "$status" != 'escalated' ]] || fail 5 "the loop escalated; no further automatic review round starts"
+  # A change after a convergence in the cap round needs a review round the cap no longer allows. The loop
+  # escalates instead of letting the converged verdict stand for a diff nobody reviewed.
+  if [[ "$status" == 'converged' && "$iteration" -ge "$cap" ]]; then
+    jq -c '.status = "escalated" | .escalation_reason = "cap-spent-after-convergence"' "$TMP/state.json" >"$TMP/next.json"
+    write_state "$TMP/next.json" "$state"
+    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+    fail 5 "the loop converged in the cap round of $cap; a later change needs a review round the cap no longer allows: escalated (cap-spent-after-convergence)"
+  fi
   [[ "$iteration" -lt "$cap" ]] || fail 5 "the round cap of $cap is spent; no further automatic review round starts"
   if [[ "$iteration" -gt 0 && -z "$changed" ]]; then
     die_usage '--changed-files is required once an earlier round exists'
@@ -467,14 +484,14 @@ cmd_record() {
     paths="$(cat "$TMP/changed.json")"
   fi
 
-  jq -c -s --slurpfile s "$TMP/state.json" --argjson changed "$paths" \
+  jq -c -s -L "$HERE" --slurpfile s "$TMP/state.json" --argjson changed "$paths" \
     --arg rev "$(jq -r '.revision' "$TMP/header.json")" --arg time "$(jq -r '.time' "$TMP/header.json")" \
     --argjson cap "$cap" --arg threshold "$threshold" \
     "$JQ_STATE"$'\n'". as \$cur | \$s[0] | $JQ_RECORD" "$TMP/round.jsonl" >"$TMP/merged.json"
   jq -c --argjson cap "$cap" '.state | .max_iterations = $cap' "$TMP/merged.json" \
     | jq -c --arg t "$threshold" '.blocking_threshold = $t' >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
     "$JQ_STATE"' output($cap; $threshold; $carried)' "$TMP/next.json"
 }
 
@@ -497,14 +514,14 @@ cmd_evaluate() {
   threshold="${config#* }"
   if [[ "$final" == true ]]; then
     check_writable "$state"
-    jq -c --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' settle($cap; $threshold; true)' \
+    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' settle($cap; $threshold; true)' \
       "$TMP/state.json" >"$TMP/next.json"
     if ! cmp -s <(jq -c . "$TMP/state.json") "$TMP/next.json"; then
       write_state "$TMP/next.json" "$state"
     fi
     cp "$TMP/next.json" "$TMP/state.json"
   fi
-  jq -c --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/state.json"
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/state.json"
 }
 
 cmd_scope() {
@@ -518,6 +535,7 @@ cmd_scope() {
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ -n "$changed" ]] || die_usage '--changed-files is required'
+  check_writable "$state"
   new_tmp
   load_state "$state" "$TMP/state.json"
   read_paths "$changed" "$TMP/changed.json"
@@ -529,14 +547,20 @@ cmd_scope() {
     jq -r '.[]' "$TMP/changed.json" >"$TMP/changed.txt"
     signals="$("$HERE/classify-risk.sh" --files "$TMP/changed.txt" 2>/dev/null | sed -n 's/^signal=[^|]*|\([a-z-]*\)|.*/\1/p' || true)"
   fi
-  jq -c --arg signals "$signals" '
+  # The next `record` reads the scope stored here: a proven finding outside a delta round stays open.
+  jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" "$JQ_STATE"'
     ($signals | split("\n") | map(select(. != ""))) as $sig
     | [ (if .iteration == 0 then "first-round" else empty end),
         (if (.rounds | last | .reopened? // 0) > 0 then "regression" else empty end),
         (if ($sig | any(. == "auth-security-secrets" or . == "payments-billing" or . == "migrations-data-loss" or . == "project-critical-path"))
          then "security-surface" else empty end),
-        (if ($sig | any(. == "shared-core-architecture" or . == "public-api")) then "shared-surface" else empty end) ] as $reasons
-    | {scope: (if ($reasons | length) > 0 then "full" else "delta" end), reasons: $reasons, baseline: .revision}' "$TMP/state.json"
+        (if ($sig | any(. == "shared-core-architecture" or . == "public-api")) then "shared-surface" else empty end),
+        (if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons
+    | .scope = (if ($reasons | length) > 0 then "full" else "delta" end)
+    | {state: ., verdict: {scope, reasons: $reasons, baseline: .revision}}' "$TMP/state.json" >"$TMP/scoped.json"
+  jq -c '.state' "$TMP/scoped.json" >"$TMP/next.json"
+  write_state "$TMP/next.json" "$state"
+  jq -c '.verdict' "$TMP/scoped.json"
 }
 
 cmd_dismiss() {
@@ -571,13 +595,13 @@ cmd_dismiss() {
   config="$(effective_config)"
   cap="${config%% *}"
   threshold="${config#* }"
-  jq -c --arg id "$id" --arg actor "trusted:$association" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -c -L "$HERE" --arg id "$id" --arg actor "trusted:$association" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     (.findings[] | select(.finding_id == $id)) as $f
     | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "dismissed", actor: $actor}]
     | .findings = (.findings | map(if .finding_id == $id then .status = "dismissed" else . end))
     | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
 cmd_defer() {
@@ -603,13 +627,13 @@ cmd_defer() {
   cap="${config%% *}"
   threshold="${config#* }"
   [[ "$(jq -r '.iteration' "$TMP/state.json")" -ge "$cap" ]] || fail 4 "a finding is deferred only at the cap round ($cap)"
-  jq -e --arg id "$id" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -e -L "$HERE" --arg id "$id" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     verdict($cap; $threshold).deferrable | any(.finding_id == $id)' "$TMP/state.json" >/dev/null \
     || fail 4 "finding $id is not deferrable: it is not blocking, or it is security-relevant or at or above the blocking threshold"
-  jq -c --arg id "$id" --arg url "$url" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -c -L "$HERE" --arg id "$id" --arg url "$url" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     .deferrals += [{finding_id: $id, url: $url}] | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
 # The fixtures below are Markdown that carries backticks and dollar signs; none of it is meant to expand.
@@ -686,8 +710,9 @@ self_test() {
   F_SQL="$(finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SQL" 'exploit-path — sort=1;DROP reaches DB::raw')"
   F_SQL2="$(finding Critical 'Raw query again' 'app/Http/Invoices.php:7' "$SQL" 'exploit-path — the same path in invoices')"
   F_STRUCT="$(finding Moderate 'Copied step' 'src/Foo/Bar.php:10' "$STRUCT" 'rule-violation — the step is copied')"
-  F_NOEV="$(finding Moderate 'Maybe a copied step' 'src/Foo/Baz.php:3' "$STRUCT" '-')"
-  F_SEC_NOEV="$(finding Moderate 'Token may be logged' 'src/Foo/Log.php:3' "$STRUCT" '-')"
+  # A point without evidence goes under `## Needs verification`; a report puts it after every proven finding.
+  F_NOEV="$(printf '## Needs verification\n\n'; finding Moderate 'Maybe a copied step' 'src/Foo/Baz.php:3' "$STRUCT" '-')"
+  F_SEC_NOEV="$(printf '## Needs verification\n\n'; finding Moderate 'Token may be logged' 'src/Foo/Log.php:3' "$STRUCT" '-')"
   F_LOW_SEC="$(finding Moderate 'Weak escaping' 'src/View/Render.php:3' "$SQL" 'exploit-path — <b> reaches the page' Low)"
   F_MED="$(finding Moderate 'Copied step' 'src/Foo/Bar.php:10' "$STRUCT" 'rule-violation — the step is copied' Medium)"
   printf 'src/Foo/Bar.php\napp/Http/Orders.php\n' >"$tmp/changed-both"
@@ -852,6 +877,18 @@ self_test() {
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/k2.md" >/dev/null)
   run_case 'the final evaluation of an undeferred Moderate' 0 -- evaluate --state "$S" --final
   check 'a Moderate neither fixed nor deferred at the cap escalates on the final evaluation' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-undeferred-blockers"')"
+
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/m1.md" 1
+  run_case 'cap 1 with a clean round' 0 -- record --state "$S" --input "$tmp/m1.md"
+  check 'the loop converges in the cap round' "$(q '.verdict == "converged" and .iteration == 1')"
+  report "$tmp/m2.md" 2 "$F_STRUCT"
+  run_case 'a round after a convergence in the cap round is refused' 5 -- record --state "$S" --input "$tmp/m2.md" --changed-files "$tmp/changed-both"
+  check 'a change after a convergence in the cap round escalates with cap-spent-after-convergence' "$(q '.verdict == "escalated" and .status == "escalated" and .escalation_reason == "cap-spent-after-convergence" and (.reason | test("converged in the cap round of 1"))')"
+  check 'the escalation is stored and the refused round is not recorded' "$(jq -e '.status == "escalated" and .escalation_reason == "cap-spent-after-convergence" and .iteration == 1 and (.findings | length) == 0' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'the escalated loop is evaluated' 0 -- evaluate --state "$S"
+  check 'the evaluation after the refused round is escalated, never converged' "$(q '.verdict == "escalated" and .escalation_reason == "cap-spent-after-convergence"')"
   manifest '{ "review": { "max-iterations": 1, "blocking-threshold": "medium" } }'
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
@@ -913,6 +950,20 @@ self_test() {
   run_case 'a delta after a regression is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain"
   check 'a regression of a resolved finding triggers the broad review' "$(q '.scope == "full" and (.reasons | index("regression"))')"
 
+  # A fix can land in another file than the finding it fixes. The next round then reads the whole PR diff.
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/f1.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/f1.md" >/dev/null)
+  printf 'app/Support/SortColumns.php\n' >"$tmp/changed-elsewhere"
+  run_case 'a delta that leaves a proven finding untouched is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-elsewhere"
+  check 'a proven finding outside the delta widens the next round to the whole PR' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
+  check 'the computed scope is stored for the next record' "$(jq -e '.scope == "full"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  report "$tmp/f2.md" 2
+  run_case 'the broad round no longer reports the finding' 0 -- record --state "$S" --input "$tmp/f2.md" --changed-files "$tmp/changed-elsewhere"
+  check 'a finding fixed in another file is resolved by the broad round and the loop converges' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
+  check 'the record consumes the stored scope' "$(jq -e '.scope == null' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
@@ -923,6 +974,9 @@ self_test() {
   cp "$repo/$S" "$tmp/before-prose"
   run_case 'a round report that is not a review report is refused' 3 -- record --state "$S" --input "$tmp/prose.md" --changed-files "$tmp/changed-none"
   check 'the refused round leaves the state untouched' "$(cmp -s "$tmp/before-prose" "$repo/$S" && echo 0 || echo 1)"
+  report "$tmp/noev.md" 2 "$(finding Moderate 'Maybe a copied step' 'src/Foo/Baz.php:3' "$STRUCT" '-')"
+  run_case 'a round report with a finding under Findings without Evidence is refused' 3 -- record --state "$S" --input "$tmp/noev.md" --changed-files "$tmp/changed-none"
+  check 'the round without Evidence leaves the state untouched and names the fix' "$(cmp -s "$tmp/before-prose" "$repo/$S" && grep -q 'Evidence is required; move an unproven point under ## Needs verification' "$tmp/err" && echo 0 || echo 1)"
   run_case 'an unknown command is a usage error' 1 -- bogus --state "$S"
 
   if [[ "$failures" -gt 0 ]]; then
