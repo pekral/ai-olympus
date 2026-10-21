@@ -18,7 +18,7 @@
 #   review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
 #   review-state.sh evaluate --state <file> [--final]
 #   review-state.sh scope    --state <file> --changed-files <file|->
-#   review-state.sh dismiss  --state <file> --finding <id> --association <value>
+#   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
 #   review-state.sh --self-test
 #
@@ -28,8 +28,12 @@
 #   --changed-files  the paths the round's delta changed, one per line (`git diff --name-only <baseline>..HEAD`).
 #                    Required by `record` once an earlier round exists, and by `scope`.
 #   --final          at the cap round, escalate when a blocking finding is still neither fixed nor deferred.
-#   --association    the author association of the trusted rejection: OWNER, MEMBER, COLLABORATOR, OPERATOR
-#                    (the operator's own comment), or ASSIGNEE (the JIRA assignee). Anything else is refused.
+#   --comment        the URL of the rejection: a comment on the pull request of the state
+#                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
+#                    request through skills/code-review-github/scripts/load-issue.sh and reads the comment's author
+#                    association itself. It refuses a comment it cannot load or find, an association other than
+#                    OWNER, MEMBER, or COLLABORATOR, and a comment that carries an agent marker. No caller states
+#                    the association.
 #
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
@@ -59,6 +63,7 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 
 DEFAULT_CAP=3
 MAX_CAP=10
@@ -70,7 +75,7 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
        review-state.sh evaluate --state <file> [--final]
        review-state.sh scope    --state <file> --changed-files <file|->
-       review-state.sh dismiss  --state <file> --finding <id> --association <value>
+       review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
        review-state.sh --self-test
 EOF
@@ -110,8 +115,9 @@ def is_open: .status == "new" or .status == "confirmed" or .status == "needs-ver
 def is_blocking: .status == "new" or .status == "confirmed" or (.status == "needs-verification" and .security);
 # A hard blocker is never deferred: a security finding, or a severity at or above the blocking threshold.
 def is_hard($threshold): .security or ((.severity | severity_rank) >= ($threshold | severity_rank));
-# A blocking finding in a file the delta did not change: a delta review cannot show whether it is gone.
-def outside_delta($changed): . as $f | ($f | is_blocking) and $f.file != "." and ($changed | index([$f.file])) == null;
+# A blocking finding in a file the delta did not change: a delta review cannot show whether it is gone. A finding
+# whose location names no file (".") is outside every delta.
+def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index([$f.file])) == null;
 
 # Every problem the state has; an empty array means the state is valid.
 def state_errors:
@@ -160,7 +166,7 @@ def state_errors:
               type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
               and (.from == null or (.from | status_rank) > 0) and (.to | status_rank) > 0
-              and (if .to == "dismissed" then isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR|OPERATOR|ASSIGNEE)$")
+              and (if .to == "dismissed" then isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")
                    else .actor == "reviewer" end))
          then empty else "a transition is malformed" end),
         # Every status is the end of the finding's own history: no status changes without a recorded transition.
@@ -381,7 +387,7 @@ read_paths() {
     [[ -f "$input" ]] || fail 3 "changed-files list not found: $(safe_display "$input")"
     head -n "$MAX_CHANGED_FILES" <"$input" >"$out.raw"
   fi
-  jq -R -s -c 'split("\n") | map(gsub("[\\x00-\\x1f\\x7f]"; "") | sub("^(\\./)+"; "") | .[0:300]) | map(select(. != "")) | unique' "$out.raw" >"$out"
+  jq -R -s -c 'split("\n") | map(gsub("[\\x00-\\x1f\\x7f]"; "") | sub("^(\\./)+"; "") | .[0:300]) | map(select(. != "" and . != ".")) | unique' "$out.raw" >"$out"
 }
 
 new_tmp() {
@@ -563,18 +569,50 @@ cmd_scope() {
   jq -c '.verdict' "$TMP/scoped.json"
 }
 
+# rejection_association <comment-url> — the author association of the rejection comment, read from the
+# GitHub loader's payload of the state's own pull request, never from the caller. Exit 4 when the comment cannot
+# be verified as a trusted author's own comment (rules/code-review/general.md *Authorship trust*).
+rejection_association() {
+  local url="$1" repo pr rc=0 verdict
+  repo="$(jq -r '.repo' "$TMP/state.json")"
+  pr="$(jq -r '.pr' "$TMP/state.json")"
+  set +e
+  "$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"
+  rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(safe_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
+  verdict="$(jq -r --arg url "$url" --arg repo "$repo" --argjson pr "$pr" '
+    if type != "object" or .kind != "pr" or .number != $pr
+       or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
+    then "refused:the loader returned another item than the pull request of the state"
+    else [ (.comments // [])[] | select(.url == $url) ] as $m
+    | if ($m | length) != 1 then "refused:the pull request of the state has no comment with this URL"
+      elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then
+        "refused:the comment carries an agent marker; agent output is never a trusted rejection"
+      elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then
+        "refused:the author association \($m[0].authorAssociation // "null") is not trusted"
+      else "trusted:\($m[0].authorAssociation)" end
+    end' "$TMP/pr.json" 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
+  case "$verdict" in
+  trusted:OWNER | trusted:MEMBER | trusted:COLLABORATOR) printf '%s\n' "${verdict#trusted:}" ;;
+  *) fail 4 "only a trusted author dismisses a finding: $(safe_display "${verdict#refused:}"); the status is unchanged" ;;
+  esac
+}
+
 cmd_dismiss() {
-  local state='' id='' association=''
+  local state='' id='' comment=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --finding) [[ $# -ge 2 ]] || die_usage '--finding needs a value'; id="$2"; shift 2 ;;
-    --association) [[ $# -ge 2 ]] || die_usage '--association needs a value'; association="$2"; shift 2 ;;
+    --comment) [[ $# -ge 2 ]] || die_usage '--comment needs a value'; comment="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(safe_display "$id")"
+  [[ "$comment" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$ ]] \
+    || die_usage '--comment must be the URL of a comment on the pull request (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>)'
   check_writable "$state"
   new_tmp
   load_state "$state" "$TMP/state.json"
@@ -583,13 +621,11 @@ cmd_dismiss() {
   local finding
   finding="$(jq -c --arg id "$id" '.findings[] | select(.finding_id == $id)' "$TMP/state.json")"
   [[ -n "$finding" ]] || fail 4 "no finding $id in the review state"
-  case "$association" in
-  OWNER | MEMBER | COLLABORATOR | OPERATOR | ASSIGNEE) ;;
-  *) fail 4 "only a trusted author dismisses a finding; association $(safe_display "$association") is not trusted; the status is unchanged" ;;
-  esac
   jq -e '.security | not' <<<"$finding" >/dev/null || fail 4 "a security finding (S1-S3) is never dismissed; it leaves the loop only by being fixed"
   jq -e '.status == "new" or .status == "confirmed" or .status == "needs-verification"' <<<"$finding" >/dev/null \
     || fail 4 "finding $id is not open; the status is unchanged"
+  local association
+  association="$(rejection_association "$comment")"
 
   local config cap threshold
   config="$(effective_config)"
@@ -640,10 +676,32 @@ cmd_defer() {
 # shellcheck disable=SC2016
 self_test() {
   local failures=0 script tmp
-  script="$HERE/$PROG"
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
+
+  # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
+  mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts"
+  cp "$HERE"/{review-state,extract-findings,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
+  script="$tmp/pkg/skills/_shared/$PROG"
+  cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$1" >>"$tmp/loader-calls"
+[[ "\$1" == 'https://github.com/acme/shop/pull/7' && -f "$tmp/pr.json" ]] || { echo 'no such pull request' >&2; exit 4; }
+cat "$tmp/pr.json"
+EOF
+  chmod +x "$tmp/pkg/skills/code-review-github/scripts/load-issue.sh"
+  # pr_comments <comment-json>... — the loader payload of pull request acme/shop#7 with these comments.
+  pr_comments() {
+    jq -n -c '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
+      repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: $ARGS.positional}' --jsonargs "$@" >"$tmp/pr.json"
+  }
+  # comment <id> <association> <body> — one loader comment object.
+  comment() {
+    jq -n -c --arg id "$1" --arg a "$2" --arg b "$3" \
+      '{author: "someone", authorAssociation: $a, body: $b, createdAt: "2026-10-01T10:00:00Z", updatedAt: null,
+        url: "https://github.com/acme/shop/pull/7#issuecomment-\($id)"}'
+  }
 
   check() {
     if [[ "$2" == 0 ]]; then
@@ -824,10 +882,28 @@ self_test() {
   struct_id="$(jq -r '.findings[] | select(.file == "src/Foo/Bar.php") | .finding_id' "$repo/$S")"
   sql_id="$(jq -r '.findings[] | select(.file == "app/Http/Orders.php") | .finding_id' "$repo/$S")"
   cp "$repo/$S" "$tmp/before-dismiss"
-  run_case 'a rejection by a CONTRIBUTOR is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --association CONTRIBUTOR
+  local C=https://github.com/acme/shop/pull/7#issuecomment-
+  pr_comments "$(comment 11 CONTRIBUTOR 'Not a defect, please drop it.')" "$(comment 12 OWNER 'Not a defect, please drop it.')" \
+    "$(comment 13 OWNER $'Dropped by the owner.\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 15 NONE 'Not a defect.')" "$(jq -n -c '{author: "x", body: "Not a defect.", url: "https://github.com/acme/shop/pull/7#issuecomment-16"}')"
+  run_case 'a caller-stated association is no longer accepted' 1 -- dismiss --state "$S" --finding "$struct_id" --association OWNER
+  run_case 'a rejection by a CONTRIBUTOR is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}11"
   check 'the refused rejection leaves the status open' "$(cmp -s "$tmp/before-dismiss" "$repo/$S" && echo 0 || echo 1)"
-  run_case 'a security finding is never dismissed, even by the owner' 4 -- dismiss --state "$S" --finding "$sql_id" --association OWNER
-  run_case 'the owner dismisses a non-security finding' 0 -- dismiss --state "$S" --finding "$struct_id" --association OWNER
+  run_case 'a rejection by an author with no association is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}15"
+  run_case 'a rejection whose association the loader does not return is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}16"
+  run_case 'agent output from an OWNER account is never a trusted rejection' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}13"
+  check 'the refused agent output names the agent marker' "$(grep -q 'carries an agent marker' "$tmp/err" && echo 0 || echo 1)"
+  run_case 'a comment the pull request does not carry is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}99"
+  run_case 'a comment on another pull request is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment https://github.com/acme/shop/pull/8#issuecomment-12
+  run_case 'a rejection URL that is not a pull-request comment is a usage error' 1 -- dismiss --state "$S" --finding "$struct_id" --comment https://evil.example/acme/shop/pull/7#issuecomment-12
+  mv "$tmp/pr.json" "$tmp/pr.saved"
+  run_case 'a rejection the loader cannot load is refused' 4 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}12"
+  mv "$tmp/pr.saved" "$tmp/pr.json"
+  check 'every refused rejection leaves the state untouched' "$(cmp -s "$tmp/before-dismiss" "$repo/$S" && echo 0 || echo 1)"
+  rm -f "$tmp/loader-calls"
+  run_case 'a security finding is never dismissed, even by the owner' 4 -- dismiss --state "$S" --finding "$sql_id" --comment "${C}12"
+  check 'a security finding is refused before the loader runs' "$([[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
+  run_case 'the owner dismisses a non-security finding' 0 -- dismiss --state "$S" --finding "$struct_id" --comment "${C}12"
+  check 'the dismissal reads the association from the loaded pull request' "$(grep -qx 'https://github.com/acme/shop/pull/7' "$tmp/loader-calls" && echo 0 || echo 1)"
   check 'the dismissal is recorded with its trusted actor' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "dismissed"
       and any(.transitions[]; .finding_id == $id and .to == "dismissed" and .actor == "trusted:OWNER")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   report "$tmp/d2.md" 2 "$F_STRUCT" "$F_SQL"
@@ -977,6 +1053,29 @@ self_test() {
   run_case 'the broad round no longer reports the finding' 0 -- record --state "$S" --input "$tmp/f2.md" --changed-files "$tmp/changed-elsewhere"
   check 'a finding fixed in another file is resolved by the broad round and the loop converges' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
   check 'the record consumes the stored scope' "$(jq -e '.scope == null' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+
+  # A blocking finding whose location names no file sits outside every delta: no delta round reads it.
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/g1.md" 1 "$(finding Critical 'The policy is never checked' 'the pull request as a whole' "$SQL" 'exploit-path — no route calls the policy')"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/g1.md" >/dev/null)
+  check 'a finding whose location names no file is stored with the file "."' "$(jq -e '.findings[0].file == "." and .findings[0].status == "new"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'a delta that leaves a path-less blocking finding is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain"
+  check 'a path-less blocking finding widens the next round to the whole PR' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
+  report "$tmp/g2.md" 2
+  run_case 'the broad round no longer reports the path-less finding' 0 -- record --state "$S" --input "$tmp/g2.md" --changed-files "$tmp/changed-plain"
+  check 'a full round that omits a path-less blocking finding resolves it' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/g1.md" >/dev/null)
+  run_case 'a delta round without scope omits the path-less finding' 0 -- record --state "$S" --input "$tmp/g2.md" --changed-files "$tmp/changed-plain"
+  check 'a delta round carries a path-less blocking finding' "$(q '.verdict == "continue" and (.carried | length) == 1 and .counts.resolved == 0 and .blocking[0].file == "."')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/g1.md" >/dev/null)
+  printf '.\n./\nsrc/Foo/Bar.php\n' >"$tmp/changed-dot"
+  run_case 'a delta whose changed files name "." is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-dot"
+  check 'a changed-files entry "." never puts a path-less finding inside the delta' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
 
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"

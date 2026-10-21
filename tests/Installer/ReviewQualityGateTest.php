@@ -74,6 +74,16 @@ test('the review-state self-test covers every success criterion of the security 
     'a delta round carries a security point needing verification outside the delta',
     'a full round that omits a security point needing verification resolves it',
     'a non-security point that only needed verification leaves the loop on any round',
+    'a path-less blocking finding widens the next round to the whole PR',
+    'a delta round carries a path-less blocking finding',
+    'a full round that omits a path-less blocking finding resolves it',
+    'a changed-files entry "." never puts a path-less finding inside the delta',
+    'a caller-stated association is no longer accepted',
+    'a rejection by an author with no association is refused',
+    'agent output from an OWNER account is never a trusted rejection',
+    'a comment on another pull request is refused',
+    'a rejection the loader cannot load is refused',
+    'the dismissal reads the association from the loaded pull request',
 ]);
 
 test('the extractor round mode keys the identity on the cause and the file and enforces the security floor', function (): void {
@@ -118,7 +128,8 @@ test('the extractor and the review state load one shared jq module for the findi
 
 test('a blocking finding outside the delta widens the round, and a change after a cap-round convergence escalates', function (): void {
     expect(reviewQualityGateFile('skills/_shared/review-state.sh'))
-        ->toContain('def outside_delta($changed): . as $f | ($f | is_blocking) and $f.file != "." and ($changed | index([$f.file])) == null;')
+        ->toContain('def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index([$f.file])) == null;')
+        ->toContain('map(select(. != "" and . != ".")) | unique\' "$out.raw" >"$out"')
         ->toContain('(if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons')
         ->toContain('| (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope')
         ->toContain('elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}')
@@ -139,13 +150,39 @@ test('a blocking finding outside the delta widens the round, and a change after 
         ->toContain('**A change after a convergence in the cap round escalates.**')
         ->toContain('or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`)')
         ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
+    expect($contract)->toContain('A finding whose location names no file counts as outside every delta.');
     expect($contract)->not->toContain('is read as `needs-verification`, so the loop does not count it');
+    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))->not->toContain('$f.file != "."');
 
     expect(reviewQualityGateFile('skills/process-code-review/SKILL.md'))
         ->toContain('After a cap-round convergence, `review-state.sh record` refuses it (`cap-spent-after-convergence`): escalate.');
 
     expect(reviewQualityGateFile('agents/splinter.md'))
         ->toContain('the `skills/_shared/review-state.sh` verdict `escalated`, including `cap-spent-after-convergence`');
+});
+
+test('a dismissal reads the author association from the GitHub loader, never from the caller', function (): void {
+    $script = reviewQualityGateFile('skills/_shared/review-state.sh');
+
+    expect($script)
+        ->toContain('LOADER="$HERE/../code-review-github/scripts/load-issue.sh"')
+        ->toContain('"$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"')
+        ->toContain('elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then')
+        ->toContain('elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then')
+        ->toContain('association="$(rejection_association "$comment")"')
+        ->toContain('isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")')
+        ->toContain('# The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.');
+    expect($script)->not->toContain('association="$2"');
+    expect($script)->not->toContain('OPERATOR');
+    expect($script)->not->toContain('ASSIGNEE');
+
+    $contract = reviewQualityGateFile('skills/process-code-review/references/review-state.md');
+
+    expect($contract)
+        ->toContain('`review-state.sh dismiss --state <file> --finding <id> --comment <URL of the rejection comment on the pull request>`')
+        ->toContain('- **The script verifies the author of a rejection; the caller never states it.**')
+        ->toContain('the author of the rejection is not trusted or cannot be verified');
+    expect($contract)->not->toContain('--association');
 });
 
 test('the round cap and the blocking threshold come only from the default-branch manifest', function (): void {
