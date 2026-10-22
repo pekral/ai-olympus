@@ -35,8 +35,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-php-${{ matrix.php }}-
 
+      # Some development tools cap their PHP constraint at the newest released version; on the
+      # unreleased PHP 8.6 only that upper bound is ignored.
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer install --prefer-dist --no-progress --no-interaction ${{ matrix.php == '8.6' && '--ignore-platform-req=php+' || '' }}
 
       - name: "🔒 Security Audit"
         run: composer security-audit
