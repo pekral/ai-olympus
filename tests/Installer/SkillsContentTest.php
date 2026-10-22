@@ -2362,6 +2362,10 @@ test('the ready-to-merge reference carries every tracker, the no-op, and the rev
     // Create-apply-verify on GitHub, mirroring the phase-2 label mechanics.
     expect($reference)->toContain('gh label create "ready to merge"');
     expect($reference)->toContain('gh issue edit <N> --add-label "ready to merge"');
+    expect($reference)->toContain('### Pull-request label (every tracker)');
+    expect($reference)->toContain('gh pr edit <PR-NUMBER|URL> --add-label "ready to merge"');
+    expect($reference)->toContain('gh pr edit <PR-NUMBER|URL> --remove-label "ready to merge"');
+    expect($reference)->toContain('promote and label the PR exactly as above');
     expect($reference)->toContain('skills/code-review-github/scripts/load-issue.sh <URL>');
 
     // JIRA runs the third sanctioned helper and nothing else.

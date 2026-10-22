@@ -147,6 +147,8 @@ test('leonardo grants the phase-3 ready-to-merge write its consent-table row ass
     expect($boundary)->toContain('gh label create "ready to merge"');
     expect($boundary)->toContain('gh issue edit --add-label "ready to merge"');
     expect($boundary)->toContain('gh issue edit --remove-label "ready to merge"');
+    expect($boundary)->toContain('gh pr edit --add-label "ready to merge"');
+    expect($boundary)->toContain('gh pr edit --remove-label "ready to merge"');
     // The revert direction returns the PR to Draft and reuses the existing review transition.
     expect($boundary)->toContain('gh pr ready --undo');
     expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh');
