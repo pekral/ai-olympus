@@ -56,6 +56,8 @@ The host project declares machine-readable settings in its `composer.json` under
 | `promotion.min-occurrences` | int | The validated records one pattern needs before it becomes a promotion candidate in `skills/_shared/promote-learning.sh`. At least 2. Absent: 3. |
 | `promotion.min-distinct-tasks` | int | The distinct pull requests those records must come from. At least 2. Absent: 2. |
 | `promotion.min-confidence` | int | The share of those records that a fix resolved, in percent. 0 to 100. Absent: 0. |
+| `review.max-iterations` | int | The round cap of the review-and-fix loop in `skills/_shared/review-state.sh`. 1 to 10; any other value falls back to 3. Absent: 3. |
+| `review.blocking-threshold` | string | The lowest severity (`critical`, `high`, `medium`, `low`) that is never deferred at the cap round. It only tightens the convergence gate: every finding with evidence blocks at every severity, and a security finding is never deferred. Absent or unknown: `critical`. |
 | `language.github` | string | The language (e.g. `en`) of everything published to GitHub: PR title and body, PR and issue comments including the non-technical mirror on a linked issue, and commit messages. Branch names stay English. JIRA and Bugsnag keep the assignment language. Absent: the PR body and the mirrors follow the assignment language. |
 | `timezone` | string | The IANA zone the code computes, compares, and stores in. Every date call passes it explicitly. |
 | `tenancy` | string | `database`: one database per tenant. The tenant connection is the tenant boundary, so a model on it needs no tenant `where`; shared connections still need tenant scoping. Absent: shared tables, and tenant scoping is always required. |

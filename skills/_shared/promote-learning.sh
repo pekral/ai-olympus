@@ -552,7 +552,7 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the tracker loader is a fixture and not the network.
   mkdir -p "$tmp/skills/_shared" "$tmp/skills/code-review-github/scripts" "$tmp/fixture"
-  cp "$HERE"/{promote-learning,analyze-recurrence,extract-findings,propose-prevention,proposal-identity,read-manifest,gate-record,project-commands}.sh "$tmp/skills/_shared/"
+  cp "$HERE"/{promote-learning,analyze-recurrence,extract-findings,propose-prevention,proposal-identity,read-manifest,gate-record,project-commands}.sh "$HERE/finding-defs.jq" "$tmp/skills/_shared/"
   script="$tmp/skills/_shared/promote-learning.sh"
   cat >"$tmp/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash

@@ -144,7 +144,7 @@ test('the contract is written once, in the code-review skill, and lists the reco
         );
 });
 
-test('the review output and the review loop do not change, and no agent needs a platform binding', function (): void {
+test('the review output and the review loop name no extractor, and no agent needs a platform binding', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     foreach ([

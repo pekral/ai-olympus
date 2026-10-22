@@ -50,6 +50,7 @@
 - **Rule:** `@rules/<area>/<file>.md#<section>`
 - **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
 - **Impact:** one sentence — what breaks or what risk this introduces.
+- **Evidence:** `failing-test` | `static-analysis` | `runtime-failure` | `exploit-path` | `logic-trace` | `rule-violation` — the evidence another reader can check without trusting this review: the failing test, the analyser error, the reproducible failure, the exploit path, the traced logic defect, or the explicit rule the line breaks. *(Required on every finding. A point that has none goes under `## Needs verification`, never here.)*
 - **Faulty Example:**
   ```php
   // minimal code or input that reproduces the issue (no secrets / PII)
@@ -64,9 +65,20 @@
 
 ### 🟠 Moderate 1. <short title>
 
-(same fields as Critical, Provenance and Author included, plus one field that renders only on a round-3 deferral)
+(same fields as Critical, Provenance and Author included, plus `Level` and one field that renders only on a cap-round deferral)
 
+- **Level:** `High` | `Medium` | `Low` — the lens's own level of a Moderate a security lens raised. *(Omit it on every other Moderate, which reads as `Medium`.)*
 - **Deferred:** `<sub-issue URL>` — filed as a sub-issue of the source tracker item per `@skills/process-code-review/references/round-three-deferral.md`; the finding is recorded, not resolved. *(Omit this field entirely unless the finding was deferred.)*
+
+## Needs verification
+
+> Render only in a **round report of the review loop** (`@skills/process-code-review/SKILL.md` *Review loop*), and only when the round holds a point that no check of this run proved. Each entry has the same fields as a finding above except `Evidence`, and its `Test hint` names the step that settles the point.
+> An entry here is not a finding: it never counts in the `Counts:` line, and `skills/_shared/review-state.sh` tracks it with the status `needs-verification`, which blocks nothing — **except an entry that meets the S1–S3 security carve-out** (`@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*), which blocks the loop until it is proven and fixed, or proven absent.
+> A published comment never renders this section: the converged comment carries the remaining non-security points on the `Not verified:` line instead.
+
+### 🟠 Moderate 1. <short title>
+
+(same fields as a finding, without `Evidence`)
 
 ---
 
@@ -146,11 +158,11 @@
 
 ### 🔴 Critical 1. <short title>
 
-(same fields as `## Findings` — Location / Rule / Provenance / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix)
+(same fields as `## Findings` — Location / Rule / Provenance / Impact / Evidence / Faulty Example / Expected behavior / Test hint / Suggested fix)
 
 ### 🟠 Moderate 1. <short title>
 
-(same fields as Critical, Provenance included, plus one field that renders only on a round-3 deferral)
+(same fields as Critical, Provenance included, plus `Level` and one field that renders only on a cap-round deferral)
 
 - **Deferred:** `<sub-issue URL>` — filed as a sub-issue of the source tracker item per `@skills/process-code-review/references/round-three-deferral.md`; the finding is recorded, not resolved. *(Omit this field entirely unless the finding was deferred.)*
 
@@ -174,7 +186,7 @@
 
 ### 🔴 Critical 1. <short title>  *(gaps case only)*
 
-(same fields as `## Findings` — Location / Rule / Provenance / Impact / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.md` path)
+(same fields as `## Findings` — Location / Rule / Provenance / Impact / Evidence / Faulty Example / Expected behavior / Test hint / Suggested fix; **Rule** cites the unmet requirement / acceptance criterion and its source instead of a `@rules/*.md` path)
 
 (Repeat for every gap.)
 

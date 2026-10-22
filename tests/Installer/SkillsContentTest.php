@@ -2307,7 +2307,7 @@ test('the round-3 deferral boundary triages every remaining finding into exactly
     expect(is_executable($scriptPath))->toBeTrue();
 
     // Round 3 defers instead of failing, but only for a non-security Moderate.
-    expect($skill)->toContain('6. **Round 3 — the deferral boundary.**');
+    expect($skill)->toContain('6. **The cap round — the deferral boundary.**');
     expect($skill)->toContain('**Critical → hard stop.** Never deferred, never filed as a sub-issue.');
     expect($skill)->toContain('**Moderate meeting the S1–S3 security carve-out → hard stop.**');
     expect($skill)->toContain('references/round-three-deferral.md');

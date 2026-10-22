@@ -379,7 +379,7 @@ test('process-code-review enforces a convergence loop with quiet iterations and 
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     expect($process)->toContain('### Review loop (mandatory — convergence gate)');
-    expect($process)->toContain('`maxIterations = 3`');
+    expect($process)->toContain('`maxIterations` is the default-branch manifest key `review.max-iterations`, default 3; only the script reads it.');
     expect($process)->toContain(
         'The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred**',
     );

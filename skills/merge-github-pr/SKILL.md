@@ -8,7 +8,7 @@ metadata:
 
 ## Constraints
 - Apply @rules/git/general.md
-- **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — **0 Critical, and no undeferred Moderate**. A Moderate is resolved either by being fixed in the review loop or, at round 3 only, by being deferred into a tracker sub-issue; a **security-relevant** Moderate (the S1–S3 carve-out) is never deferrable and always blocks. This is the hard merge gate from `@rules/git/pull-requests.md` *Merging*; it is mandatory on every merge and is verified in step 2 below. Its single exemption is a **dependency-only PR** (`@rules/git/pull-requests.md` *Dependency-only pull requests*), qualified in step 2 below.
+- **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — **0 Critical, and no undeferred Moderate**. A Moderate is resolved either by being fixed in the review loop or, at the cap round only, by being deferred into a tracker sub-issue; a **security-relevant** Moderate (the S1–S3 carve-out) is never deferrable and always blocks. This is the hard merge gate from `@rules/git/pull-requests.md` *Merging*; it is mandatory on every merge and is verified in step 2 below. Its single exemption is a **dependency-only PR** (`@rules/git/pull-requests.md` *Dependency-only pull requests*), qualified in step 2 below.
 - Never merge PRs with conflicts
 - Never merge PRs with failing CI — the only sanctioned relaxation is the *GitHub Actions billing exception* below; no other explicit instruction, including "merge anytime", overrides a real CI failure
 - Never bypass required approvals or protections

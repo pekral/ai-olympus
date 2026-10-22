@@ -78,7 +78,10 @@ test('leonardo owns every code-review wrapper and the no-source fallback (issue 
     expect($content)->toContain('The wrapper drives the whole CR skill set');
     // It owns the convergence loop that argos used to drive.
     expect($content)->toContain('@skills/process-code-review/SKILL.md');
-    expect($content)->toContain('maxIterations = 3');
+    expect($content)->toContain(
+        'the default-branch manifest key `review.max-iterations`, default 3, which `skills/_shared/review-state.sh` reads and enforces',
+    );
+    expect($content)->not->toContain('never raise the cap');
     // The inline security pass is leonardo's own, so the delegation flag must never be set.
     expect($content)->toContain('Never set `SECURITY_OWNER=leonardo`');
     // Quality lens absorbed from argos.
@@ -171,8 +174,8 @@ test('leonardo grants the round-3 sub-issue write its step-10 obligation assigns
     expect($boundary)->toContain('never a hand-typed `gh issue create` / `addSubIssue` / `acli jira workitem create`');
 
     // The filing is an externally-visible write, so it owes its own audit line in step 12 too.
-    expect($leonardo)->toContain('every round-3 deferred Moderate the step-10 loop files as a sub-issue');
-    expect($boundary)->toContain('filing a round-3 deferred Moderate as a sub-issue');
+    expect($leonardo)->toContain('every cap-round deferred Moderate the step-10 loop files as a sub-issue');
+    expect($boundary)->toContain('filing a cap-round deferred Moderate as a sub-issue');
 });
 
 test('donatello grants the PR link-back write its consent-table row assigns it (issue #194)', function (): void {
