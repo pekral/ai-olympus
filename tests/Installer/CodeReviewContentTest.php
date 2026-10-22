@@ -4567,3 +4567,21 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
     expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
     expect($summary)->toContain('- **Never guess an account.**');
 });
+
+test('code-testing and code-review rules require test data to be inserted in one batch', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $testing = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    expect($testing)->toContain('**Insert test data in one batch whenever possible.**');
+    expect($testing)->toContain('Model::insert(Model::factory()->count($n)->raw())');
+    expect($testing)->toContain('**A per-row insert stays only where a batch cannot work.**');
+    expect($review)->toContain('- **Test data is inserted in one batch**');
+    expect($review)->toContain('`@rules/code-testing/general.md` *Data Handling*');
+    expect($testing)->toContain('the factory runs `afterCreating()` callbacks');
+    expect($testing)->toContain('the factory sets an attribute the model casts or mutates or the test reads the timestamps');
+    expect($review)->toContain('`afterCreating()` callbacks, a cast or mutated attribute or read timestamps, a single row — is not a finding.');
+    expect($review)->toContain(
+        'Inside a test file, a per-row test-data insert belongs to **Test data is inserted in one batch** above; do not raise it here.',
+    );
+});
