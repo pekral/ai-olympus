@@ -2348,6 +2348,7 @@ test('process-code-review writes the ready-to-merge phase signal when the review
 
     // A behaviour-changing gate fix re-opens the review, so the signal is withdrawn again.
     expect($skill)->toContain('`references/ready-to-merge-signal.md` *Revert when the review re-opens*');
+    expect($skill)->toContain('and label it `ready to merge` (`references/ready-to-merge-signal.md` *Pull-request label*)');
 
     // The extraction exists to hold the body under the skill-check limit, so the body must stay
     // below it — measured on the same whitespace-token proxy resolve-issue is measured against.
@@ -2367,6 +2368,8 @@ test('the ready-to-merge reference carries every tracker, the no-op, and the rev
     expect($reference)->toContain('gh pr edit <PR-NUMBER|URL> --remove-label "ready to merge"');
     expect($reference)->toContain('promote and label the PR exactly as above');
     expect($reference)->toContain('skills/code-review-github/scripts/load-issue.sh <URL>');
+    expect($reference)->toContain('this write runs for a GitHub, a JIRA, and a Bugsnag source, and also when there is no source tracker item');
+    expect($reference)->toContain('**Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <PR-URL>`');
 
     // JIRA runs the third sanctioned helper and nothing else.
     expect($reference)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh <KEY|URL>');

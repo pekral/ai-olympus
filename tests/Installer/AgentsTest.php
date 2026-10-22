@@ -160,6 +160,13 @@ test('leonardo grants the phase-3 ready-to-merge write its consent-table row ass
 
     // The phase-3 write is externally visible, so it also owes its own audit line.
     expect($boundary)->toContain('writing or withdrawing the ready-to-merge phase signal on the source issue');
+    expect($boundary)->toContain('and the `ready to merge` label on the pull request (see step 12');
+    expect($boundary)->toContain('re-reading the issue or the pull request through the deterministic loader');
+
+    // Step 12 owes the same audit line, and the non-converged note counts all three skipped writes.
+    $stepTwelve = mb_substr($leonardo, (int) mb_strpos($leonardo, '12. **Append your own audit-trail lines.**'));
+    expect($stepTwelve)->toContain('together with the `ready to merge` label added to the pull request');
+    expect($stepTwelve)->toContain('naming the three skipped writes');
 });
 
 test('leonardo grants the round-3 sub-issue write its step-10 obligation assigns it (issue #194)', function (): void {
