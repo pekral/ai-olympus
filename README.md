@@ -398,7 +398,7 @@ instructions described in [What You Get](#what-you-get).
 
 ## Development & Testing
 
-From a checkout of this repository, install development dependencies with `composer install`. The package requires PHP `^8.4`. CI lints the code and checks the installer on PHP 8.4, 8.5, and 8.6, and runs the full quality checks on PHP 8.5 and 8.6.
+From a checkout of this repository, install development dependencies with `composer install`. The package requires PHP `^8.4`. CI runs the full quality checks and checks the installer on PHP 8.4, 8.5, and 8.6.
 
 ```bash
 vendor/bin/pest tests        # run the test suite
