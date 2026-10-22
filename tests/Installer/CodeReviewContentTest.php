@@ -4578,4 +4578,10 @@ test('code-testing and code-review rules require test data to be inserted in one
     expect($testing)->toContain('**A per-row insert stays only where a batch cannot work.**');
     expect($review)->toContain('- **Test data is inserted in one batch**');
     expect($review)->toContain('`@rules/code-testing/general.md` *Data Handling*');
+    expect($testing)->toContain('the factory runs `afterCreating()` callbacks');
+    expect($testing)->toContain('the factory sets an attribute the model casts or mutates or the test reads the timestamps');
+    expect($review)->toContain('`afterCreating()` callbacks, a cast or mutated attribute or read timestamps, a single row — is not a finding.');
+    expect($review)->toContain(
+        'Inside a test file, a per-row test-data insert belongs to **Test data is inserted in one batch** above; do not raise it here.',
+    );
 });
