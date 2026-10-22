@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-- 🏷️ **Added**: a converged code review also labels the pull request `ready to merge`, next to taking it out of Draft (`gh pr ready`). Before, the label went only to the source issue, so a PR without a source issue carried no ready-to-merge label. `skills/process-code-review/references/ready-to-merge-signal.md` *Pull-request label* runs for every tracker and verifies the label through the loader. A review that re-opens removes the label and returns the PR to Draft.
+- 🏷️ **Added**: a converged code review also labels the pull request `ready to merge`, next to taking it out of Draft (`gh pr ready`). Before, the label went only to the source issue, so a PR without a source issue carried no ready-to-merge label. `skills/process-code-review/references/ready-to-merge-signal.md` *Pull-request label* runs for every tracker and verifies the label through the loader. A review that re-opens removes the label and returns the PR to Draft. A `FAST`-tier run, which has no review, gets the same label when `splinter` closes it (`agents/splinter.md` *Closing a `FAST` run*).
 
 - 🧪 **Added**: tests insert their data in one batch whenever possible (#230). `rules/code-testing/general.md` *Data Handling* requires one bulk insert (`Model::insert(Model::factory()->count($n)->raw())` or the ModelManager `bulkCreate()`) instead of one `create()` per row, and names the cases where a per-row insert stays. The code review raises a per-row test-data insert as a Moderate finding (`rules/code-review/core-analysis.md` *Test data is inserted in one batch*).
 
