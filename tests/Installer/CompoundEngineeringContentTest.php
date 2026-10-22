@@ -1245,6 +1245,8 @@ test('the ready-to-merge phase names its owner, its revert, and the no-source-is
 
     // Phase 3 fires at convergence, before the merge, on both surfaces.
     expect($rule)->toContain('**Phase 3 — ready to merge.**');
+    expect($rule)->toContain('the pull request leaves Draft and gains the `ready to merge` label');
+    expect($rule)->toContain('removes the `ready to merge` label from the pull request');
     expect($rule)->toContain('the moment the code review converges, and before the merge itself');
     // Exactly one convergence definition exists in the package, and phase 3 cites it rather than
     // restating an older one beside it.

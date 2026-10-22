@@ -147,6 +147,8 @@ test('leonardo grants the phase-3 ready-to-merge write its consent-table row ass
     expect($boundary)->toContain('gh label create "ready to merge"');
     expect($boundary)->toContain('gh issue edit --add-label "ready to merge"');
     expect($boundary)->toContain('gh issue edit --remove-label "ready to merge"');
+    expect($boundary)->toContain('gh pr edit --add-label "ready to merge"');
+    expect($boundary)->toContain('gh pr edit --remove-label "ready to merge"');
     // The revert direction returns the PR to Draft and reuses the existing review transition.
     expect($boundary)->toContain('gh pr ready --undo');
     expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh');
@@ -158,6 +160,13 @@ test('leonardo grants the phase-3 ready-to-merge write its consent-table row ass
 
     // The phase-3 write is externally visible, so it also owes its own audit line.
     expect($boundary)->toContain('writing or withdrawing the ready-to-merge phase signal on the source issue');
+    expect($boundary)->toContain('and the `ready to merge` label on the pull request (see step 12');
+    expect($boundary)->toContain('re-reading the issue or the pull request through the deterministic loader');
+
+    // Step 12 owes the same audit line, and the non-converged note counts all three skipped writes.
+    $stepTwelve = mb_substr($leonardo, (int) mb_strpos($leonardo, '12. **Append your own audit-trail lines.**'));
+    expect($stepTwelve)->toContain('together with the `ready to merge` label added to the pull request');
+    expect($stepTwelve)->toContain('naming the three skipped writes');
 });
 
 test('leonardo grants the round-3 sub-issue write its step-10 obligation assigns it (issue #194)', function (): void {
@@ -2813,4 +2822,17 @@ test('an unregistered april stops a tracker-sourced run with a named blocker and
     expect($april)->toContain('stops the run `Blocked` with the remediation (`agents/splinter.md` step 6a)');
     expect($april)->toContain('and no other agent publishes the report in its place');
     expect($april)->toContain('On a run with no tracker source nothing is published anyway');
+});
+
+test('splinter labels the pull request ready to merge when it closes a FAST run (issue #232)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+
+    expect($splinter)->toContain('3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"`');
+    expect($splinter)->toContain('those commands are this agent\'s sanctioned `gh` writes outside the three backlog skills');
+    expect($rule)->toContain('owns that promotion and the `ready to merge` label on the pull request');
+    expect($splinter)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready`, the `ready to merge` label on the pull request');
+    expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
+        ->toContain('| `splinter` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
 });
