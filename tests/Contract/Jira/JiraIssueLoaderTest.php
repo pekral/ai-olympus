@@ -660,7 +660,7 @@ test('the download manifest names the description, comment, or subtask descripti
     ], 'download-attachments.sh');
 
     $manifest = (string) file_get_contents($scratch . '/attachments/jira/attachments-manifest.json');
-    (new Process(['rm', '-rf', $scratch]))->run();
+    new Process(['rm', '-rf', $scratch])->run();
     unlink($fixture['bin'] . '/curl');
     removeJiraLoaderFixture($fixture);
 

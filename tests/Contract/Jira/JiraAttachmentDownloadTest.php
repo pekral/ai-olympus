@@ -114,7 +114,7 @@ function runJiraDownload(array $fixture, string $site): Process
  */
 function removeJiraDownloadFixture(array $fixture): void
 {
-    (new Process(['rm', '-rf', $fixture['directory']]))->run();
+    new Process(['rm', '-rf', $fixture['directory']])->run();
 }
 
 test('the API token is sent only to attachment URLs on the configured site', function (): void {
