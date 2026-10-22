@@ -4567,3 +4567,15 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
     expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
     expect($summary)->toContain('- **Never guess an account.**');
 });
+
+test('code-testing and code-review rules require test data to be inserted in one batch', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $testing = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    expect($testing)->toContain('**Insert test data in one batch whenever possible.**');
+    expect($testing)->toContain('Model::insert(Model::factory()->count($n)->raw())');
+    expect($testing)->toContain('**A per-row insert stays only where a batch cannot work.**');
+    expect($review)->toContain('- **Test data is inserted in one batch**');
+    expect($review)->toContain('`@rules/code-testing/general.md` *Data Handling*');
+});
