@@ -8,8 +8,12 @@ on:
 
 jobs:
   quality-checks:
-    name: "🔍 Quality Checks (PHP 8.5)"
+    name: "🔍 Quality Checks (PHP ${{ matrix.php }})"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.5', '8.6']
 
     steps:
       - name: Checkout code
@@ -18,7 +22,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@2.37.1
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php }}
           extensions: pcov, dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
           coverage: pcov
 
@@ -27,10 +31,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vendor
-          key: ${{ runner.os }}-php-8.5-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-${{ matrix.php }}-${{ hashFiles('**/composer.json') }}
           restore-keys: |
-            ${{ runner.os }}-php-8.5-
-            ${{ runner.os }}-php-
+            ${{ runner.os }}-php-${{ matrix.php }}-
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
@@ -62,13 +65,37 @@ jobs:
       - name: "📊 Coverage Tests"
         run: composer test:coverage
 
+  php-syntax:
+    name: "🐘 PHP Syntax (PHP ${{ matrix.php }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5', '8.6']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@2.37.1
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: Lint the runtime code
+        run: |
+          set -euo pipefail
+          find src bin -type f -print0 | xargs -0 -n1 php -l
+
   installer-compatibility:
     name: "Installer (PHP ${{ matrix.php }})"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.3', '8.4', '8.5']
+        php: ['8.4', '8.5', '8.6']
 
     steps:
       - name: Checkout code

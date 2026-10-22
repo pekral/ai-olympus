@@ -13,7 +13,7 @@
 
 ## Requirements
 
-PHP 8.3 or newer (PHP 8.x) and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
+PHP 8.4 or newer (PHP 8.x) and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
 
 ## Installation
 
