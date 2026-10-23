@@ -496,7 +496,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the namespace list gained `prevention-proposal`, which the prevention proposal refresh writes (issue #188).
         // Re-baselined: *Incremental Review Scope* widens the security lenses to the whole PR when a delta touches
         // a security surface, and the whole review after a regression or a shared-surface delta (issue #225).
-        'rules/code-review/general.md' => '90e801b76f1b87cbf5b8bcc6fad360c0b50dc41ad2af06f755a54f0af9f9efe5',
+        // Re-baselined: every review comment carries the `Security assessment:` header line (issue #236).
+        'rules/code-review/general.md' => 'b1e2bbaa70cb7cbebba6776ec49225f901bf6a6ce5331bcb9053ce56eedaa96e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
