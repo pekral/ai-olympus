@@ -479,7 +479,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
 
-1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
+1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
@@ -499,6 +499,15 @@ Otherwise the verdict is `no`, and the line names every blocker in one short cla
 2. `Reuse (DRY):` answers "can existing code in the codebase be used instead of repeating it?". The answer is `no duplication found`, or names each existing implementation the diff should reuse with its `file:line`. It comes from *Reuse Existing Logic* above.
 
 A `no` on either line is backed by a Critical finding in `## Findings`, so it also makes the merge verdict `no`. The lines add no new severity. The comment renders `## Input consistency` with the walked entry points on every run whose diff writes persisted data, on a converged run too.
+
+**Security assessment — four questions every code change answers.** Every review comment carries a `Security assessment:` header line, converged or not, and on every tier. It holds four answers in this order, separated by ` · `:
+
+1. `untrusted data:` — `none`, or each new path for untrusted data, unsafe deserialization, or vulnerable dependency, with its `file:line`.
+2. `public exposure:` — `none`, or each new service or port with the address it is reachable from.
+3. `regression test:` — `not required`, `present` with the test, or `required` with each unpinned guarantee.
+4. `automatic rule:` — `not applicable`, `none practical`, or the strongest practical mechanism with its level.
+
+The answers come from `@skills/security-review/SKILL.md` *Change Security Assessment*. A diff that changes no application, configuration, or deployment code renders `not applicable — the diff changes no code`. The line adds no new severity: an unsafe path, a reachable service, and a missing regression test are findings at the severity that skill states, so they also make the merge verdict `no`.
 
 **It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 
