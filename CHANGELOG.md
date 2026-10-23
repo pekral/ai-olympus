@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🛡️ **Added**: `skills/_shared/check-cr-header.sh` checks the `Merge verdict:` and `Security assessment:` header lines of a code-review comment before it is published (#238). One pass covers both lines. The security line must carry the four answers in order (`untrusted data:` · `public exposure:` · `regression test:` · `automatic rule:`) or `not applicable — the diff changes no code`. The verdict line must state its two halves and agree with them. `skills/code-review-github/references/cr-wrapper-contract.md` runs the check on the body and never publishes a body it refused.
+
 - 🛡️ **Added**: every code review answers four security questions in a `Security assessment:` header line (#236). Does the change add a new path for untrusted data, an unsafe deserialization, or a vulnerable dependency? Would a new service or port be publicly reachable? Must a security regression test be added? Can an automatic rule catch the defect class later? `skills/security-review/SKILL.md` gains the *Network Exposure of New Services and Ports* walk and the *Change Security Assessment* verdicts, and its deserialization check names the PHP sinks. `rules/code-review/general.md` *Security assessment* and `agents/leonardo.md` render and report the line.
 
 - 🐘 **Changed**: the installer supports PHP 8.4 to 8.6. `composer.json` requires `php: ^8.4`; before, it required `^8.3`. CI checks every supported version: the *Quality Checks* job (security audit, PHPCS, Pint, Rector, PHPStan, shell checks, and the Pest suite with coverage) and the *Installer* job run on PHP 8.4, 8.5, and 8.6. `pekral/phpcs-rules` supports PHP 8.4 again for this (pekral/phpcs-rules#63).
