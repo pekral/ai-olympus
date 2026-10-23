@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# cr-header.sh — the one parser of the header block of a code-review comment.
+#
+# Why this exists
+#   Two scripts read the header block of a code-review comment: check-cr-header.sh (the publication check)
+#   and extract-findings.sh (the finding records and --header). Each had its own parser, so the two could
+#   disagree about what a header line is. This file is the only place that decides it. Both scripts source
+#   it; neither parses a header line itself.
+#
+# Usage
+#   source cr-header.sh        # then: cr_header_parse < body
+#   cr-header.sh --self-test
+#
+# What it reads
+#   A header line is `**<Label>:** <value>`, or the same line without the Markdown bold. A line inside a
+#   fenced code block is a quotation and is not read. The header block is the lines before the first `## `
+#   heading; the parser reports a header line wherever it stands in the body and marks the ones that stand in
+#   the block. It does not judge a label, a value, a duplicate, or a place: the caller decides.
+#
+#   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
+#   expanded, or used to build a command, a path, or a program.
+#
+# Result of cr_header_parse (parallel arrays, one entry per header line, in document order)
+#   CR_HEADER_LABELS  the label as written, without the colon and the bold
+#   CR_HEADER_BOLD    1 when the line carries the bold on both sides of the label, otherwise 0
+#   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading), otherwise 0
+#   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
+#
+# Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
+
+CR_HEADER_LABELS=()
+CR_HEADER_BOLD=()
+CR_HEADER_BLOCK=()
+CR_HEADER_VALUES=()
+
+# cr_header_parse — read a comment body on standard input and fill the three arrays above.
+cr_header_parse() {
+  local line value in_fence=0 in_block=1 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
+
+  CR_HEADER_LABELS=()
+  CR_HEADER_BOLD=()
+  CR_HEADER_BLOCK=()
+  CR_HEADER_VALUES=()
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
+      in_fence=$((1 - in_fence))
+      continue
+    fi
+    [[ "$in_fence" -eq 0 ]] || continue
+    if [[ "$line" =~ ^##[[:space:]] ]]; then
+      in_block=0
+      continue
+    fi
+    if [[ "$line" =~ $shape ]]; then
+      value="${BASH_REMATCH[4]}"
+      value="${value%"${value##*[![:space:]]}"}"
+      CR_HEADER_LABELS+=("${BASH_REMATCH[2]}")
+      if [[ -n "${BASH_REMATCH[1]}" && -n "${BASH_REMATCH[3]}" ]]; then
+        CR_HEADER_BOLD+=(1)
+      else
+        CR_HEADER_BOLD+=(0)
+      fi
+      CR_HEADER_BLOCK+=("$in_block")
+      CR_HEADER_VALUES+=("$value")
+    fi
+  done
+}
+
+cr_header_self_test() {
+  local failures=0 fence tmp
+  fence=$'\x60\x60\x60'
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+
+  # expect <label> <expected> <body> — the arrays, flattened to `label|bold|block|value` lines, must equal <expected>.
+  expect() {
+    local label="$1" expected="$2" body="$3" actual="" i
+    cr_header_parse <<<"$body"
+    for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
+      actual+="${CR_HEADER_LABELS[$i]}|${CR_HEADER_BOLD[$i]}|${CR_HEADER_BLOCK[$i]}|${CR_HEADER_VALUES[$i]}"$'\n'
+    done
+    if [[ "$actual" == "$expected" ]]; then
+      printf 'ok    %s\n' "$label"
+    else
+      printf 'FAIL  %s: expected "%s", got "%s"\n' "$label" "$expected" "$actual" >&2
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect 'a bold header line is read with its label, its bold, and its value' $'Status|1|1|needs-fix\n' '**Status:** needs-fix'
+  expect 'a line without the bold is read, and is marked as not bold' $'Status|0|1|needs-fix\n' 'Status: needs-fix'
+  expect 'a bold on one side only is not a full bold' $'Status|0|1|needs-fix\n' '**Status: needs-fix'
+  expect 'a value with colons keeps them and loses the whitespace around it' $'Last updated|1|1|2026-10-01T10:00:00Z\n' $'**Last updated:**   2026-10-01T10:00:00Z \t'
+  expect 'a repeated header line is reported every time' $'Status|1|1|a\nStatus|1|1|b\n' $'**Status:** a\n**Status:** b'
+  expect 'the lines come out in document order' $'Counts|1|1|x\nStatus|1|1|y\n' $'**Counts:** x\n**Status:** y'
+  expect 'a line without a colon is not a header line' '' $'just some prose\n# Code Review'
+  expect 'an empty value is a header line with an empty value' $'Status|1|1|\n' '**Status:**'
+  expect 'a trailing carriage return is dropped' $'Status|1|1|clean\n' $'**Status:** clean\r'
+  expect 'a line inside a fenced code block is not read' $'After|1|1|y\n' "$(printf '%stext\n**Before:** x\n%s\n**After:** y\n' "$fence" "$fence")"
+  expect 'a tilde fence is a fence too' $'After|1|1|y\n' "$(printf '~~~\n**Before:** x\n~~~\n**After:** y\n')"
+  expect 'a line after the first section heading is reported outside the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n## TL;DR\n**Late:** b'
+  expect 'a heading of a deeper level does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Sub\n**Late:** b'
+  expect 'a section heading inside a fence does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' "$(printf '**Status:** a\n%s\n## quoted\n%s\n**Late:** b\n' "$fence" "$fence")"
+  expect 'an empty body has no header line' '' ''
+
+  local injected="\$(touch $tmp/pwned)"
+  expect 'instruction-like text in a value is read as data' "Status|1|1|$injected"$'\n' "**Status:** $injected"
+  if [[ -e "$tmp/pwned" ]]; then
+    printf 'FAIL  %s\n' 'a value was executed' >&2
+    failures=$((failures + 1))
+  else
+    printf 'ok    %s\n' 'a value is never executed'
+  fi
+
+  if [[ "$failures" -gt 0 ]]; then
+    echo "cr-header self-test: $failures failure(s)" >&2
+    return 4
+  fi
+  echo 'cr-header self-test: PASS'
+  return 0
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+  if [[ "${1:-}" == "--self-test" ]]; then
+    cr_header_self_test
+    exit $?
+  fi
+  echo 'Usage: cr-header.sh --self-test (the file is meant to be sourced)' >&2
+  exit 1
+fi

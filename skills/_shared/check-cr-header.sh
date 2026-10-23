@@ -27,7 +27,8 @@
 #                        `automatic rule:`. The regression test answer is `not required`, `present — <test>`, or
 #                        `required — <unpinned guarantees>`.
 #   A line may be written with or without the Markdown bold around its label. A line inside a fenced code block
-#   is a quotation and is not read.
+#   is a quotation and is not read. The whole body is read, not only the header block, by the parser in
+#   skills/_shared/cr-header.sh that extract-findings.sh also uses.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
 #   expanded, or used to build a command, a path, or a program, and no problem message repeats it.
@@ -42,6 +43,11 @@
 set -euo pipefail
 
 PROG="${0##*/}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The header block is parsed by the one parser both this script and extract-findings.sh share.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -76,27 +82,6 @@ emit() {
   [[ "$first" -eq 1 ]] || printf '\n  '
   printf ']\n'
   printf '}\n'
-}
-
-# Collect the value of every header line whose label is "$1", skipping fenced code blocks. One value per line
-# of output, in document order.
-header_values() {
-  local label="$1" body="$2" line in_fence=0 shape
-  shape="^(\*\*)?${label}:(\*\*)?[[:space:]]*(.*)$"
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
-      in_fence=$((1 - in_fence))
-      continue
-    fi
-    [[ "$in_fence" -eq 0 ]] || continue
-    if [[ "$line" =~ $shape ]]; then
-      local value="${BASH_REMATCH[3]}"
-      value="${value%"${value##*[![:space:]]}"}"
-      printf '%s\n' "$value"
-    fi
-  done <<<"$body"
 }
 
 check_merge_verdict() {
@@ -144,14 +129,17 @@ check_security_assessment() {
   fi
 }
 
+# check_line <label> <checker> — judge every header line parsed by cr_header_parse whose label is <label>.
 check_line() {
-  local label="$1" checker="$2" body="$3"
+  local label="$1" checker="$2"
   local -a values=()
-  local value problem
+  local i value problem
 
-  while IFS= read -r value; do
-    values+=("$value")
-  done < <(header_values "$label" "$body")
+  for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
+    if [[ "${CR_HEADER_LABELS[$i]}" == "$label" ]]; then
+      values+=("${CR_HEADER_VALUES[$i]}")
+    fi
+  done
 
   if [[ "${#values[@]}" -eq 0 ]]; then
     printf '%s: the header line is missing\n' "$label"
@@ -200,9 +188,10 @@ check() {
   local -a problems=()
   local problem
 
+  cr_header_parse <<<"$body"
   while IFS= read -r problem; do
     [[ -z "$problem" ]] || problems+=("$problem")
-  done < <(check_line 'Merge verdict' check_merge_verdict "$body"; check_line 'Security assessment' check_security_assessment "$body")
+  done < <(check_line 'Merge verdict' check_merge_verdict; check_line 'Security assessment' check_security_assessment)
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
     emit "${problems[@]}"

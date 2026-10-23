@@ -51,6 +51,10 @@ set -euo pipefail
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The header block is parsed by the one parser both this script and check-cr-header.sh share.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
+
 MAX_INPUT_BYTES=1048576
 MAX_DEFERRALS=200
 
@@ -208,7 +212,8 @@ def file_errors:
   else store_errors end;
 EOF
 
-# Stage A: read the report as lines and return {head, findings, errors}. The report is data only.
+# Stage A: read the report as lines and return {revision, time, deferrals, errors, findings}. The report is data
+# only. The header block does not come from here: read_report parses it with cr-header.sh and passes it in as $head.
 JQ_PARSE=''
 IFS= read -r -d '' JQ_PARSE <<'EOF' || true
 def unq: trim | sub("^`+"; "") | sub("`+$"; "") | trim;
@@ -239,14 +244,13 @@ def subsystem_of($text):
 
 (gsub("\r"; "") | gsub("[\\x00-\\x08\\x0b-\\x1f\\x7f]"; "") | split("\n")) as $lines
 | (reduce $lines[] as $l (
-    {fence: false, section: "", inHead: true, head: {}, items: [], cur: null, field: null, skip: false, defer: []};
+    {fence: false, section: "", items: [], cur: null, field: null, skip: false, defer: []};
     ($l | cap("^#{3,6}\\s+(?:\\S+\\s+)?(?<sev>Critical|Moderate)\\s+[0-9]+\\.\\s*(?<title>.*)$")) as $h
     | ($l | cap("^\\s*-\\s+\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $f
-    | ($l | cap("^\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $hd
     | if ($l | test("^\\s*(```|~~~)")) then (.fence = (.fence | not)) | addline($l)
       elif .fence then addline($l)
       elif ($l | test("^##\\s")) then
-        close | .section = ($l | sub("^##\\s+"; "") | trim) | .inHead = false
+        close | .section = ($l | sub("^##\\s+"; "") | trim)
         | .skip = (.section | test("^(Excluded per assignment|Delegated to another person)"; "i"))
       elif $h != null then
         close | if .skip then . else
@@ -264,14 +268,10 @@ def subsystem_of($text):
         | (if $k != "_ignored" and (.cur.fields | has($k)) then .cur.dups += [$k] else . end)
         | .field = $k | .cur.fields[$k] = $f.rest
       elif .cur != null then addline($l)
-      elif .inHead and $hd != null then
-        ($hd.name | ascii_downcase | trim) as $k
-        | if .head | has($k) then . else .head[$k] = ($hd.rest | unq) end
       else . end
   ) | close) as $s
-| $s.head as $head
-| ($head["reviewed revision"] // "" | ascii_downcase) as $rev
-| ($head["last updated"] // "" | norm_time) as $time
+| ($head["reviewed revision"] // "" | unq | ascii_downcase) as $rev
+| ($head["last updated"] // "" | unq | norm_time) as $time
 | ([ "status", "counts", "reviewed revision", "last updated" ] | map(. as $k | select($head | has($k) | not))) as $missing
 | ($s.items | to_entries | map(
     .key as $i | .value as $v
@@ -460,7 +460,22 @@ read_report() {
     fail_input "the review report is larger than $MAX_INPUT_BYTES bytes"
   fi
 
-  if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
+  # The header block comes from the shared parser. The report reaches it without the control characters the
+  # jq stage drops too, and only the four lines the extraction needs go on: the first bold one of each label in the header block.
+  cr_header_parse < <(LC_ALL=C tr -d '\000-\010\013-\037\177' <"$tmp/report")
+  local header_json='{}' key label i
+  for key in 'status' 'counts' 'reviewed revision' 'last updated'; do
+    for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
+      [[ "${CR_HEADER_BOLD[$i]}" == 1 && "${CR_HEADER_BLOCK[$i]}" == 1 ]] || continue
+      label="$(printf '%s' "${CR_HEADER_LABELS[$i]}" | LC_ALL=C tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      if [[ "$label" == "$key" ]]; then
+        header_json="$(jq -c --arg k "$key" --arg v "${CR_HEADER_VALUES[$i]}" '. + {($k): $v}' <<<"$header_json")"
+        break
+      fi
+    done
+  done
+
+  if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" --argjson head "$header_json" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
     fail_input "the review report could not be read: $(safe_display "$(head -n 1 "$tmp/jq.err")")"
   fi
 
