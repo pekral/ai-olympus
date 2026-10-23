@@ -39,7 +39,32 @@ test('the network exposure walk names its sinks, its severity split, and its sco
 test('the unsafe deserialization check names the PHP sinks', function (): void {
     $skill = securityAssessmentSource('skills/security-review/SKILL.md');
 
-    expect(substr_count($skill, 'without `[\'allowed_classes\' => false]`'))->toBe(1);
+    expect(
+        substr_count(
+            $skill,
+            'a cache or queue payload whose store an attacker can write) without `allowed_classes` set to `false` or an explicit class list',
+        ),
+    )->toBe(
+        1,
+    )
+        ->and(
+            substr_count(
+                $skill,
+                '`Phar::getMetadata()` / `PharFile::getMetadata()` without `allowed_classes`, and on PHP below 8.0 a `phar://` path built from input',
+            ),
+        )->toBe(
+            1,
+        )
+        ->and(
+            substr_count(
+                $skill,
+                '`yaml_parse*()` with `yaml.decode_php` enabled and Symfony `Yaml::parse()` with `Yaml::PARSE_OBJECT` on untrusted input',
+            ),
+        )->toBe(
+            1,
+        )
+        ->and(substr_count($skill, 'and `yaml_parse` with callbacks'))->toBe(0)
+        ->and(substr_count($skill, '`[\'allowed_classes\' => false]`'))->toBe(0);
 });
 
 test('every review comment carries the security assessment header line, defined once', function (): void {

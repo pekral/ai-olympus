@@ -39,7 +39,7 @@ A changed line is **off** it when it cannot be reached or influenced by an attac
 ### Input & Injection
 - SQL / command injection
 - XSS (stored, reflected, DOM)
-- unsafe deserialization — PHP `unserialize()` on a value a user can influence (a request field, a cookie, a cache or queue payload, an uploaded file) without `['allowed_classes' => false]`, a `phar://` path built from input, and `yaml_parse` with callbacks on untrusted input
+- unsafe deserialization — PHP `unserialize()` on a value an attacker can influence (a request field, a cookie, an uploaded file, a cache or queue payload whose store an attacker can write) without `allowed_classes` set to `false` or an explicit class list; `Phar::getMetadata()` / `PharFile::getMetadata()` without `allowed_classes`, and on PHP below 8.0 a `phar://` path built from input; `yaml_parse*()` with `yaml.decode_php` enabled and Symfony `Yaml::parse()` with `Yaml::PARSE_OBJECT` on untrusted input
 
 ### Authentication & Access Control
 - missing authorization (IDOR / BOLA)
