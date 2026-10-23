@@ -463,17 +463,29 @@ read_report() {
   # The header block comes from the shared parser. The report reaches it without the control characters the
   # jq stage drops too, and only the four lines the extraction needs go on: the first bold one of each label in the header block.
   cr_header_parse < <(LC_ALL=C tr -d '\000-\010\013-\037\177' <"$tmp/report")
-  local header_json='{}' key label i
-  for key in 'status' 'counts' 'reviewed revision' 'last updated'; do
-    for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
-      [[ "${CR_HEADER_BOLD[$i]}" == 1 && "${CR_HEADER_BLOCK[$i]}" == 1 ]] || continue
-      label="$(printf '%s' "${CR_HEADER_LABELS[$i]}" | LC_ALL=C tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-      if [[ "$label" == "$key" ]]; then
-        header_json="$(jq -c --arg k "$key" --arg v "${CR_HEADER_VALUES[$i]}" '. + {($k): $v}' <<<"$header_json")"
-        break
-      fi
-    done
+  # The candidates go through one tr|sed pass, never one per line; the first match of a label is kept.
+  local header_json label i n=0 candidates=''
+  local -a picked=()
+  local v_status='' v_counts='' v_revision='' v_updated='' s_status=0 s_counts=0 s_revision=0 s_updated=0
+  for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
+    [[ "${CR_HEADER_BOLD[$i]}" == 1 && "${CR_HEADER_BLOCK[$i]}" == 1 ]] || continue
+    picked+=("$i")
+    candidates+="${CR_HEADER_LABELS[$i]}"$'\n'
   done
+  while IFS= read -r label; do
+    i="${picked[$n]}"
+    n=$((n + 1))
+    case "$label" in
+    'status') [[ "$s_status" == 1 ]] || { s_status=1; v_status="${CR_HEADER_VALUES[$i]}"; } ;;
+    'counts') [[ "$s_counts" == 1 ]] || { s_counts=1; v_counts="${CR_HEADER_VALUES[$i]}"; } ;;
+    'reviewed revision') [[ "$s_revision" == 1 ]] || { s_revision=1; v_revision="${CR_HEADER_VALUES[$i]}"; } ;;
+    'last updated') [[ "$s_updated" == 1 ]] || { s_updated=1; v_updated="${CR_HEADER_VALUES[$i]}"; } ;;
+    esac
+  done < <(printf '%s' "$candidates" | LC_ALL=C tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  header_json="$(jq -n -c --arg a "$v_status" --arg b "$v_counts" --arg c "$v_revision" --arg d "$v_updated" \
+    --argjson sa "$s_status" --argjson sb "$s_counts" --argjson sc "$s_revision" --argjson sd "$s_updated" \
+    '[["status", $a, $sa], ["counts", $b, $sb], ["reviewed revision", $c, $sc], ["last updated", $d, $sd]]
+     | map(select(.[2] == 1) | {(.[0]): .[1]}) | add // {}')"
 
   if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" --argjson head "$header_json" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
     fail_input "the review report could not be read: $(safe_display "$(head -n 1 "$tmp/jq.err")")"
@@ -930,6 +942,16 @@ self_test() {
   run_case 'a time that is not ISO-8601 is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/badtime.md"
   sed 's/^\*\*Last updated:\*\* .*/**Last updated:** 2026-10-01T10:00:00/' "$tmp/r1.md" >"$tmp/nozone.md"
   run_case 'a time without a UTC offset is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/nozone.md"
+  # The header selection: only a bold line in the header block counts, and the first of a label wins.
+  sed 's/^\*\*Status:\*\* /Status: /' "$tmp/r1.md" >"$tmp/nobold.md"
+  run_case 'a header line without the bold is not read' 3 yes -- --header --input "$tmp/nobold.md"
+  check 'the rejection names the header line without the bold' "$(grep -q 'missing header line(s): Status$' "$tmp/case.err" && echo 0 || echo 1)"
+  { grep -v '^\*\*Reviewed revision:\*\*' "$tmp/r1.md"; printf '**Reviewed revision:** %s\n' "$SHA2"; } >"$tmp/latehdr.md"
+  run_case 'a header line after the first section heading is not read' 3 yes -- --header --input "$tmp/latehdr.md"
+  check 'the rejection names the header line after the first section heading' "$(grep -q 'missing header line(s): Reviewed revision$' "$tmp/case.err" && echo 0 || echo 1)"
+  awk -v second="**Reviewed revision:** $SHA2" '{ print } /^\*\*Reviewed revision:\*\*/ { print second }' "$tmp/r1.md" >"$tmp/duphdr.md"
+  "$script" --header --input "$tmp/duphdr.md" >"$tmp/dup.out"
+  check 'the first of two equal header lines is read' "$([[ "$(jq -r .revision "$tmp/dup.out")" == "$SHA1" ]] && echo 0 || echo 1)"
   grep -v '^- \*\*Rule:\*\*' "$tmp/r1.md" >"$tmp/norule.md"
   run_case 'a finding without a Rule is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/norule.md" --store "$tmp/bad.jsonl"
   check 'the rejection names the finding and the field' "$(grep -q 'finding 1 (critical, "Some title in some words"): missing required field(s): rule' "$tmp/case.err" && echo 0 || echo 1)"
