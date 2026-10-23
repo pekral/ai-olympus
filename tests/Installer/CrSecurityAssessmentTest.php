@@ -88,6 +88,11 @@ test('every review comment carries the security assessment header line, defined 
         expect(substr_count($content, '**Security assessment:** untrusted data: '))->toBe(1)
             ->and($content)->toContain(' · public exposure: ')
             ->and($content)->toContain(' · regression test: ')
+            ->and(
+                substr_count($content, 'regression test: {not required | present — the test that pins it | required — each unpinned guarantee}'),
+            )->toBe(
+                1,
+            )
             ->and($content)->toContain(' · automatic rule: ');
     }
 });
