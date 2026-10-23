@@ -102,7 +102,20 @@ test('the publication step checks the header lines of the body it then publishes
     expect(substr_count($contract, '- **Check the header lines before publishing.**'))->toBe(1)
         ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <body-file>`'))->toBe(1)
         ->and(substr_count($contract, 'verifies both the `Merge verdict:` line and the `Security assessment:` line in one pass'))->toBe(1)
+        ->and(substr_count($contract, 'Publish only after exit `0`; any other exit code is a refusal.'))->toBe(1)
         ->and(substr_count($contract, 'A body that the check refused is never published.'))->toBe(1)
         ->and(substr_count($contract, '- Publish via `' . $publish . '` (the body file the check accepted).'))->toBe(1)
         ->and(strpos($contract, '- **Check the header lines before publishing.**'))->toBeLessThan((int) strpos($contract, '- Publish via `' . $publish));
+});
+
+test('the standalone review publication in the leonardo agent routes both pull request comments through the header check', function (): void {
+    $leonardo = crHeaderCheckSource('agents/leonardo.md');
+    $check = '`@skills/code-review-github/references/cr-wrapper-contract.md` *Check the header lines before publishing*';
+    $publish = 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> <body-file>';
+
+    expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> -'))->toBe(0)
+        ->and(substr_count($leonardo, $publish))->toBe(2)
+        ->and(substr_count($leonardo, $check))->toBe(1)
+        ->and(substr_count($leonardo, 'after the same header check, exactly as on a GitHub source'))->toBe(1)
+        ->and(substr_count($leonardo, 'check-cr-header.sh'))->toBe(0);
 });
