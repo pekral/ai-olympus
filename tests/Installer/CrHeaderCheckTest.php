@@ -77,6 +77,19 @@ test('the check reads both header lines against the values the rule and the temp
         )->toBe(
             1,
         );
+
+    $order = ['untrusted data:', 'public exposure:', 'regression test:', 'automatic rule:'];
+    $ruleSection = (string) strstr($rule, '**Security assessment — four questions');
+    $ruleSection = substr($ruleSection, 0, (int) strpos($ruleSection, 'The answers come from'));
+    $templateLine = (string) strstr((string) strstr($template, '**Security assessment:**'), "\n", before_needle: true);
+
+    preg_match_all('/^\d\. `([a-z ]+:)`/m', $ruleSection, $ruleOrder);
+    preg_match_all('/(untrusted data:|public exposure:|regression test:|automatic rule:)/', $templateLine, $templateOrder);
+    preg_match_all('/\'([a-z ]+:)\'/', (string) strstr((string) strstr($script, 'ASSESSMENT_LABELS=('), ')', before_needle: true), $scriptOrder);
+
+    expect($ruleOrder[1])->toBe($order)
+        ->and($templateOrder[1])->toBe($order)
+        ->and($scriptOrder[1])->toBe($order);
 });
 
 test('the self-test covers every scenario of the assignment', function (): void {
