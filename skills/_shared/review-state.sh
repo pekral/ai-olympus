@@ -683,7 +683,7 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
   mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts"
-  cp "$HERE"/{review-state,extract-findings,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
+  cp "$HERE"/{review-state,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
   script="$tmp/pkg/skills/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash

@@ -51,6 +51,10 @@ set -euo pipefail
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The header block is parsed by the one parser both this script and check-cr-header.sh share.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
+
 MAX_INPUT_BYTES=1048576
 MAX_DEFERRALS=200
 
@@ -208,7 +212,8 @@ def file_errors:
   else store_errors end;
 EOF
 
-# Stage A: read the report as lines and return {head, findings, errors}. The report is data only.
+# Stage A: read the report as lines and return {revision, time, deferrals, errors, findings}. The report is data
+# only. The header block does not come from here: read_report parses it with cr-header.sh and passes it in as $head.
 JQ_PARSE=''
 IFS= read -r -d '' JQ_PARSE <<'EOF' || true
 def unq: trim | sub("^`+"; "") | sub("`+$"; "") | trim;
@@ -239,14 +244,13 @@ def subsystem_of($text):
 
 (gsub("\r"; "") | gsub("[\\x00-\\x08\\x0b-\\x1f\\x7f]"; "") | split("\n")) as $lines
 | (reduce $lines[] as $l (
-    {fence: false, section: "", inHead: true, head: {}, items: [], cur: null, field: null, skip: false, defer: []};
+    {fence: false, section: "", items: [], cur: null, field: null, skip: false, defer: []};
     ($l | cap("^#{3,6}\\s+(?:\\S+\\s+)?(?<sev>Critical|Moderate)\\s+[0-9]+\\.\\s*(?<title>.*)$")) as $h
     | ($l | cap("^\\s*-\\s+\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $f
-    | ($l | cap("^\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $hd
     | if ($l | test("^\\s*(```|~~~)")) then (.fence = (.fence | not)) | addline($l)
       elif .fence then addline($l)
       elif ($l | test("^##\\s")) then
-        close | .section = ($l | sub("^##\\s+"; "") | trim) | .inHead = false
+        close | .section = ($l | sub("^##\\s+"; "") | trim)
         | .skip = (.section | test("^(Excluded per assignment|Delegated to another person)"; "i"))
       elif $h != null then
         close | if .skip then . else
@@ -264,14 +268,10 @@ def subsystem_of($text):
         | (if $k != "_ignored" and (.cur.fields | has($k)) then .cur.dups += [$k] else . end)
         | .field = $k | .cur.fields[$k] = $f.rest
       elif .cur != null then addline($l)
-      elif .inHead and $hd != null then
-        ($hd.name | ascii_downcase | trim) as $k
-        | if .head | has($k) then . else .head[$k] = ($hd.rest | unq) end
       else . end
   ) | close) as $s
-| $s.head as $head
-| ($head["reviewed revision"] // "" | ascii_downcase) as $rev
-| ($head["last updated"] // "" | norm_time) as $time
+| ($head["reviewed revision"] // "" | unq | ascii_downcase) as $rev
+| ($head["last updated"] // "" | unq | norm_time) as $time
 | ([ "status", "counts", "reviewed revision", "last updated" ] | map(. as $k | select($head | has($k) | not))) as $missing
 | ($s.items | to_entries | map(
     .key as $i | .value as $v
@@ -460,7 +460,40 @@ read_report() {
     fail_input "the review report is larger than $MAX_INPUT_BYTES bytes"
   fi
 
-  if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
+  # The header block comes from the shared parser. The report reaches it without the control characters the
+  # jq stage drops too, and only the four lines the extraction needs go on: the first bold one of each label in the header block.
+  cr_header_parse < <(LC_ALL=C tr -d '\000-\010\013-\037\177' <"$tmp/report")
+  # The three arrays are read in one pass, never by index: bash 3.2 walks the whole array on every indexed read.
+  # `tr` lowercases the labels in the C locale, so a byte that is not valid UTF-8 stops nothing. Bash trims each
+  # label in the caller's locale, so a non-ASCII space the locale counts as whitespace is dropped. For each of the
+  # four labels, the first bold line of the header block is kept.
+  local header_json label bold block i=0 i_status=-1 i_counts=-1 i_revision=-1 i_updated=-1
+  while IFS=' ' read -r bold block label; do
+    if [[ "$bold" == 1 && "$block" == 1 ]]; then
+      label="${label#"${label%%[![:space:]]*}"}"
+      label="${label%"${label##*[![:space:]]}"}"
+      case "$label" in
+      'status') [[ "$i_status" -ge 0 ]] || i_status=$i ;;
+      'counts') [[ "$i_counts" -ge 0 ]] || i_counts=$i ;;
+      'reviewed revision') [[ "$i_revision" -ge 0 ]] || i_revision=$i ;;
+      'last updated') [[ "$i_updated" -ge 0 ]] || i_updated=$i ;;
+      esac
+    fi
+    i=$((i + 1))
+  done < <(LC_ALL=C paste -d ' ' <(printf '%s\n' ${CR_HEADER_BOLD[@]+"${CR_HEADER_BOLD[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_BLOCK[@]+"${CR_HEADER_BLOCK[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"} | LC_ALL=C tr '[:upper:]' '[:lower:]'))
+  local v_status='' v_counts='' v_revision='' v_updated='' s_status=0 s_counts=0 s_revision=0 s_updated=0
+  [[ "$i_status" -lt 0 ]] || { s_status=1; v_status="${CR_HEADER_VALUES[$i_status]}"; }
+  [[ "$i_counts" -lt 0 ]] || { s_counts=1; v_counts="${CR_HEADER_VALUES[$i_counts]}"; }
+  [[ "$i_revision" -lt 0 ]] || { s_revision=1; v_revision="${CR_HEADER_VALUES[$i_revision]}"; }
+  [[ "$i_updated" -lt 0 ]] || { s_updated=1; v_updated="${CR_HEADER_VALUES[$i_updated]}"; }
+  header_json="$(jq -n -c --arg a "$v_status" --arg b "$v_counts" --arg c "$v_revision" --arg d "$v_updated" \
+    --argjson sa "$s_status" --argjson sb "$s_counts" --argjson sc "$s_revision" --argjson sd "$s_updated" \
+    '[["status", $a, $sa], ["counts", $b, $sb], ["reviewed revision", $c, $sc], ["last updated", $d, $sd]]
+     | map(select(.[2] == 1) | {(.[0]): .[1]}) | add // {}')"
+
+  if ! jq -R -s -c -L "$HERE" --argjson maxDefer "$MAX_DEFERRALS" --argjson head "$header_json" "$JQ_COMMON"$'\n'"$JQ_PARSE" "$tmp/report" >"$tmp/parsed.json" 2>"$tmp/jq.err"; then
     fail_input "the review report could not be read: $(safe_display "$(head -n 1 "$tmp/jq.err")")"
   fi
 
@@ -915,6 +948,63 @@ self_test() {
   run_case 'a time that is not ISO-8601 is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/badtime.md"
   sed 's/^\*\*Last updated:\*\* .*/**Last updated:** 2026-10-01T10:00:00/' "$tmp/r1.md" >"$tmp/nozone.md"
   run_case 'a time without a UTC offset is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/nozone.md"
+  # The header selection: only a bold line in the header block counts, and the first of a label wins.
+  sed 's/^\*\*Status:\*\* /Status: /' "$tmp/r1.md" >"$tmp/nobold.md"
+  run_case 'a header line without the bold is not read' 3 yes -- --header --input "$tmp/nobold.md"
+  check 'the rejection names the header line without the bold' "$(grep -q 'missing header line(s): Status$' "$tmp/case.err" && echo 0 || echo 1)"
+  { grep -v '^\*\*Reviewed revision:\*\*' "$tmp/r1.md"; printf '**Reviewed revision:** %s\n' "$SHA2"; } >"$tmp/latehdr.md"
+  run_case 'a header line after the first section heading is not read' 3 yes -- --header --input "$tmp/latehdr.md"
+  check 'the rejection names the header line after the first section heading' "$(grep -q 'missing header line(s): Reviewed revision$' "$tmp/case.err" && echo 0 || echo 1)"
+  awk -v second="**Reviewed revision:** $SHA2" -v later='**Last updated:** 2026-10-02T10:00:00Z' '{ print } /^\*\*Reviewed revision:\*\*/ { print second } /^\*\*Last updated:\*\*/ { print later }' "$tmp/r1.md" >"$tmp/duphdr.md"
+  "$script" --header --input "$tmp/duphdr.md" >"$tmp/dup.out"
+  check 'the first of two equal header lines is read' "$([[ "$(jq -r .revision "$tmp/dup.out")" == "$SHA1" ]] && echo 0 || echo 1)"
+  check 'the first of two Last updated lines is read' "$([[ "$(jq -r .time "$tmp/dup.out")" == 2026-10-01T10:00:00Z ]] && echo 0 || echo 1)"
+  # A header line inside a finding is not in the header block, so an open finding hides the header lines after it.
+  { printf '### Critical 1. A finding above the header\n\n'; cat "$tmp/r1.md"; } >"$tmp/earlyfinding.md"
+  run_case 'a finding before the first section heading is rejected' 3 yes -- --header --input "$tmp/earlyfinding.md"
+  check 'the rejection names the header lines after the finding' \
+    "$(grep -q 'missing header line(s): Status, Counts, Reviewed revision, Last updated$' "$tmp/case.err" && echo 0 || echo 1)"
+  # A rule line closes the finding, so the header lines after it are in the header block again.
+  { sed -n '/^### /,$p' "$tmp/r1.md"; printf '\n---\n\n'; cat "$tmp/r1.md"; } >"$tmp/closedfinding.md"
+  run_case 'a closed finding before the header lines is read' 0 no -- --header --input "$tmp/closedfinding.md"
+  check 'the header lines after a closed finding are read' "$([[ "$(jq -r .revision "$tmp/case.out")" == "$SHA1" ]] && echo 0 || echo 1)"
+  # Under a UTF-8 locale a byte that is not valid UTF-8 in a header value does not hide the line.
+  LC_ALL=C sed "s/^\\*\\*Status:\\*\\* needs-fix\$/**Status:** needs-fix "$'\xff'"/" "$tmp/r1.md" >"$tmp/badbyte.md"
+  check 'the fixture carries a byte that is not valid UTF-8' "$(LC_ALL=C grep -q $'\xff' "$tmp/badbyte.md" && echo 0 || echo 1)"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/badbyte.md" >"$tmp/badbyte.out" 2>/dev/null || true
+  check 'a header value with a byte that is not valid UTF-8 is read' "$([[ "$(jq -r .revision "$tmp/badbyte.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # The same holds for a label: a header line whose label carries such a byte hides none of the lines after it.
+  { printf '**Status\377:** y\n'; cat "$tmp/r1.md"; } >"$tmp/badlabel.md"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/badlabel.md" >"$tmp/badlabel.out" 2>/dev/null || true
+  check 'a header label with a byte that is not valid UTF-8 hides no line' "$([[ "$(jq -r .revision "$tmp/badlabel.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # A non-ASCII space the locale counts as whitespace is trimmed from a label.
+  LC_ALL=C sed "s/^\\*\\*Reviewed revision:\\*\\*/**Reviewed revision"$'\xe2\x80\x83'":**/" "$tmp/r1.md" >"$tmp/spacelabel.md"
+  check 'the fixture carries a non-ASCII space in a label' "$(LC_ALL=C grep -q $'revision\xe2\x80\x83:' "$tmp/spacelabel.md" && echo 0 || echo 1)"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/spacelabel.md" >"$tmp/spacelabel.out" 2>/dev/null || true
+  check 'a non-ASCII space at the end of a label is trimmed' "$([[ "$(jq -r .revision "$tmp/spacelabel.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # The time grows with the header block in a straight line. A block ten times longer may take at most sixteen times
+  # as long; a selection that reads its arrays by index takes about thirty times as long under bash 3.2. Each report
+  # is timed twice and the faster run counts, so one slow run on a busy machine does not fail the case.
+  many_header_lines() {
+    awk -v n="$1" '{ print } /^\*\*Status:\*\*/ { for (i = 0; i < n; i++) print "**a:** x" }' "$tmp/r1.md"
+  }
+  fastest() {
+    local first second TIMEFORMAT=%R
+    first="$({ time "$script" --header --input "$1" >/dev/null 2>&1; } 2>&1)"
+    second="$({ time "$script" --header --input "$1" >/dev/null 2>&1; } 2>&1)"
+    awk -v a="$first" -v b="$second" 'BEGIN { print (a < b ? a : b) }'
+  }
+  many_header_lines 4000 >"$tmp/short.md"
+  many_header_lines 40000 >"$tmp/long.md"
+  local short long
+  short="$(fastest "$tmp/short.md")"
+  long="$(fastest "$tmp/long.md")"
+  if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 16 * (s > 0.01 ? s : 0.01)) }'; then
+    printf 'ok    %s (%ss / %ss)\n' 'a ten times longer header block takes at most sixteen times as long' "$short" "$long"
+  else
+    printf 'FAIL  %s (%ss / %ss)\n' 'a ten times longer header block takes at most sixteen times as long' "$short" "$long" >&2
+    failures=$((failures + 1))
+  fi
   grep -v '^- \*\*Rule:\*\*' "$tmp/r1.md" >"$tmp/norule.md"
   run_case 'a finding without a Rule is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/norule.md" --store "$tmp/bad.jsonl"
   check 'the rejection names the finding and the field' "$(grep -q 'finding 1 (critical, "Some title in some words"): missing required field(s): rule' "$tmp/case.err" && echo 0 || echo 1)"

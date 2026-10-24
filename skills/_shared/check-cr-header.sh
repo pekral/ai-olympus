@@ -27,7 +27,8 @@
 #                        `automatic rule:`. The regression test answer is `not required`, `present — <test>`, or
 #                        `required — <unpinned guarantees>`.
 #   A line may be written with or without the Markdown bold around its label. A line inside a fenced code block
-#   is a quotation and is not read.
+#   is a quotation and is not read. The whole body is read, not only the header block, by the parser in
+#   skills/_shared/cr-header.sh that extract-findings.sh also uses.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
 #   expanded, or used to build a command, a path, or a program, and no problem message repeats it.
@@ -38,10 +39,16 @@
 # Exit codes
 #   0  both lines are present and well-formed
 #   1  usage error, or the body cannot be read
+#   2  the check did not run to its end; nothing is written to stdout
 #   3  at least one line is missing or malformed; the problems are in the output
 set -euo pipefail
 
 PROG="${0##*/}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The header block is parsed by the one parser both this script and extract-findings.sh share.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -76,27 +83,6 @@ emit() {
   [[ "$first" -eq 1 ]] || printf '\n  '
   printf ']\n'
   printf '}\n'
-}
-
-# Collect the value of every header line whose label is "$1", skipping fenced code blocks. One value per line
-# of output, in document order.
-header_values() {
-  local label="$1" body="$2" line in_fence=0 shape
-  shape="^(\*\*)?${label}:(\*\*)?[[:space:]]*(.*)$"
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
-      in_fence=$((1 - in_fence))
-      continue
-    fi
-    [[ "$in_fence" -eq 0 ]] || continue
-    if [[ "$line" =~ $shape ]]; then
-      local value="${BASH_REMATCH[3]}"
-      value="${value%"${value##*[![:space:]]}"}"
-      printf '%s\n' "$value"
-    fi
-  done <<<"$body"
 }
 
 check_merge_verdict() {
@@ -144,14 +130,22 @@ check_security_assessment() {
   fi
 }
 
+# check_line <label> <checker> — judge every header line parsed by cr_header_parse whose label is <label>.
+# The labels are walked with `for … in`, never by index: bash 3.2 walks the whole array on every indexed read,
+# so a body with many header lines would take quadratic time. Only a matching line is read by index.
 check_line() {
-  local label="$1" checker="$2" body="$3"
+  local label="$1" checker="$2"
   local -a values=()
-  local value problem
+  local i=0 count=0 name value problem
 
-  while IFS= read -r value; do
-    values+=("$value")
-  done < <(header_values "$label" "$body")
+  # The `+` form keeps an empty array from failing under `set -u` in bash 3.2.
+  for name in ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"}; do
+    if [[ "$name" == "$label" ]]; then
+      values[count]="${CR_HEADER_VALUES[$i]}"
+      count=$((count + 1))
+    fi
+    i=$((i + 1))
+  done
 
   if [[ "${#values[@]}" -eq 0 ]]; then
     printf '%s: the header line is missing\n' "$label"
@@ -160,10 +154,14 @@ check_line() {
   if [[ "${#values[@]}" -gt 1 ]]; then
     printf '%s: the header line appears %s times, not once\n' "$label" "${#values[@]}"
   fi
+  # The checker runs in a command substitution, never a process substitution: its exit code is read, so a
+  # checker that dies stops this check too.
+  local found
   for value in "${values[@]}"; do
+    found="$(set -e; "$checker" "$value")"
     while IFS= read -r problem; do
       [[ -z "$problem" ]] || printf '%s\n' "$problem"
-    done < <("$checker" "$value")
+    done <<<"$found"
   done
 }
 
@@ -198,11 +196,26 @@ check() {
   fi
 
   local -a problems=()
-  local problem
+  local problem found status
 
+  cr_header_parse <<<"$body"
+  # The check runs in a subshell with `set -e`, and its exit code is read. A check that dies before its end is a
+  # refusal, never an empty list of problems that would read as a valid body.
+  set +e
+  found="$(
+    set -e
+    check_line 'Merge verdict' check_merge_verdict
+    check_line 'Security assessment' check_security_assessment
+  )"
+  status=$?
+  set -e
+  if [[ "$status" -ne 0 ]]; then
+    echo "$PROG: the check of the header lines did not run to its end (exit $status)" >&2
+    return 2
+  fi
   while IFS= read -r problem; do
     [[ -z "$problem" ]] || problems+=("$problem")
-  done < <(check_line 'Merge verdict' check_merge_verdict "$body"; check_line 'Security assessment' check_security_assessment "$body")
+  done <<<"$found"
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
     emit "${problems[@]}"
@@ -344,6 +357,58 @@ self_test() {
   usage_error 'an unknown argument is a usage error' --bogus
   usage_error 'a --file without a value is a usage error' --file
   usage_error 'an unreadable body is refused' --file "$tmp/does-not-exist.md"
+
+  # The time grows with the body in a straight line. A body five times longer may take at most eight times as long;
+  # a parse that walks its whole array on every header line takes about eleven times as long under bash 3.2.
+  # Each body is timed twice and the faster run counts, so one slow run on a busy machine does not fail the case.
+  # The second body has values that end with a non-ASCII character, which the parser trims again in the locale.
+  many_lines() {
+    local i
+    render "$verdict_ok" "$assessment_ok"
+    for ((i = 0; i < $1; i++)); do
+      printf '**Label %s:** value %s\n' "$i" "$2"
+    done
+  }
+  fastest() {
+    local first second TIMEFORMAT=%R
+    first="$({ time "$script" --file "$1" >/dev/null 2>&1; } 2>&1)"
+    second="$({ time "$script" --file "$1" >/dev/null 2>&1; } 2>&1)"
+    awk -v a="$first" -v b="$second" 'BEGIN { print (a < b ? a : b) }'
+  }
+  local short long suffix label
+  for suffix in ascii 'é'; do
+    many_lines 4000 "$suffix" >"$tmp/short.md"
+    many_lines 20000 "$suffix" >"$tmp/long.md"
+    short="$(fastest "$tmp/short.md")"
+    long="$(fastest "$tmp/long.md")"
+    label="a five times longer body takes at most eight times as long ($suffix)"
+    if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 8 * (s > 0.01 ? s : 0.01)) }'; then
+      printf 'ok    %-62s %ss / %ss\n' "$label" "$short" "$long"
+    else
+      printf 'FAIL  %-62s %ss / %ss\n' "$label" "$short" "$long" >&2
+      failures=$((failures + 1))
+    fi
+  done
+
+  # A check that dies before its end never reports a valid body: the subshell that runs it is read for its exit code.
+  local died
+  render "$verdict_ok" "$assessment_ok" >"$tmp/died.md"
+  set +e
+  died="$(
+    # The checker is called by name from check_line, so ShellCheck sees no call
+    # (SC2317, and SC2329 in ShellCheck 0.11). Both are suppressed.
+    # shellcheck disable=SC2317,SC2329
+    check_merge_verdict() { exit 9; }
+    check --file "$tmp/died.md" 2>"$tmp/died.err"
+  )"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 2 && -z "$died" ]] && grep -qF 'the check of the header lines did not run to its end' "$tmp/died.err"; then
+    printf 'ok    %-62s exit %s\n' 'a check that dies is a refusal, never a valid body' "$rc"
+  else
+    printf 'FAIL  %-62s expected exit 2, got %s\n' 'a check that dies is a refusal, never a valid body' "$rc" >&2
+    failures=$((failures + 1))
+  fi
 
   if [[ "$failures" -gt 0 ]]; then
     echo "check-cr-header self-test: $failures failure(s)" >&2

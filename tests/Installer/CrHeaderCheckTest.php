@@ -105,7 +105,8 @@ test('the self-test covers every scenario of the assignment', function (): void 
         ->and($script)->toContain('scenario \'a no verdict without a blocker is refused\' 3')
         ->and($script)->toContain('scenario \'a line quoted inside a fenced code block is not read\' 3')
         ->and($script)->toContain('scenario \'instruction-like text in an answer is read as data\' 0')
-        ->and($script)->toContain('usage_error \'no argument is a usage error\'');
+        ->and($script)->toContain('usage_error \'no argument is a usage error\'')
+        ->and($script)->toContain('\'a check that dies is a refusal, never a valid body\'');
 });
 
 test('the publication step checks the header lines of the body it then publishes', function (): void {
@@ -131,4 +132,28 @@ test('the standalone review publication in the leonardo agent routes both pull r
         ->and(substr_count($leonardo, $check))->toBe(1)
         ->and(substr_count($leonardo, 'after the same header check, exactly as on a GitHub source'))->toBe(1)
         ->and(substr_count($leonardo, 'check-cr-header.sh'))->toBe(0);
+});
+
+test('the header block is parsed once, by a shared parser both scripts source', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $parser = crHeaderCheckSource('skills/_shared/cr-header.sh');
+    $check = crHeaderCheckSource('skills/_shared/check-cr-header.sh');
+    $extract = crHeaderCheckSource('skills/_shared/extract-findings.sh');
+
+    /** @var array{scripts: array<string, array<int, string>>} $composer */
+    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
+
+    expect(is_executable($packageDir . '/skills/_shared/cr-header.sh'))->toBeTrue()
+        ->and($parser)->toStartWith('#!/usr/bin/env bash')
+        ->and(substr_count($parser, 'cr_header_parse() {'))->toBe(1)
+        ->and(substr_count($parser, 'cr_header_self_test() {'))->toBe(1)
+        ->and(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/cr-header.sh '))->toBe(1)
+        ->and(substr_count($check, 'source "$HERE/cr-header.sh"'))->toBe(1)
+        ->and(substr_count($extract, 'source "$HERE/cr-header.sh"'))->toBe(1)
+        ->and(substr_count($check, 'cr_header_parse <<<'))->toBe(1)
+        ->and(substr_count($extract, 'cr_header_parse <'))->toBe(1)
+        // The header line shape lives in the parser only: neither caller carries a second copy of it.
+        ->and(substr_count($check, 'header_values'))->toBe(0)
+        ->and(substr_count($extract, '$hd'))->toBe(0)
+        ->and(substr_count($extract, 'inHead'))->toBe(0);
 });
