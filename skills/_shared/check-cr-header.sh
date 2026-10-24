@@ -39,6 +39,7 @@
 # Exit codes
 #   0  both lines are present and well-formed
 #   1  usage error, or the body cannot be read
+#   2  the check did not run to its end; nothing is written to stdout
 #   3  at least one line is missing or malformed; the problems are in the output
 set -euo pipefail
 
@@ -153,10 +154,14 @@ check_line() {
   if [[ "${#values[@]}" -gt 1 ]]; then
     printf '%s: the header line appears %s times, not once\n' "$label" "${#values[@]}"
   fi
+  # The checker runs in a command substitution, never a process substitution: its exit code is read, so a
+  # checker that dies stops this check too.
+  local found
   for value in "${values[@]}"; do
+    found="$(set -e; "$checker" "$value")"
     while IFS= read -r problem; do
       [[ -z "$problem" ]] || printf '%s\n' "$problem"
-    done < <("$checker" "$value")
+    done <<<"$found"
   done
 }
 
@@ -191,12 +196,26 @@ check() {
   fi
 
   local -a problems=()
-  local problem
+  local problem found status
 
   cr_header_parse <<<"$body"
+  # The check runs in a subshell with `set -e`, and its exit code is read. A check that dies before its end is a
+  # refusal, never an empty list of problems that would read as a valid body.
+  set +e
+  found="$(
+    set -e
+    check_line 'Merge verdict' check_merge_verdict
+    check_line 'Security assessment' check_security_assessment
+  )"
+  status=$?
+  set -e
+  if [[ "$status" -ne 0 ]]; then
+    echo "$PROG: the check of the header lines did not run to its end (exit $status)" >&2
+    return 2
+  fi
   while IFS= read -r problem; do
     [[ -z "$problem" ]] || problems+=("$problem")
-  done < <(check_line 'Merge verdict' check_merge_verdict; check_line 'Security assessment' check_security_assessment)
+  done <<<"$found"
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
     emit "${problems[@]}"
@@ -370,6 +389,25 @@ self_test() {
       failures=$((failures + 1))
     fi
   done
+
+  # A check that dies before its end never reports a valid body: the subshell that runs it is read for its exit code.
+  local died
+  render "$verdict_ok" "$assessment_ok" >"$tmp/died.md"
+  set +e
+  died="$(
+    # The checker is called by name from check_line, so ShellCheck sees no call.
+    # shellcheck disable=SC2329
+    check_merge_verdict() { exit 9; }
+    check --file "$tmp/died.md" 2>"$tmp/died.err"
+  )"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 2 && -z "$died" ]] && grep -qF 'the check of the header lines did not run to its end' "$tmp/died.err"; then
+    printf 'ok    %-62s exit %s\n' 'a check that dies is a refusal, never a valid body' "$rc"
+  else
+    printf 'FAIL  %-62s expected exit 2, got %s\n' 'a check that dies is a refusal, never a valid body' "$rc" >&2
+    failures=$((failures + 1))
+  fi
 
   if [[ "$failures" -gt 0 ]]; then
     echo "check-cr-header self-test: $failures failure(s)" >&2

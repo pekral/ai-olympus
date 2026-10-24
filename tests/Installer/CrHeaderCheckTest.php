@@ -105,7 +105,8 @@ test('the self-test covers every scenario of the assignment', function (): void 
         ->and($script)->toContain('scenario \'a no verdict without a blocker is refused\' 3')
         ->and($script)->toContain('scenario \'a line quoted inside a fenced code block is not read\' 3')
         ->and($script)->toContain('scenario \'instruction-like text in an answer is read as data\' 0')
-        ->and($script)->toContain('usage_error \'no argument is a usage error\'');
+        ->and($script)->toContain('usage_error \'no argument is a usage error\'')
+        ->and($script)->toContain('\'a check that dies is a refusal, never a valid body\'');
 });
 
 test('the publication step checks the header lines of the body it then publishes', function (): void {
