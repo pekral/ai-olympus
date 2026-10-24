@@ -14,9 +14,10 @@
 # What it reads
 #   A header line is `**<Label>:** <value>`, or the same line without the Markdown bold. A line inside a
 #   fenced code block is a quotation and is not read. The header block is the lines before the first `## `
-#   heading and before the first finding heading (`### Critical 1. <title>`); the parser reports a header line
-#   wherever it stands in the body and marks the ones that stand in the block. A byte that is not valid UTF-8
-#   in a value does not hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
+#   heading, without the lines of a finding: a finding heading (`### Critical 1. <title>`) opens a finding, and
+#   another `###`–`######` heading or a `---` line closes it. The parser reports a header line wherever it stands
+#   in the body and marks the ones that stand in the block. A byte that is not valid UTF-8 in a value does not
+#   hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
 #   expanded, or used to build a command, a path, or a program.
@@ -24,8 +25,8 @@
 # Result of cr_header_parse (parallel arrays, one entry per header line, in document order)
 #   CR_HEADER_LABELS  the label as written, without the colon and the bold
 #   CR_HEADER_BOLD    1 when the line carries the bold on both sides of the label, otherwise 0
-#   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and the first
-#                     finding heading), otherwise 0
+#   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and outside a
+#                     finding), otherwise 0
 #   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
 #
 # Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
@@ -37,8 +38,8 @@ CR_HEADER_VALUES=()
 
 # cr_header_parse — read a comment body on standard input and fill the four arrays above.
 cr_header_parse() {
-  local i value
-  local -a retrim=()
+  local i value retrim=0
+  local -a trimmed=()
 
   CR_HEADER_LABELS=()
   CR_HEADER_BOLD=()
@@ -47,13 +48,18 @@ cr_header_parse() {
 
   cr_header_scan
 
-  # The scan trims ASCII whitespace only. A value that still starts or ends with a non-ASCII byte is trimmed again
-  # in the caller's locale, so a non-ASCII space the locale counts as whitespace is dropped as before.
-  for i in ${retrim[@]+"${retrim[@]}"}; do
-    value="${CR_HEADER_VALUES[$i]}"
+  # The scan trims ASCII whitespace only. When a value still starts or ends with a non-ASCII byte, every value is
+  # trimmed again in the caller's locale, so a non-ASCII space the locale counts as whitespace is dropped as before.
+  # The values are walked with `for … in` and written to a new array, never read by index: bash 3.2 walks the whole
+  # array on every indexed read. The trim leaves a value that starts and ends with an ASCII character as it is.
+  [[ "$retrim" -eq 1 ]] || return 0
+  i=0
+  for value in "${CR_HEADER_VALUES[@]}"; do
     value="${value#"${value%%[![:space:]]*}"}"
-    CR_HEADER_VALUES[i]="${value%"${value##*[![:space:]]}"}"
+    trimmed[i]="${value%"${value##*[![:space:]]}"}"
+    i=$((i + 1))
   done
+  CR_HEADER_VALUES=("${trimmed[@]}")
 }
 
 # cr_header_scan — the body is read in the C locale, byte by byte. Under a UTF-8 locale a line that carries a byte
@@ -62,7 +68,7 @@ cr_header_parse() {
 # take ASCII whitespace only, as CommonMark defines them. The four arrays and `retrim` belong to the caller.
 cr_header_scan() {
   local LC_ALL=C
-  local line value count=0 in_fence=0 in_block=1 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
+  local line value count=0 in_fence=0 in_block=1 in_finding=0 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
   local finding='^#{3,6}[[:space:]]+([^[:space:]]+[[:space:]]+)?(Critical|Moderate)[[:space:]]+[0-9]+\.'
   local high=$'[\x80-\xff]'
 
@@ -79,8 +85,15 @@ cr_header_scan() {
         in_block=0
         continue
       fi
-      # A finding heading (`### Critical 1. <title>`) ends the header block too, as it does in extract-findings.sh.
-      [[ ! "$line" =~ $finding ]] || in_block=0
+      # A finding heading (`### Critical 1. <title>`) opens a finding; another deeper heading closes it, and so does
+      # a `---` line. A header line inside a finding is not in the header block, as in extract-findings.sh.
+      if [[ "$line" =~ $finding ]]; then
+        in_finding=1
+      elif [[ "$line" =~ ^#{3,6}[[:space:]] ]]; then
+        in_finding=0
+      fi
+    elif [[ "$line" == '---'* && "$line" =~ ^---[[:space:]]*$ ]]; then
+      in_finding=0
     fi
     if [[ "$line" == *:* && "$line" =~ $shape ]]; then
       value="${BASH_REMATCH[4]}"
@@ -93,10 +106,10 @@ cr_header_scan() {
       else
         CR_HEADER_BOLD[count]=0
       fi
-      CR_HEADER_BLOCK[count]="$in_block"
+      CR_HEADER_BLOCK[count]=$((in_block && !in_finding))
       CR_HEADER_VALUES[count]="$value"
       if [[ "$value" == $high* || "$value" == *$high ]]; then
-        retrim[${#retrim[@]}]="$count"
+        retrim=1
       fi
       count=$((count + 1))
     fi
@@ -140,8 +153,14 @@ cr_header_self_test() {
   expect 'a heading of a deeper level does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Sub\n**Late:** b'
   expect 'a section heading inside a fence does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' "$(printf '**Status:** a\n%s\n## quoted\n%s\n**Late:** b\n' "$fence" "$fence")"
   expect 'an empty body has no header line' '' ''
-  expect 'a finding heading ends the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n### 🔴 Critical 1. A title\n**Late:** b'
-  expect 'a finding heading without the icon ends the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n#### Moderate 2. A title\n**Late:** b'
+  expect 'a header line inside a finding is outside the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n### 🔴 Critical 1. A title\n**Late:** b'
+  expect 'a finding heading without the icon opens a finding too' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n#### Moderate 2. A title\n**Late:** b'
+  expect 'a rule line closes the finding, and the header block goes on' $'Status|1|1|a\nIn|1|0|b\nAfter|1|1|c\n' \
+    $'**Status:** a\n### Critical 1. T\n**In:** b\n---\n**After:** c'
+  expect 'a deeper heading closes the finding, and the header block goes on' $'Status|1|1|a\nIn|1|0|b\nAfter|1|1|c\n' \
+    $'**Status:** a\n### Critical 1. T\n**In:** b\n### Notes\n**After:** c'
+  expect 'a section heading ends the header block after a closed finding too' $'In|1|0|b\nLate|1|0|c\n' \
+    $'### Critical 1. T\n**In:** b\n---\n## TL;DR\n**Late:** c'
   expect 'a heading that only names a severity does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Critical findings\n**Late:** b'
 
   # The two cases below need a UTF-8 locale: under it, a regular expression matches nothing on a line that carries

@@ -463,25 +463,31 @@ read_report() {
   # The header block comes from the shared parser. The report reaches it without the control characters the
   # jq stage drops too, and only the four lines the extraction needs go on: the first bold one of each label in the header block.
   cr_header_parse < <(LC_ALL=C tr -d '\000-\010\013-\037\177' <"$tmp/report")
-  # The candidates go through one tr|sed pass, never one per line; the first match of a label is kept.
-  local header_json label i n=0 candidates=''
-  local -a picked=()
+  # The three arrays are read in one pass, never by index: bash 3.2 walks the whole array on every indexed read.
+  # `tr` lowercases the labels in the C locale, so a byte that is not valid UTF-8 stops nothing. Bash trims each
+  # label in the caller's locale, so a non-ASCII space the locale counts as whitespace is dropped. For each of the
+  # four labels, the first bold line of the header block is kept.
+  local header_json label bold block i=0 i_status=-1 i_counts=-1 i_revision=-1 i_updated=-1
+  while IFS=' ' read -r bold block label; do
+    if [[ "$bold" == 1 && "$block" == 1 ]]; then
+      label="${label#"${label%%[![:space:]]*}"}"
+      label="${label%"${label##*[![:space:]]}"}"
+      case "$label" in
+      'status') [[ "$i_status" -ge 0 ]] || i_status=$i ;;
+      'counts') [[ "$i_counts" -ge 0 ]] || i_counts=$i ;;
+      'reviewed revision') [[ "$i_revision" -ge 0 ]] || i_revision=$i ;;
+      'last updated') [[ "$i_updated" -ge 0 ]] || i_updated=$i ;;
+      esac
+    fi
+    i=$((i + 1))
+  done < <(LC_ALL=C paste -d ' ' <(printf '%s\n' ${CR_HEADER_BOLD[@]+"${CR_HEADER_BOLD[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_BLOCK[@]+"${CR_HEADER_BLOCK[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"} | LC_ALL=C tr '[:upper:]' '[:lower:]'))
   local v_status='' v_counts='' v_revision='' v_updated='' s_status=0 s_counts=0 s_revision=0 s_updated=0
-  for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
-    [[ "${CR_HEADER_BOLD[$i]}" == 1 && "${CR_HEADER_BLOCK[$i]}" == 1 ]] || continue
-    picked+=("$i")
-    candidates+="${CR_HEADER_LABELS[$i]}"$'\n'
-  done
-  while IFS= read -r label; do
-    i="${picked[$n]}"
-    n=$((n + 1))
-    case "$label" in
-    'status') [[ "$s_status" == 1 ]] || { s_status=1; v_status="${CR_HEADER_VALUES[$i]}"; } ;;
-    'counts') [[ "$s_counts" == 1 ]] || { s_counts=1; v_counts="${CR_HEADER_VALUES[$i]}"; } ;;
-    'reviewed revision') [[ "$s_revision" == 1 ]] || { s_revision=1; v_revision="${CR_HEADER_VALUES[$i]}"; } ;;
-    'last updated') [[ "$s_updated" == 1 ]] || { s_updated=1; v_updated="${CR_HEADER_VALUES[$i]}"; } ;;
-    esac
-  done < <(printf '%s' "$candidates" | LC_ALL=C tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  [[ "$i_status" -lt 0 ]] || { s_status=1; v_status="${CR_HEADER_VALUES[$i_status]}"; }
+  [[ "$i_counts" -lt 0 ]] || { s_counts=1; v_counts="${CR_HEADER_VALUES[$i_counts]}"; }
+  [[ "$i_revision" -lt 0 ]] || { s_revision=1; v_revision="${CR_HEADER_VALUES[$i_revision]}"; }
+  [[ "$i_updated" -lt 0 ]] || { s_updated=1; v_updated="${CR_HEADER_VALUES[$i_updated]}"; }
   header_json="$(jq -n -c --arg a "$v_status" --arg b "$v_counts" --arg c "$v_revision" --arg d "$v_updated" \
     --argjson sa "$s_status" --argjson sb "$s_counts" --argjson sc "$s_revision" --argjson sd "$s_updated" \
     '[["status", $a, $sa], ["counts", $b, $sb], ["reviewed revision", $c, $sc], ["last updated", $d, $sd]]
@@ -953,16 +959,52 @@ self_test() {
   "$script" --header --input "$tmp/duphdr.md" >"$tmp/dup.out"
   check 'the first of two equal header lines is read' "$([[ "$(jq -r .revision "$tmp/dup.out")" == "$SHA1" ]] && echo 0 || echo 1)"
   check 'the first of two Last updated lines is read' "$([[ "$(jq -r .time "$tmp/dup.out")" == 2026-10-01T10:00:00Z ]] && echo 0 || echo 1)"
-  # A finding before the first section heading ends the header block, so the header lines after it are missing.
+  # A header line inside a finding is not in the header block, so an open finding hides the header lines after it.
   { printf '### Critical 1. A finding above the header\n\n'; cat "$tmp/r1.md"; } >"$tmp/earlyfinding.md"
   run_case 'a finding before the first section heading is rejected' 3 yes -- --header --input "$tmp/earlyfinding.md"
   check 'the rejection names the header lines after the finding' \
     "$(grep -q 'missing header line(s): Status, Counts, Reviewed revision, Last updated$' "$tmp/case.err" && echo 0 || echo 1)"
+  # A rule line closes the finding, so the header lines after it are in the header block again.
+  { sed -n '/^### /,$p' "$tmp/r1.md"; printf '\n---\n\n'; cat "$tmp/r1.md"; } >"$tmp/closedfinding.md"
+  run_case 'a closed finding before the header lines is read' 0 no -- --header --input "$tmp/closedfinding.md"
+  check 'the header lines after a closed finding are read' "$([[ "$(jq -r .revision "$tmp/case.out")" == "$SHA1" ]] && echo 0 || echo 1)"
   # Under a UTF-8 locale a byte that is not valid UTF-8 in a header value does not hide the line.
   LC_ALL=C sed "s/^\\*\\*Status:\\*\\* needs-fix\$/**Status:** needs-fix "$'\xff'"/" "$tmp/r1.md" >"$tmp/badbyte.md"
   check 'the fixture carries a byte that is not valid UTF-8' "$(LC_ALL=C grep -q $'\xff' "$tmp/badbyte.md" && echo 0 || echo 1)"
   LC_ALL=C.UTF-8 "$script" --header --input "$tmp/badbyte.md" >"$tmp/badbyte.out" 2>/dev/null || true
   check 'a header value with a byte that is not valid UTF-8 is read' "$([[ "$(jq -r .revision "$tmp/badbyte.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # The same holds for a label: a header line whose label carries such a byte hides none of the lines after it.
+  { printf '**Status\377:** y\n'; cat "$tmp/r1.md"; } >"$tmp/badlabel.md"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/badlabel.md" >"$tmp/badlabel.out" 2>/dev/null || true
+  check 'a header label with a byte that is not valid UTF-8 hides no line' "$([[ "$(jq -r .revision "$tmp/badlabel.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # A non-ASCII space the locale counts as whitespace is trimmed from a label.
+  LC_ALL=C sed "s/^\\*\\*Reviewed revision:\\*\\*/**Reviewed revision"$'\xe2\x80\x83'":**/" "$tmp/r1.md" >"$tmp/spacelabel.md"
+  check 'the fixture carries a non-ASCII space in a label' "$(LC_ALL=C grep -q $'revision\xe2\x80\x83:' "$tmp/spacelabel.md" && echo 0 || echo 1)"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/spacelabel.md" >"$tmp/spacelabel.out" 2>/dev/null || true
+  check 'a non-ASCII space at the end of a label is trimmed' "$([[ "$(jq -r .revision "$tmp/spacelabel.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
+  # The time grows with the header block in a straight line. A block ten times longer may take at most sixteen times
+  # as long; a selection that reads its arrays by index takes about thirty times as long under bash 3.2. Each report
+  # is timed twice and the faster run counts, so one slow run on a busy machine does not fail the case.
+  many_header_lines() {
+    awk -v n="$1" '{ print } /^\*\*Status:\*\*/ { for (i = 0; i < n; i++) print "**a:** x" }' "$tmp/r1.md"
+  }
+  fastest() {
+    local first second TIMEFORMAT=%R
+    first="$({ time "$script" --header --input "$1" >/dev/null 2>&1; } 2>&1)"
+    second="$({ time "$script" --header --input "$1" >/dev/null 2>&1; } 2>&1)"
+    awk -v a="$first" -v b="$second" 'BEGIN { print (a < b ? a : b) }'
+  }
+  many_header_lines 4000 >"$tmp/short.md"
+  many_header_lines 40000 >"$tmp/long.md"
+  local short long
+  short="$(fastest "$tmp/short.md")"
+  long="$(fastest "$tmp/long.md")"
+  if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 16 * (s > 0.01 ? s : 0.01)) }'; then
+    printf 'ok    %s (%ss / %ss)\n' 'a ten times longer header block takes at most sixteen times as long' "$short" "$long"
+  else
+    printf 'FAIL  %s (%ss / %ss)\n' 'a ten times longer header block takes at most sixteen times as long' "$short" "$long" >&2
+    failures=$((failures + 1))
+  fi
   grep -v '^- \*\*Rule:\*\*' "$tmp/r1.md" >"$tmp/norule.md"
   run_case 'a finding without a Rule is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/norule.md" --store "$tmp/bad.jsonl"
   check 'the rejection names the finding and the field' "$(grep -q 'finding 1 (critical, "Some title in some words"): missing required field(s): rule' "$tmp/case.err" && echo 0 || echo 1)"

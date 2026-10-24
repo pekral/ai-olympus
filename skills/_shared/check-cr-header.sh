@@ -342,11 +342,12 @@ self_test() {
   # The time grows with the body in a straight line. A body five times longer may take at most eight times as long;
   # a parse that walks its whole array on every header line takes about eleven times as long under bash 3.2.
   # Each body is timed twice and the faster run counts, so one slow run on a busy machine does not fail the case.
+  # The second body has values that end with a non-ASCII character, which the parser trims again in the locale.
   many_lines() {
     local i
     render "$verdict_ok" "$assessment_ok"
     for ((i = 0; i < $1; i++)); do
-      printf '**Label %s:** value %s\n' "$i" "$i"
+      printf '**Label %s:** value %s\n' "$i" "$2"
     done
   }
   fastest() {
@@ -355,17 +356,20 @@ self_test() {
     second="$({ time "$script" --file "$1" >/dev/null 2>&1; } 2>&1)"
     awk -v a="$first" -v b="$second" 'BEGIN { print (a < b ? a : b) }'
   }
-  many_lines 4000 >"$tmp/short.md"
-  many_lines 20000 >"$tmp/long.md"
-  local short long
-  short="$(fastest "$tmp/short.md")"
-  long="$(fastest "$tmp/long.md")"
-  if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 8 * (s > 0.01 ? s : 0.01)) }'; then
-    printf 'ok    %-62s %ss / %ss\n' 'a five times longer header block takes at most eight times as long' "$short" "$long"
-  else
-    printf 'FAIL  %-62s %ss / %ss\n' 'a five times longer header block takes at most eight times as long' "$short" "$long" >&2
-    failures=$((failures + 1))
-  fi
+  local short long suffix label
+  for suffix in ascii 'é'; do
+    many_lines 4000 "$suffix" >"$tmp/short.md"
+    many_lines 20000 "$suffix" >"$tmp/long.md"
+    short="$(fastest "$tmp/short.md")"
+    long="$(fastest "$tmp/long.md")"
+    label="a five times longer body takes at most eight times as long ($suffix)"
+    if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 8 * (s > 0.01 ? s : 0.01)) }'; then
+      printf 'ok    %-62s %ss / %ss\n' "$label" "$short" "$long"
+    else
+      printf 'FAIL  %-62s %ss / %ss\n' "$label" "$short" "$long" >&2
+      failures=$((failures + 1))
+    fi
+  done
 
   if [[ "$failures" -gt 0 ]]; then
     echo "check-cr-header self-test: $failures failure(s)" >&2
