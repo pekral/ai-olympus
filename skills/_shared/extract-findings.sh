@@ -953,6 +953,16 @@ self_test() {
   "$script" --header --input "$tmp/duphdr.md" >"$tmp/dup.out"
   check 'the first of two equal header lines is read' "$([[ "$(jq -r .revision "$tmp/dup.out")" == "$SHA1" ]] && echo 0 || echo 1)"
   check 'the first of two Last updated lines is read' "$([[ "$(jq -r .time "$tmp/dup.out")" == 2026-10-01T10:00:00Z ]] && echo 0 || echo 1)"
+  # A finding before the first section heading ends the header block, so the header lines after it are missing.
+  { printf '### Critical 1. A finding above the header\n\n'; cat "$tmp/r1.md"; } >"$tmp/earlyfinding.md"
+  run_case 'a finding before the first section heading is rejected' 3 yes -- --header --input "$tmp/earlyfinding.md"
+  check 'the rejection names the header lines after the finding' \
+    "$(grep -q 'missing header line(s): Status, Counts, Reviewed revision, Last updated$' "$tmp/case.err" && echo 0 || echo 1)"
+  # Under a UTF-8 locale a byte that is not valid UTF-8 in a header value does not hide the line.
+  LC_ALL=C sed "s/^\\*\\*Status:\\*\\* needs-fix\$/**Status:** needs-fix "$'\xff'"/" "$tmp/r1.md" >"$tmp/badbyte.md"
+  check 'the fixture carries a byte that is not valid UTF-8' "$(LC_ALL=C grep -q $'\xff' "$tmp/badbyte.md" && echo 0 || echo 1)"
+  LC_ALL=C.UTF-8 "$script" --header --input "$tmp/badbyte.md" >"$tmp/badbyte.out" 2>/dev/null || true
+  check 'a header value with a byte that is not valid UTF-8 is read' "$([[ "$(jq -r .revision "$tmp/badbyte.out" 2>/dev/null)" == "$SHA1" ]] && echo 0 || echo 1)"
   grep -v '^- \*\*Rule:\*\*' "$tmp/r1.md" >"$tmp/norule.md"
   run_case 'a finding without a Rule is rejected' 3 yes -- --repo acme/shop --pr 7 --input "$tmp/norule.md" --store "$tmp/bad.jsonl"
   check 'the rejection names the finding and the field' "$(grep -q 'finding 1 (critical, "Some title in some words"): missing required field(s): rule' "$tmp/case.err" && echo 0 || echo 1)"

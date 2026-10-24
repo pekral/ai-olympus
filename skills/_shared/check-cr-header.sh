@@ -130,15 +130,20 @@ check_security_assessment() {
 }
 
 # check_line <label> <checker> — judge every header line parsed by cr_header_parse whose label is <label>.
+# The labels are walked with `for … in`, never by index: bash 3.2 walks the whole array on every indexed read,
+# so a body with many header lines would take quadratic time. Only a matching line is read by index.
 check_line() {
   local label="$1" checker="$2"
   local -a values=()
-  local i value problem
+  local i=0 count=0 name value problem
 
-  for ((i = 0; i < ${#CR_HEADER_LABELS[@]}; i++)); do
-    if [[ "${CR_HEADER_LABELS[$i]}" == "$label" ]]; then
-      values+=("${CR_HEADER_VALUES[$i]}")
+  # The `+` form keeps an empty array from failing under `set -u` in bash 3.2.
+  for name in ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"}; do
+    if [[ "$name" == "$label" ]]; then
+      values[count]="${CR_HEADER_VALUES[$i]}"
+      count=$((count + 1))
     fi
+    i=$((i + 1))
   done
 
   if [[ "${#values[@]}" -eq 0 ]]; then
@@ -333,6 +338,34 @@ self_test() {
   usage_error 'an unknown argument is a usage error' --bogus
   usage_error 'a --file without a value is a usage error' --file
   usage_error 'an unreadable body is refused' --file "$tmp/does-not-exist.md"
+
+  # The time grows with the body in a straight line. A body five times longer may take at most eight times as long;
+  # a parse that walks its whole array on every header line takes about eleven times as long under bash 3.2.
+  # Each body is timed twice and the faster run counts, so one slow run on a busy machine does not fail the case.
+  many_lines() {
+    local i
+    render "$verdict_ok" "$assessment_ok"
+    for ((i = 0; i < $1; i++)); do
+      printf '**Label %s:** value %s\n' "$i" "$i"
+    done
+  }
+  fastest() {
+    local first second TIMEFORMAT=%R
+    first="$({ time "$script" --file "$1" >/dev/null 2>&1; } 2>&1)"
+    second="$({ time "$script" --file "$1" >/dev/null 2>&1; } 2>&1)"
+    awk -v a="$first" -v b="$second" 'BEGIN { print (a < b ? a : b) }'
+  }
+  many_lines 4000 >"$tmp/short.md"
+  many_lines 20000 >"$tmp/long.md"
+  local short long
+  short="$(fastest "$tmp/short.md")"
+  long="$(fastest "$tmp/long.md")"
+  if awk -v s="$short" -v l="$long" 'BEGIN { exit !(l <= 8 * (s > 0.01 ? s : 0.01)) }'; then
+    printf 'ok    %-62s %ss / %ss\n' 'a five times longer header block takes at most eight times as long' "$short" "$long"
+  else
+    printf 'FAIL  %-62s %ss / %ss\n' 'a five times longer header block takes at most eight times as long' "$short" "$long" >&2
+    failures=$((failures + 1))
+  fi
 
   if [[ "$failures" -gt 0 ]]; then
     echo "check-cr-header self-test: $failures failure(s)" >&2

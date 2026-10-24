@@ -14,8 +14,9 @@
 # What it reads
 #   A header line is `**<Label>:** <value>`, or the same line without the Markdown bold. A line inside a
 #   fenced code block is a quotation and is not read. The header block is the lines before the first `## `
-#   heading; the parser reports a header line wherever it stands in the body and marks the ones that stand in
-#   the block. It does not judge a label, a value, a duplicate, or a place: the caller decides.
+#   heading and before the first finding heading (`### Critical 1. <title>`); the parser reports a header line
+#   wherever it stands in the body and marks the ones that stand in the block. A byte that is not valid UTF-8
+#   in a value does not hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
 #   expanded, or used to build a command, a path, or a program.
@@ -23,7 +24,8 @@
 # Result of cr_header_parse (parallel arrays, one entry per header line, in document order)
 #   CR_HEADER_LABELS  the label as written, without the colon and the bold
 #   CR_HEADER_BOLD    1 when the line carries the bold on both sides of the label, otherwise 0
-#   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading), otherwise 0
+#   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and the first
+#                     finding heading), otherwise 0
 #   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
 #
 # Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
@@ -33,37 +35,70 @@ CR_HEADER_BOLD=()
 CR_HEADER_BLOCK=()
 CR_HEADER_VALUES=()
 
-# cr_header_parse — read a comment body on standard input and fill the three arrays above.
+# cr_header_parse — read a comment body on standard input and fill the four arrays above.
 cr_header_parse() {
-  local line value in_fence=0 in_block=1 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
+  local i value
+  local -a retrim=()
 
   CR_HEADER_LABELS=()
   CR_HEADER_BOLD=()
   CR_HEADER_BLOCK=()
   CR_HEADER_VALUES=()
 
+  cr_header_scan
+
+  # The scan trims ASCII whitespace only. A value that still starts or ends with a non-ASCII byte is trimmed again
+  # in the caller's locale, so a non-ASCII space the locale counts as whitespace is dropped as before.
+  for i in ${retrim[@]+"${retrim[@]}"}; do
+    value="${CR_HEADER_VALUES[$i]}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    CR_HEADER_VALUES[i]="${value%"${value##*[![:space:]]}"}"
+  done
+}
+
+# cr_header_scan — the body is read in the C locale, byte by byte. Under a UTF-8 locale a line that carries a byte
+# which is not valid UTF-8 matches no pattern at all, so its header line would be lost; the C locale also makes
+# every match cheaper. Bash restores the caller's locale when the function returns. A Markdown heading and a fence
+# take ASCII whitespace only, as CommonMark defines them. The four arrays and `retrim` belong to the caller.
+cr_header_scan() {
+  local LC_ALL=C
+  local line value count=0 in_fence=0 in_block=1 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
+  local finding='^#{3,6}[[:space:]]+([^[:space:]]+[[:space:]]+)?(Critical|Moderate)[[:space:]]+[0-9]+\.'
+  local high=$'[\x80-\xff]'
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
+    # Each regular expression runs only on a line that can match it: a glob test is cheaper.
+    if [[ ( "$line" == *'```'* || "$line" == *'~~~'* ) && "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
       in_fence=$((1 - in_fence))
       continue
     fi
     [[ "$in_fence" -eq 0 ]] || continue
-    if [[ "$line" =~ ^##[[:space:]] ]]; then
-      in_block=0
-      continue
+    if [[ "$line" == '#'* ]]; then
+      if [[ "$line" =~ ^##[[:space:]] ]]; then
+        in_block=0
+        continue
+      fi
+      # A finding heading (`### Critical 1. <title>`) ends the header block too, as it does in extract-findings.sh.
+      [[ ! "$line" =~ $finding ]] || in_block=0
     fi
-    if [[ "$line" =~ $shape ]]; then
+    if [[ "$line" == *:* && "$line" =~ $shape ]]; then
       value="${BASH_REMATCH[4]}"
       value="${value%"${value##*[![:space:]]}"}"
-      CR_HEADER_LABELS+=("${BASH_REMATCH[2]}")
+      # An entry is written at its index, never appended with +=: bash 3.2 walks the whole array on every
+      # append, so a body with many header lines would take quadratic time.
+      CR_HEADER_LABELS[count]="${BASH_REMATCH[2]}"
       if [[ -n "${BASH_REMATCH[1]}" && -n "${BASH_REMATCH[3]}" ]]; then
-        CR_HEADER_BOLD+=(1)
+        CR_HEADER_BOLD[count]=1
       else
-        CR_HEADER_BOLD+=(0)
+        CR_HEADER_BOLD[count]=0
       fi
-      CR_HEADER_BLOCK+=("$in_block")
-      CR_HEADER_VALUES+=("$value")
+      CR_HEADER_BLOCK[count]="$in_block"
+      CR_HEADER_VALUES[count]="$value"
+      if [[ "$value" == $high* || "$value" == *$high ]]; then
+        retrim[${#retrim[@]}]="$count"
+      fi
+      count=$((count + 1))
     fi
   done
 }
@@ -105,6 +140,31 @@ cr_header_self_test() {
   expect 'a heading of a deeper level does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Sub\n**Late:** b'
   expect 'a section heading inside a fence does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' "$(printf '**Status:** a\n%s\n## quoted\n%s\n**Late:** b\n' "$fence" "$fence")"
   expect 'an empty body has no header line' '' ''
+  expect 'a finding heading ends the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n### 🔴 Critical 1. A title\n**Late:** b'
+  expect 'a finding heading without the icon ends the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n#### Moderate 2. A title\n**Late:** b'
+  expect 'a heading that only names a severity does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Critical findings\n**Late:** b'
+
+  # The two cases below need a UTF-8 locale: under it, a regular expression matches nothing on a line that carries
+  # a byte which is not valid UTF-8. A system without a UTF-8 locale has no such failure to test.
+  local utf8='' candidate
+  for candidate in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
+    if (LC_ALL="$candidate" && [[ $'\xc3\xa9' == ? ]]) 2>/dev/null; then
+      utf8="$candidate"
+      break
+    fi
+  done
+  # expect_utf8 <label> <expected> <body> — expect, run under the UTF-8 locale.
+  expect_utf8() {
+    local LC_ALL="$utf8"
+    expect "$@"
+  }
+  if [[ -n "$utf8" ]]; then
+    expect_utf8 'a value with a byte that is not valid UTF-8 is read' $'Status|1|1|a\xffb\nCounts|1|1|c\n' \
+      $'**Status:** a\xffb \n**Counts:** c'
+    expect_utf8 'a non-ASCII space the locale counts as whitespace is trimmed' $'Status|1|1|a\n' $'**Status:**\xe2\x80\x83a\xe2\x80\x83'
+  else
+    printf 'skip  %s\n' 'no UTF-8 locale: the cases for a byte that is not valid UTF-8'
+  fi
 
   local injected="\$(touch $tmp/pwned)"
   expect 'instruction-like text in a value is read as data' "Status|1|1|$injected"$'\n' "**Status:** $injected"
