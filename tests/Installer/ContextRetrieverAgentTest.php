@@ -16,7 +16,7 @@ test('metalhead ships on both platforms as a read-only agent with its own Codex 
         ->and($claude)->toMatch('/^tools: Read, Glob, Grep, Bash$/m')
         ->and($claude)->toMatch('/^disallowedTools: Write, Edit$/m')
         ->and($codex)->toContain('name = "metalhead"')
-        ->and($codex)->toContain('model = "luna"')
+        ->and($codex)->toContain('model = "gpt-6-luna"')
         ->and($codex)->toContain('model_reasoning_effort = "medium"')
         ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
 });
