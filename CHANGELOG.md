@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🕸️ **Changed**: the Context Retriever builds or refreshes the knowledge graph before it queries it (#221). `metalhead` runs `graph build` once before its first `graph query`, so `.claude/run/graph.json` exists without a manual build and `graph_hits` in `ai-olympus stats` can be non-zero. A failed build is a fallback: the queries still run and search covers what the graph cannot answer.
+
 - 📊 **Changed**: `vendor/bin/ai-olympus stats` prints the review-loop metrics (#228). The summary adds one line for each of the nine review-loop counters that `skills/_shared/record-metrics.sh --review-state` stores (loop iterations, and findings new, confirmed, resolved, dismissed, reopened, deferred, unverified, and blocking remaining), and the number of review loops that converged and that escalated out of the loops recorded. A counter that no entry in the window recorded prints `not recorded`, and the loop lines print `no review loops recorded` when no entry carries a loop result, so older entries still render.
 
 - 🧩 **Changed**: one shared helper defines `json_string` (#241). The new `skills/_shared/json-string.sh` is the only place that escapes a string for JSON, and `skills/_shared/check-handoff.sh`, `skills/_shared/run-validation.sh`, and `skills/_shared/check-cr-header.sh` source it. Before, each script had its own copy, and only the copy in `run-validation.sh` escaped a tab. The helper escapes a tab as `\t` for all three scripts, so `check-handoff.sh` and `check-cr-header.sh` no longer emit an unescaped tab in their JSON output. The helper has a `--self-test` that the build runs.
