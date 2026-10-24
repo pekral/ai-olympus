@@ -22,6 +22,6 @@ The README loads the 960 × 480 lossless WebP. The 1280 × 640 PNG is the GitHub
 
 Upload `social-preview.png` in GitHub **Settings → General → Social preview**; committing the file does not configure GitHub's repository setting.
 
-The 1254 × 1254 transparent agent portraits in `agents/*.png` were generated from the Cockpit Krang style reference. The matching 160 × 160 transparent PNGs in `agents/thumbnails/` are used in the README and role documentation. Generation prompts and the reference source are recorded in `agents/prompts.json`. The English character identities are Splinter, Donatello, Leonardo, Raphael, Michelangelo, April O’Neil, and Casey Jones.
+The 1254 × 1254 transparent agent portraits in `agents/*.png` were generated from the Cockpit Krang style reference. The matching 160 × 160 transparent PNGs in `agents/thumbnails/` are used in the README and role documentation. Generation prompts and the reference source are recorded in `agents/prompts.json`. The English character identities are Splinter, Donatello, Leonardo, Raphael, Michelangelo, April O’Neil, Casey Jones, and Metalhead.
 
 Teenage Mutant Ninja Turtles character names and likenesses belong to their respective rights holders. These themed agent portraits do not imply affiliation or endorsement. This character artwork is separate from the PHP and Laravel logo licences above.
