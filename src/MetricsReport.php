@@ -38,9 +38,6 @@ final class MetricsReport
         'items_from_search' => 'Items from search',
     ];
 
-    /**
-     * Counters `record-metrics.sh --review-state` stores under the entry's `review` key.
-     */
     private const array REVIEW_COUNTERS = [
         'confirmed' => 'Findings confirmed',
         'deferred' => 'Findings deferred',
