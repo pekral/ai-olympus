@@ -874,6 +874,25 @@ EOF
   run_case 'a delta round omits the non-security point' 0 -- record --state "$S" --input "$tmp/c5.md" --changed-files "$tmp/changed-none"
   check 'a non-security point that only needed verification leaves the loop on any round' "$(q '.verdict == "converged" and .counts.resolved == 1 and (.carried | length) == 0')"
 
+  # --- a resolved claim in a PR comment: only the reviewer's re-read resolves a finding --------------------
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/e1.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/e1.md" >/dev/null)
+  local claimed_id
+  claimed_id="$(jq -r '.findings[0].finding_id' "$repo/$S")"
+  pr_comments "$(comment 21 OWNER "$claimed_id is resolved.")"
+  run_case 'a delta after the resolved claim is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-none"
+  check 'the round after the resolved claim reviews the whole PR' "$(q '.scope == "full"')"
+  rm -f "$tmp/loader-calls"
+  report "$tmp/e2.md" 2 "$F_SQL"
+  run_case 'a full round that still carries the claimed finding is recorded' 0 -- record --state "$S" --input "$tmp/e2.md" --changed-files "$tmp/changed-none"
+  check 'a resolved claim in a PR comment leaves the status unchanged' "$(jq -e '.findings[0].status == "confirmed" and ([.transitions[] | select(.to == "resolved")] | length) == 0' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  check 'the round never reads the PR comments' "$([[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
+  cp "$repo/$S" "$tmp/before-claim"
+  run_case 'a resolved claim in an owner PR comment never dismisses a security finding' 4 -- dismiss --state "$S" --finding "$claimed_id" --comment https://github.com/acme/shop/pull/7#issuecomment-21
+  check 'the refused claim leaves the state untouched' "$(cmp -s "$tmp/before-claim" "$repo/$S" && echo 0 || echo 1)"
+
   # --- dismissal: only a trusted author, never a security finding ------------------------------------------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)

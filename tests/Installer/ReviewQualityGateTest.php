@@ -50,6 +50,8 @@ test('the review-state self-test covers every success criterion of the security 
     'a security-lens $level finding maps to a blocking severity',
     'a security (S1-S3) finding that needs verification still blocks',
     'a resolved claim in report text leaves the status unchanged and the finding is reported as carried',
+    'a resolved claim in a PR comment leaves the status unchanged',
+    'a resolved claim in an owner PR comment never dismisses a security finding',
     'there is no command that marks a finding resolved',
     'a rejection by a CONTRIBUTOR is refused',
     'the refused rejection leaves the status open',
