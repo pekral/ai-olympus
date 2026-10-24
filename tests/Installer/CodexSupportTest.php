@@ -19,9 +19,21 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
 
     expect($codexNames)->toBe($canonicalNames);
 
+    $expectedModels = [
+        'april' => ['gpt-6-luna', 'medium'],
+        'casey' => ['gpt-6-luna', 'high'],
+        'donatello' => ['gpt-5.6-terra', 'high'],
+        'leonardo' => ['gpt-6.1-sol', 'high'],
+        'metalhead' => ['gpt-6-luna', 'medium'],
+        'michelangelo' => ['gpt-6-astra', 'medium'],
+        'raphael' => ['gpt-6-luna', 'high'],
+        'splinter' => ['gpt-6.1-sol', 'medium'],
+    ];
+
     foreach (is_array($codexAgentFiles) ? $codexAgentFiles : [] as $codexAgentFile) {
         $name = basename($codexAgentFile, '.toml');
         $content = (string) file_get_contents($codexAgentFile);
+        [$model, $reasoningEffort] = $expectedModels[$name];
 
         expect($content)->toContain('name = "' . $name . '"');
         expect($content)->toContain('description = "');
@@ -30,13 +42,11 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         expect($content)->toContain('`.agents/skills/');
         expect($content)->toContain('`.codex/rules/');
 
-        // Each adapter binds its own default tier to concrete Codex controls. The adapter used to
-        // carry no `model` key at all and describe the tier in prose only, which left the choice to
-        // whatever the session happened to be configured with — the opposite of "declared per
-        // platform in the agent's own definition". The prose block below the keys states the same
-        // two values, so a future edit cannot move one without the other.
-        expect($content)->toMatch('/^model = "(sol|luna|terra|astra)"$/m');
-        expect($content)->toMatch('/^model_reasoning_effort = "(low|medium|high)"$/m');
+        // Each adapter binds its role to a concrete available Codex model. Its prose repeats that
+        // binding, preventing the executable keys and the operator guidance from drifting apart.
+        expect($content)->toContain('model = "' . $model . '"');
+        expect($content)->toContain('model_reasoning_effort = "' . $reasoningEffort . '"');
+        expect($content)->toContain('Default tier: `' . $model . '` at `' . $reasoningEffort . '` reasoning effort');
     }
 });
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.webp" alt="AI Olympus — seven AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
+  <img src="assets/logo.webp" alt="AI Olympus — eight AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
 
 <h1>AI Olympus — An AI Development Team for Laravel</h1>
 
@@ -230,7 +230,7 @@ Runs only when the relevance gate decides that a task needs project knowledge. I
 
 ### Avatars and activity animations
 
-All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). Seven follow Cockpit’s Krang mascot style; `metalhead` uses the universal [`placeholder.svg`](assets/agents/placeholder.svg) until its own portrait exists. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). They share Cockpit’s Krang mascot style; `metalhead` is a robot-turtle portrait in the same series. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 
