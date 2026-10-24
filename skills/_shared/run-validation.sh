@@ -115,11 +115,10 @@ CATEGORIES=(lint static_analysis tests)
 # shellcheck source=project-commands.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project-commands.sh"
 
-json_string() {
-  # Escape for a JSON string literal without depending on jq being able to read
-  # the value first — this runs on refusal paths where jq already declined.
-  printf '%s' "$1" | LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' | tr -d '\n\r'
-}
+# json_string comes from the one shared definition. It needs no jq, because it runs on
+# refusal paths where jq already declined to read the value.
+# shellcheck source=json-string.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/json-string.sh"
 
 # Emit the result document and exit. Every exit path below goes through here, so
 # the caller always receives one parseable document, including on a refusal.

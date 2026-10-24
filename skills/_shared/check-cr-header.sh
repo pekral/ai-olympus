@@ -50,6 +50,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=cr-header.sh
 source "$HERE/cr-header.sh"
 
+# json_string comes from the one shared definition.
+# shellcheck source=json-string.sh
+source "$HERE/json-string.sh"
+
 usage() {
   cat >&2 <<'EOF'
 Usage: check-cr-header.sh --file <body-file|->
@@ -64,10 +68,6 @@ VERDICT_SHAPE='^(yes|no) — assignment met: (yes|no|no linked issue) · open Cr
 ASSESSMENT_SHAPE='^untrusted data: (.+) · public exposure: (.+) · regression test: (.+) · automatic rule: (.+)$'
 REGRESSION_SHAPE='^(not required|present — .+|required — .+)$'
 ASSESSMENT_LABELS=('untrusted data:' 'public exposure:' 'regression test:' 'automatic rule:')
-
-json_string() {
-  printf '%s' "$1" | LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r'
-}
 
 emit() {
   local first=1 problem
