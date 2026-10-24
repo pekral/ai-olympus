@@ -9,16 +9,6 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
     $agentFiles = glob($packageDir . '/agents/*.md');
     $codexAgentFiles = glob($packageDir . '/codex/agents/*.toml');
 
-    expect($agentFiles)->not->toBeFalse();
-    expect($codexAgentFiles)->not->toBeFalse();
-
-    $canonicalNames = array_map(static fn (string $path): string => basename($path, '.md'), is_array($agentFiles) ? $agentFiles : []);
-    $codexNames = array_map(static fn (string $path): string => basename($path, '.toml'), is_array($codexAgentFiles) ? $codexAgentFiles : []);
-    sort($canonicalNames);
-    sort($codexNames);
-
-    expect($codexNames)->toBe($canonicalNames);
-
     $expectedModels = [
         'april' => ['gpt-6-luna', 'medium'],
         'casey' => ['gpt-6-luna', 'high'],
@@ -29,6 +19,16 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         'raphael' => ['gpt-6-luna', 'high'],
         'splinter' => ['gpt-6.1-sol', 'medium'],
     ];
+
+    expect($agentFiles)->not->toBeFalse();
+    expect($codexAgentFiles)->not->toBeFalse();
+
+    $canonicalNames = array_map(static fn (string $path): string => basename($path, '.md'), is_array($agentFiles) ? $agentFiles : []);
+    $codexNames = array_map(static fn (string $path): string => basename($path, '.toml'), is_array($codexAgentFiles) ? $codexAgentFiles : []);
+    sort($canonicalNames);
+    sort($codexNames);
+
+    expect($codexNames)->toBe($canonicalNames);
 
     foreach (is_array($codexAgentFiles) ? $codexAgentFiles : [] as $codexAgentFile) {
         $name = basename($codexAgentFile, '.toml');
@@ -42,8 +42,6 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         expect($content)->toContain('`.agents/skills/');
         expect($content)->toContain('`.codex/rules/');
 
-        // Each adapter binds its role to a concrete available Codex model. Its prose repeats that
-        // binding, preventing the executable keys and the operator guidance from drifting apart.
         expect($content)->toContain('model = "' . $model . '"');
         expect($content)->toContain('model_reasoning_effort = "' . $reasoningEffort . '"');
         expect($content)->toContain('Default tier: `' . $model . '` at `' . $reasoningEffort . '` reasoning effort');
