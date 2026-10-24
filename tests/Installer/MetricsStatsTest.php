@@ -217,6 +217,55 @@ test('the report says a counter was not recorded instead of printing zero for ol
         ->and($mixed)->toContain('Retrieval seconds     not recorded' . PHP_EOL);
 });
 
+test('the report sums every review-loop counter the recorder writes and counts the loop results', function (string $expectedLine): void {
+    $review = [
+        'iterations' => 2,
+        'new_per_iteration' => [2, 1],
+        'new' => 3,
+        'confirmed' => 2,
+        'resolved' => 1,
+        'dismissed' => 4,
+        'reopened' => 5,
+        'deferred' => 6,
+        'needs_verification' => 7,
+        'remaining_blocking' => 8,
+        'result' => 'converged',
+        'escalation_reason' => null,
+    ];
+    $escalated = array_merge($review, ['result' => 'escalated', 'escalation_reason' => 'cap-reached-hard-blockers']);
+    $entries = [
+        array_merge(metricsEntry('STANDARD', 'STANDARD'), ['review' => $review]),
+        array_merge(metricsEntry('CRITICAL', 'CRITICAL'), ['review' => $escalated]),
+        metricsEntry('FAST', 'FAST'),
+    ];
+
+    expect(MetricsReport::render($entries, 'all time'))->toContain($expectedLine . PHP_EOL);
+})->with([
+    'blocking remaining' => ['Blocking remaining    16'],
+    'findings confirmed' => ['Findings confirmed    4'],
+    'findings deferred' => ['Findings deferred     12'],
+    'findings dismissed' => ['Findings dismissed    8'],
+    'findings new' => ['Findings new          6'],
+    'findings reopened' => ['Findings reopened     10'],
+    'findings resolved' => ['Findings resolved     2'],
+    'findings unverified' => ['Findings unverified   14'],
+    'loop iterations' => ['Loop iterations       4'],
+    'loops converged' => ['Loops converged       1 / 2'],
+    'loops escalated' => ['Loops escalated       1 / 2'],
+]);
+
+test('the report says the review-loop counters were not recorded for entries without a review', function (): void {
+    $malformed = metricsEntry('FAST', 'FAST');
+    $malformed['review'] = 'broken';
+
+    $report = MetricsReport::render([metricsEntry('FAST', 'FAST'), $malformed], 'all time');
+
+    expect($report)->toContain('Loop iterations       not recorded' . PHP_EOL)
+        ->and($report)->toContain('Blocking remaining    not recorded' . PHP_EOL)
+        ->and($report)->toContain('Loops converged       no review loops recorded' . PHP_EOL)
+        ->and($report)->toContain('Loops escalated       no review loops recorded' . PHP_EOL);
+});
+
 test('an empty store reports the window rather than an empty table', function (): void {
     expect(MetricsReport::render([], 'the last 7 day(s)'))->toBe('No runs recorded for the last 7 day(s).' . PHP_EOL);
 });

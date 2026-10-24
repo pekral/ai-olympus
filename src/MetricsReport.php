@@ -38,6 +38,18 @@ final class MetricsReport
         'items_from_search' => 'Items from search',
     ];
 
+    private const array REVIEW_COUNTERS = [
+        'confirmed' => 'Findings confirmed',
+        'deferred' => 'Findings deferred',
+        'dismissed' => 'Findings dismissed',
+        'iterations' => 'Loop iterations',
+        'needs_verification' => 'Findings unverified',
+        'new' => 'Findings new',
+        'remaining_blocking' => 'Blocking remaining',
+        'reopened' => 'Findings reopened',
+        'resolved' => 'Findings resolved',
+    ];
+
     /**
      * @param list<array<string, mixed>> $entries
      */
@@ -63,17 +75,26 @@ final class MetricsReport
         $lines[] = self::renderTokens($entries);
         $lines[] = '';
 
-        foreach (self::CONTEXT_COUNTERS as $key => $label) {
-            $lines[] = self::renderCounter($entries, $key, $label);
-        }
+        $lines = [...$lines, ...self::renderCounters($entries, self::CONTEXT_COUNTERS), ''];
+        $lines = [...$lines, ...self::renderCounters($entries, self::GRAPH_COUNTERS), ''];
 
-        $lines[] = '';
-
-        foreach (self::GRAPH_COUNTERS as $key => $label) {
-            $lines[] = self::renderCounter($entries, $key, $label);
-        }
+        $reviews = array_map(self::reviewOf(...), $entries);
+        $lines = [...$lines, ...self::renderCounters($reviews, self::REVIEW_COUNTERS)];
+        $lines[] = self::renderLoopResult($reviews, 'converged', 'Loops converged');
+        $lines[] = self::renderLoopResult($reviews, 'escalated', 'Loops escalated');
 
         return implode(PHP_EOL, array_filter($lines, static fn (string $line): bool => $line !== ' ')) . PHP_EOL;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function reviewOf(array $entry): array
+    {
+        $review = $entry['review'] ?? null;
+
+        return is_array($review) ? array_filter($review, is_string(...), ARRAY_FILTER_USE_KEY) : [];
     }
 
     /**
@@ -101,6 +122,20 @@ final class MetricsReport
 
     /**
      * @param list<array<string, mixed>> $entries
+     * @param array<string, string> $counters
+     * @return list<string>
+     */
+    private static function renderCounters(array $entries, array $counters): array
+    {
+        return array_values(array_map(
+            static fn (string $key, string $label): string => self::renderCounter($entries, $key, $label),
+            array_keys($counters),
+            $counters,
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
      */
     private static function renderCounter(array $entries, string $key, string $label): string
     {
@@ -111,6 +146,22 @@ final class MetricsReport
         }
 
         return sprintf('%-21s %d', $label, self::sum($recorded, $key));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviews
+     */
+    private static function renderLoopResult(array $reviews, string $result, string $label): string
+    {
+        $recorded = array_values(array_filter($reviews, static fn (array $review): bool => is_string($review['result'] ?? null)));
+
+        if ($recorded === []) {
+            return sprintf('%-21s no review loops recorded', $label);
+        }
+
+        $matching = array_filter($recorded, static fn (array $review): bool => $review['result'] === $result);
+
+        return sprintf('%-21s %d / %d', $label, count($matching), count($recorded));
     }
 
     /**
