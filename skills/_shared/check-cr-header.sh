@@ -395,8 +395,9 @@ self_test() {
   render "$verdict_ok" "$assessment_ok" >"$tmp/died.md"
   set +e
   died="$(
-    # The checker is called by name from check_line, so ShellCheck sees no call.
-    # shellcheck disable=SC2329
+    # The checker is called by name from check_line, so ShellCheck sees no call
+    # (SC2317, and SC2329 in ShellCheck 0.11). Both are suppressed.
+    # shellcheck disable=SC2317,SC2329
     check_merge_verdict() { exit 9; }
     check --file "$tmp/died.md" 2>"$tmp/died.err"
   )"
