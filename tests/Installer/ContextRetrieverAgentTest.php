@@ -139,6 +139,24 @@ test('the retriever asks the graph before any other read and searches only for w
         ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
 });
 
+test('the retriever builds or refreshes the graph once before its first query so the graph can answer (issue #221)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $metalhead = (string) file_get_contents($packageDir . '/agents/metalhead.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    expect($metalhead)->toContain('Before the first query, build or refresh the graph once: run `<binary> graph build > /dev/null`.')
+        ->and($metalhead)->toContain(
+            'A non-zero exit, for example when `.claude/run/` is not git-ignored, is a fallback, not a failure: run the queries anyway.',
+        )
+        ->and(substr_count($metalhead, '<binary> graph build'))->toBe(1)
+        ->and(strpos($metalhead, '<binary> graph build'))->toBeLessThan((int) strpos($metalhead, '<binary> graph query'))
+        ->and($metalhead)->toContain(
+            'run `vendor/bin/ai-olympus graph build`, or `bin/ai-olympus graph build` when only that binary exists, '
+            . 'with its stdout redirected to `/dev/null` (it writes only the git-ignored `.claude/run/graph.json`',
+        )
+        ->and($orchestration)->toContain('the package cache, and the knowledge graph (`graph build`) under the git-ignored `.claude/run/*`');
+});
+
 test('the graph slice is bounded by the gate budget and the graph stays in git-ignored scratch (issue #136)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/src/GraphCommand.php');
