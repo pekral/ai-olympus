@@ -402,6 +402,20 @@ STUB
   verdict 'a quoted argument is refused rather than mis-split' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --filter \u0027a b\u0027"] }' 3 invalid true
 
+  # A log path with an invalid UTF-8 byte reaches json_string through the failure entry. Under a UTF-8
+  # locale `tr` used to stop on that byte, and `set -e` ended the run without an output document. Some
+  # file systems (APFS) refuse such a name, so the case runs only where the directory can be created.
+  local invalid_logs
+  invalid_logs="$tmp/invalid-$(printf '\377')-logs"
+  if mkdir -p -- "$invalid_logs" 2>/dev/null; then
+    VERDICT_LOGS="$invalid_logs"
+    LC_ALL=C.UTF-8 verdict 'a log path with an invalid UTF-8 byte still reports' \
+      '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --fail"] }' 4 failed true
+    VERDICT_LOGS=""
+  else
+    printf 'skip  %-54s the file system refuses the name\n' 'a log path with an invalid UTF-8 byte still reports'
+  fi
+
   # One refused command refuses the whole manifest — a partially-run validation
   # is a state nobody can act on.
   # A log directory of its own: the passing case above already wrote lint.log, so

@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🐛 **Fixed**: `json_string` keeps a value that carries an invalid UTF-8 byte (#246). `skills/_shared/json-string.sh` runs `tr -d '\n\r'` under `LC_ALL=C`, as it already did for `sed`. Before, under a UTF-8 locale BSD `tr` stopped with "Illegal byte sequence" and cut the value at that byte, and `set -e` in `skills/_shared/run-validation.sh` ended the script without an output document. The `--self-test` of `json-string.sh` and of `run-validation.sh` cover it.
+
 - 🕸️ **Changed**: the Context Retriever builds or refreshes the knowledge graph before it queries it (#221). `metalhead` runs `graph build` once before its first `graph query`, so `.claude/run/graph.json` exists without a manual build and `graph_hits` in `ai-olympus stats` can be non-zero. A failed build is a fallback: the queries still run and search covers what the graph cannot answer.
 
 - 📊 **Changed**: `vendor/bin/ai-olympus stats` prints the review-loop metrics (#228). The summary adds one line for each of the nine review-loop counters that `skills/_shared/record-metrics.sh --review-state` stores (loop iterations, and findings new, confirmed, resolved, dismissed, reopened, deferred, unverified, and blocking remaining), and the number of review loops that converged and that escalated out of the loops recorded. A counter that no entry in the window recorded prints `not recorded`, and the loop lines print `no review loops recorded` when no entry carries a loop result, so older entries still render.
