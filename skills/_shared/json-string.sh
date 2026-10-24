@@ -47,17 +47,11 @@ json_string_self_test() {
   # An invalid UTF-8 byte must pass through whole under a UTF-8 locale. BSD `tr` stops with "Illegal byte
   # sequence" there, and the value is cut at that byte. GNU `tr` is byte-based, so on Linux this passes
   # either way; the case is the regression test on macOS.
-  local utf8_locale
-  utf8_locale="$(locale -a 2>/dev/null | grep -i -m1 -E '^(en_US|C)\.utf-?8$' || true)"
-  if [[ -n "$utf8_locale" ]]; then
-    local actual
-    actual="$(LC_ALL="$utf8_locale" json_string $'a\xffb\n"c' || true)"
-    if [[ "$actual" != $'a\xffb\\"c' ]]; then
-      echo "FAIL: an invalid UTF-8 byte under $utf8_locale — expected the value unchanged, got [$actual]" >&2
-      failures=$((failures + 1))
-    fi
-  else
-    echo 'json-string self-test: no UTF-8 locale installed, the invalid-byte case was skipped' >&2
+  local actual
+  actual="$(LC_ALL=C.UTF-8 json_string $'a\xffb\n"c' || true)"
+  if [[ "$actual" != $'a\xffb\\"c' ]]; then
+    echo "FAIL: an invalid UTF-8 byte under a UTF-8 locale — expected the value unchanged, got [$actual]" >&2
+    failures=$((failures + 1))
   fi
 
   if command -v jq >/dev/null 2>&1; then
