@@ -182,7 +182,7 @@ test('a build refuses to write a graph at a location git does not ignore, and wr
     expect($stdout)->toBe('');
     expect($stderr)->toBe(
         'Refusing to write the knowledge graph: .claude/run/graph.json is not git-ignored or is tracked. '
-        . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.' . PHP_EOL,
+        . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build --run-dir .claude/run` again.' . PHP_EOL,
     );
     expect(is_file($path) ? file_get_contents($path) : null)->toBe($before);
 
@@ -201,7 +201,7 @@ test('a graph from another version is rebuilt rather than trusted', function ():
     [, $summary] = graphRun($root, 'build');
 
     expect($queryExit)->toBe(1);
-    expect($stderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build` first.' . PHP_EOL);
+    expect($stderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build --run-dir .claude/run` first.' . PHP_EOL);
     expect($summary)->toContain('"parsed":8,"reused":0');
 
     installerRemoveDirectory($root);
@@ -338,7 +338,7 @@ test('the graph is built and queried under .codex/run when the run directory say
     expect($queryExit)->toBe(0);
     expect(graphSlice($stdout)['graph']['state'])->toBe('fresh');
     expect($defaultExit)->toBe(1);
-    expect($defaultStderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build` first.' . PHP_EOL);
+    expect($defaultStderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build --run-dir .claude/run` first.' . PHP_EOL);
 
     installerRemoveDirectory($root);
 });
@@ -352,7 +352,7 @@ test('the graph under .codex/run is refused while only .claude/run is git-ignore
     expect($stdout)->toBe('');
     expect($stderr)->toBe(
         'Refusing to write the knowledge graph: .codex/run/graph.json is not git-ignored or is tracked. '
-        . 'Add `.codex/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.' . PHP_EOL,
+        . 'Add `.codex/run/` to .gitignore, untrack the file, and run `ai-olympus graph build --run-dir .codex/run` again.' . PHP_EOL,
     );
     expect(is_file($root . '/.codex/run/graph.json'))->toBeFalse();
 

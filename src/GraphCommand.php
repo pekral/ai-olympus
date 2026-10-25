@@ -140,7 +140,7 @@ final class GraphCommand
         $files = self::read($root . '/' . $location);
 
         if ($files === null) {
-            fwrite(STDERR, sprintf('No graph at %s. Run `ai-olympus graph build` first.%s', $location, PHP_EOL));
+            fwrite(STDERR, sprintf('No graph at %s. Run `ai-olympus graph build --run-dir %s` first.%s', $location, dirname($location), PHP_EOL));
 
             return 1;
         }
