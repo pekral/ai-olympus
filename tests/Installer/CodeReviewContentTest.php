@@ -4585,3 +4585,22 @@ test('code-testing and code-review rules require test data to be inserted in one
         'Inside a test file, a per-row test-data insert belongs to **Test data is inserted in one batch** above; do not raise it here.',
     );
 });
+
+test('code-testing and code-review rules keep date tests correct across a daylight saving transition', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $testing = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    expect($testing)->toContain('- **Keep a date test correct across a daylight saving transition.**');
+    expect($testing)->toContain('Never freeze an instant derived from the real clock');
+    expect($testing)->toContain('Never inherit the zone of the host or the CI runner.');
+    expect($testing)->toContain('Never mix calendar steps and fixed durations in one expectation.');
+    expect($testing)->toContain('Add one case frozen on each switch day of the project zone');
+    expect($review)->toContain(
+        '- **Date tests stay correct across a daylight saving transition (`@rules/code-testing/general.md` *Flaky Test Prevention*)**',
+    );
+    expect($review)->toContain('- **Freeze fix** — ');
+    expect($review)->toContain('- **Unit fix** — ');
+    expect($review)->toContain('- **Transition case** — ');
+    expect($review)->toContain('and **Timezone stated on every date construction** does not raise it again.');
+});
