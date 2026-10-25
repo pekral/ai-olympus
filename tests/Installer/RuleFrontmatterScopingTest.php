@@ -523,7 +523,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // assignment to the leave-alone section in `skills/resolve-issue/references/quality-gates.md`.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
-        'rules/code-testing/general.md' => 'da9361f0ca2350d06d909584c28c3d42a51368b55422ce718eff34954d1d0b46',
+        // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition.
+        'rules/code-testing/general.md' => 'e40409c19616c87c7e8ee7a964e7221fb196e9adb3f4de8c66f63c841062c1d5',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
