@@ -12,7 +12,7 @@
 #
 # Subcommands
 #   pack    --request <file> --candidates <file> --output <file>
-#           [--cache-dir <dir>] [--started-at <epoch seconds>] [--graph-slice <file>]...
+#           [--cache-dir <dir>] [--started-at <epoch seconds>] [--graph-slice <file>]... [--run-dir <dir>]
 #   lookup  --request <file> --cache-dir <dir> --output <file>
 #           [--started-at <epoch seconds>]
 #   --self-test
@@ -58,6 +58,9 @@
 #   score. A search candidate for the same file merges with it, so the item's
 #   `sources` shows both paths that found it. The slice limit is the gate's
 #   budget.max_items, so the slice is cut by the same budget as the package.
+#   --run-dir names the run directory `ai-olympus graph build --run-dir` wrote
+#   the graph to, `.claude/run` by default and `.codex/run` under Codex, so the
+#   location check below reads the graph file the graph command wrote.
 #   --graph-slice is absent when the graph step did not run: the package then
 #   carries no `graph` metadata and equals one built before the graph existed.
 #   A slice that is absent, empty, or not a slice marks the graph `missing`; a
@@ -124,7 +127,7 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: pack-context.sh pack   --request <file> --candidates <file> --output <file>
-                              [--cache-dir <dir>] [--started-at <epoch>] [--graph-slice <file>]...
+                              [--cache-dir <dir>] [--started-at <epoch>] [--graph-slice <file>]... [--run-dir <dir>]
        pack-context.sh lookup --request <file> --cache-dir <dir> --output <file>
                               [--started-at <epoch>]
        pack-context.sh --self-test
@@ -167,8 +170,9 @@ CANDIDATES_FILTER='
     and ((.key // "") | type == "string" and length <= 200)))
 '
 
-# The graph location `ai-olympus graph build` writes (src/GraphCommand.php RELATIVE_PATH).
-GRAPH_PATH='.claude/run/graph.json'
+# The run directory `ai-olympus graph build` writes the graph file to by default (src/GraphCommand.php DEFAULT_RUN_DIRECTORY).
+GRAPH_RUN_DIR='.claude/run'
+GRAPH_PATH=''
 
 # One graph slice, as `ai-olympus graph query` prints it.
 # shellcheck disable=SC2016
@@ -353,14 +357,15 @@ graph_input() {
 run() {
   local mode="$1"
   shift
-  local request="" candidates="" output="" cache_dir="" started_at="" graph_slices=()
+  local request="" candidates="" output="" cache_dir="" started_at="" run_dir="" graph_slices=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --request | --candidates | --output | --cache-dir | --started-at | --graph-slice)
+    --request | --candidates | --output | --cache-dir | --started-at | --graph-slice | --run-dir)
       [[ $# -ge 2 ]] || { usage; return 1; }
       case "$1" in
       --graph-slice) graph_slices+=("$2") ;;
+      --run-dir) run_dir="${2%/}" ;;
       --request) request="$2" ;;
       --candidates) candidates="$2" ;;
       --output) output="$2" ;;
@@ -378,10 +383,11 @@ run() {
   done
 
   if [[ -z "$request" || -z "$output" ]] || { [[ "$mode" == pack ]] && [[ -z "$candidates" ]]; } \
-    || { [[ "$mode" == lookup ]] && { [[ -z "$cache_dir" ]] || [[ ${#graph_slices[@]} -gt 0 ]]; }; }; then
+    || { [[ "$mode" == lookup ]] && { [[ -z "$cache_dir" ]] || [[ ${#graph_slices[@]} -gt 0 ]] || [[ -n "$run_dir" ]]; }; }; then
     usage
     return 1
   fi
+  GRAPH_PATH="${run_dir:-$GRAPH_RUN_DIR}/graph.json"
 
   # -s: exactly one JSON document. jq -e reads only the last of several.
   if ! jq -e -s 'length == 1 and (.[0] | ('"$REQUEST_FILTER"'))' "$request" >/dev/null 2>&1; then
@@ -699,6 +705,23 @@ EOF
   (cd "$repo" && git checkout -q -- .gitignore)
   expect_jq 'a graph location that is not git-ignored is refused and never read' "$repo/scratch/graph-refused.json" \
     '.metadata.graph == {"state":"refused","entities":0,"items_from_graph":0,"items_from_search":5,"files_avoided":0}'
+  # The run directory moves the graph location with it: under Codex the graph lives in .codex/run.
+  out="$(in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+    --run-dir .codex/run --output scratch/graph-codex-refused.json 2>/dev/null)"
+  expect_jq 'a run directory that is not git-ignored refuses the graph even when the default one is ignored' \
+    "$repo/scratch/graph-codex-refused.json" '.metadata.graph.state == "refused"'
+  printf '/scratch/\n/.codex/run/\n' >"$repo/.gitignore"
+  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+    --run-dir .codex/run/ --output scratch/graph-codex.json >/dev/null
+  in_repo pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice scratch/slice.json \
+    --output scratch/graph-codex-default.json >/dev/null 2>&1
+  (cd "$repo" && git checkout -q -- .gitignore)
+  expect_jq 'the graph under a git-ignored .codex/run is read' "$repo/scratch/graph-codex.json" \
+    '.metadata.graph.state == "fresh" and .metadata.graph.items_from_graph == 5'
+  expect_jq 'the default run directory is refused when only .codex/run is git-ignored' "$repo/scratch/graph-codex-default.json" \
+    '.metadata.graph.state == "refused"'
+  expect_exit 'a lookup takes no run directory' 1 \
+    lookup --request scratch/graph-request.json --cache-dir scratch/cache --output scratch/x.json --run-dir .codex/run
   expect_exit 'a graph slice that is not git-ignored is refused' 1 \
     pack --request scratch/graph-request.json --candidates scratch/candidates.json --graph-slice slice.json --output scratch/x.json
   printf '{"queried":["graph"],"items":[{"kind":"related_code","text":"app/Models/Invoice.php","source":{"type":"graph","id":"App\\\\Models\\\\Invoice"}}]}\n' \

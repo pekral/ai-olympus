@@ -10,7 +10,11 @@ namespace Pekral\AiOlympus;
 final class GraphCommand
 {
 
-    public const string RELATIVE_PATH = '.claude/run/graph.json';
+    private const string DEFAULT_RUN_DIRECTORY = '.claude/run';
+
+    private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, '.codex/run'];
+
+    private const string GRAPH_FILE = 'graph.json';
 
     private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
 
@@ -20,27 +24,34 @@ final class GraphCommand
     public static function run(array $argv): int
     {
         $root = InstallerPath::resolveProjectRoot();
-        $path = $root . '/' . self::RELATIVE_PATH;
         $action = $argv[2] ?? '';
+        $flags = match ($action) {
+            'build' => self::flags(array_slice($argv, 3), ['--run-dir']),
+            'query' => isset($argv[3]) ? self::flags(array_slice($argv, 4), ['--limit', '--run-dir']) : null,
+            default => null,
+        };
+        $directory = self::runDirectory($flags ?? []);
+        $limit = self::limit($flags ?? []);
 
-        if ($action === 'build') {
-            return self::build($root, $path);
+        if ($flags !== null && $directory !== null && $limit !== false) {
+            $location = $directory . '/' . self::GRAPH_FILE;
+
+            return $action === 'build' ? self::build($root, $location) : self::query($root, $location, $argv[3], $limit);
         }
 
-        $limit = self::limit($argv);
-
-        if ($action === 'query' && isset($argv[3]) && $limit !== false) {
-            return self::query($root, $path, $argv[3], $limit);
-        }
-
-        fwrite(STDERR, 'Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol> [--limit <n>]' . PHP_EOL);
+        fwrite(
+            STDERR,
+            'Usage: ai-olympus graph build [--run-dir <dir>] | ai-olympus graph query <path|class|symbol> [--limit <n>] [--run-dir <dir>]' . PHP_EOL,
+        );
 
         return 1;
     }
 
-    private static function build(string $root, string $path): int
+    private static function build(string $root, string $location): int
     {
-        self::assertLocationIgnored($root);
+        $path = $root . '/' . $location;
+
+        self::assertLocationIgnored($root, $location);
 
         $result = GraphIndexer::index($root, self::read($path) ?? []);
 
@@ -57,47 +68,79 @@ final class GraphCommand
             throw InstallerFailure::graphWriteFailed($path);
         }
 
-        echo json_encode(['graph' => self::RELATIVE_PATH] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode(['graph' => $location] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
 
         return 0;
     }
 
-    private static function assertLocationIgnored(string $root): void
+    private static function assertLocationIgnored(string $root, string $location): void
     {
         $git = 'git -C ' . escapeshellarg($root);
-        $location = escapeshellarg(self::RELATIVE_PATH);
+        $argument = escapeshellarg($location);
 
-        exec($git . ' check-ignore -q -- ' . $location . ' 2>&1', result_code: $ignored);
+        exec($git . ' check-ignore -q -- ' . $argument . ' 2>&1', result_code: $ignored);
 
         $tracked = [];
 
         if ($ignored === 0) {
-            exec($git . ' ls-files -- ' . $location . ' 2>&1', $tracked);
+            exec($git . ' ls-files -- ' . $argument . ' 2>&1', $tracked);
         }
 
         if ($ignored !== 0 || $tracked !== []) {
-            throw InstallerFailure::graphLocationNotIgnored(self::RELATIVE_PATH);
+            throw InstallerFailure::graphLocationNotIgnored($location);
         }
     }
 
     /**
-     * @param array<int, string> $argv
+     * @param array<string, string> $flags
      */
-    private static function limit(array $argv): null|int|false
+    private static function limit(array $flags): null|int|false
     {
-        if (!isset($argv[4])) {
+        if (!isset($flags['--limit'])) {
             return null;
         }
 
-        return $argv[4] === '--limit' && preg_match('/^[1-9][0-9]{0,8}$/', $argv[5] ?? '') === 1 ? (int) $argv[5] : false;
+        return preg_match('/^[1-9][0-9]{0,8}$/', $flags['--limit']) === 1 ? (int) $flags['--limit'] : false;
     }
 
-    private static function query(string $root, string $path, string $entity, ?int $limit): int
+    /**
+     * @param array<string, string> $flags
+     */
+    private static function runDirectory(array $flags): ?string
     {
-        $files = self::read($path);
+        $directory = rtrim($flags['--run-dir'] ?? self::DEFAULT_RUN_DIRECTORY, '/');
+
+        return in_array($directory, self::RUN_DIRECTORIES, strict: true) ? $directory : null;
+    }
+
+    /**
+     * @param array<int, string> $arguments
+     * @param list<string> $allowed
+     * @return array<string, string>|null
+     */
+    private static function flags(array $arguments, array $allowed): ?array
+    {
+        $flags = [];
+
+        foreach (array_chunk($arguments, 2) as $pair) {
+            $value = $pair[1] ?? null;
+
+            if (!in_array($pair[0], $allowed, strict: true) || $value === null || isset($flags[$pair[0]])) {
+                return null;
+            }
+
+            $flags[$pair[0]] = $value;
+        }
+
+        return $flags;
+    }
+
+    private static function query(string $root, string $location, string $entity, ?int $limit): int
+    {
+        $files = self::read($root . '/' . $location);
 
         if ($files === null) {
-            fwrite(STDERR, sprintf('No graph at %s. Run `ai-olympus graph build` first.%s', self::RELATIVE_PATH, PHP_EOL));
+            fwrite(STDERR, sprintf('No graph at %s. Run `ai-olympus graph build` first.%s', $location, PHP_EOL));
 
             return 1;
         }
