@@ -4603,4 +4603,11 @@ test('code-testing and code-review rules keep date tests correct across a daylig
     expect($review)->toContain('- **Unit fix** — ');
     expect($review)->toContain('- **Transition case** — ');
     expect($review)->toContain('and **Timezone stated on every date construction** does not raise it again.');
+    expect($review)->toContain(
+        'Inside a test file, a frozen instant or a real-clock call with no timezone argument belongs to '
+        . '**Date tests stay correct across a daylight saving transition** below; do not raise it here.',
+    );
+    expect($review)->toContain(
+        'The scope is the tests the diff adds or modifies and the production code the diff adds that computes a calendar interval.',
+    );
 });
