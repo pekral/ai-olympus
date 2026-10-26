@@ -2,7 +2,6 @@
 
 declare(strict_types = 1);
 
-use Pekral\AiOlympus\GraphCommand;
 use Pekral\AiOlympus\GraphIndexer;
 use Pekral\AiOlympus\Installer;
 use Tests\Support\GraphFixture;
@@ -46,7 +45,7 @@ test('build stores the graph and reports what it parsed, and query prints one sl
 
     expect($buildExit)->toBe(0);
     expect($summary)->toBe('{"graph":".claude/run/graph.json","files":8,"parsed":8,"reused":0,"removed":0,"errors":["src/Broken.php"]}' . PHP_EOL);
-    expect(file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH))->toStartWith(
+    expect(file_get_contents($root . '/.claude/run/graph.json'))->toStartWith(
         "{\n    \"version\": 2,\n    \"files\": {\n        \"config/app.php\": {",
     );
     expect($queryExit)->toBe(0);
@@ -115,7 +114,7 @@ test('querying an entity that does not exist prints an empty, well-formed result
 
 test('generation is idempotent over an unchanged tree', function (): void {
     $root = GraphFixture::repository();
-    $path = $root . '/' . GraphCommand::RELATIVE_PATH;
+    $path = $root . '/.claude/run/graph.json';
     graphRun($root, 'build');
     $first = (string) file_get_contents($path);
 
@@ -138,27 +137,27 @@ test('a file with a non-UTF-8 config key is still indexed and the graph is writt
 
     expect($exitCode)->toBe(0);
     expect($summary)->toContain('"files":9,"parsed":9');
-    expect(file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH))->toContain('"src/Latin1Config.php": {');
+    expect(file_get_contents($root . '/.claude/run/graph.json'))->toContain('"src/Latin1Config.php": {');
 
     installerRemoveDirectory($root);
 });
 
 test('a graph that cannot be written fails the build instead of reporting success', function (): void {
     $root = GraphFixture::repository();
-    mkdir($root . '/' . GraphCommand::RELATIVE_PATH, recursive: true);
+    mkdir($root . '/.claude/run/graph.json', recursive: true);
 
     [$exitCode, $stdout, $stderr] = graphRun($root, 'build');
 
     expect($exitCode)->toBe(1);
     expect($stdout)->toBe('');
-    expect($stderr)->toStartWith('Cannot write the knowledge graph file ')->toEndWith(GraphCommand::RELATIVE_PATH . '.' . PHP_EOL);
+    expect($stderr)->toStartWith('Cannot write the knowledge graph file ')->toEndWith('.claude/run/graph.json.' . PHP_EOL);
 
     installerRemoveDirectory($root);
 });
 
 test('a build refuses to write a graph at a location git does not ignore, and writes nothing', function (string $setup): void {
     $root = GraphFixture::repository();
-    $path = $root . '/' . GraphCommand::RELATIVE_PATH;
+    $path = $root . '/.claude/run/graph.json';
     putenv('GIT_CONFIG_GLOBAL=/dev/null');
     putenv('GIT_CONFIG_NOSYSTEM=1');
 
@@ -168,7 +167,7 @@ test('a build refuses to write a graph at a location git does not ignore, and wr
             'not a git repository' => installerRemoveDirectory($root . '/.git'),
             default => (function () use ($root, $path): void {
                 installerWriteFile($path, '{}');
-                exec('git -C ' . escapeshellarg($root) . ' add -f ' . escapeshellarg(GraphCommand::RELATIVE_PATH) . ' 2>&1');
+                exec('git -C ' . escapeshellarg($root) . ' add -f ' . escapeshellarg('.claude/run/graph.json') . ' 2>&1');
             })(),
         };
         $before = is_file($path) ? file_get_contents($path) : null;
@@ -183,7 +182,7 @@ test('a build refuses to write a graph at a location git does not ignore, and wr
     expect($stdout)->toBe('');
     expect($stderr)->toBe(
         'Refusing to write the knowledge graph: .claude/run/graph.json is not git-ignored or is tracked. '
-        . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.' . PHP_EOL,
+        . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build --run-dir .claude/run` again.' . PHP_EOL,
     );
     expect(is_file($path) ? file_get_contents($path) : null)->toBe($before);
 
@@ -196,13 +195,13 @@ test('a build refuses to write a graph at a location git does not ignore, and wr
 
 test('a graph from another version is rebuilt rather than trusted', function (): void {
     $root = GraphFixture::repository();
-    installerWriteFile($root . '/' . GraphCommand::RELATIVE_PATH, '{"version": 1, "files": {}}');
+    installerWriteFile($root . '/.claude/run/graph.json', '{"version": 1, "files": {}}');
 
     [$queryExit, , $stderr] = graphRun($root, 'query', 'UserService');
     [, $summary] = graphRun($root, 'build');
 
     expect($queryExit)->toBe(1);
-    expect($stderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build` first.' . PHP_EOL);
+    expect($stderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build --run-dir .claude/run` first.' . PHP_EOL);
     expect($summary)->toContain('"parsed":8,"reused":0');
 
     installerRemoveDirectory($root);
@@ -215,14 +214,22 @@ test('the graph command explains its usage when the action or the entity is miss
 
     expect($exitCode)->toBe(1);
     expect($stdout)->toBe('');
-    expect($stderr)->toBe('Usage: ai-olympus graph build | ai-olympus graph query <path|class|symbol> [--limit <n>]' . PHP_EOL);
+    expect($stderr)->toBe(
+        'Usage: ai-olympus graph build [--run-dir <dir>] | ai-olympus graph query <path|class|symbol> [--limit <n>] [--run-dir <dir>]' . PHP_EOL,
+    );
 
     installerRemoveDirectory($root);
 })->with([
     'a limit flag without a value' => ['query', 'UserService', '--limit'],
     'a limit of zero' => ['query', 'UserService', '--limit', '0'],
+    'a limit on a build' => ['build', '--limit', '2'],
     'a limit that is not a number' => ['query', 'UserService', '--limit', 'many'],
     'an unknown flag' => ['query', 'UserService', '--depth', '2'],
+    'a run directory flag without a value' => ['query', 'UserService', '--run-dir'],
+    'a run directory given twice' => ['build', '--run-dir', '.claude/run', '--run-dir', '.codex/run'],
+    'a run directory that climbs out of the project' => ['build', '--run-dir', '../.codex/run'],
+    'a run directory the graph never lives in' => ['query', 'UserService', '--run-dir', 'build/run'],
+    'a stray argument on a build' => ['build', 'UserService'],
     'no action' => [],
     'no entity' => ['query'],
     'unknown action' => ['draw'],
@@ -246,7 +253,7 @@ test('a query over a graph the repository has moved past answers from the curren
         "<?php\n\nnamespace App\\Console;\n\nuse App\\Actions\\CreateOrderAction;\n\n"
         . "final class ReprocessOrder\n{\n    public function __construct(private CreateOrderAction \$action)\n    {\n    }\n}\n",
     );
-    $stored = (string) file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH);
+    $stored = (string) file_get_contents($root . '/.claude/run/graph.json');
 
     [$exitCode, $stdout] = graphRun($root, 'query', 'App\Actions\CreateOrderAction');
 
@@ -261,7 +268,7 @@ test('a query over a graph the repository has moved past answers from the curren
         'app/Jobs/ProcessOrder.php',
         'app/Models/Order.php',
     ]);
-    expect(file_get_contents($root . '/' . GraphCommand::RELATIVE_PATH))->toBe($stored);
+    expect(file_get_contents($root . '/.claude/run/graph.json'))->toBe($stored);
 
     installerRemoveDirectory($root);
 });
@@ -312,6 +319,42 @@ test('the graph names the files to read for one Action instead of the whole repo
         'tests/Feature/CreateOrderActionTest.php',
     ]);
     expect(count($indexed) - count($related))->toBe(10);
+
+    installerRemoveDirectory($root);
+});
+
+test('the graph is built and queried under .codex/run when the run directory says so', function (): void {
+    $root = GraphFixture::repository();
+    installerWriteFile($root . '/.gitignore', ".codex/run/\n");
+
+    [$buildExit, $summary] = graphRun($root, 'build', '--run-dir', '.codex/run/');
+    [$queryExit, $stdout] = graphRun($root, 'query', 'App\Services\UserService', '--run-dir', '.codex/run', '--limit', '3');
+    [$defaultExit, , $defaultStderr] = graphRun($root, 'query', 'App\Services\UserService');
+
+    expect($buildExit)->toBe(0);
+    expect($summary)->toStartWith('{"graph":".codex/run/graph.json",');
+    expect(is_file($root . '/.codex/run/graph.json'))->toBeTrue();
+    expect(is_file($root . '/.claude/run/graph.json'))->toBeFalse();
+    expect($queryExit)->toBe(0);
+    expect(graphSlice($stdout)['graph']['state'])->toBe('fresh');
+    expect($defaultExit)->toBe(1);
+    expect($defaultStderr)->toBe('No graph at .claude/run/graph.json. Run `ai-olympus graph build --run-dir .claude/run` first.' . PHP_EOL);
+
+    installerRemoveDirectory($root);
+});
+
+test('the graph under .codex/run is refused while only .claude/run is git-ignored', function (): void {
+    $root = GraphFixture::repository();
+
+    [$exitCode, $stdout, $stderr] = graphRun($root, 'build', '--run-dir', '.codex/run');
+
+    expect($exitCode)->toBe(1);
+    expect($stdout)->toBe('');
+    expect($stderr)->toBe(
+        'Refusing to write the knowledge graph: .codex/run/graph.json is not git-ignored or is tracked. '
+        . 'Add `.codex/run/` to .gitignore, untrack the file, and run `ai-olympus graph build --run-dir .codex/run` again.' . PHP_EOL,
+    );
+    expect(is_file($root . '/.codex/run/graph.json'))->toBeFalse();
 
     installerRemoveDirectory($root);
 });

@@ -47,9 +47,10 @@ final class InstallerFailure extends RuntimeException
     public static function graphLocationNotIgnored(string $path): self
     {
         return new self(sprintf(
-            'Refusing to write the knowledge graph: %s is not git-ignored or is tracked. '
-            . 'Add `.claude/run/` to .gitignore, untrack the file, and run `ai-olympus graph build` again.',
+            'Refusing to write the knowledge graph: %1$s is not git-ignored or is tracked. '
+            . 'Add `%2$s/` to .gitignore, untrack the file, and run `ai-olympus graph build --run-dir %2$s` again.',
             $path,
+            dirname($path),
         ));
     }
 

@@ -106,7 +106,7 @@ test('the retriever asks the graph before any other read and searches only for w
         ->and($metalhead)->toContain(
             'Use `vendor/bin/ai-olympus` as `<binary>` when that file exists, otherwise `bin/ai-olympus`, the binary of the ai-olympus repository itself.',
         )
-        ->and($metalhead)->toContain('`<binary> graph query \'<symbol or path>\' --limit <gate.budget.max_items>')
+        ->and($metalhead)->toContain('`<binary> graph query \'<symbol or path>\' --limit <gate.budget.max_items> --run-dir .claude/run')
         ->and(strpos($metalhead, 'Ask the graph first, before any other read.'))->toBeLessThan(
             (int) strpos($metalhead, 'Query only the sources the gate enabled, smallest read first.'),
         )
@@ -129,7 +129,7 @@ test('the retriever asks the graph before any other read and searches only for w
         ->and($metalhead)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')
         ->and($metalhead)->toContain('Never search for a file a slice already names.')
         ->and($metalhead)->toContain('Use `Grep` and `Glob` only for what the graph cannot answer')
-        ->and($metalhead)->toContain('--graph-slice <slice> --output <package>')
+        ->and($metalhead)->toContain('--graph-slice <slice> --run-dir .claude/run --output <package>')
         ->and($metalhead)->toContain('When neither `vendor/bin/ai-olympus` nor `bin/ai-olympus` exists, skip this step and pass no `--graph-slice`')
         ->and($metalhead)->toContain(
             'run `vendor/bin/ai-olympus graph query`, or `bin/ai-olympus graph query` when only that binary exists '
@@ -144,7 +144,7 @@ test('the retriever builds or refreshes the graph once before its first query so
     $metalhead = (string) file_get_contents($packageDir . '/agents/metalhead.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
-    expect($metalhead)->toContain('Before the first query, build or refresh the graph once: run `<binary> graph build > /dev/null`.')
+    expect($metalhead)->toContain('Before the first query, build or refresh the graph once: run `<binary> graph build --run-dir .claude/run > /dev/null`.')
         ->and($metalhead)->toContain(
             'A non-zero exit, for example when `.claude/run/` is not git-ignored, is a fallback, not a failure: run the queries anyway.',
         )
@@ -152,8 +152,9 @@ test('the retriever builds or refreshes the graph once before its first query so
         ->and(strpos($metalhead, '<binary> graph build'))->toBeLessThan((int) strpos($metalhead, '<binary> graph query'))
         ->and($metalhead)->toContain(
             'run `vendor/bin/ai-olympus graph build`, or `bin/ai-olympus graph build` when only that binary exists, '
-            . 'with its stdout redirected to `/dev/null` (it writes only the git-ignored `.claude/run/graph.json`',
+            . 'with `--run-dir .claude/run` and its stdout redirected to `/dev/null` (it writes only the git-ignored `graph.json` in that run directory',
         )
+        ->and($metalhead)->toContain('under Codex the value reads `.codex/run`')
         ->and($orchestration)->toContain('the package cache, and the knowledge graph (`graph build`) under the git-ignored `.claude/run/*`');
 });
 
@@ -162,8 +163,10 @@ test('the graph slice is bounded by the gate budget and the graph stays in git-i
     $command = (string) file_get_contents($packageDir . '/src/GraphCommand.php');
     $packer = (string) file_get_contents($packageDir . '/skills/_shared/pack-context.sh');
 
-    expect($command)->toContain('public const string RELATIVE_PATH = \'.claude/run/graph.json\';')
-        ->and($packer)->toContain('GRAPH_PATH=\'.claude/run/graph.json\'')
+    expect($command)->toContain('private const string DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
+        ->and($command)->toContain('private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, \'.codex/run\'];')
+        ->and($packer)->toContain('GRAPH_RUN_DIR=\'.claude/run\'')
+        ->and($packer)->toContain('GRAPH_PATH="${run_dir:-$GRAPH_RUN_DIR}/graph.json"')
         ->and($packer)->toContain('gate_scratch_path graph "$GRAPH_PATH" "$GRAPH_PATH"')
         ->and($packer)->toContain('The slice limit is the gate\'s')
         ->and($packer)->toContain('budget.max_items, so the slice is cut by the same budget as the package.');
