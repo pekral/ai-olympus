@@ -4594,7 +4594,10 @@ test('code-testing and code-review rules keep date tests correct across a daylig
     expect($testing)->toContain('- **Keep a date test correct across a daylight saving transition.**');
     expect($testing)->toContain('Never freeze an instant derived from the real clock');
     expect($testing)->toContain('Never inherit the zone of the host or the CI runner.');
-    expect($testing)->toContain("the manifest `timezone` (`@rules/general/general.md` *Project manifest*), which wins over `config('app.timezone')` (`@rules/laravel/laravel.md` *Time*)");
+    expect($testing)->toContain(
+        'the manifest `timezone` (`@rules/general/general.md` *Project manifest*), '
+        . 'which wins over `config(\'app.timezone\')` (`@rules/laravel/laravel.md` *Time*)',
+    );
     expect($testing)->toContain('Never mix calendar steps and fixed durations in one expectation.');
     expect($testing)->toContain('Add one case frozen on each switch day of the project zone');
     expect($review)->toContain(
