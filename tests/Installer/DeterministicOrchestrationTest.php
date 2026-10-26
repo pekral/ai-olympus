@@ -147,8 +147,6 @@ test('the validation runner separates a pass, a failure, and an undeterminable s
     expect($runner)->toContain('\'an empty manifest is invalid, never a pass\'');
     expect($runner)->toContain('validation scope could not be determined');
 
-    // A logs directory that cannot be created must still yield the escalating document (issue #252):
-    // an empty stdout carries neither `failed` nor `invalid`, so no consumer escalates on it.
     expect(substr_count($runner, '\'an uncreatable logs directory still reports\''))->toBe(1);
 });
 
