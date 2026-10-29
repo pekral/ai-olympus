@@ -81,7 +81,10 @@
           "if": { "required": ["verdict"], "properties": { "verdict": { "const": "rejected" } } },
           "then": {
             "required": ["rejection_reason"],
-            "properties": { "severity": { "const": "unrated" } }
+            "properties": {
+              "severity": { "const": "unrated" },
+              "boundary_failure_demonstrated": { "const": false }
+            }
           }
         }
       ]
