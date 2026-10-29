@@ -636,6 +636,12 @@ test('digest and validate refuse a symbolic link and a path that matches no file
         1,
     );
     expect(substr_count($incremental, '- `digest` and `validate` refuse a path that matches no tracked or untracked, not ignored file.'))->toBe(1);
+    expect(substr_count($incremental, '`digest` and `validate` refuse it unless the unit also records its target, and name the target to add.'))->toBe(1);
+    expect(
+        substr_count($script, 'expect_exit \'regression: a unit whose input directory holds a symbolic link fails validation\' 3 cmd_validate'),
+    )->toBe(
+        1,
+    );
     expect(
         substr_count(
             $script,
