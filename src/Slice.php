@@ -35,7 +35,7 @@ final readonly class Slice implements JsonSerializable
         $slice = ['query' => $this->query, 'entities' => $this->entities, 'outgoing' => $this->outgoing, 'incoming' => $this->incoming];
         $slice += ['files' => $this->files, 'related' => $this->related];
 
-        if ($this->omitted !== null) {
+        if ($this->omitted instanceof SliceOmitted) {
             $slice['omitted'] = $this->omitted;
         }
 
