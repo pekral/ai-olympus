@@ -17,8 +17,9 @@ issue — a GitHub issue or a JIRA ticket — and remove only superseded, actor-
 comments.
 
 The preparation changes only what the assignment and the merge gate require. Every optimization,
-refactoring, pre-existing problem, or nice-to-have point is reported on the source tracker as an
-open decision, and a human answers it before the merge (*Scope — the assignment only* below).
+refactoring, pre-existing problem outside the security floor, or nice-to-have point is reported on
+the source tracker as an open decision, and a human answers it before the merge (*Scope — the
+assignment only* below).
 
 This skill is the shared workflow for both clients:
 
@@ -62,24 +63,15 @@ It never merges the pull request.
 
 ## Scope — the assignment only
 
-This section overrides the default scope of every agent and skill this workflow dispatches.
-`splinter` records it in the shared brief and repeats it in every dispatch prompt.
+This section applies `@rules/compound-engineering/general.md` *The assignment is the scope* to this
+workflow, and replaces the filing bar with open decisions. `splinter` records it in the shared
+brief and repeats it in every dispatch prompt.
 
-A change is made only when one of these requires it:
-
-- an acceptance criterion of the assignment;
-- a Critical finding, a Moderate finding, or an unfulfilled reviewer instruction on the PR diff —
-  the convergence gate in `@skills/process-code-review/SKILL.md` *Review loop* step 4, which no
-  scope rule lifts;
-- a security finding or a pre-existing security vulnerability — the security floor in
-  `@rules/general/general.md` *Project instructions take precedence*;
-- the exact-head quality gate, required CI, or a merge conflict.
-
-Everything else is **not implemented**. This covers a performance optimization, a refactoring, a
-cleanup, a pre-existing bug or rule violation outside the security floor, and any nice-to-have
-point. It also overrides `@skills/process-code-review/SKILL.md` *Pre-fix phase* rule 1 and the
-*Out of scope (deferred)* filing in `@skills/resolve-issue/SKILL.md` for this run. The agent that
-notices such a point records it in the shared brief under `## Open decisions`, with:
+The owner decides what a change may touch. A security vulnerability is fixed and never becomes an
+open decision. Everything else outside the assignment is **not implemented**: a performance
+optimization, a refactoring, a cleanup, a pre-existing bug or rule violation, and any nice-to-have
+point. The agent that notices such a point records it in the shared brief under
+`## Open decisions`, with:
 
 - a short title;
 - one or two plain sentences: what the point is and why it is outside the assignment;
@@ -89,8 +81,8 @@ notices such a point records it in the shared brief under `## Open decisions`, w
 An open decision is never filed as a tracker issue by this workflow, and it is never dropped in
 silence. The filing bar in `@rules/compound-engineering/tracker.md` does not decide it; a human
 does, at the merge (`@skills/merge-github-pr/SKILL.md` *Open merge decisions*). A point that
-duplicates another open decision is merged into it. A security point never becomes an open
-decision, because it is fixed, and an unfixed vulnerability is never disclosed on a public tracker.
+duplicates another open decision is merged into it. An unfixed vulnerability is never disclosed
+on a public tracker.
 
 ### Look for the answer before you ask
 

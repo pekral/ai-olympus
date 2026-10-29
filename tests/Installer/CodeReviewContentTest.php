@@ -2301,7 +2301,7 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
     // The two rules already in the file govern authoring a new comment and reviewing a
     // changed line. Neither tells an agent to remove a comment that is already there.
     expect($standards)->toContain('**The default state of the codebase is no comment.**');
-    expect($standards)->toContain('**Remove every other comment in code you are changing.**');
+    expect($standards)->toContain('**Remove every other comment on the lines your change writes.**');
 
     // Only `@` annotations survive: the *what* goes into names, the *why* into the PR.
     expect($standards)->toContain('carries `@` annotations and tool directives only');
@@ -2309,8 +2309,8 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
     expect($standards)->toContain('**The *why* goes into the commit message, the PR description, or the ticket.**');
     expect($standards)->toContain('domain definitions, navigation markers');
 
-    // Deleting is bounded to the region already being read -- it is not a repo-wide sweep.
-    expect($standards)->toContain('Do not sweep untouched files.');
+    // Deleting is bounded to the lines the change writes -- a comment outside them is out of scope.
+    expect($standards)->toContain('Do not sweep untouched lines or files: a comment outside the lines the change writes is out of scope');
 
     // A comment compensating for a bad name must not be dropped before the name is fixed.
     expect($standards)->toContain('Rename or extract first where needed, then remove the obsolete prose.');
@@ -2319,21 +2319,13 @@ test('the comment rules mandate deleting unnecessary comments and name what surv
     // be the exact redundancy the new rule forbids, sitting inside the rule that forbids it.
     expect($standards)->not->toContain('Prefer self-documenting code over explanatory comments.');
 
-    // The mandate is worthless unless the skills that touch code actually carry it.
+    // The old pre-existing-comment mandate is gone: a comment outside the change is recorded, never deleted.
     $preExisting = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pre-existing-issue-handling.md');
-    expect($preExisting)->toContain('- **Unnecessary comments** —');
-    expect($preExisting)->toContain('*The default state of the codebase is no comment*');
+    expect($preExisting)->not->toContain('- **Unnecessary comments** —');
+    expect($preExisting)->not->toContain('author no test for it');
 
-    // A comment-only deletion changes no executable line, so demanding a regression test
-    // or a pre-refactor coverage commit for it would block the deletion on impossible work.
-    expect($preExisting)->toContain('the deletion touches **no executable line**');
-    expect($preExisting)->toContain('author no test for it');
-    expect($preExisting)->toContain('as the single exception, since it adds and modifies no executable line to cover');
-
-    // The skill body summarises the categories; a body out of sync with the reference
-    // means an agent reading only the body never learns the category exists.
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    expect(substr_count($resolveIssue, 'security vulnerabilities, or unnecessary comments'))->toBe(2);
+    expect($resolveIssue)->not->toContain('security vulnerabilities, or unnecessary comments');
 
     // Refactoring is what turns an accurate comment into a redundant one.
     $refactoring = (string) file_get_contents($packageDir . '/skills/class-refactoring/SKILL.md');
