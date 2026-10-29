@@ -38,8 +38,9 @@
 #   directory): HEAD, the index, and the type, mode, and raw bytes of every tracked file and every
 #   untracked, not ignored file. Git-ignored files, the run directory among them, do not count.
 #   The same tree prints the same value. A write to a tracked file or to an untracked, not ignored
-#   file changes it. A write to a git-ignored path or outside the work tree does not, so an
-#   unchanged value is no proof that a worker stayed read-only. The snapshot runs no program the
+#   file changes it. The snapshot does not see a write to a git-ignored path, outside the work
+#   tree, or inside a submodule or a nested git repository: such a write leaves the value as it is.
+#   An unchanged value is no proof that a worker stayed read-only. The snapshot runs no program the
 #   repository configures: it never runs `git status` or `git diff`, which run clean filters,
 #   external diff programs, and hooks; it turns core.fsmonitor off; and it hashes raw bytes with
 #   `git hash-object --no-filters`. Exits 1 outside a git work tree with a commit.
@@ -1084,6 +1085,17 @@ self_test() {
   before="$(cmd_snapshot "$repo")"
   printf 'edit\n' >>"$repo/\"q\""
   if [[ "$(cmd_snapshot "$repo")" != "$before" ]]; then pass 'snapshot: an edit to a file whose name starts with a quote changes the snapshot'; else fail 'snapshot: quoted name'; fi
+  printf 'same\n' >"$repo/a.txt"
+  printf 'same\n' >"$repo/b.txt"
+  ln -s a.txt "$repo/l.txt"
+  git -C "$repo" add a.txt b.txt l.txt
+  before="$(cmd_snapshot "$repo")"
+  ln -sfn b.txt "$repo/l.txt"
+  if [[ "$(cmd_snapshot "$repo")" != "$before" ]]; then
+    pass 'snapshot: retargeting a tracked symbolic link to a file with identical content changes the snapshot'
+  else
+    fail 'snapshot: retargeted symbolic link'
+  fi
   mkdir -p "$scratch/not-a-repo"
   expect_exit 'snapshot: a directory outside a git work tree is refused' 1 cmd_snapshot "$scratch/not-a-repo"
 
@@ -1104,6 +1116,7 @@ self_test() {
   git -C "$configured" config core.hooksPath "$configured/.git/audit-hooks"
   printf 'two\n' >>"$configured/app.php.txt"
   printf 'new\n' >"$configured/notes.txt"
+  printf 'x\n' >"$configured/\"q\""
   if [[ "$(cmd_snapshot "$configured")" =~ ^[a-f0-9]{64}$ && ! -e "$marker" ]]; then
     pass 'snapshot: taking the snapshot runs no program the repository configures'
   else

@@ -60,7 +60,7 @@ Hand the quoted block below over verbatim, with the assigned coverage unit subst
 >
 > Return every candidate with: boundary, entrypoint, sink, root_cause, evidence as `file:line` plus what that line shows, remediation, and the fingerprint basis — the boundary as a snake_case key, the source as `<METHOD> <route>`, `<kind>:<name>`, or `<path>#<symbol>`, the sink as `<path>#<symbol>`, and the root cause as a CWE identifier. Give no verdict and no severity. Return `none` when nothing meets the threshold. Never include a secret value.
 >
-> You are read-only, exactly as the coordinator is. Never write a file anywhere, edit a file, run a test, run an exploit, commit, or push. Read-only inspection commands are allowed. Return your result in your reply; the coordinator alone writes the artefacts.
+> You are read-only, exactly as the coordinator is. Never write a file anywhere, edit a file, run a test, run an exploit, commit, or push. A parallel hunter inspects through reading tools only. A hunter in a sequential pass may also run read-only inspection commands. Return your result in your reply; the coordinator alone writes the artefacts.
 
 ## Verifier brief
 

@@ -381,6 +381,7 @@ test('a run that hunts no unit records no wave and still validates', function ()
 
 test('the snapshot runs no program the repository configures and states what it cannot see', function (): void {
     $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $changelog = securityAuditSource('CHANGELOG.md');
     $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
 
     expect(substr_count($script, 'git -c core.fsmonitor=false -C "$dir" "$@"'))->toBe(1);
@@ -388,20 +389,38 @@ test('the snapshot runs no program the repository configures and states what it 
     expect(substr_count($script, ' status --porcelain'))->toBe(0);
     expect(substr_count($script, 'pass \'snapshot: taking the snapshot runs no program the repository configures\''))->toBe(1);
     expect(substr_count($script, 'unchanged value is no proof that a worker stayed read-only.'))->toBe(1);
+    expect(substr_count($script, 'inside a submodule or a nested git repository: such a write leaves the value as it is.'))->toBe(1);
     expect(
         substr_count(
-            $audit,
-            'A write to a git-ignored path or outside the work tree does not change it, '
-            . 'so an unchanged snapshot is no proof that a worker stayed read-only.',
+            $script,
+            'pass \'snapshot: retargeting a tracked symbolic link to a file with identical content changes the snapshot\'',
         ),
     )->toBe(1);
+    expect(substr_count($script, 'printf \'x\\n\' >"$configured/\\"q\\""'))->toBe(1);
     expect(
         substr_count(
             $audit,
-            'with a subagent type whose tool list carries no `Write` or `Edit` tool. '
+            'A write to a git-ignored path, outside the work tree, or inside a submodule or a nested git repository '
+            . 'does not change it, so an unchanged snapshot is no proof that a worker stayed read-only.',
+        ),
+    )->toBe(1);
+    expect(substr_count($changelog, 'or inside a submodule or a nested git repository does not change the snapshot'))->toBe(1);
+});
+
+test('a parallel worker holds reading tools only on Claude Code and runs in the read-only sandbox on Codex', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+
+    expect(
+        substr_count(
+            $audit,
+            'with a subagent type whose tool list carries only reading tools (`Read`, `Grep`, `Glob`): '
+            . 'no `Write`, `Edit`, `NotebookEdit`, or `Bash`. '
             . 'On Codex it is a fresh sub-agent that runs in the `read-only` sandbox.',
         ),
     )->toBe(1);
+    expect(substr_count($audit, 'no `Write` or `Edit` tool'))->toBe(0);
+    expect(substr_count($roles, 'A parallel hunter inspects through reading tools only.'))->toBe(1);
 });
 
 test('the inventory refuses a run directory that is not git-ignored', function (): void {
