@@ -60,8 +60,11 @@
 #   name, read as literal paths relative to the top of the git work tree that holds the current
 #   directory. Directories expand to the files under them. The order of the paths does not change
 #   the value. A path that is git-ignored is refused (exit 1), because a change to it would not
-#   change the digest: record a dependency by its lock file instead. Like the snapshot, the digest
-#   runs no program the repository configures.
+#   change the digest: record a dependency by its lock file instead. A path that is a symbolic link
+#   or passes through one is refused (exit 1), because the digest hashes the link and not its
+#   target: the error names the target path to record instead. A path that matches no tracked or
+#   untracked, not ignored file is refused (exit 1), because its digest is the digest of the empty
+#   set. Like the snapshot, the digest runs no program the repository configures.
 #
 # impact
 #   Compares an earlier run, the base run, with the current working tree and prints the result as
@@ -94,13 +97,15 @@
 #   spent. The budget in metadata.json must equal the split `budget` prints for its profile and
 #   total. The run directory is named after its run_id. Every file a finding cites lies on the
 #   paths or inputs of every unit that lists it. A covered unit's inputs_digest equals the digest of
-#   its paths and inputs now. A covered ai_tools unit or a covered action surface that records a
-#   candidate threat or an action dimension that is not bound lists a finding. In an incremental run
-#   (base_run set), the base run sits beside the run directory, every base unit is in the ledger
-#   under its coverage_id, a reused unit or finding equals its base record, a reused unit shares no
-#   finding with a unit this run hunts again, and a base finding is in findings.json unless every
-#   unit that held it is blocked or deferred. A file holding more than one JSON document is not
-#   valid JSON. REPORT.md must carry every heading the template defines.
+#   its paths and inputs now, and none of them is git-ignored, a symbolic link, beyond a symbolic
+#   link, or a path that matches no file. A covered ai_tools unit or a covered action surface that
+#   records a candidate threat or an action dimension that is not bound lists a finding. In an
+#   incremental run (base_run set), the base run sits beside the run directory, every base unit is
+#   in the ledger under its coverage_id, a reused unit or finding equals its base record, a reused
+#   unit shares no finding with a unit this run hunts again, and a base finding is in findings.json
+#   unless a base unit held it and every unit that held it is blocked or deferred. A file holding
+#   more than one JSON document is not valid JSON. REPORT.md must carry every heading the template
+#   defines.
 #
 # Output (stdout, JSON for inventory and validate)
 #   { "valid": true, "run_dir": "…", "problems": [] }
@@ -122,6 +127,7 @@ UNIT_ID=''
 UNIT_DIGEST=''
 UNIT_ORIGIN=''
 UNIT_PATHS=()
+PATH_PROBLEM=''
 
 REPORT_HEADINGS=(
   '## Scope'
@@ -323,6 +329,71 @@ ignored_paths() {
   printf '%s' "${found% }"
 }
 
+# The path logic every program that reads the paths of a unit shares. A unit holds a path when one
+# of its paths or inputs is that path or a directory above it.
+JQ_PATHS=''
+IFS= read -r -d '' JQ_PATHS <<'EOF' || true
+def holds($q; $p): ($q | rtrimstr("/")) as $r | ($r == "." or $p == $r or ($p | startswith($r + "/")));
+def unit_paths: (.paths + [(.inputs // [])[].path]) | unique;
+EOF
+
+# link_target <top> <path> — the path, relative to <top>, that <path> resolves to through its
+# symbolic links, or nothing when it resolves outside <top>.
+link_target() {
+  local top path dir hops=0
+  top="$(cd "$1" && pwd -P)"
+  path="$1/$2"
+  while [[ -L "$path" && $hops -lt 40 ]]; do
+    dir="$(dirname "$path")"
+    path="$(readlink "$path")"
+    [[ "$path" == /* ]] || path="$dir/$path"
+    hops=$((hops + 1))
+  done
+  if [[ -d "$path" ]]; then
+    path="$(cd "$path" && pwd -P)" || return 0
+  else
+    dir="$(cd "$(dirname "$path")" 2>/dev/null && pwd -P)" || return 0
+    path="$dir/$(basename "$path")"
+  fi
+  if [[ "$path" == "$top" ]]; then
+    printf '.'
+  elif [[ "$path" == "$top/"* ]]; then
+    printf '%s' "${path#"$top/"}"
+  fi
+}
+
+# path_problem <top> <path> [listed] — sets PATH_PROBLEM to the reason the digest cannot prove the
+# path unchanged, or to nothing. A symbolic link on the path hides a change to its target, and a
+# path that matches no file hashes to the digest of the empty set. With `listed`, the caller
+# already knows that git lists a file for the path.
+path_problem() {
+  local top="$1" path="${2%/}" rest prefix='' part target
+  PATH_PROBLEM=''
+  rest="$path"
+  while [[ -n "$rest" && "$rest" != . ]]; do
+    part="${rest%%/*}"
+    if [[ "$rest" == */* ]]; then rest="${rest#*/}"; else rest=''; fi
+    [[ -n "$part" ]] || continue
+    prefix="${prefix:+$prefix/}$part"
+    [[ -L "$top/$prefix" ]] || continue
+    if [[ "$prefix" == "$path" ]]; then
+      PATH_PROBLEM='is a symbolic link'
+    else
+      PATH_PROBLEM="passes through the symbolic link $(printable "$prefix")"
+    fi
+    target="$(link_target "$top" "$path")"
+    if [[ -n "$target" ]]; then
+      PATH_PROBLEM+=", so a change to its target would not change the digest; record $(printable "$target") instead"
+    else
+      PATH_PROBLEM+=" that resolves outside the work tree, which the digest does not see"
+    fi
+    return 0
+  done
+  if [[ "${3:-}" != listed ]] && ! git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$2" >/dev/null 2>&1; then
+    PATH_PROBLEM='matches no tracked or untracked, not ignored file, so its digest would prove nothing'
+  fi
+}
+
 # paths_digest <top> <path>... — the SHA-256 of the states of every tracked and every untracked, not
 # ignored file the literal paths name. ls-files prints each file once and in sorted order, so the
 # order of the paths does not change the value.
@@ -336,9 +407,9 @@ paths_digest() {
 # inputs_digest, `reused` or `hunted`, the number of its paths, and its paths and input paths, each
 # once. Read it with next_unit.
 covered_units() {
-  jq -j '.entries[] | select(.status == "covered")
+  jq -j "$JQ_PATHS"'.entries[] | select(.status == "covered")
     | [.coverage_id, .inputs_digest, (if has("reused_from") then "reused" else "hunted" end),
-       ((.paths + [(.inputs // [])[].path]) | unique | (length | tostring), .[])]
+       (unit_paths | (length | tostring), .[])]
     | map(. + "\u0000") | add' "$1"
 }
 
@@ -386,6 +457,13 @@ cmd_digest() {
     echo "$PROG: git ignores $(printable "$ignored"), so a change to it would not change the digest; record its lock file instead" >&2
     exit 1
   fi
+  for path in "$@"; do
+    path_problem "$top" "$path"
+    if [[ -n "$PATH_PROBLEM" ]]; then
+      echo "$PROG: $(printable "$path") $PATH_PROBLEM" >&2
+      exit 1
+    fi
+  done
   paths_digest "$top" "$@"
 }
 
@@ -480,16 +558,13 @@ $lg[0].entries as $es
     ($planned[] | select(.status != "queued" and .status != "out_of_scope") | "inventory: \(.coverage_id) is \(.status) before the first hunter opened"),
     ($planned[] | select(.agent != null) | "inventory: \(.coverage_id) already names agent \(.agent)"),
     ($planned[] | select((.findings | length) > 0) | "inventory: \(.coverage_id) already lists findings"),
-    (if ($lg[0].waves | length) > 0 then "inventory: a hunting wave is recorded before the inventory was checked" else empty end),
-    (if $lg[0].base_run == null then ($es[] | select(has("reused_from")) | "incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run") else empty end)
+    (if ($lg[0].waves | length) > 0 then "inventory: a hunting wave is recorded before the inventory was checked" else empty end)
   )
 EOF
 
 # The rules JSON Schema cannot express: they relate fields, or relate the three artefacts.
 JQ_CROSS=''
 IFS= read -r -d '' JQ_CROSS <<'EOF' || true
-def holds($q; $p): ($q | rtrimstr("/")) as $r | ($r == "." or $p == $r or ($p | startswith($r + "/")));
-def unit_paths: (.paths + [(.inputs // [])[].path]) | unique;
 def cited: [
     (.evidence[].location, (.controls[] | select(has("location")) | .location) | sub(":[0-9]+(-[0-9]+)?$"; "")),
     (.fingerprint_basis.sink | split("#")[0]),
@@ -542,17 +617,20 @@ $md[0].budget as $b
      | "coverage: \($e.coverage_id) lists \($f), which cites \($p) outside the unit's paths and inputs; a change there would not invalidate the unit"),
     ($es[] | select(.status == "covered" and (.findings | length) == 0)
      | select(any((.threats // [])[]; .outcome == "candidate") or any((.action_binding // {})[]; .status != "bound"))
-     | "coverage: \(.coverage_id) records a candidate threat or an action dimension that is not bound, but lists no finding"),
-    (if $lg[0].base_run == null then
-       ($es[] | select(has("reused_from")) | "incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run"),
-       ($fs[] | select(has("reused_from")) | "incremental: finding \(.fingerprint) is reused from \(.reused_from), but the ledger names no base_run")
-     else empty end)
+     | "coverage: \(.coverage_id) records a candidate threat or an action dimension that is not bound, but lists no finding")
   )
 EOF
 
+# The rule for a full run, whose ledger names no base_run: it reuses nothing. $fd is findings.json,
+# or nothing before findings.json exists.
+JQ_NO_BASE=''
+IFS= read -r -d '' JQ_NO_BASE <<'EOF' || true
+($lg[0].entries[] | select(has("reused_from")) | "incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run"),
+(($fd[0].findings // [])[] | select(has("reused_from")) | "incremental: finding \(.fingerprint) is reused from \(.reused_from), but the ledger names no base_run")
+EOF
+
 # The reuse rules for coverage units of an incremental run. $blg is the base run's ledger. They hold
-# at inventory time already, so a run never spends a pass before an unprovable reuse is caught. A
-# full run that reuses a unit is caught by the inventory and cross-artefact rules instead.
+# at inventory time already, so a run never spends a pass before an unprovable reuse is caught.
 JQ_REUSE_UNITS=''
 IFS= read -r -d '' JQ_REUSE_UNITS <<'EOF' || true
 $lg[0].entries as $es
@@ -583,7 +661,9 @@ $lg[0].entries as $es
 | $lg[0].base_run as $base
 | (
     ($bfs[] | .fingerprint as $f | select(any($fs[]; .fingerprint == $f) | not)
-     | select(any($bes[]; any(.findings[]; . == $f) and (.coverage_id as $id | any($es[]; .coverage_id == $id and .status != "blocked" and .status != "deferred"))))
+     | ($bes | map(select(any(.findings[]; . == $f)))) as $holders
+     | select(($holders | length) == 0
+              or any($holders[]; .coverage_id as $id | any($es[]; .coverage_id == $id and .status != "blocked" and .status != "deferred")))
      | "incremental: base finding \($f) is missing; an invalidated finding is verified again in this run"),
     ($reused[] | . as $x | ($bfs | map(select(.fingerprint == $x.fingerprint)) | first) as $bf
      | if $bf == null then "incremental: finding \($x.fingerprint) is reused, but the base run holds no such finding"
@@ -604,8 +684,6 @@ EOF
 # the digest of its paths and inputs now.
 JQ_IMPACT=''
 IFS= read -r -d '' JQ_IMPACT <<'EOF' || true
-def holds($q; $p): ($q | rtrimstr("/")) as $r | ($r == "." or $p == $r or ($p | startswith($r + "/")));
-def unit_paths: (.paths + [(.inputs // [])[].path]) | unique;
 def current_states: split("\u0000") as $p
   | [range(0; ($p | length) - 2; 3) as $i
      | {key: $p[$i + 1], value: ({file: "100644", exec: "100755", link: "120000"}[$p[$i]] as $m | if $m == null then "absent" else "\($m):\($p[$i + 2])" end)}]
@@ -720,7 +798,7 @@ base_run_problems() {
 # digest_problems <run-dir> <ledger-file> — for every covered unit: no input is git-ignored, and its
 # inputs_digest equals the digest of its paths and inputs in the working tree now.
 digest_problems() {
-  local dir="$1" ledger="$2" top actual ignored any_ignored
+  local dir="$1" ledger="$2" top actual ignored any_ignored listed=listed path refused
   if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
     echo "digest: the run directory is not inside a git work tree"
     return
@@ -731,6 +809,7 @@ digest_problems() {
   done 3< <(covered_units "$ledger")
   [[ ${#all[@]} -gt 0 ]] || return 0
   any_ignored="$(ignored_paths "$top" "${all[@]}")"
+  git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "${all[@]}" >/dev/null 2>&1 || listed=''
   while next_unit; do
     if [[ -n "$any_ignored" ]]; then
       ignored="$(ignored_paths "$top" "${UNIT_PATHS[@]}")"
@@ -739,6 +818,15 @@ digest_problems() {
         continue
       fi
     fi
+    refused=''
+    for path in "${UNIT_PATHS[@]}"; do
+      path_problem "$top" "$path" "$listed"
+      if [[ -n "$PATH_PROBLEM" ]]; then
+        printf 'digest: %s names %s, which %s\n' "$UNIT_ID" "$(printable "$path")" "$PATH_PROBLEM"
+        refused=yes
+      fi
+    done
+    [[ -z "$refused" ]] || continue
     if ! actual="$(paths_digest "$top" "${UNIT_PATHS[@]}")"; then
       printf 'digest: %s names a path the work tree cannot list\n' "$UNIT_ID"
       continue
@@ -754,7 +842,14 @@ digest_problems() {
 reuse_problems() {
   local dir="$1" ledger="$2" base found
   base="$(jq -r '.base_run // empty' "$ledger")"
-  [[ -n "$base" ]] || return 0
+  if [[ -z "$base" ]]; then
+    local findings=/dev/null
+    if [[ "${3:-}" == findings ]]; then
+      findings="$dir/findings.json"
+    fi
+    jq -n -r --slurpfile lg "$ledger" --slurpfile fd "$findings" "$JQ_NO_BASE"
+    return
+  fi
   found="$(base_run_problems "$dir" "$base")"
   if [[ -n "$found" ]]; then
     printf '%s\n' "$found"
@@ -821,7 +916,7 @@ cmd_validate() {
     expected="$(cmd_budget --profile "$(jq -r .profile "$dir/metadata.json")" --total "$(jq -r .budget.total "$dir/metadata.json")" 2>/dev/null)" || expected=''
     jq -e --argjson want "${expected:-null}" '.budget == $want' "$dir/metadata.json" >/dev/null \
       || problems+="metadata: budget is not the split audit-artifacts.sh budget prints for this profile and total"$'\n'
-    problems+="$(jq -n -r --arg name "$(basename "$dir")" --slurpfile md "$dir/metadata.json" --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_CROSS")"$'\n'
+    problems+="$(jq -n -r --arg name "$(basename "$dir")" --slurpfile md "$dir/metadata.json" --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_PATHS$JQ_CROSS")"$'\n'
     problems+="$(fingerprint_problems "$dir/findings.json")"$'\n'
     problems+="$(reuse_problems "$dir" "$dir/coverage-ledger.json" findings)"$'\n'
     problems+="$(digest_problems "$dir" "$dir/coverage-ledger.json")"$'\n'
@@ -859,7 +954,7 @@ cmd_impact() {
   jq -n -c --rawfile cur <(git_plain "$top" ls-files -z --cached --others --exclude-standard | file_states "$top") \
     --rawfile old <(git_plain "$top" ls-tree -r -z --full-tree "$commit") --argjson digests "$(unit_digests "$top" "$dir/coverage-ledger.json")" \
     --arg base_run "$(jq -r .run_id "$dir/metadata.json")" --arg base_commit "$commit" \
-    --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_IMPACT"
+    --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_PATHS$JQ_IMPACT"
 }
 
 # --- self-test ------------------------------------------------------------------------------------
@@ -873,6 +968,16 @@ self_test() {
   # real run does, so inventory accepts it.
   git init -q "$scratch/project"
   printf '.claude/run/\n' >"$scratch/project/.gitignore"
+  # write_sources <dir> — the source files the paths and inputs of the fixture units name.
+  write_sources() {
+    local file
+    for file in src/Auth/Login.php routes/web.php src/Admin/Users.php src/Policies/UserPolicy.php src/Admin/Export.php \
+      src/Billing/Invoices.php config/tools.php src/Assistant/RefundTool.php; do
+      mkdir -p "$(dirname "$1/$file")"
+      printf 'v1 %s\n' "$file" >"$1/$file"
+    done
+  }
+  write_sources "$scratch/project"
   tmp="$scratch/project/.claude/run/security-audit"
   mkdir -p "$tmp"
 
@@ -896,6 +1001,11 @@ self_test() {
   # expect_problem <label> <text> — the last command's output names the problem.
   expect_problem() {
     if grep -qF "$2" "$tmp/out"; then pass "$1"; else fail "$1 (no problem containing '$2')"; fi
+  }
+
+  # expect_error <label> <text> — the last command's error message contains the text.
+  expect_error() {
+    if grep -qF "$2" "$tmp/err"; then pass "$1"; else fail "$1 (no error containing '$2')"; fi
   }
 
   local baseline='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
@@ -1670,15 +1780,12 @@ self_test() {
 
   # --- incremental audit ---
 
-  local inc="$scratch/incremental" runs base_sha file
+  local inc="$scratch/incremental" runs base_sha
   runs="$inc/.claude/run/security-audit"
   git init -q "$inc"
   printf '.claude/run/\nvendor/\n' >"$inc/.gitignore"
-  for file in README.md src/Auth/Login.php routes/web.php src/Admin/Users.php src/Policies/UserPolicy.php src/Admin/Export.php \
-    src/Billing/Invoices.php config/tools.php src/Assistant/RefundTool.php; do
-    mkdir -p "$(dirname "$inc/$file")"
-    printf 'v1 %s\n' "$file" >"$inc/$file"
-  done
+  printf 'v1 README.md\n' >"$inc/README.md"
+  write_sources "$inc"
   git -C "$inc" add -A
   git -C "$inc" -c user.name=audit -c user.email=audit@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m base
   base_sha="$(git -C "$inc" rev-parse HEAD)"
@@ -1693,14 +1800,15 @@ self_test() {
     git -C "$inc" clean -fdq
   }
 
-  # reuse_all <label> — an incremental run that reuses every covered unit and every finding of the
-  # base run and hunts nothing.
+  # reuse_all <label> [<base>] — an incremental run that reuses every covered unit and every finding
+  # of the base run (default: base-run) and hunts nothing.
   reuse_all() {
+    local base="${2:-base-run}"
     rm -rf "${runs:?}/$1"
-    cp -R "$runs/base-run" "$runs/$1"
+    cp -R "$runs/$base" "$runs/$1"
     mutate "$runs/$1" metadata.json ".run_id = \"$1\" | .spent = {hunting: 0, verification: 0, coverage_critic: 0}"
-    mutate "$runs/$1" coverage-ledger.json '.base_run = "base-run" | .waves = [] | .entries |= map(if .status == "covered" then .reused_from = "base-run" else . end)'
-    mutate "$runs/$1" findings.json '.findings |= map(.reused_from = "base-run")'
+    mutate "$runs/$1" coverage-ledger.json ".base_run = \"$base\" | .waves = [] | .entries |= map(if .status == \"covered\" then .reused_from = \"$base\" else . end)"
+    mutate "$runs/$1" findings.json ".findings |= map(.reused_from = \"$base\")"
   }
 
   # rehunt <label> — an incremental run that hunts C1 and C3 again in one wave, verifies their
@@ -1821,6 +1929,8 @@ self_test() {
   mutate "$runs/no-base" coverage-ledger.json '.base_run = null'
   expect_exit 'incremental: a reused unit needs a base run' 3 cmd_validate "$runs/no-base"
   expect_problem 'incremental: the problem names the missing base run' 'but the ledger names no base_run'
+  expect_exit 'incremental: the inventory refuses a reused unit without a base run' 3 cmd_inventory "$runs/no-base"
+  expect_problem 'incremental: the inventory names the missing base run' 'C1 is reused from base-run, but the ledger names no base_run'
 
   reuse_all base-missing
   mutate "$runs/base-missing" coverage-ledger.json '.base_run = "deep-20250101t000000z-0123456"'
@@ -1861,6 +1971,16 @@ self_test() {
   expect_exit 'incremental: the inventory refuses a reused unit that shares a finding with a queued unit' 3 cmd_inventory "$runs/reused-inventory"
   expect_problem 'incremental: the inventory names the shared finding' "C1 is reused, but its finding $fp_a is also held by C3"
 
+  rm -rf "$runs/unlisted-base"
+  cp -R "$runs/base-run" "$runs/unlisted-base"
+  mutate "$runs/unlisted-base" metadata.json '.run_id = "unlisted-base"'
+  mutate "$runs/unlisted-base" coverage-ledger.json '.entries[2].findings = ["'"$fp_a"'"]'
+  reuse_all unlisted-dropped unlisted-base
+  mutate "$runs/unlisted-dropped" findings.json '.findings |= map(select(.fingerprint != "'"$fp_c"'"))'
+  mutate "$runs/unlisted-dropped" metadata.json '.counts.rejected = 0'
+  expect_exit 'regression: a base finding no base unit lists does not disappear from an incremental run' 3 cmd_validate "$runs/unlisted-dropped"
+  expect_problem 'regression: the problem names the base finding no unit listed' "base finding $fp_c is missing"
+
   rm -rf "$runs/lost-commit"
   cp -R "$runs/base-run" "$runs/lost-commit"
   mutate "$runs/lost-commit" metadata.json '.run_id = "lost-commit" | .commit = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"'
@@ -1881,6 +2001,25 @@ self_test() {
   restore
   expect_exit 'digest: a git-ignored path is refused' 1 in_dir "$inc" cmd_digest vendor/laravel/framework/src/Auth.php
   expect_exit 'digest: a path outside the work tree is refused' 1 in_dir "$inc" cmd_digest ../outside
+  expect_exit 'digest: a path that matches no file is refused, because its digest would prove nothing' 1 in_dir "$inc" cmd_digest src/Missing.php
+  expect_error 'digest: the error names the path that matches no file' 'src/Missing.php matches no tracked or untracked, not ignored file'
+
+  mkdir -p "$inc/shared/policies" "$inc/app"
+  printf 'v1\n' >"$inc/shared/policies/Order.php"
+  ln -s ../shared/policies "$inc/app/Policies"
+  expect_exit 'digest: a symbolic link is refused, because a change to its target would not change the digest' 1 in_dir "$inc" cmd_digest app/Policies
+  expect_error 'digest: the error names the symbolic link' 'app/Policies is a symbolic link'
+  expect_error 'digest: the error names the target path of the link' 'record shared/policies instead'
+  expect_exit 'digest: a path beyond a symbolic link is refused, although git lists no file for it' 1 in_dir "$inc" cmd_digest app/Policies/Order.php
+  expect_error 'digest: the error names the link the path passes through' 'app/Policies/Order.php passes through the symbolic link app/Policies'
+  expect_error 'digest: the error names the target path beyond the link' 'record shared/policies/Order.php instead'
+  build_run "$runs/link-input" standard
+  mutate "$runs/link-input" coverage-ledger.json '.entries[3].inputs += [{kind: "authorization", path: "app/Policies"}]'
+  seal "$runs/link-input"
+  printf 'v2\n' >>"$inc/shared/policies/Order.php"
+  expect_exit 'regression: a unit whose input is a symbolic link fails validation after its target changed' 3 cmd_validate "$runs/link-input"
+  expect_problem 'regression: the problem names the symbolic link input' 'digest: C4 names app/Policies, which is a symbolic link'
+  restore
   expect_exit 'usage: digest without a path' 1 cmd_digest
 
   expect_exit 'usage: validate without a directory' 1 cmd_validate

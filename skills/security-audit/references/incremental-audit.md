@@ -45,7 +45,7 @@ Write `coverage-ledger.json` from the impact before the first hunter opens:
 
 - Give the hunter of an invalidated unit the earlier findings of that unit as leads. It traces each one against the current code and returns it as a candidate, with its current basis, or with the evidence that its path no longer exists.
 - Every lead goes to a new verifier, like any other candidate. The old verdict never carries over: a finding that is not reused is verified in this run or does not appear in `findings.json`.
-- A base finding leaves `findings.json` only when every unit that held it is `blocked` or `deferred` in this run. *Incremental basis* in `REPORT.md` lists it as invalidated and not verified again, with the step that settles it.
+- A base finding leaves `findings.json` only when a base unit held it and every unit that held it is `blocked` or `deferred` in this run. A base finding that no base unit lists is verified again. *Incremental basis* in `REPORT.md` lists it as invalidated and not verified again, with the step that settles it.
 - Copy every finding the impact marks `reuse` unchanged, and add `reused_from` as for a unit.
 - Give the coverage critic of each wave the impact output, so it checks every changed path.
 
@@ -56,12 +56,14 @@ Write `coverage-ledger.json` from the impact before the first hunter opens:
 - A reused unit or finding equals its base record, apart from `reused_from`.
 - The digest of every covered unit, reused or hunted, equals the digest of its paths and inputs now.
 - A reused unit shares no finding with a unit this run does not reuse, and a reused finding is listed only by reused units.
-- A base finding is in `findings.json` unless every unit that held it is `blocked` or `deferred`.
+- A base finding is in `findings.json` unless a base unit held it and every unit that held it is `blocked` or `deferred`.
 - A reused unit or finding spends no pass and names the workers of the run that hunted and verified it. The rules for waves, hunters, and verifiers apply to the units and findings of this run only.
 
 ## Limits
 
 - The digest sees only what the snapshot sees: tracked files and untracked, not ignored files. A git-ignored file, a file inside a submodule or a nested git repository, and a file outside the work tree are not part of it. `digest` and `validate` refuse a git-ignored input, so a dependency is recorded by its lock file.
+- The digest hashes a symbolic link as the link, not as the file it points to. A change to the target would not change the digest. `digest` and `validate` therefore refuse a path that is a symbolic link or passes through one, and name the target path to record instead. A symbolic link inside a recorded directory is hashed the same way, so record its target as an input too.
+- `digest` and `validate` refuse a path that matches no tracked or untracked, not ignored file. Its digest is the digest of the empty set, so it proves nothing about the path.
 - A unit's inputs are as complete as its hunter and its verifier made them. The digest proves that the recorded path is unchanged. It does not prove that the recorded path is the whole path. The coverage critic checks the ledger for a surface or a trust boundary no unit holds.
 - `changed_paths` compares the working tree with the base run's commit, not with the working tree the base run saw. A file that was edited but not committed at the base run and is restored now is not a changed path. The digest of a unit that holds it still differs, so the unit is invalidated.
 - The impact refuses a base run whose commit is not in the repository, for example after a history rewrite. Run a full audit then.
