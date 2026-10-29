@@ -181,6 +181,7 @@ Criterion: the skill's evidence comes from a live instance — an HTTP request, 
 Criterion: the skill's unit of work is the whole repository, a document, a tracker artifact, or the local git state — not the lines this diff added or modified. A review that ran one would report on code the pull request never touched, which `agents/leonardo.md` *Review scope — the current diff only* forbids.
 
 - `simplification-audit` — audits the whole codebase rather than a diff, so it would report on code the pull request never touched.
+- `security-audit` — audits the whole repository or one subsystem rather than a diff, so it would report on code the pull request never touched. `security-review` stays the security lens of a review. The audit writes only its four artefacts into the git-ignored run directory, never a project file.
 - `tester-cookbook` — writes a QA report for a human tester and posts it as a tracker comment.
 - `analyze-support-issue` — analyses a support issue and publishes a tracker comment. It may reproduce a case locally, but its evidence never depends on a running application, so question 3 passes it on to question 4.
 - `smartest-project-addition` — proposes the next addition to this package.

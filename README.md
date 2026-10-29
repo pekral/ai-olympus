@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 63 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 64 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 ## Requirements
 
@@ -69,7 +69,7 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
 - **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **63 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
+- **64 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
 
 ## Installation Details
 
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 63 skills, the eight agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
+That loads all 64 skills, the eight agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -382,7 +382,7 @@ Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshoo
 
 ## Skill Catalog
 
-63 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
+64 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
 testing, databases, frontend, infrastructure, refactoring, analysis, and tooling. The full table,
 with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skills.md)**.
 

@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 63 skills this package ships, grouped by what you reach for them for. Each description is the
+All 64 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -11,7 +11,7 @@ link to read the skill itself.
 |---|---|
 | [Issue → PR workflow](#issue--pr-workflow) | 10 |
 | [Code review](#code-review) | 7 |
-| [Security](#security) | 5 |
+| [Security](#security) | 6 |
 | [Testing](#testing) | 10 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
@@ -53,6 +53,7 @@ link to read the skill itself.
 | Skill | What it is for |
 |-------|----------------|
 | [`security-review`](../skills/security-review/) | Performing a focused security review for Laravel/PHP projects |
+| [`security-audit`](../skills/security-audit/) | The user explicitly asks for a security audit of the whole repository or of one subsystem, not a review of a pull request or diff |
 | [`security-bounty-hunter`](../skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
 | [`security-threat-analysis`](../skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
 | [`laravel-security`](../skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
