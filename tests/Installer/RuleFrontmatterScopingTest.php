@@ -497,7 +497,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Incremental Review Scope* widens the security lenses to the whole PR when a delta touches
         // a security surface, and the whole review after a regression or a shared-surface delta (issue #225).
         // Re-baselined: every review comment carries the `Security assessment:` header line (issue #236).
-        'rules/code-review/general.md' => 'b1e2bbaa70cb7cbebba6776ec49225f901bf6a6ce5331bcb9053ce56eedaa96e',
+        // Re-baselined: *Security is the most important part of every review* ranks security above every other check.
+        'rules/code-review/general.md' => '6651803e3301a1704261b0077b6db4b03e065027aa5e68ab78c63f011a6769d9',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
