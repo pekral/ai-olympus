@@ -6,7 +6,7 @@
 
 | Profile | Hunting | Verification | Coverage critic | Default total |
 |---------|---------|--------------|-----------------|---------------|
-| `quick` | One pass per subsystem, on the attacker-reachable surface only: authentication and authorization, input to sink flows, secrets. | Every candidate that claims `high` or `critical`; the others stay `needs_validation`. | One pass over the ledger. | 20 passes |
+| `quick` | One pass per subsystem, on the attacker-reachable surface only: authentication and authorization, input to sink flows, secrets. | Every candidate whose boundary is authentication, authorization, or tenant isolation first, then the others while the verifier reserve lasts. A candidate no verifier reached stays `needs_validation` with severity `unrated`. | One pass over the ledger. | 20 passes |
 | `standard` | One pass per subsystem over every lens of the *Core Checks* of `@skills/security-review/SKILL.md`. | Every candidate. | One pass over the ledger, then the omissions it found. | 60 passes |
 | `deep` | A second pass per subsystem with a different lens assignment, cross-subsystem data-flow traces, dependencies, configuration, and CI files. | Every candidate, by a verifier that did not see the hunter's reasoning. | Repeated while a critic still finds an omission and budget remains. | 180 passes |
 

@@ -32,7 +32,9 @@
 #   artefact must follow its schema, then the cross-artefact rules must hold: hunting spent within
 #   hunting_max, the reserves intact, the counts equal to findings.json, unique fingerprints and
 #   ledger ids, no ledger row left queued or in review, and every fingerprint a ledger row lists
-#   present in findings.json. REPORT.md must carry every heading the template defines.
+#   present in findings.json. The budget in metadata.json must equal the split `budget` prints for
+#   its profile and total. A file holding more than one JSON
+#   document is not valid JSON. REPORT.md must carry every heading the template defines.
 #
 # Output (stdout, JSON for validate)
 #   { "valid": true, "run_dir": "…", "problems": [] }
@@ -134,8 +136,8 @@ cmd_budget() {
     exit 1
   fi
   total="${total:-$DEFAULT_TOTAL}"
-  if [[ ! "$total" =~ ^[0-9]{1,6}$ ]]; then
-    echo "$PROG: --total must be a whole number of passes" >&2
+  if [[ ! "$total" =~ ^[1-9][0-9]{0,5}$ ]]; then
+    echo "$PROG: --total must be a whole number of passes without a leading zero" >&2
     exit 1
   fi
 
@@ -258,7 +260,7 @@ cmd_validate() {
       ok_json=false
       continue
     fi
-    if ! jq -e . "$file" >/dev/null 2>&1; then
+    if [[ "$(jq -s 'length' "$file" 2>/dev/null)" != 1 ]]; then
       problems+="$name.json: not valid JSON"$'\n'
       ok_json=false
       continue
@@ -277,6 +279,10 @@ cmd_validate() {
   done
 
   if [[ "$ok_json" == true ]]; then
+    local expected
+    expected="$(cmd_budget --profile "$(jq -r .profile "$dir/metadata.json")" --total "$(jq -r .budget.total "$dir/metadata.json")" 2>/dev/null)" || expected=''
+    jq -e --argjson want "${expected:-null}" '.budget == $want' "$dir/metadata.json" >/dev/null \
+      || problems+="metadata: budget is not the split audit-artifacts.sh budget prints for this profile and total"$'\n'
     problems+="$(jq -n -r --slurpfile md "$dir/metadata.json" --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_CROSS")"$'\n'
   fi
 
@@ -389,6 +395,9 @@ self_test() {
   expect_exit 'budget: the risk tier names are not profiles' 1 cmd_budget --profile CRITICAL
   expect_exit 'budget: a total that leaves hunting nothing is refused' 1 cmd_budget --profile standard --total 2
   expect_exit 'budget: a non-numeric total is refused' 1 cmd_budget --profile standard --total many
+  expect_exit 'budget: a total with a leading zero is refused, not read as octal' 1 cmd_budget --profile standard --total 010
+  expect_exit 'budget: a total of 08 is refused with the usage message' 1 cmd_budget --profile standard --total 08
+  expect_exit 'budget: a total of zero is refused' 1 cmd_budget --profile standard --total 0
   expect_exit 'budget: the smallest total that leaves hunting one pass is accepted' 0 cmd_budget --profile quick --total 3
   if [[ "$(cmd_budget --profile quick --total 3)" == '{"unit":"passes","total":3,"hunting_max":1,"verifier_reserve":1,"coverage_critic_reserve":1}' ]]; then
     pass 'budget: an explicit total is split deterministically'
@@ -449,6 +458,23 @@ self_test() {
   fresh rejected-no-reason
   mutate "$tmp/rejected-no-reason" findings.json 'del(.findings[2].rejection_reason)'
   expect_exit 'lifecycle: a rejected finding states why' 3 cmd_validate "$tmp/rejected-no-reason"
+
+  fresh rejected-demonstrated
+  mutate "$tmp/rejected-demonstrated" findings.json '.findings[2].boundary_failure_demonstrated = true'
+  expect_exit 'lifecycle: a rejected finding cannot claim a demonstrated boundary failure' 3 cmd_validate "$tmp/rejected-demonstrated"
+
+  fresh budget-resplit
+  mutate "$tmp/budget-resplit" metadata.json '.budget.hunting_max = 58 | .budget.verifier_reserve = 1 | .budget.coverage_critic_reserve = 1'
+  expect_exit 'cross: the budget is the split the budget command prints for the profile and total' 3 cmd_validate "$tmp/budget-resplit"
+  if grep -q 'budget is not the split' "$tmp/out"; then
+    pass 'cross: the problem names the budget mismatch'
+  else
+    fail 'cross: budget mismatch problem text'
+  fi
+
+  fresh budget-total-zero
+  mutate "$tmp/budget-total-zero" metadata.json '.budget.total = 0'
+  expect_exit 'cross: a total the budget command refuses is a mismatch, not a crash' 3 cmd_validate "$tmp/budget-total-zero"
 
   fresh bad-verdict
   mutate "$tmp/bad-verdict" findings.json '.findings[0].verdict = "probable"'
@@ -512,6 +538,10 @@ self_test() {
   fresh broken-json
   printf '{ not json' >"$tmp/broken-json/findings.json"
   expect_exit 'artefacts: a findings.json that is not JSON is invalid' 3 cmd_validate "$tmp/broken-json"
+
+  fresh two-documents
+  printf '{"schema_version":1,"findings":"garbage"}\n' >>"$tmp/two-documents/findings.json"
+  expect_exit 'artefacts: a findings.json holding two JSON documents is invalid' 3 cmd_validate "$tmp/two-documents"
 
   fresh report-heading
   grep -vxF '## Coverage' "$tmp/report-heading/REPORT.md" >"$tmp/report-heading/REPORT.new" && mv "$tmp/report-heading/REPORT.new" "$tmp/report-heading/REPORT.md"
