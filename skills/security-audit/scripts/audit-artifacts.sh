@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # audit-artifacts.sh — the deterministic half of the security-audit skill: the execution budget,
-# the coverage inventory check, the root-cause fingerprint, the working-tree snapshot, and the
-# validation of the four artefacts a run writes.
+# the coverage inventory check, the root-cause fingerprint, the working-tree snapshot, the digest of
+# a security path, the impact of a change since an earlier run, and the validation of the four
+# artefacts a run writes.
 #
 # Why this exists
 #   The skill promises things a model cannot promise about itself: hunting never consumes the
 #   capacity reserved for verifiers and coverage critics, the inventory exists before the first
 #   hunter opens, a hunter never verifies its own candidate, parallel workers leave the working
-#   tree untouched, two candidates merge only on the same root-cause fingerprint, and the JSON
-#   artefacts follow their schemas. All of it is checked here, by a script, so the answer does not
-#   depend on the run that produced the artefacts.
+#   tree untouched, two candidates merge only on the same root-cause fingerprint, an incremental run
+#   reuses a unit only when the bytes of its security path are unchanged, and the JSON artefacts
+#   follow their schemas. All of it is checked here, by a script, so the answer does not depend on
+#   the run that produced the artefacts.
 #
 #   No JSON Schema library is installed in this package, and the check must not add a dependency.
 #   The validator below is a jq program that applies the subset of JSON Schema the three schemas
@@ -22,6 +24,8 @@
 #   audit-artifacts.sh budget --profile <quick|standard|deep> [--total <passes>]
 #   audit-artifacts.sh snapshot [<dir>]
 #   audit-artifacts.sh fingerprint <boundary> <source> <sink> <root_cause>
+#   audit-artifacts.sh digest <path>...
+#   audit-artifacts.sh impact <base-run-dir>
 #   audit-artifacts.sh inventory <run-dir>
 #   audit-artifacts.sh validate <run-dir>
 #   audit-artifacts.sh --self-test
@@ -50,12 +54,34 @@
 #   `boundary|source|sink|root_cause`, exactly as given. Each value must match its pattern in
 #   findings.schema.json `$defs/fingerprint_basis`; exits 1 when one does not.
 #
+# digest
+#   Prints the SHA-256 of the security path of a coverage unit: the type, the path, and the hash of
+#   the raw bytes of every tracked file and every untracked, not ignored file that the given paths
+#   name, read as literal paths relative to the top of the git work tree that holds the current
+#   directory. Directories expand to the files under them. The order of the paths does not change
+#   the value. A path that is git-ignored is refused (exit 1), because a change to it would not
+#   change the digest: record a dependency by its lock file instead. Like the snapshot, the digest
+#   runs no program the repository configures.
+#
+# impact
+#   Compares an earlier run, the base run, with the current working tree and prints the result as
+#   one line of JSON: every path whose bytes or mode differ from the base run's commit (the git diff
+#   from that commit to the working tree, read with plumbing commands only), the changed paths no
+#   base unit holds, and a decision per base unit and per base finding. A covered unit is `reuse`
+#   only when the digest of its paths and inputs equals the digest it recorded and every finding it
+#   lists is held by reusable units only; otherwise it is `invalidated`. A unit the base run did not
+#   cover is `uncovered`. A finding is `reuse` only when every unit that lists it is `reuse`;
+#   otherwise it is `reverify`. Exits 3 when the base run is invalid or its commit is not in the
+#   repository.
+#
 # inventory
 #   Checks <run-dir>/coverage-ledger.json as the coverage inventory a run writes before the first
 #   hunter opens: the run directory is git-ignored, the schema holds, every unit is `queued` or
 #   `out_of_scope`, no unit has an agent or a finding yet, no wave is recorded, and every
 #   coverage_id is unique. A run directory that is not git-ignored is refused, because the
-#   coordinator's own writes to it would change the working-tree snapshot.
+#   coordinator's own writes to it would change the working-tree snapshot. A unit an incremental
+#   run reuses from its base run is the one exception to the rules above, and it must pass the reuse
+#   rules of validate already.
 #
 # validate
 #   Checks <run-dir>/metadata.json, coverage-ledger.json, findings.json, and REPORT.md. Each JSON
@@ -66,8 +92,15 @@
 #   agent, the waves numbered in order with a fresh critic each and the working tree unchanged
 #   after each, one hunter per unit, one verifier per finding, and the workers within the passes
 #   spent. The budget in metadata.json must equal the split `budget` prints for its profile and
-#   total. A file holding more than one JSON document is not valid JSON. REPORT.md must carry
-#   every heading the template defines.
+#   total. The run directory is named after its run_id. Every file a finding cites lies on the
+#   paths or inputs of every unit that lists it. A covered unit's inputs_digest equals the digest of
+#   its paths and inputs now. A covered ai_tools unit or a covered action surface that records a
+#   candidate threat or an action dimension that is not bound lists a finding. In an incremental run
+#   (base_run set), the base run sits beside the run directory, every base unit is in the ledger
+#   under its coverage_id, a reused unit or finding equals its base record, a reused unit shares no
+#   finding with a unit this run hunts again, and a base finding is in findings.json unless every
+#   unit that held it is blocked or deferred. A file holding more than one JSON document is not
+#   valid JSON. REPORT.md must carry every heading the template defines.
 #
 # Output (stdout, JSON for inventory and validate)
 #   { "valid": true, "run_dir": "…", "problems": [] }
@@ -85,6 +118,10 @@ SCHEMA_DIR="$HERE/../schemas"
 
 scratch=''
 tmp=''
+UNIT_ID=''
+UNIT_DIGEST=''
+UNIT_ORIGIN=''
+UNIT_PATHS=()
 
 REPORT_HEADINGS=(
   '## Scope'
@@ -93,6 +130,7 @@ REPORT_HEADINGS=(
   '## Needs validation'
   '## Rejected candidates'
   '## Coverage'
+  '## Incremental basis'
 )
 
 usage() {
@@ -100,6 +138,8 @@ usage() {
 Usage: audit-artifacts.sh budget --profile <quick|standard|deep> [--total <passes>]
        audit-artifacts.sh snapshot [<dir>]
        audit-artifacts.sh fingerprint <boundary> <source> <sink> <root_cause>
+       audit-artifacts.sh digest <path>...
+       audit-artifacts.sh impact <base-run-dir>
        audit-artifacts.sh inventory <run-dir>
        audit-artifacts.sh validate <run-dir>
        audit-artifacts.sh --self-test
@@ -121,11 +161,13 @@ require_tools() {
 
 # sha256_hex — the SHA-256 of stdin as 64 lowercase hex digits.
 sha256_hex() {
+  local out
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | cut -c1-64
+    out="$(sha256sum)"
   else
-    shasum -a 256 | cut -c1-64
+    out="$(shasum -a 256)"
   fi
+  printf '%s\n' "${out:0:64}"
 }
 
 # printable <value> — the value reduced to printable bytes, for an error message.
@@ -228,33 +270,123 @@ cmd_snapshot() {
   {
     git_plain "$top" rev-parse HEAD
     git_plain "$top" ls-files -s -z
-    git_plain "$top" ls-files -z --cached --others --exclude-standard | snapshot_files "$top"
+    git_plain "$top" ls-files -z --cached --others --exclude-standard | file_states "$top"
   } | sha256_hex
 }
 
-# snapshot_files <top> — for every NUL-separated path on stdin: its type, its path, and the hash of
-# its raw bytes, or the target of a symbolic link.
-snapshot_files() {
-  local top="$1" file path
-  local -a batch=()
+# file_states <top> — for every NUL-separated path on stdin, in order, one NUL-separated record:
+# the type (file, exec, link, or absent), the path, and the git blob hash of its raw bytes, or of
+# the target of a symbolic link. An absent path has an empty hash.
+file_states() {
+  local top="$1" file path i=0 hash
+  local -a types=() files=() hashes=() batch=() slots=()
   while IFS= read -r -d '' file; do
     path="$top/$file"
+    files[i]="$file"
+    hashes[i]=''
     if [[ -L "$path" ]]; then
-      printf 'link\0%s\0%s\0' "$file" "$(readlink "$path")"
+      types[i]='link'
+      hashes[i]="$(printf '%s' "$(readlink "$path")" | git_plain "$top" hash-object --no-filters --stdin)"
     elif [[ ! -f "$path" ]]; then
-      printf 'absent\0%s\0' "$file"
+      types[i]='absent'
     else
-      if [[ -x "$path" ]]; then printf 'exec\0%s\0' "$file"; else printf 'file\0%s\0' "$file"; fi
+      if [[ -x "$path" ]]; then types[i]='exec'; else types[i]='file'; fi
       if [[ "$file" == *$'\n'* || "$file" == '"'* ]]; then
-        git_plain "$top" hash-object --no-filters -- "$file"
+        hashes[i]="$(git_plain "$top" hash-object --no-filters -- "$file")"
       else
         batch+=("$file")
+        slots+=("$i")
       fi
     fi
+    i=$((i + 1))
   done
   if [[ ${#batch[@]} -gt 0 ]]; then
-    printf '%s\n' "${batch[@]}" | git_plain "$top" hash-object --no-filters --stdin-paths
+    local n=0
+    while IFS= read -r hash; do
+      hashes[slots[n]]="$hash"
+      n=$((n + 1))
+    done < <(printf '%s\n' "${batch[@]}" | git_plain "$top" hash-object --no-filters --stdin-paths)
   fi
+  local k
+  for ((k = 0; k < i; k++)); do
+    printf '%s\0%s\0%s\0' "${types[k]}" "${files[k]}" "${hashes[k]}"
+  done
+}
+
+# --- digest of a security path ---------------------------------------------------------------------
+
+# ignored_paths <top> <path>... — the given paths that git ignores, separated by a space.
+ignored_paths() {
+  local top="$1" found
+  shift
+  found="$(printf '%s\0' "$@" | git_plain "$top" check-ignore -z --stdin | tr '\0' ' ')" || true
+  printf '%s' "${found% }"
+}
+
+# paths_digest <top> <path>... — the SHA-256 of the states of every tracked and every untracked, not
+# ignored file the literal paths name. ls-files prints each file once and in sorted order, so the
+# order of the paths does not change the value.
+paths_digest() {
+  local top="$1"
+  shift
+  git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@" | file_states "$top" | sha256_hex
+}
+
+# covered_units <ledger-file> — one NUL-separated record per covered unit: its coverage_id, its
+# inputs_digest, `reused` or `hunted`, the number of its paths, and its paths and input paths, each
+# once. Read it with next_unit.
+covered_units() {
+  jq -j '.entries[] | select(.status == "covered")
+    | [.coverage_id, .inputs_digest, (if has("reused_from") then "reused" else "hunted" end),
+       ((.paths + [(.inputs // [])[].path]) | unique | (length | tostring), .[])]
+    | map(. + "\u0000") | add' "$1"
+}
+
+# next_unit — reads the next record of covered_units from file descriptor 3 into UNIT_ID,
+# UNIT_DIGEST, UNIT_ORIGIN, and UNIT_PATHS. Returns non-zero at the end of the stream.
+next_unit() {
+  local count k path
+  IFS= read -r -d '' -u 3 UNIT_ID || return 1
+  IFS= read -r -d '' -u 3 UNIT_DIGEST
+  IFS= read -r -d '' -u 3 UNIT_ORIGIN
+  IFS= read -r -d '' -u 3 count
+  UNIT_PATHS=()
+  for ((k = 0; k < count; k++)); do
+    IFS= read -r -d '' -u 3 path
+    UNIT_PATHS+=("$path")
+  done
+}
+
+# unit_digests <top> <ledger-file> [hunted] — a JSON object that maps the coverage_id of every
+# covered unit, or with `hunted` of every covered unit this run hunted, to its digest now.
+unit_digests() {
+  local top="$1"
+  while next_unit; do
+    if [[ "${3:-}" != hunted || "$UNIT_ORIGIN" == hunted ]]; then
+      printf '%s\0%s\0' "$UNIT_ID" "$(paths_digest "$top" "${UNIT_PATHS[@]}")"
+    fi
+  done 3< <(covered_units "$2") | jq -Rsc 'split("\u0000") | [range(0; length - 1; 2) as $i | {key: .[$i], value: .[$i + 1]}] | from_entries'
+}
+
+cmd_digest() {
+  [[ $# -ge 1 ]] || { usage; exit 1; }
+  local top path ignored
+  if ! top="$(git_plain . rev-parse --show-toplevel 2>/dev/null)"; then
+    echo "$PROG: not a git work tree: $(printable "$PWD")" >&2
+    exit 1
+  fi
+  for path in "$@"; do
+    if ! jq -en --arg p "$path" --slurpfile schema "$SCHEMA_DIR/coverage.schema.json" '$p | test($schema[0]["$defs"].path.pattern)' >/dev/null; then
+      echo "$PROG: not a path relative to the top of the work tree: $(printable "$path")" >&2
+      exit 1
+    fi
+  done
+  ignored="$(ignored_paths "$top" "$@")"
+  if [[ -n "$ignored" ]]; then
+    echo "$PROG: git ignores $(printable "$ignored"), so a change to it would not change the digest; record its lock file instead" >&2
+    exit 1
+  fi
+  paths_digest "$top" "$@"
 }
 
 # --- fingerprint ----------------------------------------------------------------------------------
@@ -337,22 +469,32 @@ errs($schema[0]; (if $start == "" then $schema[0] else {"$ref": $start} end); $d
 EOF
 
 # The inventory rules JSON Schema cannot express: the ledger is a plan, nothing has been hunted yet.
+# A unit reused from the base run is already covered; the reuse rules check it instead.
 JQ_INVENTORY=''
 IFS= read -r -d '' JQ_INVENTORY <<'EOF' || true
 $lg[0].entries as $es
+| ($es | map(select(has("reused_from") | not))) as $planned
 | ($es | map(.coverage_id)) as $ids
 | (
     (if ($ids | length) != ($ids | unique | length) then "coverage: a coverage_id appears more than once" else empty end),
-    ($es[] | select(.status != "queued" and .status != "out_of_scope") | "inventory: \(.coverage_id) is \(.status) before the first hunter opened"),
-    ($es[] | select(.agent != null) | "inventory: \(.coverage_id) already names agent \(.agent)"),
-    ($es[] | select((.findings | length) > 0) | "inventory: \(.coverage_id) already lists findings"),
-    (if ($lg[0].waves | length) > 0 then "inventory: a hunting wave is recorded before the inventory was checked" else empty end)
+    ($planned[] | select(.status != "queued" and .status != "out_of_scope") | "inventory: \(.coverage_id) is \(.status) before the first hunter opened"),
+    ($planned[] | select(.agent != null) | "inventory: \(.coverage_id) already names agent \(.agent)"),
+    ($planned[] | select((.findings | length) > 0) | "inventory: \(.coverage_id) already lists findings"),
+    (if ($lg[0].waves | length) > 0 then "inventory: a hunting wave is recorded before the inventory was checked" else empty end),
+    (if $lg[0].base_run == null then ($es[] | select(has("reused_from")) | "incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run") else empty end)
   )
 EOF
 
 # The rules JSON Schema cannot express: they relate fields, or relate the three artefacts.
 JQ_CROSS=''
 IFS= read -r -d '' JQ_CROSS <<'EOF' || true
+def holds($q; $p): ($q | rtrimstr("/")) as $r | ($r == "." or $p == $r or ($p | startswith($r + "/")));
+def unit_paths: (.paths + [(.inputs // [])[].path]) | unique;
+def cited: [
+    (.evidence[].location, (.controls[] | select(has("location")) | .location) | sub(":[0-9]+(-[0-9]+)?$"; "")),
+    (.fingerprint_basis.sink | split("#")[0]),
+    (.fingerprint_basis.source | select(test("^[^ ]+#[^ ]+$")) | split("#")[0])
+  ] | unique;
 $md[0].budget as $b
 | $md[0].spent as $sp
 | $fd[0].findings as $fs
@@ -361,10 +503,11 @@ $md[0].budget as $b
 | ($fs | map(.fingerprint)) as $fps
 | ($es | map(.coverage_id)) as $ids
 | ([$ws[].hunters[]]) as $wh
-| ($es | map(.agent | select(. != null))) as $agents
-| ($fs | map(.verifier | select(. != null))) as $vs
+| ($es | map(select(has("reused_from") | not) | .agent | select(. != null))) as $agents
+| ($fs | map(select(has("reused_from") | not) | .verifier | select(. != null))) as $vs
 | ($ws | map(.critic)) as $cs
 | (
+    (if $md[0].run_id != $name then "metadata: run_id is \($md[0].run_id) but the run directory is \($name); a run directory is named after its run_id" else empty end),
     (if ($b.hunting_max + $b.verifier_reserve + $b.coverage_critic_reserve) > $b.total
      then "budget: hunting_max plus both reserves exceed the total" else empty end),
     (if $sp.hunting > $b.hunting_max
@@ -387,14 +530,116 @@ $md[0].budget as $b
     (if ($wh | length) != ($wh | unique | length) then "coverage: a hunter is opened more than once; one hunter is one pass on one coverage unit" else empty end),
     (if ($wh | length) > $sp.hunting then "coverage: the waves open \($wh | length) hunters but spent.hunting is \($sp.hunting)" else empty end),
     (if ($agents | length) != ($agents | unique | length) then "coverage: a hunter holds more than one coverage unit" else empty end),
-    ($es[] | select(.agent != null) | . as $e | select(any($wh[]; . == $e.agent) | not) | "coverage: \(.coverage_id) names agent \(.agent), which no wave opened"),
+    ($es[] | select(.agent != null and (has("reused_from") | not)) | . as $e | select(any($wh[]; . == $e.agent) | not) | "coverage: \(.coverage_id) names agent \(.agent), which no wave opened"),
     ($ws[] | .wave as $n | .gaps[] | select(has("coverage_id")) | .coverage_id as $c | select(any($ids[]; . == $c) | not)
      | "critic: wave \($n) closes a gap with \($c), which the ledger does not hold"),
     ($ws[] | select(.worktree != $md[0].worktree_baseline) | "parallel: the working tree changed during wave \(.wave); every worker must stay read-only"),
     (if ($vs | length) != ($vs | unique | length) then "findings: a verifier verified more than one finding; every candidate gets a new verifier" else empty end),
     (if ($vs | length) > $sp.verification then "findings: \($vs | length) verifiers but spent.verification is \($sp.verification)" else empty end),
-    ($fs[] | .fingerprint as $f | .hunters[] | . as $h | select(any($wh[]; . == $h) | not) | "findings: \($f) names hunter \($h), which no wave opened")
+    ($fs[] | select(has("reused_from") | not) | .fingerprint as $f | .hunters[] | . as $h | select(any($wh[]; . == $h) | not) | "findings: \($f) names hunter \($h), which no wave opened"),
+    ($es[] | . as $e | unit_paths as $up | .findings[] as $f | ($fs | map(select(.fingerprint == $f)) | first) as $x | select($x != null)
+     | ($x | cited)[] | . as $p | select(any($up[]; holds(.; $p)) | not)
+     | "coverage: \($e.coverage_id) lists \($f), which cites \($p) outside the unit's paths and inputs; a change there would not invalidate the unit"),
+    ($es[] | select(.status == "covered" and (.findings | length) == 0)
+     | select(any((.threats // [])[]; .outcome == "candidate") or any((.action_binding // {})[]; .status != "bound"))
+     | "coverage: \(.coverage_id) records a candidate threat or an action dimension that is not bound, but lists no finding"),
+    (if $lg[0].base_run == null then
+       ($es[] | select(has("reused_from")) | "incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run"),
+       ($fs[] | select(has("reused_from")) | "incremental: finding \(.fingerprint) is reused from \(.reused_from), but the ledger names no base_run")
+     else empty end)
   )
+EOF
+
+# The reuse rules for coverage units of an incremental run. $blg is the base run's ledger. They hold
+# at inventory time already, so a run never spends a pass before an unprovable reuse is caught. A
+# full run that reuses a unit is caught by the inventory and cross-artefact rules instead.
+JQ_REUSE_UNITS=''
+IFS= read -r -d '' JQ_REUSE_UNITS <<'EOF' || true
+$lg[0].entries as $es
+| ($es | map(select(has("reused_from")))) as $reused
+| $blg[0].entries as $bes
+| $lg[0].base_run as $base
+| (
+    ($bes[] | .coverage_id as $id | select(any($es[]; .coverage_id == $id) | not)
+     | "incremental: base unit \($id) is missing; an invalidated or uncovered unit is inventoried again under its coverage_id"),
+    ($reused[] | . as $e | ($bes | map(select(.coverage_id == $e.coverage_id)) | first) as $bu
+     | if $bu == null then "incremental: \($e.coverage_id) is reused, but the base run holds no such unit"
+       elif ($bu | .reused_from //= $base) != $e then "incremental: \($e.coverage_id) differs from the base unit; a reused unit is copied unchanged, with reused_from naming the run that hunted it"
+       else empty end),
+    ($reused[] | . as $e | .findings[] as $f | $bes[] | select(any(.findings[]; . == $f)) | .coverage_id as $o
+     | select(any($es[]; .coverage_id == $o and has("reused_from")) | not)
+     | "incremental: \($e.coverage_id) is reused, but its finding \($f) is also held by \($o), which this run does not reuse")
+  )
+EOF
+
+# The reuse rules for findings of an incremental run, which validate applies once findings.json exists.
+JQ_REUSE_FINDINGS=''
+IFS= read -r -d '' JQ_REUSE_FINDINGS <<'EOF' || true
+$lg[0].entries as $es
+| $fd[0].findings as $fs
+| ($fs | map(select(has("reused_from")))) as $reused
+| $bfd[0].findings as $bfs
+| $blg[0].entries as $bes
+| $lg[0].base_run as $base
+| (
+    ($bfs[] | .fingerprint as $f | select(any($fs[]; .fingerprint == $f) | not)
+     | select(any($bes[]; any(.findings[]; . == $f) and (.coverage_id as $id | any($es[]; .coverage_id == $id and .status != "blocked" and .status != "deferred"))))
+     | "incremental: base finding \($f) is missing; an invalidated finding is verified again in this run"),
+    ($reused[] | . as $x | ($bfs | map(select(.fingerprint == $x.fingerprint)) | first) as $bf
+     | if $bf == null then "incremental: finding \($x.fingerprint) is reused, but the base run holds no such finding"
+       elif ($bf | .reused_from //= $base) != $x then "incremental: finding \($x.fingerprint) differs from the base finding; a reused finding is copied unchanged"
+       else empty end),
+    ($reused[] | .fingerprint as $f | ($es | map(select(any(.findings[]; . == $f)))) as $holders
+     | if ($holders | length) == 0 then "incremental: finding \($f) is reused, but no unit lists it"
+       elif any($holders[]; has("reused_from") | not) then "incremental: finding \($f) is reused, but a unit this run hunts again lists it; that finding is verified again"
+       else empty end),
+    ($es[] | select(has("reused_from")) | .coverage_id as $id | .findings[] | . as $f
+     | select(any($reused[]; .fingerprint == $f) | not)
+     | "incremental: \($id) is reused, but its finding \($f) is not carried forward unchanged")
+  )
+EOF
+
+# The impact of a change since the base run. $cur and $old are NUL-separated file states: the
+# working tree now (file_states) and the base commit (ls-tree -z). $digests maps a coverage_id to
+# the digest of its paths and inputs now.
+JQ_IMPACT=''
+IFS= read -r -d '' JQ_IMPACT <<'EOF' || true
+def holds($q; $p): ($q | rtrimstr("/")) as $r | ($r == "." or $p == $r or ($p | startswith($r + "/")));
+def unit_paths: (.paths + [(.inputs // [])[].path]) | unique;
+def current_states: split("\u0000") as $p
+  | [range(0; ($p | length) - 2; 3) as $i
+     | {key: $p[$i + 1], value: ({file: "100644", exec: "100755", link: "120000"}[$p[$i]] as $m | if $m == null then "absent" else "\($m):\($p[$i + 2])" end)}]
+  | from_entries;
+def base_states: split("\u0000")
+  | map(select(length > 0) | split("\t") as $s | ($s[0] | split(" ")) as $m
+        | {key: ($s[1:] | join("\t")), value: (if $m[0] == "160000" then "absent" else "\($m[0]):\($m[2])" end)})
+  | from_entries;
+def close($es; $bad):
+  ($es | map(select(.coverage_id as $id | any($bad[]; . == $id)) | .findings[]) | unique) as $tainted
+  | (($bad + ($es | map(select(any(.findings[]; . as $f | any($tainted[]; . == $f))) | .coverage_id))) | unique) as $next
+  | if ($next | length) == ($bad | length) then $bad else close($es; $next) end;
+$lg[0].entries as $es
+| ($cur | current_states) as $c
+| ($old | base_states) as $o
+| ([$c, $o] | map(keys[]) | unique | map(select(($c[.] // "absent") != ($o[.] // "absent")))) as $changed
+| close($es; [$es[] | select(.status != "covered" or $digests[.coverage_id] != .inputs_digest) | .coverage_id]) as $invalid
+| {
+    base_run: $base_run,
+    base_commit: $base_commit,
+    changed_paths: $changed,
+    new_paths: [$changed[] | . as $p | select(any($es[]; any(unit_paths[]; holds(.; $p))) | not)],
+    units: [$es[] | . as $e | unit_paths as $up | {
+      coverage_id,
+      decision: (if .status != "covered" then "uncovered" elif any($invalid[]; . == $e.coverage_id) then "invalidated" else "reuse" end),
+      digest_changed: (.status == "covered" and $digests[.coverage_id] != .inputs_digest),
+      changed_inputs: [(.inputs // [])[] | select(.path as $q | any($changed[]; holds($q; .)))],
+      changed_paths: [$changed[] | . as $p | select(any($up[]; holds(.; $p)))]
+    }],
+    findings: [$fd[0].findings[] | .fingerprint as $f | ($es | map(select(any(.findings[]; . == $f)))) as $holders | {
+      fingerprint: $f,
+      decision: (if ($holders | length) > 0 and all($holders[]; .coverage_id as $id | any($invalid[]; . == $id) | not) then "reuse" else "reverify" end)
+    }]
+  }
 EOF
 
 # schema_problems <schema-file> <document-file> [<$ref to start at>] — one problem per line on stdout.
@@ -424,6 +669,106 @@ require_run_dir() {
   fi
 }
 
+# artefact_problems <run-dir> <label> — one line per JSON artefact of the run directory that is
+# missing, not one JSON document, or not valid against its schema. <label> prefixes every line.
+artefact_problems() {
+  local dir="$1" label="$2" name file schema found
+  for name in metadata coverage-ledger findings; do
+    file="$dir/$name.json"
+    if [[ ! -f "$file" ]]; then
+      printf '%s%s.json: missing\n' "$label" "$name"
+      continue
+    fi
+    if ! json_document "$file"; then
+      printf '%s%s.json: not valid JSON\n' "$label" "$name"
+      continue
+    fi
+    case "$name" in
+    metadata) schema="$SCHEMA_DIR/metadata.schema.json" ;;
+    coverage-ledger) schema="$SCHEMA_DIR/coverage.schema.json" ;;
+    *) schema="$SCHEMA_DIR/findings.schema.json" ;;
+    esac
+    found="$(schema_problems "$schema" "$file")"
+    if [[ -n "$found" ]]; then
+      printf '%s\n' "$found" | sed "s|^|$label$name.json |"
+    fi
+  done
+}
+
+# base_run_problems <run-dir> <base-run-id> — the base run must be another run beside this one, with
+# valid artefacts of this schema version and the run_id its directory is named after.
+base_run_problems() {
+  local dir="$1" base="$2" base_dir found
+  base_dir="$(dirname "$dir")/$base"
+  if [[ "$base" == "$(basename "$dir")" ]]; then
+    echo "incremental: the run names itself as its base run"
+    return
+  fi
+  if [[ ! -d "$base_dir" ]]; then
+    echo "incremental: the base run $base is not beside this run directory"
+    return
+  fi
+  found="$(artefact_problems "$base_dir" "incremental: base run $base ")"
+  if [[ -n "$found" ]]; then
+    printf '%s\n' "$found"
+    return
+  fi
+  jq -e --arg base "$base" '.run_id == $base' "$base_dir/metadata.json" >/dev/null \
+    || echo "incremental: the base run directory $base holds a different run_id"
+}
+
+# digest_problems <run-dir> <ledger-file> — for every covered unit: no input is git-ignored, and its
+# inputs_digest equals the digest of its paths and inputs in the working tree now.
+digest_problems() {
+  local dir="$1" ledger="$2" top actual ignored any_ignored
+  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
+    echo "digest: the run directory is not inside a git work tree"
+    return
+  fi
+  local -a all=()
+  while next_unit; do
+    all+=("${UNIT_PATHS[@]}")
+  done 3< <(covered_units "$ledger")
+  [[ ${#all[@]} -gt 0 ]] || return 0
+  any_ignored="$(ignored_paths "$top" "${all[@]}")"
+  while next_unit; do
+    if [[ -n "$any_ignored" ]]; then
+      ignored="$(ignored_paths "$top" "${UNIT_PATHS[@]}")"
+      if [[ -n "$ignored" ]]; then
+        printf 'digest: %s names %s, which git ignores, so a change to it would not change the digest\n' "$UNIT_ID" "$(printable "$ignored")"
+        continue
+      fi
+    fi
+    if ! actual="$(paths_digest "$top" "${UNIT_PATHS[@]}")"; then
+      printf 'digest: %s names a path the work tree cannot list\n' "$UNIT_ID"
+      continue
+    fi
+    if [[ "$actual" != "$UNIT_DIGEST" ]]; then
+      printf 'digest: %s records inputs_digest %s, but its paths and inputs now hash to %s; the security path changed\n' "$UNIT_ID" "$UNIT_DIGEST" "$actual"
+    fi
+  done 3< <(covered_units "$ledger")
+}
+
+# reuse_problems <run-dir> <ledger-file> [findings] — for an incremental run, the base run checks and
+# the reuse rules for units, and with `findings` the reuse rules for findings too.
+reuse_problems() {
+  local dir="$1" ledger="$2" base found
+  base="$(jq -r '.base_run // empty' "$ledger")"
+  [[ -n "$base" ]] || return 0
+  found="$(base_run_problems "$dir" "$base")"
+  if [[ -n "$found" ]]; then
+    printf '%s\n' "$found"
+    return
+  fi
+  local base_dir
+  base_dir="$(dirname "$dir")/$base"
+  jq -n -r --slurpfile lg "$ledger" --slurpfile blg "$base_dir/coverage-ledger.json" "$JQ_REUSE_UNITS"
+  if [[ "${3:-}" == findings ]]; then
+    jq -n -r --slurpfile lg "$ledger" --slurpfile fd "$dir/findings.json" \
+      --slurpfile blg "$base_dir/coverage-ledger.json" --slurpfile bfd "$base_dir/findings.json" "$JQ_REUSE_FINDINGS"
+  fi
+}
+
 cmd_inventory() {
   [[ $# -eq 1 ]] || { usage; exit 1; }
   local dir="$1" file problems='' found
@@ -440,7 +785,9 @@ cmd_inventory() {
     if [[ -n "$found" ]]; then
       problems="$(printf '%s\n' "$found" | sed 's|^|coverage-ledger.json |')"
     else
-      problems="$(jq -n -r --slurpfile lg "$file" "$JQ_INVENTORY")"
+      problems="$(jq -n -r --slurpfile lg "$file" "$JQ_INVENTORY")"$'\n'
+      problems+="$(reuse_problems "$dir" "$file")"$'\n'
+      problems+="$(digest_problems "$dir" "$file")"
     fi
   fi
   emit_result "$dir" "$problems"
@@ -463,40 +810,21 @@ fingerprint_problems() {
 
 cmd_validate() {
   [[ $# -eq 1 ]] || { usage; exit 1; }
-  local dir="$1" problems='' ok_json=true name file schema found
+  local dir="$1" problems='' found
   require_run_dir "$dir"
 
-  for name in metadata coverage-ledger findings; do
-    file="$dir/$name.json"
-    if [[ ! -f "$file" ]]; then
-      problems+="$name.json: missing"$'\n'
-      ok_json=false
-      continue
-    fi
-    if ! json_document "$file"; then
-      problems+="$name.json: not valid JSON"$'\n'
-      ok_json=false
-      continue
-    fi
-    case "$name" in
-    metadata) schema="$SCHEMA_DIR/metadata.schema.json" ;;
-    coverage-ledger) schema="$SCHEMA_DIR/coverage.schema.json" ;;
-    *) schema="$SCHEMA_DIR/findings.schema.json" ;;
-    esac
-    found="$(schema_problems "$schema" "$file")"
-    if [[ -n "$found" ]]; then
-      problems+="$(printf '%s\n' "$found" | sed "s|^|$name.json |")"$'\n'
-      ok_json=false
-    fi
-  done
+  found="$(artefact_problems "$dir" '')"
+  problems+="$found"$'\n'
 
-  if [[ "$ok_json" == true ]]; then
+  if [[ -z "$found" ]]; then
     local expected
     expected="$(cmd_budget --profile "$(jq -r .profile "$dir/metadata.json")" --total "$(jq -r .budget.total "$dir/metadata.json")" 2>/dev/null)" || expected=''
     jq -e --argjson want "${expected:-null}" '.budget == $want' "$dir/metadata.json" >/dev/null \
       || problems+="metadata: budget is not the split audit-artifacts.sh budget prints for this profile and total"$'\n'
-    problems+="$(jq -n -r --slurpfile md "$dir/metadata.json" --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_CROSS")"$'\n'
+    problems+="$(jq -n -r --arg name "$(basename "$dir")" --slurpfile md "$dir/metadata.json" --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_CROSS")"$'\n'
     problems+="$(fingerprint_problems "$dir/findings.json")"$'\n'
+    problems+="$(reuse_problems "$dir" "$dir/coverage-ledger.json" findings)"$'\n'
+    problems+="$(digest_problems "$dir" "$dir/coverage-ledger.json")"$'\n'
   fi
 
   if [[ ! -s "$dir/REPORT.md" ]]; then
@@ -509,6 +837,29 @@ cmd_validate() {
   fi
 
   emit_result "$dir" "$problems"
+}
+
+cmd_impact() {
+  [[ $# -eq 1 ]] || { usage; exit 1; }
+  local dir="$1" problems top commit
+  require_run_dir "$dir"
+  problems="$(artefact_problems "$dir" 'base run ')"
+  if [[ -n "$problems" ]]; then
+    emit_result "$dir" "$problems"
+  fi
+  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
+    emit_result "$dir" "impact: the base run directory is not inside a git work tree"
+  fi
+  commit="$(jq -r .commit "$dir/metadata.json")"
+  if ! git_plain "$top" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    emit_result "$dir" "impact: the base commit $commit is not in this repository; run a full audit"
+  fi
+  commit="$(git_plain "$top" rev-parse "$commit^{commit}")"
+
+  jq -n -c --rawfile cur <(git_plain "$top" ls-files -z --cached --others --exclude-standard | file_states "$top") \
+    --rawfile old <(git_plain "$top" ls-tree -r -z --full-tree "$commit") --argjson digests "$(unit_digests "$top" "$dir/coverage-ledger.json")" \
+    --arg base_run "$(jq -r .run_id "$dir/metadata.json")" --arg base_commit "$commit" \
+    --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_IMPACT"
 }
 
 # --- self-test ------------------------------------------------------------------------------------
@@ -555,37 +906,72 @@ self_test() {
   fp_a="$(fingerprint_of "$basis_a")"
   fp_b="$(fingerprint_of "$basis_b")"
   fp_c="$(fingerprint_of "$basis_c")"
+  local threats binding
+  threats="$(jq -nc '["prompt_provenance_confusion", "persistent_memory_poisoning", "cross_session_context_bleed",
+    "tool_argument_injection", "confused_deputy", "excessive_tool_authority", "mcp_tool_identity_confusion",
+    "action_confirmation_binding_failure", "schema_dispatcher_disagreement", "unbounded_agent_action_loop"]
+    | map({class: ., outcome: "no_candidate", observation: "the hunter traced the tool call and found no candidate"})')"
+  binding="$(jq -nc '["principal", "authority", "action", "resource", "arguments"]
+    | map({key: ., value: {status: "bound", location: "src/Assistant/RefundTool.php:20", observation: "the tool checks it against the confirmed request"}})
+    | from_entries')"
 
-  # build_run <dir> <profile> — a valid run directory for the profile: four coverage units, two
+  # build_run <dir> <profile> — a valid run directory for the profile: five coverage units, two
   # waves with a fresh critic each, and one finding per verdict. Finding A was found by two hunters
   # and merged on its fingerprint. All three findings share the same prose and differ in their basis.
+  # C5 is an AI tool unit that records the ten threat classes and the five action dimensions. The
+  # run_id is the name of the run directory, and every covered unit is sealed with its digest. Each
+  # profile is written once, into a template, and copied for every fixture.
   build_run() {
+    local dir="$1" profile="$2" template
+    template="$scratch/project/.claude/run/templates/$profile"
+    [[ -d "$template" ]] || write_run "$template" "$profile"
+    rm -rf "${dir:?}"
+    mkdir -p "$(dirname "$dir")"
+    cp -R "$template" "$dir"
+    mutate "$dir" metadata.json ".run_id = \"${dir##*/}\""
+    [[ "$dir" == "$scratch/project/"* ]] || seal "$dir"
+  }
+
+  # write_run <dir> <profile> — writes the fixture run of build_run.
+  write_run() {
     local dir="$1" profile="$2" budget
     mkdir -p "$dir"
     budget="$(cmd_budget --profile "$profile")"
-    jq -n --arg profile "$profile" --argjson budget "$budget" --arg baseline "$baseline" '{
-      schema_version: 2, run_id: ("audit-" + $profile), profile: $profile,
+    jq -n --arg id "${dir##*/}" --arg profile "$profile" --argjson budget "$budget" --arg baseline "$baseline" '{
+      schema_version: 3, run_id: $id, profile: $profile,
       scope: {kind: "repository", target: "."}, commit: "0123456789abcdef0123456789abcdef01234567",
       worktree_baseline: $baseline,
       started_at: "2026-01-01T10:00:00Z", finished_at: "2026-01-01T11:00:00Z",
       budget: $budget,
       spent: {hunting: ($budget.hunting_max - 1), verification: 3, coverage_critic: 2},
       counts: {confirmed: 1, needs_validation: 1, rejected: 1}}' >"$dir/metadata.json"
-    jq -n --arg a "$fp_a" --arg b "$fp_b" --arg c "$fp_c" --arg baseline "$baseline" '{schema_version: 2, entries: [
+    jq -n --arg a "$fp_a" --arg b "$fp_b" --arg c "$fp_c" --arg baseline "$baseline" --argjson threats "$threats" --argjson binding "$binding" '{
+      schema_version: 3, base_run: null, entries: [
       {coverage_id: "C1", surface: "http_entrypoint", boundary: "unauthenticated_to_authenticated", subsystem: "Auth",
-       attack_class: "injection_input", paths: ["src/Auth/Login.php"], status: "covered", agent: "hunter-1", findings: [$a, $b]},
+       attack_class: "injection_input", paths: ["src/Auth/Login.php"], status: "covered", agent: "hunter-1", findings: [$a, $b],
+       inputs: [{kind: "source", path: "src/Auth/Login.php"}, {kind: "middleware", path: "routes/web.php"},
+                {kind: "sink", path: "src/Admin/Users.php"}, {kind: "authorization", path: "src/Policies/UserPolicy.php"}],
+       inputs_digest: $baseline},
       {coverage_id: "C2", surface: "ci_deploy", boundary: "repository_to_ci_runner", subsystem: "Docs build",
        attack_class: "wildcard", paths: ["docs"], status: "out_of_scope", agent: null, findings: [],
        reason: "the user scoped the audit to the application code"},
       {coverage_id: "C3", surface: "authorization", boundary: "user_to_administrator", subsystem: "Admin",
-       attack_class: "auth_authz", paths: ["src/Admin"], status: "covered", agent: "hunter-2", findings: [$a, $c]},
+       attack_class: "auth_authz", paths: ["src/Admin"], status: "covered", agent: "hunter-2", findings: [$a, $c],
+       inputs: [{kind: "source", path: "src/Auth/Login.php"}, {kind: "middleware", path: "routes/web.php"},
+                {kind: "framework_protection", path: "src/Billing/Invoices.php"}],
+       inputs_digest: $baseline},
       {coverage_id: "C4", surface: "http_entrypoint", boundary: "user_to_administrator", subsystem: "Admin",
-       attack_class: "injection_input", paths: ["src/Admin/Export.php"], status: "covered", agent: "hunter-3", findings: []}],
+       attack_class: "injection_input", paths: ["src/Admin/Export.php"], status: "covered", agent: "hunter-3", findings: [],
+       inputs: [{kind: "sink", path: "src/Admin/Export.php"}], inputs_digest: $baseline},
+      {coverage_id: "C5", surface: "ai_tool", boundary: "untrusted_content_to_agent", subsystem: "Assistant",
+       attack_class: "ai_tools", paths: ["src/Assistant"], status: "covered", agent: "hunter-4", findings: [],
+       inputs: [{kind: "tool_authority", path: "config/tools.php"}, {kind: "action_binding", path: "src/Assistant/RefundTool.php"}],
+       inputs_digest: $baseline, threats: $threats, action_binding: $binding}],
       waves: [
         {wave: 1, hunters: ["hunter-1", "hunter-2"], critic: "critic-1", worktree: $baseline, gaps: [
           {kind: "missing_attack_class", detail: "no unit hunted the admin export for injection",
            resolution: "opened C4 and hunted it in wave 2", coverage_id: "C4"}]},
-        {wave: 2, hunters: ["hunter-3"], critic: "critic-2", worktree: $baseline, gaps: []}]}' >"$dir/coverage-ledger.json"
+        {wave: 2, hunters: ["hunter-3", "hunter-4"], critic: "critic-2", worktree: $baseline, gaps: []}]}' >"$dir/coverage-ledger.json"
     jq -n --arg ba "$basis_a" --arg bb "$basis_b" --arg bc "$basis_c" --arg a "$fp_a" --arg b "$fp_b" --arg c "$fp_c" '
       def basis($s): ($s | split("|")) as $p | {boundary: $p[0], source: $p[1], sink: $p[2], root_cause: $p[3]};
       def base($fp; $s; $verdict; $severity; $demonstrated; $hunters; $verifier; $controls): {
@@ -599,7 +985,7 @@ self_test() {
         {kind: "middleware", effect: "does_not_stop", location: "routes/web.php:12", observation: "the route carries only the throttle middleware"},
         {kind: "policy", effect: "absent"}, {kind: "framework_protection", effect: "absent"},
         {kind: "validation", effect: "absent"}, {kind: "sanitization", effect: "absent"}, {kind: "configuration", effect: "absent"}];
-      {schema_version: 2, findings: [
+      {schema_version: 3, findings: [
         base($a; $ba; "confirmed"; "high"; true; ["hunter-1", "hunter-2"]; "verifier-1"; walked),
         (base($b; $bb; "needs_validation"; "unrated"; false; ["hunter-1"]; "verifier-2";
           [{kind: "policy", effect: "unclear", location: "src/Policies/UserPolicy.php:20", observation: "the policy reads a role the code does not set"}])
@@ -614,11 +1000,25 @@ self_test() {
         printf '%s\n\nNone.\n\n' "$heading"
       done
     } >"$dir/REPORT.md"
+    seal "$dir"
+  }
+
+  # seal <dir> — records the digest every covered unit has in the working tree now, as a coordinator
+  # does once the unit's inputs are known.
+  seal() {
+    jq --argjson d "$(unit_digests "$(git_plain "$1" rev-parse --show-toplevel)" "$1/coverage-ledger.json" hunted)" \
+      '.entries |= map(if $d[.coverage_id] then .inputs_digest = $d[.coverage_id] else . end)' \
+      "$1/coverage-ledger.json" >"$1/coverage-ledger.json.new" && mv "$1/coverage-ledger.json.new" "$1/coverage-ledger.json"
   }
 
   # mutate <dir> <file> <jq-filter> — rewrites one artefact of a run directory.
   mutate() {
     jq "$3" "$1/$2" >"$1/$2.new" && mv "$1/$2.new" "$1/$2"
+  }
+
+  # in_dir <dir> <command...> — runs the command with <dir> as the current directory.
+  in_dir() {
+    cd "$1" && shift && "$@"
   }
 
   # fresh <label> — a new valid standard run in $tmp/<label>.
@@ -732,9 +1132,9 @@ self_test() {
 
   local field
   for field in fingerprint fingerprint_basis verdict severity boundary entrypoint sink root_cause evidence remediation hunters verifier controls; do
-    fresh "missing-$field"
-    mutate "$tmp/missing-$field" findings.json "del(.findings[0].$field)"
-    expect_exit "schema: a finding without $field is invalid" 3 cmd_validate "$tmp/missing-$field"
+    fresh "missing-${field//_/-}"
+    mutate "$tmp/missing-${field//_/-}" findings.json "del(.findings[0].$field)"
+    expect_exit "schema: a finding without $field is invalid" 3 cmd_validate "$tmp/missing-${field//_/-}"
   done
 
   fresh empty-evidence
@@ -753,7 +1153,7 @@ self_test() {
 
   inventory_of inventory
   expect_exit 'inventory: the ledger written before hunting is a valid inventory' 0 cmd_inventory "$tmp/inventory"
-  if jq -e '[.entries[] | select(.status == "queued")] | length == 3' "$tmp/inventory/coverage-ledger.json" >/dev/null; then
+  if jq -e '[.entries[] | select(.status == "queued")] | length == 4' "$tmp/inventory/coverage-ledger.json" >/dev/null; then
     pass 'inventory: every unit in scope starts queued'
   else
     fail 'inventory: queued units'
@@ -797,16 +1197,16 @@ self_test() {
   expect_exit 'usage: inventory without a directory' 1 cmd_inventory
 
   for field in coverage_id surface boundary subsystem attack_class paths status agent findings; do
-    inventory_of "unit-missing-$field"
-    mutate "$tmp/unit-missing-$field" coverage-ledger.json "del(.entries[0].$field)"
-    expect_exit "schema: a coverage unit without $field is invalid" 3 cmd_inventory "$tmp/unit-missing-$field"
+    inventory_of "unit-missing-${field//_/-}"
+    mutate "$tmp/unit-missing-${field//_/-}" coverage-ledger.json "del(.entries[0].$field)"
+    expect_exit "schema: a coverage unit without $field is invalid" 3 cmd_inventory "$tmp/unit-missing-${field//_/-}"
   done
 
   local area
   for area in auth_authz injection_input files_ssrf queues_webhooks data_isolation ai_tools wildcard; do
-    inventory_of "area-$area"
-    mutate "$tmp/area-$area" coverage-ledger.json ".entries[0].attack_class = \"$area\""
-    expect_exit "hunting area: $area is a valid attack class" 0 cmd_inventory "$tmp/area-$area"
+    inventory_of "area-${area//_/-}"
+    mutate "$tmp/area-${area//_/-}" coverage-ledger.json ".entries[0].attack_class = \"$area\""
+    expect_exit "hunting area: $area is a valid attack class" 0 cmd_inventory "$tmp/area-${area//_/-}"
   done
 
   inventory_of unknown-area
@@ -879,9 +1279,9 @@ self_test() {
 
   local kind
   for kind in missing_surface missing_attack_class uncovered_entrypoint unanalysed_boundary shallow_review assumption_based_finding; do
-    fresh "gap-$kind"
-    mutate "$tmp/gap-$kind" coverage-ledger.json ".waves[1].gaps = [{kind: \"$kind\", detail: \"the critic reported it\", resolution: \"recorded as a stated limit\"}]"
-    expect_exit "critic: a $kind gap is a report the ledger keeps" 0 cmd_validate "$tmp/gap-$kind"
+    fresh "gap-${kind//_/-}"
+    mutate "$tmp/gap-${kind//_/-}" coverage-ledger.json ".waves[1].gaps = [{kind: \"$kind\", detail: \"the critic reported it\", resolution: \"recorded as a stated limit\"}]"
+    expect_exit "critic: a $kind gap is a report the ledger keeps" 0 cmd_validate "$tmp/gap-${kind//_/-}"
   done
 
   fresh gap-unknown-kind
@@ -973,16 +1373,16 @@ self_test() {
   local effect
   for kind in policy framework_protection middleware; do
     for effect in stops unclear; do
-      fresh "confirmed-$kind-$effect"
-      mutate "$tmp/confirmed-$kind-$effect" findings.json "(.findings[0].controls[] | select(.kind == \"$kind\")) |= {kind: \"$kind\", effect: \"$effect\", location: \"src/Http/Kernel.php:5\", observation: \"the control is on the path\"}"
-      expect_exit "refute: a $kind with the effect $effect cannot be confirmed" 3 cmd_validate "$tmp/confirmed-$kind-$effect"
+      fresh "confirmed-${kind//_/-}-${effect//_/-}"
+      mutate "$tmp/confirmed-${kind//_/-}-${effect//_/-}" findings.json "(.findings[0].controls[] | select(.kind == \"$kind\")) |= {kind: \"$kind\", effect: \"$effect\", location: \"routes/web.php:5\", observation: \"the control is on the path\"}"
+      expect_exit "refute: a $kind with the effect $effect cannot be confirmed" 3 cmd_validate "$tmp/confirmed-${kind//_/-}-${effect//_/-}"
     done
   done
 
   for kind in middleware policy framework_protection validation sanitization configuration; do
-    fresh "confirmed-unchecked-$kind"
-    mutate "$tmp/confirmed-unchecked-$kind" findings.json ".findings[0].controls |= map(select(.kind != \"$kind\"))"
-    expect_exit "refute: a confirmed finding records the $kind it checked" 3 cmd_validate "$tmp/confirmed-unchecked-$kind"
+    fresh "confirmed-unchecked-${kind//_/-}"
+    mutate "$tmp/confirmed-unchecked-${kind//_/-}" findings.json ".findings[0].controls |= map(select(.kind != \"$kind\"))"
+    expect_exit "refute: a confirmed finding records the $kind it checked" 3 cmd_validate "$tmp/confirmed-unchecked-${kind//_/-}"
   done
 
   fresh control-no-location
@@ -1130,8 +1530,8 @@ self_test() {
   expect_exit 'schema: metadata records the working-tree baseline' 3 cmd_validate "$tmp/missing-baseline"
 
   fresh old-ledger
-  mutate "$tmp/old-ledger" coverage-ledger.json '.schema_version = 1'
-  expect_exit 'schema: a ledger of schema version 1 is refused' 3 cmd_validate "$tmp/old-ledger"
+  mutate "$tmp/old-ledger" coverage-ledger.json '.schema_version = 2'
+  expect_exit 'schema: a ledger of schema version 2, written before the incremental audit, is refused' 3 cmd_validate "$tmp/old-ledger"
 
   fresh missing-report
   rm "$tmp/missing-report/REPORT.md"
@@ -1146,12 +1546,342 @@ self_test() {
   expect_exit 'artefacts: a findings.json that is not JSON is invalid' 3 cmd_validate "$tmp/broken-json"
 
   fresh two-documents
-  printf '{"schema_version":2,"findings":"garbage"}\n' >>"$tmp/two-documents/findings.json"
+  printf '{"schema_version":3,"findings":"garbage"}\n' >>"$tmp/two-documents/findings.json"
   expect_exit 'artefacts: a findings.json holding two JSON documents is invalid' 3 cmd_validate "$tmp/two-documents"
 
   fresh report-heading
   grep -vxF '## Coverage' "$tmp/report-heading/REPORT.md" >"$tmp/report-heading/REPORT.new" && mv "$tmp/report-heading/REPORT.new" "$tmp/report-heading/REPORT.md"
   expect_exit 'artefacts: REPORT.md keeps every template heading' 3 cmd_validate "$tmp/report-heading"
+
+  # --- security inputs and the digest of a security path ---
+
+  fresh no-inputs
+  mutate "$tmp/no-inputs" coverage-ledger.json 'del(.entries[0].inputs)'
+  expect_exit 'inputs: a covered unit records the security inputs on its path' 3 cmd_validate "$tmp/no-inputs"
+
+  fresh no-digest
+  mutate "$tmp/no-digest" coverage-ledger.json 'del(.entries[0].inputs_digest)'
+  expect_exit 'inputs: a covered unit records the digest of its security path' 3 cmd_validate "$tmp/no-digest"
+
+  fresh input-kind
+  mutate "$tmp/input-kind" coverage-ledger.json '.entries[0].inputs[0].kind = "comment"'
+  expect_exit 'inputs: an input kind outside the eleven is invalid' 3 cmd_validate "$tmp/input-kind"
+
+  local bad_path
+  for bad_path in /etc/passwd ../outside src/../../outside ./src/Auth/Login.php; do
+    fresh input-path
+    mutate "$tmp/input-path" coverage-ledger.json ".entries[0].inputs[0].path = \"$bad_path\""
+    expect_exit "inputs: the input path $bad_path is not a path inside the work tree" 3 cmd_validate "$tmp/input-path"
+    rm -rf "$tmp/input-path"
+  done
+
+  fresh input-ignored
+  mutate "$tmp/input-ignored" coverage-ledger.json '.entries[3].inputs += [{kind: "configuration", path: ".claude/run/settings.php"}]'
+  expect_exit 'inputs: an input git ignores is refused, because a change to it would not change the digest' 3 cmd_validate "$tmp/input-ignored"
+  expect_problem 'inputs: the problem names the ignored input' 'C4 names .claude/run/settings.php, which git ignores'
+
+  fresh reused-uncovered
+  mutate "$tmp/reused-uncovered" coverage-ledger.json '.entries[1].reused_from = "standard"'
+  expect_exit 'reuse: only a covered unit can be reused' 3 cmd_validate "$tmp/reused-uncovered"
+
+  fresh outside-inputs
+  mutate "$tmp/outside-inputs" coverage-ledger.json '.entries[0].inputs |= map(select(.path != "routes/web.php"))'
+  seal "$tmp/outside-inputs"
+  expect_exit 'inputs: every file a finding cites lies on the paths or inputs of the unit that lists it' 3 cmd_validate "$tmp/outside-inputs"
+  expect_problem 'inputs: the problem names the cited file outside the unit' 'which cites routes/web.php outside the unit'"'"'s paths and inputs'
+
+  fresh run-id-mismatch
+  mutate "$tmp/run-id-mismatch" metadata.json '.run_id = "standard-20260101t100000z-0123456"'
+  expect_exit 'run directory: a run directory is named after its run_id' 3 cmd_validate "$tmp/run-id-mismatch"
+  expect_problem 'run directory: the problem names the mismatch' 'a run directory is named after its run_id'
+
+  # --- the AI and agent threat model ---
+
+  fresh no-threats
+  mutate "$tmp/no-threats" coverage-ledger.json 'del(.entries[4].threats)'
+  expect_exit 'threats: a covered ai_tools unit records the AI and agent threat classes' 3 cmd_validate "$tmp/no-threats"
+
+  local threat
+  for threat in prompt_provenance_confusion persistent_memory_poisoning cross_session_context_bleed tool_argument_injection confused_deputy \
+    excessive_tool_authority mcp_tool_identity_confusion action_confirmation_binding_failure schema_dispatcher_disagreement unbounded_agent_action_loop; do
+    fresh "threat-missing-${threat//_/-}"
+    mutate "$tmp/threat-missing-${threat//_/-}" coverage-ledger.json ".entries[4].threats |= map(select(.class != \"$threat\"))"
+    expect_exit "threats: a covered ai_tools unit cannot leave out $threat" 3 cmd_validate "$tmp/threat-missing-${threat//_/-}"
+  done
+
+  fresh threat-unknown
+  mutate "$tmp/threat-unknown" coverage-ledger.json '.entries[4].threats += [{class: "jailbreak", outcome: "no_candidate", observation: "x"}]'
+  expect_exit 'threats: a threat class outside the ten is invalid' 3 cmd_validate "$tmp/threat-unknown"
+
+  fresh threat-candidate
+  mutate "$tmp/threat-candidate" coverage-ledger.json '.entries[4].threats[3].outcome = "candidate"'
+  expect_exit 'threats: a candidate threat with no finding is invalid' 3 cmd_validate "$tmp/threat-candidate"
+  expect_problem 'threats: the problem names the unit' 'C5 records a candidate threat or an action dimension that is not bound, but lists no finding'
+
+  # with_finding <label> — the fixture with finding C listed by the AI tool unit C5 as well.
+  with_finding() {
+    fresh "$1"
+    mutate "$tmp/$1" findings.json '.findings[2].hunters += ["hunter-4"]'
+    mutate "$tmp/$1" coverage-ledger.json '.entries[4].findings = [.entries[2].findings[1]]
+      | .entries[4].inputs += [{kind: "source", path: "src/Auth/Login.php"}, {kind: "sink", path: "src/Billing/Invoices.php"}]'
+    seal "$tmp/$1"
+  }
+
+  with_finding threat-with-finding
+  mutate "$tmp/threat-with-finding" coverage-ledger.json '.entries[4].threats[3].outcome = "candidate"'
+  expect_exit 'threats: a candidate threat that the unit lists as a finding is valid' 0 cmd_validate "$tmp/threat-with-finding"
+
+  build_run "$tmp/ai-deferred" standard
+  mutate "$tmp/ai-deferred" coverage-ledger.json '.waves[1].hunters = ["hunter-3"] | .entries[4] |= (del(.threats, .action_binding, .inputs, .inputs_digest) | .status = "deferred" | .agent = null | .reason = "hunting budget spent")'
+  expect_exit 'threats: a deferred ai_tools unit records no threat classes' 0 cmd_validate "$tmp/ai-deferred"
+
+  # --- action binding of privileged and agent-triggered actions ---
+
+  local surface
+  for surface in privileged_action agent_side_effect ai_tool mcp_integration; do
+    fresh "binding-missing-${surface//_/-}"
+    mutate "$tmp/binding-missing-${surface//_/-}" coverage-ledger.json ".entries[4].surface = \"$surface\" | del(.entries[4].action_binding)"
+    expect_exit "binding: a covered $surface unit records its action binding" 3 cmd_validate "$tmp/binding-missing-${surface//_/-}"
+  done
+
+  local dimension
+  for dimension in principal authority action resource arguments; do
+    fresh "binding-without-$dimension"
+    mutate "$tmp/binding-without-$dimension" coverage-ledger.json "del(.entries[4].action_binding.$dimension)"
+    expect_exit "binding: an action binding cannot leave out the $dimension" 3 cmd_validate "$tmp/binding-without-$dimension"
+  done
+
+  fresh binding-arguments-unbound
+  mutate "$tmp/binding-arguments-unbound" coverage-ledger.json '.entries[4].action_binding.arguments.status = "unbound"'
+  expect_exit 'binding: an authorized principal with unbound arguments and no finding is invalid' 3 cmd_validate "$tmp/binding-arguments-unbound"
+  expect_problem 'binding: the problem names the unit' 'C5 records a candidate threat or an action dimension that is not bound'
+
+  fresh binding-resource-unclear
+  mutate "$tmp/binding-resource-unclear" coverage-ledger.json '.entries[4].action_binding.resource.status = "unclear"'
+  expect_exit 'binding: an unclear resource binding with no finding is invalid' 3 cmd_validate "$tmp/binding-resource-unclear"
+
+  with_finding binding-with-finding
+  mutate "$tmp/binding-with-finding" coverage-ledger.json '.entries[4].action_binding.arguments.status = "unbound"'
+  expect_exit 'binding: unbound arguments that the unit lists as a finding are valid' 0 cmd_validate "$tmp/binding-with-finding"
+
+  fresh binding-not-required
+  mutate "$tmp/binding-not-required" coverage-ledger.json '.entries[4].surface = "external_api" | del(.entries[4].action_binding)'
+  expect_exit 'binding: a surface that is not an action records no action binding' 0 cmd_validate "$tmp/binding-not-required"
+
+  # --- incremental audit ---
+
+  local inc="$scratch/incremental" runs base_sha file
+  runs="$inc/.claude/run/security-audit"
+  git init -q "$inc"
+  printf '.claude/run/\nvendor/\n' >"$inc/.gitignore"
+  for file in README.md src/Auth/Login.php routes/web.php src/Admin/Users.php src/Policies/UserPolicy.php src/Admin/Export.php \
+    src/Billing/Invoices.php config/tools.php src/Assistant/RefundTool.php; do
+    mkdir -p "$(dirname "$inc/$file")"
+    printf 'v1 %s\n' "$file" >"$inc/$file"
+  done
+  git -C "$inc" add -A
+  git -C "$inc" -c user.name=audit -c user.email=audit@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m base
+  base_sha="$(git -C "$inc" rev-parse HEAD)"
+
+  build_run "$runs/base-run" standard
+  mutate "$runs/base-run" metadata.json ".commit = \"$base_sha\""
+  expect_exit 'incremental: the base run validates on the tree it audited' 0 cmd_validate "$runs/base-run"
+
+  # restore — the audited project back at the base commit, with nothing untracked.
+  restore() {
+    git -C "$inc" -c core.hooksPath=/dev/null reset -q --hard "$base_sha"
+    git -C "$inc" clean -fdq
+  }
+
+  # reuse_all <label> — an incremental run that reuses every covered unit and every finding of the
+  # base run and hunts nothing.
+  reuse_all() {
+    rm -rf "${runs:?}/$1"
+    cp -R "$runs/base-run" "$runs/$1"
+    mutate "$runs/$1" metadata.json ".run_id = \"$1\" | .spent = {hunting: 0, verification: 0, coverage_critic: 0}"
+    mutate "$runs/$1" coverage-ledger.json '.base_run = "base-run" | .waves = [] | .entries |= map(if .status == "covered" then .reused_from = "base-run" else . end)'
+    mutate "$runs/$1" findings.json '.findings |= map(.reused_from = "base-run")'
+  }
+
+  # rehunt <label> — an incremental run that hunts C1 and C3 again in one wave, verifies their
+  # findings again, and reuses C4 and C5.
+  rehunt() {
+    rm -rf "${runs:?}/$1"
+    cp -R "$runs/base-run" "$runs/$1"
+    mutate "$runs/$1" metadata.json ".run_id = \"$1\" | .spent = {hunting: 2, verification: 3, coverage_critic: 1}"
+    mutate "$runs/$1" coverage-ledger.json '.base_run = "base-run" | .waves = [.waves[0]]
+      | .entries |= map(if .coverage_id == "C4" or .coverage_id == "C5" then .reused_from = "base-run" else . end)'
+    seal "$runs/$1"
+  }
+
+  # impact_says <label> <jq-condition> — the impact of the change since the base run meets the condition.
+  impact_says() {
+    if cmd_impact "$runs/base-run" >"$tmp/impact.json" 2>"$tmp/err" && jq -e "$2" "$tmp/impact.json" >/dev/null; then
+      pass "$1"
+    else
+      fail "$1 ($(head -c 400 "$tmp/impact.json"))"
+    fi
+  }
+
+  reuse_all reuse-unchanged
+  expect_exit 'incremental: a run that reuses every unit of an unchanged tree validates' 0 cmd_validate "$runs/reuse-unchanged"
+  impact_says 'impact: an unchanged tree changes no path and reuses every covered unit and finding' \
+    '.changed_paths == [] and .new_paths == [] and ([.units[] | select(.decision == "reuse")] | length) == 4
+     and (.units[] | select(.coverage_id == "C2") | .decision) == "uncovered" and all(.findings[]; .decision == "reuse")'
+
+  printf 'v2\n' >>"$inc/README.md"
+  mkdir -p "$inc/app/Webhooks"
+  printf 'new\n' >"$inc/app/Webhooks/Stripe.php"
+  impact_says 'impact: a limited diff lists its changed paths, edited and untracked, and the ones no unit holds' \
+    '.changed_paths == ["README.md", "app/Webhooks/Stripe.php"] and .new_paths == ["README.md", "app/Webhooks/Stripe.php"]'
+  impact_says 'impact: a change no unit holds leaves every covered unit and finding reusable' \
+    '([.units[] | select(.decision == "reuse")] | length) == 4 and all(.findings[]; .decision == "reuse")'
+  reuse_all reuse-new-surface
+  mutate "$runs/reuse-new-surface" metadata.json '.spent = {hunting: 1, verification: 0, coverage_critic: 1}'
+  mutate "$runs/reuse-new-surface" coverage-ledger.json '.entries += [{coverage_id: "C6", surface: "webhook",
+    boundary: "unauthenticated_to_authenticated", subsystem: "Webhooks", attack_class: "queues_webhooks", paths: ["app/Webhooks/Stripe.php"],
+    status: "queued", agent: null, findings: []}]'
+  expect_exit 'incremental: the inventory reuses the unchanged units and queues the new surface' 0 cmd_inventory "$runs/reuse-new-surface"
+  mutate "$runs/reuse-new-surface" coverage-ledger.json ".entries[5] += {status: \"covered\", agent: \"hunter-1\",
+    inputs: [{kind: \"source\", path: \"app/Webhooks/Stripe.php\"}], inputs_digest: \"$baseline\"}
+    | .waves = [{wave: 1, hunters: [\"hunter-1\"], critic: \"critic-1\", worktree: \"$baseline\", gaps: []}]"
+  seal "$runs/reuse-new-surface"
+  expect_exit 'incremental: a run that reuses the unchanged units and hunts only the new surface validates' 0 cmd_validate "$runs/reuse-new-surface"
+  restore
+
+  printf 'v2\n' >>"$inc/src/Policies/UserPolicy.php"
+  impact_says 'impact: a changed authorization layer invalidates the unit and names the input' \
+    '(.units[] | select(.coverage_id == "C1")) | .decision == "invalidated" and .digest_changed == true
+     and .changed_inputs == [{kind: "authorization", path: "src/Policies/UserPolicy.php"}]'
+  impact_says 'impact: a unit that shares a finding with an invalidated unit is invalidated too' \
+    '(.units[] | select(.coverage_id == "C3")) | .decision == "invalidated" and .digest_changed == false'
+  impact_says 'impact: every finding of an invalidated unit is verified again, and the untouched units are reused' \
+    'all(.findings[]; .decision == "reverify") and ([.units[] | select(.decision == "reuse") | .coverage_id] == ["C4", "C5"])'
+  reuse_all reuse-changed-policy
+  expect_exit 'incremental: a unit whose authorization layer changed cannot be reused' 3 cmd_validate "$runs/reuse-changed-policy"
+  expect_problem 'incremental: the problem names the changed security path' 'digest: C1 records inputs_digest'
+  rehunt rehunt-policy
+  expect_exit 'incremental: a run that hunts the invalidated units again and reuses the rest validates' 0 cmd_validate "$runs/rehunt-policy"
+  mutate "$runs/rehunt-policy" findings.json '.findings[1].reused_from = "base-run"'
+  expect_exit 'incremental: a finding of a unit this run hunts again cannot keep its old verdict' 3 cmd_validate "$runs/rehunt-policy"
+  expect_problem 'incremental: the problem names the finding verified again' 'a unit this run hunts again lists it'
+  rehunt rehunt-dropped
+  mutate "$runs/rehunt-dropped" findings.json '.findings |= map(select(.fingerprint != "'"$fp_b"'"))'
+  mutate "$runs/rehunt-dropped" coverage-ledger.json '.entries[0].findings |= map(select(. != "'"$fp_b"'"))'
+  mutate "$runs/rehunt-dropped" metadata.json '.counts.needs_validation = 0 | .spent.verification = 2'
+  expect_exit 'incremental: an invalidated finding does not disappear from a unit this run hunts again' 3 cmd_validate "$runs/rehunt-dropped"
+  expect_problem 'incremental: the problem names the missing base finding' "base finding $fp_b is missing"
+  rehunt rehunt-deferred
+  mutate "$runs/rehunt-deferred" findings.json '.findings = []'
+  mutate "$runs/rehunt-deferred" coverage-ledger.json '.waves = [] | .entries |= map(if .coverage_id == "C1" or .coverage_id == "C3"
+    then (del(.inputs, .inputs_digest) | .status = "deferred" | .agent = null | .findings = [] | .reason = "hunting budget spent") else . end)'
+  mutate "$runs/rehunt-deferred" metadata.json '.counts = {confirmed: 0, needs_validation: 0, rejected: 0} | .spent = {hunting: 0, verification: 0, coverage_critic: 0}'
+  expect_exit 'incremental: the findings of an invalidated unit the budget did not reach leave findings.json' 0 cmd_validate "$runs/rehunt-deferred"
+  rehunt reuse-one-of-two
+  jq --slurpfile b "$runs/base-run/coverage-ledger.json" '.entries[2] = ($b[0].entries[2] + {reused_from: "base-run"})' \
+    "$runs/reuse-one-of-two/coverage-ledger.json" >"$tmp/reuse-one-of-two.json"
+  mv "$tmp/reuse-one-of-two.json" "$runs/reuse-one-of-two/coverage-ledger.json"
+  expect_exit 'incremental: a unit that shares a finding with a unit this run hunts again cannot be reused' 3 cmd_validate "$runs/reuse-one-of-two"
+  expect_problem 'incremental: the problem names the shared finding' 'which this run does not reuse'
+  restore
+
+  printf 'v2\n' >>"$inc/config/tools.php"
+  impact_says 'impact: a changed tool authority invalidates the AI tool unit' \
+    '(.units[] | select(.coverage_id == "C5")) | .decision == "invalidated" and .changed_inputs == [{kind: "tool_authority", path: "config/tools.php"}]'
+  reuse_all reuse-changed-authority
+  expect_exit 'incremental: an AI tool unit whose tool authority changed cannot be reused' 3 cmd_validate "$runs/reuse-changed-authority"
+  restore
+
+  printf 'v2\n' >>"$inc/src/Assistant/RefundTool.php"
+  impact_says 'impact: changed arguments of a privileged action invalidate the unit that binds them' \
+    '(.units[] | select(.coverage_id == "C5")) | .decision == "invalidated" and .changed_inputs == [{kind: "action_binding", path: "src/Assistant/RefundTool.php"}]'
+  reuse_all reuse-changed-binding
+  expect_exit 'incremental: a unit whose action binding changed cannot be reused' 3 cmd_validate "$runs/reuse-changed-binding"
+  restore
+
+  printf 'new\n' >"$inc/src/Assistant/McpBridge.php"
+  mkdir -p "$inc/app/Agents"
+  printf 'new\n' >"$inc/app/Agents/MemoryStore.php"
+  impact_says 'regression: a new MCP bridge under an AI unit invalidates it although no recorded input changed' \
+    '(.units[] | select(.coverage_id == "C5")) | .decision == "invalidated" and .changed_inputs == [] and .changed_paths == ["src/Assistant/McpBridge.php"]'
+  impact_says 'regression: a new agent memory store outside every unit is a new surface' '.new_paths == ["app/Agents/MemoryStore.php"]'
+  reuse_all reuse-new-ai-surface
+  expect_exit 'regression: the earlier coverage of an AI unit cannot hide a new trust boundary under its path' 3 cmd_validate "$runs/reuse-new-ai-surface"
+  restore
+
+  printf 'v2\n' >>"$inc/src/Admin/Export.php"
+  rm "$inc/src/Billing/Invoices.php"
+  git -C "$inc" add -A
+  git -C "$inc" -c user.name=audit -c user.email=audit@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m change
+  impact_says 'impact: a committed edit and a committed deletion are changed paths' \
+    '.changed_paths == ["src/Admin/Export.php", "src/Billing/Invoices.php"] and ((.units[] | select(.coverage_id == "C4")) | .decision) == "invalidated"'
+  restore
+
+  reuse_all no-base
+  mutate "$runs/no-base" coverage-ledger.json '.base_run = null'
+  expect_exit 'incremental: a reused unit needs a base run' 3 cmd_validate "$runs/no-base"
+  expect_problem 'incremental: the problem names the missing base run' 'but the ledger names no base_run'
+
+  reuse_all base-missing
+  mutate "$runs/base-missing" coverage-ledger.json '.base_run = "deep-20250101t000000z-0123456"'
+  expect_exit 'incremental: the base run sits beside the run directory' 3 cmd_validate "$runs/base-missing"
+  expect_problem 'incremental: the problem names the absent base run' 'is not beside this run directory'
+
+  reuse_all base-self
+  mutate "$runs/base-self" coverage-ledger.json '.base_run = "base-self"'
+  expect_exit 'incremental: a run is not its own base run' 3 cmd_validate "$runs/base-self"
+
+  rm -rf "$runs/old-base"
+  cp -R "$runs/base-run" "$runs/old-base"
+  mutate "$runs/old-base" metadata.json '.run_id = "old-base"'
+  mutate "$runs/old-base" coverage-ledger.json '.schema_version = 2'
+  reuse_all reuse-old-base
+  mutate "$runs/reuse-old-base" coverage-ledger.json '.base_run = "old-base" | .entries |= map(if has("reused_from") then .reused_from = "old-base" else . end)'
+  mutate "$runs/reuse-old-base" findings.json '.findings |= map(.reused_from = "old-base")'
+  expect_exit 'regression: a base run written before the AI threat model cannot be reused' 3 cmd_validate "$runs/reuse-old-base"
+  expect_problem 'regression: the problem names the old base run' 'incremental: base run old-base coverage-ledger.json'
+  expect_exit 'impact: a base run of an older schema version is refused' 3 cmd_impact "$runs/old-base"
+
+  reuse_all base-unit-missing
+  mutate "$runs/base-unit-missing" coverage-ledger.json '.entries |= map(select(.coverage_id != "C2"))'
+  expect_exit 'incremental: every base unit is in the ledger under its coverage_id' 3 cmd_validate "$runs/base-unit-missing"
+  expect_problem 'incremental: the problem names the missing base unit' 'base unit C2 is missing'
+
+  reuse_all reused-edited
+  mutate "$runs/reused-edited" coverage-ledger.json '.entries[3].paths = ["src/Admin"]'
+  expect_exit 'incremental: a reused unit is copied unchanged' 3 cmd_validate "$runs/reused-edited"
+  expect_problem 'incremental: the problem names the edited unit' 'C4 differs from the base unit'
+
+  reuse_all reused-finding-edited
+  mutate "$runs/reused-finding-edited" findings.json '.findings[0].severity = "low"'
+  expect_exit 'incremental: a reused finding is copied unchanged' 3 cmd_validate "$runs/reused-finding-edited"
+
+  reuse_all reused-inventory
+  mutate "$runs/reused-inventory" coverage-ledger.json '.entries[2] |= (del(.reused_from, .inputs, .inputs_digest) | .status = "queued" | .agent = null | .findings = [])'
+  expect_exit 'incremental: the inventory refuses a reused unit that shares a finding with a queued unit' 3 cmd_inventory "$runs/reused-inventory"
+  expect_problem 'incremental: the inventory names the shared finding' "C1 is reused, but its finding $fp_a is also held by C3"
+
+  rm -rf "$runs/lost-commit"
+  cp -R "$runs/base-run" "$runs/lost-commit"
+  mutate "$runs/lost-commit" metadata.json '.run_id = "lost-commit" | .commit = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"'
+  expect_exit 'impact: a base commit the repository does not hold is refused' 3 cmd_impact "$runs/lost-commit"
+  expect_problem 'impact: the problem asks for a full audit' 'run a full audit'
+  expect_exit 'usage: impact without a directory' 1 cmd_impact
+
+  local d1 d2 d3
+  d1="$(cd "$inc" && cmd_digest src/Auth/Login.php routes/web.php)"
+  d2="$(cd "$inc" && cmd_digest routes/web.php src/Auth/Login.php src/Auth/Login.php)"
+  if [[ "$d1" =~ ^[a-f0-9]{64}$ && "$d1" == "$d2" ]]; then pass 'digest: the order and repetition of the paths do not change the digest'; else fail 'digest: order'; fi
+  d1="$(cd "$inc" && cmd_digest src/Assistant)"
+  printf 'new\n' >"$inc/src/Assistant/Other.php"
+  d2="$(cd "$inc" && cmd_digest src/Assistant)"
+  chmod +x "$inc/src/Assistant/RefundTool.php"
+  d3="$(cd "$inc" && cmd_digest src/Assistant)"
+  if [[ "$d1" != "$d2" && "$d2" != "$d3" ]]; then pass 'digest: a new file or a mode change under a directory changes its digest'; else fail 'digest: directory'; fi
+  restore
+  expect_exit 'digest: a git-ignored path is refused' 1 in_dir "$inc" cmd_digest vendor/laravel/framework/src/Auth.php
+  expect_exit 'digest: a path outside the work tree is refused' 1 in_dir "$inc" cmd_digest ../outside
+  expect_exit 'usage: digest without a path' 1 cmd_digest
 
   expect_exit 'usage: validate without a directory' 1 cmd_validate
   expect_exit 'usage: validate on a path that is not a directory' 1 cmd_validate "$tmp/nope"
@@ -1182,6 +1912,16 @@ main() {
     require_tools
     shift
     cmd_fingerprint "$@"
+    ;;
+  digest)
+    require_tools
+    shift
+    cmd_digest "$@"
+    ;;
+  impact)
+    require_tools
+    shift
+    cmd_impact "$@"
     ;;
   inventory)
     require_tools
