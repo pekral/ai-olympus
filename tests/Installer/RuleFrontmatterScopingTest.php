@@ -429,7 +429,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a component never runs a direct Eloquent / `DB::` query; reads go through a Repository.
         'rules/laravel/livewire.md' => 'a578a55d64e7569067cd825993245900b7605dc9b3ad9c6d0921cccc82784654',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        'rules/code-review/general.md' => '02a776458fb8b3d37543bd50342c1d4c66e29b8054c872476b1d2181e5605532',
+        'rules/code-review/general.md' => '14c26616079cf56118f2e280a4ea8d17fe58df940f3a8f7ef5081e44f43247de',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
