@@ -35,10 +35,14 @@
 #
 # snapshot
 #   Prints the SHA-256 of the state of the git working tree that holds <dir> (default: the current
-#   directory): HEAD, the porcelain status, the diff against HEAD, and the content of every
+#   directory): HEAD, the index, and the type, mode, and raw bytes of every tracked file and every
 #   untracked, not ignored file. Git-ignored files, the run directory among them, do not count.
-#   The same tree prints the same value; any write a worker makes changes it. Exits 1 outside a
-#   git work tree with a commit.
+#   The same tree prints the same value. A write to a tracked file or to an untracked, not ignored
+#   file changes it. A write to a git-ignored path or outside the work tree does not, so an
+#   unchanged value is no proof that a worker stayed read-only. The snapshot runs no program the
+#   repository configures: it never runs `git status` or `git diff`, which run clean filters,
+#   external diff programs, and hooks; it turns core.fsmonitor off; and it hashes raw bytes with
+#   `git hash-object --no-filters`. Exits 1 outside a git work tree with a commit.
 #
 # fingerprint
 #   Prints the 16-hex-digit fingerprint of a finding: the first 16 hex digits of the SHA-256 of
@@ -47,8 +51,10 @@
 #
 # inventory
 #   Checks <run-dir>/coverage-ledger.json as the coverage inventory a run writes before the first
-#   hunter opens: the schema holds, every unit is `queued` or `out_of_scope`, no unit has an agent
-#   or a finding yet, no wave is recorded, and every coverage_id is unique.
+#   hunter opens: the run directory is git-ignored, the schema holds, every unit is `queued` or
+#   `out_of_scope`, no unit has an agent or a finding yet, no wave is recorded, and every
+#   coverage_id is unique. A run directory that is not git-ignored is refused, because the
+#   coordinator's own writes to it would change the working-tree snapshot.
 #
 # validate
 #   Checks <run-dir>/metadata.json, coverage-ledger.json, findings.json, and REPORT.md. Each JSON
@@ -76,6 +82,7 @@ PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEMA_DIR="$HERE/../schemas"
 
+scratch=''
 tmp=''
 
 REPORT_HEADINGS=(
@@ -203,22 +210,50 @@ cmd_budget() {
 
 # --- snapshot -------------------------------------------------------------------------------------
 
+# git_plain <dir> <git-args...> — git in <dir> with core.fsmonitor off, so it starts no fsmonitor hook.
+git_plain() {
+  local dir="$1"
+  shift
+  git -c core.fsmonitor=false -C "$dir" "$@"
+}
+
 cmd_snapshot() {
   [[ $# -le 1 ]] || { usage; exit 1; }
   local dir="${1:-.}" top
-  if ! top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || ! git -C "$top" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)" || ! git_plain "$top" rev-parse -q --verify HEAD >/dev/null 2>&1; then
     echo "$PROG: not a git work tree with a commit: $(printable "$dir")" >&2
     exit 1
   fi
   {
-    git -C "$top" rev-parse HEAD
-    git -C "$top" status --porcelain=v1 -z --untracked-files=all
-    git -C "$top" diff --binary HEAD
-    git -C "$top" ls-files -z --others --exclude-standard | while IFS= read -r -d '' file; do
-      printf '%s\0' "$file"
-      git -C "$top" hash-object -- "$file"
-    done
+    git_plain "$top" rev-parse HEAD
+    git_plain "$top" ls-files -s -z
+    git_plain "$top" ls-files -z --cached --others --exclude-standard | snapshot_files "$top"
   } | sha256_hex
+}
+
+# snapshot_files <top> — for every NUL-separated path on stdin: its type, its path, and the hash of
+# its raw bytes, or the target of a symbolic link.
+snapshot_files() {
+  local top="$1" file path
+  local -a batch=()
+  while IFS= read -r -d '' file; do
+    path="$top/$file"
+    if [[ -L "$path" ]]; then
+      printf 'link\0%s\0%s\0' "$file" "$(readlink "$path")"
+    elif [[ ! -f "$path" ]]; then
+      printf 'absent\0%s\0' "$file"
+    else
+      if [[ -x "$path" ]]; then printf 'exec\0%s\0' "$file"; else printf 'file\0%s\0' "$file"; fi
+      if [[ "$file" == *$'\n'* || "$file" == '"'* ]]; then
+        git_plain "$top" hash-object --no-filters -- "$file"
+      else
+        batch+=("$file")
+      fi
+    fi
+  done
+  if [[ ${#batch[@]} -gt 0 ]]; then
+    printf '%s\n' "${batch[@]}" | git_plain "$top" hash-object --no-filters --stdin-paths
+  fi
 }
 
 # --- fingerprint ----------------------------------------------------------------------------------
@@ -345,7 +380,6 @@ $md[0].budget as $b
     ($es[] | . as $e | .findings[] | . as $f | ($fs | map(select(.fingerprint == $f)) | first) as $x
      | select($x != null and ($e.agent == null or (any($x.hunters[]; . == $e.agent) | not)))
      | "coverage: \($e.coverage_id) lists \($f), but its agent is not one of that finding's hunters"),
-    (if ($ws | length) == 0 then "coverage: no hunting wave is recorded in a finished run" else empty end),
     (if ($ws | map(.wave)) != [range(1; ($ws | length) + 1)] then "coverage: the waves are not numbered 1 to \($ws | length) in order" else empty end),
     (if ($cs | length) != ($cs | unique | length) then "critic: a coverage critic reviewed more than one wave; every wave gets a fresh critic" else empty end),
     (if ($ws | length) > $sp.coverage_critic then "critic: \($ws | length) waves but \($sp.coverage_critic) coverage-critic passes spent; every wave needs its own critic pass" else empty end),
@@ -396,6 +430,8 @@ cmd_inventory() {
   file="$dir/coverage-ledger.json"
   if [[ ! -f "$file" ]]; then
     problems="coverage-ledger.json: missing"
+  elif ! git_plain "$dir" check-ignore -q coverage-ledger.json 2>/dev/null; then
+    problems="inventory: the run directory is not git-ignored, so the coordinator's own writes would change the working-tree snapshot"
   elif ! json_document "$file"; then
     problems="coverage-ledger.json: not valid JSON"
   else
@@ -479,8 +515,14 @@ cmd_validate() {
 self_test() {
   require_tools
   local checks=0 failed=0
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  scratch="$(mktemp -d)"
+  trap 'rm -rf "$scratch"' EXIT
+  # Every fixture run directory lives in the git-ignored run directory of a scratch project, as a
+  # real run does, so inventory accepts it.
+  git init -q "$scratch/project"
+  printf '.claude/run/\n' >"$scratch/project/.gitignore"
+  tmp="$scratch/project/.claude/run/security-audit"
+  mkdir -p "$tmp"
 
   pass() {
     checks=$((checks + 1))
@@ -729,6 +771,26 @@ self_test() {
   mutate "$tmp/inventory-duplicate-id" coverage-ledger.json '.entries[1].coverage_id = "C1"'
   expect_exit 'inventory: a coverage_id appears once' 3 cmd_inventory "$tmp/inventory-duplicate-id"
 
+  inventory_of inventory-agent
+  mutate "$tmp/inventory-agent" coverage-ledger.json '.entries[0].agent = "hunter-1"'
+  expect_exit 'inventory: a queued unit names no agent yet' 3 cmd_inventory "$tmp/inventory-agent"
+  expect_problem 'inventory: the problem names the unit that already has an agent' 'C1 already names agent hunter-1'
+
+  inventory_of inventory-findings
+  mutate "$tmp/inventory-findings" coverage-ledger.json '.entries[0].findings = ["dddddddddddddddd"]'
+  expect_exit 'inventory: a queued unit lists no finding yet' 3 cmd_inventory "$tmp/inventory-findings"
+  expect_problem 'inventory: the problem names the unit that already lists findings' 'C1 already lists findings'
+
+  local unignored="$scratch/unignored/.claude/run/security-audit"
+  git init -q "$scratch/unignored"
+  mkdir -p "$unignored"
+  inventory_of inventory-unignored
+  mv "$tmp/inventory-unignored" "$unignored/"
+  expect_exit 'inventory: a run directory that is not git-ignored is refused' 3 cmd_inventory "$unignored/inventory-unignored"
+  expect_problem 'inventory: the problem names the run directory that is not git-ignored' 'the run directory is not git-ignored'
+  printf '.claude/run/\n' >"$scratch/unignored/.gitignore"
+  expect_exit 'inventory: the same run directory passes once the project ignores it' 0 cmd_inventory "$unignored/inventory-unignored"
+
   mkdir -p "$tmp/inventory-missing"
   expect_exit 'inventory: a missing coverage-ledger.json is refused' 3 cmd_inventory "$tmp/inventory-missing"
   expect_exit 'usage: inventory without a directory' 1 cmd_inventory
@@ -791,7 +853,15 @@ self_test() {
 
   fresh no-wave
   mutate "$tmp/no-wave" coverage-ledger.json '.waves = []'
-  expect_exit 'critic: a finished run records at least one hunting wave' 3 cmd_validate "$tmp/no-wave"
+  expect_exit 'coverage: a run whose units name hunters but records no wave is invalid' 3 cmd_validate "$tmp/no-wave"
+  expect_problem 'coverage: the problem names the hunter no wave opened' 'C1 names agent hunter-1, which no wave opened'
+
+  build_run "$tmp/quick-all-deferred" quick
+  mutate "$tmp/quick-all-deferred" coverage-ledger.json '.waves = [] | .entries |= map(.findings = [] | .agent = null
+    | if .status == "out_of_scope" then . else (.status = "deferred" | .attack_class = "wildcard" | .reason = "outside the quick profile") end)'
+  mutate "$tmp/quick-all-deferred" findings.json '.findings = []'
+  mutate "$tmp/quick-all-deferred" metadata.json '.spent = {hunting: 0, verification: 0, coverage_critic: 0} | .counts = {confirmed: 0, needs_validation: 0, rejected: 0}'
+  expect_exit 'coverage: a quick run that hunts no unit validates with no wave' 0 cmd_validate "$tmp/quick-all-deferred"
 
   fresh reused-critic
   mutate "$tmp/reused-critic" coverage-ledger.json '.waves[1].critic = "critic-1"'
@@ -829,6 +899,16 @@ self_test() {
   mutate "$tmp/tree-changed" coverage-ledger.json '.waves[1].worktree = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"'
   expect_exit 'parallel: a wave that changed the working tree is invalid' 3 cmd_validate "$tmp/tree-changed"
   expect_problem 'parallel: the problem names the wave that wrote' 'the working tree changed during wave 2'
+
+  fresh hunter-reopened
+  mutate "$tmp/hunter-reopened" coverage-ledger.json '.waves[1].hunters = ["hunter-3", "hunter-1"]'
+  expect_exit 'parallel: a hunter is opened in one wave only' 3 cmd_validate "$tmp/hunter-reopened"
+  expect_problem 'parallel: the problem names the reopened hunter' 'a hunter is opened more than once'
+
+  fresh duplicate-unit
+  mutate "$tmp/duplicate-unit" coverage-ledger.json '.entries[1].coverage_id = "C1"'
+  expect_exit 'cross: a finished run holds every coverage_id once' 3 cmd_validate "$tmp/duplicate-unit"
+  expect_problem 'cross: the problem names the duplicate coverage_id' 'a coverage_id appears more than once'
 
   fresh hunter-twice
   mutate "$tmp/hunter-twice" coverage-ledger.json '.waves[1].hunters = ["hunter-1"] | .entries[3].agent = "hunter-1"'
@@ -877,6 +957,11 @@ self_test() {
   fresh finding-unopened-hunter
   mutate "$tmp/finding-unopened-hunter" findings.json '.findings[1].hunters = ["hunter-7"]'
   expect_exit 'independence: a finding names only hunters a wave opened' 3 cmd_validate "$tmp/finding-unopened-hunter"
+
+  fresh finding-extra-hunter
+  mutate "$tmp/finding-extra-hunter" findings.json '.findings[1].hunters = ["hunter-1", "hunter-7"]'
+  expect_exit 'independence: every hunter a finding names was opened by a wave' 3 cmd_validate "$tmp/finding-extra-hunter"
+  expect_problem 'independence: the problem names the hunter no wave opened' 'names hunter hunter-7, which no wave opened'
 
   fresh unit-not-hunter
   mutate "$tmp/unit-not-hunter" findings.json '.findings[2].hunters = ["hunter-1"]'
@@ -976,9 +1061,54 @@ self_test() {
   if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that creates an untracked file changes the snapshot'; else fail 'snapshot: untracked create'; fi
   printf 'more\n' >>"$repo/notes.txt"
   before="$after"
-  if [[ "$(cmd_snapshot "$repo")" != "$before" ]]; then pass 'snapshot: a worker that edits an untracked file changes the snapshot'; else fail 'snapshot: untracked edit'; fi
-  mkdir -p "$tmp/not-a-repo"
-  expect_exit 'snapshot: a directory outside a git work tree is refused' 1 cmd_snapshot "$tmp/not-a-repo"
+  after="$(cmd_snapshot "$repo")"
+  if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that edits an untracked file changes the snapshot'; else fail 'snapshot: untracked edit'; fi
+  git -C "$repo" add app.php.txt
+  before="$after"
+  after="$(cmd_snapshot "$repo")"
+  if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that stages an edit it already made changes the snapshot'; else fail 'snapshot: staged edit'; fi
+  chmod +x "$repo/app.php.txt"
+  before="$after"
+  after="$(cmd_snapshot "$repo")"
+  if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that makes a tracked file executable changes the snapshot'; else fail 'snapshot: mode change'; fi
+  ln -s app.php.txt "$repo/link.txt"
+  before="$after"
+  after="$(cmd_snapshot "$repo")"
+  if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that creates a symbolic link changes the snapshot'; else fail 'snapshot: symbolic link'; fi
+  rm "$repo/app.php.txt"
+  before="$after"
+  after="$(cmd_snapshot "$repo")"
+  if [[ "$after" != "$before" ]]; then pass 'snapshot: a worker that deletes a tracked file changes the snapshot'; else fail 'snapshot: tracked delete'; fi
+  printf 'decoy\n' >"$repo/q"
+  printf 'quoted\n' >"$repo/\"q\""
+  before="$(cmd_snapshot "$repo")"
+  printf 'edit\n' >>"$repo/\"q\""
+  if [[ "$(cmd_snapshot "$repo")" != "$before" ]]; then pass 'snapshot: an edit to a file whose name starts with a quote changes the snapshot'; else fail 'snapshot: quoted name'; fi
+  mkdir -p "$scratch/not-a-repo"
+  expect_exit 'snapshot: a directory outside a git work tree is refused' 1 cmd_snapshot "$scratch/not-a-repo"
+
+  local configured="$tmp/configured" marker="$tmp/configured-program-ran"
+  mkdir -p "$configured"
+  git -C "$configured" init -q
+  printf '* filter=audit diff=audit\n' >"$configured/.gitattributes"
+  printf 'one\n' >"$configured/app.php.txt"
+  git -C "$configured" add .gitattributes app.php.txt
+  git -C "$configured" -c user.name=audit -c user.email=audit@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m init
+  mkdir -p "$configured/.git/audit-hooks"
+  printf '#!/bin/sh\ntouch "%s"\n' "$marker" >"$configured/.git/audit-hooks/post-index-change"
+  chmod +x "$configured/.git/audit-hooks/post-index-change"
+  git -C "$configured" config filter.audit.clean "sh -c 'touch \"$marker\"; cat'"
+  git -C "$configured" config diff.external "sh -c 'touch \"$marker\"'"
+  git -C "$configured" config diff.audit.textconv "sh -c 'touch \"$marker\"; cat \"\$0\"'"
+  git -C "$configured" config core.fsmonitor "sh -c 'touch \"$marker\"'"
+  git -C "$configured" config core.hooksPath "$configured/.git/audit-hooks"
+  printf 'two\n' >>"$configured/app.php.txt"
+  printf 'new\n' >"$configured/notes.txt"
+  if [[ "$(cmd_snapshot "$configured")" =~ ^[a-f0-9]{64}$ && ! -e "$marker" ]]; then
+    pass 'snapshot: taking the snapshot runs no program the repository configures'
+  else
+    fail 'snapshot: a configured clean filter, diff program, textconv, fsmonitor, or hook ran'
+  fi
 
   # --- artefacts ---
 

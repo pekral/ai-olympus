@@ -44,7 +44,7 @@ How this differs from its neighbours:
 ---
 
 ## Run directory
-All four artefacts of a run live in one directory: `.claude/run/security-audit/<run-id>/`. On Codex that path is `.codex/run/security-audit/<run-id>/`. The `<run-id>` is `<profile>-<UTC date>-<short commit>`, lowercase. The run directory is git-ignored; a project that wants to keep an audit copies it out.
+All four artefacts of a run live in one directory: `.claude/run/security-audit/<run-id>/`. On Codex that path is `.codex/run/security-audit/<run-id>/`. The `<run-id>` is `<profile>-<UTC date>-<short commit>`, lowercase. The run directory must be git-ignored, so the working-tree snapshot never sees your own writes to it. `scripts/audit-artifacts.sh inventory` refuses a run directory that is not git-ignored. A project that wants to keep an audit copies it out.
 
 | Artefact | Content | Contract |
 |----------|---------|----------|
@@ -78,9 +78,10 @@ The inventory exists before hunting. No hunter opens before this step ends.
   1. Every worker is fresh and read-only, and receives nothing but its verbatim brief.
   2. No worker writes a file anywhere. A worker returns its result in its reply. You alone write the artefacts, after the wave.
   3. No unit of the wave needs a local reproduction. A unit that does is hunted alone, in a sequential pass.
-  4. The host gives you parallel workers. On Claude Code a worker is a fresh subagent dispatched through the `Task` tool. On Codex it is a fresh sub-agent. Where the host has neither, run the wave's passes one after another in this context, one unit per pass.
+  4. The host gives you parallel workers that hold no file-writing tool. On Claude Code a worker is a fresh subagent dispatched through the `Task` tool, with a subagent type whose tool list carries no `Write` or `Edit` tool. On Codex it is a fresh sub-agent that runs in the `read-only` sandbox. Where the host has neither, run the wave's passes one after another in this context, one unit per pass.
 - Keep concurrency to the number of lanes you can coordinate.
 - After every wave, run `scripts/audit-artifacts.sh snapshot` again and record its output as the wave's `worktree`. When it differs from `worktree_baseline`, a worker wrote to the working tree. Open no further parallel wave, report the write, and leave the change for the user to inspect. `validate` refuses a run whose waves changed the working tree.
+- **The snapshot has a limit.** It covers HEAD, the index, and the bytes of every tracked file and every untracked file that is not git-ignored. A write to a git-ignored path or outside the work tree does not change it, so an unchanged snapshot is no proof that a worker stayed read-only. Condition 4 above is what keeps a worker from writing; the snapshot only catches a write it can see.
 - Set a hunted unit to `candidate` when its hunter returned a candidate, and to `covered` when it returned `none`. A unit the hunter could not analyse is `blocked` with the reason.
 - Every hunter pass spends one pass of the budget. Stop opening hunters when `spent.hunting` equals `hunting_max`. A unit that did not get its pass becomes `deferred` with the reason `hunting budget spent`; it never stays `queued` and never counts as covered.
 - The reserves for verifiers and coverage critics are not available to hunting under any circumstance.
@@ -113,7 +114,7 @@ Return the path of the run directory, the profile and budget (total, spent per s
 ## Done when
 - The coverage inventory existed before the first hunter opened, and `scripts/audit-artifacts.sh inventory` exited `0` on it.
 - Every coverage unit has a final status: `covered`, or `blocked`, `deferred`, or `out_of_scope` with a reason.
-- A fresh coverage critic reviewed every wave, and the working-tree snapshot after every wave equals the baseline.
+- A fresh coverage critic reviewed every wave, and the working-tree snapshot after every wave equals the baseline, within the limit step 3 states.
 - `spent.hunting` is not above `hunting_max`, and both reserves were available to the stages they belong to.
 - Every finding is `confirmed`, `needs_validation`, or `rejected`, every verdict comes from a verifier that did not hunt the finding, and no `needs_validation` finding carries a definitive severity without a demonstrated boundary failure.
 - `metadata.json`, `coverage-ledger.json`, `findings.json`, and `REPORT.md` exist, and `scripts/audit-artifacts.sh validate` exits `0`.

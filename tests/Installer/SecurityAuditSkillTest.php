@@ -361,9 +361,57 @@ test('a fresh coverage critic runs after every wave and reports missing or weak 
     );
     expect(securityAuditSchemaValue('coverage', '$defs.wave.properties.critic'))->toBe(['type' => 'string', 'pattern' => '^critic-[1-9][0-9]*$']);
     expect($roles)->toContain('Report missing or weak coverage of six kinds:');
-    expect($script)
-        ->toContain('"critic: a coverage critic reviewed more than one wave; every wave gets a fresh critic"')
-        ->toContain('"coverage: no hunting wave is recorded in a finished run"');
+    expect($script)->toContain('"critic: a coverage critic reviewed more than one wave; every wave gets a fresh critic"');
+});
+
+test('a run that hunts no unit records no wave and still validates', function (): void {
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($script, 'no hunting wave is recorded'))->toBe(0);
+    expect(substr_count($script, 'expect_exit \'coverage: a quick run that hunts no unit validates with no wave\' 0 cmd_validate'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'expect_problem \'coverage: the problem names the hunter no wave opened\' \'C1 names agent hunter-1, which no wave opened\'',
+        ),
+    )->toBe(
+        1,
+    );
+});
+
+test('the snapshot runs no program the repository configures and states what it cannot see', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($script, 'git -c core.fsmonitor=false -C "$dir" "$@"'))->toBe(1);
+    expect(substr_count($script, 'hash-object --no-filters --stdin-paths'))->toBe(1);
+    expect(substr_count($script, ' status --porcelain'))->toBe(0);
+    expect(substr_count($script, 'pass \'snapshot: taking the snapshot runs no program the repository configures\''))->toBe(1);
+    expect(substr_count($script, 'unchanged value is no proof that a worker stayed read-only.'))->toBe(1);
+    expect(
+        substr_count(
+            $audit,
+            'A write to a git-ignored path or outside the work tree does not change it, '
+            . 'so an unchanged snapshot is no proof that a worker stayed read-only.',
+        ),
+    )->toBe(1);
+    expect(
+        substr_count(
+            $audit,
+            'with a subagent type whose tool list carries no `Write` or `Edit` tool. '
+            . 'On Codex it is a fresh sub-agent that runs in the `read-only` sandbox.',
+        ),
+    )->toBe(1);
+});
+
+test('the inventory refuses a run directory that is not git-ignored', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($audit, '`scripts/audit-artifacts.sh inventory` refuses a run directory that is not git-ignored.'))->toBe(1);
+    expect(substr_count($script, 'git_plain "$dir" check-ignore -q coverage-ledger.json'))->toBe(1);
+    expect(substr_count($script, 'expect_exit \'inventory: a run directory that is not git-ignored is refused\' 3 cmd_inventory'))->toBe(1);
+    expect(substr_count($script, 'expect_exit \'inventory: the same run directory passes once the project ignores it\' 0 cmd_inventory'))->toBe(1);
 });
 
 test('every candidate gets a new verifier and a hunter can never confirm its own finding', function (): void {
