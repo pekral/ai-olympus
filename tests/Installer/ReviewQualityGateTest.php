@@ -267,6 +267,7 @@ test('every former citation of the fixed cap names the manifest key', function (
 test('the security lenses read the whole pull request in every round', function (): void {
     expect(reviewQualityGateFile('rules/code-review/general.md'))
         ->toContain('- **The security lenses always read the whole PR diff.**')
+        ->toContain('is not walked again for new findings by any lens except the security lenses, which read the whole PR diff in every round')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');
 
     $loopScope = reviewQualityGateFile('skills/process-code-review/references/review-loop-scope.md');
@@ -323,3 +324,11 @@ test('leonardo writes only the loop state under the run directory and names it i
         )
         ->toContain('Name the loop\'s state file in your handoff on every exit, so `splinter` records its counts.');
 });
+
+test('both review templates name the security lenses among the whole-PR readers', function (string $template): void {
+    expect(reviewQualityGateFile($template))
+        ->toContain('and the security lenses and the Coverage / Assignment Conformance / Reviewer Comment Fulfillment gates still read the whole PR.');
+})->with([
+    'skills/code-review-github/templates/pr-comment-output.md',
+    'skills/code-review/templates/review-output.md',
+]);
