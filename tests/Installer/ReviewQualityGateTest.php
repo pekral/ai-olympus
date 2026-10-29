@@ -264,9 +264,9 @@ test('every former citation of the fixed cap names the manifest key', function (
     ['rules/git/pull-requests.md', 'at the cap round only (`review.max-iterations`, default 3), deferred into a tracker sub-issue'],
 ]);
 
-test('a delta on a security surface widens the security lenses to the whole pull request', function (): void {
+test('the security lenses read the whole pull request in every round', function (): void {
     expect(reviewQualityGateFile('rules/code-review/general.md'))
-        ->toContain('- **A delta on a security surface widens the security lenses to the whole PR.**')
+        ->toContain('- **The security lenses always read the whole PR diff.**')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');
 
     $loopScope = reviewQualityGateFile('skills/process-code-review/references/review-loop-scope.md');

@@ -429,76 +429,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a component never runs a direct Eloquent / `DB::` query; reads go through a Repository.
         'rules/laravel/livewire.md' => 'a578a55d64e7569067cd825993245900b7605dc9b3ad9c6d0921cccc82784654',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
-        // Re-baselined: the one comment a run publishes is now updated in place through a per-actor
-        // marker instead of re-posted, and the rule states what that costs (the comment chain is no
-        // longer the cross-run history) and what it preserves (the header block every gate reads).
-        // Re-baselined once more, with `rules/jira/general.md`: the JIRA comment marker carries a
-        // digest of the account e-mail instead of the address, because that line is visible to
-        // everyone who can browse the issue. Nothing else in either file moved.
-        // Re-baselined: the file gained `## HOTFIX runs — a narrowed review, declared on the
-        // comment` — the two questions the narrowed review still answers, the security carve-out
-        // that is never narrowed with them, and the `Mode:` header line the merge gate reads as
-        // the mode's only trusted evidence. Nothing else in the file moved.
-        // Re-baselined: the file gained three sections — a `foreach` is never a finding, a review
-        // comment assigned to somebody else is left alone, and published product documentation is
-        // a requirement the assignment need not restate. Nothing else in the file moved.
-        // Re-baselined: the file gained `## Answering a question raised during a review`, and the
-        // one-comment contract lists `## Answers to reviewer questions` as a conditional section.
-        // Re-baselined: its `*Per-dispatch memory slice*` pointer names `compound-engineering/memory.md`,
-        // where Compound Memory moved to leave the always-on file. No sentence changed.
-        // Re-baselined (issue #156): *Authorship trust* gained the single definition of the
-        // operator's own account and of agent output carrying the `cr-comment:actor=` /
-        // `agent-note:actor=` marker family — the one place every other reader of that test
-        // (the Exclusion Gate, the assigned-comment section, the re-review trigger, and
-        // tracker.md) now points at instead of restating.
-        // Re-baselined once more (issue #156, round 2): the marker family is now defined by its
-        // own shape ("any `<namespace>:actor=` marker a package helper writes") with the full
-        // namespace list — `cr-comment`, `merge-readiness`, `agent-note` — since `merge-readiness`
-        // was a real, already-shipped namespace the previous two-marker wording missed.
-        // Re-baselined: project instructions now win at every severity above the security /
-        // merge-gate / untrusted-content floor, and a project-only convention takes the project's
-        // severity (Moderate by default). The gate also reads `AGENTS.md`, the `.ai/rules/**` files
-        // covering the changed paths, and the manifest. The Minor bucket lost its security-lens
-        // exception (Low maps to Moderate, Info is not published), and a documented exemption and
-        // the product-docs source moved to the PR description and the manifest `product-docs` key.
-        // Re-baselined: `## Reuse Existing Logic` now names DRY one of the most important checks of
-        // every review, searches the whole project, covers logic repeated inside the diff, and
-        // declares its severity as Critical.
-        // Re-baselined: *The questions the review settles itself* now sends only questions that still
-        // hold and fall within the ticket's scope to the tracker, per the clarifying-questions scope gate.
-        // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        // Re-baselined: file and method size is never a code-review finding, and the author of
-        // the changes is the account that pushed the pull request (internal only, never reported).
-        // Re-baselined: the marker family gains `test-report`, the pull-request test report that
-        // `/test-assignment` publishes.
-        // Re-baselined: the acceptance criteria themselves are compared with the product
-        // documentation, which adds a fourth mismatch shape.
-        // Re-baselined: a question reaches a person only after the review reads every comment on
-        // the tracker item and the pull request, and an answered question is never asked again.
-        // Re-baselined: the converged comment renders `## Affected behaviour outside the diff`.
-        // Re-baselined: every review comment carries the `Merge verdict:` header line.
-        // Re-baselined: a line the operator added to an agent comment survives the rewrite.
-        // Re-baselined: a review-only run (`/report-code-review`) passes `--create`, so each run creates its own comment.
-        // Re-baselined: on JIRA a documentation-mismatch question closes the bullet it concerns.
-        // Re-baselined: *Authorship trust* reads every `<namespace>:actor=` marker as agent output,
-        // also a namespace a project skill passes to the upsert helpers.
-        // Re-baselined: the namespace list gained `support-analysis`, which `analyze-support-issue` writes.
-        // Re-baselined: every review comment carries the `Input consistency:` and `Reuse (DRY):` header lines.
-        // Re-baselined: a discrepancy a refactoring-only pull request carries over unchanged is settled by
-        // a follow-up issue, the one exception to *Provenance changes nothing about severity, counting, or the gate* (issue #175).
-        // Re-baselined: a review-only run mentions the author of the changes on each missing-test and DRY finding,
-        // the second exception to *The author of the changes is the account that pushed the pull request* (issue #175).
-        // Re-baselined: an issue with several pull requests gets its remarks and findings split per pull request (issue #175).
-        // Re-baselined: the namespace list gained `mysql-report`, the advisory MySQL report `casey` publishes (issue #180).
-        // Re-baselined: *Reuse Existing Logic* hands a copied subclass override to the core-analysis bullet.
-        // Re-baselined: *Safety* reports an open point as not verified, never as an assumption, and the header
-        // block gains the conditional `Not verified:` line (`rules/general/general.md` *Verified statements only*).
-        // Re-baselined: the namespace list gained `prevention-proposal`, which the prevention proposal refresh writes (issue #188).
-        // Re-baselined: *Incremental Review Scope* widens the security lenses to the whole PR when a delta touches
-        // a security surface, and the whole review after a regression or a shared-surface delta (issue #225).
-        // Re-baselined: every review comment carries the `Security assessment:` header line (issue #236).
-        // Re-baselined: *Security is the most important part of every review* ranks security above every other check.
-        'rules/code-review/general.md' => '6651803e3301a1704261b0077b6db4b03e065027aa5e68ab78c63f011a6769d9',
+        'rules/code-review/general.md' => '02a776458fb8b3d37543bd50342c1d4c66e29b8054c872476b1d2181e5605532',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
