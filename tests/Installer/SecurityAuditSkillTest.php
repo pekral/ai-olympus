@@ -623,6 +623,66 @@ test('unchanged coverage is reused only when the digest proves its security path
     );
 });
 
+test('digest and validate refuse a symbolic link and a path that matches no file', function (): void {
+    $incremental = securityAuditSource('skills/security-audit/references/incremental-audit.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(
+        substr_count(
+            $incremental,
+            '`digest` and `validate` therefore refuse a path that is a symbolic link or passes through one, and name the target path to record instead.',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($incremental, '- `digest` and `validate` refuse a path that matches no tracked or untracked, not ignored file.'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'digest: a path beyond a symbolic link is refused, although git lists no file for it\' 1 in_dir "$inc" cmd_digest',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'regression: a unit whose input is a symbolic link fails validation after its target changed\' 3 cmd_validate',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'digest: a path that matches no file is refused, because its digest would prove nothing\' 1 in_dir "$inc" cmd_digest',
+        ),
+    )->toBe(
+        1,
+    );
+});
+
+test('a base finding that no base unit lists is verified again in an incremental run', function (): void {
+    $incremental = securityAuditSource('skills/security-audit/references/incremental-audit.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($incremental, 'A base finding that no base unit lists is verified again.'))->toBe(1);
+    expect(
+        substr_count($script, 'expect_exit \'regression: a base finding no base unit lists does not disappear from an incremental run\' 3 cmd_validate'),
+    )->toBe(
+        1,
+    );
+});
+
+test('the path logic and the rule for a run without a base run are written once', function (): void {
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($script, 'def holds($q; $p):'))->toBe(1);
+    expect(substr_count($script, 'def unit_paths:'))->toBe(1);
+    expect(substr_count($script, '"incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run"'))->toBe(1);
+    expect(substr_count($script, '"incremental: finding \(.fingerprint) is reused from \(.reused_from), but the ledger names no base_run"'))->toBe(1);
+});
+
 test('the threat model of an ai_tools unit covers the ten AI and agent attack classes', function (): void {
     $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
     $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
