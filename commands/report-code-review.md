@@ -26,7 +26,11 @@ change in the request. When the diff is missing no test, the run creates no comm
 fails against the current code is not committed; `donatello` reports the behaviour it exposed, and
 the review reports it as a finding. Then `splinter` dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
-`@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The wrapper
+`@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The review always
+runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head,
+including the missing-tests commit. `leonardo` may run that lens in parallel with the other lenses of
+its review, but its findings always land in the one final review report. The run never publishes a
+separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The wrapper
 publishes the result in the output each tracker requires: the technical findings on the GitHub pull
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
 section. In its place, `Review findings` retells the GitHub report in plain language, so a

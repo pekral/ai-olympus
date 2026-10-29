@@ -18,6 +18,10 @@ changes the business logic of the change under review');
     expect($command)->toContain('confirms that local `HEAD` equals the pull request\'s head SHA');
     expect($command)->toContain('$code-review-jira');
     expect($command)->toContain('call the publish helper with `--create`');
+    expect($command)->toContain('The review always
+runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
+    expect($command)->toContain('its findings always land in the one final review report');
+    expect($command)->toContain('it never sets `SECURITY_OWNER` on the wrapper');
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
     expect($splinter)->toContain('`Review report done`');
@@ -29,6 +33,8 @@ changes the business logic of the change under review');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
     expect($leonardo)->toContain('skip the step-10 fix loop');
     expect($leonardo)->toContain('Do not open a review worktree.');
+    expect($leonardo)->toContain('That invocation always runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
+    expect($splinter)->toContain('The review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request.');
     expect($splinter)->toContain('switch the current working tree to the pull request\'s head branch');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
