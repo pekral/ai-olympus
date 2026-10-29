@@ -1,6 +1,6 @@
 ---
 name: security-audit
-description: "Use when the user explicitly asks for a security audit of the whole repository or of one subsystem, not a review of a pull request or diff. Runs a budgeted, reproducible, coverage-driven audit in the quick, standard, or deep profile: a coverage inventory before hunting, read-only hunters in waves, a fresh coverage critic after each wave, and a new independent verifier for every candidate. Writes metadata.json, coverage-ledger.json, findings.json, and REPORT.md, and validates the JSON against its schemas."
+description: "Use when the user explicitly asks for a security audit of the whole repository or of one subsystem, not a review of a pull request or diff. Runs a budgeted, reproducible, coverage-driven audit in the quick, standard, or deep profile: a coverage inventory before hunting, read-only hunters in waves, a fresh coverage critic after each wave, and a new independent verifier for every candidate. Writes metadata.json, coverage-ledger.json, findings.json, and REPORT.md, and validates the JSON against its schemas. An incremental run compares an earlier run with the git diff and reuses its coverage only where the bytes of the security path are unchanged."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -39,12 +39,14 @@ How this differs from its neighbours:
 
 **Never runs when:** no such explicit request was made. A pull request, a diff, or a single changed file is `@skills/security-review/SKILL.md`, not this skill.
 
-**Inputs.** The scope (the whole repository, or the part the user named), the profile (`standard` when the user names none), and optionally an explicit execution budget in passes. The profiles and the budget rules live in `references/profiles-and-budget.md`.
+**Inputs.** The scope (the whole repository, or the part the user named), the profile (`standard` when the user names none), optionally an explicit execution budget in passes, and optionally a base run: an earlier run of this project that an incremental audit compares with. The profiles and the budget rules live in `references/profiles-and-budget.md`. The incremental audit lives in `references/incremental-audit.md`.
 
 ---
 
 ## Run directory
-All four artefacts of a run live in one directory: `.claude/run/security-audit/<run-id>/`. On Codex that path is `.codex/run/security-audit/<run-id>/`. The `<run-id>` is `<profile>-<UTC date>-<short commit>`, lowercase. The run directory must be git-ignored, so the working-tree snapshot never sees your own writes to it. `scripts/audit-artifacts.sh inventory` refuses a run directory that is not git-ignored. A project that wants to keep an audit copies it out.
+All four artefacts of a run live in one directory: `.claude/run/security-audit/<run-id>/`. On Codex that path is `.codex/run/security-audit/<run-id>/`. The `<run-id>` is `<profile>-<UTC start time as YYYYMMDDTHHMMSSZ>-<short commit>`, lowercase, for example `standard-20261029t183000z-8af9728`. The run directory must be git-ignored, so the working-tree snapshot never sees your own writes to it. `scripts/audit-artifacts.sh inventory` refuses a run directory that is not git-ignored.
+
+**Every run has the same structure.** A full run and an incremental run write the same four artefacts, with the same schemas, into a directory named after the run's `run_id`. `validate` refuses a run directory whose name is not its `run_id`. Keep the earlier runs: an incremental run reads its base run in the directory beside its own, and `validate` refuses a base run that is not there. A project that wants to keep an audit elsewhere copies it out and leaves the original in place.
 
 | Artefact | Content | Contract |
 |----------|---------|----------|
@@ -63,13 +65,13 @@ You are the coordinator. Continue until every coverage unit has a final status a
 1. Run `scripts/audit-artifacts.sh budget --profile <profile> [--total <passes>]`. Its output is the run's budget. Never compute or adjust it by hand.
 2. Record the commit audited and the pre-audit `git status --short` output.
 3. Run `scripts/audit-artifacts.sh snapshot` in the audited project. Its output is the working-tree baseline. Record it as `worktree_baseline` in `metadata.json`.
-4. Create the run directory.
+4. Create the run directory beside the earlier runs.
 
 ### 2. Reconnaissance and the coverage inventory
 The inventory exists before hunting. No hunter opens before this step ends.
 1. **Reconnaissance.** With read-only inspection commands, map every trust boundary in scope and every surface that crosses one: HTTP entrypoints, authentication, authorization, background jobs, queues, webhooks, file handling, external APIs, data isolation, privileged actions, AI tools, MCP integrations, and agent-triggered side effects. Include frontend, configuration, deployment and CI files, and dependencies wherever the scope reaches them.
-2. **Coverage units.** Write one coverage unit for each attack class that applies to a surface of a subsystem, with the fields in `references/roles-and-lifecycle.md` *Coverage units*. The attack classes are the *Hunting areas* of the same file. Split a broad unit until a hunter can hold it in one pass. A surface outside the scope the user named is a unit with status `out_of_scope` and a reason.
-3. Write the inventory as `coverage-ledger.json`: every other unit `queued`, `agent` set to `null`, and no wave.
+2. **Coverage units.** Write one coverage unit for each attack class that applies to a surface of a subsystem, with the fields in `references/roles-and-lifecycle.md` *Coverage units*. The attack classes are the *Hunting areas* of the same file. Split a broad unit until a hunter can hold it in one pass. A surface outside the scope the user named is a unit with status `out_of_scope` and a reason. Every AI tool, MCP integration, and agent-triggered side effect gets an `ai_tools` unit, whatever other units its surface has.
+3. Write the inventory as `coverage-ledger.json`: `base_run` set to `null`, every other unit `queued`, `agent` set to `null`, and no wave. **In an incremental audit**, run `scripts/audit-artifacts.sh impact <base-run-dir>` first and write the inventory from its result, as `references/incremental-audit.md` *The inventory* states: `base_run` names the base run, every unit the impact marks `reuse` is copied unchanged with `reused_from`, and every other base unit is queued again under its `coverage_id`. Reconnaissance walks every changed path the impact lists, not only the new ones.
 4. Run `scripts/audit-artifacts.sh inventory <run-dir>`. Hunting starts only after it exits `0`.
 
 ### 3. Hunt in waves (bounded by `hunting_max`)
@@ -83,6 +85,7 @@ The inventory exists before hunting. No hunter opens before this step ends.
 - After every wave, run `scripts/audit-artifacts.sh snapshot` again and record its output as the wave's `worktree`. When it differs from `worktree_baseline`, a worker wrote to the working tree. Open no further parallel wave, report the write, and leave the change for the user to inspect. `validate` refuses a run whose waves changed the working tree.
 - **The snapshot has a limit.** It covers HEAD, the index, and the bytes of every tracked file and every untracked file that is not git-ignored. A write to a git-ignored path, outside the work tree, or inside a submodule or a nested git repository does not change it, so an unchanged snapshot is no proof that a worker stayed read-only. Condition 4 above, a worker that holds reading tools only, is what keeps a worker from writing; the snapshot only catches a write it can see.
 - Set a hunted unit to `candidate` when its hunter returned a candidate, and to `covered` when it returned `none`. A unit the hunter could not analyse is `blocked` with the reason.
+- Record on the unit what its hunter returned besides candidates: the security inputs on its path (`inputs`, `references/roles-and-lifecycle.md` *Security inputs*), the ten AI and agent threat classes for an `ai_tools` unit (`threats`, *AI and agent threat model*), and the five action dimensions for an action surface (`action_binding`, *Action binding*). `validate` refuses a covered unit without them.
 - Every hunter pass spends one pass of the budget. Stop opening hunters when `spent.hunting` equals `hunting_max`. A unit that did not get its pass becomes `deferred` with the reason `hunting budget spent`; it never stays `queued` and never counts as covered.
 - The reserves for verifiers and coverage critics are not available to hunting under any circumstance.
 
@@ -92,6 +95,7 @@ The inventory exists before hunting. No hunter opens before this step ends.
 - The verifier sets the verdict by the lifecycle rules in `references/roles-and-lifecycle.md` *Finding lifecycle*. Only a validated finding reaches `confirmed`. A control that stops the flow makes the finding `rejected`, and a control whose effect stays unclear makes it `needs_validation`. A finding without a demonstrated failure of a security boundary is `needs_validation` with severity `unrated`.
 - Re-open the cited `file:line` yourself before you accept a verdict. A finding you cannot confirm in the current bytes does not enter `findings.json` as `confirmed`.
 - Set every unit whose candidates all have a verdict from `candidate` to `covered`.
+- **Seal every covered unit.** Add every file a finding cites to the `inputs` of every unit that lists the finding. Then run `scripts/audit-artifacts.sh digest <path>...` in the audited project with the unit's `paths` and input paths, and record the output as the unit's `inputs_digest`. The digest is the proof a later incremental run relies on. `validate` refuses a digest that does not match the working tree, an input that git ignores, and a finding that cites a file outside the paths and inputs of a unit that lists it.
 
 ### 5. Run a fresh coverage critic after every wave (the reserve)
 - After the candidates of a wave are verified, open a new coverage critic: a fresh read-only worker with a new ID that reviewed no earlier wave, with the brief in `references/roles-and-lifecycle.md` *Coverage critic brief*. It reports missing or weak coverage: surfaces and attack classes no unit holds, uncovered entrypoints, unanalysed trust boundaries, shallow review, and findings that rest on an assumption.
@@ -101,13 +105,13 @@ The inventory exists before hunting. No hunter opens before this step ends.
 
 ### 6. Write the artefacts and validate
 1. Write `findings.json`, finalise `coverage-ledger.json`, and write `metadata.json` with the spent passes and the counts per verdict. No unit stays `queued` or `candidate`.
-2. Write `REPORT.md` in the shape of `templates/REPORT.md`.
+2. Write `REPORT.md` in the shape of `templates/REPORT.md`. In an incremental run, *Incremental basis* lists the base run, the changed paths, the reused and the invalidated units, and every invalidated finding with the verdict this run gave it.
 3. Run `scripts/audit-artifacts.sh validate <run-dir>`. A non-zero exit lists the problems. Fix the artefacts and run it again. A run is not finished until it exits `0`.
 
 ---
 
 ## Output
-Return the path of the run directory, the profile and budget (total, spent per stage), the count of findings per verdict, the findings of verdict `confirmed` ordered by severity, the coverage units with status `blocked` or `deferred`, the gaps the coverage critics reported, and the result of `validate`. State that the audit published nothing.
+Return the path of the run directory, the profile and budget (total, spent per stage), the count of findings per verdict, the findings of verdict `confirmed` ordered by severity, the coverage units with status `blocked` or `deferred`, the gaps the coverage critics reported, and the result of `validate`. For an incremental run, also return the base run, the count of reused and invalidated units, and the changed paths no base unit held. State that the audit published nothing.
 
 ---
 
@@ -117,6 +121,8 @@ Return the path of the run directory, the profile and budget (total, spent per s
 - A fresh coverage critic reviewed every wave, and the working-tree snapshot after every wave equals the baseline, within the limit step 3 states.
 - `spent.hunting` is not above `hunting_max`, and both reserves were available to the stages they belong to.
 - Every finding is `confirmed`, `needs_validation`, or `rejected`, every verdict comes from a verifier that did not hunt the finding, and no `needs_validation` finding carries a definitive severity without a demonstrated boundary failure.
+- Every covered unit records its security inputs and an `inputs_digest` that equals the digest of its paths and inputs, every covered `ai_tools` unit records the ten threat classes, and every covered action surface records the five action dimensions.
+- In an incremental run, every reused unit and finding is an unchanged copy of its base record, whose security path is unchanged, and every other base unit was inventoried again under its `coverage_id`.
 - `metadata.json`, `coverage-ledger.json`, `findings.json`, and `REPORT.md` exist, and `scripts/audit-artifacts.sh validate` exits `0`.
 - The audited project is unchanged: `git status --short` matches the baseline recorded before the audit, and `scripts/audit-artifacts.sh snapshot` prints `worktree_baseline`.
 
@@ -124,7 +130,8 @@ Return the path of the run directory, the profile and budget (total, spent per s
 
 ## References
 - `references/profiles-and-budget.md` — the three profiles, the budget unit and reserves, and the accounting rules.
-- `references/roles-and-lifecycle.md` — the coverage units, the hunting areas, the worker IDs, the hunter, verifier, and coverage critic briefs, the finding lifecycle, severity, and the fingerprint.
+- `references/roles-and-lifecycle.md` — the coverage units, the security inputs, the hunting areas, the AI and agent threat model, the action binding, the worker IDs, the hunter, verifier, and coverage critic briefs, the finding lifecycle, severity, and the fingerprint.
+- `references/incremental-audit.md` — the base run, the impact of a change, the reuse and invalidation rules, and their limits.
 - `schemas/findings.schema.json`, `schemas/coverage.schema.json`, `schemas/metadata.schema.json` — the artefact contracts.
 - `templates/REPORT.md` — the report shape.
-- `scripts/audit-artifacts.sh` — the budget calculation, the working-tree snapshot, the fingerprint, the inventory check, and the deterministic artefact validation (`--self-test` proves it).
+- `scripts/audit-artifacts.sh` — the budget calculation, the working-tree snapshot, the fingerprint, the digest of a security path, the impact of a change since a base run, the inventory check, and the deterministic artefact validation (`--self-test` proves it).

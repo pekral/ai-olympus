@@ -174,9 +174,9 @@ test('a coverage unit carries the nine fields and the six statuses of a coverage
     expect(securityAuditSchemaValue('coverage', $entry . '.allOf.0.if.properties.status'))->toBe(['enum' => ['blocked', 'deferred', 'out_of_scope']]);
     expect(securityAuditSchemaValue('coverage', $entry . '.allOf.0.then'))->toBe(['required' => ['reason']]);
     expect(securityAuditSchemaValue('coverage', $entry . '.allOf.1.then'))->toBe(['properties' => ['agent' => ['type' => 'string']]]);
-    expect(securityAuditSchemaValue('coverage', 'properties.schema_version'))->toBe(['const' => 2]);
-    expect(securityAuditSchemaValue('findings', 'properties.schema_version'))->toBe(['const' => 2]);
-    expect(securityAuditSchemaValue('metadata', 'properties.schema_version'))->toBe(['const' => 2]);
+    expect(securityAuditSchemaValue('coverage', 'properties.schema_version'))->toBe(['const' => 3]);
+    expect(securityAuditSchemaValue('findings', 'properties.schema_version'))->toBe(['const' => 3]);
+    expect(securityAuditSchemaValue('metadata', 'properties.schema_version'))->toBe(['const' => 3]);
 });
 
 test('every run writes the four artefacts and the report template matches the headings the validator requires', function (): void {
@@ -245,7 +245,7 @@ test('every file under skills/security-audit is inert and ships verbatim', funct
         }
     }
 
-    expect($inspected)->toBe(8);
+    expect($inspected)->toBe(9);
 });
 
 test('every file the skill points at exists', function (): void {
@@ -255,7 +255,7 @@ test('every file the skill points at exists', function (): void {
     preg_match_all('/`((?:references|schemas|templates|scripts)\/[A-Za-z0-9._-]+)`/', $skill, $matches);
     $paths = array_unique($matches[1]);
 
-    expect($paths)->toHaveCount(7);
+    expect($paths)->toHaveCount(8);
 
     foreach ($paths as $path) {
         expect(is_file($packageDir . '/skills/security-audit/' . $path))->toBeTrue();
@@ -504,4 +504,178 @@ test('findings are deduplicated by a root-cause fingerprint and never by text si
         ->toContain('problems+="$(fingerprint_problems "$dir/findings.json")"')
         ->toContain('pass \'dedup: identical prose with three root-cause bases stays three findings\'')
         ->toContain('expect_exit \'dedup: two findings with the same root-cause fingerprint are one finding\' 3 cmd_validate');
+});
+
+test('every run, full or incremental, writes the same structure into a directory named after its run_id', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($audit, '**Every run has the same structure.** A full run and an incremental run write the same four artefacts'))->toBe(1);
+    expect(substr_count($audit, '`<profile>-<UTC start time as YYYYMMDDTHHMMSSZ>-<short commit>`'))->toBe(1);
+    expect(substr_count($audit, '`<profile>-<UTC date>-<short commit>`'))->toBe(0);
+    expect(securityAuditSchemaValue('coverage', 'required'))->toBe(['schema_version', 'base_run', 'entries', 'waves']);
+    expect(securityAuditSchemaValue('coverage', 'properties.base_run'))->toBe(['type' => ['string', 'null'], 'pattern' => '^[a-z0-9][a-z0-9-]*$']);
+    expect(substr_count($script, 'a run directory is named after its run_id" else empty end'))->toBe(1);
+    expect(substr_count($script, 'expect_exit \'run directory: a run directory is named after its run_id\' 3 cmd_validate'))->toBe(1);
+    expect(substr_count($script, 'expect_exit \'incremental: the base run sits beside the run directory\' 3 cmd_validate'))->toBe(1);
+});
+
+test('an incremental audit compares the base run with the git diff and names the affected surfaces', function (): void {
+    $incremental = securityAuditSource('skills/security-audit/references/incremental-audit.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($incremental, '| `changed_paths` |'))->toBe(1);
+    expect(substr_count($incremental, '| `new_paths` | The changed paths that no base unit holds in its `paths` or `inputs`. |'))->toBe(1);
+    expect(substr_count($incremental, '4. Walk every path in `changed_paths` in reconnaissance.'))->toBe(1);
+    expect(substr_count($script, '  impact)'))->toBe(1);
+    expect(substr_count($script, 'git_plain "$top" ls-tree -r -z --full-tree "$commit"'))->toBe(1);
+    expect(substr_count($script, 'git_plain "$top" diff'))->toBe(0);
+    expect(substr_count($script, 'git_plain "$top" status'))->toBe(0);
+    expect(
+        substr_count($script, 'impact_says \'impact: a limited diff lists its changed paths, edited and untracked, and the ones no unit holds\''),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($script, 'impact_says \'impact: a committed edit and a committed deletion are changed paths\''))->toBe(1);
+});
+
+test('a changed security input invalidates the unit, the units that share its findings, and those findings', function (): void {
+    $incremental = securityAuditSource('skills/security-audit/references/incremental-audit.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+    $entry = '$defs.entry';
+
+    expect(substr_count($incremental, '**A change to a security input invalidates the unit and its findings.**'))->toBe(1);
+    expect(securityAuditSchemaValue('coverage', $entry . '.allOf.2'))->toBe([
+        'if' => ['required' => ['status'], 'properties' => ['status' => ['const' => 'covered']]],
+        'then' => ['required' => ['inputs', 'inputs_digest']],
+    ]);
+    expect(securityAuditSchemaValue('coverage', '$defs.security_input.properties.kind.enum'))->toBe([
+        'source',
+        'sink',
+        'authorization',
+        'middleware',
+        'validation',
+        'sanitization',
+        'framework_protection',
+        'configuration',
+        'trust_boundary',
+        'tool_authority',
+        'action_binding',
+    ]);
+    expect(substr_count($script, 'impact_says \'impact: a changed authorization layer invalidates the unit and names the input\''))->toBe(1);
+    expect(substr_count($script, 'impact_says \'impact: a changed tool authority invalidates the AI tool unit\''))->toBe(1);
+    expect(substr_count($script, 'impact_says \'impact: changed arguments of a privileged action invalidate the unit that binds them\''))->toBe(1);
+    expect(substr_count($script, 'impact_says \'impact: a unit that shares a finding with an invalidated unit is invalidated too\''))->toBe(1);
+    expect(
+        substr_count($script, 'expect_exit \'incremental: a finding of a unit this run hunts again cannot keep its old verdict\' 3 cmd_validate'),
+    )->toBe(
+        1,
+    );
+    expect(
+        substr_count($script, 'expect_exit \'inputs: every file a finding cites lies on the paths or inputs of the unit that lists it\' 3 cmd_validate'),
+    )->toBe(
+        1,
+    );
+});
+
+test('unchanged coverage is reused only when the digest proves its security path unchanged', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $incremental = securityAuditSource('skills/security-audit/references/incremental-audit.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($incremental, '**Coverage is reused only with proof.** The proof is the digest, not the diff.'))->toBe(1);
+    expect(substr_count($audit, '- **Seal every covered unit.**'))->toBe(1);
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.properties.inputs_digest'))->toBe(['type' => 'string', 'pattern' => '^[a-f0-9]{64}$']);
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.allOf.3'))->toBe([
+        'if' => ['required' => ['reused_from']],
+        'then' => ['properties' => ['status' => ['const' => 'covered']]],
+    ]);
+    expect(
+        substr_count(
+            $script,
+            'git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@" | file_states "$top" | sha256_hex',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(
+        substr_count($script, 'printf \'digest: %s records inputs_digest %s, but its paths and inputs now hash to %s; the security path changed\\n\''),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($script, 'expect_exit \'incremental: a run that reuses every unit of an unchanged tree validates\' 0 cmd_validate'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'incremental: a run that reuses the unchanged units and hunts only the new surface validates\' 0 cmd_validate',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($script, 'expect_exit \'incremental: a unit whose authorization layer changed cannot be reused\' 3 cmd_validate'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'inputs: an input git ignores is refused, because a change to it would not change the digest\' 3 cmd_validate',
+        ),
+    )->toBe(
+        1,
+    );
+});
+
+test('the threat model of an ai_tools unit covers the ten AI and agent attack classes', function (): void {
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+    $classes = [
+        'prompt_provenance_confusion',
+        'persistent_memory_poisoning',
+        'cross_session_context_bleed',
+        'tool_argument_injection',
+        'confused_deputy',
+        'excessive_tool_authority',
+        'mcp_tool_identity_confusion',
+        'action_confirmation_binding_failure',
+        'schema_dispatcher_disagreement',
+        'unbounded_agent_action_loop',
+    ];
+
+    expect(securityAuditSchemaValue('coverage', '$defs.threat.properties.class.enum'))->toBe($classes);
+    expect(securityAuditSchemaValue('coverage', '$defs.threat.properties.outcome'))->toBe(['enum' => ['candidate', 'no_candidate', 'not_applicable']]);
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.allOf.4.then.properties.threats.allOf'))->toHaveCount(10);
+    expect(substr_count($roles, '## AI and agent threat model'))->toBe(1);
+
+    foreach ($classes as $class) {
+        expect(substr_count($roles, '| `' . $class . '` |'))->toBe(1);
+    }
+
+    expect(substr_count($script, 'expect_exit "threats: a covered ai_tools unit cannot leave out $threat" 3 cmd_validate'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'expect_exit \'regression: the earlier coverage of an AI unit cannot hide a new trust boundary under its path\' 3 cmd_validate',
+        ),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($script, 'impact_says \'regression: a new agent memory store outside every unit is a new surface\''))->toBe(1);
+    expect(substr_count($script, 'expect_exit \'regression: a base run written before the AI threat model cannot be reused\' 3 cmd_validate'))->toBe(1);
+});
+
+test('an action surface is judged on principal, authority, action, resource, and arguments, not on user authorization alone', function (): void {
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($roles, '**Authorization of the user alone does not bind the action.**'))->toBe(1);
+    expect(substr_count($roles, 'An authorized user alone does not bind the action.'))->toBe(2);
+    expect(securityAuditSchemaValue('coverage', '$defs.action_binding.required'))->toBe(['principal', 'authority', 'action', 'resource', 'arguments']);
+    expect(securityAuditSchemaValue('coverage', '$defs.binding.properties.status'))->toBe(['enum' => ['bound', 'unbound', 'unclear']]);
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.allOf.5.if.properties.surface'))->toBe(
+        ['enum' => ['privileged_action', 'agent_side_effect', 'ai_tool', 'mcp_integration']],
+    );
+    expect(
+        substr_count($script, 'expect_exit \'binding: an authorized principal with unbound arguments and no finding is invalid\' 3 cmd_validate'),
+    )->toBe(
+        1,
+    );
+    expect(substr_count($script, 'expect_exit \'binding: unbound arguments that the unit lists as a finding are valid\' 0 cmd_validate'))->toBe(1);
 });
