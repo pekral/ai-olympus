@@ -55,7 +55,7 @@ test('security is the most important part of every code review', function (): vo
     expect((string) file_get_contents($packageDir . '/rules/code-review/general.md'))
         ->toContain('## Security is the most important part of every review')
         ->toContain('Security ranks above every other check of a review, DRY included.')
-        ->toContain('it shortens any other lens and never the security lenses')
+        ->toContain('it shortens another lens and never a security lens')
         ->toContain('In each severity list of the published review, the security findings come first.');
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('**Security agenda (the most important part of every review');
