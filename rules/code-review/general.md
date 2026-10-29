@@ -154,6 +154,15 @@ Other bullets cite this stratification when the rule file behind a finding decla
 
 A reviewer may not silently downgrade below this stratification. When a rule's spirit is satisfied by an alternative the PR description documents, cite that exemption explicitly in the finding instead of suppressing it. A code comment never documents one, because a PHP comment carries `@` annotations only.
 
+## Security is the most important part of every review
+
+Security ranks above every other check of a review, DRY included. A missed security defect reaches production and the users, while every other finding costs only maintenance.
+
+- **It runs on every review and is never skipped.** `@skills/security-review/SKILL.md` runs over the current diff of the pull request on every CR: a `FAST`-tier review, a highest-priority fast track, a HOTFIX review, and a review-only run (`/report-code-review`) included. Every rule in `@rules/security/**` applies. No time limit, budget, or scope narrowing removes it.
+- **It is checked first and in full.** When the review must shorten a lens, it shortens any other lens and never the security lenses.
+- **Its findings lead the report.** In each severity list of the published review, the security findings come first.
+- **It keeps the strictest gate.** A security finding is never suppressed, never settled by a rejection, and never deferred. The S1–S3 carve-out of *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* and the `review.blocking-threshold` key of `@rules/general/general.md` *Project manifest* own those rules.
+
 ## Reuse Existing Logic
 - **DRY is one of the most important checks of every review.** It runs on every CR, including a FAST-tier and a highest-priority review, and it is never skipped for time. The reviewer searches the **whole project source** for logic the diff re-implements, never only the diff. The search matches on behaviour — the steps, the condition, the query, the collaborators — never on names.
 - **Reuse-first gate — before judging *how* new logic is written, decide whether it should exist at all.** For every block of newly added or modified logic in the diff, ask the two questions in order:

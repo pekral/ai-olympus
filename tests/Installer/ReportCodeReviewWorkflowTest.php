@@ -42,8 +42,21 @@ runs `@skills/security-review/SKILL.md` over the current diff of the pull reques
         ->toContain('Pass `--create` as the first argument of the GitHub and JIRA publish helpers');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
         ->toContain('**A review-only run always creates new comments.**')
-        ->toContain('The one exception to *one at a time*: `security-review` may run in parallel')
+        ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
         ->toContain('as parallel tool calls in this same context, never as a subagent.');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
+        ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
         ->toContain('It still runs exactly once over the current diff, and its findings land in the one review comment of this run.');
+});
+
+test('security is the most important part of every code review', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    expect((string) file_get_contents($packageDir . '/rules/code-review/general.md'))
+        ->toContain('## Security is the most important part of every review')
+        ->toContain('Security ranks above every other check of a review, DRY included.')
+        ->toContain('it shortens any other lens and never the security lenses')
+        ->toContain('In each severity list of the published review, the security findings come first.');
+    expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
+        ->toContain('**Security agenda (the most important part of every review');
 });
