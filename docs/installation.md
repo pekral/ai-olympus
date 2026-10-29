@@ -8,14 +8,14 @@ Everything on this page describes the **Composer** path. A project without Compo
 
 The Composer installer requires PHP `^8.4` and Composer 2. CI runs the full quality checks and checks the distribution install on PHP 8.4, 8.5, and 8.6.
 
-Release `0.1.3` uses the exact Git tag `0.1.3`. Install this version from Packagist with:
+Release `0.2` uses the exact Git tag `0.2`. Install this version from Packagist with:
 
 ```bash
-composer require pekral/ai-olympus:0.1.3 --dev
+composer require pekral/ai-olympus:0.2 --dev
 vendor/bin/ai-olympus install --force --prune
 ```
 
-Commit the consuming project's `composer.lock` to keep installations reproducible. The `0.1.3` constraint pins this version; `^0.1` permits subsequent `0.1.x` patches. During `0.x`, a new minor version may change workflow behavior or installer options. Review the [changelog](../CHANGELOG.md) before changing the constraint, save local customizations, and refresh installed files with `--force --prune` after an update.
+Commit the consuming project's `composer.lock` to keep installations reproducible. The `0.2` constraint pins this version; `^0.2` permits subsequent `0.2.x` patches. During `0.x`, a new minor version may change workflow behavior or installer options. Review the [changelog](../CHANGELOG.md) before changing the constraint, save local customizations, and refresh installed files with `--force --prune` after an update.
 
 ## Global settings and attribution
 
