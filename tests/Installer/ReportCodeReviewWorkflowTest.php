@@ -20,7 +20,7 @@ changes the business logic of the change under review');
     expect($command)->toContain('call the publish helper with `--create`');
     expect($command)->toContain('The review always
 runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
-    expect($command)->toContain('its findings always land in the one final review report');
+    expect($command)->toContain('but it runs exactly once, and its findings always land in the one final review report');
     expect($command)->toContain('it never sets `SECURITY_OWNER` on the wrapper');
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
@@ -41,5 +41,9 @@ runs `@skills/security-review/SKILL.md` over the current diff of the pull reques
         ->toContain('### Review-only run — `Review findings` in place of `How to test`')
         ->toContain('Pass `--create` as the first argument of the GitHub and JIRA publish helpers');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
-        ->toContain('**A review-only run always creates new comments.**');
+        ->toContain('**A review-only run always creates new comments.**')
+        ->toContain('The one exception to *one at a time*: `security-review` may run in parallel')
+        ->toContain('as parallel tool calls in this same context, never as a subagent.');
+    expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
+        ->toContain('It still runs exactly once over the current diff, and its findings land in the one review comment of this run.');
 });
