@@ -74,7 +74,6 @@ Follow this order:
 Change nothing outside the assignment (`@rules/compound-engineering/general.md` *The assignment is the scope*). While writing tests you may uncover a problem that is **unrelated to the current change** but was already present in the code you had to read or exercise.
 
 - **A security vulnerability is fixed**, in its own commit, distinct from the test-coverage commit, with its regression test in the same commit. The procedure lives in `@skills/resolve-issue/references/pre-existing-issue-handling.md`; the "Do not modify production code unless strictly required" constraint above is overridden for this fix only.
-- **Every other pre-existing problem is not implemented** — a bug, a project-rule violation, a comment outside the lines the change writes. List it in the skill's output report as an out-of-scope observation. The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* decides whether it is filed or dropped.
 - A refactoring-only change files a vulnerability instead of fixing it (`@rules/refactoring/general.md` *Behaviour stays identical — bugs included*).
 - Do not scan unrelated files for more.
 
@@ -86,7 +85,7 @@ Change nothing outside the assignment (`@rules/compound-engineering/general.md` 
 - The authoring-gate record: one line per new or changed test (what it protects, the regression it catches, its owner boundary, its overlap)
 - Coverage status for current changes (must be 100%; a reported conflict or removable line leaves the gate open)
 - Test review result
-- List of pre-existing security fix commits (if any), each with a one-line rationale, plus any out-of-scope observation with the reason it was not implemented
+- List of pre-existing security fix commits (if any), each with a one-line rationale, plus the URL of any follow-up issue filed for a point outside the assignment
 
 ---
 

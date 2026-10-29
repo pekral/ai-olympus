@@ -4,8 +4,8 @@ Referenced from `skills/resolve-issue/SKILL.md` *Pre-existing issue handling*, a
 
 While reading and modifying the files required for the in-scope work, you may encounter a problem that is **unrelated to the current assignment** but was already present in those files.
 
-- **A security vulnerability is fixed in this PR.** It is anything `@rules/security/backend.md`, `@rules/security/frontend.md`, or `@rules/security/mobile.md` would flag: injection, missing authn/authz, unsafe deserialization, sensitive-data exposure.
-- **Every other problem is not implemented.** A bug, a project-rule violation, a comment outside the lines the change writes, a refactoring, and an optimization are recorded, never fixed. The filing path in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* decides whether the point becomes a tracker issue or is dropped.
+- **A security vulnerability is fixed in this PR.** `@rules/compound-engineering/general.md` *The assignment is the scope* defines what counts as one and how small the fix is.
+- **Every other problem follows the owner.**
 
 Rules for a security vulnerability:
 

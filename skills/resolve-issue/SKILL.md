@@ -92,8 +92,8 @@ Run `@skills/prepare-issue-context/SKILL.md` with `MODE=resolve-issue` and the s
    - **General** — requirements are vague, acceptance criteria are missing, or the root cause is not identified (when in doubt, general). **Run** `@skills/analyze-problem/SKILL.md` over the issue description, scenario table, and current requirements, and use its output for step 7.
 7. Review the input from step 6 and split the identified items into three groups (`@rules/compound-engineering/general.md` *The assignment is the scope*):
    - **In scope** — items that directly match the issue requirements; implemented.
-   - **Pre-existing security vulnerabilities** — already in the affected files (see *Pre-existing issue handling* below); fixed in a **separate commit** in the same PR. Every other pre-existing problem is not implemented.
-   - **Out of scope (deferred)** — valid findings outside the current issue (enhancements, refactors, future features the assignment names); never implemented; added to the PR `## TODO` list **and filed as a follow-up issue when it clears the filing bar** of `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
+   - **Pre-existing security vulnerabilities** — already in the affected files (see *Pre-existing issue handling* below); fixed in a **separate commit** in the same PR.
+   - **Out of scope (deferred)** — valid findings outside the current issue (enhancements, refactors, and a future feature the assignment itself marks as later work); never implemented; added to the PR `## TODO` list **and filed as a follow-up issue when it clears the filing bar** of `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* (see *Deferred-item follow-up issues* below).
 
 ### Read, Map & Verify before implementing (mandatory pre-flight)
 
@@ -121,7 +121,7 @@ Intermediate commits are not individually gated; the project's gate runs once on
 
 ### Pre-existing issue handling
 
-Change nothing outside the assignment (`@rules/compound-engineering/general.md` *The assignment is the scope*). The one exception is a **security vulnerability** you encountered in a file you had to read: fix it in its own `pre-existing — ` commit ordered before the in-scope commits, and **do not** scan unrelated files for more. Every other pre-existing problem is not implemented. A refactoring-only assignment files a vulnerability instead of fixing it. The commit conventions and the regression-test workflow live in `references/pre-existing-issue-handling.md`.
+Change nothing outside the assignment (`@rules/compound-engineering/general.md` *The assignment is the scope*). The one exception is a **security vulnerability** you encountered in a file you had to read: fix it in its own `pre-existing — ` commit ordered before the in-scope commits, and **do not** scan unrelated files for more. A refactoring-only assignment files a vulnerability instead of fixing it. The commit conventions and the regression-test workflow live in `references/pre-existing-issue-handling.md`.
 
 ### If bug
 
