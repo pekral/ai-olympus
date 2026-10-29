@@ -279,7 +279,7 @@ cmd_snapshot() {
   {
     git_plain "$top" rev-parse HEAD
     git_plain "$top" ls-files -s -z
-    git_plain "$top" ls-files -z --cached --others --exclude-standard | file_states "$top"
+    digest_files "$top" | file_states "$top"
   } | sha256_hex
 }
 
@@ -392,7 +392,7 @@ path_problem() {
     fi
     return 0
   done
-  if [[ "${3:-}" != listed ]] && ! git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$2" >/dev/null 2>&1; then
+  if [[ "${3:-}" != listed ]] && ! digest_lists "$top" "$2"; then
     PATH_PROBLEM='matches no tracked or untracked, not ignored file, so its digest would prove nothing'
   fi
 }
@@ -407,12 +407,12 @@ link_problems() {
   while IFS= read -r -d '' file; do
     [[ -L "$top/$file" ]] || continue
     target="$(link_target "$top" "$file")"
-    if [[ -z "$target" ]] || ! git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$target" >/dev/null 2>&1; then
+    if [[ -z "$target" ]] || ! digest_lists "$top" "$target"; then
       printf 'the symbolic link %s, whose target the digest does not see\n' "$(printable "$file")"
     else
       pairs+=("$file" "$target")
     fi
-  done < <(git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@")
+  done < <(digest_files "$top" "$@")
   [[ ${#pairs[@]} -gt 0 ]] || return 0
   while IFS= read -r -d '' file && IFS= read -r -d '' target; do
     printf 'the symbolic link %s, so a change to its target would not change the digest; record %s as an input too\n' "$(printable "$file")" "$(printable "$target")"
@@ -420,13 +420,30 @@ link_problems() {
     | range(0; $l | length; 2) as $i | select(any($ps[]; holds(.; $l[$i + 1])) | not) | "\($l[$i])\u0000\($l[$i + 1])\u0000"' "$@")
 }
 
-# paths_digest <top> <path>... — the SHA-256 of the states of every tracked and every untracked, not
-# ignored file the literal paths name. ls-files prints each file once and in sorted order, so the
-# order of the paths does not change the value.
+# digest_files <top> [<path>...] — the files the digest and the snapshot see, NUL-separated: every
+# tracked and every untracked, not ignored file the literal paths name, or every such file of the
+# work tree when no path is given. git prints each file once and in sorted order.
+digest_files() {
+  local top="$1"
+  shift
+  git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@"
+}
+
+# digest_lists <top> <path>... — succeeds when every literal path names at least one file that
+# digest_files lists.
+digest_lists() {
+  local top="$1"
+  shift
+  git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$@" >/dev/null 2>&1
+}
+
+# paths_digest <top> <path>... — the SHA-256 of the states of the files digest_files lists for the
+# paths. digest_files lists each file once and in sorted order, so the order of the paths does not
+# change the value.
 paths_digest() {
   local top="$1"
   shift
-  git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@" | file_states "$top" | sha256_hex
+  digest_files "$top" "$@" | file_states "$top" | sha256_hex
 }
 
 # covered_units <ledger-file> — one NUL-separated record per covered unit: its coverage_id, its
@@ -843,13 +860,13 @@ digest_problems() {
   done 3< <(covered_units "$ledger")
   [[ ${#all[@]} -gt 0 ]] || return 0
   any_ignored="$(ignored_paths "$top" "${all[@]}")"
-  git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "${all[@]}" >/dev/null 2>&1 || listed=''
+  digest_lists "$top" "${all[@]}" || listed=''
   while IFS= read -r -d '' path; do
     if [[ -L "$top/$path" ]]; then
       any_link=yes
       break
     fi
-  done < <(git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "${all[@]}")
+  done < <(digest_files "$top" "${all[@]}")
   while next_unit; do
     if [[ -n "$any_ignored" ]]; then
       ignored="$(ignored_paths "$top" "${UNIT_PATHS[@]}")"
@@ -1000,7 +1017,7 @@ cmd_impact() {
   fi
   commit="$(git_plain "$top" rev-parse "$commit^{commit}")"
 
-  jq -n -c --rawfile cur <(git_plain "$top" ls-files -z --cached --others --exclude-standard | file_states "$top") \
+  jq -n -c --rawfile cur <(digest_files "$top" | file_states "$top") \
     --rawfile old <(git_plain "$top" ls-tree -r -z --full-tree "$commit") --argjson digests "$(unit_digests "$top" "$dir/coverage-ledger.json")" \
     --arg base_run "$(jq -r .run_id "$dir/metadata.json")" --arg base_commit "$commit" \
     --slurpfile lg "$dir/coverage-ledger.json" --slurpfile fd "$dir/findings.json" "$JQ_PATHS$JQ_IMPACT"
