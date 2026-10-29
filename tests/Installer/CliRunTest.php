@@ -117,7 +117,7 @@ test('installation docs document every InstallOptions flag in both the command l
     $docs = (string) file_get_contents($packageDir . '/docs/installation.md');
 
     $constructor = new ReflectionClass(InstallOptions::class)->getConstructor();
-    assert($constructor !== null);
+    assert($constructor instanceof ReflectionMethod);
 
     // Derive the live flag names from the constructor instead of hardcoding them, so a
     // future flag added to InstallOptions without a matching docs update fails here.
