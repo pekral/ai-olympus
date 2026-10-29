@@ -62,9 +62,11 @@
 #   the value. A path that is git-ignored is refused (exit 1), because a change to it would not
 #   change the digest: record a dependency by its lock file instead. A path that is a symbolic link
 #   or passes through one is refused (exit 1), because the digest hashes the link and not its
-#   target: the error names the target path to record instead. A path that matches no tracked or
-#   untracked, not ignored file is refused (exit 1), because its digest is the digest of the empty
-#   set. Like the snapshot, the digest runs no program the repository configures.
+#   target: the error names the target path to record instead. A symbolic link among the files the
+#   paths name is refused (exit 1) unless the paths also hold its target: the error names the target
+#   to add. A path that matches no tracked or untracked, not ignored file is refused (exit 1),
+#   because its digest is the digest of the empty set. Like the snapshot, the digest runs no program
+#   the repository configures.
 #
 # impact
 #   Compares an earlier run, the base run, with the current working tree and prints the result as
@@ -97,8 +99,9 @@
 #   spent. The budget in metadata.json must equal the split `budget` prints for its profile and
 #   total. The run directory is named after its run_id. Every file a finding cites lies on the
 #   paths or inputs of every unit that lists it. A covered unit's inputs_digest equals the digest of
-#   its paths and inputs now, and none of them is git-ignored, a symbolic link, beyond a symbolic
-#   link, or a path that matches no file. A covered ai_tools unit or a covered action surface that
+#   its paths and inputs now, none of them is git-ignored, a symbolic link, beyond a symbolic link,
+#   or a path that matches no file, and they hold the target of every symbolic link they hold. A
+#   covered ai_tools unit or a covered action surface that
 #   records a candidate threat or an action dimension that is not bound lists a finding. In an
 #   incremental run (base_run set), the base run sits beside the run directory, every base unit is
 #   in the ledger under its coverage_id, a reused unit or finding equals its base record, a reused
@@ -394,6 +397,29 @@ path_problem() {
   fi
 }
 
+# link_problems <top> <path>... — one line for every symbolic link among the files the paths name
+# whose target the paths do not hold, or whose target git does not list. The digest hashes the link
+# and not its target, so a change to that target would not change the digest.
+link_problems() {
+  local top="$1" file target
+  shift
+  local -a pairs=()
+  while IFS= read -r -d '' file; do
+    [[ -L "$top/$file" ]] || continue
+    target="$(link_target "$top" "$file")"
+    if [[ -z "$target" ]] || ! git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$target" >/dev/null 2>&1; then
+      printf 'the symbolic link %s, whose target the digest does not see\n' "$(printable "$file")"
+    else
+      pairs+=("$file" "$target")
+    fi
+  done < <(git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@")
+  [[ ${#pairs[@]} -gt 0 ]] || return 0
+  while IFS= read -r -d '' file && IFS= read -r -d '' target; do
+    printf 'the symbolic link %s, so a change to its target would not change the digest; record %s as an input too\n' "$(printable "$file")" "$(printable "$target")"
+  done < <(printf '%s\0' "${pairs[@]}" | jq -R -s -j --args "$JQ_PATHS"'split("\u0000")[:-1] as $l | $ARGS.positional as $ps
+    | range(0; $l | length; 2) as $i | select(any($ps[]; holds(.; $l[$i + 1])) | not) | "\($l[$i])\u0000\($l[$i + 1])\u0000"' "$@")
+}
+
 # paths_digest <top> <path>... — the SHA-256 of the states of every tracked and every untracked, not
 # ignored file the literal paths name. ls-files prints each file once and in sorted order, so the
 # order of the paths does not change the value.
@@ -441,7 +467,7 @@ unit_digests() {
 
 cmd_digest() {
   [[ $# -ge 1 ]] || { usage; exit 1; }
-  local top path ignored
+  local top path ignored found
   if ! top="$(git_plain . rev-parse --show-toplevel 2>/dev/null)"; then
     echo "$PROG: not a git work tree: $(printable "$PWD")" >&2
     exit 1
@@ -464,6 +490,13 @@ cmd_digest() {
       exit 1
     fi
   done
+  found="$(link_problems "$top" "$@")"
+  if [[ -n "$found" ]]; then
+    while IFS= read -r path; do
+      echo "$PROG: the paths hold $path" >&2
+    done <<<"$found"
+    exit 1
+  fi
   paths_digest "$top" "$@"
 }
 
@@ -795,10 +828,11 @@ base_run_problems() {
     || echo "incremental: the base run directory $base holds a different run_id"
 }
 
-# digest_problems <run-dir> <ledger-file> — for every covered unit: no input is git-ignored, and its
-# inputs_digest equals the digest of its paths and inputs in the working tree now.
+# digest_problems <run-dir> <ledger-file> — for every covered unit: no input is git-ignored, no path
+# has a problem path_problem or link_problems names, and its inputs_digest equals the digest of its
+# paths and inputs in the working tree now.
 digest_problems() {
-  local dir="$1" ledger="$2" top actual ignored any_ignored listed=listed path refused
+  local dir="$1" ledger="$2" top actual ignored any_ignored listed=listed any_link='' path refused found
   if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
     echo "digest: the run directory is not inside a git work tree"
     return
@@ -810,6 +844,12 @@ digest_problems() {
   [[ ${#all[@]} -gt 0 ]] || return 0
   any_ignored="$(ignored_paths "$top" "${all[@]}")"
   git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "${all[@]}" >/dev/null 2>&1 || listed=''
+  while IFS= read -r -d '' path; do
+    if [[ -L "$top/$path" ]]; then
+      any_link=yes
+      break
+    fi
+  done < <(git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "${all[@]}")
   while next_unit; do
     if [[ -n "$any_ignored" ]]; then
       ignored="$(ignored_paths "$top" "${UNIT_PATHS[@]}")"
@@ -827,6 +867,15 @@ digest_problems() {
       fi
     done
     [[ -z "$refused" ]] || continue
+    if [[ -n "$any_link" ]]; then
+      found="$(link_problems "$top" "${UNIT_PATHS[@]}")"
+      if [[ -n "$found" ]]; then
+        while IFS= read -r path; do
+          printf 'digest: %s holds %s\n' "$UNIT_ID" "$path"
+        done <<<"$found"
+        continue
+      fi
+    fi
     if ! actual="$(paths_digest "$top" "${UNIT_PATHS[@]}")"; then
       printf 'digest: %s names a path the work tree cannot list\n' "$UNIT_ID"
       continue
@@ -2013,6 +2062,23 @@ self_test() {
   expect_exit 'digest: a path beyond a symbolic link is refused, although git lists no file for it' 1 in_dir "$inc" cmd_digest app/Policies/Order.php
   expect_error 'digest: the error names the link the path passes through' 'app/Policies/Order.php passes through the symbolic link app/Policies'
   expect_error 'digest: the error names the target path beyond the link' 'record shared/policies/Order.php instead'
+  expect_exit 'digest: a directory that holds a symbolic link is refused unless the paths hold its target' 1 in_dir "$inc" cmd_digest app
+  expect_error 'digest: the error names the link inside the directory and the target to add' \
+    'the paths hold the symbolic link app/Policies, so a change to its target would not change the digest; record shared/policies as an input too'
+  d1="$(cd "$inc" && cmd_digest app shared/policies)"
+  printf 'v2\n' >>"$inc/shared/policies/Order.php"
+  d2="$(cd "$inc" && cmd_digest app shared/policies)"
+  if [[ "$d1" =~ ^[a-f0-9]{64}$ && "$d1" != "$d2" ]]; then pass 'digest: a change to the target of a link changes the digest once the paths hold the target'; else fail 'digest: link target'; fi
+  printf 'v1\n' >"$inc/shared/policies/Order.php"
+  build_run "$runs/link-dir" standard
+  mutate "$runs/link-dir" coverage-ledger.json '.entries[3].inputs += [{kind: "authorization", path: "app"}]'
+  seal "$runs/link-dir"
+  expect_exit 'regression: a unit whose input directory holds a symbolic link fails validation' 3 cmd_validate "$runs/link-dir"
+  expect_problem 'regression: the problem names the link and the target to add' \
+    'digest: C4 holds the symbolic link app/Policies, so a change to its target would not change the digest; record shared/policies as an input too'
+  mutate "$runs/link-dir" coverage-ledger.json '.entries[3].inputs += [{kind: "authorization", path: "shared/policies"}]'
+  seal "$runs/link-dir"
+  expect_exit 'incremental: a unit that also records the target of the link validates' 0 cmd_validate "$runs/link-dir"
   build_run "$runs/link-input" standard
   mutate "$runs/link-input" coverage-ledger.json '.entries[3].inputs += [{kind: "authorization", path: "app/Policies"}]'
   seal "$runs/link-input"
