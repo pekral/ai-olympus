@@ -32,7 +32,7 @@
 
 ## TL;DR
 
-> **The body of a converged run.** One plain-language line per change the review loop landed on the branch — the CR items it fixed, the pre-existing fixes, the gate commit, and the reason any reviewer point was rejected or deferred. When the run landed no change, one line stating the reviewed scope and the verdict. Render this section on every converged run and omit it on a run that still carries an outstanding finding, where `## Findings` below is the body instead. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+> **The body of a converged run.** One plain-language line per change the review loop landed on the branch — the CR items it fixed, the pre-existing security fixes, the gate commit, and the reason any reviewer point was rejected or deferred. When the run landed no change, one line stating the reviewed scope and the verdict. Render this section on every converged run and omit it on a run that still carries an outstanding finding, where `## Findings` below is the body instead. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 
 - {what changed, in one sentence}
 

@@ -264,7 +264,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: file and method size is never a code-review finding.
         // Re-baselined: an Action's constructor is the third exemption from the >4-parameter rule.
         // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
-        'rules/php/core-standards.md' => '7b40b35509cd6ae43664fc182ab8b058053f7be36788f7971da8035bc3b140fa',
+        // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
+        'rules/php/core-standards.md' => '123e316cf2f37f47b77f2caaa3716edebc28e43eb5917d9f0c806116248aac87',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -512,7 +513,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: behaviour preservation is the primary check of a refactoring-only review, and a
         // behaviour change in it is a Moderate finding instead of a Critical one.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
-        'rules/refactoring/general.md' => 'd865b457d50220809f9d7428514a51f66f3b2e13062ddb389185286e8917c84f',
+        // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
+        'rules/refactoring/general.md' => 'b1b43a76e32bc6ab76dc2e4eba8d289efdf95d42726582f0487c159f23ecae5a',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
