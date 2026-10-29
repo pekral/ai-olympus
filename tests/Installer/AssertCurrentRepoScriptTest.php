@@ -262,8 +262,8 @@ test('composer check actually runs the shared shell self-tests', function (): vo
 test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped agent sets', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // The always-run CR set is strictly sequential, so running security-review
-    // inline while leonardo runs the same review in parallel is pure latency.
+    // Running security-review inline while a separate agent runs the same
+    // review concurrently is pure latency.
     // The flag must be opt-in: unset keeps the inline pass, so coverage can
     // never drop just because a caller forgot to set it.
     foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
