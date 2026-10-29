@@ -45,7 +45,8 @@ Write `coverage-ledger.json` from the impact before the first hunter opens:
 
 - Give the hunter of an invalidated unit the earlier findings of that unit as leads. It traces each one against the current code and returns it as a candidate, with its current basis, or with the evidence that its path no longer exists.
 - Every lead goes to a new verifier, like any other candidate. The old verdict never carries over: a finding that is not reused is verified in this run or does not appear in `findings.json`.
-- A base finding leaves `findings.json` only when a base unit held it and every unit that held it is `blocked` or `deferred` in this run. A base finding that no base unit lists is verified again. *Incremental basis* in `REPORT.md` lists it as invalidated and not verified again, with the step that settles it.
+- A base finding leaves `findings.json` only when a base unit held it and every unit that held it is `blocked` or `deferred` in this run. *Incremental basis* in `REPORT.md` lists such a finding as invalidated and not verified again, with the step that settles it.
+- A base finding that no base unit lists is verified again.
 - Copy every finding the impact marks `reuse` unchanged, and add `reused_from` as for a unit.
 - Give the coverage critic of each wave the impact output, so it checks every changed path.
 

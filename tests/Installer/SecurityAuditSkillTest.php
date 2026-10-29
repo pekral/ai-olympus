@@ -590,14 +590,7 @@ test('unchanged coverage is reused only when the digest proves its security path
         'if' => ['required' => ['reused_from']],
         'then' => ['properties' => ['status' => ['const' => 'covered']]],
     ]);
-    expect(
-        substr_count(
-            $script,
-            'git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@" | file_states "$top" | sha256_hex',
-        ),
-    )->toBe(
-        1,
-    );
+    expect(substr_count($script, 'digest_files "$top" "$@" | file_states "$top" | sha256_hex'))->toBe(1);
     expect(
         substr_count($script, 'printf \'digest: %s records inputs_digest %s, but its paths and inputs now hash to %s; the security path changed\\n\''),
     )->toBe(
@@ -687,6 +680,21 @@ test('the path logic and the rule for a run without a base run are written once'
     expect(substr_count($script, 'def unit_paths:'))->toBe(1);
     expect(substr_count($script, '"incremental: \(.coverage_id) is reused from \(.reused_from), but the ledger names no base_run"'))->toBe(1);
     expect(substr_count($script, '"incremental: finding \(.fingerprint) is reused from \(.reused_from), but the ledger names no base_run"'))->toBe(1);
+});
+
+test('the files the digest sees are listed by one command', function (): void {
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($script, '--exclude-standard'))->toBe(2);
+    expect(substr_count($script, 'git_plain "$top" --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$@"'))->toBe(1);
+    expect(
+        substr_count(
+            $script,
+            'git_plain "$top" --literal-pathspecs ls-files --cached --others --exclude-standard --error-unmatch -- "$@" >/dev/null 2>&1',
+        ),
+    )->toBe(
+        1,
+    );
 });
 
 test('the threat model of an ai_tools unit covers the ten AI and agent attack classes', function (): void {
