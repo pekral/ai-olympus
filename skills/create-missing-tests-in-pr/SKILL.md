@@ -91,7 +91,6 @@ Only after Read, Map, and Verify are complete may test-writing begin.
 Change nothing outside the assignment (`@rules/compound-engineering/general.md` *The assignment is the scope*). While writing the missing tests you may uncover a problem that is **unrelated to the current PR scope** but was already present in the code you had to read or exercise.
 
 -   **A security vulnerability is fixed**, in its own commit with its regression test, distinct from the missing-tests commit. The procedure lives in `@skills/resolve-issue/references/pre-existing-issue-handling.md`; the "Production code may only be changed if it is strictly required" constraint above is overridden for this fix only.
--   **Every other pre-existing problem is not implemented** — a bug, a project-rule violation, a comment outside the lines the change writes. Surface it in the delivered markdown summary as an out-of-scope observation with the reason. The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* decides whether it is filed or dropped (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*).
 -   A refactoring-only pull request files a vulnerability instead of fixing it (`@rules/refactoring/general.md` *Behaviour stays identical — bugs included*).
 -   Do not scan unrelated files for more.
 
@@ -116,7 +115,7 @@ Provide a brief markdown summary including:
 -   which recommendations were already covered
 -   which tests were added or updated
 -   whether 100% coverage for current changes was achieved, or which coverage conflict was reported instead
--   list of pre-existing security fix commits (if any), each with a one-line rationale, plus any out-of-scope observation with the reason it was not implemented
+-   list of pre-existing security fix commits (if any), each with a one-line rationale, plus the URL of any follow-up issue filed for a point outside the assignment (`@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*)
 -   any blocker preventing full completion
 
 ---

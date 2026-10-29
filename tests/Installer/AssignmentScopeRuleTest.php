@@ -36,7 +36,7 @@ test('the principle is stated in the owner only and every other file references 
         'skills/create-test/SKILL.md' => 1,
         'skills/process-code-review/SKILL.md' => 1,
         'skills/resolve-issue/SKILL.md' => 2,
-        'skills/resolve-issue/references/pre-existing-issue-handling.md' => 1,
+        'skills/resolve-issue/references/pre-existing-issue-handling.md' => 2,
         'skills/resolve-issue/references/pull-request.md' => 1,
         'skills/verify-merge-readiness/SKILL.md' => 1,
     ];
@@ -83,7 +83,7 @@ test('the one pre-existing fix that remains is a security vulnerability in its o
     $reference = $files['skills/resolve-issue/references/pre-existing-issue-handling.md'];
 
     expect(substr_count($reference, '- **A security vulnerability is fixed in this PR.**'))->toBe(1)
-        ->and(substr_count($reference, '- **Every other problem is not implemented.**'))->toBe(1)
+        ->and(substr_count($reference, '- **Every other problem follows the owner.**'))->toBe(1)
         ->and(substr_count($reference, '`fix(<scope>): pre-existing — <description>`'))->toBe(1)
         ->and(substr_count($reference, '6. **A refactoring-only assignment fixes no vulnerability.**'))->toBe(1);
 
@@ -108,9 +108,16 @@ test('the Assignment Conformance Gate flags a non-security change outside the as
     $files = packageTextFiles();
     $gate = $files['skills/code-review/references/assignment-conformance-gate.md'];
 
-    expect(substr_count($gate, '- **Security fix** — fixes a security vulnerability'))->toBe(1)
+    expect(substr_count($gate, '- **Security fix** — the smallest change that closes a vulnerability'))->toBe(1)
         ->and(substr_count($gate, 'a fix of a pre-existing bug or rule violation, a comment removed outside the lines the change writes'))->toBe(1)
-        ->and(substr_count($gate, 'a fixup of code the change touches'))->toBe(0);
+        ->and(substr_count($gate, 'a fixup of code the change touches'))->toBe(0)
+        ->and(
+            substr_count($gate, 'the smallest change that closes a vulnerability a rule in `@rules/security/**` names, with its exploit path cited'),
+        )->toBe(
+            1,
+        )
+        ->and(substr_count($gate, 'a change on a security surface that closes no cited vulnerability, is **Out of scope**'))->toBe(1)
+        ->and(substr_count($gate, 'the S1–S3 carve-out of'))->toBe(0);
 
     expect(substr_count($files['rules/compound-engineering/general.md'], 'Raise it there and nowhere else.'))->toBe(1)
         ->and(
@@ -141,4 +148,56 @@ test('the filing path and the merge-preparation path keep their own decision on 
             1,
         )
         ->and(substr_count($files['rules/compound-engineering/tracker.md'], 'a non-trivial pre-existing issue moved to a TODO'))->toBe(0);
+});
+
+test('the security exception is defined once, by a rule in the security rules and an exploit path', function (): void {
+    $files = packageTextFiles();
+    $owner = $files['rules/compound-engineering/general.md'];
+
+    expect(substr_count($owner, 'A security vulnerability is a defect that a rule in `@rules/security/**` names and that has an exploit path.'))->toBe(1)
+        ->and(substr_count($owner, 'A defect that only sits on a security surface is not one.'))->toBe(1)
+        ->and(substr_count($owner, 'The fix is the smallest change that closes the vulnerability, in a file the change had to read.'))->toBe(1)
+        ->and(substr_count($owner, 'meets the S1–S3 carve-out'))->toBe(0);
+
+    $definitions = array_filter(
+        $files,
+        static fn (string $contents, string $path): bool => preg_match('#^(rules|skills|agents|commands)/#', $path) === 1
+            && str_contains($contents, 'A security vulnerability is a defect that a rule in'),
+        ARRAY_FILTER_USE_BOTH,
+    );
+
+    expect(array_keys($definitions))->toBe(['rules/compound-engineering/general.md']);
+
+    $reference = $files['skills/resolve-issue/references/pre-existing-issue-handling.md'];
+
+    expect(substr_count($reference, 'defines what counts as one and how small the fix is.'))->toBe(1)
+        ->and(substr_count($reference, 'would flag: injection'))->toBe(0);
+});
+
+test('no skill restates what happens to a non-security observation, and no output reports one', function (): void {
+    $files = packageTextFiles();
+
+    $copies = [
+        'skills/process-code-review/SKILL.md',
+        'skills/create-test/SKILL.md',
+        'skills/create-missing-tests-in-pr/SKILL.md',
+        'skills/resolve-issue/SKILL.md',
+        'skills/resolve-issue/references/pre-existing-issue-handling.md',
+    ];
+
+    foreach ($copies as $path) {
+        expect(substr_count($files[$path], 'Every other pre-existing problem'))->toBe(0, $path)
+            ->and(substr_count($files[$path], 'out-of-scope observation'))->toBe(0, $path);
+    }
+
+    foreach (['skills/create-test/SKILL.md', 'skills/create-missing-tests-in-pr/SKILL.md'] as $path) {
+        expect(substr_count($files[$path], 'plus the URL of any follow-up issue filed for a point outside the assignment'))->toBe(1, $path);
+    }
+});
+
+test('a future feature is deferred only when the assignment itself marks it as later work', function (): void {
+    $resolveIssue = packageTextFiles()['skills/resolve-issue/SKILL.md'];
+
+    expect(substr_count($resolveIssue, 'refactors, and a future feature the assignment itself marks as later work)'))->toBe(1)
+        ->and(substr_count($resolveIssue, 'future features the assignment names'))->toBe(0);
 });

@@ -94,8 +94,6 @@ Change nothing outside the assignment (`@rules/compound-engineering/general.md` 
 
 The one exception is a **pre-existing security vulnerability** you encountered in a file you had to read for the CR fixes. Fix it in its own `fix(<scope>): pre-existing — <description>` commit, ordered **before** the CR-fix commits, with its regression test in the same commit and the same diff-scoped 100% coverage rule as CR fixes. The procedure lives in `@skills/resolve-issue/references/pre-existing-issue-handling.md`; do **not** scan unrelated files for more.
 
-Every other pre-existing problem — a bug, a project-rule violation, an unnecessary comment, a refactoring, an optimization — is **not implemented**. The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* decides whether it becomes a tracker issue or is dropped, and in merge preparation it is an open decision (`@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only*).
-
 In the single CR comment posted during **PR update**, list every pre-existing security fix under a `## Pre-existing fixes` heading with a one-line rationale, so reviewers can review them independently of the CR thread. On a refactoring-only pull request a vulnerability is filed, never fixed (`@rules/refactoring/general.md` *Behaviour stays identical — bugs included*).
 
 ---
