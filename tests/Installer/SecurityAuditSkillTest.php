@@ -2,12 +2,6 @@
 
 declare(strict_types = 1);
 
-// The security-audit skill (issue #146, item 1 of epic #145). Per the project's test-isolation rule a
-// Pest test cannot exec a real .sh, so the behavioural proof — every profile writes the four artefacts
-// and they validate, hunting cannot spend the validation reserve, needs_validation gets no definitive
-// severity without a demonstrated boundary failure — lives in `audit-artifacts.sh --self-test`, which the
-// build runs. The pins below fix the contract that self-test enforces and the wiring around it.
-
 function securityAuditSource(string $relativePath): string
 {
     return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
@@ -112,6 +106,7 @@ test('findings.schema.json carries the lifecycle and every field of a confirmed 
 
     expect(securityAuditSchemaValue('findings', $finding . '.required'))->toBe([
         'fingerprint',
+        'fingerprint_basis',
         'verdict',
         'severity',
         'boundary',
@@ -121,6 +116,9 @@ test('findings.schema.json carries the lifecycle and every field of a confirmed 
         'evidence',
         'remediation',
         'boundary_failure_demonstrated',
+        'hunters',
+        'verifier',
+        'controls',
     ]);
     expect(securityAuditSchemaValue('findings', $finding . '.properties.verdict'))->toBe(['enum' => ['confirmed', 'needs_validation', 'rejected']]);
     expect(securityAuditSchemaValue('findings', $finding . '.properties.severity'))->toBe(['enum' => ['critical', 'high', 'medium', 'low', 'unrated']]);
@@ -128,6 +126,7 @@ test('findings.schema.json carries the lifecycle and every field of a confirmed 
     expect(securityAuditSchemaValue('findings', $finding . '.allOf.2.then.properties'))->toBe([
         'severity' => ['const' => 'unrated'],
         'boundary_failure_demonstrated' => ['const' => false],
+        'verifier' => ['type' => 'string'],
     ]);
     expect(securityAuditSchemaValue('findings', $finding . '.allOf.1.then.anyOf'))->toBe([
         ['properties' => ['severity' => ['const' => 'unrated']]],
@@ -163,14 +162,21 @@ test('the quick profile picks verification candidates by a field a hunter return
     expect(substr_count($profiles, 'A candidate no verifier reached stays `needs_validation` with severity `unrated`.'))->toBe(1);
 });
 
-test('coverage.schema.json describes one row per subsystem with a status and a reason for every skip or gap', function (): void {
+test('a coverage unit carries the nine fields and the six statuses of a coverage-driven audit', function (): void {
     $entry = '$defs.entry';
 
     expect(securityAuditSchemaValue('coverage', $entry . '.required'))->toBe(
-        ['id', 'subsystem', 'boundary', 'files', 'status', 'reviewed_by', 'findings'],
+        ['coverage_id', 'surface', 'boundary', 'subsystem', 'attack_class', 'paths', 'status', 'agent', 'findings'],
     );
-    expect(securityAuditSchemaValue('coverage', $entry . '.properties.status'))->toBe(['enum' => ['queued', 'in_review', 'covered', 'skipped', 'gap']]);
+    expect(securityAuditSchemaValue('coverage', $entry . '.properties.status'))->toBe(
+        ['enum' => ['queued', 'candidate', 'covered', 'blocked', 'deferred', 'out_of_scope']],
+    );
+    expect(securityAuditSchemaValue('coverage', $entry . '.allOf.0.if.properties.status'))->toBe(['enum' => ['blocked', 'deferred', 'out_of_scope']]);
     expect(securityAuditSchemaValue('coverage', $entry . '.allOf.0.then'))->toBe(['required' => ['reason']]);
+    expect(securityAuditSchemaValue('coverage', $entry . '.allOf.1.then'))->toBe(['properties' => ['agent' => ['type' => 'string']]]);
+    expect(securityAuditSchemaValue('coverage', 'properties.schema_version'))->toBe(['const' => 2]);
+    expect(securityAuditSchemaValue('findings', 'properties.schema_version'))->toBe(['const' => 2]);
+    expect(securityAuditSchemaValue('metadata', 'properties.schema_version'))->toBe(['const' => 2]);
 });
 
 test('every run writes the four artefacts and the report template matches the headings the validator requires', function (): void {
@@ -254,4 +260,181 @@ test('every file the skill points at exists', function (): void {
     foreach ($paths as $path) {
         expect(is_file($packageDir . '/skills/security-audit/' . $path))->toBeTrue();
     }
+});
+
+test('reconnaissance inventories every surface before the first hunter opens', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($audit, 'The inventory exists before hunting. No hunter opens before this step ends.'))->toBe(1);
+    expect($audit)->toContain(
+        'map every trust boundary in scope and every surface that crosses one: HTTP entrypoints, authentication, authorization, background jobs, '
+        . 'queues, webhooks, file handling, external APIs, data isolation, privileged actions, AI tools, MCP integrations, '
+        . 'and agent-triggered side effects.',
+    );
+    expect($audit)->toContain('4. Run `scripts/audit-artifacts.sh inventory <run-dir>`. Hunting starts only after it exits `0`.');
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.properties.surface.enum'))->toBe([
+        'http_entrypoint',
+        'authentication',
+        'authorization',
+        'background_job',
+        'queue',
+        'webhook',
+        'file_handling',
+        'external_api',
+        'data_isolation',
+        'privileged_action',
+        'ai_tool',
+        'mcp_integration',
+        'agent_side_effect',
+        'frontend',
+        'configuration',
+        'ci_deploy',
+        'dependency',
+    ]);
+    expect($script)
+        ->toContain('  inventory)')
+        ->toContain('"inventory: \(.coverage_id) is \(.status) before the first hunter opened"')
+        ->toContain('expect_exit \'inventory: a unit hunted before the inventory check is refused\' 3 cmd_inventory');
+});
+
+test('every hunting area of the audit is an attack class with its lenses', function (): void {
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+
+    expect(securityAuditSchemaValue('coverage', '$defs.entry.properties.attack_class'))->toBe(
+        ['enum' => ['auth_authz', 'injection_input', 'files_ssrf', 'queues_webhooks', 'data_isolation', 'ai_tools', 'wildcard']],
+    );
+
+    $rows = [
+        '`auth_authz` | auth/authz',
+        '`injection_input` | injection/input',
+        '`files_ssrf` | files/SSRF',
+        '`queues_webhooks` | queues/webhooks',
+        '`data_isolation` | data isolation',
+        '`ai_tools` | AI/tools',
+        '`wildcard` | wildcard',
+    ];
+
+    foreach ($rows as $row) {
+        expect(substr_count($roles, '| ' . $row . ' |'))->toBe(1);
+    }
+});
+
+test('parallel hunters stay read-only and a wave that changed the working tree fails validation', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect($audit)
+        ->toContain('**Parallel hunting stays read-only.** Run the hunters of one wave in parallel only when all of these hold:')
+        ->toContain('2. No worker writes a file anywhere. A worker returns its result in its reply. You alone write the artefacts, after the wave.')
+        ->toContain('3. No unit of the wave needs a local reproduction. A unit that does is hunted alone, in a sequential pass.')
+        ->toContain('`validate` refuses a run whose waves changed the working tree.');
+    expect(substr_count($roles, 'Never write a file anywhere'))->toBe(3);
+    expect(securityAuditSchemaValue('metadata', 'properties.worktree_baseline'))->toBe(['type' => 'string', 'pattern' => '^[a-f0-9]{64}$']);
+    expect(securityAuditSchemaValue('coverage', '$defs.wave.required'))->toBe(['wave', 'hunters', 'critic', 'worktree', 'gaps']);
+    expect($script)
+        ->toContain('  snapshot)')
+        ->toContain('"parallel: the working tree changed during wave \(.wave); every worker must stay read-only"')
+        ->toContain('expect_exit \'parallel: a wave that changed the working tree is invalid\' 3 cmd_validate')
+        ->toContain('pass \'snapshot: a worker that edits a tracked file changes the snapshot\'')
+        ->toContain('pass \'snapshot: writing the git-ignored run directory leaves the snapshot unchanged\'');
+});
+
+test('a fresh coverage critic runs after every wave and reports missing or weak coverage', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($audit, '### 5. Run a fresh coverage critic after every wave (the reserve)'))->toBe(1);
+    expect(securityAuditSchemaValue('coverage', '$defs.gap.properties.kind'))->toBe(
+        [
+            'enum' => [
+                'missing_surface',
+                'missing_attack_class',
+                'uncovered_entrypoint',
+                'unanalysed_boundary',
+                'shallow_review',
+                'assumption_based_finding',
+            ],
+        ],
+    );
+    expect(securityAuditSchemaValue('coverage', '$defs.wave.properties.critic'))->toBe(['type' => 'string', 'pattern' => '^critic-[1-9][0-9]*$']);
+    expect($roles)->toContain('Report missing or weak coverage of six kinds:');
+    expect($script)
+        ->toContain('"critic: a coverage critic reviewed more than one wave; every wave gets a fresh critic"')
+        ->toContain('"coverage: no hunting wave is recorded in a finished run"');
+});
+
+test('every candidate gets a new verifier and a hunter can never confirm its own finding', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($audit, '**A hunter never verifies or confirms its own candidate.**'))->toBe(1);
+    expect($roles)->toContain('so a hunter can never be recorded as the verifier of its own candidate.');
+    expect(securityAuditSchemaValue('findings', '$defs.finding.properties.verifier'))->toBe(
+        ['type' => ['string', 'null'], 'pattern' => '^verifier-[1-9][0-9]*$'],
+    );
+    expect(securityAuditSchemaValue('findings', '$defs.finding.properties.hunters.items'))->toBe(
+        ['type' => 'string', 'pattern' => '^hunter-[1-9][0-9]*$'],
+    );
+    expect(securityAuditSchemaValue('findings', '$defs.finding.allOf.0.then.properties.verifier'))->toBe(['type' => 'string']);
+    expect($script)
+        ->toContain('"findings: a verifier verified more than one finding; every candidate gets a new verifier"')
+        ->toContain('expect_exit \'independence: a hunter cannot confirm its own finding\' 3 cmd_validate');
+});
+
+test('the verifier is told to refute the candidate and trace source to sink through every kind of control', function (): void {
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+
+    expect(substr_count($roles, '> Try to refute this candidate against the real code. Assume it is wrong until the code proves it.'))->toBe(1);
+    expect($roles)->toContain(
+        'check each of the six kinds of control and record each one: middleware, policy, framework protection, validation, sanitization, '
+        . 'and configuration.',
+    );
+    expect(securityAuditSchemaValue('findings', '$defs.control.properties.kind'))->toBe(
+        ['enum' => ['middleware', 'policy', 'framework_protection', 'validation', 'sanitization', 'configuration']],
+    );
+    expect(securityAuditSchemaValue('findings', '$defs.control.properties.effect'))->toBe(['enum' => ['stops', 'does_not_stop', 'unclear', 'absent']]);
+});
+
+test('a control on the path leads to rejected or needs_validation and never to confirmed', function (): void {
+    $audit = securityAuditSource('skills/security-audit/SKILL.md');
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+    $confirmedControls = '$defs.finding.allOf.0.then.properties.controls';
+
+    expect(substr_count($roles, '**A control on the path never ends in `confirmed`.**'))->toBe(1);
+    expect(substr_count($roles, '**Only a validated finding reaches `confirmed`:**'))->toBe(1);
+    expect($audit)->toContain('Only a validated finding reaches `confirmed`. A control that stops the flow makes the finding `rejected`');
+    expect(securityAuditSchemaValue('findings', $confirmedControls . '.items'))->toBe(
+        ['properties' => ['effect' => ['enum' => ['does_not_stop', 'absent']]]],
+    );
+    expect(securityAuditSchemaValue('findings', $confirmedControls . '.allOf'))->toHaveCount(6);
+    expect(securityAuditSchemaValue('findings', $confirmedControls . '.allOf.1.contains'))->toBe(
+        ['required' => ['kind'], 'properties' => ['kind' => ['const' => 'policy']]],
+    );
+    expect($script)
+        ->toContain('expect_exit "refute: a $kind with the effect $effect cannot be confirmed" 3 cmd_validate')
+        ->toContain('expect_exit "refute: a confirmed finding records the $kind it checked" 3 cmd_validate');
+});
+
+test('findings are deduplicated by a root-cause fingerprint and never by text similarity', function (): void {
+    $roles = securityAuditSource('skills/security-audit/references/roles-and-lifecycle.md');
+    $script = securityAuditSource('skills/security-audit/scripts/audit-artifacts.sh');
+
+    expect(substr_count($roles, '**Deduplicate by the fingerprint, never by text similarity.**'))->toBe(1);
+    expect(securityAuditSchemaValue('findings', '$defs.fingerprint_basis.required'))->toBe(['boundary', 'source', 'sink', 'root_cause']);
+    expect(securityAuditSchemaValue('findings', '$defs.fingerprint_basis.properties.root_cause'))->toBe(
+        ['type' => 'string', 'pattern' => '^CWE-[1-9][0-9]*$'],
+    );
+    expect(securityAuditSchemaValue('findings', '$defs.fingerprint_basis.properties.sink'))->toBe(
+        ['type' => 'string', 'pattern' => '^[^\s#|]+#[^\s#|]+$'],
+    );
+    expect($script)
+        ->toContain('  fingerprint)')
+        ->toContain('problems+="$(fingerprint_problems "$dir/findings.json")"')
+        ->toContain('pass \'dedup: identical prose with three root-cause bases stays three findings\'')
+        ->toContain('expect_exit \'dedup: two findings with the same root-cause fingerprint are one finding\' 3 cmd_validate');
 });
