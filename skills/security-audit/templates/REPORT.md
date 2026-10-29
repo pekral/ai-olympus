@@ -31,6 +31,8 @@ One block per finding of verdict `confirmed`, ordered by severity. Write `None.`
 - **Sink:** <where it does harm>
 - **Root cause:** <why the flow is possible>
 - **Evidence:** `<path>:<line>` — <what the cited line shows>
+- **Controls checked:** <each of the six kinds of control and its effect, with `<path>:<line>` for every control found>
+- **Hunted by / verified by:** <hunter IDs> / <verifier ID>
 - **Remediation:** <the minimal fix>
 
 ## Needs validation
@@ -43,4 +45,4 @@ One line per finding of verdict `rejected`: fingerprint and the control that sto
 
 ## Coverage
 
-One line per ledger row: ID, subsystem, final status, and the reason for every `skipped` or `gap` row. State the omissions the coverage critics found and how each was closed.
+One line per coverage unit: `coverage_id`, subsystem, surface, attack class, final status, and the reason for every `blocked`, `deferred`, or `out_of_scope` unit. Then one line per wave: its hunters, its critic, whether the working-tree snapshot still equals the baseline, and each gap the critic reported with its kind and how it was closed.
