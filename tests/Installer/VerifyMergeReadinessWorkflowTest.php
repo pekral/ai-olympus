@@ -267,3 +267,23 @@ test('verify-merge-readiness changes only the assignment and leaves every other 
     expect($merge)->toContain('Never take the recommendation, or silence, as an answer');
     expect($tracker)->toContain('a merge-preparation run reports instead of dropping');
 });
+
+test('a merge decision already answered in the assignment or a trusted comment is never asked again', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $testAssignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
+
+    expect($skill)->toContain('### Look for the answer before you ask');
+    expect($skill)->toContain('A question whose
+answer is already written down is never asked again.');
+    expect($skill)->toContain('An agent\'s comment, the
+  recommendation of an earlier `merge-readiness` comment, and silence never count.');
+    expect($skill)->toContain('decide nothing. The
+  point stays an open decision');
+    expect($skill)->toContain('### Already decided');
+    expect($april)->toContain('the `### Already decided` lines from the brief\'s `## Decided before merge`');
+    expect($merge)->toContain('A citation that fails the check is an unanswered question.');
+    expect($testAssignment)->toContain('*Look for the answer before you ask*');
+});
