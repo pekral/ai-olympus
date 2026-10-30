@@ -167,6 +167,22 @@ test('the report never prints a fabricated token average', function (): void {
         ->toContain('Avg tokens per run    1500 (over 1 run(s) that reported)');
 });
 
+test('a non-integer input_tokens still counts the run as one that reported tokens', function (): void {
+    $entry = ['final_tier' => 'STANDARD', 'input_tokens' => '1000', 'output_tokens' => 500];
+
+    $report = metricsRender([$entry], 'all time');
+
+    expect($report)->toContain('Avg tokens per run    500 (over 1 run(s) that reported)');
+});
+
+test('a positive non-integer review_rounds still counts the run as reviewed', function (mixed $rounds): void {
+    $entry = ['final_tier' => 'STANDARD', 'review_rounds' => $rounds];
+
+    $report = metricsRender([$entry], 'all time');
+
+    expect($report)->toContain('Review zero-findings  1 / 1');
+})->with(['numeric string' => '2', 'float' => 1.5, 'true' => true]);
+
 test('the report degrades rather than failing on absent or malformed fields', function (): void {
     $sparse = ['final_tier' => 'FAST', 'initial_tier' => 'STANDARD', 'findings' => 'not-an-array', 'agent_dispatches' => 'many'];
 

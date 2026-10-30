@@ -18,6 +18,8 @@ final readonly class MetricsEntry
         public array $counters,
         public array $reviewCounters,
         public ?string $reviewResult,
+        public bool $reportsTokens,
+        public bool $reviewed,
     ) {
     }
 
@@ -36,6 +38,8 @@ final readonly class MetricsEntry
             counters: self::integers($data),
             reviewCounters: self::integers($review),
             reviewResult: is_array($review) ? self::string($review['result'] ?? null) : null,
+            reportsTokens: isset($data['input_tokens']),
+            reviewed: ($data['review_rounds'] ?? 0) > 0,
         );
     }
 

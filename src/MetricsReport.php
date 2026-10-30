@@ -183,7 +183,7 @@ final class MetricsReport
      */
     private static function renderZeroFindings(array $entries): string
     {
-        $reviewed = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => ($entry->counter('review_rounds') ?? 0) > 0));
+        $reviewed = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->reviewed));
 
         if ($reviewed === []) {
             return 'Review zero-findings  no reviewed runs recorded';
@@ -202,7 +202,7 @@ final class MetricsReport
      */
     private static function renderTokens(array $entries): string
     {
-        $withTokens = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->counter('input_tokens') !== null));
+        $withTokens = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->reportsTokens));
 
         if ($withTokens === []) {
             return 'Tokens                not reported by this runtime';
