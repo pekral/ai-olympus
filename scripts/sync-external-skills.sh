@@ -62,6 +62,8 @@ PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ATT_MAX_BYTES="${ATT_MAX_BYTES:-1048576}"
 # shellcheck source=../skills/_shared/attachments.sh
 source "$PACKAGE_DIR/skills/_shared/attachments.sh"
+# shellcheck source=../skills/_shared/gate-record.sh
+source "$PACKAGE_DIR/skills/_shared/gate-record.sh"
 
 API_BASE='https://api.github.com/repos'
 RAW_BASE='https://raw.githubusercontent.com'
@@ -127,17 +129,9 @@ is_rel_path() {
   [[ ${#p} -le 200 && "$p" =~ $RE_PATH && "$p" != *..* ]]
 }
 
-# has_symlink <path relative to ROOT> — true when the path or any parent below ROOT is a symlink.
-has_symlink() {
-  local rest="$1" cur="$ROOT" part
-  while [[ -n "$rest" ]]; do
-    part="${rest%%/*}"
-    cur="$cur/$part"
-    [[ -L "$cur" ]] && return 0
-    [[ "$rest" == */* ]] && rest="${rest#*/}" || rest=""
-  done
-  return 1
-}
+# path_has_symlink <path relative to ROOT> — true when the path or any parent below ROOT is a symlink.
+# The component walk is gate_no_symlink from the shared gate library; it reads a relative path.
+path_has_symlink() { ! (cd "$ROOT" && gate_no_symlink "$1"); }
 
 # entry_problem <entry json> — prints why a registry entry is refused; prints nothing when it is valid.
 entry_problem() {
@@ -245,8 +239,8 @@ text_problem() {
 install_file() {
   local src="$1" rel="$2" dest tmp
   dest="$ROOT/$rel"
+  path_has_symlink "$rel" && return 1
   mkdir -p "$(dirname "$dest")"
-  has_symlink "$rel" && return 1
   tmp="$dest.tmp.$$"
   cp "$src" "$tmp"
   chmod 644 "$tmp"
@@ -350,7 +344,17 @@ sync_one() {
   echo "updated    $name  $(printf '%s' "$old" | jq -r '.commit // "none"') -> $sha"
   [[ "$DRY_RUN" -eq 0 ]] || return 0
 
-  has_symlink "$target" && { fail_skill "$name" "$target contains a symbolic link"; return 0; }
+  # Every path the skill writes is checked before the first write, so a link never leaves a partial skill.
+  while IFS= read -r f; do
+    if path_has_symlink "$target/$f"; then
+      fail_skill "$name" "$target/$f contains a symbolic link"
+      return 0
+    fi
+  done < <({ printf '%s' "$entry" | jq -r '.files[]'; echo "$LICENSE_COPY"; })
+  if path_has_symlink "$target"; then
+    fail_skill "$name" "$target contains a symbolic link"
+    return 0
+  fi
   while IFS= read -r f; do
     install_file "$stage/files/$f" "$target/$f" || { fail_skill "$name" "$target/$f contains a symbolic link"; return 0; }
   done < <(printf '%s' "$entry" | jq -r '.files[]')
@@ -358,7 +362,7 @@ sync_one() {
 
   # A file the lock managed and the registry no longer declares is removed with the rest.
   while IFS= read -r stale; do
-    if is_rel_path "$stale" && ! has_symlink "$target/$stale"; then
+    if is_rel_path "$stale" && ! path_has_symlink "$target/$stale"; then
       rm -f "$ROOT/$target/$stale"
     fi
   done < <(printf '%s' "$old" | jq -r --argjson now "$files_obj" '(.files // {}) | keys[] | select(. as $k | $now | has($k) | not)')
@@ -620,6 +624,22 @@ self_test() {
   write_registry "$(skill_entry demo-link o/link true)"
   run_and_rc
   check 'a symbolic link at the target is never followed' test -z "$(ls "$tmp/outside")"
+
+  # a symbolic link inside a managed skill: the skill fails whole and nothing leaves the tree
+  mkdir -p "$tmp/outside2"
+  fake_upstream o/inner main "$sha1" MIT 'inner v1'
+  fake_put "$RAW_BASE/o/inner/$sha1/skills/demo/refs/sub/a.md" 'a v1'
+  write_registry "$(skill_entry demo-inner o/inner true '["SKILL.md","refs/sub/a.md"]')"
+  run_and_rc
+  rm -rf "$ROOT/skills/demo-inner/refs"
+  ln -s "$tmp/outside2" "$ROOT/skills/demo-inner/refs"
+  fake_upstream o/inner main "$sha2" MIT 'inner v2'
+  fake_put "$RAW_BASE/o/inner/$sha2/skills/demo/refs/sub/a.md" 'a v2'
+  run_and_rc
+  check 'a symbolic link inside a managed skill directory fails the skill' rc_is 3
+  check 'a symbolic link inside a managed skill directory creates nothing outside the tree' test -z "$(ls -A "$tmp/outside2")"
+  check 'a symbolic link inside a managed skill directory leaves the other files of the skill alone' file_is skills/demo-inner/SKILL.md 'inner v1'
+  check 'a symbolic link inside a managed skill directory leaves the lock on the old commit' test "$(lock_get '.skills["demo-inner"].commit')" = "$sha1"
 
   # registry validation: nothing is fetched and the exit code is 4
   local bad
