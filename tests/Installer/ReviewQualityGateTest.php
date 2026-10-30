@@ -88,6 +88,10 @@ test('the review-state self-test covers every success criterion of the security 
     'the dismissal reads the association from the loaded pull request',
     'a trusted comment that does not name the finding is refused',
     'one comment dismisses only the finding it names',
+    'the dismissal stores the verified rejection comment URL',
+    'a state whose dismissal stores no comment URL still loads',
+    'a dismissal that stores the comment of another pull request is invalid',
+    'a transition of the reviewer that stores a comment URL is invalid',
 ]);
 
 test('the extractor round mode keys the identity on the cause and the file and enforces the security floor', function (): void {
@@ -187,7 +191,9 @@ test('a dismissal reads the author association from the GitHub loader, never fro
         ->toContain('`review-state.sh dismiss --state <file> --finding <id> --comment <URL of the rejection comment on the pull request>`')
         ->toContain('- **The script verifies the author of a rejection; the caller never states it.**')
         ->toContain('the author of the rejection is not trusted or cannot be verified, the rejection comment does not name the `finding_id`')
-        ->toContain('and when the body does not name the `finding_id` it rejects. One comment therefore dismisses only the findings it names.');
+        ->toContain('and when the body does not name the `finding_id` it rejects. One comment therefore dismisses only the findings it names.')
+        ->toContain('- **The dismissal stores the URL of the rejection comment.**')
+        ->toContain('A state written before the field existed carries none on its dismissals and still loads.');
     expect($contract)->not->toContain('--association');
 });
 

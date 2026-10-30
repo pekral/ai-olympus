@@ -162,8 +162,13 @@ def state_errors:
               type == "object" and keys == ["finding_id", "url"] and (.finding_id as $id | $ids | index([$id])) != null
               and isstr(.url; "^https://\\S+$") and (.url | length) <= 500)
          then empty else "a deferral is malformed or names an unknown finding" end),
+        # A dismissal records the verified rejection comment. A state written before that field existed carries none.
         (if ($s.transitions | type) == "array" and all($s.transitions[];
-              type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
+              type == "object"
+              and (keys == ["actor", "finding_id", "from", "iteration", "to"]
+                   or (.to == "dismissed" and keys == ["actor", "comment", "finding_id", "from", "iteration", "to"]
+                       and isstr(.comment; "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$")
+                       and (.comment | ascii_downcase | startswith("https://github.com/\($s.repo | ascii_downcase)/pull/\($s.pr)#issuecomment-"))))
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
               and (.from == null or (.from | status_rank) > 0) and (.to | status_rank) > 0
               and (if .to == "dismissed" then isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")
@@ -632,9 +637,9 @@ cmd_dismiss() {
   config="$(effective_config)"
   cap="${config%% *}"
   threshold="${config#* }"
-  jq -c -L "$HERE" --arg id "$id" --arg actor "trusted:$association" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -c -L "$HERE" --arg id "$id" --arg actor "trusted:$association" --arg comment "$comment" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     (.findings[] | select(.finding_id == $id)) as $f
-    | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "dismissed", actor: $actor}]
+    | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "dismissed", actor: $actor, comment: $comment}]
     | .findings = (.findings | map(if .finding_id == $id then .status = "dismissed" else . end))
     | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
@@ -930,6 +935,18 @@ EOF
   check 'the dismissal reads the association from the loaded pull request' "$(grep -qx 'https://github.com/acme/shop/pull/7' "$tmp/loader-calls" && echo 0 || echo 1)"
   check 'the dismissal is recorded with its trusted actor' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "dismissed"
       and any(.transitions[]; .finding_id == $id and .to == "dismissed" and .actor == "trusted:OWNER")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  check 'the dismissal stores the verified rejection comment URL' "$(jq -e --arg id "$struct_id" --arg url "${C}12" 'any(.transitions[]; .finding_id == $id and .to == "dismissed" and .comment == $url)' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  check 'a transition of the reviewer carries no comment URL' "$(jq -e 'all(.transitions[] | select(.actor == "reviewer"); has("comment") | not)' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  cp "$repo/$S" "$tmp/dismissed-state"
+  jq -c 'del(.transitions[] | select(.to == "dismissed") | .comment)' "$tmp/dismissed-state" >"$repo/$S"
+  run_case 'a state whose dismissal stores no comment URL still loads' 0 -- evaluate --state "$S"
+  jq -c '(.transitions[] | select(.to == "dismissed") | .comment) = "https://github.com/acme/shop/pull/8#issuecomment-12"' "$tmp/dismissed-state" >"$repo/$S"
+  run_case 'a dismissal that stores the comment of another pull request is invalid' 3 -- evaluate --state "$S"
+  jq -c '(.transitions[] | select(.to == "dismissed") | .comment) = "not a URL"' "$tmp/dismissed-state" >"$repo/$S"
+  run_case 'a dismissal that stores a comment value that is not a URL is invalid' 3 -- evaluate --state "$S"
+  jq -c '(.transitions[] | select(.actor == "reviewer")) += {comment: "https://github.com/acme/shop/pull/7#issuecomment-12"}' "$tmp/dismissed-state" >"$repo/$S"
+  run_case 'a transition of the reviewer that stores a comment URL is invalid' 3 -- evaluate --state "$S"
+  cp "$tmp/dismissed-state" "$repo/$S"
   run_case 'one comment dismisses only the finding it names' 4 -- dismiss --state "$S" --finding "$other_id" --comment "${C}12"
   check 'the finding the comment does not name stays open' "$(jq -e --arg id "$other_id" '(.findings[] | select(.finding_id == $id) | .status) == "new"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   report "$tmp/d2.md" 2 "$F_STRUCT" "$F_SQL"
