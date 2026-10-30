@@ -396,6 +396,85 @@ security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
 Claude Code loads the Markdown rules from `.claude/rules`. Codex uses the explicit loader
 instructions described in [What You Get](#what-you-get).
 
+## External Skills
+
+Some skills are maintained in other public GitHub repositories. The external skill registry keeps their files in `skills/` in step with the upstream, without copying by hand and without trusting the upstream blindly. Three files and one workflow carry it:
+
+| File | Role |
+|---|---|
+| `config/external-skills.json` | The registry. You edit it by hand, and a pull request reviews every change. |
+| `config/external-skills.lock.json` | The metadata. Only `scripts/sync-external-skills.sh` writes it. |
+| `scripts/sync-external-skills.sh` | The sync. It is a maintenance tool of this repository, so the installer never copies it to a consumer. |
+| `.github/workflows/sync-external-skills.yml` | Runs the sync every 24 hours and on `workflow_dispatch`, then opens or updates one pull request. |
+
+The sync never merges. A change reaches the default branch only through the pull request a human reviews.
+
+### Add an external skill
+
+1. Add one entry to `skills` in `config/external-skills.json`. Every key is required, and no other key is allowed:
+
+   ```json
+   {
+     "name": "example-skill",
+     "repository": "owner/repository",
+     "ref": "main",
+     "source_path": "skills/example-skill",
+     "target_path": "skills/example-skill",
+     "files": ["SKILL.md", "references/guide.md"],
+     "enabled": true,
+     "update_strategy": "pull-request"
+   }
+   ```
+
+2. Keep to these rules. The sync refuses the whole registry with exit code 4 when one entry breaks them:
+   - `name` is a lowercase slug, and `target_path` is always `skills/<name>`.
+   - `repository` is `owner/repo` on github.com. Private repositories are not supported.
+   - `source_path` and every path in `files` are relative, contain no `..`, and no segment starts with a dot.
+   - `files` lists every file to fetch, includes `SKILL.md`, and uses only the extensions `md`, `txt`, `json`, `yaml`, `yml`, and `csv`. The sync fetches no other file.
+   - `update_strategy` is `pull-request`. No other strategy exists.
+3. Check that the upstream licence is in `allowed_licenses`. Add an identifier there only after a human decided that the licence allows redistribution.
+4. Run the sync (below) and review the pull request.
+
+### Run the sync
+
+- **On GitHub:** open *Actions*, choose *Sync External Skills*, and press *Run workflow*. The schedule runs the same workflow every day.
+- **Locally:** run `bash scripts/sync-external-skills.sh`. Add `--dry-run` to see what would change without writing a file. The script needs `bash`, `curl`, and `jq`. Set `GITHUB_TOKEN` to raise the GitHub API rate limit; the script sends the token to `api.github.com` only.
+- **Exit codes:** `0` in sync, `3` a skill failed (upstream unavailable or a file refused), `4` the registry is invalid, `5` a skill needs a manual licence or ownership decision. The workflow still opens the pull request for the skills that did sync, then fails the job so the error is visible.
+
+### Versioning
+
+The lock file holds one record per skill: the repository URL, the tracked ref, the source path, the upstream commit SHA, the SHA-256 of every file, the licence, and the sync date. The sync resolves the newest commit of the ref and fetches every file at that commit SHA, so the bytes always match the recorded commit.
+
+The sync compares content, not commits. It writes nothing when no declared file and no registry setting changed. A new upstream commit that leaves the declared files identical changes neither the files nor the lock, so the date never causes a commit or a pull request. The recorded commit is the one the current content was taken from.
+
+### Roll back an update
+
+Revert the sync pull request, or the commit it was merged in. The revert restores both the files and the lock record. The next sync proposes the same update again. To stop that, disable the skill (below), or pin the registry `ref` to a tag or a commit SHA of the version you want to keep.
+
+### Disable an external skill
+
+Set `"enabled": false` in its registry entry. The sync skips the skill, keeps its files, and keeps its lock record. Remove the entry and delete `skills/<name>/` by hand to drop the skill completely.
+
+### Conflicts
+
+- The sync owns the files listed in `files` and `skills/<name>/UPSTREAM-LICENSE`. When an upstream file changes, upstream wins, and the pull request shows the diff, including any local edit it replaces.
+- While upstream stays unchanged, the sync keeps a locally edited file and prints a warning that the copy differs from the lock.
+- Put AI Olympus rules in a file the registry does not list. The sync never touches an unlisted file.
+- A first sync never takes over a path that already exists, so a registry entry can not overwrite an AI Olympus skill. The sync reports it as a manual decision.
+- A file that the registry stops listing is deleted on the next update.
+
+### Licences
+
+The sync reads the licence of the upstream repository from the GitHub licence API. It syncs a skill only when that licence is in `allowed_licenses`. A missing, unclear, or unlisted licence is reported as a manual decision (exit code 5) and nothing is written. The upstream licence file is copied to `skills/<name>/UPSTREAM-LICENSE`, so the copyright notice travels with the files into every consumer.
+
+### Security
+
+Upstream content is untrusted data. The sync copies bytes and nothing else: it never runs, sources, or evaluates an upstream file, and it refuses an empty file, a file with NUL bytes, and a file that starts with a shebang. Requests go only to `api.github.com` and `raw.githubusercontent.com` over HTTPS. The workflow runs with `contents: write` and `pull-requests: write` only, uses no secret other than the built-in `GITHUB_TOKEN`, and commits only `skills/` and the lock file, so upstream content can not change a workflow.
+
+### Repository settings
+
+The workflow opens its pull request with the built-in `GITHUB_TOKEN`. That works only when the repository setting *Allow GitHub Actions to create and approve pull requests* is on (*Settings*, *Actions*, *General*, *Workflow permissions*). When it is off, the pull request step fails and the job reports the error. A pull request that `GITHUB_TOKEN` opens does not start the other workflows, so push a commit to the branch `automation/sync-external-skills` or close and reopen the pull request to run the quality checks.
+
 ## Development & Testing
 
 From a checkout of this repository, install development dependencies with `composer install`. The package requires PHP `^8.4`. CI runs the full quality checks and checks the installer on PHP 8.4, 8.5, and 8.6.
