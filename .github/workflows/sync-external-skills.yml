@@ -1,0 +1,78 @@
+name: Sync External Skills
+
+# Keeps skills that live in other public repositories in step with their upstream.
+# The registry is config/external-skills.json, the metadata is config/external-skills.lock.json,
+# and scripts/sync-external-skills.sh does the work. This workflow never merges anything:
+# a change reaches the default branch only through a pull request a human reviews.
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+# The pull request step pushes one branch and opens or updates one pull request. Nothing else is granted.
+permissions:
+  contents: write
+  pull-requests: write
+
+# One sync at a time; a second run waits instead of racing the first on the same branch.
+concurrency:
+  group: sync-external-skills
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync External Skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The script exits 0 (in sync), 3 (a skill failed), or 5 (a skill needs a manual decision) after it
+      # has handled every skill. 1, 2 and 4 mean it wrote nothing. The exit code is read in the last step,
+      # so the skills that did sync still reach a pull request.
+      - name: Sync declared files from upstream
+        id: sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          bash scripts/sync-external-skills.sh 2>&1 | tee "$RUNNER_TEMP/sync.log"
+          code="${PIPESTATUS[0]}"
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          {
+            echo '### External skill sync'
+            echo '```text'
+            cat "$RUNNER_TEMP/sync.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # add-paths limits the commit to the skills tree and the lock file. Upstream content can never
+      # change a workflow, because the script only writes skills/<name>/ and this step only commits skills/.
+      - name: Create or update the pull request
+        if: steps.sync.outputs.exit_code == '0' || steps.sync.outputs.exit_code == '3' || steps.sync.outputs.exit_code == '5'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: |
+            skills/
+            config/external-skills.lock.json
+          branch: automation/sync-external-skills
+          commit-message: "chore(skills): sync external skills"
+          title: "chore(skills): sync external skills"
+          body: |
+            Automatic update of external skills from their upstream repositories.
+
+            `config/external-skills.lock.json` lists the upstream commit, the licence, and the SHA-256 of every synced file.
+            Review the changed files like any other change. This pull request is never merged automatically.
+          delete-branch: true
+          draft: false
+
+      - name: Report sync errors
+        if: steps.sync.outputs.exit_code != '0'
+        env:
+          EXIT_CODE: ${{ steps.sync.outputs.exit_code }}
+        run: |
+          echo "::error title=External skill sync failed::scripts/sync-external-skills.sh exited with $EXIT_CODE. See the job summary."
+          exit 1
