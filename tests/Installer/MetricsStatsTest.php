@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\Installer;
+use Pekral\AiOlympus\MetricsEntry;
 use Pekral\AiOlympus\MetricsReport;
 use Pekral\AiOlympus\MetricsStore;
 use Tests\Support\StderrCapture;
@@ -14,6 +15,14 @@ function metricsWriteStore(string $path, array $entries): void
 {
     $lines = array_map(static fn (array $entry): string => (string) json_encode($entry), $entries);
     file_put_contents($path, implode("\n", $lines) . "\n");
+}
+
+/**
+ * @param list<array<string, mixed>> $entries
+ */
+function metricsRender(array $entries, string $window): string
+{
+    return MetricsReport::render(array_map(MetricsEntry::fromArray(...), $entries), $window);
 }
 
 /**
@@ -48,6 +57,29 @@ test('the store reads entries and skips lines that do not parse', function (): v
     ]) . "\n");
 
     expect(MetricsStore::read($path))->toHaveCount(2);
+
+    unlink($path);
+});
+
+test('the store returns typed entries with the integer counters, the findings total, and the review loop (issue #220)', function (): void {
+    $path = tempnam(sys_get_temp_dir(), 'metrics');
+    assert(is_string($path));
+    $entry = metricsEntry('FAST', 'STANDARD', critical: 1, moderate: 2);
+    $entry['graph_hits'] = 'many';
+    $entry['review'] = ['iterations' => 2, 'result' => 'converged', 'escalation_reason' => null];
+    metricsWriteStore($path, [$entry]);
+
+    $entries = MetricsStore::read($path);
+
+    expect($entries)->toHaveCount(1);
+    expect($entries[0]->initialTier)->toBe('FAST');
+    expect($entries[0]->finalTier)->toBe('STANDARD');
+    expect($entries[0]->criticalAndModerateFindings)->toBe(3);
+    expect($entries[0]->counter('agent_dispatches'))->toBe(2);
+    expect($entries[0]->counter('graph_hits'))->toBeNull();
+    expect($entries[0]->reviewCounter('iterations'))->toBe(2);
+    expect($entries[0]->reviewCounter('new'))->toBeNull();
+    expect($entries[0]->reviewResult)->toBe('converged');
 
     unlink($path);
 });
@@ -106,7 +138,7 @@ test('the store resolves a path from the override, the home directory, or nowher
 test('the report answers the three questions a single run cannot', function (): void {
     // A FAST tier that keeps escalating is routing real work to the tier that skips the review; a
     // STANDARD tier whose reviews never find anything is paying for a pass that changes no outcome.
-    $report = MetricsReport::render([
+    $report = metricsRender([
         metricsEntry('FAST', 'CRITICAL', critical: 1),
         metricsEntry('FAST', 'FAST', rounds: 0),
         metricsEntry('STANDARD', 'STANDARD'),
@@ -124,27 +156,43 @@ test('the report answers the three questions a single run cannot', function (): 
 test('the report never prints a fabricated token average', function (): void {
     // No runtime here reports token usage reliably. An absent number is honest; an estimated one is
     // a measurement nobody made.
-    expect(MetricsReport::render([metricsEntry('FAST', 'FAST')], 'all time'))
+    expect(metricsRender([metricsEntry('FAST', 'FAST')], 'all time'))
         ->toContain('Tokens                not reported by this runtime');
 
     $withTokens = metricsEntry('STANDARD', 'STANDARD');
     $withTokens['input_tokens'] = 1_000;
     $withTokens['output_tokens'] = 500;
 
-    expect(MetricsReport::render([$withTokens], 'all time'))
+    expect(metricsRender([$withTokens], 'all time'))
         ->toContain('Avg tokens per run    1500 (over 1 run(s) that reported)');
 });
+
+test('a non-integer input_tokens still counts the run as one that reported tokens', function (): void {
+    $entry = ['final_tier' => 'STANDARD', 'input_tokens' => '1000', 'output_tokens' => 500];
+
+    $report = metricsRender([$entry], 'all time');
+
+    expect($report)->toContain('Avg tokens per run    500 (over 1 run(s) that reported)');
+});
+
+test('a positive non-integer review_rounds still counts the run as reviewed', function (mixed $rounds): void {
+    $entry = ['final_tier' => 'STANDARD', 'review_rounds' => $rounds];
+
+    $report = metricsRender([$entry], 'all time');
+
+    expect($report)->toContain('Review zero-findings  1 / 1');
+})->with(['numeric string' => '2', 'float' => 1.5, 'true' => true]);
 
 test('the report degrades rather than failing on absent or malformed fields', function (): void {
     $sparse = ['final_tier' => 'FAST', 'initial_tier' => 'STANDARD', 'findings' => 'not-an-array', 'agent_dispatches' => 'many'];
 
-    $report = MetricsReport::render([$sparse], 'all time');
+    $report = metricsRender([$sparse], 'all time');
 
     // The same malformed `findings` reaching the zero-findings signal (the entry was reviewed) must
     // count as no findings rather than crashing the whole report.
     $reviewed = $sparse;
     $reviewed['review_rounds'] = 1;
-    expect(MetricsReport::render([$reviewed], 'all time'))->toContain('Review zero-findings  1 / 1');
+    expect(metricsRender([$reviewed], 'all time'))->toContain('Review zero-findings  1 / 1');
 
     expect($report)->toContain('Runs                  1');
     expect($report)->toContain('Agent dispatches      0');
@@ -177,7 +225,7 @@ test('the report sums every context and graph counter the recorder writes (issue
         array_merge(metricsEntry('CRITICAL', 'CRITICAL'), $counters),
     ];
 
-    $report = MetricsReport::render($entries, 'all time');
+    $report = metricsRender($entries, 'all time');
 
     expect($report)->toContain($expectedLine . PHP_EOL);
 })->with([
@@ -206,8 +254,8 @@ test('the report says a counter was not recorded instead of printing zero for ol
     $newer['graph_hits'] = 0;
     $newer['context_gate_executed'] = 2;
 
-    $olderOnly = MetricsReport::render([$older, $malformed], 'all time');
-    $mixed = MetricsReport::render([$older, $malformed, $newer], 'all time');
+    $olderOnly = metricsRender([$older, $malformed], 'all time');
+    $mixed = metricsRender([$older, $malformed, $newer], 'all time');
 
     expect($olderOnly)->toContain('Context gate runs     not recorded' . PHP_EOL)
         ->and($olderOnly)->toContain('Graph hits            not recorded' . PHP_EOL)
@@ -239,7 +287,7 @@ test('the report sums every review-loop counter the recorder writes and counts t
         metricsEntry('FAST', 'FAST'),
     ];
 
-    expect(MetricsReport::render($entries, 'all time'))->toContain($expectedLine . PHP_EOL);
+    expect(metricsRender($entries, 'all time'))->toContain($expectedLine . PHP_EOL);
 })->with([
     'blocking remaining' => ['Blocking remaining    16'],
     'findings confirmed' => ['Findings confirmed    4'],
@@ -258,7 +306,7 @@ test('the report says the review-loop counters were not recorded for entries wit
     $malformed = metricsEntry('FAST', 'FAST');
     $malformed['review'] = 'broken';
 
-    $report = MetricsReport::render([metricsEntry('FAST', 'FAST'), $malformed], 'all time');
+    $report = metricsRender([metricsEntry('FAST', 'FAST'), $malformed], 'all time');
 
     expect($report)->toContain('Loop iterations       not recorded' . PHP_EOL)
         ->and($report)->toContain('Blocking remaining    not recorded' . PHP_EOL)
