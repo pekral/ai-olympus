@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Pekral\AiOlympus;
 
+use Closure;
+
 /**
  * Renders the `ai-olympus stats` summary from the local metrics store.
  *
@@ -51,7 +53,7 @@ final class MetricsReport
     ];
 
     /**
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     public static function render(array $entries, string $window): string
     {
@@ -75,91 +77,79 @@ final class MetricsReport
         $lines[] = self::renderTokens($entries);
         $lines[] = '';
 
-        $lines = [...$lines, ...self::renderCounters($entries, self::CONTEXT_COUNTERS), ''];
-        $lines = [...$lines, ...self::renderCounters($entries, self::GRAPH_COUNTERS), ''];
+        $readCounter = static fn (MetricsEntry $entry, string $key): ?int => $entry->counter($key);
+        $readReviewCounter = static fn (MetricsEntry $entry, string $key): ?int => $entry->reviewCounter($key);
 
-        $reviews = array_map(self::reviewOf(...), $entries);
-        $lines = [...$lines, ...self::renderCounters($reviews, self::REVIEW_COUNTERS)];
-        $lines[] = self::renderLoopResult($reviews, 'converged', 'Loops converged');
-        $lines[] = self::renderLoopResult($reviews, 'escalated', 'Loops escalated');
+        $lines = [...$lines, ...self::renderCounters($entries, self::CONTEXT_COUNTERS, $readCounter), ''];
+        $lines = [...$lines, ...self::renderCounters($entries, self::GRAPH_COUNTERS, $readCounter), ''];
+        $lines = [...$lines, ...self::renderCounters($entries, self::REVIEW_COUNTERS, $readReviewCounter)];
+        $lines[] = self::renderLoopResult($entries, 'converged', 'Loops converged');
+        $lines[] = self::renderLoopResult($entries, 'escalated', 'Loops escalated');
 
         return implode(PHP_EOL, array_filter($lines, static fn (string $line): bool => $line !== ' ')) . PHP_EOL;
     }
 
     /**
-     * @param array<string, mixed> $entry
-     * @return array<string, mixed>
-     */
-    private static function reviewOf(array $entry): array
-    {
-        $review = $entry['review'] ?? null;
-
-        return is_array($review) ? array_filter($review, is_string(...), ARRAY_FILTER_USE_KEY) : [];
-    }
-
-    /**
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     private static function countByTier(array $entries, string $tier): int
     {
-        return count(array_filter($entries, static fn (array $entry): bool => ($entry['final_tier'] ?? null) === $tier));
+        return count(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->finalTier === $tier));
     }
 
     /**
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     private static function sum(array $entries, string $key): int
     {
-        $total = 0;
-
-        foreach ($entries as $entry) {
-            $value = $entry[$key] ?? 0;
-            $total += is_int($value) ? $value : 0;
-        }
-
-        return $total;
+        return array_sum(array_map(static fn (MetricsEntry $entry): int => $entry->counter($key) ?? 0, $entries));
     }
 
     /**
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      * @param array<string, string> $counters
+     * @param \Closure(\Pekral\AiOlympus\MetricsEntry, string): ?int $read
      * @return list<string>
      */
-    private static function renderCounters(array $entries, array $counters): array
+    private static function renderCounters(array $entries, array $counters, Closure $read): array
     {
         return array_values(array_map(
-            static fn (string $key, string $label): string => self::renderCounter($entries, $key, $label),
+            static fn (string $key, string $label): string => self::renderCounter($entries, $key, $label, $read),
             array_keys($counters),
             $counters,
         ));
     }
 
     /**
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
+     * @param \Closure(\Pekral\AiOlympus\MetricsEntry, string): ?int $read
      */
-    private static function renderCounter(array $entries, string $key, string $label): string
+    private static function renderCounter(array $entries, string $key, string $label, Closure $read): string
     {
-        $recorded = array_values(array_filter($entries, static fn (array $entry): bool => is_int($entry[$key] ?? null)));
+        $recorded = array_filter(
+            array_map(static fn (MetricsEntry $entry): ?int => $read($entry, $key), $entries),
+            static fn (?int $value): bool => $value !== null,
+        );
 
         if ($recorded === []) {
             return sprintf('%-21s not recorded', $label);
         }
 
-        return sprintf('%-21s %d', $label, self::sum($recorded, $key));
+        return sprintf('%-21s %d', $label, array_sum($recorded));
     }
 
     /**
-     * @param list<array<string, mixed>> $reviews
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
-    private static function renderLoopResult(array $reviews, string $result, string $label): string
+    private static function renderLoopResult(array $entries, string $result, string $label): string
     {
-        $recorded = array_values(array_filter($reviews, static fn (array $review): bool => is_string($review['result'] ?? null)));
+        $recorded = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->reviewResult !== null));
 
         if ($recorded === []) {
             return sprintf('%-21s no review loops recorded', $label);
         }
 
-        $matching = array_filter($recorded, static fn (array $review): bool => $review['result'] === $result);
+        $matching = array_filter($recorded, static fn (MetricsEntry $entry): bool => $entry->reviewResult === $result);
 
         return sprintf('%-21s %d / %d', $label, count($matching), count($recorded));
     }
@@ -168,14 +158,14 @@ final class MetricsReport
      * A FAST run that keeps being re-classified upward means the classifier is
      * routing real work to the tier that skips the review.
      *
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     private static function renderFastEscalation(array $entries): string
     {
-        $startedFast = array_values(array_filter($entries, static fn (array $entry): bool => ($entry['initial_tier'] ?? null) === 'FAST'));
+        $startedFast = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->initialTier === 'FAST'));
         $escalated = array_values(array_filter(
             $startedFast,
-            static fn (array $entry): bool => ($entry['final_tier'] ?? null) !== 'FAST',
+            static fn (MetricsEntry $entry): bool => $entry->finalTier !== 'FAST',
         ));
 
         if ($startedFast === []) {
@@ -189,47 +179,30 @@ final class MetricsReport
      * A STANDARD tier whose reviews never find anything is paying for a review
      * pass that changes no outcome.
      *
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     private static function renderZeroFindings(array $entries): string
     {
-        $reviewed = array_values(array_filter($entries, static fn (array $entry): bool => ($entry['review_rounds'] ?? 0) > 0));
+        $reviewed = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => ($entry->counter('review_rounds') ?? 0) > 0));
 
         if ($reviewed === []) {
             return 'Review zero-findings  no reviewed runs recorded';
         }
 
-        $zero = array_values(array_filter($reviewed, static fn (array $entry): bool => self::sumFindings($entry) === 0));
+        $zero = array_values(array_filter($reviewed, static fn (MetricsEntry $entry): bool => $entry->criticalAndModerateFindings === 0));
 
         return sprintf('Review zero-findings  %d / %d', count($zero), count($reviewed));
-    }
-
-    /**
-     * @param array<string, mixed> $entry
-     */
-    private static function sumFindings(array $entry): int
-    {
-        $findings = $entry['findings'] ?? [];
-
-        if (!is_array($findings)) {
-            return 0;
-        }
-
-        $critical = $findings['critical'] ?? 0;
-        $moderate = $findings['moderate'] ?? 0;
-
-        return (is_int($critical) ? $critical : 0) + (is_int($moderate) ? $moderate : 0);
     }
 
     /**
      * Token counts are optional — no runtime reports them reliably — so the line
      * says they are unavailable rather than printing a fabricated average.
      *
-     * @param list<array<string, mixed>> $entries
+     * @param list<\Pekral\AiOlympus\MetricsEntry> $entries
      */
     private static function renderTokens(array $entries): string
     {
-        $withTokens = array_values(array_filter($entries, static fn (array $entry): bool => isset($entry['input_tokens'])));
+        $withTokens = array_values(array_filter($entries, static fn (MetricsEntry $entry): bool => $entry->counter('input_tokens') !== null));
 
         if ($withTokens === []) {
             return 'Tokens                not reported by this runtime';
