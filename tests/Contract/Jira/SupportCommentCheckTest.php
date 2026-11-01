@@ -30,7 +30,7 @@ function validSupportTldr(): string
         '* *Co udělat teď:* Support — pošle klientovi odpověď níže.',
         '* *Co zatím nevíme:* Nic, všechno výše je ověřené.',
         '* *Nápověda:* Článek [Chytrá rozesílka|https://support.example.com/cs/articles/15971707-chytra-rozesilka] tento postup nepopisuje.',
-        '* *Jak jsme to ověřili:* nastavení aplikace; související tiket ECOMAIL-7373.',
+        '* *Jak jsme to ověřili:* nastavení aplikace; související tiket PROJ-7373.',
         '*Co odpovědět klientovi:*',
         '{quote}Dobrý den, the error appears again jen při ručním odeslání.{quote}',
         '----',
