@@ -10,7 +10,7 @@ Agents = specialised orchestration roles over multiple skills
 
 ## Agent roster
 
-Every agent has its own portrait under [`assets/agents/`](../assets/agents), saved as `assets/agents/<name>.png`. The portraits depict each agent’s Teenage Mutant Ninja Turtles namesake in the same cartoon mascot style as Cockpit’s Krang. The universal [`placeholder.svg`](../assets/agents/placeholder.svg) is available for future agents without custom artwork.
+Every agent has its own portrait under [`assets/agents/`](../assets/agents), saved as `assets/agents/<name>.png`. The portraits depict each agent’s Teenage Mutant Ninja Turtles namesake in the same cartoon mascot style as Krang. The universal [`placeholder.svg`](../assets/agents/placeholder.svg) is available for future agents without custom artwork.
 
 ### <a href="../assets/agents/leonardo.png"><img src="../assets/agents/thumbnails/leonardo.png" alt="leonardo avatar" width="48" align="left"></a> `leonardo` — code-review sentinel & security analyst
 

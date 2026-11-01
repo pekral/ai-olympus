@@ -138,7 +138,7 @@ When the issue links more than one pull request, render the issue-level verdict 
 
 ### Closing line — the PR and the source issue
 
-The comment ends with one line linking the pull request and the source tracker item, separated by ` · ` — a `PR #123` link, then an `ECOMAIL-6974` link, each written in the target's own link syntax (see the three templates). Render whichever of the two links exists; when neither exists, omit the line. It is a navigation aid, never prose, and it is never compressed or translated.
+The comment ends with one line linking the pull request and the source tracker item, separated by ` · ` — a `PR #123` link, then an `PROJ-6974` link, each written in the target's own link syntax (see the three templates). Render whichever of the two links exists; when neither exists, omit the line. It is a navigation aid, never prose, and it is never compressed or translated.
 
 ### Length follows the facts
 

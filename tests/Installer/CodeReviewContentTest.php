@@ -173,7 +173,7 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
         * Campaign pipelines: every save of a pipeline goes through the changed code. A user may notice a slower save on a pipeline with many actions.
         * Bulk sending: the delivery report shows the reached count, so it can be lower than before for the same send.
 
-        [PR #482|https://github.com/acme/pipelines/pull/482] · [ECOMAIL-6974|https://acme.atlassian.net/browse/ECOMAIL-6974]
+        [PR #482|https://github.com/acme/pipelines/pull/482] · [PROJ-6974|https://acme.atlassian.net/browse/PROJ-6974]
 
         ----
 
