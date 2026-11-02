@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🛡️ **Changed**: `interactive-testing` checks security boundaries during every walkthrough, verifies suspected vulnerabilities, and sends confirmed threats through immediate repair and browser re-testing. Read-only testers hand repairs to the implementing agent. The batch workflow applies this rule to confirmed pre-existing vulnerabilities too.
+
 - 🧹 **Changed**: the package names no concrete project. The agent portrait files and their documentation describe the Krang mascot style without the project it came from, and the JIRA keys in `skills/pr-summary/SKILL.md` and in the tests use the generic `PROJ` prefix.
 
 ## [0.2] - 2026-10-29
