@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🏗️ **Changed**: an Enum holds cases, backing values, and simple case metadata only. Data transformation inside an Enum — a string rewrite with `preg_replace_callback()`, a key mapping, a value-to-slug conversion — moves to a Data Builder, and a Data Builder method is an instance method, never `static` (`rules/laravel/architecture.md` *Data Builders*). The code review raises transformation in an Enum as the Critical inline-mapping finding and a `static` Data Builder method as a Moderate finding (`rules/code-review/core-analysis.md`).
+
 - 🧪 **Changed**: `/report-code-review` runs `interactive-testing` through `raphael` after the missing-tests commit and before the review. The published review carries the result in its own `## Interactive testing` section, and each `Not met`, `Failed`, or `Partial` scenario is also a review finding. The run repairs nothing: `leonardo` verifies each security candidate of the walkthrough. A confirmed threat on a changed line is a finding, and one that predates the diff goes to the out-of-scope handoff, never into the public comment. `agents/raphael.md` gains a *Review-only mode* (`commands/report-code-review.md`, `agents/splinter.md`, `agents/leonardo.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `skills/interactive-testing/SKILL.md`).
 
 - 🛡️ **Changed**: `interactive-testing` checks security boundaries during every walkthrough, verifies suspected vulnerabilities, and sends confirmed threats through immediate repair and browser re-testing. Read-only testers hand repairs to the implementing agent. The batch workflow applies this rule to confirmed pre-existing vulnerabilities too.
