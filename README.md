@@ -28,11 +28,11 @@ The same `extra.ai-olympus` key in `composer.json` is the [project manifest](doc
 ## Quickstart
 
 ```bash
-composer require pekral/ai-olympus:0.2 --dev
+composer require pekral/ai-olympus:0.2.1 --dev
 vendor/bin/ai-olympus install --force
 ```
 
-The commands above pin version `0.2`, which contains the Ninja Turtles team shown below. Commit your project's `composer.lock` to keep installations reproducible. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
+The commands above pin version `0.2.1`, which contains the Ninja Turtles team shown below. Commit your project's `composer.lock` to keep installations reproducible. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
 
 Restart the agent session after installation. In Claude Code:
 
