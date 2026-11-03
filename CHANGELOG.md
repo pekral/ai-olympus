@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-03
+
 - 🛡️ **Changed**: every code review runs `security-audit` in its new *Diff mode* over the current diff, next to `security-review`, also in `/report-code-review` (`rules/code-review/general.md` *Security is the most important part of every review*). The reviewer runs the `standard` profile over the changed files and the security paths they reach, in sequential passes in its own context and never through a subagent. A finding on a changed line becomes a security finding of the review; a finding outside the changed lines goes to the out-of-scope handoff and never into the published comment. The audit itself still publishes nothing (`skills/security-audit/SKILL.md` *Diff mode*, `skills/code-review/references/specialized-reviews.md`, `agents/leonardo.md`).
 
 - 🏗️ **Changed**: an Enum holds cases, backing values, and simple case metadata only. Data transformation inside an Enum — a string rewrite with `preg_replace_callback()`, a key mapping, a value-to-slug conversion — moves to a Data Builder, and a Data Builder method is an instance method, never `static` (`rules/laravel/architecture.md` *Data Builders*). A value derived from the cases alone, such as `options()` or `values()`, stays in the Enum. The rule applies even to simple logic with one caller, as a stated exception in `rules/php/core-standards.md` *Do not create a class for simple logic that does not repeat*, and a public Data Builder method may return a single scalar such as a rewritten `string`. The code review raises transformation in an Enum as the Critical inline-mapping finding and a `static` Data Builder method as a Moderate finding (`rules/code-review/core-analysis.md`).
