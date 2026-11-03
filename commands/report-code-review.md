@@ -29,7 +29,9 @@ the review reports it as a finding. Then `splinter` dispatches `raphael` once. I
 interactive browser, and returns its report: scope, a verdict for each scenario, findings, security
 candidates, untested scenarios, and cleanup. This run repairs nothing that the walkthrough finds. A
 confirmed security threat is not handed to `donatello` for a repair; `leonardo` verifies each
-security candidate in the review, and a confirmed threat stays a finding. A `Blocked` walkthrough does
+security candidate in the review. A confirmed threat on a line the pull request changes is a
+finding. A confirmed threat that predates the diff stays out of the published comment and goes to the
+out-of-scope handoff, marked not for public filing. A `Blocked` walkthrough does
 not stop the review; its blocker and the step that unblocks it go into the report. Then `splinter`
 dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
@@ -39,7 +41,7 @@ including the missing-tests commit. The wrapper may run that lens in parallel wi
 but it runs exactly once, and its findings always land in the one final review report. The run never publishes a
 separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The review report always
 carries the `interactive-testing` result in its own `## Interactive testing` section, and each
-`Failed` or `Partial` scenario is also a finding of the review. The wrapper
+`Not met`, `Failed`, or `Partial` scenario is also a finding of the review. The wrapper
 publishes the result in the output each tracker requires: the technical findings on the GitHub pull
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
 section. In its place, `Review findings` retells the GitHub report in plain language, so a

@@ -90,6 +90,20 @@
 - **Commit:** `{full SHA of the missing-tests commit}`
 - `path/to/SomethingTest.php` — {the behaviour the test protects, in plain language} — `@<login>`
 
+## Interactive testing
+
+> Render in every review-only run (`/report-code-review`), from the `raphael` report, also when the walkthrough was `Blocked`. Omit the heading in every other run. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
+
+- **Tested head:** `{full SHA}` · **URL:** {project URL} · **Account:** {role}
+- **Result:**
+
+| Scenario | Viewport | Verdict | Observation |
+|---|---|---|---|
+| {scenario} | {desktop / mobile} | {Met / Not met / Partial / Blocked} | {what the walkthrough observed} |
+
+- **Untested:** {scenario — missing prerequisite}, or `none`
+- **Cleanup:** {restored values, removed test data}, or `none`
+
 ---
 
 ## Delegated to another person
