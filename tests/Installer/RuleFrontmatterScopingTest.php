@@ -265,7 +265,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: an Action's constructor is the third exemption from the >4-parameter rule.
         // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
-        'rules/php/core-standards.md' => '123e316cf2f37f47b77f2caaa3716edebc28e43eb5917d9f0c806116248aac87',
+        // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
+        'rules/php/core-standards.md' => 'b0822ceb04a57b7ca3ff69657eb7ad8b5d0611f4badaf640fd3a6ca9093a0da9',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -418,7 +419,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
         // Re-baselined: *Before you create an Action* searches every Action for repeated steps, and CR Severity Rules hands a repeated fragment to *Reuse Existing Logic*.
         // Re-baselined: an Enum carries no data transformation, and a Data Builder method is never `static`.
-        'rules/laravel/architecture.md' => 'a811355c1e676257b04475f01f2855d9dadc7004d86101906048797ca65fe6b3',
+        'rules/laravel/architecture.md' => '687cc3c09209d43e978c5ca85957261d6eeed29faf080d9f161fd150aba0b5c9',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.
