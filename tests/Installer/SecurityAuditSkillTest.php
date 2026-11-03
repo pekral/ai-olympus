@@ -34,7 +34,7 @@ test('security-audit ships as its own skill next to an unchanged security-review
     expect($audit)->toContain("name: security-audit\n");
     expect($audit)->toContain(
         'description: "Use when the user explicitly asks for a security audit of the whole repository or of one subsystem, '
-        . 'not a review of a pull request or diff.',
+        . 'and in Diff mode over the current diff of every code review.',
     );
     expect($review)->toContain("name: security-review\n");
     expect($review)->toContain(
@@ -45,17 +45,18 @@ test('security-audit ships as its own skill next to an unchanged security-review
     expect($audit)->toContain('`@skills/security-review/SKILL.md` stays the quick workflow for a pull request or a diff.');
 });
 
-test('security-audit runs only on an explicit user request and publishes nothing', function (): void {
+test('security-audit runs on an explicit user request or in every code review, and publishes nothing', function (): void {
     $audit = securityAuditSource('skills/security-audit/SKILL.md');
 
-    expect($audit)->toContain('**Runs only on an explicit user request**');
-    expect($audit)->toContain('**Never runs when:** no such explicit request was made.');
+    expect($audit)->toContain('**Runs only on an explicit user request, or in *Diff mode* inside every code review**');
+    expect($audit)->toContain('**Never runs when:** no such explicit request was made and no code review runs.');
+    expect($audit)->toContain('## Diff mode — inside every code review');
     expect($audit)->toContain('**Publishes nothing.** No tracker comment, no issue, no PR.');
     expect($audit)->toContain('**Read-only on the audited project.**');
     expect($audit)->toContain('`@rules/security/general.md`');
 });
 
-test('no other skill or agent wires security-audit into its own pipeline', function (): void {
+test('only the code review wires security-audit into its pipeline', function (): void {
     $callers = [];
 
     foreach (packageTextFiles() as $path => $content) {
@@ -68,7 +69,14 @@ test('no other skill or agent wires security-audit into its own pipeline', funct
         }
     }
 
-    expect($callers)->toBe([]);
+    sort($callers);
+
+    expect($callers)->toBe([
+        'agents/leonardo.md',
+        'skills/code-review/references/specialized-reviews.md',
+    ]);
+    expect(securityAuditSource('rules/code-review/general.md'))
+        ->toContain('**The security audit runs on every review too.** `@skills/security-audit/SKILL.md` runs in its *Diff mode*');
 });
 
 test('the audit profiles are quick, standard, and deep, and stay distinct from the risk tiers', function (): void {
