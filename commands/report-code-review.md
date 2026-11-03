@@ -24,13 +24,22 @@ current diff of the pull request. Before the review, `splinter` dispatches `dona
 changes the business logic of the change under review, unless the user explicitly asks for that
 change in the request. When the diff is missing no test, the run creates no commit. A test that
 fails against the current code is not committed; `donatello` reports the behaviour it exposed, and
-the review reports it as a finding. Then `splinter` dispatches `leonardo` once, and `leonardo` runs the code-review
+the review reports it as a finding. Then `splinter` dispatches `raphael` once. It runs
+`@skills/interactive-testing/SKILL.md` against the checked-out head of the pull request, in its own
+interactive browser, and returns its report: scope, a verdict for each scenario, findings, security
+candidates, untested scenarios, and cleanup. This run repairs nothing that the walkthrough finds. A
+confirmed security threat is not handed to `donatello` for a repair; `leonardo` verifies each
+security candidate in the review, and a confirmed threat stays a finding. A `Blocked` walkthrough does
+not stop the review; its blocker and the step that unblocks it go into the report. Then `splinter`
+dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
 `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The review always
 runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head,
 including the missing-tests commit. The wrapper may run that lens in parallel with its other lenses,
 but it runs exactly once, and its findings always land in the one final review report. The run never publishes a
-separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The wrapper
+separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The review report always
+carries the `interactive-testing` result in its own `## Interactive testing` section, and each
+`Failed` or `Partial` scenario is also a finding of the review. The wrapper
 publishes the result in the output each tracker requires: the technical findings on the GitHub pull
 request, and the non-technical summary on the source issue. The summary carries no `How to test`
 section. In its place, `Review findings` retells the GitHub report in plain language, so a

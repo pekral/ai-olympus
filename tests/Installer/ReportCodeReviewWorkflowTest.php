@@ -61,3 +61,20 @@ test('security is the most important part of every code review', function (): vo
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('**Security agenda (the most important part of every review');
 });
+
+test('report-code-review adds the interactive-testing result to the review report', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    expect((string) file_get_contents($packageDir . '/commands/report-code-review.md'))
+        ->toContain('Then `splinter` dispatches `raphael` once.')
+        ->toContain('carries the `interactive-testing` result in its own `## Interactive testing` section');
+    expect((string) file_get_contents($packageDir . '/agents/splinter.md'))
+        ->toContain('3. Dispatch `raphael` once, blocking, with `review_only` in the dispatch prompt.')
+        ->toContain('Pass the `raphael` report, so the published review carries the `interactive-testing` result.');
+    expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
+        ->toContain('Pass the `raphael` walkthrough report to the wrapper');
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
+        ->toContain('Render `## Interactive testing` from the `raphael` report the caller passes');
+    expect((string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md'))
+        ->toContain('A review-only caller (`/report-code-review`) fixes nothing: it requests no repair');
+});
