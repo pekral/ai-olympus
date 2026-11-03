@@ -51,6 +51,9 @@ test('security-audit runs on an explicit user request or in every code review, a
     expect($audit)->toContain('**Runs only on an explicit user request, or in *Diff mode* inside every code review**');
     expect($audit)->toContain('**Never runs when:** no such explicit request was made and no code review runs.');
     expect($audit)->toContain('## Diff mode — inside every code review');
+    expect($audit)->toContain('An `unrated` `needs_validation` finding is Moderate, and its `validation_needed` step is the test hint.');
+    expect(securityAuditSource('rules/code-review/general.md'))
+        ->toContain('`@skills/security-audit/SKILL.md` in its *Diff mode*, or `@skills/laravel-authorization-review/SKILL.md`, at **any** severity');
     expect($audit)->toContain('**Publishes nothing.** No tracker comment, no issue, no PR.');
     expect($audit)->toContain('**Read-only on the audited project.**');
     expect($audit)->toContain('`@rules/security/general.md`');

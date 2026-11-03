@@ -53,7 +53,7 @@ link to read the skill itself.
 | Skill | What it is for |
 |-------|----------------|
 | [`security-review`](../skills/security-review/) | Performing a focused security review for Laravel/PHP projects |
-| [`security-audit`](../skills/security-audit/) | The user explicitly asks for a security audit of the whole repository or of one subsystem, not a review of a pull request or diff |
+| [`security-audit`](../skills/security-audit/) | The user explicitly asks for a security audit of the whole repository or of one subsystem; every code review also runs it in *Diff mode* over the current diff |
 | [`security-bounty-hunter`](../skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
 | [`security-threat-analysis`](../skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
 | [`laravel-security`](../skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
