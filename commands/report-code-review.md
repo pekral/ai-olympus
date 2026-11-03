@@ -37,7 +37,7 @@ dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
 `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The review always
 runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head,
-including the missing-tests commit. The wrapper may run that lens in parallel with its other lenses,
+including the missing-tests commit, and `@skills/security-audit/SKILL.md` in its *Diff mode* over the same diff. The wrapper may run `security-review` in parallel with its other lenses,
 but it runs exactly once, and its findings always land in the one final review report. The run never publishes a
 separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The review report always
 carries the `interactive-testing` result in its own `## Interactive testing` section, and each
