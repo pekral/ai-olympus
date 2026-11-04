@@ -46,7 +46,21 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 A full build proves the same thing on every run over the same bytes, and on a larger task repeated builds dominate the wall-clock cost of delivering the change. The gate therefore runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
-- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below). Without `pr-gate` nothing runs before a push, exactly as before.
+- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below), except as *Skip the pre-push gate when CI is green* states. Without `pr-gate` nothing runs before a push, exactly as before.
+
+### Skip the pre-push gate when CI is green
+
+Before each push, read the CI result of the pull request's current head: `gh pr checks <PR> --json name,bucket`. The CI result decides whether `pr-gate` runs.
+
+| CI result on the PR head | Pre-push gate |
+|---|---|
+| Green: at least one check, and every check has bucket `pass` or `skipping` | Do not run it. Push. |
+| Missing: no pull request yet, no check, or a check still `pending` | Run it. |
+| Red: a check has bucket `fail` or `cancel` | Run it. |
+
+- **The one exception is a rebase that resolved a conflict.** Run `pr-gate` before that push, also when CI is green. The conflict resolution is new code that CI has not seen.
+- **Record the decision in the handoff.** Write `pr-gate: skipped — CI green on <sha>`, or the `run-gate.sh` result.
+- **This section changes only the pre-push gate.** The full gate at the merge boundary keeps its own rules below.
 - **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
 - **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — or, on a project that opted into the machine record, only when `verify-gate.sh` accepts it (*Machine gate record* below) — and it runs the gate itself otherwise —
   for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes. After a rebase that only moved the base, *Rebase that moves the head — analyse the incoming changes first* below decides whether the recorded run carries forward to the new head.

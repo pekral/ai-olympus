@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- ⚡ **Changed**: the pre-push gate (`pr-gate`) does not run when CI on the pull request's current head is green. It runs when CI is missing, still pending, or red, and after a rebase that resolved a conflict, also with green CI (`skills/resolve-issue/references/quality-gates.md` *Skip the pre-push gate when CI is green*, `rules/general/general.md`, `agents/donatello.md`, `CLAUDE.md`, `AGENTS.md`). The full gate at the merge boundary does not change.
+
 - 🧪 **Changed**: every `interactive-testing` run drives the web browser available to the session: Claude in Chrome in Claude Code, the desktop app's built-in browser when Claude in Chrome is not connected, and `cua_repl` in Codex (`skills/interactive-testing/SKILL.md` *Constraints*). `raphael` gets the Claude in Chrome tools and walks every UI criterion in that browser. The project's own browser automation and `skills/_shared/browser-drive.sh` supply supplementary evidence only, never the verdict. Without an interactive browser, a UI criterion is `Blocked` with the remediation named (`agents/raphael.md`).
 
 ## [0.2.1] - 2026-11-03
