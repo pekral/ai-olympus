@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🧪 **Changed**: `/report-code-review` writes no test. The `donatello` *Missing-tests mode* and its one test commit on the pull request branch are removed, and so is the `## Missing tests added` section of the review comment. A missing test stays a review finding that mentions the author of the changes, who writes the test (`commands/report-code-review.md`, `agents/splinter.md`, `agents/donatello.md`, `agents/leonardo.md`, `rules/code-review/general.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `skills/code-review-github/templates/pr-comment-output.md`, `skills/pr-summary/SKILL.md`).
+
 - ⚡ **Changed**: the pre-push gate (`pr-gate`) does not run when CI on the pull request's current head is green. It runs when CI is missing, still pending, or red, and after a rebase that resolved a conflict, also with green CI (`skills/resolve-issue/references/quality-gates.md` *Skip the pre-push gate when CI is green*, `rules/general/general.md`, `agents/donatello.md`, `CLAUDE.md`, `AGENTS.md`). The full gate at the merge boundary does not change.
 
 - 🧪 **Changed**: every `interactive-testing` run drives the web browser available to the session: Claude in Chrome in Claude Code, the desktop app's built-in browser when Claude in Chrome is not connected, and `cua_repl` in Codex (`skills/interactive-testing/SKILL.md` *Constraints*). `raphael` gets the Claude in Chrome tools and walks every UI criterion in that browser. The project's own browser automation and `skills/_shared/browser-drive.sh` supply supplementary evidence only, never the verdict. Without an interactive browser, a UI criterion is `Blocked` with the remediation named (`agents/raphael.md`).

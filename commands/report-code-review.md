@@ -1,5 +1,5 @@
 ---
-description: Review one task's pull request and report the result to its tracker and GitHub; adds only the missing tests for the diff, in one commit, and fixes nothing else
+description: Review one task's pull request and report the result to its tracker and GitHub; changes nothing in the pull request
 argument-hint: [GitHub issue or pull request URL, JIRA issue key or URL, or Bugsnag error URL]
 ---
 
@@ -17,14 +17,9 @@ current working tree to the pull request's head branch: `git fetch origin`, `git
 Never review from the remote diff alone, from a stale local branch, or from a separate worktree. When
 the checkout fails, for example because local changes would be overwritten, stop and report it.
 
-Do not fix anything in the code under review. The one permitted change is the missing tests for the
-current diff of the pull request. Before the review, `splinter` dispatches `donatello` once in its
-*Missing-tests mode*: it adds the tests the diff is missing, runs them, and pushes **all** of them in
-**exactly one commit** on the pull request branch. That commit changes test code only. It never
-changes the business logic of the change under review, unless the user explicitly asks for that
-change in the request. When the diff is missing no test, the run creates no commit. A test that
-fails against the current code is not committed; `donatello` reports the behaviour it exposed, and
-the review reports it as a finding. Then `splinter` dispatches `raphael` once. It runs
+Do not change anything in the pull request: no fix and no test. The run never writes a missing test.
+The author of the changes writes it: the review reports each missing test as a finding and mentions
+the author on it. First `splinter` dispatches `raphael` once. It runs
 `@skills/interactive-testing/SKILL.md` against the checked-out head of the pull request, in its own
 interactive browser, and returns its report: scope, a verdict for each scenario, findings, security
 candidates, untested scenarios, and cleanup. This run repairs nothing that the walkthrough finds. A
@@ -36,8 +31,7 @@ not stop the review; its blocker and the step that unblocks it go into the repor
 dispatches `leonardo` once, and `leonardo` runs the code-review
 wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
 `@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The review always
-runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head,
-including the missing-tests commit, and `@skills/security-audit/SKILL.md` in its *Diff mode* over the same diff. The wrapper may run `security-review` in parallel with its other lenses,
+runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head, and `@skills/security-audit/SKILL.md` in its *Diff mode* over the same diff. The wrapper may run `security-review` in parallel with its other lenses,
 but it runs exactly once, and its findings always land in the one final review report. The run never publishes a
 separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The review report always
 carries the `interactive-testing` result in its own `## Interactive testing` section, and each
@@ -47,7 +41,7 @@ request, and the non-technical summary on the source issue. The summary carries 
 section. In its place, `Review findings` retells the GitHub report in plain language, so a
 non-technical reader understands what the review reported and can reply with feedback. The wrapper
 passes `review-only` to `@skills/pr-summary/SKILL.md`. On each finding about a missing test and each DRY
-finding, and on each test the missing-tests commit added, the report mentions the author of the changes
+finding, the report mentions the author of the changes
 (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). Every comment the run publishes is a new comment: the
 wrapper and `pr-summary` call the publish helper with `--create`, so the run never updates a comment an
 earlier review left. Dispatch no other implementation, run no

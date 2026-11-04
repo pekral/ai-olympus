@@ -10,10 +10,9 @@ test('report-code-review runs one review-only pass through splinter and leonardo
 
     expect($command)->toContain('$ARGUMENTS');
     expect($command)->toContain('review-only mode');
-    expect($command)->toContain('Do not fix anything in the code under review.');
-    expect($command)->toContain('**exactly one commit**');
-    expect($command)->toContain('It never
-changes the business logic of the change under review');
+    expect($command)->toContain('Do not change anything in the pull request: no fix and no test.');
+    expect($command)->toContain('The run never writes a missing test.');
+    expect($command)->not->toContain('Missing-tests mode');
     expect($command)->toContain('Always review the current code of the pull request branch.');
     expect($command)->toContain('confirms that local `HEAD` equals the pull request\'s head SHA');
     expect($command)->toContain('$code-review-jira');
@@ -25,11 +24,11 @@ runs `@skills/security-review/SKILL.md` over the current diff of the pull reques
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
     expect($splinter)->toContain('`Review report done`');
-    expect($splinter)->toContain('dispatch `donatello` once, blocking, in *Missing-tests mode*');
+    expect($splinter)->toContain('A missing test is a finding for the author of the changes, never a commit of this run');
+    expect($splinter)->toContain('Dispatch no `donatello`, no other `raphael`, and no `april`');
+    expect($splinter)->not->toContain('*Missing-tests mode*');
     expect((string) file_get_contents($packageDir . '/agents/donatello.md'))
-        ->toContain('## Missing-tests mode — `/report-code-review`')
-        ->toContain('**Commit and push exactly one commit.**')
-        ->toContain('**Never change the business logic of the change under review.**');
+        ->not->toContain('## Missing-tests mode');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
     expect($leonardo)->toContain('skip the step-10 fix loop');
     expect($leonardo)->toContain('Do not open a review worktree.');
@@ -66,10 +65,10 @@ test('report-code-review adds the interactive-testing result to the review repor
     $packageDir = dirname(__DIR__, 2);
 
     expect((string) file_get_contents($packageDir . '/commands/report-code-review.md'))
-        ->toContain('Then `splinter` dispatches `raphael` once.')
+        ->toContain('First `splinter` dispatches `raphael` once.')
         ->toContain('carries the `interactive-testing` result in its own `## Interactive testing` section');
     expect((string) file_get_contents($packageDir . '/agents/splinter.md'))
-        ->toContain('3. Dispatch `raphael` once, blocking, with `review_only` in the dispatch prompt.')
+        ->toContain('Then dispatch `raphael` once, blocking, with `review_only` in the dispatch prompt.')
         ->toContain('Pass the `raphael` report, so the published review carries the `interactive-testing` result.');
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('Pass the `raphael` walkthrough report to the wrapper');
