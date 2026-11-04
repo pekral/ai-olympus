@@ -40,7 +40,7 @@ final class MetricsStore
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<\Pekral\AiOlympus\MetricsEntry>
      */
     public static function read(string $path, ?int $sinceTimestamp = null): array
     {
@@ -58,7 +58,7 @@ final class MetricsStore
         foreach (explode("\n", $contents) as $line) {
             $entry = self::decodeLine($line, $sinceTimestamp);
 
-            if ($entry === null) {
+            if (!$entry instanceof MetricsEntry) {
                 continue;
             }
 
@@ -68,10 +68,7 @@ final class MetricsStore
         return $entries;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    private static function decodeLine(string $line, ?int $sinceTimestamp): ?array
+    private static function decodeLine(string $line, ?int $sinceTimestamp): ?MetricsEntry
     {
         $trimmed = trim($line);
 
@@ -94,7 +91,7 @@ final class MetricsStore
             return null;
         }
 
-        return $entry;
+        return MetricsEntry::fromArray($entry);
     }
 
     /**
