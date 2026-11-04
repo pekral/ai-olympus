@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-04
+
 - 🧭 **Changed**: `/report-code-review` has one owner. `agents/splinter.md` *Review-only mode* states every step of the run, and `commands/report-code-review.md` only validates the reference and hands it to `splinter`, so the command and the agent can no longer state the steps differently. A command that restated the steps had dropped the `raphael` walkthrough the agent required. The review-only run also dispatches `casey` once after its one review when the `leonardo` handoff reads `MySQL report: needed`, and `casey` publishes that report as a new comment (`commands/report-code-review.md`, `agents/splinter.md`, `agents/casey.md`, `skills/code-review/references/specialized-reviews.md`).
 
 - 🧪 **Changed**: `/report-code-review` writes no test. The `donatello` *Missing-tests mode* and its one test commit on the pull request branch are removed, and so is the `## Missing tests added` section of the review comment. A missing test stays a review finding that mentions the author of the changes, who writes the test (`commands/report-code-review.md`, `agents/splinter.md`, `agents/donatello.md`, `agents/leonardo.md`, `rules/code-review/general.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `skills/code-review-github/templates/pr-comment-output.md`, `skills/pr-summary/SKILL.md`).
