@@ -27,6 +27,8 @@ runs `@skills/security-review/SKILL.md` over the current diff of the pull reques
     expect($splinter)->toContain('A missing test is a finding for the author of the changes, never a commit of this run');
     expect($splinter)->toContain('Dispatch no `donatello`, no other `raphael`, and no `april`');
     expect($splinter)->not->toContain('*Missing-tests mode*');
+    expect($splinter)->not->toContain('missing-tests commit');
+    expect($splinter)->not->toContain('(missing tests)');
     expect((string) file_get_contents($packageDir . '/agents/donatello.md'))
         ->not->toContain('## Missing-tests mode');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
