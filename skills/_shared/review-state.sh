@@ -109,6 +109,8 @@ JQ_STATE=''
 IFS= read -r -d '' JQ_STATE <<'EOF' || true
 include "finding-defs";
 
+# The URL of a comment on a pull request. \A and \z anchor the whole string, so a newline is never accepted.
+def comment_url_pattern: "\\Ahttps://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}\\z";
 def isint($v; $min): ($v | type) == "number" and ($v | floor) == $v and $v >= $min;
 def is_open: .status == "new" or .status == "confirmed" or .status == "needs-verification";
 # A finding blocks when it carries evidence, or when it is security-relevant even without evidence (the S1-S3 floor).
@@ -167,7 +169,7 @@ def state_errors:
               type == "object"
               and (keys == ["actor", "finding_id", "from", "iteration", "to"]
                    or (.to == "dismissed" and keys == ["actor", "comment", "finding_id", "from", "iteration", "to"]
-                       and isstr(.comment; "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$")
+                       and isstr(.comment; comment_url_pattern)
                        and (.comment | ascii_downcase | startswith("https://github.com/\($s.repo | ascii_downcase)/pull/\($s.pr)#issuecomment-"))))
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
               and (.from == null or (.from | status_rank) > 0) and (.to | status_rank) > 0
@@ -617,7 +619,7 @@ cmd_dismiss() {
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(safe_display "$id")"
-  [[ "$comment" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$ ]] \
+  jq -n -e -L "$HERE" --arg url "$comment" "$JQ_STATE"' isstr($url; comment_url_pattern)' >/dev/null \
     || die_usage '--comment must be the URL of a comment on the pull request (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>)'
   check_writable "$state"
   new_tmp
