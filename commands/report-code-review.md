@@ -11,42 +11,12 @@ $ARGUMENTS
 If the reference is missing, or is not exactly one full GitHub issue or pull-request URL, one JIRA
 issue key or URL, or one Bugsnag error URL, stop and ask for it.
 
-Always review the current code of the pull request branch. Before the review, the run switches the
-current working tree to the pull request's head branch: `git fetch origin`, `git checkout
-<headRefName>`, and `git pull`. It then confirms that local `HEAD` equals the pull request's head SHA.
-Never review from the remote diff alone, from a stale local branch, or from a separate worktree. When
-the checkout fails, for example because local changes would be overwritten, stop and report it.
-
-Do not change anything in the pull request: no fix and no test. The run never writes a missing test.
-The author of the changes writes it: the review reports each missing test as a finding and mentions
-the author on it. First `splinter` dispatches `raphael` once. It runs
-`@skills/interactive-testing/SKILL.md` against the checked-out head of the pull request, in its own
-interactive browser, and returns its report: scope, a verdict for each scenario, findings, security
-candidates, untested scenarios, and cleanup. This run repairs nothing that the walkthrough finds. A
-confirmed security threat is not handed to `donatello` for a repair; `leonardo` verifies each
-security candidate in the review. A confirmed threat on a line the pull request changes is a
-finding. A confirmed threat that predates the diff stays out of the published comment and goes to the
-out-of-scope handoff, marked not for public filing. A `Blocked` walkthrough does
-not stop the review; its blocker and the step that unblocks it go into the report. Then `splinter`
-dispatches `leonardo` once, and `leonardo` runs the code-review
-wrapper that matches the tracker: `@skills/code-review-github/SKILL.md`,
-`@skills/code-review-jira/SKILL.md`, or `@skills/code-review-bugsnag/SKILL.md`. The review always
-runs `@skills/security-review/SKILL.md` over the current diff of the pull request: the checked-out head, and `@skills/security-audit/SKILL.md` in its *Diff mode* over the same diff. The wrapper may run `security-review` in parallel with its other lenses,
-but it runs exactly once, and its findings always land in the one final review report. The run never publishes a
-separate security report, and it never sets `SECURITY_OWNER` on the wrapper. The review report always
-carries the `interactive-testing` result in its own `## Interactive testing` section, and each
-`Not met`, `Failed`, or `Partial` scenario is also a finding of the review. The wrapper
-publishes the result in the output each tracker requires: the technical findings on the GitHub pull
-request, and the non-technical summary on the source issue. The summary carries no `How to test`
-section. In its place, `Review findings` retells the GitHub report in plain language, so a
-non-technical reader understands what the review reported and can reply with feedback. The wrapper
-passes `review-only` to `@skills/pr-summary/SKILL.md`. On each finding about a missing test and each DRY
-finding, the report mentions the author of the changes
-(`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). Every comment the run publishes is a new comment: the
-wrapper and `pr-summary` call the publish helper with `--create`, so the run never updates a comment an
-earlier review left. Dispatch no other implementation, run no
-fix loop, change no tracker status, do not promote the pull request, and never merge. When the task
-has no pull request, stop and report that there is nothing to review.
+`agents/splinter.md` *Review-only mode — `/report-code-review`* is the one owner of this run. It
+defines which agents run, in which order, what each one publishes, and what the run never does. Pass
+the reference and the review-only mode to `splinter`, and nothing else. Do not restate, shorten, or
+extend those steps in the dispatch prompt: a step that this command and the agent definition state
+differently makes the run follow the wrong one. When `splinter` is not registered, stop and report
+it. Never run the steps in the main session instead.
 
 For Codex, invoke the matching wrapper — `$code-review-github`, `$code-review-jira`, or
 `$code-review-bugsnag` — with the same reference and ask the registered `splinter` agent to orchestrate
