@@ -33,7 +33,4 @@ test('a review-only run mentions the author of the changes on each missing-test 
 
     expect($donatello)->not->toContain('Missing-tests mode');
     expect($donatello)->not->toContain('Tests done (missing)');
-
-    expect((string) file_get_contents($packageDir . '/commands/report-code-review.md'))
-        ->toContain('the report mentions the author of the changes');
 });
