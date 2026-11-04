@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🧪 **Changed**: every `interactive-testing` run drives the web browser available to the session: Claude in Chrome in Claude Code, the desktop app's built-in browser when Claude in Chrome is not connected, and `cua_repl` in Codex (`skills/interactive-testing/SKILL.md` *Constraints*). `raphael` gets the Claude in Chrome tools and walks every UI criterion in that browser. The project's own browser automation and `skills/_shared/browser-drive.sh` supply supplementary evidence only, never the verdict. Without an interactive browser, a UI criterion is `Blocked` with the remediation named (`agents/raphael.md`).
+
 ## [0.2.1] - 2026-11-03
 
 - 🛡️ **Changed**: every code review runs `security-audit` in its new *Diff mode* over the current diff, next to `security-review`, also in `/report-code-review` (`rules/code-review/general.md` *Security is the most important part of every review*). The reviewer runs the `standard` profile over the changed files and the security paths they reach, in sequential passes in its own context and never through a subagent. A finding on a changed line becomes a security finding of the review; a finding outside the changed lines goes to the out-of-scope handoff and never into the published comment. The audit itself still publishes nothing (`skills/security-audit/SKILL.md` *Diff mode*, `skills/code-review/references/specialized-reviews.md`, `agents/leonardo.md`).
