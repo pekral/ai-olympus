@@ -247,6 +247,14 @@ test('every agent and skill in the issue table uses the gate scripts', function 
 
     expect($read('agents/donatello.md'))->toContain('run `skills/_shared/run-gate.sh --tier pr --actor donatello` before each push');
     expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --tier pr` before each push, and the project');
+    expect($read('agents/donatello.md'))->toContain('unless CI on the PR head is green and the push follows no rebase that resolved a conflict');
+
+    $gates = $read('skills/resolve-issue/references/quality-gates.md');
+    expect($gates)->toContain('### Skip the pre-push gate when CI is green');
+    expect($gates)->toContain('| Green: at least one check, and every check has bucket `pass` or `skipping` | Do not run it. Push. |');
+    expect($gates)->toContain('| Red: a check has bucket `fail` or `cancel` | Run it. |');
+    expect($gates)->toContain('- **The one exception is a rebase that resolved a conflict.**');
+    expect($read('rules/general/general.md'))->toContain('Green CI on the PR head skips it, except after a rebase that resolved a conflict');
     expect($read('agents/donatello.md'))->toContain('Exit `3` or `6` → do not push; return `Blocked` with the reason.');
     expect($read('agents/donatello.md'))->toContain('Any other non-zero exit is handled like `3`: do not push.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello`');
