@@ -83,13 +83,6 @@
 
 ---
 
-## Missing tests added
-
-> Render only in a review-only run (`/report-code-review`) whose missing-tests commit added at least one test. Omit the heading entirely otherwise. Each line is information, not a finding: the test is already on the branch, so it adds nothing to the Counts line. It names the gap the change shipped with and mentions its author, per `@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*. Render it on a run with no finding too.
-
-- **Commit:** `{full SHA of the missing-tests commit}`
-- `path/to/SomethingTest.php` — {the behaviour the test protects, in plain language} — `@<login>`
-
 ## Interactive testing
 
 > Render in every review-only run (`/report-code-review`), from the `raphael` report, also when the walkthrough was `Blocked`. Omit the heading in every other run. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
