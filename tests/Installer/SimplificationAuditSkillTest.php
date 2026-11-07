@@ -192,3 +192,33 @@ test('every rule and sibling file simplification-audit references resolves to a 
     expect(is_file($skillDir . '/references/worker-brief.md'))->toBeTrue();
     expect(is_file($skillDir . '/templates/audit-report.md'))->toBeTrue();
 });
+
+test('the audit ranks hot spots by change frequency only when the user named no area', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+    $template = (string) file_get_contents($packageDir . '/skills/simplification-audit/templates/audit-report.md');
+
+    expect($skill)->toContain('**Hot-spot scoping — only when the request names no area.**');
+    expect($skill)->toContain('git log --since=<window> --name-only --format= | sort | uniq -c | sort -rn | head -20');
+    expect($skill)->toContain('The user\'s scope always wins:');
+    expect($skill)->toContain('Record the command, the window, and the resulting ranking');
+    expect($template)->toContain('**Hot-spot ranking (only when the user named no area):**');
+});
+
+test('the worker brief carries the deletion test and the one-adapter seam rule without restating the interface threshold', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $brief = (string) file_get_contents($packageDir . '/skills/simplification-audit/references/worker-brief.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+
+    preg_match_all('/^>.*$/m', $brief, $quotedLines);
+    $quotedBlock = implode("\n", $quotedLines[0]);
+
+    expect($quotedBlock)->toContain('Deletion test:');
+    expect($quotedBlock)->toContain('If the complexity disappears, it carried nothing');
+    expect($quotedBlock)->toContain('If the complexity reappears in every caller, it earns its place');
+    expect($quotedBlock)->toContain('One adapter is a hypothetical seam, and two make it real.');
+    expect($quotedBlock)->toContain('@rules/php/core-standards.md` *Design Principles*');
+    expect($quotedBlock)->not->toContain('at least two non-test');
+    expect($brief)->toContain('the deletion-test verdict');
+    expect($skill)->toContain('Re-run the search behind a deletion-test or single-implementation finding.');
+});
