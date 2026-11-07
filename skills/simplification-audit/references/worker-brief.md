@@ -14,7 +14,13 @@ Hand the quoted block below over verbatim, with the assigned subsystem's invento
 > - duplicated branching that a small map, registry, reducer, or command model would remove;
 > - unclear state or behavior ownership that a small module boundary would clarify;
 > - repeated scans, transformations, or lookups where a more appropriate collection or index would materially simplify behavior;
-> - lifecycle, concurrency, or async states whose representation permits stale or contradictory state.
+> - lifecycle, concurrency, or async states whose representation permits stale or contradictory state;
+> - a class or layer that fails the deletion test (below);
+> - a project-owned interface with one non-test implementation (below).
+>
+> Deletion test: for each class or layer you consider, ask what happens if it is deleted. If the complexity disappears, it carried nothing (for example a Service method that only forwards a call to a ModelManager). If the complexity reappears in every caller, it earns its place (for example a price calculator that owns VAT, discounts, and rounding). Record the verdict as evidence. Only a class that carried nothing is a finding. A deep module, which is a small interface that hides a lot of logic, passes the test.
+>
+> One adapter is a hypothetical seam, and two make it real. An interface with one implementation is a candidate for removal. An interface with two implementations stays. For a PHP project the threshold is the one in `@rules/php/core-standards.md` *Design Principles*, and test doubles do not count.
 >
 > Do not force an abstraction. Prefer boring local code when it is already clear. Do not recommend changes solely for stylistic consistency, hypothetical extensibility, minor line-count reduction, or moving existing branching behind a new type.
 >
@@ -27,7 +33,7 @@ Hand the quoted block below over verbatim, with the assigned subsystem's invento
 Every recommendation the worker returns carries all eight, in this order. A finding missing any one of them fails the schema-completeness pass in step 4 and is sent back or dropped.
 
 1. **Verdict** — `recommend` or `skip`.
-2. **Evidence** — exact file and line references.
+2. **Evidence** — exact file and line references, plus the deletion-test verdict (`carried nothing` or `earns its place`) or the interface's implementation count when the finding rests on either.
 3. **Current complexity or invalid states** — what the present representation allows that it should not, or what it forces a reader to hold in their head.
 4. **Proposed representation and why it is simpler** — the target shape, and the concrete reason it is simpler rather than merely different.
 5. **Smallest credible implementation scope** — the affected files and interfaces, and nothing beyond them.
