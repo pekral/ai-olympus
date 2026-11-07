@@ -28,15 +28,15 @@ The signals a worker looks for in those five dimensions live once, in the brief 
 ---
 
 ## Use when
-- The user explicitly asks for an audit of the codebase ("audit this codebase", "prověř celý projekt", "find simplifications across the repo").
+- The user explicitly asks for an audit of the codebase ("audit this codebase", "audit the whole repository", "prověř celý projekt", "find simplifications across the repo").
 - The user explicitly decides to refactor a part of the codebase and wants the cleanest available option before any code changes.
 
 **Never runs when:** no such explicit request was made. This skill is never a side effect of another workflow — not `@skills/resolve-issue/SKILL.md`, not `@skills/code-review/SKILL.md` or any other review skill, not `@skills/process-code-review/SKILL.md`, and not an agent pipeline step. Another skill or agent may invoke it only when that caller is itself carrying out an explicit user audit or refactoring request, and it names that request when it does.
 
 **Scope of the audit.** The user's scope always wins:
-- An audit request that asks for the whole repository covers the whole repository.
+- An audit request covers the whole repository only when it says so in words ("the whole repository", "prověř celý projekt", "across the repo").
 - A refactoring request, or an audit request that names an area, covers the part the user named. The inventory boundary in step 1 is then that part plus the interfaces it exposes to the rest of the tree.
-- A request that names no area covers the hot spots chosen by change frequency (step 1 *Hot-spot scoping*).
+- Any other request that names no area, for example "audit this codebase", covers the hot spots chosen by change frequency (step 1 *Hot-spot scoping*).
 
 Never widen the boundary beyond what was asked.
 
@@ -51,10 +51,10 @@ You are the coordinator. Continue until every subsystem in scope has been review
 **Hot-spot scoping — only when the request names no area.** A file that changes often costs effort on every future change. A rarely touched ugly file costs little, so its simplification has low value. Rank the files by change frequency before the inventory:
 
 ```bash
-git log --since=<window> --name-only --format= | sort | uniq -c | sort -rn | head -20
+git log --since=<window> --name-only --format= | sort | uniq -c | sort -rn
 ```
 
-1. Choose the window (for example `"6 months ago"`) and state it. Skip lockfiles, generated files, and the changelog when reading the ranking.
+1. Choose the window (for example `"6 months ago"`) and state it. Drop lockfiles, generated files, the changelog, and every path that no longer exists at `HEAD`, then keep the top 20.
 2. Group the top-ranked files by subsystem. Those subsystems are the audited scope, and the inventory below covers them.
 3. Record the command, the window, and the resulting ranking in the report's `## Scope` block.
 
@@ -85,7 +85,7 @@ Record the pre-audit `git status --short` output in the report's `## Scope` bloc
 ### 3. Validate and synthesize
 
 - **Verify every finding yourself against the current repository before accepting it.** Re-open the cited `file:line` and its surrounding context. A finding you cannot confirm in the real, current bytes does not enter the report.
-- **Re-run the search behind a deletion-test or single-implementation finding.** Search the whole tree for the callers of the class under the deletion test and for the implementations of the interface (`git grep`, `rg`). A verdict you cannot reproduce from the current repository does not enter the report.
+- **Re-run the search behind a deletion-test or single-implementation finding.** Search the whole tree for the callers of the class under the deletion test, and for the implementations and the consumers of the interface (`git grep`, `rg`). A verdict you cannot reproduce from the current repository does not enter the report.
 - Reject, narrow, or demote a recommendation that is vague, duplicates another finding, misunderstands intentional semantics, or merely relocates complexity instead of removing it.
 - Record every `skip` as **completed coverage**, not as a gap.
 - Deduplicate overlapping findings and assign each accepted recommendation to exactly one authoritative subsystem.
