@@ -140,7 +140,7 @@
 #                 (mail, notification, HTTP client, queue dispatch), or a
 #                 configuration or infrastructure file (INFRA_RE). cheap otherwise.
 #                 A write or side effect counts in a .php file, an SQL write in a
-#                 .sql file. Every changed path counts, including a rename, a
+#                 .php or .sql file. Every changed path counts, including a rename, a
 #                 binary file, and a mode-only change.
 #
 #   low     tier FAST, verification ok, rollback cheap
@@ -206,9 +206,10 @@ AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected resu
 # added lines of a unified diff, one line at a time, in documentation and test
 # files never. DATA_RE (domain-vocabulary.sh) decides which files are migrations.
 # WRITE_RE and EFFECT_RE read PHP calls, so they run on .php files only. SQL_WRITE_RE
-# reads SQL statements, so it runs on .sql files only. Other languages carry the same
+# reads SQL statements, so it runs on .php files (raw DB::statement, DB::update) and
+# .sql files. Other languages carry the same
 # words as plain text (store.dispatch, an echo of "Mail::", a regex in a script).
-DROP_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+table)'
+DROP_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+[`"a-z_])'
 WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
 SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
 EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
@@ -645,7 +646,7 @@ diff_rollback_scan() {
       gsub(/schema::[a-z]+/, "", data)
       gsub(/(^|[^a-z0-9_])(carbon|carbonimmutable|date)::create/, "", data)
       if (php && data ~ ENVIRON["MR_WRITE_RE"]) { hit("persisted-data-write") }
-      if (sql && data ~ ENVIRON["MR_SQL_WRITE_RE"]) { hit("persisted-data-write") }
+      if ((php || sql) && data ~ ENVIRON["MR_SQL_WRITE_RE"]) { hit("persisted-data-write") }
       if (php && code ~ ENVIRON["MR_EFFECT_RE"]) { hit("external-side-effect") }
     }
   '
@@ -1100,6 +1101,25 @@ self_test() {
   expect_line 'a delete from in a SQL file is a persisted-data write' \
     'rollback-signal=persisted-data-write|db/cleanup.sql' \
     --merge-risk --diff "$(newfile 'db/cleanup.sql' 'DELETE FROM posts WHERE id = 1;' | writediff)" "${verified[@]}"
+  # Raw SQL inside a PHP file (a migration, a repository) is a persisted-data write
+  # and a destructive migration like the same statement in a .sql file.
+  expect_line 'a raw DELETE FROM in a migration is a persisted-data write' \
+    'rollback-signal=persisted-data-write|database/migrations/2026_01_01_purge.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_purge.php' \
+      'public function up(): void' '{' "    DB::statement('DELETE FROM users WHERE inactive = 1');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw UPDATE through DB::unprepared in a migration is costly' 'rollback=costly' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_reset.php' \
+      'public function up(): void' '{' "    DB::unprepared('UPDATE users SET active = 0');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a TRUNCATE users statement in a migration is destructive' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_wipe_users.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_wipe_users.php' \
+      'public function up(): void' '{' "    DB::statement('TRUNCATE users');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw DB::update in a repository is a persisted-data write' \
+    'rollback-signal=persisted-data-write|app/Repositories/UserRepository.php' \
+    --merge-risk --diff "$(newfile 'app/Repositories/UserRepository.php' "return DB::update('update users set active = 0');" | writediff)" "${verified[@]}"
+  expect_line 'a raw DB::delete in a repository is a persisted-data write' \
+    'rollback-signal=persisted-data-write|app/Repositories/OrderRepository.php' \
+    --merge-risk --diff "$(newfile 'app/Repositories/OrderRepository.php' "return DB::delete('delete from orders where id = 1');" | writediff)" "${verified[@]}"
 
   expect_line 'a diff on stdin is accepted' 'merge-risk=low' --merge-risk --diff - "${verified[@]}" <"$fix"
   expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
