@@ -509,30 +509,30 @@ self_test() {
   mkdir -p "$plain/.git/ai-olympus-gate.lock"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
   : >"$GATE_SELFTEST_CALLS"
-  reclaimer() {
-    local dir="$1" role="$2"
-    (
-      # shellcheck source=gate-record.sh
-      . "$(dirname "$script")/gate-record.sh"
-      if [[ "$role" == slow ]]; then
-        rm() {
-          sleep 1
-          command rm "$@"
-        }
-      else
-        sleep 0.5
-      fi
-      cd "$dir"
-      gate_lock_acquire 30 || exit 1
-      echo 'held-start' >>"$GATE_SELFTEST_CALLS"
-      sleep 2
-      echo 'held-end' >>"$GATE_SELFTEST_CALLS"
-      gate_cleanup
-    )
+  cat >"$tmp/reclaimer.sh" <<'RECLAIMER'
+#!/usr/bin/env bash
+set -euo pipefail
+dir="$1" role="$2" lib="$3"
+# shellcheck source=/dev/null
+. "$lib"
+if [[ "$role" == slow ]]; then
+  rm() {
+    sleep 1
+    command rm "$@"
   }
-  reclaimer "$plain" slow &
+else
+  sleep 0.5
+fi
+cd "$dir"
+gate_lock_acquire 30 || exit 1
+echo 'held-start' >>"$GATE_SELFTEST_CALLS"
+sleep 2
+echo 'held-end' >>"$GATE_SELFTEST_CALLS"
+gate_cleanup
+RECLAIMER
+  bash "$tmp/reclaimer.sh" "$plain" slow "$(dirname "$script")/gate-record.sh" &
   first=$!
-  reclaimer "$plain_worktree" fast &
+  bash "$tmp/reclaimer.sh" "$plain_worktree" fast "$(dirname "$script")/gate-record.sh" &
   second=$!
   wait "$first" || true
   wait "$second" || true
