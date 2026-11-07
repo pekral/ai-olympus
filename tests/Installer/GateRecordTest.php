@@ -48,6 +48,15 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     expect($record)->toContain('until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do');
     expect($record)->toContain('LC_ALL=C kill -0 "$pid"');
     expect($record)->toContain('ps -o etime= -p "$pid"');
+
+    // One gate on the whole machine: the lock sits in the common git directory, which a primary
+    // checkout and every worktree of it share, never inside a per-worktree evidence directory.
+    expect($record)->toContain('git rev-parse --git-common-dir');
+    expect($record)->toContain("printf '%s/ai-olympus-gate.lock'");
+    expect($record)->not->toContain('GATE_LOCK="$GATE_EVIDENCE/gate.lock"');
+    expect(gateExecutableCode('run-gate.sh'))->toContain('run_command "$command" /dev/stderr');
+    expect(gateScript('run-gate.sh'))->toContain('AI_OLYMPUS_GATE_LOCK_TIMEOUT');
+    expect(gateScript('run-gate.sh'))->toContain('(default 3600, long enough for a');
 });
 
 test('run-gate self-test covers the record, the lock, concurrency, and every refusal', function (): void {
@@ -68,6 +77,17 @@ test('run-gate self-test covers the record, the lock, concurrency, and every ref
         'concurrent runs on one tree run the gate once',
         'a live lock holder times out without running the gate',
         'a lock left by a dead holder is reclaimed',
+        'a live holder in one worktree blocks the gate of another worktree',
+        'two worktrees of one repository never run the gate at the same time',
+        'a lock left by a dead holder in another worktree is reclaimed',
+        'a manifest without a gate exits 5 and --exclusive is the route that still serialises',
+        '--exclusive runs every command in order and releases the lock',
+        '--exclusive in two worktrees never overlaps',
+        '--exclusive stops at the first failing command with exit 4',
+        '--exclusive refuses a chained command and never runs it',
+        '--exclusive waits for a live holder and exits 6 past the timeout without running',
+        '--exclusive without a command is a usage error',
+        '--exclusive together with --tier is a usage error',
         'a failing command fails the gate and records the failure',
         'a gate that changes the tree during the run never records a pass',
         'a dirty tree at the start refuses both tiers and writes nothing',
