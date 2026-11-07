@@ -22,7 +22,10 @@
 #                is not in this input is a prerequisite that already finished.
 #   <files>      the files the unit is predicted to change, separated by spaces,
 #                from the analysis or the blast radius. An entry ending in `/` is a
-#                directory and covers every path below it. Empty means no evidence.
+#                directory and covers every path below it; an entry without the
+#                slash covers them too when the other entry lies below it. A
+#                non-canonical spelling (`./x`, `a//b`, `a/./b`) is refused.
+#                Empty means no evidence.
 #   A line starting with `#` and a blank line are skipped.
 #
 # Rule
@@ -73,13 +76,15 @@ TIERS=()
 DEPS=()
 FILES=()
 
-# Two file entries collide when they are equal, or when one is a directory
-# (trailing slash) that contains the other.
+# Two file entries collide when they are equal, or when one is a directory that
+# contains the other. An entry names a directory with a trailing slash, and an
+# entry without one counts as a directory too when the other entry lies below it
+# (`src` against `src/A.php`), so the caller's spelling never decides.
 paths_collide() {
-  local a="$1" b="$2"
+  local a="${1%/}" b="${2%/}"
   [[ "$a" == "$b" ]] && return 0
-  [[ "$a" == */ && "$b" == "$a"* ]] && return 0
-  [[ "$b" == */ && "$a" == "$b"* ]] && return 0
+  [[ "$b" == "$a"/* ]] && return 0
+  [[ "$a" == "$b"/* ]] && return 0
   return 1
 }
 
@@ -128,6 +133,8 @@ read_units() {
     unset IFS
     for file in $files; do
       [[ "$file" =~ ^[A-Za-z0-9._@+/-]+$ && "$file" != /* && "$file" != *..* ]] || die "invalid file entry of $id: $file"
+      # A second spelling of one path must not decide the plan: refuse it.
+      [[ "$file" != ./* && "$file" != */. && "$file" != . && "$file" != *//* && "$file" != */./* ]] || die "non-canonical file entry of $id: $file"
     done
     IDS+=("$id")
     TIERS+=("$tier")
@@ -253,6 +260,14 @@ self_test() {
     $'a|STANDARD||src/Actions/\nb|STANDARD||src/Actions/Make.php' \
     "${head}batches=2 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=files-overlap:a:src/Actions/Make.php "
 
+  expect_plan 'a directory entry without the trailing slash covers every file below it' \
+    $'a|STANDARD||src\nb|STANDARD||src/A.php' \
+    "${head}batches=2 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=files-overlap:a:src/A.php "
+
+  expect_plan 'a file below a directory entry without the trailing slash is a collision from the other side' \
+    $'a|STANDARD||src/A.php\nb|STANDARD||src' \
+    "${head}batches=2 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=files-overlap:a:src "
+
   expect_plan 'a sibling path with a common prefix is not a collision' \
     $'a|STANDARD||src/Action/\nb|STANDARD||src/ActionBar.php' \
     "${head}batches=1 batch.1=a,b mode.1=parallel "
@@ -295,6 +310,9 @@ self_test() {
   expect_refusal 'a dependency on a later unit is refused' $'a|FAST|b|a.md\nb|FAST||b.md'
   expect_refusal 'a file entry that climbs out of the project is refused' 'a|FAST||../x.md'
   expect_refusal 'an absolute file entry is refused' 'a|FAST||/etc/passwd'
+  expect_refusal 'a file entry with a leading dot segment is refused' 'a|FAST||./src/A.php'
+  expect_refusal 'a file entry with a doubled slash is refused' 'a|FAST||src//A.php'
+  expect_refusal 'a file entry with an inner dot segment is refused' 'a|FAST||src/./A.php'
   expect_refusal 'a unit with five fields is refused' 'a|FAST||a.md|extra'
   expect_refusal 'empty input is refused' ''
 
