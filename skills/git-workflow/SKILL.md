@@ -7,7 +7,7 @@ metadata:
 ---
 
 ## Constraints
-- Commit, PR, and merge conventions live in `@rules/git/general.md` — English `type(scope)` commits, lowercase, no trailing period, no push to `main`, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
+- Commit, PR, and merge conventions live in `@rules/git/general.md` — English `type(scope)` commits with a plain-words subject that ends with the tracker reference, lowercase type and scope, no trailing period, no push to `main`, `Closes #` issue linking, English PR titles, rebase-and-merge, `gh` CLI. This skill does NOT restate them.
 - Branch cleanup is owned by `@skills/cleanup-local-branches/SKILL.md`. Defer to it; do not duplicate.
 - PR merging is owned by `@skills/merge-github-pr/SKILL.md`. Defer to it; do not duplicate.
 - This skill covers only the complementary gaps below.
