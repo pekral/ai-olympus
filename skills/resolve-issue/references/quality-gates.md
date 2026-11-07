@@ -110,6 +110,18 @@ A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidenc
 
 **The gate scripts come from the package install, not from the branch.** The copy of `run-gate.sh`, `verify-gate.sh`, `gate-record.sh`, and `project-commands.sh` that runs is the copy the installer wrote from `vendor/pekral/ai-olympus`. A project that tracks its installed skills carries that copy in the branch, so a branch can change it, and the merge runs it on the checked-out head. A diff that changes an installed copy of one of these four scripts is therefore a change to the merge gate. Review it under `@rules/security/general.md` *Code Review Application* at severity **Critical**, never as an ordinary script edit.
 
+### Waiting for the gate lock — the harness call timeout
+
+A caller may wait up to `AI_OLYMPUS_GATE_LOCK_TIMEOUT` (3600 s) for a live holder. The tool that runs the call stops sooner: the Claude Code Bash tool ends a call after 120 s by default and after 600 s at most. A wait that the tool ends is not a failure of the gate.
+
+1. Run every `run-gate.sh` call (`--tier` and `--exclusive`) in a way that outlives the lock wait: run it in the background and wait for its completion notification, or in the foreground with the maximum tool timeout.
+2. A call the harness stopped while it waited is not exit `3` or `6`. It printed no JSON result and ran no command. Run the same command again.
+3. A call that the harness moved to the background keeps running. Wait for its completion notification and read its output; never start a second copy while one still runs.
+4. Bound the repeats: at most 7 re-runs of one command (7 calls of 600 s cover the 3600 s timeout). After that, stop with `Blocked: gate lock wait exceeded` and report it.
+5. Wait for a process only through the completion notification, never a `pgrep -f` or `ps | grep` loop. A `pgrep -f "<string>"` matches its own command line, so such a loop never ends.
+
+Only the exit `6` of `run-gate.sh` itself means the lock timeout passed.
+
 ## Rebase that moves the head — analyse the incoming changes first
 
 A rebase onto the newest default branch gives the head a new SHA. The branch's own change can stay identical while only the base moved. Re-running the full gate in that case repeats every checker for changes the branch never touched, and it delays the finish of the task. Analyse what the rebase brought in before you decide.
