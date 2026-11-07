@@ -2937,7 +2937,13 @@ test('the gate lock clears a reclaim directory on a confirmed-dead holder, never
     $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/concurrency.md');
     $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/gate-record.sh');
 
-    expect($rule)->toContain('is removed only when that holder is confirmed dead by the same probe');
+    expect($rule)->toContain(
+        'is removed only when that holder is confirmed dead by the same probe, so no waiter that probes a stopped but alive waiter\'s directory removes it',
+    );
+    expect($rule)->toContain('One race stays open, because `mkdir` has no compare-and-delete');
+    expect($rule)->not->toContain('however long it stays stopped');
+    expect($rule)->not->toContain('never removes a live lock');
+    expect($script)->toContain('One race stays open: mkdir has no compare-and-delete');
     expect($rule)->toContain('counts as live for one minute');
     expect($rule)->not->toContain('older than a minute belongs to a killed waiter');
     expect($script)->toContain('gate_reclaim_is_stale')->toContain('gate_lock_is_stale "$dir"');

@@ -443,9 +443,15 @@ gate_lock_acquire() {
 
   until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do
     # Only one waiter reclaims, and it checks again under the reclaim lock: a waiter
-    # that read the dead holder earlier must not remove the live lock that another
+    # that read the dead holder earlier then does not remove the live lock that another
     # waiter has taken in the meantime. The reclaim lock carries its own holder file
     # and is cleared only when that holder is confirmed dead (gate_reclaim_is_stale).
+    # One race stays open: mkdir has no compare-and-delete and flock(1) does not exist
+    # on macOS. A waiter that probed a dead reclaim directory and stalls before it
+    # removes it can remove a newer waiter's live one. Two gates then run at once only
+    # when that newer waiter also stalls between its second probe and its removal of
+    # the gate lock: the race needs a dead gate holder, a dead reclaimer, and two
+    # stalled waiters.
     if gate_reclaim_is_stale; then
       rm -rf -- "$GATE_LOCK.reclaim"
     fi
