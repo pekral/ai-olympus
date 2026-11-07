@@ -433,7 +433,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/livewire.md' => 'a578a55d64e7569067cd825993245900b7605dc9b3ad9c6d0921cccc82784654',
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         // Re-baselined: a review-only run writes no missing test; the author of the changes writes it.
-        'rules/code-review/general.md' => '00a3c2a0e136c7104ed345f4ef4ad2f7b87154d0e6e3654626e4f5e0762f99f0',
+        // Re-baselined: every review comment carries a `Merge risk:` header line graded by `classify-risk.sh --merge-risk`.
+        'rules/code-review/general.md' => 'de9bc8614446331b975644b858da7c0854f87bfbe6979dfecc3ae05a1661bbbe',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
