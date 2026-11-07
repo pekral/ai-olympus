@@ -48,6 +48,8 @@ description: Unified Git workflow, commits and pull request rules
 - Language: commit messages and PR titles are in English, whatever the assignment language, unless the project manifest sets `language.github` (`@rules/general/general.md` *Project manifest*); then they use that language. The PR description follows `@rules/git/pull-requests.md` *Pull Requests*.
 - Format: `type(scope): short description`
 - Keep messages concise and specific.
+- **The subject tells the story without the diff.** The description names, in the imperative mood and in plain words, what the commit delivers or fixes for the product. A reader of `git log --oneline` or a branch graph then follows the work without opening a commit: `feat(invoices): add the draft table and the tracer generator`, never `feat(invoices): update files`, `fix: address review`, or `chore: changes`.
+- **End the subject with the tracker reference** when the work has a tracker item: `(#123)` for a GitHub issue, `(PROJ-123)` for a JIRA key. Example: `feat(portal): add organizer invites and the portal panel (#42)`. The reference in the subject never replaces `Closes #<N>` in the commit body and the PR body (`@rules/git/pull-requests.md` *Issue Linking*).
 - Use lowercase for `type` and `scope`.
 - Do not end with a period.
 - Never include signatures or attribution. This covers AI co-author trailers: no `Co-Authored-By:` lines and no "Generated with"/"Made with" notes (e.g. "Made with Cursor", "Generated with Claude Code").
