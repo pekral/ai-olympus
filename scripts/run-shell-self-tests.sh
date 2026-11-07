@@ -48,6 +48,7 @@ done | xargs -0 -n 2 -P "$jobs" bash -c '
   bash "$script" --self-test >"$results/$index.log" 2>&1
   echo "$? $((SECONDS - start))" >"$results/$index.rc"
 ' _ "$results"
+xargs_rc=$?
 
 failed=0
 checks_total=0
@@ -55,14 +56,17 @@ index=0
 
 for script in "$@"; do
   log="$results/$index.log"
-  read -r rc elapsed <"$results/$index.rc"
+  # A job killed before it wrote its .rc file (a signal, the OOM killer) counts as failed.
+  rc='not run'
+  elapsed='-'
+  [[ -f "$results/$index.rc" ]] && read -r rc elapsed <"$results/$index.rc"
   index=$((index + 1))
 
   # A script reports its checks either as one "ok    <label>" line each
   # or as a "(N checks)" summary.
-  checks="$(grep -c '^ok ' "$log")"
+  checks="$(grep -c '^ok ' "$log" 2>/dev/null)"
   if [[ "$checks" -eq 0 ]]; then
-    checks="$(sed -n 's/.*(\([0-9][0-9]*\) checks).*/\1/p' "$log" | tail -n 1)"
+    checks="$(sed -n 's/.*(\([0-9][0-9]*\) checks).*/\1/p' "$log" 2>/dev/null | tail -n 1)"
   fi
   if [[ -n "$checks" && "$checks" -gt 0 ]]; then
     checks_total=$((checks_total + checks))
@@ -71,16 +75,20 @@ for script in "$@"; do
     checks_label='-'
   fi
 
-  if [[ $rc -eq 0 ]]; then
+  if [[ "$rc" == 0 ]]; then
     printf '  ✅ PASS  %-*s  %10s  %4ss\n' "$width" "$script" "$checks_label" "$elapsed"
   else
     failed=$((failed + 1))
     printf '  ❌ FAIL  %-*s  %10s  %4ss  exit %s\n' "$width" "$script" "$checks_label" "$elapsed" "$rc"
-    sed 's/^/         │ /' "$log"
+    [[ -f "$log" ]] && sed 's/^/         │ /' "$log"
   fi
 done
 
 printf '\n  %s scripts, %s passed, %s failed, %s checks, %ss\n' \
   "$#" "$(($# - failed))" "$failed" "$checks_total" "$((SECONDS - start_all))"
 
-[[ $failed -eq 0 ]]
+if [[ $xargs_rc -ne 0 ]]; then
+  echo "run-shell-self-tests.sh: xargs exited $xargs_rc, so a job did not finish" >&2
+fi
+
+[[ $failed -eq 0 && $xargs_rc -eq 0 ]]
