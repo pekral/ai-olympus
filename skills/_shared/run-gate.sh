@@ -494,6 +494,57 @@ self_test() {
     "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' ]] && echo pass)"
 
   : >"$GATE_SELFTEST_CALLS"
+  # Two waiters meet one dead holder: exactly one of them may reclaim the lock, or two gates
+  # run at once. The race window is a few microseconds wide, so the test widens it. The slow
+  # waiter reads the dead holder and then stalls one second before it removes the lock. The
+  # fast waiter starts half a second later, reads the same dead holder, reclaims the lock, and
+  # takes it. Without a guard the slow waiter then removes the fast waiter's live lock.
+  mkdir -p "$plain/.git/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  reclaimer() {
+    local dir="$1" role="$2"
+    (
+      # shellcheck source=gate-record.sh
+      . "$(dirname "$script")/gate-record.sh"
+      if [[ "$role" == slow ]]; then
+        rm() {
+          sleep 1
+          command rm "$@"
+        }
+      else
+        sleep 0.5
+      fi
+      cd "$dir"
+      gate_lock_acquire 30 || exit 1
+      echo 'held-start' >>"$GATE_SELFTEST_CALLS"
+      sleep 2
+      echo 'held-end' >>"$GATE_SELFTEST_CALLS"
+      gate_cleanup
+    )
+  }
+  reclaimer "$plain" slow &
+  first=$!
+  reclaimer "$plain_worktree" fast &
+  second=$!
+  wait "$first" || true
+  wait "$second" || true
+  spans="$(grep '^held' "$GATE_SELFTEST_CALLS" | tr '\n' ' ')"
+  check 'two waiters after a dead holder never hold the gate lock at once' \
+    "$([[ "$spans" == 'held-start held-end held-start held-end ' ]] && echo pass)"
+  check 'the reclaim sub-lock is gone after the waiters finish' \
+    "$([[ ! -e "$plain/.git/ai-olympus-gate.lock.reclaim" && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  # A waiter killed inside the reclaim must not block every later reclaim.
+  mkdir -p "$plain/.git/ai-olympus-gate.lock" "$plain/.git/ai-olympus-gate.lock.reclaim"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
+  touch -t 200001010000 "$plain/.git/ai-olympus-gate.lock.reclaim"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
+  check 'a reclaim lock left by a killed waiter is cleared and the dead holder is reclaimed' \
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$plain/.git/ai-olympus-gate.lock.reclaim" ]] && echo pass)"
+
+  : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-fail' --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive stops at the first failing command with exit 4' \
     "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"

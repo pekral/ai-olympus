@@ -47,6 +47,7 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     $record = gateScript('gate-record.sh');
     expect($record)->toContain('until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do');
     expect($record)->toContain('LC_ALL=C kill -0 "$pid"');
+    expect($record)->toContain('mkdir -- "$GATE_LOCK.reclaim"');
     expect($record)->toContain('ps -o etime= -p "$pid"');
 
     // One gate on the whole machine: the lock sits in the common git directory, which a primary
@@ -83,6 +84,9 @@ test('run-gate self-test covers the record, the lock, concurrency, and every ref
         'a manifest without a gate exits 5 and --exclusive is the route that still serialises',
         '--exclusive runs every command in order and releases the lock',
         '--exclusive in two worktrees never overlaps',
+        'two waiters after a dead holder never hold the gate lock at once',
+        'the reclaim sub-lock is gone after the waiters finish',
+        'a reclaim lock left by a killed waiter is cleared and the dead holder is reclaimed',
         '--exclusive stops at the first failing command with exit 4',
         '--exclusive refuses a chained command and never runs it',
         '--exclusive waits for a live holder and exits 6 past the timeout without running',
