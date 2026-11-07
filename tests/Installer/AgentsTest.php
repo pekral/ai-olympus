@@ -2879,3 +2879,26 @@ test('splinter plans parallel batches with the deterministic planner and the sin
     expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('`ai-olympus-gate.lock` in the common git directory');
     expect($read('rules/compound-engineering/backlog.md'))->toContain('**State what can run in parallel.**');
 });
+
+test('the gate lock wait survives the harness call timeout without a hard stop or an endless loop', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    $owner = $read('skills/resolve-issue/references/quality-gates.md');
+    expect($owner)->toContain('### Waiting for the gate lock — the harness call timeout');
+    expect($owner)->toContain('run it in the background and wait for its completion notification');
+    expect($owner)->toContain('or in the foreground with the maximum tool timeout');
+    expect($owner)->toContain('A call the harness stopped while it waited is not exit `3` or `6`');
+    expect($owner)->toContain('at most 7 re-runs');
+    expect($owner)->toContain('never start a second copy while one still runs');
+    expect($owner)->toContain('never a `pgrep -f` or `ps | grep` loop');
+
+    foreach ([
+        'agents/donatello.md',
+        'skills/process-code-review/SKILL.md',
+        'skills/merge-github-pr/SKILL.md',
+        'rules/compound-engineering/concurrency.md',
+    ] as $path) {
+        expect($read($path))->toContain('*Waiting for the gate lock*');
+    }
+});
