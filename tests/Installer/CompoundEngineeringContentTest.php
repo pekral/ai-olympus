@@ -36,7 +36,9 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
     // The three research inputs.
     expect($content)->toContain('**Codebase**');
     expect($content)->toContain('**Commit history**');
-    expect($content)->toContain('**Internet best practices');
+    expect($content)->toContain('**External sources');
+    expect($content)->toContain('Use primary sources only');
+    expect($content)->toContain('**Trace every claim to the source that owns it.**');
 
     // The Codebase input carries a full-tree completeness sweep (issue #25). The analysis sets the
     // scope the implementation later works to, so a sweep that stops at the files the problem
@@ -48,9 +50,10 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
     expect($content)->toContain('not only the files the problem description names');
     expect($content)->toContain('The sweep establishes the true scope of the work');
 
-    // The plan artifact is a text file or a GitHub issue.
-    expect($content)->toContain('text file in the repo');
-    expect($content)->toContain('GitHub issue');
+    // The plan artifact lives on the tracker item, never in the repository.
+    expect($content)->toContain('**written plan on the tracker item**');
+    expect($content)->toContain('**Never write the plan into the repository:**');
+    expect($content)->not->toContain('docs/plans/');
 
     // The five mandatory parts of the plan.
     expect($content)->toContain('**Goal**');
