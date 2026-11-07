@@ -84,7 +84,7 @@ test('the one pre-existing fix that remains is a security vulnerability in its o
 
     expect(substr_count($reference, '- **A security vulnerability is fixed in this PR.**'))->toBe(1)
         ->and(substr_count($reference, '- **Every other problem follows the owner.**'))->toBe(1)
-        ->and(substr_count($reference, '`fix(<scope>): pre-existing — <description>`'))->toBe(1)
+        ->and(substr_count($reference, '`fix(<scope>): pre-existing — <description> (#<N>)`'))->toBe(1)
         ->and(substr_count($reference, '6. **A refactoring-only assignment fixes no vulnerability.**'))->toBe(1);
 
     foreach ([

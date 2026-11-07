@@ -12,7 +12,7 @@ Rules for a security vulnerability:
 1. **Do not silently ignore** a vulnerability you encountered in a file you had to read for the in-scope work — fix it in this PR.
 2. **Do not expand scope** by scanning unrelated files for more. Limit attention to files already touched by the in-scope changes (or their direct dependencies you must read to understand the change).
 3. Land the fix in its **own separate commit** inside the same PR:
-   - Use a Conventional Commits subject per `@rules/git/general.md`: `fix(<scope>): pre-existing — <description>`.
+   - Use a Conventional Commits subject per `@rules/git/general.md`: `fix(<scope>): pre-existing — <description> (#<N>)`.
    - The `pre-existing — ` prefix is mandatory so reviewers can identify the commit at a glance (e.g. `fix(user): pre-existing — authorize the record owner before download`).
    - Add the regression test in the **same commit** as the fix. The test must fail before the fix lands and pass after.
    - The fix follows the same 100% coverage rule on changed lines as the in-scope changes.
