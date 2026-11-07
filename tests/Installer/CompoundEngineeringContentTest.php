@@ -1155,6 +1155,33 @@ test('an EPIC tree is never created without a human approving the confirmation p
     expect($backlog)->toContain('so a **flat** set of peer issues opened under this mode is pre-approved (**L1**)');
 });
 
+test('issues are cut as vertical slices, and a wide refactor as expand, migrate, contract', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/create-issues-from-text/SKILL.md');
+    $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
+
+    // The skill is the single owner of how an assignment is cut.
+    expect($skill)->toContain('## Split into vertical slices');
+    expect($skill)->toContain('**The first issue is the simplest case end to end.**');
+    expect($skill)->toContain('**Split by behaviour, never by layer or by application area.**');
+    expect($skill)->toContain('### A wide refactor — expand, migrate, contract');
+    expect($skill)->toContain('`@rules/sql/optimalize.md` *Deploy-safe schema changes*');
+    expect($skill)->toContain('### A preparatory refactor');
+
+    // The old horizontal split is gone from the EPIC steps.
+    expect($skill)->toContain('3. **Create one sub-issue per vertical slice.**');
+    expect($skill)->not->toContain('Create one sub-issue per application area');
+    expect($skill)->not->toContain('do not bundle two areas into one sub-issue');
+
+    // The backlog rule points at the owner and does not restate the cut.
+    expect($backlog)->toContain('`@skills/create-issues-from-text/SKILL.md` *Split into vertical slices* owns how to cut');
+    expect($backlog)->not->toContain('tracer bullet');
+
+    // The existing approval gate and dependency mechanics are unchanged.
+    expect($skill)->toContain('**A human approves the tree before any of it is created (L2).**');
+    expect($skill)->toContain('Fill each sub-issue\'s `## Dependencies`');
+});
+
 test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
