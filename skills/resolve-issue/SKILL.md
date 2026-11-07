@@ -125,7 +125,7 @@ Change nothing outside the assignment (`@rules/compound-engineering/general.md` 
 
 ### If bug
 
-**Mandatory: strict TDD — failing test first, blocking.**
+**Mandatory: diagnose first** per `references/bug-diagnosis.md`, **then strict TDD — failing test first, blocking.**
 
 Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every bug fix. The Iron Law (`NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST`) applies without exception:
 
@@ -160,7 +160,7 @@ Walk these items and record each one's result in the handoff:
 1. **Acceptance criteria are covered** — each maps to implemented behaviour and to a test exercising it with the data the assignment states.
 2. **The tests covering the change were executed** — the diff-targeted selection, not the full build.
 3. **Static analysis and the linters pass** for the changed files.
-4. **No debug artifact survives** — no `dd()` / `dump()` / `var_dump()` / `console.log`, no commented-out block, no temporary or editor-backup file.
+4. **No debug artifact survives** — no `dd()` / `dump()` / `var_dump()` / `console.log`, no commented-out block, no temporary or editor-backup file, no `[DEBUG-` tag (`git grep` of `references/bug-diagnosis.md` step 6 is empty).
 5. **No accidental file is staged** — no scratch file, no local config, no committed secret or `.env`.
 6. **The diff matches the requested scope** — anything else is removed or recorded as a deferred follow-up (*Deferred-item follow-up issues* below).
 7. **Nothing obviously warrants escalation** — say so in the handoff when the change turned out to touch a security boundary, a migration, or a payment path.
@@ -229,6 +229,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 - references/pre-pr-self-check.md
 - references/quality-gates.md
 - references/data-repair.md
+- references/bug-diagnosis.md
 - references/deferred-follow-up.md
 - references/pre-existing-issue-handling.md
 - references/security-remediation-checklist.md

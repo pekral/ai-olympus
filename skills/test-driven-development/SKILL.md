@@ -84,6 +84,8 @@ Only after green:
 Move to the next behavior and repeat the cycle.
 
 ## Bug-fix rule
+For a bug or regression in `@skills/resolve-issue/SKILL.md`, the RED test comes out of the diagnosis loop of `@skills/resolve-issue/references/bug-diagnosis.md`.
+
 Never add a regression test for a bug unless an E2E reproduction or failure inventory establishes a genuine observable behavior gap. When it does, write and observe the failing test before the fix.
 
 One observable regression should normally have one primary regression test at the strongest owning boundary. Another test of the same scenario is allowed only for a distinct failure mode (`@skills/test-audit/SKILL.md` *Regression tests*).
