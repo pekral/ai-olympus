@@ -199,7 +199,9 @@ test('the audit ranks hot spots by change frequency only when the user named no 
     $template = (string) file_get_contents($packageDir . '/skills/simplification-audit/templates/audit-report.md');
 
     expect($skill)->toContain('**Hot-spot scoping — only when the request names no area.**');
-    expect($skill)->toContain('git log --since=<window> --name-only --format= | sort | uniq -c | sort -rn | head -20');
+    expect($skill)->toContain('git log --since=<window> --name-only --format= | sort | uniq -c | sort -rn');
+    expect($skill)->toContain('every path that no longer exists at `HEAD`, then keep the top 20');
+    expect($skill)->not->toContain('sort -rn | head');
     expect($skill)->toContain('The user\'s scope always wins:');
     expect($skill)->toContain('Record the command, the window, and the resulting ranking');
     expect($template)->toContain('**Hot-spot ranking (only when the user named no area):**');
@@ -219,6 +221,8 @@ test('the worker brief carries the deletion test and the one-adapter seam rule w
     expect($quotedBlock)->toContain('One adapter is a hypothetical seam, and two make it real.');
     expect($quotedBlock)->toContain('@rules/php/core-standards.md` *Design Principles*');
     expect($quotedBlock)->not->toContain('at least two non-test');
+    expect($quotedBlock)->not->toContain('with one implementation');
+    expect($quotedBlock)->toContain('justifies itself by that rule');
     expect($brief)->toContain('the deletion-test verdict');
     expect($skill)->toContain('Re-run the search behind a deletion-test or single-implementation finding.');
 });
