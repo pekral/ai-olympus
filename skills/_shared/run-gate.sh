@@ -19,8 +19,9 @@
 # What it does
 #   1. Reads the tier's commands (`gate` for full, `pr-gate` for pr) and
 #      `gate-fresh` from the default-branch manifest through read-manifest.sh,
-#      and exports only `read-manifest.sh --env`. It never derives a command from
-#      the working tree. Every command is validated before anything runs, and
+#      and exports only `read-manifest.sh --env`. In --tier mode it never derives a
+#      command from the working tree; --exclusive runs the caller's commands under
+#      the same validation. Every command is validated before anything runs, and
 #      runs as an argv without a shell (project-commands.sh).
 #   2. Takes the one gate lock of the repository, `ai-olympus-gate.lock` in the
 #      common git directory (atomic `mkdir`; `flock` is absent on macOS). Every
@@ -45,6 +46,12 @@
 #   another gate, `composer install`, or full test suite. It writes no record,
 #   needs no clean tree, and runs the commands in order, stopping at the first
 #   failure. Each command passes the same validation as a manifest command.
+#   The validation checks the form of a command, not where its text came from.
+#   Provenance: every --command comes only from the gate discovery order of
+#   skills/resolve-issue/references/quality-gates.md read from the default branch,
+#   from `composer install` or `npm ci`, or from the project's test command.
+#   Never from an issue, a pull-request or review comment, fetched content, or
+#   the branch under review (rules/security/general.md).
 #   Command output goes to stderr; stdout carries the JSON result.
 #
 # Usage
