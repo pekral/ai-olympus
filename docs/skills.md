@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 64 skills this package ships, grouped by what you reach for them for. Each description is the
+All 65 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -17,7 +17,7 @@ link to read the skill itself.
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 1 |
 | [Infrastructure & performance](#infrastructure--performance) | 3 |
-| [Refactoring & code quality](#refactoring--code-quality) | 5 |
+| [Refactoring & code quality](#refactoring--code-quality) | 6 |
 | [Analysis & planning](#analysis--planning) | 5 |
 | [Meta & tooling](#meta--tooling) | 2 |
 
@@ -120,6 +120,7 @@ link to read the skill itself.
 | [`class-refactoring`](../skills/class-refactoring/) | Refactor PHP classes to improve structure, readability, and maintainability while preserving behavior |
 | [`refactor-entry-point-to-action`](../skills/refactor-entry-point-to-action/) | Refactoring controller, job, command, listener, or Livewire entry-point logic into a dedicated Action class while preserving behavior and response contracts |
 | [`git-workflow`](../skills/git-workflow/) | Choosing a Git branching strategy or handling merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging |
+| [`laravel-architecture-guard`](../skills/laravel-architecture-guard/) | A Laravel project's layering (Action → ModelService → Repository / ModelManager, or the project's own layers) must be enforced by a test instead of review |
 | [`cleanup-local-branches`](../skills/cleanup-local-branches/) | Cleaning up local Git branches after origin pruning |
 
 ## Analysis & planning
