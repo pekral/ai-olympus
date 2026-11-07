@@ -22,9 +22,12 @@
 #      and exports only `read-manifest.sh --env`. It never derives a command from
 #      the working tree. Every command is validated before anything runs, and
 #      runs as an argv without a shell (project-commands.sh).
-#   2. Takes the lock `<evidence>/gate.lock` (atomic `mkdir`; `flock` is absent on
-#      macOS), waiting for a live holder up to AI_OLYMPUS_GATE_LOCK_TIMEOUT
-#      seconds (default 3600).
+#   2. Takes the one gate lock of the repository, `ai-olympus-gate.lock` in the
+#      common git directory (atomic `mkdir`; `flock` is absent on macOS). Every
+#      worktree of the repository and both tiers share it, so one gate runs on
+#      the machine at a time. A caller waits for a live holder up to
+#      AI_OLYMPUS_GATE_LOCK_TIMEOUT seconds (default 3600, long enough for a
+#      full gate to finish ahead of it) and never fails fast.
 #   3. Refuses a tree with any uncommitted or untracked change, on both tiers.
 #   4. When a valid record for this tree and tier already exists — a run that
 #      finished while this one waited — takes its result over through the same
@@ -35,8 +38,18 @@
 #      rename, then runs `gate-fresh`, whose result is never written to the
 #      record.
 #
+# Exclusive mode
+#   A project whose manifest sets no gate gets exit 5 from `--tier`, and its
+#   agents run the discovered gate command themselves. `--exclusive` holds the
+#   same machine lock around exactly those commands, so they never run beside
+#   another gate, `composer install`, or full test suite. It writes no record,
+#   needs no clean tree, and runs the commands in order, stopping at the first
+#   failure. Each command passes the same validation as a manifest command.
+#   Command output goes to stderr; stdout carries the JSON result.
+#
 # Usage
 #   run-gate.sh --tier full|pr [--actor <name>]
+#   run-gate.sh --exclusive --command "<command>" [--command "<command>"]...
 #   run-gate.sh --self-test
 #
 # Output (stdout): one JSON document with status, tier, tree, record, log, reason.
@@ -59,10 +72,13 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: run-gate.sh --tier full|pr [--actor <name>]
+       run-gate.sh --exclusive --command "<command>" [--command "<command>"]...
        run-gate.sh --self-test
 
-Runs the manifest gate of the tier once per git tree, under a lock, and writes
-a record that verify-gate.sh accepts. Exit 0 passed, 4 failed, 5 not configured.
+Runs the manifest gate of the tier once per git tree, under the repository-wide
+gate lock, and writes a record that verify-gate.sh accepts. Exit 0 passed,
+4 failed, 5 not configured. --exclusive runs the given commands under the same
+lock and writes no record.
 EOF
 }
 
@@ -80,8 +96,48 @@ emit() {
   return "$code"
 }
 
+# Run the given commands one after another under the machine lock, stopping at
+# the first failure. Nothing is written but the lock.
+run_exclusive() {
+  local timeout="$1" command status=0
+  shift
+
+  for command in "$@"; do
+    if ! GATE_REASON="$(validate_command "$command" 2>&1 >/dev/null)"; then
+      GATE_REASON="refused command: $(safe_display "$GATE_REASON") — $(safe_display "$command")"
+      emit refused 3
+      return
+    fi
+  done
+
+  trap gate_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  gate_lock_acquire "$timeout" || status=$?
+  case "$status" in
+  0) ;;
+  6) emit locked 6; return ;;
+  *) emit refused 3; return ;;
+  esac
+
+  for command in "$@"; do
+    status=0
+    run_command "$command" /dev/stderr || status=$?
+    if [[ "$status" -ne 0 ]]; then
+      GATE_REASON="failed: the command exited $status — $(safe_display "$command")"
+      emit failed 4
+      return
+    fi
+  done
+
+  GATE_REASON='passed: every command passed under the gate lock'
+  emit passed 0
+}
+
 run_gate() {
-  local actor timeout
+  local actor timeout exclusive=0
+  local -a commands_given=()
   actor="$(id -un 2>/dev/null || printf 'unknown')"
 
   while [[ $# -gt 0 ]]; do
@@ -96,6 +152,15 @@ run_gate() {
       actor="$2"
       shift 2
       ;;
+    --exclusive)
+      exclusive=1
+      shift
+      ;;
+    --command)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      commands_given+=("$2")
+      shift 2
+      ;;
     *)
       echo "$PROG: unknown argument: $(safe_display "$1")" >&2
       usage
@@ -104,7 +169,17 @@ run_gate() {
     esac
   done
 
-  gate_tier_key "$TIER" >/dev/null || { usage; return 1; }
+  if [[ "$exclusive" -eq 1 ]]; then
+    if [[ -n "$TIER" || "${#commands_given[@]}" -eq 0 ]]; then
+      usage
+      return 1
+    fi
+  elif [[ "${#commands_given[@]}" -gt 0 ]]; then
+    usage
+    return 1
+  else
+    gate_tier_key "$TIER" >/dev/null || { usage; return 1; }
+  fi
   [[ "$actor" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || actor='unknown'
   timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}"
   [[ "$timeout" =~ ^[0-9]{1,6}$ ]] || { echo "$PROG: AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds" >&2; return 1; }
@@ -116,6 +191,10 @@ run_gate() {
 
   local status=0
   load_project_manifest || { GATE_REASON="$PROJECT_REFUSAL"; emit refused 3; return; }
+  if [[ "$exclusive" -eq 1 ]]; then
+    run_exclusive "$timeout" "${commands_given[@]}"
+    return
+  fi
   gate_load_commands "$TIER" || status=$?
   case "$status" in
   0) ;;
@@ -244,7 +323,7 @@ self_test() {
   export GATE_SELFTEST_CALLS="$tmp/calls"
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
 
-  local base='"validation": { "executables": ["vendor/bin/gate-ok", "vendor/bin/gate-fail", "vendor/bin/gate-dirty", "vendor/bin/gate-kill", "vendor/bin/fresh-ok", "vendor/bin/fresh-fail", "vendor/bin/pwn"] }'
+  local base='"validation": { "executables": ["vendor/bin/gate-ok", "vendor/bin/gate-fail", "vendor/bin/gate-dirty", "vendor/bin/gate-kill", "vendor/bin/gate-span", "vendor/bin/fresh-ok", "vendor/bin/fresh-fail", "vendor/bin/pwn"] }'
   # Any one of pr-gate, gate-fresh, gate-evidence opts a project into the record.
   local optin='"gate-evidence": ".claude/run/gates"'
 
@@ -293,7 +372,7 @@ self_test() {
     "$([[ "$(gate_selftest_mode "$project/.claude/run/gates")" == 700 && "$(gate_selftest_mode "$record")" == 600 && "$(gate_selftest_mode "${record%.json}.log")" == 600 ]] && echo pass)"
   check 'gate-fresh runs after a passing gate and never enters the record' \
     "$([[ "$(calls fresh-ok)" -eq 1 ]] && ! grep -q fresh "$record" && echo pass)"
-  check 'the lock is released after the run' "$([[ ! -e "$project/.claude/run/gates/gate.lock" ]] && echo pass)"
+  check 'the lock is released after the run' "$([[ ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
 
   # --- The record carries no environment value outside the fingerprint ---------
   local secret_record
@@ -336,20 +415,104 @@ self_test() {
   # --- The lock -----------------------------------------------------------------
   rm -f "$record"
   : >"$GATE_SELFTEST_CALLS"
-  mkdir -p "$project/.claude/run/gates/gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$project/.claude/run/gates/gate.lock/holder"
+  mkdir -p "$project/.git/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a live lock holder times out without running the gate' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$project/.claude/run/gates/gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
 
   local dead
   sh -c 'exit 0' &
   dead=$!
   wait "$dead" || true
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$project/.claude/run/gates/gate.lock/holder"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a lock left by a dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$project/.claude/run/gates/gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  # --- One gate on the whole machine: the lock is shared by every worktree ------
+  local worktree="$tmp/worktree" spans
+  git -C "$project" worktree add -q --detach "$worktree"
+  gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-span\"] } } }"
+
+  mkdir -p "$project/.git/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$worktree" --tier full || code=$?
+  check 'a live holder in one worktree blocks the gate of another worktree' \
+    "$([[ "$code" -eq 6 && "$(calls span-start)" -eq 0 ]] && echo pass)"
+  rm -rf "$project/.git/ai-olympus-gate.lock"
+
+  : >"$GATE_SELFTEST_CALLS"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
+  first_code=0; second_code=0
+  (cd "$project" && GATE_SELFTEST_SLEEP=2 "$script" --tier full >/dev/null 2>&1) &
+  first=$!
+  sleep 0.5
+  (cd "$worktree" && GATE_SELFTEST_SLEEP=2 "$script" --tier full >/dev/null 2>&1) &
+  second=$!
+  wait "$first" || first_code=$?
+  wait "$second" || second_code=$?
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  spans="$(grep '^span' "$GATE_SELFTEST_CALLS" | tr '\n' ' ')"
+  check 'two worktrees of one repository never run the gate at the same time' \
+    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' ]] && echo pass)"
+
+  mkdir -p "$project/.git/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  rm -rf "$worktree/.claude/run/gates"
+  code=0; run_in "$worktree" --tier full || code=$?
+  check 'a lock left by a dead holder in another worktree is reclaimed' \
+    "$([[ "$code" -eq 0 && "$(calls span-start)" -eq 1 && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  # --- --exclusive serialises a command the manifest does not name ---------------
+  local plain="$tmp/plain" plain_worktree="$tmp/plain-worktree"
+  gate_selftest_project "$plain" "{ \"extra\": { \"ai-olympus\": { $base } } }"
+  git -C "$plain" worktree add -q --detach "$plain_worktree"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain" --tier full || code=$?
+  check 'a manifest without a gate exits 5 and --exclusive is the route that still serialises' "$([[ "$code" -eq 5 ]] && echo pass)"
+
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok one' --command 'vendor/bin/gate-ok two' || code=$?
+  check '--exclusive runs every command in order and releases the lock' \
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  : >"$GATE_SELFTEST_CALLS"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
+  first_code=0; second_code=0
+  (cd "$plain" && GATE_SELFTEST_SLEEP=2 "$script" --exclusive --command 'vendor/bin/gate-span' >/dev/null 2>&1) &
+  first=$!
+  sleep 0.5
+  (cd "$plain_worktree" && GATE_SELFTEST_SLEEP=2 "$script" --exclusive --command 'vendor/bin/gate-span' >/dev/null 2>&1) &
+  second=$!
+  wait "$first" || first_code=$?
+  wait "$second" || second_code=$?
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  spans="$(grep '^span' "$GATE_SELFTEST_CALLS" | tr '\n' ' ')"
+  check '--exclusive in two worktrees never overlaps' \
+    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' ]] && echo pass)"
+
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-fail' --command 'vendor/bin/gate-ok' || code=$?
+  check '--exclusive stops at the first failing command with exit 4' \
+    "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  code=0; run_in "$plain" --exclusive --command 'composer build; touch pwned' || code=$?
+  check '--exclusive refuses a chained command and never runs it' "$([[ "$code" -eq 3 && ! -e "$plain/pwned" ]] && echo pass)"
+
+  mkdir -p "$plain/.git/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain_worktree" --exclusive --command 'vendor/bin/gate-ok' || code=$?
+  check '--exclusive waits for a live holder and exits 6 past the timeout without running' \
+    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 ]] && echo pass)"
+  rm -rf "$plain/.git/ai-olympus-gate.lock"
+
+  code=0; run_in "$plain" --exclusive || code=$?
+  check '--exclusive without a command is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
+  code=0; run_in "$plain" --exclusive --tier full --command 'vendor/bin/gate-ok' || code=$?
+  check '--exclusive together with --tier is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
 
   # --- Failures never record a pass -----------------------------------------------
   local failing="$tmp/failing"

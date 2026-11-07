@@ -15,6 +15,7 @@ test('every deterministic orchestration helper is shipped, executable, and self-
     $helpers = [
         'run-validation',
         'plan-route',
+        'plan-parallel',
         'check-handoff',
         'render-report',
         'record-metrics',
@@ -327,4 +328,24 @@ test('the context relevance gate decides cheaply and defaults to false', functio
     $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
     expect($recorder)->toContain('\'context gate counters are stored as counts\'');
     expect(splinterContractText())->toContain('`--context-gate-executed`, `--context-requested`, `--context-skipped`');
+});
+
+test('the parallel planner pins the rule that lets two units overlap', function (): void {
+    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh');
+
+    foreach ([
+        'two units with disjoint files run in parallel',
+        'two units that change the same file run one after the other',
+        'a directory entry covers every file below it',
+        'a dependency keeps the dependent in a later batch',
+        'a CRITICAL unit never runs beside another unit',
+        'a unit without file evidence never runs beside another unit',
+        'at most two units run at the same time',
+        'a unit never moves ahead of an earlier unit',
+        'a dependency on a later unit is refused',
+    ] as $label) {
+        expect(substr_count($planner, '\'' . $label . '\''))->toBe(1);
+    }
+
+    expect($planner)->toContain('MAX_CONCURRENT=2');
 });

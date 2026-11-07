@@ -31,7 +31,11 @@
 # Where a record lives
 #   <evidence>/<tree>.<tier>.json   the record
 #   <evidence>/<tree>.<tier>.log    the full gate output
-#   <evidence>/gate.lock/           the run lock (an atomic `mkdir`, never flock)
+#   <git-common-dir>/ai-olympus-gate.lock/
+#                                   the run lock (an atomic `mkdir`, never flock).
+#                                   It sits in the common git directory, so every
+#                                   worktree of one repository shares it and only
+#                                   one gate runs on the machine at a time.
 #   <evidence> is the manifest `gate-evidence`, default `.claude/run/gates`. It
 #   must be relative, git-ignored, free of tracked files, and free of symlinks.
 #   A file name is built only from the tree `git rev-parse` returned and the
@@ -197,7 +201,7 @@ gate_evidence_dir() {
 
   # Every path the scripts write must be ignored, so a record never dirties the
   # tree it describes and a branch can never commit one.
-  gate_scratch_path gate-evidence "$dir" "$dir/0.full.json" "$dir/0.full.log" "$dir/gate.lock/holder" || return 3
+  gate_scratch_path gate-evidence "$dir" "$dir/0.full.json" "$dir/0.full.log" || return 3
 
   if [[ "$mode" == "write" ]]; then
     (umask 077 && mkdir -p -- "$dir")
@@ -387,14 +391,29 @@ gate_lock_is_stale() {
   [[ $((now - elapsed)) -gt $((started + 60)) ]]
 }
 
+# The one gate lock of the repository: a directory in the common git directory,
+# which a primary checkout and all its worktrees share. Resolved physically, so
+# the path never depends on the directory the caller stands in.
+#   returns 1 when the directory is not a git checkout
+gate_lock_path() {
+  local common
+  common="$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/ai-olympus-gate.lock' "$common"
+}
+
 # Take the gate lock: an atomic `mkdir`, a holder file, and a stale reclaim on
 # confirmed death only (@rules/compound-engineering/concurrency.md). `flock(1)`
-# does not exist on macOS, so it is not used.
+# does not exist on macOS, so it is not used. The lock is shared by every
+# worktree of the repository and by both tiers, and a caller waits for a live
+# holder up to <timeout> seconds.
 #   returns 6 when a live holder keeps the lock past the timeout
 gate_lock_acquire() {
   local timeout="$1" waited=0
-  GATE_LOCK="$GATE_EVIDENCE/gate.lock"
-  gate_no_symlink "$GATE_LOCK" || return 3
+  GATE_LOCK="$(gate_lock_path)" || { GATE_REASON='refused: no common git directory to hold the gate lock'; return 3; }
+  if [[ -L "$GATE_LOCK" ]]; then
+    GATE_REASON="refused: $(safe_display "$GATE_LOCK") is a symlink"
+    return 3
+  fi
 
   until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do
     if gate_lock_is_stale; then
@@ -437,6 +456,12 @@ echo "gate-ok ${*:-}" >>"$GATE_SELFTEST_CALLS"
 [[ -n "${GATE_SELFTEST_SLEEP:-}" ]] && sleep "$GATE_SELFTEST_SLEEP"
 echo "gate output"
 exit 0
+STUB
+  cat >"$dir/vendor/bin/gate-span" <<'STUB'
+#!/usr/bin/env bash
+echo "span-start" >>"$GATE_SELFTEST_CALLS"
+sleep "${GATE_SELFTEST_SLEEP:-1}"
+echo "span-end" >>"$GATE_SELFTEST_CALLS"
 STUB
   cat >"$dir/vendor/bin/gate-fail" <<'STUB'
 #!/usr/bin/env bash
