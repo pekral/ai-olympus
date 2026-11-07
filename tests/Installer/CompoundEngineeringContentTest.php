@@ -80,6 +80,25 @@ test('resolve-issue skill requires the created branch name to be in English', fu
     expect($content)->toContain('name always in English, regardless of the assignment language');
 });
 
+test('the pull request body states the merge danger from the merge-risk script and the bug-fix evidence', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+
+    expect($pullRequest)->toContain('**`## Merge danger`**');
+    expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
+    expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
+    expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
+    expect($pullRequest)->toContain('one `Evidence:` line under them: the name of the regression test that failed before the fix and passes after it');
+
+    // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
+    expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
+    expect($finalization)->toContain('including its `## Merge danger` section; that file owns the shape');
+    expect($rule)->not->toContain('rollback=costly');
+    expect($finalization)->not->toContain('rollback=costly');
+});
+
 test('commit granularity is the author\'s judgment, and the package says what that costs', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = gitRuleContents();
