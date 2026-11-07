@@ -488,7 +488,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
 
-1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
+1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
@@ -517,6 +517,15 @@ A `no` on either line is backed by a Critical finding in `## Findings`, so it al
 4. `automatic rule:` — `not applicable`, `none practical`, or the strongest practical mechanism with its level.
 
 The answers come from `@skills/security-review/SKILL.md` *Change Security Assessment*. A diff that changes no application, configuration, or deployment code renders `not applicable — the diff changes no code`. The line adds no new severity: an unsafe path, a reachable service, and a missing regression test are findings at the severity that skill states, so they also make the merge verdict `no`.
+
+**Merge risk — one triage grade for a person who reads many pull requests.** Every review comment carries a `Merge risk:` header line directly under `Security assessment:`, converged or not, and on every tier:
+
+`**Merge risk:** <low | medium | high> — impact: <tier> (<signal names>) · verification: <ok | poor> (<failed inputs>) · rollback: <cheap | costly> (<rollback signals with their files>) · error detection: <ok | poor | not checked> (<file:line>)`
+
+1. **A script computes the grade, never the reviewer.** Run `skills/_shared/classify-risk.sh --merge-risk --diff <git diff base..head> --coverage <ok|gap> --gate <green|not-green>`, and add `--interactive <met|gap>` when a `raphael` walkthrough ran. Render `merge-risk`, `tier` with its `signal=` names, `verification` with its `verification-signal=` lines, and `rollback` with its `rollback-signal=` lines exactly as the script printed them. The script header owns the rule and the signals.
+2. **`error detection:` is the result of one existing check.** It is the catch-all half of `@rules/code-review/core-analysis.md` *Entry-point error handling for known failures (Laravel)*: a blanket `catch (\Throwable)` or an empty `catch {}` that hides a failure from the error reporter. The answer is `ok` when that check ran and raised no finding, `poor` with each such `file:line` when it raised one, and `not checked — <reason>` when it did not run. The grade does not read this answer: a finding of that check already makes the merge verdict `no`.
+3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production, that point goes on the `Not verified:` line with the step that settles it.
+4. **The line is informational.** It never blocks, adds no finding and no severity, and never replaces the `Merge verdict:` line or the merge gate of `@skills/merge-github-pr/SKILL.md`. No label carries the grade.
 
 **It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 
