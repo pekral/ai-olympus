@@ -7,6 +7,8 @@
 #   the output is hard to scan. This runner captures each script's output and
 #   prints one row per script with its status, check count, and duration.
 #   The full output is printed, indented, only for a script that failed.
+#   Every self-test builds its fixtures in its own mktemp directory, so the
+#   scripts run in parallel, one job per CPU, and the rows keep the input order.
 #
 # Usage
 #   run-shell-self-tests.sh <script.sh>...
@@ -27,18 +29,34 @@ for script in "$@"; do
   [[ ${#script} -gt $width ]] && width=${#script}
 done
 
-log="$(mktemp)"
-trap 'rm -f "$log"' EXIT
+results="$(mktemp -d)"
+trap 'rm -rf "$results"' EXIT
+
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+start_all=$SECONDS
+
+# Each job writes <index>.log and <index>.rc ("<exit code> <seconds>").
+# The job body is single-quoted on purpose: it expands inside each job, not here.
+index=0
+# shellcheck disable=SC2016
+for script in "$@"; do
+  printf '%s\0%s\0' "$index" "$script"
+  index=$((index + 1))
+done | xargs -0 -n 2 -P "$jobs" bash -c '
+  results="$1"; index="$2"; script="$3"
+  start=$SECONDS
+  bash "$script" --self-test >"$results/$index.log" 2>&1
+  echo "$? $((SECONDS - start))" >"$results/$index.rc"
+' _ "$results"
 
 failed=0
 checks_total=0
-start_all=$SECONDS
+index=0
 
 for script in "$@"; do
-  start=$SECONDS
-  bash "$script" --self-test >"$log" 2>&1
-  rc=$?
-  elapsed=$((SECONDS - start))
+  log="$results/$index.log"
+  read -r rc elapsed <"$results/$index.rc"
+  index=$((index + 1))
 
   # A script reports its checks either as one "ok    <label>" line each
   # or as a "(N checks)" summary.
