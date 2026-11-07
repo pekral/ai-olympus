@@ -2909,7 +2909,8 @@ test('a parallel unit never switches a branch in the shared tree', function (): 
     $worktree = '`.claude/worktrees/agent-impl-<source-slug>-donatello`';
 
     expect(splinterContractText())->toContain(
-        'For a parallel unit, every dispatch of this step (the fix rounds and *Finalization*) names the unit\'s worktree path ' . $worktree . ' and runs there',
+        'For a parallel unit, every dispatch of this step (the fix rounds and *Finalization*) '
+        . 'names the unit\'s worktree path ' . $worktree . ' and runs there',
     );
     expect(splinterContractText())->toContain('a parallel unit still takes no write-lock');
     expect($read('skills/resolve-issue/SKILL.md'))->toContain('Skip this step when the dispatch names a parallel-unit worktree');
