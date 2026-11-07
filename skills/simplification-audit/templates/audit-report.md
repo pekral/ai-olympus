@@ -5,6 +5,7 @@ The canonical report shape for `@skills/simplification-audit/SKILL.md`. One repo
 ## Scope
 
 - **Audited scope:** <the whole repository, or the part the user named>
+- **Hot-spot ranking (only when the user named no area):** <the `git log` command, the window, and the ranked file list>
 - **Requested by:** <the user's own words for the request>
 - **Commit audited:** <SHA>
 - **Working tree at start:** <`git status --short` output before the audit began, or `clean`>
