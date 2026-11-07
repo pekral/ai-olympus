@@ -2903,14 +2903,19 @@ test('the gate lock wait survives the harness call timeout without a hard stop o
     }
 });
 
-test('a parallel unit never switches a branch in the shared tree: the fix rounds and the start of the implementation run inside its worktree', function (): void {
+test('a parallel unit never switches a branch in the shared tree', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+    $worktree = '`.claude/worktrees/agent-impl-<source-slug>-donatello`';
 
-    expect(splinterContractText())->toContain('For a parallel unit, every dispatch of this step (the fix rounds and *Finalization*) names the unit\'s worktree path `.claude/worktrees/agent-impl-<source-slug>-donatello` and runs there');
+    expect(splinterContractText())->toContain(
+        'For a parallel unit, every dispatch of this step (the fix rounds and *Finalization*) names the unit\'s worktree path ' . $worktree . ' and runs there',
+    );
     expect(splinterContractText())->toContain('a parallel unit still takes no write-lock');
     expect($read('skills/resolve-issue/SKILL.md'))->toContain('Skip this step when the dispatch names a parallel-unit worktree');
-    expect($read('skills/process-code-review/SKILL.md'))->toContain('When the caller names a worktree, switch and pull inside it with `git -C <path>`, never in the shared tree');
+    expect($read('skills/process-code-review/SKILL.md'))->toContain(
+        'When the caller names a worktree, switch and pull inside it with `git -C <path>`, never in the shared tree',
+    );
     expect($read('agents/donatello.md'))->toContain('never switch a branch in the shared tree');
     expect($read('rules/compound-engineering/concurrency.md'))->toContain('Git refuses to check out a branch that another worktree holds');
 });
@@ -2919,5 +2924,5 @@ test('the startup sweep names the implementation worktrees of a parallel unit as
     $sweep = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/orchestration/stale-run-recovery.md');
 
     expect($sweep)->toContain('`agent-impl-*` included');
-    expect($sweep)->not->toContain("a peer's CR pass");
+    expect($sweep)->not->toContain('a peer\'s CR pass');
 });
