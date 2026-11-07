@@ -143,3 +143,16 @@ test('every skill carries the packaged license and metadata.author values (issue
 
     expect($missing)->toBe([]);
 });
+
+test('skill-creator prunes the skill it creates before the quality gates', function (): void {
+    // The pruning step carries the three checks that keep a generated skill short: no no-op
+    // sentence, no avoidable negation, and a verifiable completion criterion on every step.
+    $beforeQualityGates = explode('## Quality Gates', packageTextFiles()['skills/skill-creator/SKILL.md'])[0];
+
+    expect($beforeQualityGates)
+        ->toContain('### 7. Prune the draft')
+        ->toContain('**No-ops.**')
+        ->toContain('**Negations.**')
+        ->toContain('**Completion criteria.**')
+        ->toContain('@rules/writing/general.md');
+});
