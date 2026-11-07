@@ -2914,11 +2914,33 @@ test('a parallel unit never switches a branch in the shared tree', function (): 
     );
     expect(splinterContractText())->toContain('a parallel unit still takes no write-lock');
     expect($read('skills/resolve-issue/SKILL.md'))->toContain('Skip this step when the dispatch names a parallel-unit worktree');
-    expect($read('skills/process-code-review/SKILL.md'))->toContain(
-        'When the caller names a worktree, switch and pull inside it with `git -C <path>`, never in the shared tree',
+    $reviewSkill = $read('skills/process-code-review/SKILL.md');
+    expect($reviewSkill)->toContain(
+        'When the caller names a worktree, run the whole sequence of the next item inside it with `git -C <path>`, '
+        . 'never in the shared tree, and skip only the branch switch',
     );
+    expect($reviewSkill)->toContain(
+        'The fetch, the `git pull --rebase` of the branch\'s own remote, the rebase onto `origin/$DEFAULT_BRANCH`, '
+        . 'the fingerprint comparison, the conflict handling, the `composer install` after a rebase that changed `composer.lock`, '
+        . 'and the `git push --force-with-lease` all stay.',
+    );
+    expect($reviewSkill)->toContain(
+        'Run that `composer install` from inside the worktree through '
+        . '`skills/_shared/run-gate.sh --exclusive --command "composer install"`',
+    );
+    expect($reviewSkill)->not->toContain('switch and pull inside it');
     expect($read('agents/donatello.md'))->toContain('never switch a branch in the shared tree');
     expect($read('rules/compound-engineering/concurrency.md'))->toContain('Git refuses to check out a branch that another worktree holds');
+});
+
+test('the gate lock clears a reclaim directory on a confirmed-dead holder, never on its age', function (): void {
+    $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/concurrency.md');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/gate-record.sh');
+
+    expect($rule)->toContain('is removed only when that holder is confirmed dead by the same probe');
+    expect($rule)->toContain('counts as live for one minute');
+    expect($rule)->not->toContain('older than a minute belongs to a killed waiter');
+    expect($script)->toContain('gate_reclaim_is_stale')->toContain('gate_lock_is_stale "$dir"');
 });
 
 test('the startup sweep names the implementation worktrees of a parallel unit as well as the review worktrees', function (): void {

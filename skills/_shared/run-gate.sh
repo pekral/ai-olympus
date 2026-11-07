@@ -542,14 +542,41 @@ RECLAIMER
   check 'the reclaim sub-lock is gone after the waiters finish' \
     "$([[ ! -e "$plain/.git/ai-olympus-gate.lock.reclaim" && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
 
-  # A waiter killed inside the reclaim must not block every later reclaim.
-  mkdir -p "$plain/.git/ai-olympus-gate.lock" "$plain/.git/ai-olympus-gate.lock.reclaim"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
-  touch -t 200001010000 "$plain/.git/ai-olympus-gate.lock.reclaim"
+  # A waiter killed inside the reclaim must not block every later reclaim. Its reclaim
+  # directory is cleared because its holder is dead, and the directory is brand new: the
+  # clear-out is a death check, not an age check.
+  local reclaim="$plain/.git/ai-olympus-gate.lock.reclaim" main_lock="$plain/.git/ai-olympus-gate.lock"
+  mkdir -p "$main_lock" "$reclaim"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$main_lock/holder"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$reclaim/holder"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check 'a reclaim lock left by a killed waiter is cleared and the dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$plain/.git/ai-olympus-gate.lock.reclaim" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$reclaim" ]] && echo pass)"
+
+  # A waiter that is stopped, not dead, keeps its reclaim lock however old the directory is.
+  mkdir -p "$main_lock" "$reclaim"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$main_lock/holder"
+  gate_holder_text >"$reclaim/holder"
+  touch -t 200001010000 "$reclaim" "$reclaim/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
+  check 'a reclaim lock with a live holder survives however old it is and the gate times out' \
+    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -f "$reclaim/holder" && -d "$main_lock" ]] && echo pass)"
+  rm -rf "$reclaim"
+
+  # The window between the mkdir and the holder file: a fresh empty directory is live.
+  mkdir -p "$reclaim"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
+  check 'a fresh reclaim directory without a holder file is live and the gate times out' \
+    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$reclaim" ]] && echo pass)"
+
+  # The same directory past the grace belongs to a waiter killed in that window.
+  touch -t 200001010000 "$reclaim"
+  code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
+  check 'a reclaim directory without a holder file past the grace is cleared and the dead holder is reclaimed' \
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$reclaim" && ! -e "$main_lock" ]] && echo pass)"
 
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-fail' --command 'vendor/bin/gate-ok' || code=$?

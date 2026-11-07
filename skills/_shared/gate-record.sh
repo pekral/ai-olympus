@@ -367,12 +367,19 @@ gate_etime_seconds() {
   printf '%s' $((10#${BASH_REMATCH[2]:-0} * 86400 + 10#${BASH_REMATCH[4]:-0} * 3600 + 10#${BASH_REMATCH[5]} * 60 + 10#${BASH_REMATCH[6]}))
 }
 
-# The holder of a lock is gone when its PID is confirmed dead, or when the PID
-# now belongs to a process that started after the lock was written (recycled).
-# Anything inconclusive counts as a live holder: reclaiming a live run's lock
-# would let two gates corrupt one test database.
+# The holder file of a lock directory: this script's own PID and start time.
+gate_holder_text() {
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)"
+}
+
+# The holder of a lock directory (the gate lock unless the caller names another)
+# is gone when its PID is confirmed dead, or when the PID now belongs to a
+# process that started after the lock was written (recycled). Anything
+# inconclusive counts as a live holder: reclaiming a live run's lock would let
+# two gates corrupt one test database.
 gate_lock_is_stale() {
-  local holder="$GATE_LOCK/holder" pid started probe etime elapsed now
+  local dir="${1:-$GATE_LOCK}" holder pid started probe etime elapsed now
+  holder="$dir/holder"
   [[ -f "$holder" && ! -L "$holder" ]] || return 1
   pid="$(sed -n 's/^PID=\([0-9]\{1,7\}\)$/\1/p' "$holder" | head -1)"
   started="$(sed -n 's/^STARTED_EPOCH=\([0-9]\{1,12\}\)$/\1/p' "$holder" | head -1)"
@@ -389,6 +396,25 @@ gate_lock_is_stale() {
   now="$(date +%s)"
   # A process cannot have written a timestamp before it existed; 60 s absorbs skew.
   [[ $((now - elapsed)) -gt $((started + 60)) ]]
+}
+
+# The reclaim directory of a waiter is stale when its holder is confirmed dead,
+# never because of its age: a waiter stopped inside the reclaim (SIGSTOP, a
+# sleeping laptop) is alive, and clearing its directory would let a second waiter
+# reclaim the lock beside it. The one window left is between the `mkdir` and the
+# holder file: a directory with no readable PID counts as live for one minute
+# (its mtime), then belongs to a waiter killed in that window and is stale. The
+# main lock has no such bound, because its holder is written right after the
+# `mkdir` of a lock a run holds for minutes; a reclaim directory must not block
+# every later reclaim for ever.
+gate_reclaim_is_stale() {
+  local dir="$GATE_LOCK.reclaim"
+  [[ -d "$dir" && ! -L "$dir" ]] || return 1
+  if [[ -f "$dir/holder" && ! -L "$dir/holder" ]] && grep -q '^PID=[0-9]\{1,7\}$' "$dir/holder" 2>/dev/null; then
+    gate_lock_is_stale "$dir"
+    return
+  fi
+  [[ -n "$(find "$dir" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]
 }
 
 # The one gate lock of the repository: a directory in the common git directory,
@@ -418,16 +444,20 @@ gate_lock_acquire() {
   until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do
     # Only one waiter reclaims, and it checks again under the reclaim lock: a waiter
     # that read the dead holder earlier must not remove the live lock that another
-    # waiter has taken in the meantime. The reclaim lock is held for milliseconds, so
-    # one older than a minute belongs to a killed waiter and is removed.
-    if [[ -n "$(find "$GATE_LOCK.reclaim" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]; then
-      rmdir -- "$GATE_LOCK.reclaim" 2>/dev/null || true
+    # waiter has taken in the meantime. The reclaim lock carries its own holder file
+    # and is cleared only when that holder is confirmed dead (gate_reclaim_is_stale).
+    if gate_reclaim_is_stale; then
+      rm -rf -- "$GATE_LOCK.reclaim"
     fi
     if gate_lock_is_stale && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
-      if gate_lock_is_stale; then
-        rm -rf -- "$GATE_LOCK"
+      # No-clobber: when a stall let another waiter clear this directory and take
+      # its own, only the first holder file stands and the other waiter backs off.
+      if (set -C && gate_holder_text >"$GATE_LOCK.reclaim/holder") 2>/dev/null; then
+        if gate_lock_is_stale; then
+          rm -rf -- "$GATE_LOCK"
+        fi
+        rm -rf -- "$GATE_LOCK.reclaim"
       fi
-      rmdir -- "$GATE_LOCK.reclaim"
       continue
     fi
     if [[ "$waited" -ge "$timeout" ]]; then
@@ -441,7 +471,7 @@ gate_lock_acquire() {
   GATE_LOCK_HELD=1
   # This script's own PID: the script, not a per-call subshell, holds the lock
   # for exactly as long as the run lasts.
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$GATE_LOCK/holder"
+  gate_holder_text >"$GATE_LOCK/holder"
   return 0
 }
 
