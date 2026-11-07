@@ -139,6 +139,9 @@
 #                 empty down()), a persisted-data write, an external side effect
 #                 (mail, notification, HTTP client, queue dispatch), or a
 #                 configuration or infrastructure file (INFRA_RE). cheap otherwise.
+#                 A write or side effect counts in a .php file, an SQL write in a
+#                 .sql file. Every changed path counts, including a rename, a
+#                 binary file, and a mode-only change.
 #
 #   low     tier FAST, verification ok, rollback cheap
 #   high    tier CRITICAL, and verification poor or rollback costly
@@ -202,8 +205,12 @@ AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected resu
 # Rollback signals of the merge-risk mode. They are matched against the lower-cased
 # added lines of a unified diff, one line at a time, in documentation and test
 # files never. DATA_RE (domain-vocabulary.sh) decides which files are migrations.
-DROP_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|truncate'
-WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
+# WRITE_RE and EFFECT_RE read PHP calls, so they run on .php files only. SQL_WRITE_RE
+# reads SQL statements, so it runs on .sql files only. Other languages carry the same
+# words as plain text (store.dispatch, an echo of "Mail::", a regex in a script).
+DROP_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+table)'
+WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
+SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
 EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -547,7 +554,7 @@ classify() {
 # schema, not the data, so it is never a persisted-data write.
 diff_rollback_scan() {
   MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_RE" MR_DROP_RE="$DROP_RE" \
-    MR_WRITE_RE="$WRITE_RE" MR_EFFECT_RE="$EFFECT_RE" awk '
+    MR_WRITE_RE="$WRITE_RE" MR_SQL_WRITE_RE="$SQL_WRITE_RE" MR_EFFECT_RE="$EFFECT_RE" awk '
     function hit(name) {
       if (!(name in seen)) {
         seen[name] = 1
@@ -558,18 +565,43 @@ diff_rollback_scan() {
       copy = text
       return gsub(brace, "", copy)
     }
-    BEGIN { header = 1 }
-    /^diff / { header = 1; file = ""; next }
-    header && /^--- / { old = substr($0, 5); sub(/^a\//, "", old); next }
-    header && /^\+\+\+ / {
-      file = substr($0, 5)
-      if (file == "/dev/null") { file = old } else { sub(/^b\//, "", file) }
+    # Record the path of the current diff entry. A pure rename, a binary file, and a
+    # mode-only change have no `+++` line, so the `diff --git` header and the
+    # `rename to` line are the sources, and the `+++` line refines them.
+    function setfile(path) {
+      file = path
       print "F|" file
       lowered = tolower(file)
       skip = (lowered ~ ENVIRON["MR_DOC_RE"] || lowered ~ ENVIRON["MR_TEST_RE"])
       migration = (lowered ~ ENVIRON["MR_DATA_RE"])
+      php = (lowered ~ /\.php$/)
+      sql = (lowered ~ /\.sql$/)
       method = ""
       tracking = 0
+    }
+    BEGIN { header = 1 }
+    /^diff / {
+      header = 1
+      file = ""
+      skip = 0
+      migration = 0
+      php = 0
+      sql = 0
+      rest = substr($0, 12)
+      if ($0 ~ /^diff --git / && rest !~ /"/ && (length(rest) - 5) % 2 == 0) {
+        half = (length(rest) - 5) / 2
+        if (substr(rest, 1, 2) == "a/" && substr(rest, half + 4, 2) == "b/" && substr(rest, 3, half) == substr(rest, half + 6)) {
+          setfile(substr(rest, half + 6))
+        }
+      }
+      next
+    }
+    header && /^--- / { old = substr($0, 5); sub(/^a\//, "", old); next }
+    header && /^rename to / { setfile(substr($0, 11)); next }
+    header && /^\+\+\+ / {
+      path = substr($0, 5)
+      if (path == "/dev/null") { path = old } else { sub(/^b\//, "", path) }
+      if (path != file) { setfile(path) }
       next
     }
     /^@@/ { header = 0; next }
@@ -611,8 +643,10 @@ diff_rollback_scan() {
       if (kind != "+") { next }
       data = code
       gsub(/schema::[a-z]+/, "", data)
-      if (data ~ ENVIRON["MR_WRITE_RE"]) { hit("persisted-data-write") }
-      if (code ~ ENVIRON["MR_EFFECT_RE"]) { hit("external-side-effect") }
+      gsub(/(^|[^a-z0-9_])(carbon|carbonimmutable|date)::create/, "", data)
+      if (php && data ~ ENVIRON["MR_WRITE_RE"]) { hit("persisted-data-write") }
+      if (sql && data ~ ENVIRON["MR_SQL_WRITE_RE"]) { hit("persisted-data-write") }
+      if (php && code ~ ENVIRON["MR_EFFECT_RE"]) { hit("external-side-effect") }
     }
   '
 }
@@ -1025,6 +1059,48 @@ self_test() {
     --merge-risk --diff "$fix" "${verified[@]}" --interactive gap
   expect_line 'untrusted diff paths are rendered safely' 'rollback-signal=persisted-data-write|app/[2JEvil.php' \
     --merge-risk --diff "$(newfile "$(printf 'app/\033[2JEvil.php')" "\$model->delete();" | writediff)" "${verified[@]}"
+  # A header-only entry of a diff carries no `+++` line: a pure rename, a binary
+  # file, and a mode-only change still reach the impact tier and the rollback signals.
+  renamediff() {
+    printf 'diff --git a/%s b/%s\nsimilarity index 100%%\nrename from %s\nrename to %s\n' "$1" "$2" "$1" "$2"
+  }
+  expect_line 'a pure-renamed migration forces CRITICAL like --files' 'forced=migrations-data-loss' \
+    --merge-risk --diff "$(renamediff 'database/migrations/2026_01_01_old.php' 'database/migrations/2026_01_02_new.php' | writediff)" "${verified[@]}"
+  expect_line 'a pure-renamed migration is graded CRITICAL' 'tier=CRITICAL' \
+    --merge-risk --diff "$(renamediff 'database/migrations/2026_01_01_old.php' 'database/migrations/2026_01_02_new.php' | writediff)" "${verified[@]}"
+  expect_line 'a binary file in config/ is a configuration change' 'rollback-signal=config-infrastructure|config/logo.png' \
+    --merge-risk --diff "$(printf 'diff --git a/config/logo.png b/config/logo.png\nindex 1111111..2222222 100644\nBinary files a/config/logo.png and b/config/logo.png differ\n' | writediff)" "${verified[@]}"
+  expect_line 'a mode-only change in config/ is a configuration change' 'rollback-signal=config-infrastructure|config/queue.php' \
+    --merge-risk --diff "$(printf 'diff --git a/config/queue.php b/config/queue.php\nold mode 100644\nnew mode 100755\n' | writediff)" "${verified[@]}"
+  expect_line 'a rename with edits reports the new path' 'forced=migrations-data-loss' \
+    --merge-risk --diff "$(printf 'diff --git a/db/a.php b/database/migrations/2026_01_02_new.php\nrename from db/a.php\nrename to database/migrations/2026_01_02_new.php\n--- a/db/a.php\n+++ b/database/migrations/2026_01_02_new.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
+
+  # Text that only looks like a write or a side effect is no rollback signal.
+  expect_line 'a JavaScript store.dispatch is no side effect' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'resources/js/store.js' 'store.dispatch(action);' | writediff)" "${verified[@]}"
+  expect_line 'Carbon::create is no persisted-data write' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'src/Clock.php' 'return Carbon::create(2026, 1, 1);' | writediff)" "${verified[@]}"
+  expect_line 'a Model::create is still a persisted-data write' 'rollback-signal=persisted-data-write|src/Orders.php' \
+    --merge-risk --diff "$(newfile 'src/Orders.php' "return Order::create(\$data);" | writediff)" "${verified[@]}"
+  expect_line 'a shell string that names Mail:: is no side effect' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'scripts/check.sh' 'echo "Mail:: usage found"' | writediff)" "${verified[@]}"
+  expect_line 'a regex text in a shell script is no write' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'skills/_shared/scan.sh' "WRITE_RE='->(save|update)[[:space:]]*\\('" "x='insert into'" "y='delete from'" | writediff)" "${verified[@]}"
+  expect_line 'a column named truncated is no destructive migration' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_add_flag.php' \
+      'public function up(): void' '{' "    Schema::table(\"posts\", fn (Blueprint \$table) => \$table->boolean(\"truncated\"));" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("posts");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a truncate call in a migration is destructive' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_wipe.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_wipe.php' \
+      'public function up(): void' '{' '    DB::table("posts")->truncate();' '}' | writediff)" "${verified[@]}"
+  expect_line 'truncate table in a SQL file is destructive' \
+    'rollback-signal=destructive-migration|db/wipe.sql' \
+    --merge-risk --diff "$(newfile 'db/wipe.sql' 'TRUNCATE TABLE posts;' | writediff)" "${verified[@]}"
+  expect_line 'a delete from in a SQL file is a persisted-data write' \
+    'rollback-signal=persisted-data-write|db/cleanup.sql' \
+    --merge-risk --diff "$(newfile 'db/cleanup.sql' 'DELETE FROM posts WHERE id = 1;' | writediff)" "${verified[@]}"
+
   expect_line 'a diff on stdin is accepted' 'merge-risk=low' --merge-risk --diff - "${verified[@]}" <"$fix"
   expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
   expect_exit 'merge-risk refuses a file list' 1 --merge-risk --diff "$fix" --files "$fix"
