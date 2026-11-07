@@ -848,36 +848,41 @@ test('april builds How to test from the donatello handoff for the current head S
     expect($raphael)->toContain('the implementation one always, the scoped-validation one when `splinter` did not skip that pass');
 });
 
-test('splinter processes multiple resolved sources sequentially and never fans them out in parallel', function (): void {
+test('splinter processes multiple resolved sources in batches and fans out only the two units a parallel batch holds', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = splinterContractText();
 
-    // The concurrency section processes a single request's multiple sources strictly one at a time.
-    // The contract moved to the rule; splinter keeps the pointer that reaches it.
+    // The contract lives in the rule; splinter keeps the pointer that reaches it.
     $concurrency = (string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md');
-    expect($concurrency)->toContain('Sequential processing of multiple sources');
-    expect($concurrency)->toContain('one at a time, strictly sequentially — never in parallel');
-    // The analysis-only branch dispatches leonardo sequentially, not as a parallel fan-out.
+    expect($concurrency)->toContain('Processing of multiple sources — sequential by default, two at a time only when the planner proves it safe');
+    expect($concurrency)->toContain('processes the resulting **batches one after another**');
+    // The analysis-only branch still dispatches leonardo sequentially, not as a parallel fan-out.
     expect($content)->toContain('dispatch their `leonardo` runs one after another — strictly sequentially, never in parallel');
-    // No fan-out across sources in one message.
-    expect($concurrency)->toContain('Do **not** fan work out across sources');
+    // The only fan-out is the two implementation units of a batch the planner approved.
+    expect($concurrency)->toContain('A two-unit batch is the only fan-out.');
+    expect($concurrency)->toContain('Never fan out analysis-only `leonardo` runs, never dispatch more than two `Task` calls in one message');
+    expect($concurrency)->toContain('The planner decides, never the orchestrator.');
+    expect($concurrency)->toContain('That limit is fixed in the script and the manifest has no key for it.');
     // Each source still gets its own per-source brief.
-    expect($concurrency)->toContain('own** shared brief');
+    expect($concurrency)->toContain('Each source gets its own shared brief');
     // Step 3 classifies each resolved source independently when several were resolved.
     expect($content)->toContain('classify **each one independently**');
 });
 
-test('splinter keeps the writing path on the shared tree but lets read-only CR agents isolate in a worktree, and cleans them up', function (): void {
+test('splinter keeps the default writing path on the shared tree, allows a worktree only for a parallel unit, and cleans worktrees up', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = splinterContractText();
 
-    // The writing path (donatello) still never uses worktrees — concurrent writers serialise on the
-    // shared tree. The contract lives in the rule; splinter keeps the pointer that reaches it.
     $concurrency = (string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md');
     expect($content)->toContain('@rules/compound-engineering/concurrency.md` owns this contract in full');
-    expect($concurrency)->toContain('The writing path never uses git worktrees');
+    // Deliberate re-baseline: "the writing path never uses git worktrees" gave way to one exception.
+    expect($concurrency)->not->toContain('The writing path never uses git worktrees');
+    expect($concurrency)->toContain('By default the writing path does not use git worktrees.');
+    expect($concurrency)->toContain('The one sanctioned exception is a parallel unit');
     expect($concurrency)->toContain('single shared git working tree');
-    expect($concurrency)->toContain('there is no isolated-worktree escape for the writing path');
+    expect($concurrency)->toContain('Nothing else widens the exception');
+    expect($concurrency)->toContain('A parallel unit takes **no** shared-tree write-lock');
+    expect($concurrency)->toContain('`.claude/worktrees/agent-impl-<source-slug>-donatello`');
     // The read-only CR agent may isolate in a worktree for its review.
     expect($concurrency)->toContain('read-only code-review agent (`leonardo`) may use a git worktree');
     // Splinter owns worktree cleanup so the repo stays clean after the run / merge.
@@ -2843,4 +2848,34 @@ test('splinter labels the pull request ready to merge when it closes a FAST run 
     expect($splinter)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready`, the `ready to merge` label on the pull request');
     expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('| `splinter` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
+});
+
+test('splinter plans parallel batches with the deterministic planner and the single gate lock keeps the machine at one heavy job', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    $splinter = splinterContractText();
+    expect($splinter)->toContain('*Plan parallel batches*');
+    expect($splinter)->toContain('skills/_shared/plan-parallel.sh');
+    expect($splinter)->toContain('a unit with no named file stays empty, which keeps it out of every parallel batch');
+    expect($splinter)->toContain('dispatch both step-5 `donatello` runs as two blocking `Task` calls in **one** message');
+    expect($splinter)->toContain('**A unit in a `mode.<k>=parallel` batch takes no write-lock**');
+    expect($splinter)->toContain('**Remove the implementation worktree of a parallel unit**');
+
+    $concurrency = $read('rules/compound-engineering/concurrency.md');
+    expect($concurrency)->toContain('## One gate lock for the machine');
+    expect($concurrency)->toContain('**3600** by default');
+    expect($concurrency)->toContain('`skills/_shared/run-gate.sh --exclusive --command "<command>"`');
+    expect($concurrency)->toContain('Gate runs, dependency installs (`composer install`, `npm ci`), and full test suites are **never concurrent**');
+
+    $donatello = $read('agents/donatello.md');
+    expect($donatello)->toContain('run-gate.sh --exclusive --command "<command>"');
+    expect($donatello)->toContain('**A parallel unit**');
+
+    foreach (['skills/process-code-review/SKILL.md', 'skills/merge-github-pr/SKILL.md', 'AGENTS.md', 'CLAUDE.md'] as $path) {
+        expect($read($path))->toContain('run-gate.sh --exclusive --command');
+    }
+
+    expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('`ai-olympus-gate.lock` in the common git directory');
+    expect($read('rules/compound-engineering/backlog.md'))->toContain('**State what can run in parallel.**');
 });

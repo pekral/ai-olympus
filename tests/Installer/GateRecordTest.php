@@ -52,7 +52,7 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     // One gate on the whole machine: the lock sits in the common git directory, which a primary
     // checkout and every worktree of it share, never inside a per-worktree evidence directory.
     expect($record)->toContain('git rev-parse --git-common-dir');
-    expect($record)->toContain("printf '%s/ai-olympus-gate.lock'");
+    expect($record)->toContain('printf \'%s/ai-olympus-gate.lock\'');
     expect($record)->not->toContain('GATE_LOCK="$GATE_EVIDENCE/gate.lock"');
     expect(gateExecutableCode('run-gate.sh'))->toContain('run_command "$command" /dev/stderr');
     expect(gateScript('run-gate.sh'))->toContain('AI_OLYMPUS_GATE_LOCK_TIMEOUT');

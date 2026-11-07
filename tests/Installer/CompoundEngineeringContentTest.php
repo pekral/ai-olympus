@@ -1579,7 +1579,10 @@ test('orchestration rule batches independent reads into one round and every read
     // Two dispatches in one round do run concurrently — the reason they are never batched is the
     // forbidden fan-out and the working-tree write-lock, not a claim that they stay sequential.
     expect($rule)->toContain('Two `Task` calls in one round **do** run concurrently');
-    expect($rule)->toContain('*Sequential processing of multiple sources (no fan-out)* forbids');
+    // Deliberate re-baseline: the fan-out is no longer forbidden everywhere. The one sanctioned
+    // exception is the two implementation units of a parallel batch (concurrency.md).
+    expect($rule)->toContain('*Processing of multiple sources — sequential by default, two at a time only when the planner proves it safe* forbids');
+    expect($rule)->toContain('The one exception is that batch: two blocking `Task` calls in one message, each unit in its own worktree.');
     expect($rule)->not->toContain('does not make them concurrent');
 
     // Each agent whose context load is a batchable step references the rule from that step.
