@@ -416,8 +416,18 @@ gate_lock_acquire() {
   fi
 
   until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do
-    if gate_lock_is_stale; then
-      rm -rf -- "$GATE_LOCK"
+    # Only one waiter reclaims, and it checks again under the reclaim lock: a waiter
+    # that read the dead holder earlier must not remove the live lock that another
+    # waiter has taken in the meantime. The reclaim lock is held for milliseconds, so
+    # one older than a minute belongs to a killed waiter and is removed.
+    if [[ -n "$(find "$GATE_LOCK.reclaim" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]; then
+      rmdir -- "$GATE_LOCK.reclaim" 2>/dev/null || true
+    fi
+    if gate_lock_is_stale && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
+      if gate_lock_is_stale; then
+        rm -rf -- "$GATE_LOCK"
+      fi
+      rmdir -- "$GATE_LOCK.reclaim"
       continue
     fi
     if [[ "$waited" -ge "$timeout" ]]; then
