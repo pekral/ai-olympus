@@ -151,8 +151,9 @@ test('skill-creator prunes the skill it creates before the quality gates', funct
 
     expect($beforeQualityGates)
         ->toContain('### 7. Prune the draft')
-        ->toContain('**No-ops.**')
-        ->toContain('**Negations.**')
-        ->toContain('**Completion criteria.**')
+        ->toContain('Delete every sentence that does not change what the agent does compared to its default behavior.')
+        ->toContain('Keep a `never` / `do not` form only for a hard safety guard')
+        ->toContain('End every numbered step with a check that the agent can observe')
+        ->toContain('The step is done when the summary lists every sentence the step deleted or rewrote')
         ->toContain('@rules/writing/general.md');
 });

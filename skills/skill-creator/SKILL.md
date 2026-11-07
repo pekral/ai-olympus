@@ -139,10 +139,12 @@ Omit a section only when it does not apply.
 - Do not add humanizer, marketing, or third-party links unless the user requests them.
 
 ### 7. Prune the draft
-Read the finished SKILL.md once more, sentence by sentence, before the quality gates. Write it in the style of `@rules/writing/general.md`. A shorter skill costs less context on every host that loads it.
+Read the finished SKILL.md once more, sentence by sentence, before the quality gates. Write it in the style of `@rules/writing/general.md`.
 - **No-ops.** Delete every sentence that does not change what the agent does compared to its default behavior. A sentence that restates the frontmatter, a rule the agent already follows, or a general good practice is a no-op.
 - **Negations.** State each instruction as the target behavior: *"Keep each skill narrow"*, not *"Do not let a skill grow"*. Keep a `never` / `do not` form only for a hard safety guard, such as a security boundary or a merge gate.
 - **Completion criteria.** End every numbered step with a check that the agent can observe, such as a file that exists, a command that exits `0`, or a count that matches. Rewrite a step that ends with "make sure it is good" until it names that check.
+
+The step is done when the summary lists every sentence the step deleted or rewrote, and names the safety guard behind every `never` / `do not` it kept.
 
 ---
 
@@ -185,13 +187,12 @@ Skip the README update only when the skill is intentionally internal and not par
 - Prefer explicit steps over vague guidance
 - Verify every `@rules/*` and `@skills/*` reference exists
 - Let `skill-check` be the source of truth for SKILL.md quality
-- Keep only the sentences that change agent behavior (Execution step 7)
 
 ---
 
 ## Done when
 - `skills/<slug>/SKILL.md` exists with valid frontmatter and required sections
-- The draft passed the Execution step 7 review: no no-op sentence, no avoidable negation, and a verifiable completion criterion on every step
+- The summary lists the sentences the pruning step deleted or rewrote, and the guard behind every kept `never` / `do not`
 - `composer skill-check` passes with no warnings on the new file
 - `CHANGELOG.md` and `README.md` reflect the new skill (or the omission is justified)
 - The summary lists the slug, references, and validation result
