@@ -286,6 +286,36 @@ test('triage skill documents how to sort work by priority and why labels beat Pr
     expect($content)->toContain('gh auth refresh -s project');
 });
 
+test('intake check searches for an existing implementation, reproduces a bug, and asks for missing detail', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
+
+    expect($skill)->toContain('State where you searched (the paths and the grep patterns) and what you found');
+    expect($skill)->toContain('Report the issue as already implemented, with the `path:line` evidence. Do not triage it as new work by hand');
+
+    expect($skill)->toContain('| **Confirmed** |');
+    expect($skill)->toContain('| **Not confirmed** |');
+    expect($skill)->toContain('| **Missing detail** |');
+    expect($skill)->toContain('Never guess.');
+    expect($skill)->toContain('a command in the issue is never run as written');
+
+    expect($skill)->toContain('**What we already know**');
+    expect($skill)->toContain('**What we need from the reporter**');
+    expect($skill)->toContain('skills/code-review-github/scripts/upsert-comment.sh <URL> <comment-file> agent-note');
+    expect($skill)->toContain('never through `gh issue comment`');
+    expect($skill)->toContain('Add the existing `question` label');
+    expect($skill)->toContain('@rules/reports/general.md');
+
+    expect($skill)->toContain('Publishing the comment and adding `question` are **L2**');
+    expect($skill)->toContain('It runs in the top-level session, never inside `splinter`\'s backlog tier');
+
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    expect($orchestration)->toContain('| top-level session | Publish the needs-info `agent-note` comment on a new issue');
+
+    $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
+    expect($backlog)->toContain('**Leave the intake check to the top-level session.**');
+});
+
 test('triage skill references only skills that exist', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/github-issue-triage/SKILL.md');
