@@ -21,6 +21,7 @@ This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md`
 - Format PR messages as Markdown.
 
 ### PR Content Requirements
+- **State the merge danger.** The body of an agent-opened pull request carries a `## Merge danger` section with the door (`one-way` or `two-way`) and the blast radius. `@skills/resolve-issue/references/pull-request.md` owns the section and renders it from `skills/_shared/classify-risk.sh --merge-risk`.
 - Include links to all sources used during analysis.
 - Prefer adding these as a comment on the related GitHub issue.
 
