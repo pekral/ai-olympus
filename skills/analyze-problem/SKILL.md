@@ -123,7 +123,8 @@ Capture the result as a **written plan on the tracker item**, not only inline pr
 | Source | Where the plan is published |
 |---|---|
 | GitHub issue | A comment on that issue. |
-| JIRA ticket or Bugsnag error | A comment on the linked GitHub issue (`linkedIssues[]`). With none, a new GitHub issue that names the ticket key or the error URL. A JIRA comment is written for a non-technical reader, so the plan never goes there (`@rules/reports/general.md`). |
+| Bugsnag error | A comment on the linked GitHub issue (`linkedIssues[]`). With none, a new GitHub issue that names the error URL. |
+| JIRA ticket | A new GitHub issue that names the ticket key. A JIRA comment is written for a non-technical reader, so the plan never goes there (`@rules/reports/general.md`). |
 | No tracker source | A new GitHub issue. |
 
 - **Publish through the canonical helper only:** `skills/code-review-github/scripts/upsert-comment.sh <ISSUE-URL> <body-file> analysis-plan` for a comment. A new issue carries the title `Analysis plan: <one-line problem statement>`. Never call `gh issue comment` directly.
