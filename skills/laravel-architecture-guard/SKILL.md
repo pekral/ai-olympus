@@ -80,7 +80,7 @@ The shape is an illustration of the call chain. Confirm each method against `ven
    The test runner does not run deptrac or PHPArkitect. When the tool is installed, confirm the binary name and the command in the package under `vendor/`. When it is not installed, state the command as documented by the package.
 2. A green test stays in the suite.
 3. A red test has existing violations. List each violation with the file and the rule it breaks. Do not baseline it, ignore it, or commit the red test.
-4. File the violations of one rule as one follow-up tracker issue through `@skills/create-issue/SKILL.md`, as `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* directs. The issue carries the rule, the violating files, and the test body, so the test lands in the commit that removes the last violation. When the filing bar of that section is not met, the violations go into the report as an open decision for the user, and nothing is filed.
+4. Report the violations of each rule as an open decision for the user: the rule, every violating `file:line`, and the test body, so the test can land in the commit that removes the last violation. File nothing by default. A follow-up tracker issue is the exception: file one through `@skills/create-issue/SKILL.md` only when the point clears the bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues*.
 5. When the user's request asks to fix the violations, fix them in this run, and keep the test.
 
 ### 5. Wire the guard into the loop
@@ -94,7 +94,7 @@ The shape is an illustration of the call chain. Confirm each method against `ven
 - The layer table with the source of each rule.
 - The tool in use, or the proposal to install one.
 - The tests written, each with its rule and its result.
-- The existing violations, with the follow-up issue link or the open decision for each.
+- The existing violations, each as an open decision, or with its follow-up issue link when the filing bar was met.
 - The rules the tool cannot express, with the reason.
 
 ---
@@ -102,6 +102,6 @@ The shape is an illustration of the call chain. Confirm each method against `ven
 ## Done when
 - Every rule in the layer table has a test, or a stated reason why it has none.
 - Every test in the suite is green, and no test uses an exclusion feature of the tool.
-- Every existing violation is fixed, filed, or reported as an open decision.
+- Every existing violation is fixed, reported as an open decision, or filed because it cleared the filing bar.
 - The project's gate or CI runs the tool of step 4, or the user declined the proposed entry and the report says so.
 - Nothing was installed or added to the gate without the user's consent.
