@@ -115,6 +115,7 @@ test('the publication step checks the header lines of the body it then publishes
 
     expect(substr_count($contract, '- **Check the header lines before publishing.**'))->toBe(1)
         ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <body-file>`'))->toBe(1)
+        ->and(substr_count($contract, '`BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/cr-body.XXXXXX")"`, never a fixed name'))->toBe(1)
         ->and(substr_count($contract, 'verifies both the `Merge verdict:` line and the `Security assessment:` line in one pass'))->toBe(1)
         ->and(substr_count($contract, 'Publish only after exit `0`; any other exit code is a refusal.'))->toBe(1)
         ->and(substr_count($contract, 'A body that the check refused is never published.'))->toBe(1)
