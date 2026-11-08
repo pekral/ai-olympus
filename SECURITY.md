@@ -89,7 +89,7 @@ These entries pre-allow dispatched subagents (e.g. `donatello`) to write files i
 
 **Implementation reference.** `src/InstallerProjectSettings.php` — `applySubagentWritesIfRequested()` → `ensureSubagentWritesEnabled()`.
 
-See also: [docs/agents.md — Troubleshooting (subagent file writes blocked)](docs/agents.md#troubleshooting--subagent-file-writes-blocked) and [docs/plans/agent-sandbox-write-blocked.md](docs/plans/agent-sandbox-write-blocked.md).
+See also: [docs/agents.md — Troubleshooting (subagent file writes blocked)](docs/agents.md#troubleshooting--subagent-file-writes-blocked).
 
 ### `--deny-network-bash`
 

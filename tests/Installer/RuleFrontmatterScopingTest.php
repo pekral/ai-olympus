@@ -435,7 +435,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review-only run writes no missing test; the author of the changes writes it.
         // Re-baselined: every review comment carries a `Merge risk:` header line graded by `classify-risk.sh --merge-risk`.
         // Re-baselined: the agent-marker namespaces gain `analysis-plan`, the plan artifact `analyze-problem` publishes.
-        'rules/code-review/general.md' => '611f7a5b481454ef204001f124fb71a233ac8aee7cb63b3d3df3c8987ac19d33',
+        // Re-baselined: the `Merge risk:` grade passes the assignment text to `classify-risk.sh --assignment`.
+        'rules/code-review/general.md' => '34ce9886fb28ec3111e4d7f249a9546718f8a9fb40ed2c04a728543045a99140',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
