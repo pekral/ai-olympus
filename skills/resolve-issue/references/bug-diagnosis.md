@@ -41,10 +41,13 @@ Follow `@skills/test-driven-development/SKILL.md` and `@skills/test-audit/SKILL.
 ## 6. Cleanup
 
 1. Remove every temporary log of step 4.
-2. Run both commands. The output of each must be empty. The first checks the lines the change adds, committed or not. The second checks the untracked files. The excluded directories hold the installed copy of this procedure.
+2. Run the commands below in one shell call, because the agent shell keeps no variables between calls. The first four lines check the lines the change adds, committed or not. The last command checks the untracked files. The excluded directories hold the installed copy of this procedure. **Any output blocks the pull request, including `CHECK FAILED`.**
    ```
-   git diff --merge-base "origin/$DEFAULT_BRANCH" -U0 -- . ':!.claude' ':!.codex' ':!.agents' | grep -n '^+.*\[DEBUG-[0-9a-f]\{4\}\]'
-   git ls-files --others --exclude-standard -z -- . ':!.claude' ':!.codex' ':!.agents' | xargs -0 grep -ln '\[DEBUG-[0-9a-f]\{4\}\]'
+   DEBUG_DIFF="${TMPDIR:-/tmp}/debug-tag-$$.diff"
+   DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"
+   git diff --merge-base "origin/$DEFAULT_BRANCH" -U0 -- . ':!.claude' ':!.codex' ':!.agents' > "$DEBUG_DIFF" || echo 'CHECK FAILED: git diff did not run'
+   grep -n '^+.*\[DEBUG-[0-9a-fA-F]\{4\}\]' "$DEBUG_DIFF"; rm -f "$DEBUG_DIFF"
+   git ls-files --others --exclude-standard -z -- . ':!.claude' ':!.codex' ':!.agents' | xargs -0 grep -ln '\[DEBUG-[0-9a-fA-F]\{4\}\]'
    ```
 3. State the verified cause in the commit body and in the PR description.
 
