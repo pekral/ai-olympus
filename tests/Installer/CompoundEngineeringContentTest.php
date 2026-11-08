@@ -54,6 +54,10 @@ test('analyze-problem skill requires pre-implementation research and a plan arti
     expect($content)->toContain('**written plan on the tracker item**');
     expect($content)->toContain('**Never write the plan into the repository:**');
     expect($content)->not->toContain('docs/plans/');
+    expect($content)->toContain('upsert-comment.sh <ISSUE-URL> <body-file> analysis-plan');
+    expect($content)->toContain('**A security task on a public repository is never published.**');
+    expect($content)->toContain('so the plan never goes there');
+    expect($content)->toContain('Fetch within the limits');
 
     // The five mandatory parts of the plan.
     expect($content)->toContain('**Goal**');
@@ -1733,7 +1737,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . '`support-analysis` (the support-issue analysis `skills/analyze-support-issue/SKILL.md` publishes on a JIRA issue), '
             . '`mysql-report` (the advisory MySQL report `agents/casey.md` publishes on a pull request; never a code-review comment), '
             . '`prevention-proposal` (the refresh of a prevention proposal, '
-            . '`skills/code-review/references/prevention-proposal.md`), '
+            . "`skills/code-review/references/prevention-proposal.md`),\n"
+            . '`analysis-plan` (the plan artifact `skills/analyze-problem/SKILL.md` publishes on a GitHub issue), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
         ->and($codeReview)->toContain('A new namespace joins this list in the same change that first writes it')

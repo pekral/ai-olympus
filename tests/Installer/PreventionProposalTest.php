@@ -228,7 +228,7 @@ test('the new marker namespace joins the marker family list in the same change t
 
     expect($codeReview)->toContain(
         '`prevention-proposal` (the refresh of a prevention proposal, '
-        . '`skills/code-review/references/prevention-proposal.md`), and `agent-note`',
+        . "`skills/code-review/references/prevention-proposal.md`),\n`analysis-plan`",
     );
     expect(substr_count($codeReview, '`prevention-proposal`'))->toBe(1);
 });
