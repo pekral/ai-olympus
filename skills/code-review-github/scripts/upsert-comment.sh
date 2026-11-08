@@ -27,9 +27,10 @@
 #   BODY_FILE   Path to a file holding the comment body, or `-` to read from
 #               stdin. The body must already be in the target tracker markup
 #               (GitHub Markdown).
-#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. Four other
+#   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. Other
 #               namespaces this package writes: `merge-readiness`,
-#               `test-report`, `mysql-report` (upserted, same as `cr-comment`),
+#               `test-report`, `mysql-report`, `analysis-plan` (upserted, same
+#               as `cr-comment`),
 #               and `agent-note` — the one namespace that
 #               is create-only (see step 3 below). A project skill may pass its own
 #               namespace; `@rules/code-review/general.md` *Authorship trust*

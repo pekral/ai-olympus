@@ -434,7 +434,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         'rules/laravel/queue-debouncing.md' => '4c774f289f7c4a01b7f19637858887ee00053497d412bb505c779147836b3d8b',
         // Re-baselined: a review-only run writes no missing test; the author of the changes writes it.
         // Re-baselined: every review comment carries a `Merge risk:` header line graded by `classify-risk.sh --merge-risk`.
-        'rules/code-review/general.md' => 'de9bc8614446331b975644b858da7c0854f87bfbe6979dfecc3ae05a1661bbbe',
+        // Re-baselined: the agent-marker namespaces gain `analysis-plan`, the plan artifact `analyze-problem` publishes.
+        'rules/code-review/general.md' => '611f7a5b481454ef204001f124fb71a233ac8aee7cb63b3d3df3c8987ac19d33',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
