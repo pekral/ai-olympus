@@ -322,6 +322,13 @@ test('intake check searches for an existing implementation, reproduces a bug, an
 
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($orchestration)->toContain('| top-level session | Publish the needs-info `agent-note` comment on a new issue');
+    expect($orchestration)->toContain(
+        'never on a public repository for an issue labelled `security` or one whose text or check result describes a vulnerability, '
+        . 'and the check itself writes nothing to the tracker or to a tracked file',
+    );
+    expect($skill)->toContain(
+        'a comment by the `gh api user` login that carries both `<!-- agent-note:actor=<login> -->` and `<!-- github-issue-triage:needs-info -->`',
+    );
 
     $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
     expect($backlog)->toContain('**Run only the intake check\'s redundancy search.**');

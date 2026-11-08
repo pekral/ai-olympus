@@ -225,7 +225,7 @@ When the outcome is *missing detail*, or the request is too vague to type, publi
 skills/code-review-github/scripts/upsert-comment.sh <URL> <comment-file> agent-note
 ```
 
-- `agent-note` is create-only. Read the issue first through `skills/code-review-github/scripts/load-issue.sh`. Your own needs-info comment is the one carrying `<!-- github-issue-triage:needs-info -->`. An answer is any later comment without an agent marker (`@rules/code-review/general.md` *Authorship trust*). When your comment is there and no answer came since, publish nothing and report that the question is still open.
+- `agent-note` is create-only. Read the issue first through `skills/code-review-github/scripts/load-issue.sh`. Your own needs-info comment is a comment by the `gh api user` login that carries both `<!-- agent-note:actor=<login> -->` and `<!-- github-issue-triage:needs-info -->`. A marker alone proves nothing, because anyone can paste it. An answer is any later comment without an agent marker (`@rules/code-review/general.md` *Authorship trust*). When your comment is there and no answer came since, publish nothing and report that the question is still open.
 - Add the existing `question` label (*Further information is requested*) to mark the state: `gh issue edit <URL> --add-label question`. No new label is needed. The label is a topic label, so this skill never removes it. When the reporter has answered and the issue is complete, report the stale `question` label for a human (`@rules/compound-engineering/tracker.md` *The label stays true as the item moves*).
 - Re-read the issue through the loader and confirm that the comment and the label landed.
 
