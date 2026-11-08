@@ -135,13 +135,16 @@
 #   verification  poor when coverage or the gate is not ok or was not supplied,
 #                 or when a walkthrough scenario was not met. ok otherwise.
 #   rollback      costly when the added lines carry a rollback signal: a
-#                 destructive migration (a drop or truncate outside down(), or an
-#                 empty down()), a persisted-data write, an external side effect
+#                 destructive migration (a drop, a truncate, or a column change
+#                 outside down(), or an empty down()), a persisted-data write,
+#                 an external side effect
 #                 (mail, notification, HTTP client, queue dispatch), or a
 #                 configuration or infrastructure file (INFRA_RE). cheap otherwise.
 #                 A write or side effect counts in a .php file, an SQL write in a
 #                 .php or .sql file. Every changed path counts, including a rename, a
 #                 binary file, and a mode-only change.
+#                 A column change is ->change() or a raw ALTER TABLE statement
+#                 with MODIFY, CHANGE, or ALTER COLUMN, in a migration file.
 #
 #   low     tier FAST, verification ok, rollback cheap
 #   high    tier CRITICAL, and verification poor or rollback costly
@@ -209,7 +212,8 @@ AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected resu
 # reads SQL statements, so it runs on .php files (raw DB::statement, DB::update) and
 # .sql files. Other languages carry the same
 # words as plain text (store.dispatch, an echo of "Mail::", a regex in a script).
-DROP_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+[`"a-z_])'
+# DESTRUCTIVE_RE is the destructive-migration signal: a drop, a truncate, or a column change.
+DESTRUCTIVE_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+[`"a-z_])|->change[[:space:]]*\(|alter[[:space:]]+table[^;]*[[:space:]](modify|change|alter[[:space:]]+column)[[:space:]]'
 WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
 SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
 EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
@@ -554,7 +558,7 @@ classify() {
 # a down() whose body is empty is the signal itself. A `Schema::` call changes the
 # schema, not the data, so it is never a persisted-data write.
 diff_rollback_scan() {
-  MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_RE" MR_DROP_RE="$DROP_RE" \
+  MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_RE" MR_DESTRUCTIVE_RE="$DESTRUCTIVE_RE" \
     MR_WRITE_RE="$WRITE_RE" MR_SQL_WRITE_RE="$SQL_WRITE_RE" MR_EFFECT_RE="$EFFECT_RE" awk '
     function hit(name) {
       if (!(name in seen)) {
@@ -638,7 +642,7 @@ diff_rollback_scan() {
             if (!filled) { hit("destructive-migration") }
           }
         }
-        if (kind == "+" && method != "down" && code ~ ENVIRON["MR_DROP_RE"]) { hit("destructive-migration") }
+        if (kind == "+" && method != "down" && code ~ ENVIRON["MR_DESTRUCTIVE_RE"]) { hit("destructive-migration") }
       }
 
       if (kind != "+") { next }
@@ -1030,6 +1034,20 @@ self_test() {
   expect_line 'an empty down() is a destructive migration' \
     'rollback-signal=destructive-migration|database/migrations/2026_01_01_add_note.php' \
     --merge-risk --diff "$migration_empty" "${verified[@]}"
+  expect_line 'a ->change() column change in up() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_shrink_name.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_shrink_name.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\", 20)->change());" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("restore");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw ALTER TABLE MODIFY in up() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_narrow_total.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_narrow_total.php' \
+      'public function up(): void' '{' "    DB::statement('ALTER TABLE orders MODIFY total INT');" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("restore");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a ->change() inside down() is the rollback, not a signal' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_widen_name.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\", 20)->nullable());" '}' \
+      'public function down(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\")->change());" '}' | writediff)" "${verified[@]}"
   expect_line 'a drop inside down() is the rollback, not a signal' 'rollback=cheap' \
     --merge-risk --diff "$migration_create" "${verified[@]}"
   expect_line 'a verified CRITICAL change that is cheap to roll back is medium risk' 'merge-risk=medium' \
