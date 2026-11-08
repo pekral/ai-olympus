@@ -58,15 +58,19 @@ test('the cleanup step checks the added lines and the untracked files for the de
     $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/bug-diagnosis.md');
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
+    expect($reference)->toContain('DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed \'s@^origin/@@\')"');
+    expect($reference)->toContain('git diff --merge-base "origin/$DEFAULT_BRANCH" -U0 -- . \':!.claude\' \':!.codex\' \':!.agents\' > "$DEBUG_DIFF"');
+    expect($reference)->toContain('|| echo \'CHECK FAILED: git diff did not run\'');
+    expect($reference)->toContain('DEBUG_DIFF="${TMPDIR:-/tmp}/debug-tag-$$.diff"');
+    expect($reference)->toContain('grep -n \'^+.*\\[DEBUG-[0-9a-fA-F]\\{4\\}\\]\' "$DEBUG_DIFF"');
     expect($reference)->toContain(
-        'git diff --merge-base "origin/$DEFAULT_BRANCH" -U0 -- . \':!.claude\' \':!.codex\' \':!.agents\' | grep -n \'^+.*\\[DEBUG-[0-9a-f]\\{4\\}\\]\'',
+        'git ls-files --others --exclude-standard -z -- . \':!.claude\' \':!.codex\' \':!.agents\' | xargs -0 grep -ln \'\\[DEBUG-[0-9a-fA-F]\\{4\\}\\]\'',
     );
-    expect($reference)->toContain(
-        'git ls-files --others --exclude-standard -z -- . \':!.claude\' \':!.codex\' \':!.agents\' | xargs -0 grep -ln \'\\[DEBUG-[0-9a-f]\\{4\\}\\]\'',
-    );
+    expect($reference)->toContain('**Any output blocks the pull request, including `CHECK FAILED`.**');
+    expect($reference)->toContain('because the agent shell keeps no variables between calls');
     expect($reference)->toContain('Write the tag as `[DEBUG-xxxx]` in documentation and tests');
     expect($reference)->toContain('State the verified cause in the commit body and in the PR description.');
-    expect($skill)->toContain('no `[DEBUG-xxxx]` tag (both commands of `references/bug-diagnosis.md` step 6 are empty)');
+    expect($skill)->toContain('no `[DEBUG-xxxx]` tag (`references/bug-diagnosis.md` step 6 prints nothing)');
 });
 
 test('the bug path, the TDD skill and the read-only analysis point to the one owner', function (): void {
