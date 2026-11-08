@@ -168,6 +168,7 @@ Criterion: the skill authors or edits files — code, tests, documents, or any o
 - `compact-project-memory` — edits `docs/memory/PROJECT_MEMORY.md`, the one file it is allowed to touch. It also matches group 3's shape, because maintaining a memory file reads no diff. Question 2 is asked before question 4, so it lands here.
 - `e2e-testing` — authors Playwright `*.spec.ts` files. It also matches group 2's shape, because those tests only produce evidence against a running application, which is why `agents/raphael.md` runs them and `agents/donatello.md` writes them. Question 2 is asked before question 3, so it lands here.
 - `class-refactoring`, `refactor-entry-point-to-action` — each restructures production code. Each keeps a read-only `MODE=cr` contract for a caller that wants a proposal, but no review invokes it, so question 2's answer — they write code — places them here.
+- `laravel-architecture-guard` — writes architecture tests into the project's suite. It also matches group 3's shape, because a layer rule is not a finding on a changed line. Question 2 is asked before question 4, so it lands here.
 - `git-workflow` — resolves conflicts and undoes commits, so it rewrites the working tree itself. `cleanup-local-branches` stays in group 3 because it deletes local refs and edits no file: acting on git metadata is not a write to the tree, and the two bullets read together are what draws that line.
 
 ### Group 2 — needs a running application, so it belongs to `raphael`
