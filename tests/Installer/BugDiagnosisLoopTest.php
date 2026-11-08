@@ -40,23 +40,33 @@ test('the feedback loop lists its options in order and blocks the analysis until
     expect($reference)->toContain('Build **one command** that reliably fails on the reported symptom.');
     expect($reference)->toContain('A feature (HTTP) test comes before a unit test.');
     expect($reference)->toContain('`git bisect run vendor/bin/pest --filter=<test>`');
-    expect($reference)->toContain('`@skills/laravel-telescope/SKILL.md`');
+    expect($reference)->toContain('`@skills/laravel-telescope/SKILL.md`), against the local instance only.');
+    expect($reference)->toContain(
+        'Never send it to the host it was captured on, and replace the captured cookies, `Authorization` header, and CSRF token with a local test user\'s.',
+    );
+    expect($reference)->toContain('Record the first bad commit, then run `git bisect reset` before any further step.');
     expect($reference)->toContain('The analysis does not continue without it.');
 
     // Cause is searched only after the loop exists, and only the verified cause is published.
     expect($reference)->toContain('Never publish a ranked list of candidate causes.');
-    expect($reference)->toContain('Log::debug(\'[DEBUG-a3f9] …\')');
+    expect($reference)->toContain('Log::debug(\'[DEBUG-xxxx] …\')');
     expect($reference)->toContain('`@skills/mysql-problem-solver/SKILL.md`');
 });
 
-test('the cleanup step greps the debug tag and the self-check runs the same command', function (): void {
+test('the cleanup step checks the added lines and the untracked files for the debug tag and the self-check runs both commands', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/bug-diagnosis.md');
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
-    expect($reference)->toContain('git grep --untracked -n \'\\[DEBUG-\'');
+    expect($reference)->toContain(
+        'git diff --merge-base "origin/$DEFAULT_BRANCH" -U0 -- . \':!.claude\' \':!.codex\' \':!.agents\' | grep -n \'^+.*\\[DEBUG-[0-9a-f]\\{4\\}\\]\'',
+    );
+    expect($reference)->toContain(
+        'git ls-files --others --exclude-standard -z -- . \':!.claude\' \':!.codex\' \':!.agents\' | xargs -0 grep -ln \'\\[DEBUG-[0-9a-f]\\{4\\}\\]\'',
+    );
+    expect($reference)->toContain('Write the tag as `[DEBUG-xxxx]` in documentation and tests');
     expect($reference)->toContain('State the verified cause in the commit body and in the PR description.');
-    expect($skill)->toContain('no `[DEBUG-` tag (`git grep` of `references/bug-diagnosis.md` step 6 is empty)');
+    expect($skill)->toContain('no `[DEBUG-xxxx]` tag (both commands of `references/bug-diagnosis.md` step 6 are empty)');
 });
 
 test('the bug path, the TDD skill and the read-only analysis point to the one owner', function (): void {
