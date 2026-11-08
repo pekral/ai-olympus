@@ -52,17 +52,13 @@ Example for "export orders":
 
 ### A wide refactor — expand, migrate, contract
 
-A refactor that touches too many places for one pull request (for example renaming a column `status` to `state` that 40 places use) is split in time, not by layer. Every phase is its own issue, and each issue lists the previous phase in `## Dependencies`.
+A refactor that touches too many places for one pull request (for example renaming a column `status` to `state` that 40 places use) is split in time, not by layer. Every phase is its own issue, and each issue lists the phase before it in `## Dependencies`.
 
 1. **Expand.** Add the new form next to the old one and write both. Nothing breaks.
-2. **Migrate.** Switch the callers to the new form in batches, one pull request per batch. Each batch is small and green.
-3. **Contract.** When nothing reads the old form any more, remove it.
+2. **Migrate.** Switch the callers to the new form in batches. Each batch is its own issue and one pull request, small and green, and lists Expand in `## Dependencies`.
+3. **Contract.** When nothing reads the old form any more, remove it. The Contract issue lists every Migrate batch in `## Dependencies`.
 
-For a database column, `@rules/sql/optimalize.md` *Deploy-safe schema changes* owns the expand → backfill → contract deploy order. This section only splits the work into issues along that order.
-
-### A preparatory refactor
-
-When the change is hard to add to the code as it stands, the first issue of the chain may be a refactor that changes no behaviour: make the change easy, then make the easy change. It is optional, and every later issue lists it in `## Dependencies`.
+For a database column, `@rules/sql/optimalize.md` *Deploy-safe schema changes* owns the expand → backfill → contract deploy order. This section only splits the work into issues along that order. The backfill ships with the Expand issue (or as its own issue right after it), and every Migrate issue that switches a reader lists it in `## Dependencies`.
 
 ---
 
@@ -74,7 +70,7 @@ Use the template defined in `templates/issue-structure.md`.
 
 ## EPIC parent & sub-issues
 
-Use this when the assignment is a **cross-cutting mix of requirements spanning multiple parts of the application** (e.g. backend + frontend + mobile, or schema + API + UI). Instead of a flat list of peer issues, build a parent → children tree so the whole effort is trackable from one place.
+Use this when the assignment bundles **several behaviours that are each delivered as their own vertical slice** (e.g. an export, its date filter, and its background run). Instead of a flat list of peer issues, build a parent → children tree so the whole effort is trackable from one place.
 
 > **A human approves the tree before any of it is created (L2).** Present one confirmation package first — the parent's title and scope, one line per proposed sub-issue, the dependencies, and the resolve order — and wait for the user to approve it in words. Only that approval permits the writes below, and only for the pieces it names. Silence is not approval, the original request is not approval, and an approval given for one package does not carry to a changed split. Without it, report the proposed breakdown and stop: the pieces are in the report, so nothing is lost. A **flat** list of peer issues is outside this gate and keeps its existing consent (`@rules/compound-engineering/backlog.md` *Decomposition mode*).
 

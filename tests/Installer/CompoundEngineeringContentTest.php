@@ -1166,7 +1166,12 @@ test('issues are cut as vertical slices, and a wide refactor as expand, migrate,
     expect($skill)->toContain('**Split by behaviour, never by layer or by application area.**');
     expect($skill)->toContain('### A wide refactor — expand, migrate, contract');
     expect($skill)->toContain('`@rules/sql/optimalize.md` *Deploy-safe schema changes*');
-    expect($skill)->toContain('### A preparatory refactor');
+    expect($skill)->toContain('Each batch is its own issue and one pull request, small and green, and lists Expand in `## Dependencies`.');
+    expect($skill)->toContain('The Contract issue lists every Migrate batch in `## Dependencies`.');
+    expect($skill)->toContain('The backfill ships with the Expand issue (or as its own issue right after it)');
+    expect($skill)->not->toContain('A preparatory refactor');
+    expect($skill)->not->toContain('schema + API + UI');
+    expect($skill)->toContain('several behaviours that are each delivered as their own vertical slice');
 
     // The old horizontal split is gone from the EPIC steps.
     expect($skill)->toContain('3. **Create one sub-issue per vertical slice.**');
