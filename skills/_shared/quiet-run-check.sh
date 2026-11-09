@@ -15,6 +15,9 @@
 #   quiet-run-check.sh --self-test
 #
 #   record  reads the state and writes it to <file> (the directory is created). Run it before the review starts.
+#           <file> must live under `.claude/run/` or `.codex/run/` of the git toplevel, must not be a symbolic
+#           link, and must not be tracked by git (the guard review-state.sh uses, from state-path.sh); any other
+#           path is a usage error, exit 2, and nothing is written.
 #           The issues the pull request closes (`closingIssues[]`) are linked automatically. Pass --linked for
 #           every other tracker item the run may publish to: a JIRA key or URL, or another tracker's URL.
 #   verify  reads the same values again and compares them with <file>. Run it after the review returns.
@@ -38,28 +41,33 @@
 #   (rules/security/general.md); no part of them is executed or used to build a command.
 #
 # Output (stdout, one fact per line, in this order)
-#   result: quiet | published | quiet-head-moved
+#   result: quiet | published | quiet-head-moved     (published: a comment was added during the run, by any author)
 #   head: unchanged <sha>            or    head: moved <before> → <now>
 #   new-comment: <url>               one line per comment that is new since `record`
 #   not-verified: <item> — <why>; settled by: <step>     one line per item the script could not count
 #
 # Exit codes (verify)
 #   0  nothing was published and the head did not move
-#   1  something was published; every new comment is printed as `new-comment: <url>`
+#   1  a comment was added during the run, by any author; every new comment is printed as `new-comment: <url>`
 #   3  nothing was published, but the head moved during the review; `head: moved <before> → <now>`
 #   2  usage error, or a required tool is missing
 #   4  a read failed or the state file is unusable, so the check did not run to its end
+#   The script counts comments and never reads their author or their marker, so exit 1 and `result: published`
+#   say that a comment appeared, not that this run wrote it. The caller attributes a comment to the run only after
+#   it reads the author or the actor marker of the comment itself.
 #   A caller treats exit 0 and exit 3 as a verified quiet run, and any other exit as not verified. Exit 1 wins
 #   over exit 3 when both happened. An item on a `not-verified:` line never changes the exit code: the quiet
 #   verdict covers what the script could count, and the caller reports each such item under *Not verified*.
 #
 # Exit codes (record)
-#   0  the state was written    2  usage error or a missing tool    4  a read failed; no state was written
+#   0  the state was written    2  usage error, a refused --state path, or a missing tool    4  a read failed; no state was written
 set -euo pipefail
 
 PROG="${0##*/}"
 tmp=''
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=state-path.sh
+. "$HERE/state-path.sh"
 
 # The loaders are plain variables, never read from the environment. The self-test replaces them with stubs.
 GITHUB_LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
@@ -76,7 +84,7 @@ Usage: quiet-run-check.sh record --pr <PR-URL> --state <file> [--linked <item>].
        quiet-run-check.sh verify --state <file>
        quiet-run-check.sh --self-test
 
-Exit codes of verify: 0 nothing published and head unchanged, 1 something published,
+Exit codes of verify: 0 nothing published and head unchanged, 1 a comment was added during the run (any author),
 3 nothing published but the head moved, 2 usage error, 4 the check did not run to its end.
 EOF
 }
@@ -199,7 +207,7 @@ snapshot() {
 }
 
 cmd_record() {
-  local pr='' state='' state_dir tmp doc
+  local pr='' state='' state_dir tmp doc problem
   local -a linked_items=()
 
   while [[ $# -gt 0 ]]; do
@@ -214,6 +222,7 @@ cmd_record() {
   [[ "$pr" =~ ^https?://(www\.)?github\.com/[^/]+/[^/]+/pull/[0-9]+ ]] || die "--pr must be a github.com pull request URL" 2
   require_tools
 
+  problem="$(state_path_problem "$state" create)" || die "$problem" 2
   doc="$(snapshot "$pr" ${linked_items[@]+"${linked_items[@]}"})" || die "a read failed; no state was recorded" 4
 
   state_dir="$(dirname "$state")"
@@ -290,9 +299,11 @@ cmd_verify() {
     after_urls="$(printf '%s' "$after" | jq -c '.urls')"
     after_count="$(printf '%s' "$after" | jq -r '.count')"
 
-    # The JIRA loader degrades a failed comment fetch to an empty list, so an empty list proves nothing.
-    if [[ "$kind" == "jira" && "$after_count" -eq 0 ]]; then
-      lines="${lines}not-verified: $input — the JIRA loader returns an empty comment list when its fetch fails, so an empty list does not prove that no comment was added; settled by: list the comments of the JIRA issue with acli and check that none is newer than the start of the run"$'\n'
+    # The JIRA loader degrades a failed comment fetch to an empty list, so an empty list proves nothing: not an
+    # empty list after the run (a comment may have been hidden), and not an empty list recorded before it (every
+    # comment the second read returns would then look new).
+    if [[ "$kind" == "jira" && ( "$after_count" -eq 0 || "$before_count" -eq 0 ) ]]; then
+      lines="${lines}not-verified: $input — the JIRA loader returns an empty comment list when its fetch fails, so an empty list read before or after the run does not prove the comment state; settled by: list the comments of the JIRA issue with acli and check that none is newer than the start of the run"$'\n'
       continue
     fi
 
@@ -334,13 +345,16 @@ self_test() {
   local failures=0 checks=0 script="$HERE/$PROG"
   local sha_a="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" sha_b="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   local pr='https://github.com/acme/widgets/pull/7' issue='https://github.com/acme/widgets/issues/3'
-  local out rc
+  local out rc state
 
   command -v jq >/dev/null 2>&1 || { echo "quiet-run-check self-test: jq is required" >&2; return 2; }
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
   mkdir -p "$tmp/bin" "$tmp/fx"
+  # The state file must live under .claude/run/ of a git toplevel, so the tests run in a throw-away repository.
+  git init -q "$tmp/repo"
+  state="$tmp/repo/.claude/run/quiet-run/state.json"
 
   # Stub loaders: each serves the fixture file for its input, so a test rewrites the fixture between steps.
   cat >"$tmp/github-loader.sh" <<EOF
@@ -432,14 +446,14 @@ EOF
   # run_verify <label> <want_rc> <want_text> — verify in the current process, so the stubs stay in force.
   run_verify() {
     set +e
-    out="$(cmd_verify --state "$tmp/state.json" 2>&1)"
+    out="$(cmd_verify --state "$state" 2>&1)"
     rc=$?
     set -e
     expect "$1" "$2" "$3" "$rc" "$out"
   }
   record() {
     set +e
-    out="$(cmd_record --state "$tmp/state.json" --pr "$pr" "$@" 2>&1)"
+    out="$(cmd_record --state "$state" --pr "$pr" "$@" 2>&1)"
     rc=$?
     set -e
     [[ $rc -eq 0 ]] || { expect 'record writes the state' 0 '' "$rc" "$out"; failures=$((failures + 1)); }
@@ -495,6 +509,17 @@ EOF
   : >"$tmp/fx/jira.fail"
   run_verify 'a failed JIRA read is exit 4' 4 'a read failed'
   rm -f "$tmp/fx/jira.fail"
+  jira_fixture ""
+  record --linked ACME-9
+  jira_fixture "100 101"
+  run_verify 'an empty JIRA list recorded before the run is not verified' 0 'not-verified: ACME-9'
+  checks=$((checks + 1))
+  if [[ "$out" != *'new-comment:'* ]]; then
+    printf 'ok    %-70s\n' 'an empty JIRA list recorded before the run reports no new comment'
+  else
+    printf 'FAIL  %-70s %s\n' 'an empty JIRA list recorded before the run reports no new comment' "$out" >&2
+    failures=$((failures + 1))
+  fi
 
   # 7. an item the script cannot count
   record --linked 'https://app.bugsnag.com/acme/web/errors/0123456789abcdef01234567'
@@ -525,16 +550,50 @@ EOF
   expect 'an unusable state file is exit 4' 4 'not a recorded state' "$rc" "$out"
   rm -f "$tmp/fx/pr.json"
   set +e
-  out="$(cmd_record --state "$tmp/y.json" --pr "$pr" 2>&1)"; rc=$?
+  out="$(cmd_record --state "$tmp/repo/.claude/run/quiet-run/y.json" --pr "$pr" 2>&1)"; rc=$?
   set -e
   expect 'a failed read at record is exit 4 and writes no state' 4 'a read failed' "$rc" "$out"
   checks=$((checks + 1))
-  if [[ ! -e "$tmp/y.json" ]]; then
+  if [[ ! -e "$tmp/repo/.claude/run/quiet-run/y.json" ]]; then
     printf 'ok    %-70s\n' 'a failed record leaves no state file'
   else
     printf 'FAIL  %-70s\n' 'a failed record leaves no state file' >&2
     failures=$((failures + 1))
   fi
+
+  # 9. the state path guard: record refuses a path outside the run directory, a symbolic link, a tracked file,
+  # and a ".." component, and writes nothing.
+  fixtures "$sha_a" "1 2" "10" "20"
+  issue_fixture "1"
+  refuse_state() {
+    local label="$1" want_text="$2" path="$3" forbidden="$4"
+    set +e
+    out="$(cmd_record --state "$path" --pr "$pr" 2>&1)"
+    rc=$?
+    set -e
+    expect "$label" 2 "$want_text" "$rc" "$out"
+    [[ -n "$forbidden" ]] || return 0
+    checks=$((checks + 1))
+    if [[ ! -e "$forbidden" ]]; then
+      printf 'ok    %-70s\n' "$label: nothing is written"
+    else
+      printf 'FAIL  %-70s\n' "$label: nothing is written" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  refuse_state 'a state path outside any git checkout is refused' 'not inside a git checkout' \
+    "$tmp/outside.json" "$tmp/outside.json"
+  refuse_state 'a state path inside the repository but outside the run directory is refused' 'must live under .claude/run/' \
+    "$tmp/repo/state.json" "$tmp/repo/state.json"
+  refuse_state 'a ".." component in a missing directory is refused' '".." component' \
+    "$tmp/repo/.claude/run/missing/../../../escape.json" "$tmp/repo/escape.json"
+  ln -s "$tmp/target.json" "$tmp/repo/.claude/run/quiet-run/link.json"
+  refuse_state 'a state path that is a symbolic link is refused' 'symbolic link' \
+    "$tmp/repo/.claude/run/quiet-run/link.json" "$tmp/target.json"
+  printf '{}\n' >"$tmp/repo/.claude/run/quiet-run/tracked.json"
+  git -C "$tmp/repo" add -f .claude/run/quiet-run/tracked.json
+  refuse_state 'a state path that git tracks is refused' 'tracked by git' \
+    "$tmp/repo/.claude/run/quiet-run/tracked.json" ""
 
   if [[ "$failures" -gt 0 ]]; then
     echo "quiet-run-check self-test: $failures failure(s) of $checks" >&2
