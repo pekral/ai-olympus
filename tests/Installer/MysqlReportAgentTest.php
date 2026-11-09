@@ -71,6 +71,8 @@ test('the casey report reaches only a local database and never executes a write 
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
     expect($skill)->toContain('`EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only')
+        ->and($skill)->toContain('inside `START TRANSACTION READ ONLY; … ROLLBACK;`')
+        ->and($skill)->toContain('A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`')
         ->and($skill)->toContain('runs against a **locally started database only**')
         ->and($casey)->toContain('against a **locally started database only**, never a shared test, staging, or production host')
         ->and($casey)->toContain('never from a developer\'s `.env` and never from the value of an environment variable');
