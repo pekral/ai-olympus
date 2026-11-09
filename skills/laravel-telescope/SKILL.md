@@ -53,7 +53,7 @@ The skill can work with:
 - DB connection details for the local Telescope storage, from the dispatch or the committed development setup — never production credentials and never a value read from `.env`
 - logs or screenshots exported from Telescope
 
-The skill should proceed with whatever is available and not block on perfect input. A Telescope URL on production or on an unknown host stops the database steps: analyse only the data a person exported from Telescope.
+The skill should proceed with whatever is available and not block on perfect input. A Telescope URL on production or on an unknown host stops steps 2 and 3: never open its Telescope UI and never query its database. Analyse only the data a person exported from Telescope.
 
 ---
 
