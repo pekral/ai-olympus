@@ -98,7 +98,7 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project for **Claude Code and Codex**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the six subagents)
+- `.claude/agents` (the eight subagents)
 - `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the eight custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
 - `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, and the tracker's code-review wrapper)
