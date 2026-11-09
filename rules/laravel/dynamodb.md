@@ -69,9 +69,9 @@ For every PR that touches DynamoDB code, reviewers must verify:
 - Tinker complements but does not replace the Pest tests required by `@rules/code-testing/general.md` for every behavior change.
 - Use Tinker to:
   - Confirm whether a builder produces a `Query` or a `Scan` before merging — inspect the builder, dump the underlying AWS SDK request, or enable SDK logging.
-  - Verify the shape of items returned by repositories against real data.
-  - Reproduce production-like read paths against the configured DynamoDB endpoint.
-- Never paste secrets or production credentials into Tinker — rely on the project's configured `.env` or IAM role.
+  - Verify the shape of items returned by repositories against test data.
+  - Reproduce production-like read paths against DynamoDB Local, LocalStack, or a documented test table — never a production account (`@rules/security/general.md` *Production is never touched*).
+- Never paste secrets or production credentials into Tinker, and never read them from `.env` (`@rules/security/general.md` *Environment values are never read*); rely on the local endpoint the project's development setup configures.
 
 ## Red Flags
 - A new method on a DynamoDB repository or query builder that has no `where()` on the partition key.
