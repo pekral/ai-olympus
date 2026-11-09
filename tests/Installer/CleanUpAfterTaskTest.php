@@ -8,10 +8,11 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
     expect($git)->toContain('- **Clean up after the task — on every terminating path.**')
-        ->and($git)->toContain('the final handoff, a `Blocked` stop, or an abort')
-        ->and($git)->toContain('2. every worktree it created whose work is safe: clean, and its `HEAD` merged or on the remote branch.')
-        ->and($git)->toContain('3. every local branch it created whose commits are merged or on the remote.')
-        ->and($git)->toContain('is never forced away (`--force`, `-D`)')
+        ->and($git)->toContain('When a run ends — the final report, a `Blocked` stop, or an abort')
+        ->and($git)->toContain('run `git worktree unlock <path>` when it is locked, then `git worktree remove <path>` and `git worktree prune`')
+        ->and($git)->toContain('the patch-identity proof of `@skills/cleanup-local-branches/SKILL.md` step 5')
+        ->and($git)->toContain('- **The owner removes, the others hand back.**')
+        ->and($git)->toContain('is never removed with `--force` or `-D`')
         ->and($git)->not->toContain("paths:\n");
     expect($orchestration)->toContain('- **Worktrees and local branches the run created** — removed once their work is safe');
 });
