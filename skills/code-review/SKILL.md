@@ -33,7 +33,7 @@ Perform structured code review focused on:
 
 ## Execution
 
-- **Branch checkout gate (mandatory, always).** Before any analysis step, run `git fetch`, `git checkout "$DEFAULT_BRANCH"`, `git pull`, then `git checkout <branch>`, and `git pull` when the branch tracks a remote (skip the pull for a local-only branch that has no upstream, e.g. the read-only fallback review of a branch that maps to no PR) — so the review runs against the **checked-out working tree**, never against a remote diff in isolation. Confirm local `HEAD` matches the change branch's head commit. If the branch cannot be checked out (missing ref, detached `HEAD`, or local changes that would be overwritten), **stop and report it** instead of reviewing from a diff.
+- **Branch checkout gate (mandatory, always).** Before any analysis step, run `@skills/code-review/references/branch-checkout-gate.md`: it pulls the default branch, then checks out and pulls the branch with the changes. When a step fails, **stop and report it** instead of reviewing from a diff.
 Every subsequent step reads the checked-out files so findings reflect the real state of the code.
 - Identify changes vs main branch.
 - Deduplicate previous findings.
