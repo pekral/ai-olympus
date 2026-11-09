@@ -436,7 +436,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every review comment carries a `Merge risk:` header line graded by `classify-risk.sh --merge-risk`.
         // Re-baselined: the agent-marker namespaces gain `analysis-plan`, the plan artifact `analyze-problem` publishes.
         // Re-baselined: the `Merge risk:` grade passes the assignment text to `classify-risk.sh --assignment`.
-        'rules/code-review/general.md' => '34ce9886fb28ec3111e4d7f249a9546718f8a9fb40ed2c04a728543045a99140',
+        // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
+        'rules/code-review/general.md' => '78e560246671f8e565e71ff0092cf68f7a808b2c0359d85e443d3b5ffbb30263',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -504,7 +505,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // one comment per actor and marker namespace. Its MCP fallback carries the caller's namespace,
         // and a duplicate outside `cr-comment` stays for a human.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
-        'rules/jira/general.md' => '5dda8a0f3ffe4b29bc24bea458a913de8367f6639ff469674dde60d58e4164df',
+        // Re-baselined: a review-only run updates its comment in place instead of passing `--create`.
+        'rules/jira/general.md' => '4f560a777974f56ed1bc1df36e0f39b4d26d0aa339f72d24b9a4b3dc60b9ab92',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

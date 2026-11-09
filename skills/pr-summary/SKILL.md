@@ -129,7 +129,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - On JIRA, a finding outside the assignment appears only when it is Critical (*The JIRA shape* above).
   - End the bullet that retells a missing-test or a DRY finding with the author mention. The syntax is the one *An unmet criterion addresses the author* above defines (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*).
   - When the review found nothing, render one sentence that says so, and no bullets.
-- **Always a new comment.** Pass `--create` as the first argument of the GitHub and JIRA publish helpers, so every review-only run leaves its own comment and never updates an earlier one. The Bugsnag helper creates a new comment on every run already.
+- **One comment, updated in place.** A review-only run publishes through the GitHub and JIRA helpers like any other run, so a later run updates the comment an earlier run left. The Bugsnag helper cannot mark a comment and posts a new one on every run.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first, then merge `Impact after deployment` bullets. Never drop a `Review findings` bullet.
 
 ### An issue with several pull requests
