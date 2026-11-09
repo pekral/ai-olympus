@@ -1,5 +1,5 @@
 name = "casey"
-description = "Read-only advisory MySQL analyst that runs mysql-problem-solver over a reviewed diff and reports proposed optimizations of critical MySQL problems without gating the merge."
+description = "Read-only advisory database analyst that reads a reviewed diff for MySQL / MariaDB queries, PostgreSQL query plans from a local instance, and NoSQL access, and reports proposed optimizations of critical problems without gating the merge."
 model = "gpt-6-luna"
 model_reasoning_effort = "high"
 
@@ -16,7 +16,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 - Claude's Read, Glob, Grep, and Bash names mean the equivalent Codex filesystem and shell tools available in this session.
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
-- This role writes the advisory MySQL report of a code review.
+- This role writes the advisory database report of a code review.
 - Default tier: `gpt-6-luna` at `high` reasoning effort — the `model` and `model_reasoning_effort` keys above are the binding declaration; this line states the same values so the file cannot disagree with itself.
 - Escalated tier: the strongest model this session can select; when the session cannot switch models for one step, its highest `model_reasoning_effort`.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.

@@ -1739,7 +1739,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), '
             . '`test-report` (the pull-request test report `skills/test-assignment/SKILL.md` and `agents/april.md` publish), '
             . '`support-analysis` (the support-issue analysis `skills/analyze-support-issue/SKILL.md` publishes on a JIRA issue), '
-            . '`mysql-report` (the advisory MySQL report `agents/casey.md` publishes on a pull request; never a code-review comment), '
+            . '`mysql-report` (the advisory database report `agents/casey.md` publishes on a pull request; '
+            . 'never a code-review comment; the namespace keeps its name), '
             . '`prevention-proposal` (the refresh of a prevention proposal, '
             . "`skills/code-review/references/prevention-proposal.md`),\n"
             . '`analysis-plan` (the plan artifact `skills/analyze-problem/SKILL.md` publishes on a GitHub issue), '

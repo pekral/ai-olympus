@@ -24,6 +24,8 @@ This skill runs in one of two modes, selected by the caller via `MODE` (default 
 - **`cr` (read-only lens — invoked by `@skills/code-review/SKILL.md`, `code-review-github`, `code-review-jira`, and `code-review-bugsnag` when the reviewed project's database engine resolves to `pgsql`)** — **never modify code, never author a migration or a test, never stage / commit / push, never run fixers or checkers, and never chain a follow-up review.** Scope the analysis to the lines added or modified by the PR diff and return the findings as markdown only, for the CR to fold into its single `## Database Analysis` section.
 Every instruction below that would touch the database, a migration, or configuration — create, add, alter, index, enable, set, or any other such verb — is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project.
 
+> **What this lens owns in a CR:** the shape of the feature and its deploy safety. It **defers the query plan** — index usage, sequential scans, rows examined, and sort or hash spills read from `EXPLAIN` — to the PostgreSQL part of the advisory `casey` database report (`@skills/code-review/references/specialized-reviews.md` *Database report — the `casey` agent*), and never raises a finding that part owns. The two divide the *dimensions* of a DB change, never its lines.
+
 ## Use when
 - Adding jsonb columns, GIN/BRIN/partial/covering indexes, or full-text search to a Laravel app on Postgres.
 - Building a queue/worker that pulls jobs with `FOR UPDATE SKIP LOCKED`, or paginating large result sets by cursor.

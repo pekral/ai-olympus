@@ -100,9 +100,9 @@
 - **Untested:** {scenario — missing prerequisite}, or `none`
 - **Cleanup:** {restored values, removed test data}, or `none`
 
-## MySQL report
+## Database report
 
-> Render the `casey` report verbatim whenever the caller passes one with the status `MySQL report done`. Omit the heading when `casey` returned `Not applicable` or did not run. The report is advisory: its items never enter the Counts line or any gate.
+> Render the `casey` report verbatim whenever the caller passes one with the status `Database report done`. The report covers MySQL / MariaDB queries, PostgreSQL query plans, and NoSQL access. Omit the heading when `casey` returned `Not applicable` or did not run. The report is advisory: its items never enter the Counts line or any gate.
 
 {casey report}
 
@@ -166,8 +166,8 @@
 
 ## Database Analysis
 
-> Render only when the diff touches database operations (raw SQL, Eloquent / query-builder calls, eager loads, model scopes, ModelManager / Repository methods, migrations, seeders, DynamoDB / NoSQL access) **and** at least one finding is produced by the run's DB lens (`@skills/postgres-patterns/SKILL.md` on PostgreSQL; the advisory `casey` report on MySQL / MariaDB is a separate comment, never this section) or by the *N+1 queries* walk of `@rules/code-review/core-analysis.md`. An N+1 finding starts its one-sentence problem with `N+1:`.
-> Render one section whichever lens produced the findings — never a per-engine variant and never two sections. On MySQL / MariaDB the schema-feature trigger may add `@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a producer of this same section — render its findings here beside the rule walks' findings, still as one section. The advisory `casey` report is its own PR comment and never renders here. Omit the entire section when no DB operations are present in the diff, or when DB ops are present but no findings result — never leave a placeholder or fold it into Coverage. Report only findings and their fix recommendations — never the trigger decision, an inspected `file:line` list, or an EXPLAIN / static-analysis summary.
+> Render only when the diff touches database operations (raw SQL, Eloquent / query-builder calls, eager loads, model scopes, ModelManager / Repository methods, migrations, seeders) **and** at least one finding is produced by the run's DB lens (`@skills/postgres-patterns/SKILL.md` on PostgreSQL; the advisory `casey` database report is its own section, never this one) or by the *N+1 queries* walk of `@rules/code-review/core-analysis.md`. An N+1 finding starts its one-sentence problem with `N+1:`.
+> Render one section whichever lens produced the findings — never a per-engine variant and never two sections. On MySQL / MariaDB the schema-feature trigger may add `@skills/mysql-patterns/SKILL.md` with `MODE=cr` as a producer of this same section — render its findings here beside the rule walks' findings, still as one section. The advisory `casey` database report has its own section and never renders here. Omit the entire section when no DB operations are present in the diff, or when DB ops are present but no findings result — never leave a placeholder or fold it into Coverage. Report only findings and their fix recommendations — never the trigger decision, an inspected `file:line` list, or an EXPLAIN / static-analysis summary.
 
 - **Findings:**
   1. **{Critical / Moderate}** — `file:line` — one-sentence problem

@@ -555,19 +555,19 @@ test(
 
         // Effort is set per agent by what the role actually decides. `leonardo` is the roster's
         // single reviewer, so a shallow pass there costs a round for everybody downstream — it
-        // stays at `high`. `donatello` and `raphael` also run at `high`: the implementer and the
-        // acceptance tester produce the evidence every later stage relies on. `krang`, `april`
-        // and `michelangelo` run at `medium`. `max` was dropped from the whole roster in
-        // issue #179 and never came back.
+        // stays at `high`. `donatello` also runs at `high`: the implementer produces the evidence
+        // every later stage relies on. `krang`, `michelangelo`, and `shredder` run at `high` and
+        // `raphael` and `april` at `medium`, by explicit decision of the repository owner. `max`
+        // was dropped from the whole roster in issue #179 and never came back.
         $expected = [
             'april' => 'medium',
             'casey' => 'high',
             'donatello' => 'high',
-            'krang' => 'medium',
+            'krang' => 'high',
             'leonardo' => 'high',
-            'michelangelo' => 'medium',
-            'raphael' => 'high',
-            'shredder' => 'medium',
+            'michelangelo' => 'high',
+            'raphael' => 'medium',
+            'shredder' => 'high',
         ];
 
         $globResult = glob($packageDir . '/agents/*.md');
@@ -593,7 +593,9 @@ test(
 
         // The anatomy doc must document the same levels the roster ships.
         $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
-        expect($docs)->toContain('`krang`, `april` and `michelangelo` run at `medium`');
+        expect($docs)->toContain(
+            '`krang`, `michelangelo`, and `shredder` run at `high` by an explicit decision of the repository owner. `raphael` runs at `medium`',
+        );
         expect($docs)->not->toContain('set to `max` on every agent');
         expect($docs)->not->toContain('set to `high` on every agent');
     },

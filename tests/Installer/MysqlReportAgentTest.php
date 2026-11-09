@@ -19,8 +19,8 @@ test('the casey report is advisory and never gates convergence or the merge (iss
     $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
-    expect($reference)->toContain('- **MySQL report — the `casey` agent.**')
-        ->and($reference)->toContain('The report proposes optimizations for **critical** MySQL problems only.')
+    expect($reference)->toContain('- **Database report — the `casey` agent.**')
+        ->and($reference)->toContain('Every part reports **critical** problems only')
         ->and($reference)->toContain('in the `mysql-report` marker namespace. It is not a `cr-comment`')
         ->and($reference)->toContain(
             'the convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4), or the merge gate of `merge-github-pr`',
@@ -34,9 +34,10 @@ test('krang dispatches casey in every parallel cr round, and casey stops on Post
     $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
-    expect($krang)->toContain('- **MySQL report (`casey`) — advisory, in every round.**')
-        ->and($krang)->toContain('stops `Not applicable` on PostgreSQL or on a diff with no database operations');
-    expect($casey)->toContain('On `pgsql`, stop with `Not applicable — PostgreSQL project`.')
+    expect($krang)->toContain('- **Database report (`casey`) — advisory, in every round.**')
+        ->and($krang)->toContain('stops `Not applicable` only on a diff with no SQL operation and no NoSQL access');
+    expect($casey)->toContain('`pgsql` runs the PostgreSQL part, never the MySQL one.')
+        ->and($casey)->not->toContain('Not applicable — PostgreSQL project')
         ->and($casey)->toContain('**Step 5 publishes nothing.**');
 });
 
@@ -47,12 +48,12 @@ test('no review runs mysql-problem-solver inline, and a caller that cannot dispa
     $wrapper = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
 
     expect($reference)->toContain('The review never runs `mysql-problem-solver` inline.')
-        ->and($reference)->toContain('writes `MySQL report not run — dispatch casey` in its own output')
+        ->and($reference)->toContain('writes `Database report not run — dispatch casey` in its own output')
         ->and($reference)->toContain('A review inside a subagent never writes the not-run line')
         ->and($leonardo)->toContain('on MySQL / MariaDB and on an unresolved engine you run no inline `mysql-problem-solver`')
-        ->and($leonardo)->toContain('- **MySQL report:** `needed — engine <mysql | mariadb | unresolved>`')
+        ->and($leonardo)->toContain('- **Database report:** `needed — sql <mysql | mariadb | pgsql | unresolved | none>, nosql <yes | no>`')
         ->and($wrapper)->toContain('never `mysql-problem-solver` inline.')
-        ->and($wrapper)->toContain('A top-level caller that cannot dispatch it writes `MySQL report not run — dispatch casey` in its output.');
+        ->and($wrapper)->toContain('A top-level caller that cannot dispatch it writes `Database report not run — dispatch casey` in its output.');
 });
 
 test('mysql-problem-solver declares the report-only MODE=cr-report (issue #180)', function (): void {
@@ -61,7 +62,7 @@ test('mysql-problem-solver declares the report-only MODE=cr-report (issue #180)'
 
     expect($skill)->toContain('- **`MODE=cr-report`**')
         ->and($skill)->toContain('reports **critical items only**')
-        ->and($skill)->toContain('answers `No critical MySQL item in this diff.` when nothing qualifies.');
+        ->and($skill)->toContain('answers `No critical database item in this diff.` when nothing qualifies.');
 });
 
 test('the casey report reaches only a local database and never executes a write through EXPLAIN ANALYZE (issue #180)', function (): void {
@@ -71,8 +72,8 @@ test('the casey report reaches only a local database and never executes a write 
 
     expect($skill)->toContain('`EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only')
         ->and($skill)->toContain('runs against a **locally started database only**')
-        ->and($casey)->toContain('against a **locally started database only**, never a shared, staging, or production host')
-        ->and($casey)->toContain('never from a developer\'s `.env`');
+        ->and($casey)->toContain('against a **locally started database only**, never a shared test, staging, or production host')
+        ->and($casey)->toContain('never from a developer\'s `.env` and never from the value of an environment variable');
 });
 
 test('the casey report shape has one owner and the roster surfaces name casey (issue #180)', function (): void {
@@ -86,4 +87,94 @@ test('the casey report shape has one owner and the roster surfaces name casey (i
         ->toContain('`michelangelo`, `april`, `casey`, or `shredder`')
         ->and((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'))
         ->toContain('for agent in krang donatello leonardo raphael michelangelo april casey shredder; do');
+});
+
+test('the casey NoSQL trigger runs in every project and has one owner (criterion 5)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+
+    expect($reference)->toContain('- **NoSQL part.** The diff changes NoSQL access, in every project, whatever the SQL engine resolved to.')
+        ->and($reference)->toContain('a diff can fire one, two, or all three.')
+        ->and($reference)->toContain('A Redis diff goes through `@skills/redis-patterns/SKILL.md` with `MODE=cr`.')
+        ->and($reference)->toContain('Every other store gets one general advisory pass by `casey` itself, with no skill of its own')
+        ->and($reference)->toContain('a call per item in a loop (N+1), and an unbounded read')
+        ->and($reference)->toContain('`casey` connects to no NoSQL server and analyses statically.')
+        ->and($reference)->toContain('NoSQL access is not on this list: it fires its own trigger, independent of the engine')
+        ->and(substr_count($reference, 'DynamoDB / NoSQL access'))->toBe(0)
+        ->and($casey)->toContain('The engine never decides whether the NoSQL part runs.')
+        ->and($casey)->toContain('run `@skills/redis-patterns/SKILL.md` with `MODE=cr` over the Redis lines of the diff')
+        ->and($casey)->toContain('You connect to no NoSQL server.')
+        ->and($casey)->toContain('The trigger, the dispatch rule, and the advisory status are defined once in')
+        ->and($krang)->toContain('runs the NoSQL part in every project');
+});
+
+test('casey analyses a PostgreSQL query plan from a local instance only, and postgres-patterns keeps the feature shape (criterion 9)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+    $postgres = (string) file_get_contents($packageDir . '/skills/postgres-patterns/SKILL.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    expect($reference)->toContain('`casey` analyses the query plan, and only from a **local** PostgreSQL instance')
+        ->and($reference)->toContain('It never connects to a shared test, staging, or production server.')
+        ->and($reference)->toContain('`EXPLAIN ANALYZE` on a `SELECT` only')
+        ->and($reference)->toContain('writes no query-plan analysis, never guesses a plan')
+        ->and($reference)->toContain('`PostgreSQL query plan not analysed — DB access: static analysis only — <reason>`')
+        ->and($reference)->toContain('`casey` never applies the MySQL analysis to a PostgreSQL diff, and a MySQL diff never runs `postgres-patterns`.')
+        ->and($reference)->toContain('the same engine in two dimensions, never a second engine')
+        ->and($reference)->not->toContain('A PostgreSQL diff never gets a `casey` report')
+        ->and($casey)->toContain('Read the query plan from a **local** PostgreSQL instance only')
+        ->and($casey)->toContain('the defaults in `config/database.php`')
+        ->and($casey)->toContain('with no local PostgreSQL instance write no query-plan analysis')
+        ->and($postgres)->toContain('It **defers the query plan**')
+        ->and($orchestration)->toContain('against a local MySQL / MariaDB or PostgreSQL database');
+});
+
+test('the database report heading is renamed on every surface while the mysql-report marker namespace stays (criteria 5 and 9)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $files = [
+        'agents/casey.md',
+        'agents/krang.md',
+        'agents/leonardo.md',
+        'skills/code-review/references/specialized-reviews.md',
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/process-code-review/SKILL.md',
+        'rules/code-review/general.md',
+    ];
+
+    foreach ($files as $file) {
+        expect((string) file_get_contents($packageDir . '/' . $file))->not->toContain('## MySQL report');
+    }
+
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md'))
+        ->toContain('## Database report')
+        ->and((string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md'))
+        ->toContain('## Database report — critical optimizations (advisory)')
+        ->and((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
+        ->toContain('mysql-report');
+});
+
+test('every agent states the same model tier in its Claude definition and its Codex adapter (criteria 1 to 4)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $expected = [
+        'krang' => ['opus', 'high', 'gpt-6.1-sol'],
+        'michelangelo' => ['opus', 'high', 'gpt-6-astra'],
+        'raphael' => ['sonnet', 'medium', 'gpt-6-luna'],
+        'shredder' => ['opus', 'high', 'gpt-6.1-sol'],
+        'casey' => ['sonnet', 'high', 'gpt-6-luna'],
+    ];
+
+    foreach ($expected as $name => [$model, $effort, $codexModel]) {
+        $claude = (string) file_get_contents($packageDir . '/agents/' . $name . '.md');
+        $codex = (string) file_get_contents($packageDir . '/codex/agents/' . $name . '.toml');
+
+        expect($claude)->toMatch('/^model: ' . $model . '$/m')
+            ->and($claude)->toMatch('/^effort: ' . $effort . '$/m')
+            ->and($codex)->toContain('model = "' . $codexModel . '"')
+            ->and($codex)->toContain('model_reasoning_effort = "' . $effort . '"')
+            ->and($codex)->toContain('Default tier: `' . $codexModel . '` at `' . $effort . '` reasoning effort');
+    }
 });
