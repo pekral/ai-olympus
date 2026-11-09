@@ -14,4 +14,9 @@ test('a public github repository waits for ci instead of running a local pre-pus
         ->and($gates)->toContain('**Push, then wait for CI on the pushed head:** `gh pr checks <PR> --watch`.')
         ->and($gates)->toContain('`pr-gate: skipped — public repository, CI <green | red> on <sha>`');
     expect($manifest)->toContain('On a public GitHub repository it never runs: the run waits for CI instead');
+    expect($gates)->toContain('**No CI signal on the pushed head**')
+        ->and($gates)->toContain('confirm that the pull request\'s `headRefOid` equals `git rev-parse HEAD`')
+        ->and(strpos($gates, '### A public repository waits for CI'))->toBeGreaterThan((int) strpos($gates, 'The rule is one full build at the merge boundary'));
+    expect((string) file_get_contents($packageDir . '/AGENTS.md'))
+        ->toContain('On a repository that is public on GitHub no local pre-push gate runs');
 });
