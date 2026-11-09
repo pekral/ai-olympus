@@ -34,7 +34,7 @@ test('the script documents the three exit codes of the issue and prints the line
     $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
 
     expect(substr_count($script, '#   0  nothing was published and the head did not move'))->toBe(1)
-        ->and(substr_count($script, '#   1  something was published; every new comment is printed as `new-comment: <url>`'))->toBe(1)
+        ->and(substr_count($script, '#   1  a comment was added during the run, by any author; every new comment is printed'))->toBe(1)
         ->and(substr_count($script, '#   3  nothing was published, but the head moved during the review; `head: moved <before> → <now>`'))->toBe(1)
         ->and(substr_count($script, 'printf \'head: moved %s → %s\\n\' "$head_before" "$head_now"'))->toBe(1)
         ->and(substr_count($script, 'printf \'result: quiet-head-moved\\n\''))->toBe(1)
@@ -87,6 +87,12 @@ test('the self-test covers every scenario of the assignment', function (): void 
         ->toContain('run_verify \'a comment without a URL is still counted\' 1')
         ->toContain('run_verify \'a new JIRA comment is a publish with its URL\' 1')
         ->toContain('run_verify \'an empty JIRA list is not verified, never quiet\' 0')
+        ->toContain('run_verify \'an empty JIRA list recorded before the run is not verified\' 0')
+        ->toContain('refuse_state \'a state path outside any git checkout is refused\'')
+        ->toContain('refuse_state \'a state path inside the repository but outside the run directory is refused\'')
+        ->toContain('refuse_state \'a ".." component in a missing directory is refused\'')
+        ->toContain('refuse_state \'a state path that is a symbolic link is refused\'')
+        ->toContain('refuse_state \'a state path that git tracks is refused\'')
         ->toContain('run_verify \'a failed JIRA read is exit 4\' 4')
         ->toContain('run_verify \'a Bugsnag item goes under not-verified with its step\' 0')
         ->toContain('expect \'an issue URL as --pr is refused\' 2')
@@ -110,7 +116,10 @@ test('the loop reference owns the contract: what to run, how to read each exit c
         ->and(substr_count($scope, '`Quiet run: verified — nothing published, head <sha> unchanged`'))->toBe(1)
         ->and(substr_count($scope, '`The review covers <before>, the head is now <now>.`'))->toBe(1)
         ->and(substr_count($scope, 'gets ` [not published — quiet run]` appended. The wording is never rewritten'))->toBe(1)
-        ->and(substr_count($scope, '   - `1` — the run published. Mark nothing as verified.'))->toBe(1)
+        ->and(substr_count($scope, '   - `1` — a comment was added during the run, by any author.'))->toBe(1)
+        ->and(substr_count($scope, 'call it this run\'s publish only when the marker and the account are the run\'s own'))->toBe(1)
+        ->and(substr_count($scope, 'A comment body that a later step publishes is stored without them'))->toBe(1)
+        ->and($scope)->not->toContain('— the run published.')
         ->and(substr_count($scope, '   - `2` or `4` — the check did not run to its end. Mark nothing as verified'))->toBe(1)
         ->and(substr_count($scope, '4. **On exit `0` or `3`, mark every header line of the report that claims a publish.**'))->toBe(1);
 });
@@ -127,20 +136,30 @@ test('every quiet review path calls the check and reports its result', function 
 
     // The quiet leonardo round.
     expect(substr_count($leonardo, 'Before the wrapper starts run `skills/_shared/quiet-run-check.sh record`, and after it returns run `verify`'))->toBe(1)
-        ->and(
-            substr_count(
-                $leonardo,
-                'the result of `quiet-run-check.sh verify` (exit code, any `new-comment:` URL, the `the review covers <before>,',
-            ),
-        )->toBe(
-            1,
-        )
+        ->and(substr_count($leonardo, 'the result of `quiet-run-check.sh verify` as its own field beside the body'))->toBe(1)
+        ->and(substr_count($leonardo, 'stored without any quiet-run mark (never `Quiet run: verified …`, never ` [not published — quiet run]`)'))->toBe(1)
+        ->and(substr_count($leonardo, 'as a comment added during the run by any author and not yet attributed to this run'))->toBe(1)
         ->and(substr_count($leonardo, 'run `skills/_shared/quiet-run-check.sh` (`record` and `verify`) only as'))->toBe(1)
         ->and(substr_count($leonardo, 'writes only the state file under `.claude/run/quiet-run/`, and never writes to a tracker'))->toBe(1)
         ->and(substr_count($leonardo, 'the quiet-run state `skills/_shared/quiet-run-check.sh` writes under `.claude/run/quiet-run/`'))->toBe(1);
 
     // The wrapper that renders the header lines the mark applies to.
     expect(substr_count($contract, 'appends ` [not published — quiet run]` to each header line of the returned report that claims a publish'))->toBe(1);
+});
+
+test('record writes its state only where review-state.sh writes its own, through one shared guard', function (): void {
+    $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
+    $reviewState = quietRunCheckSource('skills/_shared/review-state.sh');
+    $guard = quietRunCheckSource('skills/_shared/state-path.sh');
+
+    expect(substr_count($script, 'problem="$(state_path_problem "$state" create)" || die "$problem" 2'))->toBe(1)
+        ->and(substr_count($script, '. "$HERE/state-path.sh"'))->toBe(1)
+        ->and(substr_count($reviewState, 'problem="$(state_path_problem "$1")" || fail 3 "$problem"'))->toBe(1)
+        ->and(substr_count($reviewState, '. "$HERE/state-path.sh"'))->toBe(1)
+        ->and($guard)->toContain('the state file is a symbolic link')
+        ->and($guard)->toContain('the state must live under .claude/run/ or .codex/run/ of the git toplevel')
+        ->and($guard)->toContain('the state file is tracked by git')
+        ->and($reviewState)->not->toContain('git -C "$top" ls-files --error-unmatch');
 });
 
 test('the check needs nothing platform-specific on Codex', function (): void {

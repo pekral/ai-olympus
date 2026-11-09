@@ -63,6 +63,8 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=state-path.sh
+. "$HERE/state-path.sh"
 LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 
 DEFAULT_CAP=3
@@ -328,22 +330,11 @@ manifest_config() {
     done
 }
 
-# check_writable <file> — refuse a state path outside the git-ignored run directory of the git toplevel.
+# check_writable <file> — refuse a state path outside the git-ignored run directory of the git toplevel
+# (the guard `state-path.sh` shares with `quiet-run-check.sh`).
 check_writable() {
-  local file="$1" dir real top
-  [[ ! -L "$file" ]] || fail 3 "the state file is a symbolic link: $(safe_display "$file")"
-  dir="$(dirname -- "$file")"
-  [[ -d "$dir" ]] || fail 3 "the state directory does not exist: $(safe_display "$dir")"
-  real="$(cd -- "$dir" && pwd -P)"
-  top="$(cd -- "$dir" && git rev-parse --show-toplevel 2>/dev/null)" || fail 3 "the state file is not inside a git checkout"
-  top="$(cd -- "$top" && pwd -P)"
-  case "$real/" in
-  "$top/.claude/run/"* | "$top/.codex/run/"*) ;;
-  *) fail 3 "the state must live under .claude/run/ or .codex/run/ of the git toplevel, got: $(safe_display "$file")" ;;
-  esac
-  if git -C "$top" ls-files --error-unmatch -- "$real/$(basename -- "$file")" >/dev/null 2>&1; then
-    fail 3 "the state file is tracked by git: $(safe_display "$file")"
-  fi
+  local problem
+  problem="$(state_path_problem "$1")" || fail 3 "$problem"
 }
 
 # load_state <file> <out> — validate the state and copy it to <out>. Exit 3 on a missing or invalid state.
@@ -683,7 +674,7 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
   mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts"
-  cp "$HERE"/{review-state,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
+  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
   script="$tmp/pkg/skills/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash

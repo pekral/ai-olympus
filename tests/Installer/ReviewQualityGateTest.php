@@ -205,6 +205,9 @@ test('the round cap and the blocking threshold come only from the default-branch
         ->toContain('manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || manifest=\'{}\'')
         ->toContain('DEFAULT_CAP=3')
         ->toContain('MAX_CAP=10')
+        ->toContain('problem="$(state_path_problem "$1")" || fail 3 "$problem"');
+
+    expect(reviewQualityGateFile('skills/_shared/state-path.sh'))
         ->toContain('"$top/.claude/run/"* | "$top/.codex/run/"*) ;;');
 });
 
