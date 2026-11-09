@@ -16,7 +16,7 @@ test('verify-merge-readiness is one shared workflow for Claude Code and Codex', 
     $command = (string) file_get_contents($commandPath);
 
     expect($skill)->toContain('name: verify-merge-readiness');
-    expect($skill)->toContain('Delegate the orchestration to `splinter`');
+    expect($skill)->toContain('Delegate the orchestration to `krang`');
     expect($skill)->toContain('It never merges the pull request');
     expect($skill)->toContain('@skills/pr-summary/SKILL.md');
     expect($skill)->toContain('templates/pr-summary-github.md');
@@ -47,17 +47,17 @@ test('verify-merge-readiness skips content-identical review rounds but fails clo
 test('verify-merge-readiness delivers the task first when the issue carries no pull request', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
     $command = (string) file_get_contents($packageDir . '/commands/prepare-issue-for-merge.md');
 
-    expect($skill)->toContain('the issue is not implemented yet, so `splinter` resolves it first');
+    expect($skill)->toContain('the issue is not implemented yet, so `krang` resolves it first');
     expect($skill)->toContain('Several** — stop. Never guess which pull request the issue means');
     expect($skill)->toContain('A closed source issue is never implemented');
     expect($skill)->toContain('never prepare a pull request the loop did not converge on');
     expect($skill)->toContain('it also authorizes the');
-    expect($splinter)->toContain('When the source issue resolves to no pull request, deliver it first');
-    expect($splinter)->toContain('run steps 4 to 6 of *The end-to-end run*');
-    expect($command)->toContain('`splinter` resolves the task first');
+    expect($krang)->toContain('When the source issue resolves to no pull request, deliver it first');
+    expect($krang)->toContain('run steps 4 to 6 of *The end-to-end run*');
+    expect($command)->toContain('`krang` resolves the task first');
 });
 
 test('verify-merge-readiness consolidates only owned comments and preserves merge evidence', function (): void {

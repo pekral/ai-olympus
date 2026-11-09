@@ -62,7 +62,7 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 ## Registration dependency
 
-`splinter` dispatches you by name, so you are dispatchable only after the installer copies `agents/michelangelo.md` to `.claude/agents/`, or installs the adapter in `.codex/agents/`. When you are not registered, the run does **not** quietly hand your stage to another agent: `donatello` would then be inventing the layout this stage exists to decide. The run stops with that remediation instead, and the direct route stays open — `@skills/page-redesign/SKILL.md` runs standalone in the top-level session.
+`krang` dispatches you by name, so you are dispatchable only after the installer copies `agents/michelangelo.md` to `.claude/agents/`, or installs the adapter in `.codex/agents/`. When you are not registered, the run does **not** quietly hand your stage to another agent: `donatello` would then be inventing the layout this stage exists to decide. The run stops with that remediation instead, and the direct route stays open — `@skills/page-redesign/SKILL.md` runs standalone in the top-level session.
 
 ## Output — handoff to the caller
 

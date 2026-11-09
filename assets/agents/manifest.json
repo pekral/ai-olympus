@@ -11,14 +11,14 @@
   ],
   "agents": [
     {
-      "id": "splinter",
-      "displayName": "Splinter",
+      "id": "krang",
+      "displayName": "Krang",
       "role": "Orchestration",
-      "previousId": "daedalus",
+      "previousId": "splinter",
       "accent": "#be8d69",
       "summary": "Coordinates the team and guides work from request to reviewed result.",
-      "portrait": "splinter.png",
-      "thumbnail": "thumbnails/splinter.png"
+      "portrait": "krang.png",
+      "thumbnail": "thumbnails/krang.png"
     },
     {
       "id": "donatello",
@@ -80,13 +80,14 @@
       "thumbnail": "thumbnails/casey.png"
     },
     {
-      "id": "metalhead",
-      "displayName": "Metalhead",
+      "id": "shredder",
+      "displayName": "Shredder",
       "role": "Context retrieval",
+      "previousId": "metalhead",
       "accent": "#88c0d0",
       "summary": "Gathers the project context a task needs and returns it as one compact package.",
-      "portrait": "metalhead.png",
-      "thumbnail": "thumbnails/metalhead.png"
+      "portrait": "shredder.png",
+      "thumbnail": "thumbnails/shredder.png"
     }
   ]
 }

@@ -86,7 +86,7 @@
 
 ## Interactive testing
 
-> Render from the `raphael` report whenever the caller passes one — every publish after a parallel CR round (`agents/splinter.md` *Parallel CR round*) and every review-only run (`/report-code-review`) — also when the walkthrough was `Blocked`. Omit the heading when no `raphael` report exists. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
+> Render from the `raphael` report whenever the caller passes one — every publish after a parallel CR round (`agents/krang.md` *Parallel CR round*) and every review-only run (`/report-code-review`) — also when the walkthrough was `Blocked`. Omit the heading when no `raphael` report exists. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
 
 - **Tested head:** `{full SHA}` · **URL:** {project URL} · **Account:** {role}
 - **Result:**

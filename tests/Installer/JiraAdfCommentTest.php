@@ -222,7 +222,7 @@ test('april runs three publication checks before a JIRA comment counts as publis
 test('the reporting headline opens the Problem field on GitHub and Bugsnag and never reaches JIRA (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     // Both files instructed the headline into the `Problem` field on every target. The JIRA
     // template has no such field, and its status line states the state of the work in the
@@ -230,8 +230,8 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
     expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
     expect($april)->toContain('On **JIRA** there is no headline: the **status line above `h2. Acceptance criteria`**');
-    expect($splinter)->not->toContain('the opening sentence of the `Problem` field is');
-    expect($splinter)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
+    expect($krang)->not->toContain('the opening sentence of the `Problem` field is');
+    expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });
 
 test('a JIRA account mention becomes an ADF mention node', function (): void {

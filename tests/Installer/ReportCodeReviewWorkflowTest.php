@@ -2,16 +2,16 @@
 
 declare(strict_types = 1);
 
-test('report-code-review runs one review-only pass through splinter and leonardo', function (): void {
+test('report-code-review runs one review-only pass through krang and leonardo', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/commands/report-code-review.md');
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     expect($command)->toContain('$ARGUMENTS');
     expect($command)->toContain('review-only mode');
     expect($command)->toContain('$code-review-jira');
-    expect($command)->toContain('`agents/splinter.md` *Review-only mode — `/report-code-review`* is the one owner of this run.');
+    expect($command)->toContain('`agents/krang.md` *Review-only mode — `/report-code-review`* is the one owner of this run.');
     expect($command)->toContain('Do not restate, shorten, or
 extend those steps in the dispatch prompt');
     expect($command)->not->toContain('dispatches `raphael`');
@@ -19,10 +19,10 @@ extend those steps in the dispatch prompt');
     expect($command)->not->toContain('Missing-tests mode');
     expect($command)->not->toContain('SECURITY_OWNER');
 
-    expect($splinter)->toContain(
+    expect($krang)->toContain(
         'This section is the one owner of its steps: `commands/report-code-review.md` only validates the reference and hands it here',
     );
-    expect($splinter)->toContain('It changes nothing in the pull request: no fix and no test.');
+    expect($krang)->toContain('It changes nothing in the pull request: no fix and no test.');
     expect($leonardo)->toContain('The branch checkout gate takes its worktree case there');
     expect($leonardo)->toContain('Tell the wrapper to update the comments an earlier run left, never to pass `--create`.');
     expect($leonardo)->toContain('When the dispatch carries `tracker-report: deferred`, pass it to `process-code-review`');
@@ -30,29 +30,29 @@ extend those steps in the dispatch prompt');
         ->toContain('When the caller passed `tracker-report: deferred`, pass it to the wrapper too');
     expect((string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md'))
         ->toContain('With `tracker-report: deferred`, skip this section and the linked-GitHub-issue mirror below');
-    expect($splinter)->toContain(
+    expect($krang)->toContain(
         'When the brief\'s `## Source` carries a GitHub issue URL, a GitHub PR URL, or a JIRA key, state `tracker-report: deferred`.',
     );
-    expect($splinter)->toContain('rewritten in the brief\'s `## Language` and in the target tracker\'s format');
+    expect($krang)->toContain('rewritten in the brief\'s `## Language` and in the target tracker\'s format');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
         ->toContain('No packaged workflow');
     expect($leonardo)->toContain('never a separate security comment, and never `SECURITY_OWNER` on the wrapper');
 
-    expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
-    expect($splinter)->toContain('`Review report done`');
-    expect($splinter)->toContain('A missing test is a finding for the author of the changes, never a commit of this run');
-    expect($splinter)->toContain('Dispatch no `donatello`, no other `raphael`, and no `april`');
-    expect($splinter)->not->toContain('*Missing-tests mode*');
-    expect($splinter)->not->toContain('missing-tests commit');
-    expect($splinter)->not->toContain('(missing tests)');
+    expect($krang)->toContain('## Review-only mode — `/report-code-review`');
+    expect($krang)->toContain('`Review report done`');
+    expect($krang)->toContain('A missing test is a finding for the author of the changes, never a commit of this run');
+    expect($krang)->toContain('Dispatch no `donatello`, no other `raphael`, and no `april`');
+    expect($krang)->not->toContain('*Missing-tests mode*');
+    expect($krang)->not->toContain('missing-tests commit');
+    expect($krang)->not->toContain('(missing tests)');
     expect((string) file_get_contents($packageDir . '/agents/donatello.md'))
         ->not->toContain('## Missing-tests mode');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
     expect($leonardo)->toContain('skip the step-10 fix loop');
     expect($leonardo)->toContain('review the pull request\'s head SHA in your review worktree, because `raphael` owns the main working tree');
     expect($leonardo)->toContain('That invocation always runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
-    expect($splinter)->toContain('its review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request, exactly once.');
-    expect($splinter)->toContain('It owns the main working tree for the round: it runs `@skills/code-review/references/branch-checkout-gate.md`');
+    expect($krang)->toContain('its review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request, exactly once.');
+    expect($krang)->toContain('It owns the main working tree for the round: it runs `@skills/code-review/references/branch-checkout-gate.md`');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     expect($prSummary)
@@ -85,7 +85,7 @@ test('security is the most important part of every code review', function (): vo
 test('report-code-review adds the interactive-testing result to the review report', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    expect((string) file_get_contents($packageDir . '/agents/splinter.md'))
+    expect((string) file_get_contents($packageDir . '/agents/krang.md'))
         ->toContain('Then run one *Parallel CR round* with `review_only` in all three dispatch prompts.')
         ->toContain('publishes the one review report, with the `interactive-testing` result and the MySQL report in it');
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
@@ -99,13 +99,13 @@ test('report-code-review adds the interactive-testing result to the review repor
 
 test('report-code-review runs leonardo, raphael, and casey in one parallel round', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
 
-    expect($splinter)
+    expect($krang)
         ->toContain('`leonardo ∥ raphael ∥ casey (review-only) → leonardo (publish)`')
         ->toContain('Hold the barrier, then dispatch `leonardo` with `publish: now` and `review_only`');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
-        ->toContain('`agents/splinter.md` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
+        ->toContain('`agents/krang.md` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
         ->toContain('A review-only run (`/report-code-review`) is one such round.');
     expect((string) file_get_contents($packageDir . '/agents/casey.md'))->not->toContain('--create');
 });

@@ -8,18 +8,18 @@ This file is the one contract that connects the earlier phases of the recurring-
 | --- | --- | --- | --- |
 | Record each review round | `leonardo`, through the instruction it gives `@skills/process-code-review/SKILL.md` | `feedback-loop.sh record` | The local record store |
 | Record the converged report | The same loop, after it published | `feedback-loop.sh collect` | The local record store |
-| Find the recurring classes | `splinter`, in a feedback-analysis run | `feedback-loop.sh analyze` | Derived files in the store directory |
+| Find the recurring classes | `krang`, in a feedback-analysis run | `feedback-loop.sh analyze` | Derived files in the store directory |
 | Write the analysis of one class | `leonardo`, in feedback analysis mode | The analysis file of `prevention-proposal.md` | One file in the store directory |
-| Render the proposal | `splinter` | `propose-prevention.sh`, or `promote-learning.sh propose` for an analysis with a `target` | One file in the store directory, and a `candidate` record in the promotion history |
-| File or refresh the proposal | `splinter` | `@skills/create-issue/SKILL.md`, `upsert-comment.sh` | One tracker issue or comment |
+| Render the proposal | `krang` | `propose-prevention.sh`, or `promote-learning.sh propose` for an analysis with a `target` | One file in the store directory, and a `candidate` record in the promotion history |
+| File or refresh the proposal | `krang` | `@skills/create-issue/SKILL.md`, `upsert-comment.sh` | One tracker issue or comment |
 | Approve or reject the proposal | A human | See *Approval* | The `Resolve_by_AI` label, a close as not planned, or the instruction itself |
 | Record the decision of a promotion candidate | The run that observes the fact | `promote-learning.sh decide` | One record in the promotion history |
 | Implement the safeguard | `donatello`, through the ordinary pipeline | `@skills/resolve-issue/references/safeguard-implementation.md` | A Draft pull request |
 | Review the safeguard | `leonardo`, through the ordinary review | `@skills/code-review/references/specialized-reviews.md` | A review comment |
 | Merge the safeguard | A human, or the merge chain the user asked for | `@skills/merge-github-pr/SKILL.md` | Nothing new |
-| Mark a promotion candidate promoted | `splinter`, in a feedback-analysis run | `promote-learning.sh promote` | One record in the promotion history |
+| Mark a promotion candidate promoted | `krang`, in a feedback-analysis run | `promote-learning.sh promote` | One record in the promotion history |
 
-`splinter` coordinates and decides. It implements nothing, and `leonardo` stays read-only: it changes no source, rule, test, or CI file. No agent commits, publishes, or merges a safeguard outside the gates that already exist.
+`krang` coordinates and decides. It implements nothing, and `leonardo` stays read-only: it changes no source, rule, test, or CI file. No agent commits, publishes, or merges a safeguard outside the gates that already exist.
 
 ## The store
 
@@ -61,7 +61,7 @@ The output and the exit code change no count, no gate, and no fix. When a comman
 
 ## The feedback-analysis run
 
-The user asks for it by name: to analyse the recurring review findings, or to propose a safeguard for a repeated finding. No ordinary run starts it, and no step of the issue-to-pull-request pipeline depends on it. `splinter` runs it as an analysis-only run: it takes no write-lock, opens no pull request, and dispatches no `donatello`.
+The user asks for it by name: to analyse the recurring review findings, or to propose a safeguard for a repeated finding. No ordinary run starts it, and no step of the issue-to-pull-request pipeline depends on it. `krang` runs it as an analysis-only run: it takes no write-lock, opens no pull request, and dispatches no `donatello`.
 
 1. **Resolve the repository** of the checkout with `gh repo view --json nameWithOwner`. Write the brief with the source slug `feedback-<owner>-<name>`.
 2. **Analyse.** Run `skills/_shared/feedback-loop.sh analyze --dir .claude/run/feedback`. A directory that does not exist means nothing is recorded: report it and stop. A malformed store gives exit `3`: stop `Blocked` with the file that the message names, and the remedy is to delete that file and run `collect` for its pull request. The thresholds come from the flags, then from the manifest keys `recurrence.threshold` and `recurrence.window-days` of the default branch, then from the defaults 2 and 90 (`recurrence-analysis.md` *Settings*).
@@ -78,7 +78,7 @@ The user asks for it by name: to analyse the recurring review findings, or to pr
 5. **Record the promotions.** Run `promote-learning.sh status --dir <dir>`. For each `approved` candidate, run `skills/_shared/feedback-loop.sh lookup --key <key>` and read the issue at its `url` through `skills/code-review-github/scripts/load-issue.sh`. Pass the URL of each pull request in its `closingPullRequests` to `promote-learning.sh promote --dir <dir> --key <key> --pr <URL>`. Exit `4` leaves the candidate `approved`.
 6. **Report** the classes, each proposal that was filed or refreshed with its URL, each class that was skipped with the reason, and the state of each promotion candidate. Run *Run cleanup* and stop with `Feedback analysis done`.
 
-**A rejection by the user's instruction is recorded by this run.** When the user's own request for the run names a promotion proposal as rejected, with the reason, `splinter` records it after step 2. It reads the key from the marker of that issue through `skills/code-review-github/scripts/load-issue.sh`, and confirms that `feedback-loop.sh lookup --key <key>` returns the same issue URL. Then it runs `promote-learning.sh decide --dir <dir> --key <key> --decision reject --fact instruction --reason "<the user's reason>"`. The report names the key and the exit code.
+**A rejection by the user's instruction is recorded by this run.** When the user's own request for the run names a promotion proposal as rejected, with the reason, `krang` records it after step 2. It reads the key from the marker of that issue through `skills/code-review-github/scripts/load-issue.sh`, and confirms that `feedback-loop.sh lookup --key <key>` returns the same issue URL. Then it runs `promote-learning.sh decide --dir <dir> --key <key> --decision reject --fact instruction --reason "<the user's reason>"`. The report names the key and the exit code.
 
 A run that files a proposal changes no rule, no configuration, and no safeguard. The proposal is the whole result.
 
@@ -101,14 +101,14 @@ A proposal is an issue, and nothing implements it until a human approves it. App
 
 An approval holds for the exact text it was given for. A proposal that changes after the approval is not approved until a human approves the changed text. `promote-learning.sh` binds the approval of a promotion candidate to the SHA-256 digest of its proposal, and a label that approved an earlier text never approves a changed one (`learning-promotion.md` *Approval and rejection*). A rejection is the same kind of human act: the user's instruction rejects the proposal, or a person closes the issue as not planned.
 
-The feedback-analysis run never applies `Resolve_by_AI`, and `create-issue` leaves workflow labels out when it selects a label (`@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*). A proposal therefore never enters the selection of `splinter` step 1 on its own. A closed proposal is not implemented. After the approval, the ordinary pipeline takes the issue: `splinter` classifies it, `donatello` implements it under `@skills/resolve-issue/references/safeguard-implementation.md`, and `leonardo` reviews the pull request.
+The feedback-analysis run never applies `Resolve_by_AI`, and `create-issue` leaves workflow labels out when it selects a label (`@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*). A proposal therefore never enters the selection of `krang` step 1 on its own. A closed proposal is not implemented. After the approval, the ordinary pipeline takes the issue: `krang` classifies it, `donatello` implements it under `@skills/resolve-issue/references/safeguard-implementation.md`, and `leonardo` reviews the pull request.
 
 ## Consent
 
 `@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels* owns the table. This contract adds the one row that the filing needs.
 
 - Recording and analysing write local files only. They need no consent row.
-- Filing a proposal, and refreshing its `prevention-proposal` comment, are **L1** for `splinter` in a feedback-analysis run that the user asked for. The request is the ask. No other run files a proposal.
+- Filing a proposal, and refreshing its `prevention-proposal` comment, are **L1** for `krang` in a feedback-analysis run that the user asked for. The request is the ask. No other run files a proposal.
 - A promotion candidate is a proposal with a `target`, and it is filed the same way. Recording a decision or a promotion writes the local history only.
 - Applying `Resolve_by_AI` to a proposal, closing it as not planned, implementing it, and merging it are not part of the run. The first three follow *Approval*, and the merge stays **L2**.
 

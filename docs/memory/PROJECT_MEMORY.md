@@ -15,22 +15,22 @@
 - Role:    shared
 
 ### agent-file-vs-registration — Adding agents/<name>.md does not make the agent dispatchable
-- Trigger: splinter tries to dispatch a newly documented agent via the Task tool, assuming a new `agents/<name>.md` file is immediately executable.
+- Trigger: krang tries to dispatch a newly documented agent via the Task tool, assuming a new `agents/<name>.md` file is immediately executable.
 - Rule:    `agents/<name>.md` is the canonical role definition, not registration by itself — the installer must also sync it into `.claude/agents/` for Claude Code and provide a matching `.codex/agents/<name>.toml` adapter plus `.codex/agent-instructions/<name>.md` for Codex before the role is dispatchable. Until then, fall back to registered agents or treat the step as blocked. Document the dependency in the agent's own file and the introducing issue.
 - Example: `agents/apollon.md` added in #628, daedalus correctly deferred to `talos`/`argos`. Update #654: `apollon` now registered — point-in-time, see [[verify-agent-registration-premise]].
 - Source:  https://github.com/pekral/ai-olympus/pull/633   Added: 2026-06-20
-- Role:    splinter
+- Role:    krang
 
 ### parallel-agent-publication-contract — Parallel-dispatched agents must route findings through the shared brief, not publish directly
-- Trigger: a new CR/review agent that splinter dispatches in parallel with another agent publishes findings via raw `gh pr comment`/`gh issue comment`.
+- Trigger: a new CR/review agent that krang dispatches in parallel with another agent publishes findings via raw `gh pr comment`/`gh issue comment`.
 - Rule:    A parallel-dispatched agent must hand off findings via the shared brief so the consolidating agent (today the single CR agent, `leonardo`) publishes one report. Direct publication is allowed only in standalone mode, and even then only via the canonical `upsert-comment.sh` wrapper — never raw `gh pr comment`/`gh issue comment`, which breaks consolidation and duplicates comment threads.
 - Example: `agents/athena.md` step 5 used `gh pr comment` directly; argos flagged Moderate in PR #638 (`82abc16`); fixed to hand off via brief / `upsert-comment.sh` standalone.
 - Source:  https://github.com/pekral/ai-olympus/pull/638   Added: 2026-06-20
-- Role:    splinter
+- Role:    krang
 
 ### agent-new-mode-status-result-parity — A new agent run-mode needs both Status and Result updated in the handoff section
 - Trigger: a new run-mode/output branch is added to an agent (e.g. a `Decomposition done` path); `Result:` is updated but `Status:` is left unchanged.
-- Rule:    Every new run-mode must appear in both `Status:` and `Result:` in the agent's *Output — handoff* section, consistent with every cross-file peer (e.g. `splinter.md` ↔ `donatello.md`); update all affected files atomically. A missing `Status` value is an incomplete contract the CR loop flags as Moderate. Same parity for rule ↔ skill: when a skill defines a sanctioned exception to a `rules/**` mandate, the rule must name that exception inline (the "Bugsnag has no auto-claim" precedent) — an unqualified absolute the skill legitimately violates is the same Moderate inconsistency.
+- Rule:    Every new run-mode must appear in both `Status:` and `Result:` in the agent's *Output — handoff* section, consistent with every cross-file peer (e.g. `krang.md` ↔ `donatello.md`); update all affected files atomically. A missing `Status` value is an incomplete contract the CR loop flags as Moderate. Same parity for rule ↔ skill: when a skill defines a sanctioned exception to a `rules/**` mandate, the rule must name that exception inline (the "Bugsnag has no auto-claim" precedent) — an unqualified absolute the skill legitimately violates is the same Moderate inconsistency.
 - Example: `agents/daedalus.md` *Output — handoff* omitted `Decomposition done` vs the peer analysis-agent + issue #639 step 4; argos caught Moderate in PR #640 iteration 1 (`392203d`). Recurrence PR #23: *File deferred points…* rule demanded filing with no exception vs `resolve-issue`'s PR opt-out; fixed by naming the exception (`57bb49c`).
 - Source:  https://github.com/pekral/ai-olympus/pull/640   Added: 2026-06-20   Updated: 2026-07-11 (PR #23)
 - Role:    donatello
@@ -110,11 +110,11 @@
 - Rule:    Publishing an external comment under the user's identity is a separate consent surface from resolving+merging. When the request says only "report back" (to the user) without asking to post on the tracker, the auto-mode classifier denies the publish. Fall back to the in-chat summary and re-dispatch `donatello` for the final scoped validation only, carrying the How-to-test summary into the final report yourself. Don't retry the publish.
 - Example: gh-699 run; `apollon` dispatch denied: "[External System Writes] ... user only asked to report back ... not to post on the issue".
 - Source:  https://github.com/pekral/ai-olympus/pull/702   Added: 2026-06-23
-- Role:    splinter
+- Role:    krang
 
 ### per-tracker-claim-belongs-in-resolve-issue-and-selection — A claim mechanism needs an idempotent abort-on-conflict claim AND a selection-exclusion filter
 - Trigger: a task asks to mark a tracker issue "In progress"/claimed at work-start so two AI agents don't pick the same task in parallel; the naive implementation only sets a status.
-- Rule:    A claim alone doesn't prevent the collision. The guard is two-sided: (1) the claim step is idempotent, apply-and-verify (re-read, never trust the write exit code — [[auto-mode-external-write-blocked]]), and ABORTs if already claimed; (2) the selection step EXCLUDEs already-claimed issues. GitHub: claim label (`Resolve_by_AI:in-progress`) + `-label:"${CLAIM_LABEL}"` negation in the issue-selection query (today `agents/splinter.md` step 1). JIRA: a second sanctioned transition helper (clone of `transition-to-code-review.sh`). Bugsnag stays hands-off. Release the claim on Blocked/abort before the PR opens; keep it on success.
+- Rule:    A claim alone doesn't prevent the collision. The guard is two-sided: (1) the claim step is idempotent, apply-and-verify (re-read, never trust the write exit code — [[auto-mode-external-write-blocked]]), and ABORTs if already claimed; (2) the selection step EXCLUDEs already-claimed issues. GitHub: claim label (`Resolve_by_AI:in-progress`) + `-label:"${CLAIM_LABEL}"` negation in the issue-selection query (today `agents/krang.md` step 1). JIRA: a second sanctioned transition helper (clone of `transition-to-code-review.sh`). Bugsnag stays hands-off. Release the claim on Blocked/abort before the PR opens; keep it on success.
 - Example: issue #704/PR #706 — `rules/compound-engineering/general.mdc` gained *Claim a tracker issue…*; `skills/code-review-jira/scripts/transition-to-in-progress.sh` (new); `skills/resolve-issue/SKILL.md` plus the then-existing `autoresolve-oldest-github-issue` skill (removed from the repo since, no longer supported) updated. Converged argos+athena 0/0/0 iteration 1.
 - Source:  https://github.com/pekral/ai-olympus/pull/706   Added: 2026-06-23
 - Role:    shared
@@ -125,11 +125,11 @@
 - Source:  https://github.com/pekral/ai-olympus/pull/706   Added: 2026-06-23
 - Role:    donatello
 
-### claim-mechanism-converges-clean-when-it-mirrors-an-existing-pattern — splinter: a feature that mirrors an already-reviewed sibling pattern converges in one CR iteration
+### claim-mechanism-converges-clean-when-it-mirrors-an-existing-pattern — krang: a feature that mirrors an already-reviewed sibling pattern converges in one CR iteration
 - Trigger: orchestrating a feature whose core artifact is structurally near-identical to an existing, already-reviewed artifact (a new JIRA transition helper cloning an existing one; a claim label mirroring `ready for review`).
 - Rule:    Settle the design first when the *mechanism* is ambiguous (which signal, where the contract lives) even if the *code* is a clone — the ambiguity is in the design, not the implementation. Once fixed, implementation is low-risk and `leonardo` converges in iteration 1. Scope a similar "claim/status/follow-up" request as design-then-clone, not net-new high-risk work.
 - Source:  https://github.com/pekral/ai-olympus/pull/706   Added: 2026-06-23
-- Role:    splinter
+- Role:    krang
 
 ### github-sub-issues-only-via-graphql — GitHub native sub-issues are reachable only through GraphQL, not `gh ... --json`
 - Trigger: extending `skills/code-review-github/scripts/load-issue.sh` (or any GitHub loader) to read native sub-issues/parent-child relations.
@@ -164,7 +164,7 @@
 - Rule:    This form can silently return empty results even for genuine matches (observed against `README.md`, known to carry a per-skill catalog entry) — a false negative that under-reports the reference map a plan/brief gets built on. Use the reliable two-step form instead: `git grep -ln -- "$s" | grep -v "^skills/$s/"`. Sanity-check any scan result feeding a plan/brief against at least one known-matching file before trusting it.
 - Example: gh-6 gather step building the reference map for issue #6 (13 skills to remove) — pathspec-exclude returned 0 hits for `README.md` despite a known catalog entry; the two-step form produced the correct map, reconfirmed by talos's own full-tree grep (see [[skills-tree-convention-removal-grep-full-tree]]).
 - Source:  https://github.com/pekral/ai-olympus/pull/7   Added: 2026-07-01
-- Role:    splinter
+- Role:    krang
 
 ### readme-structure-is-referenced-by-instruction-files-not-just-tests — Deleting a README section orphans instruction references, not only pinned tests
 - Trigger: a task removes/restructures a named README section (e.g. deleting `Skills Overview`, converting `Claude Code Subagents` into cards).
@@ -202,11 +202,11 @@
 - Role:    donatello
 
 ### background-cr-dispatch-can-silently-lose-output — A background CR review reporting "completed" is not proof it actually published
-- Trigger: splinter dispatches `leonardo` with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed.
+- Trigger: krang dispatches `leonardo` with `run_in_background: true` for the review-and-fix loop (step 6), and later needs to confirm the review actually landed.
 - Rule:    A background agent can return a `task-notification` with `status: completed` and a full-looking summary while no corresponding PR comment/review/brief handoff section exists. Before trusting a background CR completion, verify with `gh pr view <n> --json comments,reviews` (or the loader) and grep the brief for the handoff section; if either is empty, treat the run as lost and re-dispatch synchronously (`run_in_background: false`). Do not proceed to the merge gate on an unverified background handoff. Preventive complement: when a task explicitly worries output may be lost, dispatch `leonardo` foreground from the start instead of background-plus-verify.
 - Example: issue #9/PR #31 — first parallel background dispatch returned "done" summaries but left zero PR comments/brief sections; re-dispatched synchronously, producing verifiable comments (`gh api .../issues/31/comments` confirmed) and correct brief entries (0 Critical/0 Moderate/1 Minor). Recurrence PR #49/issue #39: pre-merge re-verification dispatched foreground from the start, sidestepping the async gap.
 - Source:  https://github.com/pekral/ai-olympus/pull/31   Added: 2026-07-12   Updated: 2026-07-15 (PR #49)
-- Role:    splinter
+- Role:    krang
 
 ### unpublished-package-prefers-hard-removal-over-deprecation — For a pre-1.0/unpublished package, remove a deprecated feature outright instead of adding a compatibility shim
 - Trigger: an issue asks to "remove support for X" (a CLI flag, installer target, public option) on a package with no stable release / real external consumers yet.
@@ -300,11 +300,11 @@
 - Role:    shared
 
 ### write-lock-staleness-needs-corroborating-evidence-not-bare-pid — Reclaiming a write-lock on a dead PID alone isn't enough — corroborate with the run's own outcome
-- Trigger: resuming a splinter run from a shared brief written by a previous, interrupted instance, and the write-lock (`.claude/run/.splinter-write.lock`) is held — especially when the brief's own "concurrency note" names a *different* holder than the one actually found live.
+- Trigger: resuming a krang run from a shared brief written by a previous, interrupted instance, and the write-lock (`.claude/run/.krang-write.lock`) is held — especially when the brief's own "concurrency note" names a *different* holder than the one actually found live.
 - Rule:    A `kill -0 <holder PID>` probe is unreliable in this sandbox — each Bash call spawns a fresh subprocess, so a captured PID reflects only that one transient command. Before reclaiming, corroborate with the referenced run's own outcome (issue `CLOSED`, PR `MERGED`, working tree clean on the base branch). Re-derive the *current* concurrency picture from live state (`ls .claude/run/`, the lock holder file, `gh issue/pr view`) rather than trusting a brief's stale "concurrency note" verbatim.
 - Example: the `gh-51` brief warned about a lock held by `gh-56`; by resume time `gh-56` had finished (issue #56 `CLOSED`, PR #61 `MERGED`) and the lock was instead held under `SLUG=gh-52` (not even mentioned in the brief) — reclaim justified by corroborating evidence (#52 `CLOSED`, PR #70 `MERGED`), not the dead-PID probe alone.
 - Source:  https://github.com/pekral/ai-olympus/pull/72   Added: 2026-07-19
-- Role:    splinter
+- Role:    krang
 
 ### process-code-review-completion-skips-duplicate-cr-comment-after-upstream-publish — When `leonardo` already published the CR comment, Completion publishes only `cr-status`
 - Trigger: `process-code-review` runs (typically as `donatello`) on a PR where `leonardo` already published the single technical `cr-comment` upstream of this skill's own Review loop.
@@ -314,39 +314,39 @@
 - Role:    donatello
 
 ### plan-tracking-issue-may-outlive-its-own-implementation-merge — A "Plan (issue #N)" tracking issue can stay OPEN after merge, since `Closes #N` targets the source issue
-- Trigger: splinter resolves a GitHub issue that is a published plan artifact (title names another issue as its target, phrasing varies) rather than an original source issue — check whether the plan's content has already shipped before dispatching `donatello`.
+- Trigger: krang resolves a GitHub issue that is a published plan artifact (title names another issue as its target, phrasing varies) rather than an original source issue — check whether the plan's content has already shipped before dispatching `donatello`.
 - Rule:    A plan issue and its source issue are distinct tracker items; `Closes #N` in the implementing commit names the source, leaving the plan issue OPEN even when realized. Verify: (1) source issue CLOSED; (2) a merged PR references this plan issue; (3) plan's named files match the PR's changed-file list; (4) fresh local `composer build` passes. If all four hold, it's reconciliation, not implementation — post an explanatory comment + `gh issue close`, no `donatello` dispatch, no new PR.
 - Example: Issue #71 ("Plan (issue #51)") stayed OPEN after PR #72 implemented it via `Closes #51` in commit `250c943`; verified + closed. Recurred: issue #69/PR #70 (issue #52), issue #57/PR #58 (issue #54) — differently-punctuated titles, same pattern.
 - Source:  https://github.com/pekral/ai-olympus/pull/72   Added: 2026-07-19   Updated: 2026-07-19 (issue #69 / PR #70)
-- Role:    splinter
+- Role:    krang
 
-### cleanup-must-verify-lock-ownership-before-unconditional-release — splinter step-7 cleanup must confirm this run acquired the write-lock before removing it
-- Trigger: splinter reaches step-7 cleanup and runs `rm -rf .claude/run/.splinter-write.lock` mechanically, without checking whether *this* run's own step 5 ever created that lock — especially on a non-standard path (already-resolved issue, analysis-only) that never dispatched `donatello`.
-- Rule:    The cleanup is conditional on step 5 having acquired the lock *in this run* — not an unconditional habit. `ls -la .claude/run/` first: if briefs/the lock predate this run's step 5, or `donatello` was never dispatched, do not touch it — it may belong to another active splinter instance. If removed by mistake, recreate a placeholder with a transparent incident note and disclose it in the final report — never silently continue, never fabricate the holder's PID.
+### cleanup-must-verify-lock-ownership-before-unconditional-release — krang step-7 cleanup must confirm this run acquired the write-lock before removing it
+- Trigger: krang reaches step-7 cleanup and runs `rm -rf .claude/run/.krang-write.lock` mechanically, without checking whether *this* run's own step 5 ever created that lock — especially on a non-standard path (already-resolved issue, analysis-only) that never dispatched `donatello`.
+- Rule:    The cleanup is conditional on step 5 having acquired the lock *in this run* — not an unconditional habit. `ls -la .claude/run/` first: if briefs/the lock predate this run's step 5, or `donatello` was never dispatched, do not touch it — it may belong to another active krang instance. If removed by mistake, recreate a placeholder with a transparent incident note and disclose it in the final report — never silently continue, never fabricate the holder's PID.
 - Example: The `gh-71` run (issue #71, already shipped via merged PR #72, see [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]) ran `rm -rf .daedalus-write.lock` unconditionally, deleting `gh-60`'s live lock (confirmed via its `Resolve_by_AI:in-progress` label + mtime); no actual collision occurred, so the lock was recreated with an incident note disclosed to the user.
 - Source:  https://github.com/pekral/ai-olympus/issues/71   Added: 2026-07-19
-- Role:    splinter
+- Role:    krang
 
 ### plan-issue-may-be-only-partially-superseded-verify-each-criterion — A plan issue can be *partially* superseded by an alternate merged design — verify each criterion
-- Trigger: splinter resolves a "Plan (issue #N)" tracking issue and finds its target source issue already CLOSED via a different, already-merged PR than the plan proposed (see [[plan-tracking-issue-may-outlive-its-own-implementation-merge]] for the fully-redundant variant).
+- Trigger: krang resolves a "Plan (issue #N)" tracking issue and finds its target source issue already CLOSED via a different, already-merged PR than the plan proposed (see [[plan-tracking-issue-may-outlive-its-own-implementation-merge]] for the fully-redundant variant).
 - Rule:    Do not treat "resolved differently" as proof the plan is moot, nor implement it verbatim. Walk the plan's success criteria one at a time against the current codebase: some may already be satisfied by the alternate design, some permanently superseded, some may still be open if the superseding PR flagged them as deferred. Verify each by direct file inspection and checking for an existing pinning test. Scope implementation to only the still-open criteria; frame the PR body to explain the scope reduction.
 - Example: Issue #60 ("Plan (issue #56)") proposed an option contradicted on 2 of 3 criteria by PR #61's merged alternate design; the 3rd (a missing Summary-line token in a `code-review-bugsnag` template) was confirmed still unfixed (per PR #61's own "future follow-up" note) — implementation scoped to just that edit.
 - Source:  https://github.com/pekral/ai-olympus/pull/76   Added: 2026-07-19
-- Role:    splinter
+- Role:    krang
 
-### splinter-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — splinter executes merge-github-pr itself
-- Trigger: a splinter run reaches convergence on a PR and needs to perform the actual merge into the base branch.
-- Rule:    `donatello` explicitly never merges; `leonardo` is a read-only reviewer with no merge capability either (though `leonardo` may flip `gh pr ready` when it promotes a converged PR out of Draft — not the same operation as the merge). No agent performs `gh pr merge`. splinter reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
+### krang-executes-final-merge-directly-no-specialist-owns-it — No specialist agent owns `gh pr merge` — krang executes merge-github-pr itself
+- Trigger: a krang run reaches convergence on a PR and needs to perform the actual merge into the base branch.
+- Rule:    `donatello` explicitly never merges; `leonardo` is a read-only reviewer with no merge capability either (though `leonardo` may flip `gh pr ready` when it promotes a converged PR out of Draft — not the same operation as the merge). No agent performs `gh pr merge`. krang reads `@skills/merge-github-pr/SKILL.md` itself and executes it directly via `Bash` — load the PR via the deterministic loader (`skills/code-review-github/scripts/load-issue.sh`), verify every step-2 pre-check itself, then run `gh pr merge` directly. This is the one procedural/deterministic skill not on the "never invoke yourself" list.
 - Example: PR #76 (issue #60) — after convergence (argos 0/0/0/0 + athena 0/0/0), daedalus independently verified all 6 pre-checks and ran `gh pr merge --squash --delete-branch` directly — no specialist dispatched for the merge.
 - Source:  https://github.com/pekral/ai-olympus/pull/76   Added: 2026-07-19
-- Role:    splinter
+- Role:    krang
 
 ### memory-file-append-has-no-lock-anchor-substring-replace-mitigates — Concurrent memory-file writes aren't lock-protected — anchor-based substring edits keep them safe
-- Trigger: two or more splinter runs reach step 7 (record durable lessons) close together and both edit the same `docs/memory/PROJECT_MEMORY.md` entry — most likely both reconciliation-only runs, since neither ever acquired `.claude/run/.splinter-write.lock` (scoped to the full-delivery/`donatello`-dispatch path only).
+- Trigger: two or more krang runs reach step 7 (record durable lessons) close together and both edit the same `docs/memory/PROJECT_MEMORY.md` entry — most likely both reconciliation-only runs, since neither ever acquired `.claude/run/.krang-write.lock` (scoped to the full-delivery/`donatello`-dispatch path only).
 - Rule:    Never edit `PROJECT_MEMORY.md` (or any unlocked, concurrently-touchable file) via captured line numbers (`sed -i '350s/.../'`) — line numbers go stale the instant a concurrent edit lands between your read and write. Instead: read the whole file fresh, locate the edit point by matching a unique, sufficiently long existing substring (e.g. `str.replace(exact_old_text, exact_old_text + addition, 1)`), write, then immediately re-read and eyeball the merged result (`grep -c '^### '` heading count, no duplicated/truncated text).
 - Example: the `gh-69` run (issue #69) and concurrent `gh-57` run (issue #57) both appended a recurrence sentence to [[plan-tracking-issue-may-outlive-its-own-implementation-merge]]'s Example field within ~1 minute of each other; anchor-based `str.replace` let both compose correctly with zero corruption, confirmed via `git status` + unchanged `grep -c '^### '` count.
 - Source:  https://github.com/pekral/ai-olympus/issues/69   Added: 2026-07-19
-- Role:    splinter
+- Role:    krang
 
 ### claude-code-plugin-ships-no-rules-or-claude-md — A Claude Code plugin distributes skills and agents only; rules and CLAUDE.md need a command
 - Trigger: work on the plugin-marketplace distribution channel (`.claude-plugin/*.json`), or a claim that installing the plugin gives a project the same result as the Composer installer.
@@ -364,7 +364,7 @@
 
 ### worktree-standing-authorization — A worktree for issue work in this repo is pre-approved, and removing it after the merge is mandatory
 - Trigger: an agent is about to work a GitHub issue in `ai-olympus` and is weighing whether it may create a `git worktree` or has to ask first.
-- Rule:    The authorization is **standing** for this repository — create a worktree for issue work without asking; the "only when the user explicitly asks" condition in `CLAUDE.md` and `@rules/git/general.md` is permanently satisfied for `ai-olympus`. Removing it after the PR merges is **mandatory**, not best-effort; the mechanics are unchanged — `@rules/git/general.md` *Worktrees / Workspaces* governs them (verify the worktree is not the active tree and carries no uncommitted changes, never `--force`, then `git worktree remove <path>` plus `git worktree prune`). The owner on the merge path is `@skills/merge-github-pr/SKILL.md` §4, and `splinter` *Run cleanup* for a CR worktree. The authorization **creates no parallelism** where the design forbids it: only a unit that `plan-parallel.sh` placed in a two-unit batch runs in its own `agent-impl-*` worktree and takes no write-lock (`@rules/compound-engineering/concurrency.md` *Parallel units*); every other writing run uses the shared tree, so a second concurrent writing run still blocks on `.claude/run/.splinter-write.lock`.
+- Rule:    The authorization is **standing** for this repository — create a worktree for issue work without asking; the "only when the user explicitly asks" condition in `CLAUDE.md` and `@rules/git/general.md` is permanently satisfied for `ai-olympus`. Removing it after the PR merges is **mandatory**, not best-effort; the mechanics are unchanged — `@rules/git/general.md` *Worktrees / Workspaces* governs them (verify the worktree is not the active tree and carries no uncommitted changes, never `--force`, then `git worktree remove <path>` plus `git worktree prune`). The owner on the merge path is `@skills/merge-github-pr/SKILL.md` §4, and `krang` *Run cleanup* for a CR worktree. The authorization **creates no parallelism** where the design forbids it: only a unit that `plan-parallel.sh` placed in a two-unit batch runs in its own `agent-impl-*` worktree and takes no write-lock (`@rules/compound-engineering/concurrency.md` *Parallel units*); every other writing run uses the shared tree, so a second concurrent writing run still blocks on `.claude/run/.krang-write.lock`.
 - Example: the user's instruction on 2026-08-24 during the run on issue #11; see [[pest-worktree-avoid-digit-leading-path]] for the trap in where a disposable worktree is placed.
 - Source:  https://github.com/pekral/ai-olympus/pull/16   Added: 2026-08-24
 - Role:    shared

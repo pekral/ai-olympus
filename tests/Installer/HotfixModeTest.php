@@ -77,7 +77,7 @@ test('the executors carry the mode: implementer, review loop, and route plan', f
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
     $planner = (string) file_get_contents($packageDir . '/skills/_shared/plan-route.sh');
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     // One home for every gate behaviour both skills share. Knowing the bug is gone survives there;
@@ -92,7 +92,7 @@ test('the executors carry the mode: implementer, review loop, and route plan', f
     // The mode travels in the deterministic plan, so a dispatch can neither forget nor invent it.
     expect($planner)->toContain('--hotfix');
     expect($planner)->toContain('review_hotfix');
-    expect($splinter)->toContain('**A declared HOTFIX is passed to the planner, never applied by hand.**');
+    expect($krang)->toContain('**A declared HOTFIX is passed to the planner, never applied by hand.**');
     expect($leonardo)->toContain('**When the dispatch carries `review_hotfix`**');
 });
 

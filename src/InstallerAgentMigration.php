@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Pekral\AiOlympus;
 
 /**
- * Removes only unchanged definitions from the last Greek-named roster after a replacement is installed.
+ * Removes only unchanged definitions of renamed agents after a replacement is installed.
  * Unknown versions and user edits remain orphans for manual review.
  */
 final class InstallerAgentMigration
@@ -15,9 +15,10 @@ final class InstallerAgentMigration
         'apollo' => 'michelangelo',
         'argus' => 'raphael',
         'athena' => 'leonardo',
-        'daedalus' => 'splinter',
+        'daedalus' => 'krang',
         'hephaestus' => 'donatello',
         'hermes' => 'april',
+        'metalhead' => 'shredder',
     ];
 
     private const array ORIGINAL_DIGESTS = [
@@ -33,6 +34,8 @@ final class InstallerAgentMigration
         'hephaestus.toml' => 'eee9858bcae47dff44dca2b40f1f1dc08e4aae1e9e7cb1434a6b7a62a261a127',
         'hermes.md' => 'c0d34a62c4a45cbc68beb17384c090fc52a4cec4867be9a718f213fbb03d0ab9',
         'hermes.toml' => '8fa6c6dedc52f922a84a0ad67e84867ee7abdc9791c422577e1fb3830ce0f64b',
+        'metalhead.md' => '67eff12a0d4ef0453baeadb9c09b7f9b7fe416d6425615624e2be73cfaf55b14',
+        'metalhead.toml' => 'e220e83564abc6b413ae696f27dd4f49a3a4311552a780cda6e0e371ac7be0a0',
     ];
 
     public static function removeKnownCopies(string $source, string $target): int

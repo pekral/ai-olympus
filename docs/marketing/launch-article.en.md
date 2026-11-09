@@ -59,7 +59,7 @@ pull requests.
 So the roster got split. Five agents, each with its own capability boundary, and none of them
 reviewing code it wrote itself:
 
-- **`splinter`** resolves the source, decides the route, and dispatches. It also owns the backlog:
+- **`krang`** resolves the source, decides the route, and dispatches. It also owns the backlog:
   it triages the open issues into a defensible order, and splits a subject too broad for one pull
   request into separately deliverable ones. It holds `Task`, `Read`, `Glob`, `Grep`, `Bash`. It
   never writes code.
@@ -108,7 +108,7 @@ project.
 
 Three things stop this from being a machine that rewrites your repository while you are at lunch.
 
-**Read-only agents are read-only in the frontmatter.** `leonardo`, `april`, `splinter`, and `raphael`
+**Read-only agents are read-only in the frontmatter.** `leonardo`, `april`, `krang`, and `raphael`
 each carry `disallowedTools: Write, Edit`. That is enforced by the harness, not by the
 agent's own good intentions. `donatello` carries `disallowedTools: WebSearch, WebFetch` for the
 mirror-image reason: the agent that writes files has no business fetching a third-party URL.

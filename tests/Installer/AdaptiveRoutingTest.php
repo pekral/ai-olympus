@@ -169,7 +169,7 @@ test('a page redesign is routed to michelangelo before the implementer, at every
     expect(routingPlan('--tier STANDARD --escalated-from FAST --redesign'))->not->toContain('michelangelo');
 
     // The orchestrator passes the flag, the rule says when, and the agent states it is dispatched.
-    expect(splinterContractText())->toContain('Page-redesign task → design with `michelangelo`');
+    expect(krangContractText())->toContain('Page-redesign task → design with `michelangelo`');
     expect(file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('### One stage is chosen by the kind of work, not by the tier');
     expect(file_get_contents($packageDir . '/agents/michelangelo.md'))->toContain('## Registration dependency');
@@ -196,7 +196,7 @@ test('the routing contract binds to OpenAI / Codex, not only to Claude Code', fu
 test('every agent declares its own model tiers, per platform, in its own definition', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Claude Code: the frontmatter plus the tier splinter dispatches at. `donatello` carries both
+    // Claude Code: the frontmatter plus the tier krang dispatches at. `donatello` carries both
     // tiers; `leonardo` was raised to the stronger model outright, so it declares that there is no
     // higher tier left to escalate to on this platform rather than naming one that does not exist.
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
@@ -214,7 +214,7 @@ test('every agent declares its own model tiers, per platform, in its own definit
 
     // Codex / OpenAI: every shipped adapter declares both tiers for its own role, including the
     // three that never escalate — an absent declaration would read as an undecided one.
-    foreach (['splinter', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
+    foreach (['krang', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('Model tiers for this role on Codex — this file is where they are declared, not the rules:');
         expect($toml)->toContain('- Default tier:');
@@ -225,7 +225,7 @@ test('every agent declares its own model tiers, per platform, in its own definit
     }
 
     // The three roles that derive no new fact must say they never escalate, not leave it open.
-    foreach (['splinter', 'raphael', 'april'] as $agent) {
+    foreach (['krang', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('- Escalated tier: none —');
     }
@@ -254,7 +254,7 @@ test('no shipped surface claims the implementer reviews its own diff', function 
     // The duplicate review was removed from `resolve-issue`, but `agents/donatello.md` kept telling
     // the agent its pre-PR self-check runs `code-review` + `security-review` and gates on the
     // findings — the opposite of what the skill says, three lines below its own "never review your
-    // own work". Two more copies sat in `docs/agents.md` and in splinter's leonardo-not-registered
+    // own work". Two more copies sat in `docs/agents.md` and in krang's leonardo-not-registered
     // fallback, which named a security pass nobody performs any more.
     //
     // Pin the class, not the sentence: any phrasing that has the self-check RUN a review skill.
@@ -291,7 +291,7 @@ test('no shipped surface claims the implementer reviews its own diff', function 
 test('donatello points at the lightweight self-check and nothing else', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     // The agent must defer to the skill that owns the pass, and the deferral must be visibly
     // consistent with the "never review your own work" boundary stated above it.
@@ -300,6 +300,6 @@ test('donatello points at the lightweight self-check and nothing else', function
     expect($donatello)->toContain('never review your own work');
 
     // An unregistered leonardo must not silently promote the implementer into the reviewer's place.
-    expect($splinter)->toContain('leonardo is not registered — no pre-implementation security analysis runs');
-    expect($splinter)->toContain('**Do not route the analysis into `donatello` instead:**');
+    expect($krang)->toContain('leonardo is not registered — no pre-implementation security analysis runs');
+    expect($krang)->toContain('**Do not route the analysis into `donatello` instead:**');
 });

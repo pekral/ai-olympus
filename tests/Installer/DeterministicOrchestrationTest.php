@@ -208,7 +208,7 @@ test('the routine report is rendered from run data, and april is reserved for re
     $packageDir = dirname(__DIR__, 2);
     $renderer = (string) file_get_contents($packageDir . '/skills/_shared/render-report.sh');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     expect($renderer)->toContain('\'a completed run renders every known field\'');
     expect($renderer)->toContain('\'a failed run reports the failure, not a success\'');
@@ -221,14 +221,14 @@ test('the routine report is rendered from run data, and april is reserved for re
     expect($renderer)->toContain('\'the report renders in the assignment language\'');
     expect($renderer)->toContain('\'an unsupported language escalates rather than guessing\'');
 
-    // april states where the boundary is, and splinter routes around it.
+    // april states where the boundary is, and krang routes around it.
     expect($april)->toContain('## When a model is warranted — and when a template is');
     expect($april)->toContain('you are not dispatched for it');
-    expect($splinter)->toContain('skills/_shared/render-report.sh');
-    expect($splinter)->toContain('**The completion report is rendered, not written by a model, and it goes to the user only.**');
-    expect($splinter)->toContain('**This is the run\'s one tracker report, and it is final.**');
-    expect($splinter)->toContain('state `tracker-report: deferred`');
-    expect($splinter)->not->toContain('publish its output through the canonical `upsert-comment.sh` wrapper');
+    expect($krang)->toContain('skills/_shared/render-report.sh');
+    expect($krang)->toContain('**The completion report is rendered, not written by a model, and it goes to the user only.**');
+    expect($krang)->toContain('**This is the run\'s one tracker report, and it is final.**');
+    expect($krang)->toContain('state `tracker-report: deferred`');
+    expect($krang)->not->toContain('publish its output through the canonical `upsert-comment.sh` wrapper');
 });
 
 test('metrics are persisted as counts only, outside the repository', function (): void {
@@ -248,24 +248,24 @@ test('metrics are persisted as counts only, outside the repository', function ()
     expect($recorder)->toContain('\'every stored line is valid JSON\'');
 });
 
-test('splinter records the run metrics that make the next tuning decision evidence-based', function (): void {
-    $splinter = splinterContractText();
+test('krang records the run metrics that make the next tuning decision evidence-based', function (): void {
+    $krang = krangContractText();
 
-    expect($splinter)->toContain('skills/_shared/record-metrics.sh');
-    expect($splinter)->toContain('It writes counts only — never source, diffs, prompts, tracker text, branch names, or URLs');
-    expect($splinter)->toContain('ai-olympus stats --last=7d');
+    expect($krang)->toContain('skills/_shared/record-metrics.sh');
+    expect($krang)->toContain('It writes counts only — never source, diffs, prompts, tracker text, branch names, or URLs');
+    expect($krang)->toContain('ai-olympus stats --last=7d');
 });
 
-test('splinter may run the context relevance gate it is told to run first', function (): void {
-    $splinter = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/splinter.md');
+test('krang may run the context relevance gate it is told to run first', function (): void {
+    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md');
 
-    expect($splinter)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/gate-context\.sh`/m');
+    expect($krang)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/gate-context\.sh`/m');
 });
 
 test('the deterministic helpers are mapped for Codex, not only for Claude Code', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['splinter', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
+    foreach (['krang', 'donatello', 'leonardo', 'raphael', 'april'] as $agent) {
         $toml = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
         expect($toml)->toContain('run-validation.sh');
         // The shared machine gate record (issue #169) runs through the same helpers on Codex.
@@ -330,7 +330,7 @@ test('the context relevance gate decides cheaply and defaults to false', functio
 
     $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
     expect($recorder)->toContain('\'context gate counters are stored as counts\'');
-    expect(splinterContractText())->toContain('`--context-gate-executed`, `--context-requested`, `--context-skipped`');
+    expect(krangContractText())->toContain('`--context-gate-executed`, `--context-requested`, `--context-skipped`');
 });
 
 test('the parallel planner pins the rule that lets two units overlap', function (): void {

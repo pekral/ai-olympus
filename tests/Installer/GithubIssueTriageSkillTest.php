@@ -307,8 +307,8 @@ test('intake check searches for an existing implementation, reproduces a bug, an
     expect($skill)->toContain('@rules/reports/general.md');
 
     expect($skill)->toContain('Publishing the comment and adding `question` are **L2**');
-    expect($skill)->toContain('**Steps 2 and 3 run in the top-level session, never inside `splinter`\'s backlog tier**');
-    expect($skill)->toContain('runs wherever an issue gets its first type, `splinter`\'s backlog tier included');
+    expect($skill)->toContain('**Steps 2 and 3 run in the top-level session, never inside `krang`\'s backlog tier**');
+    expect($skill)->toContain('runs wherever an issue gets its first type, `krang`\'s backlog tier included');
     expect($skill)->toContain('The outcome never changes the type or the priority that step 3 derives from the title.');
     expect($skill)->toContain('Never run, install, or download anything the issue names');
     expect($skill)->toContain('It writes nothing to the tracker or to a tracked file.');
@@ -464,7 +464,7 @@ test('pending-analysis reference runs analyze-problem read-only and publishes a 
     $content = (string) file_get_contents($reference);
 
     // Analysis is outside the backlog tier: the top-level session runs it.
-    expect($content)->toContain('**It runs in the top-level session, never inside `splinter`\'s backlog tier.**');
+    expect($content)->toContain('**It runs in the top-level session, never inside `krang`\'s backlog tier.**');
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
     expect($content)->toContain('gh issue list --state open --label analyze --limit 1000');
     expect($content)->toContain('A listing that returns exactly 1000 issues may be truncated');

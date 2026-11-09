@@ -17,14 +17,14 @@
 #           [--started-at <epoch seconds>]
 #   --self-test
 #
-# Request (written by splinter, never by the retriever)
+# Request (written by krang, never by the retriever)
 #   {
 #     "gate": <the gate-context.sh verdict that applies>,
 #     "task": { "type": "bug", "description": "...", "domains": [], "symbols": [], "paths": [] }
 #   }
 #   The request and the candidates file are each exactly one JSON document.
 #   `gate` is the verdict verbatim. When the verdict's classifier is `llm`,
-#   splinter copies its own classification into `context_required` and
+#   krang copies its own classification into `context_required` and
 #   `sources` and keeps `classifier: "llm"`. A request whose
 #   `gate.context_required` is not `true` is refused: the retriever never runs
 #   without a verdict that asked for context.

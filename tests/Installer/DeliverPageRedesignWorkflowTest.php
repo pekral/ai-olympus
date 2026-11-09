@@ -16,7 +16,7 @@ test('deliver-page-redesign is one shared workflow for Claude Code and Codex', f
     $command = (string) file_get_contents($commandPath);
 
     expect($skill)->toContain('name: deliver-page-redesign');
-    expect($skill)->toContain('### 4. Delegate the delivery route to `splinter`');
+    expect($skill)->toContain('### 4. Delegate the delivery route to `krang`');
     expect($skill)->toContain('never merges the pull request');
 
     expect($command)->toContain('argument-hint: [page URL]');
@@ -42,9 +42,9 @@ test('deliver-page-redesign routes through the redesign stage and a mandatory in
     expect($skill)->toContain('When no interactive browser is available, the run reports `Blocked`');
     expect($skill)->toContain('Keep the main layout shell');
 
-    // The command already hands the run to `splinter`, so the skill must never tell `splinter` to
+    // The command already hands the run to `krang`, so the skill must never tell `krang` to
     // dispatch itself. The invoking session resolves and captures the page, then delegates.
-    expect($skill)->not->toContain('Dispatch `splinter`');
+    expect($skill)->not->toContain('Dispatch `krang`');
     expect($skill)->toContain('The invoking session performs this step itself, before it delegates anything');
     expect($command)->toContain('then delegate the delivery route to the');
 });
@@ -89,7 +89,7 @@ test('deliver-page-redesign writes no code before the user approves the previews
     $skill = (string) file_get_contents($packageDir . '/skills/deliver-page-redesign/SKILL.md');
     $command = (string) file_get_contents($packageDir . '/commands/redesign-page.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
 
     expect($skill)->toContain('**No code before approval.**');
     expect($skill)->toContain('### 3. Get the design approved');
@@ -105,5 +105,5 @@ test('deliver-page-redesign writes no code before the user approves the previews
 
     // Delivery must implement the approved proposal instead of producing a competing one.
     expect($orchestration)->toContain('**An approved redesign is never replayed.**');
-    expect($splinter)->toContain('**An approved redesign is never replayed.**');
+    expect($krang)->toContain('**An approved redesign is never replayed.**');
 });

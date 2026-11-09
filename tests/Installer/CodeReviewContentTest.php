@@ -2637,7 +2637,7 @@ test('content-identical history rewrites preserve the converged code review verd
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $gitRule = gitRuleContents();
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     $fingerprintCommand = 'git diff --binary --full-index --no-color --no-ext-diff --no-renames '
         . '<base>...<head> | git patch-id --verbatim';
@@ -2654,7 +2654,7 @@ test('content-identical history rewrites preserve the converged code review verd
     expect($merge)->toContain('A content-identical history rewrite keeps the review current');
     expect($gitRule)->toContain('A rebase that preserves the reviewed diff fingerprint does not stale code review');
     expect($leonardo)->toContain('once per effective PR diff fingerprint');
-    expect($splinter)->toContain('compare the current effective PR diff fingerprint with the latest trusted CR');
+    expect($krang)->toContain('compare the current effective PR diff fingerprint with the latest trusted CR');
 
     foreach ([
         'code-review/templates/review-output.md',

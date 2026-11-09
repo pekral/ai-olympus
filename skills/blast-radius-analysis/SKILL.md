@@ -67,7 +67,7 @@ A change that leaves the report's assumptions true needs no new analysis. A find
 
 ## Output
 
-Inside a `splinter` run, append the report to the shared brief under `## Impact report`; `leonardo` and `raphael` already receive the brief path. Run standalone, return it inline. Keep it short — an affected component nobody can act on is not listed.
+Inside a `krang` run, append the report to the shared brief under `## Impact report`; `leonardo` and `raphael` already receive the brief path. Run standalone, return it inline. Keep it short — an affected component nobody can act on is not listed.
 
 ```yaml
 scope: {change: "<one line>", revision: "<sha>", tier: STANDARD}

@@ -3,7 +3,7 @@
 # run at the same time only when nothing can make them collide.
 #
 # Why this exists
-#   `splinter` used to process several sources strictly one after another. That is
+#   `krang` used to process several sources strictly one after another. That is
 #   always safe, and it leaves the machine idle between slow steps. Running two
 #   units at once is safe only when their work cannot touch the same files, one
 #   does not wait for the other, and neither is a risky change. Those are three

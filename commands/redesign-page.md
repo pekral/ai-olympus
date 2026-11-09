@@ -5,7 +5,7 @@ argument-hint: [page URL]
 
 Run `@skills/deliver-page-redesign/SKILL.md` with this page URL. Resolve and capture the page in
 this session, get the redesign previews approved by me, then delegate the delivery route to the
-`splinter` agent as the skill describes:
+`krang` agent as the skill describes:
 
 $ARGUMENTS
 
@@ -17,4 +17,4 @@ convergence, verify the page in a real interactive browser, and report in the sk
 Never merge the pull request.
 
 For Codex, invoke `$deliver-page-redesign` with the same URL. Ask the registered `michelangelo`
-agent for the design phase and the registered `splinter` agent for the delivery phase.
+agent for the design phase and the registered `krang` agent for the delivery phase.

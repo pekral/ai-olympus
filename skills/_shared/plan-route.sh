@@ -232,7 +232,7 @@ plan() {
 
   # The acceptance pass is not gated on the tier: a change a user can observe is
   # checked in the running application at every level of risk. With a review it
-  # runs in the same parallel CR round as `leonardo` (`agents/splinter.md`
+  # runs in the same parallel CR round as `leonardo` (`agents/krang.md`
   # *Parallel CR round*), so it directly follows the review stage. Without one
   # (FAST) it runs alone after the validation. The re-entry plan above never
   # adds it, because the lower tier's plan already carried it.

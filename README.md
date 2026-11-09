@@ -37,16 +37,16 @@ The commands above pin version `0.3.1`, which contains the Ninja Turtles team sh
 Restart the agent session after installation. In Claude Code:
 
 ```text
-@splinter resolve https://github.com/owner/repo/issues/123
+@krang resolve https://github.com/owner/repo/issues/123
 ```
 
 In Codex, request the role by name:
 
 ```text
-Use the splinter agent to resolve https://github.com/owner/repo/issues/123
+Use the krang agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`splinter` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `metalhead` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -131,14 +131,14 @@ The eight specialists keep their existing responsibilities and permissions under
 
 <table>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/splinter.png"><img src="assets/agents/thumbnails/splinter.png" alt="Splinter avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/krang.png"><img src="assets/agents/thumbnails/krang.png" alt="Krang avatar" width="80"></a></td>
 <td valign="top">
 
-**Splinter (`splinter`) — engineering-workflow orchestrator** · the front door
+**Krang (`krang`) — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `metalhead` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `metalhead`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `shredder`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
@@ -215,10 +215,10 @@ Runs after the code review of a MySQL change converged. It reads the diff throug
 </td>
 </tr>
 <tr>
-<td width="96" valign="top"><a href="assets/agents/metalhead.png"><img src="assets/agents/thumbnails/metalhead.png" alt="Metalhead avatar" width="80"></a></td>
+<td width="96" valign="top"><a href="assets/agents/shredder.png"><img src="assets/agents/thumbnails/shredder.png" alt="Shredder avatar" width="80"></a></td>
 <td valign="top">
 
-**Metalhead (`metalhead`) — context retriever** · read-only
+**Shredder (`shredder`) — context retriever** · read-only
 
 Runs only when the relevance gate decides that a task needs project knowledge. It reads only the sources the gate enabled, plus the task's own code and tests, and returns one Context Package: ranked, deduplicated statements with their sources, related code, related tests, risks, and suggested skills, within the gate's token budget. Every later agent reads the same package. It never implements, reviews, plans, or publishes.
 
@@ -230,7 +230,7 @@ Runs only when the relevance gate decides that a task needs project knowledge. I
 
 ### Avatars and activity animations
 
-All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). They share one Krang mascot style; `metalhead` depicts Shredder in the same series. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). They share one Krang mascot style; `shredder` depicts Shredder in the same series. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 
@@ -254,7 +254,7 @@ Agents never share a conversation. Every step is a blocking dispatch that return
 - **Per-dispatch memory slice** — project memory is filtered per recipient role into the dispatch prompt itself, never folded into the shared brief that every later agent reads.
 - **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
 
-The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md), [`rules/compound-engineering/tracker.md`](rules/compound-engineering/tracker.md) and [`rules/security/general.md`](rules/security/general.md); `splinter` owns the brief and all three ledgers.
+The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md), [`rules/compound-engineering/tracker.md`](rules/compound-engineering/tracker.md) and [`rules/security/general.md`](rules/security/general.md); `krang` owns the brief and all three ledgers.
 
 ### Using the roles and skills
 
@@ -265,7 +265,7 @@ After the [Quickstart](#quickstart), choose a specialist when you do not need th
 @donatello implement the failing upload validation
 ```
 
-In Codex, ask it to use the corresponding agent by name, as in the `splinter` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
+In Codex, ask it to use the corresponding agent by name, as in the `krang` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
 To prepare an existing GitHub or JIRA issue's PR for merge without merging it, use the shared workflow:
 
@@ -278,7 +278,7 @@ To prepare an existing GitHub or JIRA issue's PR for merge without merging it, u
 $verify-merge-readiness https://github.com/owner/repository/issues/123
 ```
 
-The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `splinter` agent to orchestrate the skill when custom agents are available.
+The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `krang` agent to orchestrate the skill when custom agents are available.
 
 To redesign one page of the running application from its URL, use the redesign workflow:
 
@@ -290,7 +290,7 @@ To redesign one page of the running application from its URL, use the redesign w
 $deliver-page-redesign https://app.example.test/orders/42
 ```
 
-The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `splinter` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
+The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `krang` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
 
 To review a task's pull request and report the result, use the review-only workflow:
 
@@ -303,7 +303,7 @@ To review a task's pull request and report the result, use the review-only workf
 $code-review-jira https://your-company.atlassian.net/browse/PROJ-123
 ```
 
-The workflow writes no test. A missing test is a review finding that mentions the author of the changes, who writes it. `splinter` first dispatches `raphael` once. It runs `interactive-testing` against the pull request head in its own browser. To do that it may prepare your local environment: install dependencies, run pending migrations, start processes, and create test accounts and records, which it removes afterwards. It repairs nothing. Then `splinter` dispatches `leonardo` once with the `raphael` report, and the review carries it in a `## Interactive testing` section. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
+The workflow writes no test. A missing test is a review finding that mentions the author of the changes, who writes it. `krang` first dispatches `raphael` once. It runs `interactive-testing` against the pull request head in its own browser. To do that it may prepare your local environment: install dependencies, run pending migrations, start processes, and create test accounts and records, which it removes afterwards. It repairs nothing. Then `krang` dispatches `leonardo` once with the `raphael` report, and the review carries it in a `## Interactive testing` section. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
 
 To test a task's pull request against its assignment and prove that nothing else broke, use the test workflow:
 
@@ -316,11 +316,11 @@ To test a task's pull request against its assignment and prove that nothing else
 $test-assignment https://your-company.atlassian.net/browse/PROJ-123
 ```
 
-`splinter` maps every input that reaches the changed behaviour and builds a test matrix of real data. `donatello` runs the whole test suite and the gate on the final head, and `raphael` exercises the running application and compares it with the base branch. In `report` mode (the default) the workflow changes nothing, and `april` publishes the technical report on the pull request and a plain-language summary on the source issue. In `fix` mode `donatello` adds the missing tests and fixes, and the workflow continues as `/prepare-issue-for-merge`. It never merges.
+`krang` maps every input that reaches the changed behaviour and builds a test matrix of real data. `donatello` runs the whole test suite and the gate on the final head, and `raphael` exercises the running application and compares it with the base branch. In `report` mode (the default) the workflow changes nothing, and `april` publishes the technical report on the pull request and a plain-language summary on the source issue. In `fix` mode `donatello` adds the missing tests and fixes, and the workflow continues as `/prepare-issue-for-merge`. It never merges.
 
 ### Adaptive routing — how much pipeline a task gets
 
-Every `splinter` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
+Every `krang` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
 
 | Tier | Who runs | Typical change |
 |------|----------|----------------|
@@ -376,7 +376,7 @@ vendor/bin/ai-olympus graph query 'App\Models\User'
 
 The slice also lists `related`: one entry per file the entity touches, with the graph entity the file came from, its `role` (`test` when a test targets the entity, otherwise `code`), and its graph `distance` (0 for the entity's own file, 1 for a direct caller or callee). The entries are ordered nearest first. `--limit <n>` cuts every list of the slice to `n` entries and reports what it dropped in `omitted`. Every query compares the graph with the files on disk. When the repository moved past the graph, the query answers from the current files and reports `"state": "refreshed"` in `graph`, so it never returns a path that no longer exists. `graph build` is what saves the refreshed graph.
 
-The Context Retriever (`metalhead`) builds or refreshes the graph with `graph build` before its first query, so the graph exists without a manual step and `graph_hits` in `ai-olympus stats` can be above zero. It then asks the graph before it reads anything else. It runs `graph query <symbol> --limit <budget.max_items>` for each task symbol and path, and `skills/_shared/pack-context.sh` turns the slices into `related_code` and `related_tests` items. Each graph item names the graph entity it came from in its provenance, and graph distance joins the ranking score. Search stays the fallback for a symbol with no graph node and for a missing graph, and `metadata.graph` in the package records which path produced the items. The graph file lives in the run directory, the scratch directory every other helper already requires to be git-ignored. The default is `.claude/run/graph.json`. Under Codex the run directory is `.codex/run`, so `graph build` and `graph query` take `--run-dir .codex/run` and `pack-context.sh pack` takes the same `--run-dir`; both commands accept only `.claude/run` or `.codex/run` where they write. `metalhead` passes `--run-dir .claude/run`, which its Codex adapter reads as `.codex/run`, so all three commands agree on one location per harness. `pack-context.sh` refuses to read a graph whose location is not git-ignored, so a graph is never packaged from a path a commit could pick up. `graph build` applies the same rule when it writes: it refuses to write `graph.json` unless git ignores the path and does not track it, so the graph file is never committed. Add the run directory (`.claude/run/`, or `.codex/run/` under Codex) to `.gitignore`.
+The Context Retriever (`shredder`) builds or refreshes the graph with `graph build` before its first query, so the graph exists without a manual step and `graph_hits` in `ai-olympus stats` can be above zero. It then asks the graph before it reads anything else. It runs `graph query <symbol> --limit <budget.max_items>` for each task symbol and path, and `skills/_shared/pack-context.sh` turns the slices into `related_code` and `related_tests` items. Each graph item names the graph entity it came from in its provenance, and graph distance joins the ranking score. Search stays the fallback for a symbol with no graph node and for a missing graph, and `metadata.graph` in the package records which path produced the items. The graph file lives in the run directory, the scratch directory every other helper already requires to be git-ignored. The default is `.claude/run/graph.json`. Under Codex the run directory is `.codex/run`, so `graph build` and `graph query` take `--run-dir .codex/run` and `pack-context.sh pack` takes the same `--run-dir`; both commands accept only `.claude/run` or `.codex/run` where they write. `shredder` passes `--run-dir .claude/run`, which its Codex adapter reads as `.codex/run`, so all three commands agree on one location per harness. `pack-context.sh` refuses to read a graph whose location is not git-ignored, so a graph is never packaged from a path a commit could pick up. `graph build` applies the same rule when it writes: it refuses to write `graph.json` unless git ignores the path and does not track it, so the graph file is never committed. Add the run directory (`.claude/run/`, or `.codex/run/` under Codex) to `.gitignore`.
 
 Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 

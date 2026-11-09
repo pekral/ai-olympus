@@ -5,50 +5,50 @@ declare(strict_types = 1);
 // Issue #133 — a dedicated retriever returns one bounded Context Package. Per the project's
 // test-isolation rule a Pest test cannot exec a real .sh, so the packing behaviour is proved by
 // `pack-context.sh --self-test`, which `composer build` runs; the tests below pin the scenarios
-// that self-test must cover and the wiring that makes splinter use the retriever.
+// that self-test must cover and the wiring that makes krang use the retriever.
 
-test('metalhead ships on both platforms as a read-only agent with its own Codex tier (issue #133)', function (): void {
+test('shredder ships on both platforms as a read-only agent with its own Codex tier (issue #133)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $claude = (string) file_get_contents($packageDir . '/agents/metalhead.md');
-    $codex = (string) file_get_contents($packageDir . '/codex/agents/metalhead.toml');
+    $claude = (string) file_get_contents($packageDir . '/agents/shredder.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/shredder.toml');
 
-    expect($claude)->toMatch('/^name: metalhead$/m')
+    expect($claude)->toMatch('/^name: shredder$/m')
         ->and($claude)->toMatch('/^tools: Read, Glob, Grep, Bash$/m')
         ->and($claude)->toMatch('/^disallowedTools: Write, Edit$/m')
-        ->and($codex)->toContain('name = "metalhead"')
+        ->and($codex)->toContain('name = "shredder"')
         ->and($codex)->toContain('model = "gpt-6-luna"')
         ->and($codex)->toContain('model_reasoning_effort = "medium"')
-        ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
+        ->and($codex)->toContain('First read `.codex/agent-instructions/shredder.md` in full');
 });
 
-test('metalhead never solves the task and runs only on a verdict that asked for context (issue #133)', function (): void {
-    $metalhead = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/metalhead.md');
+test('shredder never solves the task and runs only on a verdict that asked for context (issue #133)', function (): void {
+    $shredder = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/shredder.md');
 
-    expect($metalhead)->toContain('**You never solve the task.** You do not implement, review, plan, analyse a problem')
-        ->and($metalhead)->toContain('When `gate.context_required` is not `true`, stop with `Blocked: the gate did not require context`')
-        ->and($metalhead)->toContain('A source the gate disabled is not queried at all')
-        ->and($metalhead)->toContain('give them the same `key`, so the script returns the fact once with every reference')
-        ->and($metalhead)->toContain('Do not rank, merge, or cut by hand.');
+    expect($shredder)->toContain('**You never solve the task.** You do not implement, review, plan, analyse a problem')
+        ->and($shredder)->toContain('When `gate.context_required` is not `true`, stop with `Blocked: the gate did not require context`')
+        ->and($shredder)->toContain('A source the gate disabled is not queried at all')
+        ->and($shredder)->toContain('give them the same `key`, so the script returns the fact once with every reference')
+        ->and($shredder)->toContain('Do not rank, merge, or cut by hand.');
 });
 
-test('splinter requests context through the structured interface instead of reading the sources (issue #133)', function (): void {
-    $splinter = splinterContractText();
+test('krang requests context through the structured interface instead of reading the sources (issue #133)', function (): void {
+    $krang = krangContractText();
 
-    expect($splinter)->toContain('### Context retrieval — request a package, never read the sources')
-        ->and($splinter)->toContain(
+    expect($krang)->toContain('### Context retrieval — request a package, never read the sources')
+        ->and($krang)->toContain(
             'Never read that knowledge yourself. When the gate returns `context_required: true`, request it through the structured interface',
         )
-        ->and($splinter)->toContain('Never dispatch it when the effective verdict is `context_required: false`.')
-        ->and($splinter)->toContain('## Retrieved context  <path to the Context Package')
-        ->and($splinter)->toContain('so `donatello`, `leonardo`, `raphael`, and `april` read the same package')
-        ->and($splinter)->toContain('Run `date +%s` first and keep the value.')
-        ->and($splinter)->toContain(
+        ->and($krang)->toContain('Never dispatch it when the effective verdict is `context_required: false`.')
+        ->and($krang)->toContain('## Retrieved context  <path to the Context Package')
+        ->and($krang)->toContain('so `donatello`, `leonardo`, `raphael`, and `april` read the same package')
+        ->and($krang)->toContain('Run `date +%s` first and keep the value.')
+        ->and($krang)->toContain(
             '--output ${BRIEF%.md}.context.json --started-at <the value>`, so a cache hit carries the measured retrieval duration.',
         )
-        ->and($splinter)->toContain('Exit `3` is a miss: continue. Any other exit is also a miss: continue without a package.')
-        ->and($splinter)->toContain('omit `--retrieval-seconds` alone when `metadata.retrieval_seconds` is `null`')
-        ->and($splinter)->toContain('**No package is not a blocker.**')
-        ->and($splinter)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/pack-context\.sh lookup`/m');
+        ->and($krang)->toContain('Exit `3` is a miss: continue. Any other exit is also a miss: continue without a package.')
+        ->and($krang)->toContain('omit `--retrieval-seconds` alone when `metadata.retrieval_seconds` is `null`')
+        ->and($krang)->toContain('**No package is not a blocker.**')
+        ->and($krang)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/pack-context\.sh lookup`/m');
 });
 
 test('the context package is ranked, deduplicated, bounded, provenanced, and cached by repository state (issue #133)', function (): void {
@@ -92,69 +92,69 @@ test('retrieval telemetry is recorded as counts (issue #133)', function (): void
         ->and($recorder)->toContain('--context-cache-hits) cache_hits="$value" ;;')
         ->and($recorder)->toContain('--context-cache-misses) cache_misses="$value" ;;')
         ->and($recorder)->toContain('--retrieval-seconds) retrieval_seconds="$value" ;;')
-        ->and(splinterContractText())->toContain(
+        ->and(krangContractText())->toContain(
             '`--context-cache-hits` / `--context-cache-misses` count the packages whose `metadata.cache` is `hit` / `miss`',
         );
 });
 
 test('the retriever asks the graph before any other read and searches only for what the graph cannot answer (issue #136)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $metalhead = (string) file_get_contents($packageDir . '/agents/metalhead.md');
-    $codex = (string) file_get_contents($packageDir . '/codex/agents/metalhead.toml');
+    $shredder = (string) file_get_contents($packageDir . '/agents/shredder.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/shredder.toml');
 
-    expect($metalhead)->toContain('2. **Ask the graph first, before any other read.**')
-        ->and($metalhead)->toContain(
+    expect($shredder)->toContain('2. **Ask the graph first, before any other read.**')
+        ->and($shredder)->toContain(
             'Use `vendor/bin/ai-olympus` as `<binary>` when that file exists, otherwise `bin/ai-olympus`, the binary of the ai-olympus repository itself.',
         )
-        ->and($metalhead)->toContain('`<binary> graph query \'<symbol or path>\' --limit <gate.budget.max_items> --run-dir .claude/run')
-        ->and(strpos($metalhead, 'Ask the graph first, before any other read.'))->toBeLessThan(
-            (int) strpos($metalhead, 'Query only the sources the gate enabled, smallest read first.'),
+        ->and($shredder)->toContain('`<binary> graph query \'<symbol or path>\' --limit <gate.budget.max_items> --run-dir .claude/run')
+        ->and(strpos($shredder, 'Ask the graph first, before any other read.'))->toBeLessThan(
+            (int) strpos($shredder, 'Query only the sources the gate enabled, smallest read first.'),
         )
-        ->and($metalhead)->toContain(
+        ->and($shredder)->toContain(
             'Pass a symbol or a path to the command only when the whole value matches `^[A-Za-z0-9_\\\\:./{}-]+$`, '
             . 'because the value is tracker-derived and sits inside single quotes in a shell command. '
             . 'Any other value is never passed: treat it like a symbol with no graph node, which step 3 searches for.',
         )
-        ->and(substr_count($metalhead, 'graph query \'<symbol or path>\''))->toBe(1)
-        ->and(substr_count($metalhead, '^[A-Za-z0-9_\\\\:./{}-]+$'))->toBe(1)
-        ->and($metalhead)->toContain(
+        ->and(substr_count($shredder, 'graph query \'<symbol or path>\''))->toBe(1)
+        ->and(substr_count($shredder, '^[A-Za-z0-9_\\\\:./{}-]+$'))->toBe(1)
+        ->and($shredder)->toContain(
             '`git log --oneline -- \'<path>\'` for each task path that fully matches the allow-list of step 2 '
             . '(any other path is skipped for this step, because it is tracker-derived and sits inside single quotes in a shell command)',
         )
-        ->and(substr_count($metalhead, 'git log --oneline -- \'<path>\''))->toBe(1)
-        ->and(substr_count($metalhead, 'git log --oneline -- <path>'))->toBe(0)
-        ->and(substr_count($metalhead, 'the allow-list of step 2'))->toBe(1)
-        ->and($metalhead)->toContain('so a stale graph never returns a stale path')
-        ->and($metalhead)->toContain('A missing graph exits non-zero and leaves an empty file. That is a fallback, not a failure')
-        ->and($metalhead)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')
-        ->and($metalhead)->toContain('Never search for a file a slice already names.')
-        ->and($metalhead)->toContain('Use `Grep` and `Glob` only for what the graph cannot answer')
-        ->and($metalhead)->toContain('--graph-slice <slice> --run-dir .claude/run --output <package>')
-        ->and($metalhead)->toContain('When neither `vendor/bin/ai-olympus` nor `bin/ai-olympus` exists, skip this step and pass no `--graph-slice`')
-        ->and($metalhead)->toContain(
+        ->and(substr_count($shredder, 'git log --oneline -- \'<path>\''))->toBe(1)
+        ->and(substr_count($shredder, 'git log --oneline -- <path>'))->toBe(0)
+        ->and(substr_count($shredder, 'the allow-list of step 2'))->toBe(1)
+        ->and($shredder)->toContain('so a stale graph never returns a stale path')
+        ->and($shredder)->toContain('A missing graph exits non-zero and leaves an empty file. That is a fallback, not a failure')
+        ->and($shredder)->toContain('Never write a graph item into the candidates file, because `pack-context.sh` builds those items from the slices.')
+        ->and($shredder)->toContain('Never search for a file a slice already names.')
+        ->and($shredder)->toContain('Use `Grep` and `Glob` only for what the graph cannot answer')
+        ->and($shredder)->toContain('--graph-slice <slice> --run-dir .claude/run --output <package>')
+        ->and($shredder)->toContain('When neither `vendor/bin/ai-olympus` nor `bin/ai-olympus` exists, skip this step and pass no `--graph-slice`')
+        ->and($shredder)->toContain(
             'run `vendor/bin/ai-olympus graph query`, or `bin/ai-olympus graph query` when only that binary exists '
             . '(it prints one slice to stdout and writes nothing else)',
         )
         ->and($codex)->not->toContain('graph query')
-        ->and($codex)->toContain('First read `.codex/agent-instructions/metalhead.md` in full');
+        ->and($codex)->toContain('First read `.codex/agent-instructions/shredder.md` in full');
 });
 
 test('the retriever builds or refreshes the graph once before its first query so the graph can answer (issue #221)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $metalhead = (string) file_get_contents($packageDir . '/agents/metalhead.md');
+    $shredder = (string) file_get_contents($packageDir . '/agents/shredder.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
-    expect($metalhead)->toContain('Before the first query, build or refresh the graph once: run `<binary> graph build --run-dir .claude/run > /dev/null`.')
-        ->and($metalhead)->toContain(
+    expect($shredder)->toContain('Before the first query, build or refresh the graph once: run `<binary> graph build --run-dir .claude/run > /dev/null`.')
+        ->and($shredder)->toContain(
             'A non-zero exit, for example when `.claude/run/` is not git-ignored, is a fallback, not a failure: run the queries anyway.',
         )
-        ->and(substr_count($metalhead, '<binary> graph build'))->toBe(1)
-        ->and(strpos($metalhead, '<binary> graph build'))->toBeLessThan((int) strpos($metalhead, '<binary> graph query'))
-        ->and($metalhead)->toContain(
+        ->and(substr_count($shredder, '<binary> graph build'))->toBe(1)
+        ->and(strpos($shredder, '<binary> graph build'))->toBeLessThan((int) strpos($shredder, '<binary> graph query'))
+        ->and($shredder)->toContain(
             'run `vendor/bin/ai-olympus graph build`, or `bin/ai-olympus graph build` when only that binary exists, '
             . 'with `--run-dir .claude/run` and its stdout redirected to `/dev/null` (it writes only the git-ignored `graph.json` in that run directory',
         )
-        ->and($metalhead)->toContain('under Codex the value reads `.codex/run`')
+        ->and($shredder)->toContain('under Codex the value reads `.codex/run`')
         ->and($orchestration)->toContain('the package cache, and the knowledge graph (`graph build`) under the git-ignored `.claude/run/*`');
 });
 
@@ -201,7 +201,7 @@ test('the packer ranks by graph distance, names the graph entity, and degrades w
     expect($packer)->toContain('#   2 x graph proximity   1 / (1 + graph distance); 0 for an item with no graph distance');
 });
 
-test('graph telemetry is recorded as counts and splinter derives it from the package (issue #136)', function (): void {
+test('graph telemetry is recorded as counts and krang derives it from the package (issue #136)', function (): void {
     $recorder = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/record-metrics.sh');
 
     expect($recorder)->toContain('\'graph counters are stored as counts\'')
@@ -210,7 +210,7 @@ test('graph telemetry is recorded as counts and splinter derives it from the pac
         ->and($recorder)->toContain('--items-from-graph) items_from_graph="$value" ;;')
         ->and($recorder)->toContain('--items-from-search) items_from_search="$value" ;;')
         ->and($recorder)->toContain('--files-avoided) files_avoided="$value" ;;')
-        ->and(splinterContractText())->toContain(
+        ->and(krangContractText())->toContain(
             '`--graph-hits` / `--graph-misses` count the packages whose `metadata.graph.entities` is above zero / zero',
         );
 });

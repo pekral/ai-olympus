@@ -1,6 +1,6 @@
 # Prepare-only mode — `/prepare-issue-for-merge`
 
-Extracted from `agents/splinter.md` so the orchestrator does not carry it on every run. **Loading trigger:** the user invokes `/prepare-issue-for-merge <URL>`, `$verify-merge-readiness`, or asks in words to prepare an issue's pull request for merge without merging it. On every other run this file is not read.
+Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** the user invokes `/prepare-issue-for-merge <URL>`, `$verify-merge-readiness`, or asks in words to prepare an issue's pull request for merge without merging it. On every other run this file is not read.
 
 ## Prepare-only mode — `/prepare-issue-for-merge`
 

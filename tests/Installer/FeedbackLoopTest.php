@@ -136,7 +136,7 @@ test('the contract names the roles, the store, the canonical repository, the app
         ->toContain('## Who runs what')
         ->toContain('| Write the analysis of one class | `leonardo`, in feedback analysis mode |')
         ->toContain('| Implement the safeguard | `donatello`, through the ordinary pipeline |')
-        ->toContain('`splinter` coordinates and decides. It implements nothing, and `leonardo` stays read-only')
+        ->toContain('`krang` coordinates and decides. It implements nothing, and `leonardo` stays read-only')
         ->toContain('## The store')
         ->toContain('The directory is `.claude/run/feedback`, and `.codex/run/feedback` on Codex')
         ->toContain('- **Every file is derived.** Delete the directory at any time.')
@@ -156,7 +156,7 @@ test('the contract names the roles, the store, the canonical repository, the app
         ->toContain('- a person applied the `Resolve_by_AI` label to the proposal issue.')
         ->toContain('A closed proposal is not implemented.')
         ->toContain('## Consent')
-        ->toContain('are **L1** for `splinter` in a feedback-analysis run that the user asked for.')
+        ->toContain('are **L1** for `krang` in a feedback-analysis run that the user asked for.')
         ->toContain('A safeguard task is classified with `--floor STANDARD`, so a safeguard never closes without `leonardo` reading it.')
         ->toContain('## When the analysis is unavailable')
         ->toContain('Nothing in the issue-to-pull-request pipeline waits for the loop.')
@@ -192,7 +192,7 @@ test('leonardo records each round on instruction, writes the analysis file in a 
 
     expect($leonardo)
         ->toContain('dispatches you in one of three modes')
-        ->toContain('- **Feedback analysis mode (recurring defect class)** — `splinter` hands you one defect class')
+        ->toContain('- **Feedback analysis mode (recurring defect class)** — `krang` hands you one defect class')
         ->toContain('## Feedback analysis mode (recurring defect class)')
         ->toContain(
             '2. Inspect the repository read-only, then write the one file at the path the dispatch names, '
@@ -216,10 +216,10 @@ test('leonardo records each round on instruction, writes the analysis file in a 
     expect(feedbackFile('codex/agents/leonardo.toml'))->not->toContain('feedback');
 });
 
-test('splinter runs the feedback analysis as an analysis-only run and never starts an implementation from it', function (): void {
-    $splinter = feedbackFile('agents/splinter.md');
+test('krang runs the feedback analysis as an analysis-only run and never starts an implementation from it', function (): void {
+    $krang = feedbackFile('agents/krang.md');
 
-    expect($splinter)
+    expect($krang)
         ->toContain('## Feedback-analysis mode — recurring review findings')
         ->toContain('**load `@skills/code-review/references/feedback-loop.md` and follow *The feedback-analysis run* in full.**')
         ->toContain('It is an analysis-only run: you take no write-lock, open no pull request, and never dispatch `donatello`.')
@@ -238,8 +238,8 @@ test('splinter runs the feedback analysis as an analysis-only run and never star
         ->toContain('disallowedTools: Write, Edit');
 
     // The new mode adds to the Status line and to the three sections that omit a field for an analysis-only run.
-    expect(substr_count($splinter, 'feedback-analysis run'))->toBe(7);
-    expect(feedbackFile('codex/agents/splinter.toml'))->not->toContain('feedback');
+    expect(substr_count($krang, 'feedback-analysis run'))->toBe(7);
+    expect(feedbackFile('codex/agents/krang.toml'))->not->toContain('feedback');
 });
 
 test('an approved proposal is implemented by the ordinary pipeline under four proofs and a read-only review', function (): void {
@@ -305,7 +305,7 @@ test('filing a proposal has its own consent row and no other row changes', funct
     $orchestration = feedbackFile('rules/compound-engineering/orchestration.md');
 
     expect($orchestration)->toContain(
-        '| `splinter` | File a prevention proposal as a tracker issue, or refresh its `prevention-proposal` comment, during a feedback-analysis run | L1 |',
+        '| `krang` | File a prevention proposal as a tracker issue, or refresh its `prevention-proposal` comment, during a feedback-analysis run | L1 |',
     );
     expect(substr_count($orchestration, 'feedback-analysis run'))->toBe(1);
     expect($orchestration)->toContain(
@@ -333,7 +333,7 @@ test('no ordinary pipeline waits for the loop: only the review and the feedback 
     }
 
     // The two agents that run it name it, and every adapter stays thin: no adapter and no agent holds a second copy.
-    foreach (['agents/leonardo.md', 'agents/splinter.md'] as $file) {
+    foreach (['agents/leonardo.md', 'agents/krang.md'] as $file) {
         expect(feedbackFile($file))->toContain('feedback-loop');
     }
 
@@ -342,7 +342,7 @@ test('no ordinary pipeline waits for the loop: only the review and the feedback 
     }
 
     expect(feedbackFile('codex/agents/leonardo.toml'))->toContain('First read `.codex/agent-instructions/leonardo.md` in full');
-    expect(feedbackFile('codex/agents/splinter.toml'))->toContain('First read `.codex/agent-instructions/splinter.md` in full');
+    expect(feedbackFile('codex/agents/krang.toml'))->toContain('First read `.codex/agent-instructions/krang.md` in full');
     expect(feedbackFile('codex/agents/donatello.toml'))->toContain('A bare `skills/<path>` reference to a shipped script');
 });
 

@@ -106,7 +106,7 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     expect($merge)->toContain('Every CR run **updates the one `cr-comment` it owns** on the PR rather than adding another');
     expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');
@@ -127,8 +127,8 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     expect($codeReview)->not->toContain('edit history on the upserted comment');
 
     // The orchestrator quotes the content gate, not timestamp-based staleness.
-    expect($splinter)->toContain('whose reviewed diff fingerprint is missing or differs');
-    expect($splinter)->not->toContain('whose `updatedAt` predates the head commit');
+    expect($krang)->toContain('whose reviewed diff fingerprint is missing or differs');
+    expect($krang)->not->toContain('whose `updatedAt` predates the head commit');
 });
 
 test('merge-github-pr post-merge step includes conditional worktree cleanup with opt-in and used-tree guards (issue #699)', function (): void {
@@ -1536,7 +1536,7 @@ test('the three build-dedup mechanisms are retired with the repeats they removed
     expect($gates)->toContain('**`security-audit` is never reused by anything.**');
 
     // No brief section survives for a mechanism nothing writes to.
-    foreach (['agents/splinter.md', 'agents/donatello.md'] as $relativePath) {
+    foreach (['agents/krang.md', 'agents/donatello.md'] as $relativePath) {
         $body = (string) file_get_contents($packageDir . '/' . $relativePath);
         expect($body)->not->toContain('## Build gate cache');
         expect($body)->not->toContain('## Gate log');
@@ -2227,7 +2227,7 @@ test('the resolve-issue per-tracker follow-up lives in a listed reference', func
 test('a run that produced no post-convergence report says so in its handoff (issue #71)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // Neither skill publishes the report - `april` does, dispatched by `splinter` step 6a. A run
+    // Neither skill publishes the report - `april` does, dispatched by `krang` step 6a. A run
     // outside that orchestration therefore ends with no report at all, and used to end silently,
     // which reads exactly like a run whose report was published. The literal line is what a caller
     // (and the next agent) greps for, so both skills carry the same one verbatim.
@@ -2238,7 +2238,7 @@ test('a run that produced no post-convergence report says so in its handoff (iss
     expect($resolve)->toContain($marker);
     expect($resolve)->toContain('a machine token, identical in every handoff language');
     expect($resolve)->toContain('This skill publishes no `april` report of its own');
-    expect($resolve)->toContain('`agents/splinter.md` step 6a owns the report itself');
+    expect($resolve)->toContain('`agents/krang.md` step 6a owns the report itself');
 
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     expect($process)->toContain($marker);

@@ -38,7 +38,7 @@ Each proof below names its command and its result in the pull request. A proof t
 
 ## 5. The pull request
 
-- Open it as a Draft with `Closes #<proposal>`, as every pull request. The classification of the task uses `--floor STANDARD`, so `leonardo` reviews the pull request on every tier (`agents/splinter.md`).
+- Open it as a Draft with `Closes #<proposal>`, as every pull request. The classification of the task uses `--floor STANDARD`, so `leonardo` reviews the pull request on every tier (`agents/krang.md`).
 - Add a `## Safeguard` section with: the link to the proposal and its dedupe key; the original findings (the pull request links, the finding ids, and the fingerprints of the proposal); the level and the limitation; and a table of the four proofs with the command and the observed result of each.
 - State only what the run observed. A point that the run could not verify goes under `Not verified`, with the step that settles it.
 - Nothing is committed to the default branch, published, or merged outside the pull request and its gates.

@@ -297,7 +297,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
     // else, so a mismatch here means a normative sentence moved during the rename.
     // Re-baselined when the package moved to pekral/ai-olympus: the agent rename
-    // (daidalos -> splinter, hefaistos -> donatello) and the PHP namespace rename
+    // (daidalos -> krang, hefaistos -> donatello) and the PHP namespace rename
     // are the only edits these bodies carry. `rules/reports/general.md` carries one further
     // re-baseline: #11 deleted the skill whose report was the second half of the GitHub-PR English
     // exception, so that exception dropped back to a single one. `rules/code-review/general.md` and
@@ -431,7 +431,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the `Merge risk:` grade passes the assignment text to `classify-risk.sh --assignment`.
         // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
         // Re-baselined: a converged comment may carry `## Interactive testing` and `## MySQL report` from a parallel CR round.
-        'rules/code-review/general.md' => '66cc28937c6f66c0afc3be7b7fd7aea5a4afa107ed70deb7312b4bb424f2d657',
+        // Re-baselined: the orchestrator `splinter` is renamed to `krang`.
+        'rules/code-review/general.md' => 'd48379e10bc5feaca89205b650a44702c624eb3205905d006613746d6fa51ebf',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

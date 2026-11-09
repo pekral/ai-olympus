@@ -1,6 +1,6 @@
 # Startup sweep — recovering what a crashed run left behind
 
-Extracted from `agents/splinter.md` step 2 so the orchestrator does not carry it on every run. **Loading trigger:** step 2 of *The end-to-end run*, before this run writes its own brief — read this file when `.claude/run/` is non-empty, or when a worktree under `.claude/worktrees/` exists. On a clean checkout there is nothing to sweep and this file is not read.
+Extracted from `agents/krang.md` step 2 so the orchestrator does not carry it on every run. **Loading trigger:** step 2 of *The end-to-end run*, before this run writes its own brief — read this file when `.claude/run/` is non-empty, or when a worktree under `.claude/worktrees/` exists. On a clean checkout there is nothing to sweep and this file is not read.
 
 The sweep is **fail-safe by construction: it deletes only on positive proof of death, never on the mere absence of a liveness signal** — anything ambiguous (missing, unparseable, or an inconclusive probe) is treated as alive and left alone, never the reverse.
 
@@ -9,7 +9,7 @@ The sweep is **fail-safe by construction: it deletes only on positive proof of d
 Create the lock's parent directory before the loop: this step runs before this run's own brief is written, so `.claude/run/` (and its common-git-dir equivalent) may not exist yet on a fresh checkout, and `mkdir` on a missing parent fails with ENOENT forever, never EEXIST — an unconditional `until mkdir ... ; do ... ; done` with no `mkdir -p` first hangs step 2 on every first run in a new project.
      ```bash
      LOCKROOT="$(git rev-parse --git-common-dir)"; mkdir -p "$LOCKROOT/agent-run"
-     LOCK="$LOCKROOT/agent-run/.splinter-sweep.lock"
+     LOCK="$LOCKROOT/agent-run/.krang-sweep.lock"
      tries=0
      until mkdir "$LOCK" 2>/dev/null; do
        sleep 0.2; tries=$((tries+1))
