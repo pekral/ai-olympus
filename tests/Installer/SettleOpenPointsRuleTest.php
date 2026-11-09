@@ -126,3 +126,26 @@ test('leonardo runs the settle step and its Bash boundary names the scratch dire
         ->toContain('which write only under `.claude/run/settle/<run-id>/`');
     expect($leonardo)->toContain('**Settle your open points before every publish and every handoff.**');
 });
+
+test('the settle step is bounded by a per-run check budget and a per-check time limit', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('**At most 10 checks per run.** Every further point stays not verified with the reason `check budget reached`.')
+        ->toContain('**60 seconds per check**, bounded by the tool call\'s own timeout.')
+        ->toContain('leaves its point not verified with the reason `did not finish within 60 s`.');
+});
+
+test('a settle request carries no repository content', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('A fetched URL, a query string, and a search term carry no repository content');
+});
+
+test('every settle read is audited and the scratch directory is gone before the review is published', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('**Every `gh` call and every `WebFetch` of the step appends an `outbound-request` line**')
+        ->toContain('and deleted before the review is published (`@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*)');
+});
+
+test('the Codex adapter runs no URL check when its web tool cannot report each redirect hop', function (): void {
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/codex/agents/leonardo.toml'))
+        ->toContain('runs no URL check when this session\'s web tool cannot report each redirect hop.');
+});
