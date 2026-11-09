@@ -183,8 +183,10 @@ test('the merge-readiness TL;DR is published through the helper that matches the
         expect($document)->toContain('`acli jira workitem comment delete`');
         // The JIRA final check accepts every marked comment the manifest kept on purpose, so a
         // resolve-issue report, a tester report, or a link-back never turns the cleanup into Blocked.
-        expect($document)->toContain('every manifested ID is gone, both protected IDs remain, and every other remaining marker-carrying comment by the actor is one the manifest kept on purpose');
-        expect($document)->toContain('(a code-review report, a `resolve-issue` or `tester-cookbook` report, a pull-request link-back, or an ambiguous comment).');
+        expect($document)->toContain('every manifested ID is gone, both protected IDs remain, and every other remaining marker-carrying comment');
+        expect($document)->toContain('marker-carrying comment by the actor is one the manifest kept on purpose');
+        expect($document)->toContain('(a code-review report, a `resolve-issue` or `tester-cookbook` report, a pull-request link-back,');
+        expect($document)->toContain('a pull-request link-back, or an ambiguous comment).');
         expect($document)->toContain('A comment the manifest kept never makes the cleanup `Blocked`.');
         expect($document)->not->toContain('every remaining marker-carrying comment by the actor is a protected ID or');
     }
