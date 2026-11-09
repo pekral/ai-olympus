@@ -54,7 +54,7 @@
 #   4  a read failed or the state file is unusable, so the check did not run to its end
 #   The script counts comments and never reads their author or their marker, so exit 1 and `result: published`
 #   say that a comment appeared, not that this run wrote it. The caller attributes a comment to the run only after
-#   it reads the author or the actor marker of the comment itself.
+#   it reads the author and the actor marker of the comment itself.
 #   A caller treats exit 0 and exit 3 as a verified quiet run, and any other exit as not verified. Exit 1 wins
 #   over exit 3 when both happened. An item on a `not-verified:` line never changes the exit code: the quiet
 #   verdict covers what the script could count, and the caller reports each such item under *Not verified*.
