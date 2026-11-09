@@ -108,9 +108,12 @@ When the input is Laravel code, also inspect:
 
 ## Terminal Guidance
 When terminal access is available, inspect DB connection details from:
-- `.env`
+- the dispatch or the caller's input
 - `config/database.php`
-- docker/dev setup
+- `.env.example`
+- docker/dev setup (`docker-compose*.yml`)
+
+Never read `.env` or an environment-variable value (`@rules/security/general.md` *Environment values are never read*).
 
 Use MySQL tools when possible for:
 - `SHOW CREATE TABLE`

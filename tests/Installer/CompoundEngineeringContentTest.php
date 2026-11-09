@@ -1229,7 +1229,8 @@ test('the Bash capability boundary names the .env.example read exception the ski
     // the committed template was violating an absolute the rule states. A sanctioned exception a
     // skill relies on has to be named inline in the rule that states the mandate.
     expect($rule)->toContain(
-        'or any `.env*` file — **with one named exception: the committed `.env.example` template is readable.**',
+        'any `.env*` file, or an environment-variable value (`@rules/security/general.md` *Environment values are never read*) '
+        . '— **with one named exception: the committed `.env.example` template is readable.**',
     );
     expect($rule)->toContain('carries placeholder keys and never a real secret');
 
