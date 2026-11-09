@@ -49,11 +49,11 @@ The skill can work with:
 
 - Telescope URL (preferred)
 - request UUID / entry UUID
-- environment access (local, staging, production read-only)
-- DB credentials for Telescope storage
+- a local development or test instance only (`@rules/security/general.md` *Production is never touched*)
+- DB connection details for the local Telescope storage, from the dispatch or the committed development setup — never production credentials and never a value read from `.env`
 - logs or screenshots exported from Telescope
 
-The skill should proceed with whatever is available and not block on perfect input.
+The skill should proceed with whatever is available and not block on perfect input. A Telescope URL on production or on an unknown host stops the database steps: analyse only the data a person exported from Telescope.
 
 ---
 

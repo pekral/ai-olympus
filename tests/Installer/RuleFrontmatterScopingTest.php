@@ -274,7 +274,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: the chunked-read example keeps its query inside an `OrderRepository` method.
         // Re-baselined: a DDL duration is measured on production or a production-size copy, or listed
         // as not verified — never estimated (`rules/general/general.md` *Verified statements only*).
-        'rules/sql/optimalize.md' => 'aa7284def31a4b3faacc315d28232fbe0d793db32d9d7f00dc671ea13a2fa279',
+        // Re-baselined: an agent never measures on production; a production-size copy or a person with production access supplies the value.
+        'rules/sql/optimalize.md' => 'e8a9265560529e47a9bf0c73675cc96df6aeb666bc7c536206275cc23e86f906',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
@@ -416,7 +417,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.
-        'rules/laravel/dynamodb.md' => '91919167b99716e9819fc259eec042aabd1e8cdad7ad48e2ae5e81cdf288e2af',
+        // Re-baselined: Tinker checks run against a local or test DynamoDB, never production, and never read `.env`.
+        'rules/laravel/dynamodb.md' => 'e33fcc78eb5ba0cf0b5b5ce8fb6ada2cc9b92a517de7b4cccef522680ad13372',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/laravel/filament.md' => '51ae5a679770d117ce4ee0301f99d59a5f397c6d462b2d1383a1dc0563d8b675',
         // Re-baselined: the view-size exemption is stated in the PR description instead of the file
@@ -432,7 +434,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
         // Re-baselined: a converged comment may carry `## Interactive testing` and `## MySQL report` from a parallel CR round.
         // Re-baselined: the orchestrator `splinter` is renamed to `krang`.
-        'rules/code-review/general.md' => 'd48379e10bc5feaca89205b650a44702c624eb3205905d006613746d6fa51ebf',
+        // Re-baselined: the review floor gains item 4 (environment values, production), and the not-verified example names a person with replica access.
+        'rules/code-review/general.md' => 'e9198b2a193aec39812d475bb7ac473c0cc1407378b88db25dd05ca616e217da',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
