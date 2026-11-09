@@ -62,7 +62,8 @@
 #
 # Output:
 #   The issue URL on stdout. `action=transitioned|noop` plus the resolved status
-#   and `assignee=@me` on stderr.
+#   and `assignee=@me` on stderr, or `action=unchanged` plus the current status
+#   when an owned issue already sits in review.
 #
 # Exit codes:
 #   1  usage / argument error, or refused target (not a progress status)

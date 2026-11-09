@@ -257,6 +257,8 @@ test('a JIRA issue in review owned by the authenticated user keeps its status', 
         expect($process->getExitCode())->toBe(0)
             ->and(file_get_contents($fixture['state']))->toBe('Code Review')
             ->and($process->getErrorOutput())->toContain('action=unchanged status=Code Review');
+        expect((string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh'))
+            ->toContain('or `action=unchanged` plus the current status');
     } finally {
         removeJiraClaimFixture($fixture);
     }

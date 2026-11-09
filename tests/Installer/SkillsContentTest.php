@@ -2160,28 +2160,13 @@ test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag
     expect($content)->toContain('the comment posted above on the error and on the linked GitHub issue is the substitute signal');
 });
 
-test('process-code-review writes the review-waiting phase signal when it opens the PR itself', function (): void {
+test('process-code-review writes no tracker status when it opens the PR after the review', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
 
-    // This skill is the second and only other path that can open the PR, so the phase-2 write
-    // cannot live in resolve-issue alone without leaving this path silently unsignalled.
-    expect($content)->toContain(
-        'write that issue\'s review-waiting phase signal now, exactly as the resolving run would have',
-    );
-    expect($content)->toContain('`@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*');
-    expect($content)->toContain('This is the only other path that opens the PR, so it owns the phase-2 write on that path.');
-
-    // The mechanics pointer must resolve to the file that actually carries the two sections —
-    // they live in the resolve-issue reference, not in its skill body, so a pointer at the body
-    // would be a dead link.
-    expect($content)->toContain(
-        'mechanics in `@skills/resolve-issue/references/tracker-follow-up.md` *GitHub-specific follow-up* / *JIRA-specific follow-up*',
-    );
-
-    $referenced = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
-    expect($referenced)->toContain('### GitHub-specific follow-up');
-    expect($referenced)->toContain('### JIRA-specific follow-up');
+    expect($content)->not->toContain('write that issue\'s review-waiting phase signal now');
+    expect($content)->toContain('Write no status on the tracker issue on this path: the PR opens after the code review');
+    expect($content)->toContain('*No status write once the code review has started*');
 });
 
 test('process-code-review links the PR to its tracker issue when it opens the PR itself', function (): void {
