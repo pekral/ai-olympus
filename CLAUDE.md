@@ -75,6 +75,6 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 These instructions apply only to development of this repository. Use `composer build` for automatic PHP fixes. It synchronizes the installer files, runs the configured fixers, and runs the full checks. When a PHP checker or CI reports an automatically fixable error, run this script instead of manually applying formatting fixes or invoking individual fixers. Fix any remaining errors and rerun the build until it passes.
 
-This repository-specific correction step may run before a push and takes precedence over the deferred-gate timing above. This repository is public on GitHub, so a push does not wait for a local gate: push and wait for CI. The pre-merge quality gate still applies.
+This repository-specific correction step may run when a checker or CI reports an error, and it takes precedence over the deferred-gate timing above. It is never required before a push: this repository is public on GitHub, so CI is the check after a push. The pre-merge quality gate still applies.
 
 The installer never generates a `CLAUDE.md` in consuming projects. This root `CLAUDE.md` holds maintenance instructions for this repository only.
