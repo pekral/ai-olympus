@@ -14,6 +14,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 - The deterministic orchestration helpers (`classify-risk.sh`, `plan-route.sh`, `plan-parallel.sh`, `run-validation.sh`, `run-gate.sh`, `verify-gate.sh`, `gate-context.sh`, `pack-context.sh`, `check-handoff.sh`, `render-report.sh`, `record-metrics.sh`) live below `.agents/skills/_shared/`; run them with the session's shell. They are platform-neutral by construction — a Codex run routes, validates, reports, and measures exactly as a Claude run does.
 - `agents/<name>.md` means `.codex/agent-instructions/<name>.md`.
 - Claude's Read, Glob, Grep, Bash, WebSearch, and WebFetch names mean the equivalent Codex filesystem, shell, and web tools available in this session.
+- The settle step of `@rules/code-review/review-process.md` *Settle open points before publishing — procedure* runs no URL check when this session's web tool cannot report each redirect hop. The point then stays not verified with that reason.
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
 - This role performs the whole code review, including every security lens.
