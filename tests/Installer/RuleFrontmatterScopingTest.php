@@ -437,7 +437,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the agent-marker namespaces gain `analysis-plan`, the plan artifact `analyze-problem` publishes.
         // Re-baselined: the `Merge risk:` grade passes the assignment text to `classify-risk.sh --assignment`.
         // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
-        'rules/code-review/general.md' => '78e560246671f8e565e71ff0092cf68f7a808b2c0359d85e443d3b5ffbb30263',
+        // Re-baselined: a converged comment may carry `## Interactive testing` and `## MySQL report` from a parallel CR round.
+        'rules/code-review/general.md' => '66cc28937c6f66c0afc3be7b7fd7aea5a4afa107ed70deb7312b4bb424f2d657',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

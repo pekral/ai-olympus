@@ -23,7 +23,7 @@ extend those steps in the dispatch prompt');
         'This section is the one owner of its steps: `commands/report-code-review.md` only validates the reference and hands it here',
     );
     expect($splinter)->toContain('It changes nothing in the pull request: no fix and no test.');
-    expect($leonardo)->toContain('confirm that the worktree `HEAD` equals that SHA');
+    expect($leonardo)->toContain('The branch checkout gate takes its worktree case there');
     expect($leonardo)->toContain('Tell the wrapper to update the comments an earlier run left, never to pass `--create`.');
     expect($leonardo)->toContain('When the dispatch carries `tracker-report: deferred`, pass it to `process-code-review`');
     expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
