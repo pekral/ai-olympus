@@ -18,14 +18,19 @@ test('the dry check searches every new rule in the whole codebase and publishes 
     foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
         expect((string) file_get_contents($packageDir . '/' . $template))
             ->toContain('## Reuse (DRY)')
-            ->toContain('**Siblings opened:**');
+            ->toContain('**Siblings opened:**')
+            ->toContain('**Evidence sections.**')
+            ->toContain('not verified — no DRY evidence');
     }
 });
 
-test('the dry check stays generic and names no concrete project', function (): void {
+test('the dry check stays generic: no project path and no project identifier', function (): void {
     $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/general.md');
+    $start = (int) strpos($rule, '### DRY check — every new rule is searched for in the whole codebase');
+    $section = substr($rule, $start, (int) strpos($rule, "\n## ", $start) - $start);
 
-    expect($rule)->not->toContain('importShopCustomers')
-        ->and($rule)->not->toContain('getExistingEmailsByList')
-        ->and($rule)->not->toContain('app/Services/Integrations');
+    preg_match_all('/`([a-z]+[A-Z][A-Za-z]*)\(?`/', $section, $identifiers);
+
+    expect($section)->not->toContain('app/')
+        ->and(array_values(array_diff($identifiers[1], ['partition', 'groupBy', 'keyBy'])))->toBe([]);
 });

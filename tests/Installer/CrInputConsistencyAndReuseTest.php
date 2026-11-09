@@ -22,6 +22,6 @@ test('every code review comment answers whether input is stored consistently and
     foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
         expect((string) file_get_contents($packageDir . '/' . $template))
             ->toContain('**Input consistency:** {yes | no | not applicable — the diff writes no persisted data}')
-            ->toContain('**Reuse (DRY):** {no duplication found |');
+            ->toContain('**Reuse (DRY):** {no duplication found — only with the `## Reuse (DRY)` evidence |');
     }
 });

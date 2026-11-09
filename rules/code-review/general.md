@@ -177,7 +177,7 @@ Security ranks above every other check of a review, DRY included. A missed secur
 
 ### DRY check — every new rule is searched for in the whole codebase
 
-The reviewer goes through the code the diff adds and searches the whole codebase for the same logic elsewhere. Every duplicate found goes into the CR report. A diff can remove duplicates and add a new one in the same change, so the check runs in both directions. Searching only inside the diff, or only for the same method name, is not a DRY check.
+The reviewer goes through the code the diff adds and searches the whole codebase for the same logic elsewhere. Every duplicate found goes into the CR report. A diff can remove duplicates and add a new one in the same change, so the check covers both: the copies the diff removes and the copy it adds. Searching only inside the diff, or only for the same method name, is not a DRY check.
 
 1. **Name the rule.** For each function, method, or block that the diff adds or changes, write its business rule in one sentence, without identifiers. Example: *"When the consent is unknown, a new record is created inactive and an existing record keeps its status."*
 2. **Search for the rule by its mechanics, not by its name.** For each rule, search the project source for:
@@ -531,7 +531,7 @@ Otherwise the verdict is `no`, and the line names every blocker in one short cla
 **Input consistency and reuse — two questions every review answers.** Every review comment carries two more header lines, converged or not, and on every tier:
 
 1. `Input consistency:` answers "is the data stored consistently whatever input in the application writes it?". The answer is `yes`, `no`, or `not applicable — the diff writes no persisted data`. It comes from the write-path walk of `@rules/code-review/core-analysis.md` *Input consistency*. A `no` names each bypassing entry point.
-2. `Reuse (DRY):` answers "can existing code in the codebase be used instead of repeating it?". The answer is `no duplication found`, or names each existing implementation the diff should reuse with its `file:line`. It comes from *Reuse Existing Logic* above.
+2. `Reuse (DRY):` answers "can existing code in the codebase be used instead of repeating it?". The answer is `no duplication found`, only when the comment renders the `## Reuse (DRY)` evidence, or names each existing implementation the diff should reuse with its `file:line`. Without the evidence the line reads `not verified — no DRY evidence`, and the point goes on the `Not verified:` line. It comes from *Reuse Existing Logic* above.
 
 A `no` on either line is backed by a Critical finding in `## Findings`, so it also makes the merge verdict `no`. The lines add no new severity. The comment renders `## Input consistency` with the walked entry points on every run whose diff writes persisted data, on a converged run too. It renders `## Reuse (DRY)` with the evidence of *DRY check — every new rule is searched for in the whole codebase* on every run whose diff adds or changes logic, on a converged run too.
 
@@ -553,7 +553,7 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production, that point goes on the `Not verified:` line with the step that settles it.
 4. **The line is informational.** It never blocks, adds no finding and no severity, and never replaces the `Merge verdict:` line or the merge gate of `@skills/merge-github-pr/SKILL.md`. No label carries the grade.
 
-**It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
+**It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation — the evidence sections `## Input consistency` and `## Reuse (DRY)` are the one exception, because a verdict without them counts as a check that did not run — no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 
 **A run that has not converged publishes nothing to the pull request.** Its findings go back into the loop as fixes (`@skills/process-code-review/SKILL.md` *Review loop*). The one exception is a **standalone** review a person invoked directly, outside that loop: there the findings *are* the deliverable, so the run publishes the findings report of *Two-Part CR Output* above, still as one comment.
 
