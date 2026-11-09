@@ -308,7 +308,7 @@ Routing it to the tracker is not optional. A mismatch visible only on the pull r
 - Misplaced files, mismatched file names, and mismatched descriptions are findings on every diff. Severity matrix and Suggested Fix template live in `@rules/code-review/core-analysis.md` *Core Analysis Walk-through* → **Test organization (issue #528)**.
 
 ## Safety
-- If context is incomplete, verify the missing part before you publish. Report a point that no check in this run can settle as not verified, with the step that settles it — never as an assumption and never as a guess (`@rules/general/general.md` *Verified statements only*). The review comment carries every such point on its `Not verified:` header line.
+- If context is incomplete, verify the missing part before you publish. Report a point that no check in this run can settle as not verified, with the step that settles it — never as an assumption and never as a guess (`@rules/general/general.md` *Verified statements only*). The review comment carries every such point on its `Not verified:` header line. The cheap read-only check that settles a point runs before the review is published, as `@rules/code-review/review-process.md` *Settle open points before publishing — procedure* defines, and a settled point goes on the `Settled points:` header line instead.
 
 ## Real-Code Grounding for Every Finding (issue #97)
 
@@ -514,7 +514,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
 
-1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
+1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, a `Settled points:` line whenever the settle step settled a point (`@rules/code-review/review-process.md` *Settle open points before publishing — procedure*), and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` and `## Reuse (DRY)` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.

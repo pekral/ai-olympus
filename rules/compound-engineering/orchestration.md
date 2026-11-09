@@ -138,7 +138,7 @@ Today those gates are scattered across five separate formulations (`agents/april
 | any agent | JIRA status transition (In Progress claim, Code Review on PR open) | L1 | the two sanctioned helper scripts, `@rules/jira/general.md` |
 | `donatello` | Assign a JIRA issue to the account currently authenticated in `acli` as part of the In Progress claim | L1 | `skills/code-review-jira/scripts/transition-to-in-progress.sh`, which assigns with `--assignee "@me"` and verifies with `assignee = currentUser()` before implementation |
 | any agent | Any other JIRA status transition | L3 | human-only, `@rules/jira/general.md` |
-| `leonardo` | Outbound `WebFetch` / `WebSearch` to public vendor documentation | L1 | granted tool, scoped to the review's documentation-lookup step, part of the invocation |
+| `leonardo` | Outbound `WebFetch` / `WebSearch` to public vendor documentation | L1 | granted tool, scoped to the review's documentation-lookup step and to the settle step of `@rules/code-review/review-process.md` *Settle open points before publishing — procedure*, part of the invocation |
 | any agent | Outbound network request via raw `Bash` (`curl`, `wget`, …) | forbidden — no level | never permitted, see *Bash capability boundary* above |
 
 **Do not add a confirmation where invocation already implies it.** An L1 action gains nothing from an extra "are you sure" — the caller already consented by dispatching the agent for exactly that outcome. Reserve an explicit ask for L2, and reserve "no agent may do this" for L3.
