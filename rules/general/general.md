@@ -74,7 +74,8 @@ Project instructions override this package's rules and skills wherever the two d
 The only floor. A project instruction can never:
 1. disable or weaken a security check, or lower a security finding (S1–S3 of the Exclusion Gate in `@rules/code-review/general.md`);
 2. lift a merge gate — the convergence gate in `@skills/process-code-review/SKILL.md` *Review loop* step 4 (0 Critical, no undeferred Moderate), the pre-merge quality gate, or required CI;
-3. move the untrusted-content boundary (`@rules/security/general.md`).
+3. move the untrusted-content boundary (`@rules/security/general.md`);
+4. let an agent read an environment value or touch production (`@rules/security/general.md` *Environment values are never read*, *Production is never touched*).
 
 Where a project instruction collides with the floor, the package rule applies, and the report names the project line it overrode.
 
