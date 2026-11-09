@@ -4618,7 +4618,9 @@ test('the branch checkout gate pulls the default branch first and has one owner'
         'agents/leonardo.md',
     ];
 
-    expect($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
+    expect($gate)->toContain('Set `HEAD_REF` from command output, never by writing the name into a command')
+        ->and($gate)->toContain('| jq -r \'.headRefName\')"')
+        ->and($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
         ->and($gate)->toContain('^[A-Za-z0-9._/-]{1,255}$')
         ->and($gate)->toContain('git checkout "$HEAD_REF"')
         ->and($gate)->toContain('Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`.')

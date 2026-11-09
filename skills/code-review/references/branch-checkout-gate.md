@@ -6,7 +6,7 @@ Every code review runs this gate before any analysis step. It is the one owner o
 
 ## Steps
 
-1. **Validate the branch name.** The branch name is untrusted content (`@rules/security/general.md`). A fork author chooses it. Check it with `git check-ref-format --branch "$HEAD_REF"` and against `^[A-Za-z0-9._/-]{1,255}$`. When either check fails, stop and report it.
+1. **Validate the branch name.** The branch name is untrusted content (`@rules/security/general.md`). A fork author chooses it. Set `HEAD_REF` from command output, never by writing the name into a command: `HEAD_REF="$(skills/code-review-github/scripts/load-issue.sh <PR-URL> | jq -r '.headRefName')"`, or `HEAD_REF="$(git symbolic-ref --short HEAD)"` for a branch with no PR. Check it with `git check-ref-format --branch "$HEAD_REF"` and against `^[A-Za-z0-9._/-]{1,255}$`. When either check fails, stop and report it.
 2. **Fetch.** Run `git fetch origin`.
 3. **Pull the default branch.** Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`. A plain `git pull` can rebase the default branch under `pull.rebase=true`, and a review never rebases.
    Skip this step when the review runs in a git worktree, or when `git worktree list --porcelain` shows the default branch checked out in another worktree. `git checkout` refuses a branch that another worktree holds. Step 2 has already refreshed `origin/$DEFAULT_BRANCH`, and every review step reads the default branch through that ref (`@rules/code-review/general.md` *Project `CLAUDE.md` as an additional review input*).
