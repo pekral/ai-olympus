@@ -354,7 +354,9 @@ test('every document that dispatches the reviewers runs splinter beside leonardo
     expect($content)->toContain('`splinter`');
     expect($content)->toContain('SECURITY_OWNER=splinter');
 
-    foreach (['security-review', 'security-audit', 'security-bounty-hunter', 'security-threat-analysis', 'laravel-security', 'laravel-authorization-review'] as $skill) {
+    $securitySkills = ['security-review', 'security-audit', 'security-bounty-hunter', 'security-threat-analysis', 'laravel-security'];
+
+    foreach ([...$securitySkills, 'laravel-authorization-review'] as $skill) {
         expect($content)->not->toContain('@skills/' . $skill . '/');
     }
 })->with([
@@ -385,14 +387,17 @@ test('the merge gate accepts the security delegation only on the splinter Securi
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $line = 'Security review: splinter · head ';
 
-    expect($splinter)->toContain('the line `Security review: splinter · head <full head SHA> · Critical <n> · Moderate <n> · skills <comma-separated security skills that ran>`');
+    expect($splinter)->toContain(
+        'the line `Security review: splinter · head <full head SHA> · Critical <n> · Moderate <n> · '
+        . 'skills <comma-separated security skills that ran>`',
+    );
     expect($rule)->toContain('**Security review — `splinter`\'s delivery, copied verbatim.**');
     expect($rule)->toContain('Its head SHA equals the comment\'s `Reviewed revision:`.');
     expect($merge)->toContain($line . '<sha> · Critical <n> · Moderate <n> · skills <list>');
     expect($merge)->toContain('its `<sha>` must equal the comment\'s own `Reviewed revision:`');
 
     foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
-        expect((string) file_get_contents($packageDir . '/' . $template))->toContain('**' . 'Security review:** splinter · head ');
+        expect((string) file_get_contents($packageDir . '/' . $template))->toContain('**Security review:** splinter · head ');
     }
 });
 
