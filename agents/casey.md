@@ -1,6 +1,6 @@
 ---
 name: casey
-description: Use in every code review round, beside leonardo and raphael, when the project is MySQL / MariaDB or its database engine does not resolve and the diff changes database operations. Runs `mysql-problem-solver` with `MODE=cr-report` over the pull request diff and returns one advisory report that proposes optimizations for critical MySQL problems only. In a parallel CR round the report goes to the shared brief and into the one CR comment; a standalone run publishes it as its own PR comment in the `mysql-report` marker namespace. The report never gates convergence or the merge. Read-only — never edits, commits, pushes, or merges.
+description: Use in every code review round, beside leonardo, splinter, and raphael, when the project is MySQL / MariaDB or its database engine does not resolve and the diff changes database operations. Runs `mysql-problem-solver` with `MODE=cr-report` over the pull request diff and returns one advisory report that proposes optimizations for critical MySQL problems only. In a parallel CR round the report goes to the shared brief and into the one CR comment; a standalone run publishes it as its own PR comment in the `mysql-report` marker namespace. The report never gates convergence or the merge. Read-only — never edits, commits, pushes, or merges.
 tools: Read, Glob, Grep, Bash
 disallowedTools: Write, Edit
 model: sonnet
@@ -35,7 +35,7 @@ When the dispatch names `pgsql`, stop with `Not applicable — PostgreSQL projec
 
 ## Parallel CR round
 
-`krang` dispatches you beside `leonardo` and `raphael` in each code review round (`agents/krang.md` *Parallel CR round*). The review has not finished yet, so the round changes three steps of the *Workflow*:
+`krang` dispatches you beside `leonardo`, `splinter`, and `raphael` in each code review round (`agents/krang.md` *Parallel CR round*). The review has not finished yet, so the round changes three steps of the *Workflow*:
 
 1. **Resolve the engine yourself** when the dispatch names none. Run the one resolution step the review uses, with the same sources in the same order: `config/database.php`, then `.env.example`, then `composer.json` (`@skills/code-review/references/specialized-reviews.md`). On `pgsql`, stop with `Not applicable — PostgreSQL project`. When the diff changes no database operation, stop with `Not applicable — no database operations`.
 2. **Step 4 reads no published section.** Omit every point that one of the review's gating walks owns (N+1, index reuse, query non-regression, deploy-safe schema, bulk data) and every schema-feature shape that `mysql-patterns` owns.

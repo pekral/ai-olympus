@@ -210,7 +210,7 @@ plan() {
 
   # --- The normal plan -------------------------------------------------------
   if [[ "$security" -eq 1 && "$tier" == "CRITICAL" ]]; then
-    stage_agent leonardo security_analysis "$model_tier"
+    stage_agent splinter security_analysis "$model_tier"
   fi
 
   # The redesign produces the specification the implementation builds from, so it
@@ -355,7 +355,7 @@ self_test() {
     --tier CRITICAL
 
   expect_sequence 'CRITICAL with a security question analyses first' \
-    "leonardo:security_analysis:escalated -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
+    "splinter:security_analysis:escalated -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --security-analysis
 
   # The security analysis belongs to CRITICAL. A STANDARD task that mentions
@@ -409,7 +409,7 @@ self_test() {
     "michelangelo:redesign:default -> $IMPL -> $RECLASS -> $VALIDATE -> $REPORT" --tier FAST --redesign
 
   expect_sequence 'a CRITICAL redesign still analyses security first' \
-    "leonardo:security_analysis:escalated -> michelangelo:redesign:default -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
+    "splinter:security_analysis:escalated -> michelangelo:redesign:default -> donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --security-analysis --redesign
 
   # A re-classification owes the stages the lower tier skipped. The redesign is not

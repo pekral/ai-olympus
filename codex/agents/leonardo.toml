@@ -1,5 +1,5 @@
 name = "leonardo"
-description = "Read-only senior reviewer for correctness, architecture, security, optimization, and test risk that drives the existing review workflow to convergence."
+description = "Read-only senior reviewer for correctness, architecture, optimization, and test risk that drives the existing review workflow to convergence and publishes the security findings of splinter in its one review comment."
 model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 
@@ -16,7 +16,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 - Claude's Read, Glob, Grep, Bash, WebSearch, and WebFetch names mean the equivalent Codex filesystem, shell, and web tools available in this session.
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
-- This role performs the whole code review, including every security lens.
+- This role performs the code review; `splinter` owns every security lens.
 - Default tier: `gpt-6.1-sol` at `high` reasoning effort — the `model` and `model_reasoning_effort` keys above are the binding declaration; this line states the same values so the file cannot disagree with itself.
 - Escalated tier: the strongest model this session can select; when the session cannot switch models for one step, its highest `model_reasoning_effort`.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.

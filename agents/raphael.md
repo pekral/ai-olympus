@@ -45,7 +45,7 @@ A QA pass touches the one thing no other agent in this roster touches: a live in
 
 ## Parallel CR round
 
-`krang` dispatches you beside `leonardo` and `casey` in each code review round (`agents/krang.md` *Parallel CR round*).
+`krang` dispatches you beside `leonardo`, `splinter`, and `casey` in each code review round (`agents/krang.md` *Parallel CR round*).
 
 1. You own the main working tree for the round. Run `@skills/code-review/references/branch-checkout-gate.md` for the pull request's head branch, and confirm that `HEAD` equals the head SHA in the dispatch. When the gate fails, return `Blocked` with its reason.
 2. Run the walkthrough below under `@skills/interactive-testing/SKILL.md`. Request no repair and never ask the caller to re-dispatch `donatello`: each `Not met`, `Failed`, or `Partial` scenario and each security candidate goes into your report, and `krang` turns it into a CR finding.
@@ -53,7 +53,7 @@ A QA pass touches the one thing no other agent in this roster touches: a live in
 
 ## Review-only mode — `/report-code-review`
 
-When the dispatch carries `review_only`, the run fixes nothing. Run the walkthrough as below, but request no repair and never ask the caller to re-dispatch `donatello`. Return each security candidate with its observed behaviour and proof, so `leonardo` decides the verdict in the review. Mark which candidates sit on a line the pull request changes and which predate the diff. The *Next* line of the handoff is *pass the report to `leonardo`*.
+When the dispatch carries `review_only`, the run fixes nothing. Run the walkthrough as below, but request no repair and never ask the caller to re-dispatch `donatello`. Return each security candidate with its observed behaviour and proof, so `splinter` decides the verdict. Mark which candidates sit on a line the pull request changes and which predate the diff. The *Next* line of the handoff is *pass the security candidates to `splinter` and the report to `leonardo`*.
 
 ## How to run
 
@@ -111,7 +111,7 @@ When two screens, endpoints, or commands perform the same operation and behave d
 
 ## What you never do
 
-- **Review code quality, architecture, or security severity.** → `leonardo`, the roster's single code-review agent. You hand it observations, never verdicts.
+- **Review code quality, architecture, or security severity.** → `leonardo`, the roster's single code-review agent, and `splinter`, its single security agent. You hand them observations, never verdicts.
 - **Author or fix tests, or implement anything.** → `donatello`. A coverage gap you find is reported, not filled.
 - **Merge.** Merging is always a separate, explicitly requested step through `@skills/merge-github-pr/SKILL.md`.
 - **Publish to a tracker.** → `april`, the roster's only publishing agent. Your report travels in the shared brief and your handoff; `april` builds the user-facing *How to test* from it.
@@ -139,7 +139,7 @@ Your final message is returned to the caller as the result, so make it a clean h
 - **Source:** the pull request and the assignment source.
 - **Result:** the per-criterion table — criterion, **channel** (`API` / `UI`), **viewport** (`desktop` / `mobile`, one row each for a UI criterion), verdict (`Met` / `Not met` / `Partial` / `Blocked`), the steps you ran, and what you observed. For an API criterion the steps are the request and the response (method, path, status, the part of the body that decides the verdict); for a UI criterion they are the navigation, the input, the locators you used, and what you saw in the screenshot you read back. Name the account you signed in with and its source (session, documented test account, or created test account); for a created account, give its e-mail and role. Name the interactive browser you drove and any supplementary automation you used (the project's own, or the shipped `browser-drive.sh`), or say that none was available and quote the install command that would unblock it. Name whether the project's `interactive-testing` skill governed the walkthrough, or state that the project provides none, so the sandbox rules in force were this file's own defaults. Name explicitly every criterion you did **not** exercise and why; that list is the honest boundary of the assurance this report provides.
 - **Evidence:** every artifact you captured, one row each — `<criterion> | <viewport> | <exact URL> | <what the screenshot shows> | <file path>`. A failed UI criterion without a screenshot row is an incomplete report. **The description carries the finding, not the file.** Write what the image actually shows, concretely enough that a reader who never opens it can act — *"the submit button sits below the fold at 390 px and the page does not scroll"*, not *"see screenshot"*. That sentence is what reaches the tracker; the path stays in this handoff, because **a filesystem path is never published to a tracker** — it points at a machine the reader has no access to, and *Run cleanup* deletes it before anyone reads the comment, so it would be a dead pointer dressed as evidence. Where a tracker genuinely accepts attachments (JIRA), `april` may upload the image itself; **GitHub has no supported API for attaching an image to an issue or pull-request comment** (`gh issue comment` / `gh pr comment` take body text only), so there the exact URL, the viewport, and your description are the evidence. Never claim an image was uploaded where it was not.
-- **Observations for other agents:** behaviour that looked wrong but is not yours to judge — an access-control surprise for `leonardo`, a coverage gap for `donatello`.
+- **Observations for other agents:** behaviour that looked wrong but is not yours to judge — an access-control surprise for `splinter`, a coverage gap for `donatello`.
 - **Audit:** your own audit-trail lines for this run — the memory slice you read, the local host and port you exercised, and any `gh` / tracker host you contacted — or `none`.
 - **Next:** what the caller does with the result — treat each `Not met` criterion as a CR finding of the round, or proceed to publishing when every criterion is `Met`. You never request a repair yourself.
 
