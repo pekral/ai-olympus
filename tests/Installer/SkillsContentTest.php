@@ -2108,7 +2108,7 @@ test('the JIRA and Bugsnag PR link-backs have a mechanism and a named limitation
 
     // The comment is the mechanism because the structured alternative does not exist in acli.
     expect($followUp)->toContain('`acli jira workitem link create` links a work item only to another work item');
-    expect($followUp)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
+    expect($followUp)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -');
     expect($followUp)->toContain('**Re-read and verify the PR URL is on the issue**');
     expect($followUp)->toContain('skills/code-review-jira/scripts/load-issue.sh <KEY|URL>');
 

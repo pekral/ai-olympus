@@ -171,7 +171,8 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     foreach ([$april, $skill] as $document) {
-        expect($document)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
+        expect($document)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -');
+        expect($document)->not->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
         expect($document)->toContain('pr-summary-jira.md');
         expect($document)->toContain('the only sanctioned');
     }
@@ -180,7 +181,8 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     foreach ([$april, $skill] as $document) {
         expect($document)->toContain('skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>');
         expect($document)->toContain('`acli jira workitem comment delete`');
-        expect($document)->toContain('every remaining marker-carrying comment by the actor is a protected ID');
+        expect($document)->toContain('every remaining marker-carrying comment by the actor is a protected ID or');
+        expect($document)->toContain('a code-review report of an earlier run');
     }
 
     expect($rule)->toContain('**Delete a comment only through `skills/code-review-jira/scripts/delete-owned-comment.sh`.**');

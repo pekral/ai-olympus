@@ -4672,3 +4672,60 @@ test('every code-review report is published as a new comment on each destination
             'A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment',
         );
 });
+
+test('no other JIRA publish and no merge-preparation cleanup rewrites or deletes a code-review report (issue #331)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $april = (string) file_get_contents($packageDir . '/agents/april.md');
+    $mergeReadiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $deleteHelper = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/delete-owned-comment.sh');
+    $testerCookbook = (string) file_get_contents($packageDir . '/skills/tester-cookbook/SKILL.md');
+    $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+    $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $jiraRule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+
+    // The JIRA merge-preparation TL;DR is a new comment, and both protected IDs name two comments.
+    foreach ([$april, $mergeReadiness, $deleteHelper] as $document) {
+        expect($document)->not->toContain('updates this actor\'s newest `cr-comment` in place');
+        expect($document)->toContain('Only when the issue carries no code-review');
+    }
+
+    foreach ([$april, $mergeReadiness] as $document) {
+        expect($document)->toContain('`CURRENT_CR_ID` is');
+        // The cleanup never deletes the cross-run history.
+        expect($document)->toContain('**A code-review report a CR run published never enters the manifest**');
+        expect($document)->not->toContain('Older comments in that namespace may enter the manifest');
+        expect($document)->not->toContain('older CR comments are superseded');
+    }
+
+    // Every other publish in the JIRA cr-comment namespace creates a new comment.
+    expect($testerCookbook)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> <report-file>')
+        ->and($testerCookbook)->not->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> <report-file>');
+    expect($followUp)->not->toContain('skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -');
+    expect($resolveIssue)->toContain('publish through the canonical JIRA helper with `--create`');
+    expect($rule)->toContain('**On JIRA every publish in the default `cr-comment` namespace passes `--create`.**')
+        ->and($rule)->not->toContain('`merge-readiness`, and the merge-preparation TL;DR — keeps');
+    expect($jiraRule)->toContain('Every other publish in the default `cr-comment` namespace passes `--create` too');
+
+    // The retry read-back has one identity rule, and the other sites reference it.
+    expect($rule)->toContain('**A retry identifies the comment of this run, never a comment that only carries the marker.**')
+        ->and($rule)->toContain('Before the helper call, record the ID of every comment on the destination')
+        ->and($rule)->toContain('its ID is absent from the IDs recorded in step 1;')
+        ->and($rule)->toContain('One flat `paragraph` means the helper created it and the ADF update did not run.')
+        ->and($rule)->not->toContain('When the comment of this run already landed, the run publishes nothing again');
+
+    $references = [
+        $jiraRule,
+        (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'),
+        (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'),
+        $april,
+        $mergeReadiness,
+        $testerCookbook,
+    ];
+
+    foreach ($references as $document) {
+        expect($document)->toContain('*A retry identifies the comment of this run*')
+            ->and($document)->not->toContain('already landed')
+            ->and($document)->not->toContain('did not land, creating');
+    }
+});

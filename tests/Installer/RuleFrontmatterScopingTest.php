@@ -438,7 +438,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the evidence sections are the one exception to the no-confirmation rule, and `Reuse (DRY):` without evidence reads `not verified`.
         // Re-baselined: the review floor gains item 4 (environment values, production), and the not-verified example names a person with replica access.
         // Re-baselined: every code-review report is a new comment published with `--create`, and it carries no line over from an earlier comment.
-        'rules/code-review/general.md' => '61f81bd624296e580f319723aa4bd327daf77cdc61d6d73fb49c88bdd1704ba4',
+        // Re-baselined: on JIRA every `cr-comment` publish passes `--create`, and a retry identifies the comment of this run by the IDs recorded before the call.
+        'rules/code-review/general.md' => 'af74f0f50ccdb5756e1c5bbf45fb2845a75faf5b5940cad851bfb599b80b3918',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -509,7 +510,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review-only run updates its comment in place instead of passing `--create`.
         // Re-baselined: two sanctioned transitions; no status change once the code review has started.
         // Re-baselined: a code-review report is a new comment on every run (`--create`); every other namespace keeps one comment per actor.
-        'rules/jira/general.md' => '66b52834b485c6c37993dd26eafdf17bb2a1308489f3095e8447ee40803267cc',
+        // Re-baselined: every other publish in the JIRA `cr-comment` namespace passes `--create` too, and a retry references the one identity rule.
+        'rules/jira/general.md' => 'd339442cae1600a12f883193c5e19aa41321a43643ac2b7d121c21ba1198d5d0',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
