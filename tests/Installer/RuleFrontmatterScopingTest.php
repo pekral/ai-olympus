@@ -432,7 +432,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
         // Re-baselined: a converged comment may carry `## Interactive testing` and `## MySQL report` from a parallel CR round.
         // Re-baselined: the orchestrator `splinter` is renamed to `krang`.
-        'rules/code-review/general.md' => 'd48379e10bc5feaca89205b650a44702c624eb3205905d006613746d6fa51ebf',
+        // Re-baselined: the DRY check names each rule, searches it by its mechanics, opens the siblings, and publishes `## Reuse (DRY)`.
+        'rules/code-review/general.md' => 'c97d90ca8ca27a3fdb86017f242b85239927114352a3a3b9c1f21e96a9df7e16',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

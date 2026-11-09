@@ -221,7 +221,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
   Do not dispatch as a subagent — run it sequentially in the current context:
   - GitHub: `@skills/code-review-github/SKILL.md`
   - JIRA: `@skills/code-review-jira/SKILL.md`
-- **The published comment is a TL;DR, never a systematic report.** A converged run carries the header block, `## TL;DR`, `## Functional Review`, the two conditional sections, and `## Interactive testing` / `## MySQL report` when their reports were passed — nothing else, and no `## Findings` over an empty body. Canonical shape: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+- **The published comment is a TL;DR, never a systematic report.** A converged run carries the header block, `## TL;DR`, `## Functional Review`, the conditional sections (`## Input consistency` and `## Reuse (DRY)` among them), and `## Interactive testing` / `## MySQL report` when their reports were passed — nothing else, and no `## Findings` over an empty body. Canonical shape: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 - Share a concise completion report (in-conversation, not on the tracker):
   - PR link
   - resolved items

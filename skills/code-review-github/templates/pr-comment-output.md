@@ -140,6 +140,17 @@
 
 ---
 
+## Reuse (DRY)
+
+> Render on every run whose diff adds or changes logic — on a converged run too — per `@rules/code-review/general.md` *DRY check — every new rule is searched for in the whole codebase*. Without this list, a `Reuse (DRY): no duplication found` verdict counts as a check that did not run. When the diff adds or changes no logic, omit the heading.
+
+- **Rule:** {the business rule of one added or changed block, in one sentence, without identifiers}
+  - **Searched:** {each search pattern — callee with its arguments, repository lookup, enum value with its branching, collection shape}
+  - **Siblings opened:** {`path/to/Sibling.php`, …} | none — the change sits in no family
+  - **Verdict:** {duplicate of `path/to/Other.php:42` — see finding <n> | not a duplicate — <the concrete difference in one sentence>}
+
+---
+
 ## Documentation Requests
 
 > Render only when **Third-Party API & Service Analysis** step 7 in `@skills/code-review/SKILL.md` produced at least one blocking documentation request — i.e. the ordered source walk in step 2 resolved no reference for a third-party contract the diff touches. Each entry accompanies (never replaces) the Moderate finding raised for that contract; it is what lets the author close it with a single link. Omit the entire section when every affected contract resolved a reference — no `None.` placeholder.
