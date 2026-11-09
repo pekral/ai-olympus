@@ -89,7 +89,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | Key | Read by | Meaning |
 |---|---|---|
 | `gate` | quality gate (`skills/resolve-issue/references/quality-gates.md`) | The project's full quality gate, run in order. Replaces discovery through Phing or Composer scripts. |
-| `pr-gate` | `run-gate.sh --tier pr`, the implementer before each push | The project's fast pre-push gate. Absent: no gate runs while a branch is worked on. |
+| `pr-gate` | `run-gate.sh --tier pr`, the implementer before each push | The project's fast pre-push gate. Skipped when CI on the pull request's head is green, and never run on a repository that is public on GitHub, where CI is the check. Absent: no gate runs while a branch is worked on. |
 | `gate-fresh` | `run-gate.sh`, `verify-gate.sh` | Commands whose result is never reused from a record; they run fresh on every verification. Absent or empty: `composer audit` when `composer.lock` exists. |
 | `gate-evidence` | `run-gate.sh`, `verify-gate.sh` | The directory for gate records and logs. It must be relative, git-ignored, and hold no tracked file. Absent: `.claude/run/gates`. |
 | `coverage` | test and review skills | The project's coverage command. |

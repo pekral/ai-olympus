@@ -79,9 +79,8 @@ On a repository that is public on GitHub, CI runs on every push at no cost to th
 
 1. **Read the visibility once per run:** `gh repo view --json isPrivate`. When the call fails, treat the repository as private and follow *Skip the pre-push gate when CI is green* above.
 2. **Public (`isPrivate` is `false`) → no local pre-push gate.** Do not run `pr-gate` before a push, whatever the CI result on the previous head. This includes a rebase that resolved a conflict: CI checks the new code on the push.
-3. **Push, then wait for CI on the pushed head:** confirm that the pull request's `headRefOid` equals `git rev-parse HEAD`, then run `gh pr checks <PR> --watch`. Never start the next step on a pending result: a review round, a promotion out of Draft, or a merge. When the harness stops the watch at its call timeout, run it again or run it in the background, as *Waiting for the gate lock — the harness call timeout* below does for the lock.
-   **No CI signal on the pushed head** — no pull request yet, no check reported, or checks that belong to another SHA — falls back to *Skip the pre-push gate when CI is green* above, exactly like a failed visibility read.
-4. **Act on the result.** Green → continue. Red → the failure is a finding of the change: fix it, push, and wait again. A GitHub Actions billing failure follows the billing exception of `@skills/merge-github-pr/SKILL.md`.
+3. **Push, and let CI be the check.** When a later step depends on CI — a promotion out of Draft, or a merge — wait for the result on the pushed head per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*. A code review does not wait for CI; that section says so. Before the first push there is no pull request and nothing to wait for.
+4. **Act on the result.** Green → continue. Red → the failure is a finding of the change: fix it, push, and wait again. A repository with no CI reports no check: that section ends the wait after three failed reads, and the pre-merge gate then runs locally as usual. A GitHub Actions billing failure follows the billing exception of `@skills/merge-github-pr/SKILL.md`.
 5. **Record the decision in the handoff:** `pr-gate: skipped — public repository, CI <green | red> on <sha>`.
 
 This section changes only the pre-push gate. The full gate at the merge boundary keeps its own rules above.
