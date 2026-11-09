@@ -87,6 +87,24 @@ test('the settle scratch directory is refused when a symbolic link could move it
         ->toContain('every point that needs the directory stays not verified with the reason `scratch directory refused`.');
 });
 
+test('a settle git read runs no driver or filter a committed attribute selects', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('and `--no-textconv --no-ignore-revs-file` to `blame`, so `blame` reads no ignore-revs file')
+        ->toContain(
+            '`diff` compares two commits and `blame` annotates a `<sha>`, each resolved by the reviewer, '
+            . 'so neither reads the worktree or the index',
+        )
+        ->toContain('`cat-file` takes neither `--textconv` nor `--filters`.');
+});
+
+test('every settle run writes into a fresh scratch directory that mktemp creates', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('the reviewer creates that one directory with `mkdir`, never with `mkdir -p`.')
+        ->toContain('the reviewer runs `mktemp -d <top>/.claude/run/settle/XXXXXXXX` and uses the name `mktemp` printed as `<run-id>`.')
+        ->toContain('The reviewer never reuses a directory that already exists')
+        ->toContain('The deletion at the end removes exactly that `<run-id>` directory.');
+});
+
 test('a settle gh api read never takes an absolute URL', function (): void {
     expect(settleOpenPointsOwner())
         ->toContain('`<endpoint>` is a path below the REST API root, never a value that carries `://`.');
