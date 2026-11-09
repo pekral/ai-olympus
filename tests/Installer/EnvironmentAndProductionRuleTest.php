@@ -35,5 +35,5 @@ test('every agent is barred from touching production', function (): void {
         ->toContain('4. lets an agent read an environment value or touch production');
     expect((string) file_get_contents($packageDir . '/skills/laravel-telescope/SKILL.md'))
         ->not->toContain('production read-only')
-        ->toContain('A Telescope URL on production or on an unknown host stops the database steps');
+        ->toContain('A Telescope URL on production or on an unknown host stops steps 2 and 3: never open its Telescope UI and never query its database.');
 });
