@@ -46,7 +46,7 @@ In Codex, request the role by name:
 Use the splinter agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`splinter` routes implementation to `donatello`, review to `leonardo`, a page redesign to `michelangelo` before anything is built, acceptance testing to `raphael` when needed, an advisory MySQL report to `casey` after a MySQL change is reviewed, context retrieval to `metalhead` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`splinter` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `metalhead` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 

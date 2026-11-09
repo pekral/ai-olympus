@@ -86,7 +86,7 @@
 
 ## Interactive testing
 
-> Render in every review-only run (`/report-code-review`), from the `raphael` report, also when the walkthrough was `Blocked`. Omit the heading in every other run. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
+> Render from the `raphael` report whenever the caller passes one — every publish after a parallel CR round (`agents/splinter.md` *Parallel CR round*) and every review-only run (`/report-code-review`) — also when the walkthrough was `Blocked`. Omit the heading when no `raphael` report exists. A `Not met`, `Failed`, or `Partial` row is also a finding above. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
 
 - **Tested head:** `{full SHA}` · **URL:** {project URL} · **Account:** {role}
 - **Result:**
@@ -97,6 +97,12 @@
 
 - **Untested:** {scenario — missing prerequisite}, or `none`
 - **Cleanup:** {restored values, removed test data}, or `none`
+
+## MySQL report
+
+> Render the `casey` report verbatim whenever the caller passes one with the status `MySQL report done`. Omit the heading when `casey` returned `Not applicable` or did not run. The report is advisory: its items never enter the Counts line or any gate.
+
+{casey report}
 
 ---
 
