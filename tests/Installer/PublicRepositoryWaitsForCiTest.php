@@ -28,9 +28,8 @@ test('a public github repository waits for ci instead of running a local pre-pus
     expect($donatello)->toContain('this repository\'s `composer build`, run only to correct an error a checker or CI reported');
     expect($donatello)->not->toContain('tells you to run before a push');
     expect((string) file_get_contents($packageDir . '/CLAUDE.md'))->toContain('It is never required before a push');
-    expect((string) file_get_contents($packageDir . '/rules/git/pull-requests.md'))
-        ->toContain('- **A step with a local substitute does not wait — except on a public repository.**');
-    expect($gates)->toContain('On a public repository a code review waits too, instead of running a checker locally.');
+    expect($gates)->toContain('A code review keeps its own rule there and does not wait.')
+        ->and($gates)->toContain('This section changes only the pre-push gate.');
     expect((string) file_get_contents($packageDir . '/AGENTS.md'))
         ->toContain('On a repository that is public on GitHub no local pre-push gate runs');
 });
