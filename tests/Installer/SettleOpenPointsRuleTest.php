@@ -48,6 +48,40 @@ test('an untrusted string never takes an option position in a settle check', fun
         ->toContain('no `rg --pre`, no `git -c`, and no `--output` on any git command');
 });
 
+test('an untrusted string reaches the shell only inside single quotes', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('An untrusted string is passed inside single quotes, with each `\'` written as `\'\\\'\'`.')
+        ->toContain('A string that carries a newline or a NUL byte is not used.');
+});
+
+test('a settle check reads repository content only through git, so a committed symbolic link is never followed', function (): void {
+    $owner = settleOpenPointsOwner();
+
+    expect($owner)
+        ->toContain(
+            '**Repository content is read through git only:** `git grep -F -e <pattern> <sha> -- <path> \':(exclude).env*\' \':(exclude)*/.env*\'`, '
+            . '`git show --no-ext-diff --no-textconv <sha>:<path>`, or `git cat-file -p <sha>:<path>`.',
+        )
+        ->toContain('`<sha>` is a commit the reviewer resolved itself with `git rev-parse`, never a ref taken from untrusted content.')
+        ->toContain('git prints a committed symbolic link as the path it names and never follows it, so no read leaves the repository.')
+        ->toContain('`git grep` and `git diff` never take `--no-index`, and `git grep` never takes `--untracked`.')
+        ->toContain('None of them opens a path outside the scratch directory.')
+        ->and($owner)->not->toContain('grep -rF');
+});
+
+test('a settle gh api read never takes an absolute URL', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('`<endpoint>` is a path below the REST API root, never a value that carries `://`.');
+});
+
+test('the consent row scopes only WebFetch to the settle step', function (): void {
+    $orchestration = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/orchestration.md');
+
+    expect($orchestration)
+        ->toContain('`WebFetch` alone is also scoped to the settle step of `@rules/code-review/review-process.md`')
+        ->and($orchestration)->not->toContain('documentation-lookup step and to the settle step');
+});
+
 test('a settle read stays a read', function (): void {
     expect(settleOpenPointsOwner())
         ->toContain('use `gh api --method GET <endpoint>` only, with no `-f`, `-F`, `--field`, `--raw-field`, `--input`, or `--hostname` flag.')
