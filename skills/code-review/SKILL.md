@@ -151,7 +151,7 @@ Move every finding that satisfies all four detection conditions — and is not e
 
 ## Output Rules
 
-- **Truthful reporting (issue #74) — every statement must be verified, never assumed.** The whole published review — `Status`, `Counts`, findings, and every "check ran" claim — states only what the run actually verified: findings are reproduced (not "this could break"), counts are the real surviving counts for this head commit, a pass is reported as run only when it ran (a delegated `security: owned by leonardo` records a delegation, not a delivery, and must link the delegate's real output), and no `file:line` / test result / coverage figure / rule citation is fabricated.
+- **Truthful reporting (issue #74) — every statement must be verified, never assumed.** The whole published review — `Status`, `Counts`, findings, and every "check ran" claim — states only what the run actually verified: findings are reproduced (not "this could break"), counts are the real surviving counts for this head commit, a pass is reported as run only when it ran (a delegated `security: owned by splinter` records a delegation, not a delivery, and must name the head SHA whose `splinter` findings the comment carries), and no `file:line` / test result / coverage figure / rule citation is fabricated.
 A point the run could not verify goes on the `Not verified:` header line with the step that settles it — never as an assumption, an estimate, or a confidence level. Canonical contract in `@rules/code-review/review-process.md` *Output Rules — Truthful reporting (issue #74)*.
 - Output only findings
 - No praise, no summaries of what was checked

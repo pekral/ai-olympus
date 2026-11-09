@@ -14,7 +14,7 @@ Audit reporting uses five levels. The repository's convergence gate (CR) knows t
 | Low              | Moderate      | YES                  |
 | Info             | not published | NO                   |
 
-An `Info` observation is not a finding. It never reaches a published CR report or its counts. The CR severities in `agents/leonardo.md` (`Critical` / `Moderate`) stay the gate; the audit severity is a reporting layer above them.
+An `Info` observation is not a finding. It never reaches a published CR report or its counts. The CR severities in `agents/splinter.md` (`Critical` / `Moderate`) stay the gate; the audit severity is a reporting layer above them.
 
 ## Every confirmed finding carries
 
