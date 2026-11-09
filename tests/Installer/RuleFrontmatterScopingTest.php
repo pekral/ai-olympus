@@ -282,21 +282,14 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
     }
 });
 
-test('rules/jira/general.md names the review column, not exception (1), for the reverting sentence (issue #154)', function (): void {
-    // Round-2 CR on #154: the sentence used to read "Reverting exception (1) needs no fourth
-    // helper either: the owner's return from review is exception (1)'s own transition, run
-    // again." — which names the wrong exception and leaves the move back to Code Review after
-    // resumed work unsanctioned. It states the actual transition: moving the issue back to the
-    // review column is exception (2)'s own transition, run again.
+test('rules/jira/general.md sanctions no status change once the code review has started', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
-    expect($content)->toContain(
-        'Undoing the owner\'s return — moving the issue back to the review column once the resumed '
-        . 'change is pushed and green — needs no fourth helper either: that move is exception (2)\'s '
-        . 'own transition, run again.',
-    );
-    expect($content)->not->toContain('Reverting exception (1) needs no fourth helper either');
+    expect($content)->toContain('**No status change once the code review has started.**');
+    expect($content)->toContain('An owned issue already in review keeps its status: the helper changes nothing and succeeds.');
+    expect($content)->not->toContain('Undoing the owner\'s return');
+    expect($content)->not->toContain('Reverting exception (3)');
 });
 
 test('every rule renamed in issue #277 keeps a byte-identical body below the frontmatter', function (): void {
@@ -507,7 +500,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and a duplicate outside `cr-comment` stays for a human.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: a review-only run updates its comment in place instead of passing `--create`.
-        'rules/jira/general.md' => '4f560a777974f56ed1bc1df36e0f39b4d26d0aa339f72d24b9a4b3dc60b9ab92',
+        // Re-baselined: two sanctioned transitions; no status change once the code review has started.
+        'rules/jira/general.md' => 'f141628e17dac5edfe629deb52f31017819df313bccbe9e020d2b1c1de2452a1',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

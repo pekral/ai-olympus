@@ -169,7 +169,7 @@ Apply each fix, commit it, push it, and let the next review iteration read the n
   - **Anything reported → resolve it and land it as one final commit**, placed last on the branch: `chore(gate): apply pre-merge fixer and checker fixes (#<N>)`, or a `fix(<scope>):` subject when resolving it changed behaviour. This is the one commit in this skill that is deliberately **not** a CR item. Re-run the gate on the new head and repeat until it passes.
   - **Only a gate fix that changes business logic re-opens the review.** Apply `@rules/code-review/general.md` *When another review round runs at all — changed business logic, or a changed assignment* to the fix commit.
 A commit carrying only the verbatim output of the project's fixers changes no business logic, so the converged verdict carries forward — record which fixer produced it. A hand-written change (a static-analysis error resolved by hand, a failing test, a coverage gap closed with new test code, or a `rector` rewrite that changed behaviour) does change it: go back to the Review loop at step 2 rather than promoting the PR. After a cap-round convergence, `review-state.sh record` refuses it (`cap-spent-after-convergence`): escalate.
-When an earlier pass had already promoted it, withdraw both signals now — `references/ready-to-merge-signal.md` *Revert when the review re-opens*. Classify from the commit's own diff, never from its subject line; an unclear case counts as business logic and gets the round.
+When an earlier pass had already promoted it, return the PR to Draft and remove its label now — `references/ready-to-merge-signal.md` *Revert when the review re-opens*. Classify from the commit's own diff, never from its subject line; an unclear case counts as business logic and gets the round.
   - **A gate that cannot be run is a hard stop** — do not promote the PR out of Draft and do not report convergence; surface what failed.
 - Commit and push changes
 - If PR does not exist, create it per @rules/git/pull-requests.md — as a **Draft** (`gh pr create --draft`) per *Draft pull requests*; the **Promote the PR out of Draft** step below marks it ready once this converged run is published
@@ -201,14 +201,13 @@ Never quote or reply to a previous CR comment body — this run's publish update
 
 After the fixes are committed and pushed (Finalization above), mark every reviewer thread whose finding was **actually fixed** as resolved, using the thread `id` captured during intake. The mutation, the fixed-only rule, and the fallback live in `references/resolve-reviewer-threads.md`.
 
-#### Promote the PR out of Draft and signal ready to merge
+#### Promote the PR out of Draft
 
-Convergence is exactly the moment the PR becomes ready to merge, so this skill owns both halves of that signal — the Draft → ready transition per `@rules/git/pull-requests.md` *Draft pull requests*, and phase 3 of `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*:
+Convergence is exactly the moment the PR becomes ready to merge, so this skill owns that signal on the pull request — the Draft → ready transition per `@rules/git/pull-requests.md` *Draft pull requests*. It never writes a status on the source tracker item (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*):
 
 - Because this step runs only after the **Review loop converged** (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate), mark the PR ready for review now: `gh pr ready <PR-NUMBER|URL>`, and label it `ready to merge` (`references/ready-to-merge-signal.md` *Pull-request label*). Both are PR state changes, not code changes.
 - Do **this only on a converged loop.** If the loop stopped at the cap round without converging, the PR stays a Draft — never promote a PR that still carries a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar. A Moderate deferred into a sub-issue is not such a finding: it is resolved for this PR and recorded in the tracker.
 - A PR that was already non-draft stays non-draft; `gh pr ready` is idempotent. If `gh pr ready` is unavailable, fall back to the GitHub MCP server's mark-ready operation.
-- **Write the ready-to-merge phase signal on the source tracker item in this same step**, so the issue shows the work waiting on a merge rather than on a reviewer. The write is unconditional, idempotent, and verified by re-reading through the deterministic loader. The per-tracker procedure, the no-source-issue no-op, and the revert live in `references/ready-to-merge-signal.md`.
 
 ---
 

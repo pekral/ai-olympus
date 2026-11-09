@@ -58,7 +58,7 @@ runs the activity names the file with `@rules/…` and reads it; `compound-engin
 | [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Code review |
 | [`code-review/review-process.md`](../rules/code-review/review-process.md) | The passes a review runs and how it reports — coverage gate, findings verification, output rules | Code review |
 | [`refactoring/general.md`](../rules/refactoring/general.md) | What refactoring is: behavior-preserving, incremental, never a big-bang rewrite | Refactoring |
-| [`jira/general.md`](../rules/jira/general.md) | JIRA CLI usage, the three sanctioned transitions, and the ADF comment format | JIRA |
+| [`jira/general.md`](../rules/jira/general.md) | JIRA CLI usage, the two sanctioned transitions, and the ADF comment format | JIRA |
 
 ## Orchestration
 
