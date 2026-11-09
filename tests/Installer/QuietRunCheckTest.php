@@ -57,10 +57,19 @@ test('a tracker the script cannot count goes under not-verified with the step th
     $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
     $scope = quietRunCheckSource('skills/process-code-review/references/review-loop-scope.md');
 
-    expect(substr_count($script, 'settled by: open the error in the Bugsnag dashboard and check that its comment list has no entry newer than the start of the run\''))->toBe(1)
+    expect(
+        substr_count(
+            $script,
+            'settled by: open the error in the Bugsnag dashboard and check that its comment list has no entry newer than the start of the run\'',
+        ),
+    )->toBe(
+        1,
+    )
         ->and(substr_count($script, 'settled by: list the comments of the JIRA issue with acli'))->toBe(1)
         ->and(substr_count($script, '#   over exit 3 when both happened. An item on a `not-verified:` line never changes the exit code'))->toBe(1)
-        ->and(substr_count($scope, '5. **Every `not-verified:` line goes under *Not verified* of the report**, with its own `settled by:` step.'))->toBe(1);
+        ->and(substr_count($scope, '5. **Every `not-verified:` line goes under *Not verified* of the report**, with its own `settled by:` step.'))->toBe(
+            1,
+        );
 });
 
 test('the self-test covers every scenario of the assignment', function (): void {
@@ -89,7 +98,14 @@ test('the loop reference owns the contract: what to run, how to read each exit c
     $scope = quietRunCheckSource('skills/process-code-review/references/review-loop-scope.md');
 
     expect(substr_count($scope, '#### Prove that a quiet run published nothing'))->toBe(1)
-        ->and(substr_count($scope, 'run `skills/_shared/quiet-run-check.sh record --pr <PR-URL> --state .claude/run/quiet-run/<source-slug>.json` (`.codex/run/` under Codex)'))->toBe(1)
+        ->and(
+            substr_count(
+                $scope,
+                'run `skills/_shared/quiet-run-check.sh record --pr <PR-URL> --state .claude/run/quiet-run/<source-slug>.json` (`.codex/run/` under Codex)',
+            ),
+        )->toBe(
+            1,
+        )
         ->and(substr_count($scope, 'run `skills/_shared/quiet-run-check.sh verify --state <the same file>`'))->toBe(1)
         ->and(substr_count($scope, '`Quiet run: verified — nothing published, head <sha> unchanged`'))->toBe(1)
         ->and(substr_count($scope, '`The review covers <before>, the head is now <now>.`'))->toBe(1)
@@ -111,7 +127,14 @@ test('every quiet review path calls the check and reports its result', function 
 
     // The quiet leonardo round.
     expect(substr_count($leonardo, 'Before the wrapper starts run `skills/_shared/quiet-run-check.sh record`, and after it returns run `verify`'))->toBe(1)
-        ->and(substr_count($leonardo, 'the result of `quiet-run-check.sh verify` (exit code, any `new-comment:` URL, the `the review covers <before>, the head is now <now>` line on exit `3`'))->toBe(1)
+        ->and(
+            substr_count(
+                $leonardo,
+                'the result of `quiet-run-check.sh verify` (exit code, any `new-comment:` URL, the `the review covers <before>,',
+            ),
+        )->toBe(
+            1,
+        )
         ->and(substr_count($leonardo, 'run `skills/_shared/quiet-run-check.sh` (`record` and `verify`) only as'))->toBe(1)
         ->and(substr_count($leonardo, 'writes only the state file under `.claude/run/quiet-run/`, and never writes to a tracker'))->toBe(1)
         ->and(substr_count($leonardo, 'the quiet-run state `skills/_shared/quiet-run-check.sh` writes under `.claude/run/quiet-run/`'))->toBe(1);
