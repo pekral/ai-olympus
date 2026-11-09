@@ -52,7 +52,9 @@ extend those steps in the dispatch prompt');
     expect($leonardo)->toContain('skip the step-10 fix loop');
     expect($leonardo)->toContain('review the pull request\'s head SHA in your review worktree, because `raphael` owns the main working tree');
     expect($leonardo)->not->toContain('@skills/security-review/SKILL.md');
-    expect($krang)->toContain('`splinter` runs every security skill over the current diff of the pull request, so the security review runs on this run too.');
+    expect($krang)->toContain(
+        '`splinter` runs every security skill over the current diff of the pull request, so the security review runs on this run too.',
+    );
     expect($krang)->toContain('It owns the main working tree for the round: it runs `@skills/code-review/references/branch-checkout-gate.md`');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
@@ -67,7 +69,9 @@ extend those steps in the dispatch prompt');
         ->toContain('as parallel tool calls in this same context, never as a subagent.');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
         ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
-        ->toContain('Without `SECURITY_OWNER` it still runs exactly once over the current diff, and its findings land in the one review comment of this run.');
+        ->toContain(
+            'Without `SECURITY_OWNER` it still runs exactly once over the current diff, and its findings land in the one review comment of this run.',
+        );
 });
 
 test('security is the most important part of every code review', function (): void {
@@ -92,7 +96,10 @@ test('report-code-review adds the interactive-testing result to the review repor
 
     expect((string) file_get_contents($packageDir . '/agents/krang.md'))
         ->toContain('Then run one *Parallel CR round* with `review_only` in all four dispatch prompts.')
-        ->toContain('It publishes the one review report, with `splinter`\'s findings and candidate verdicts, with the `interactive-testing` result and the MySQL report in it');
+        ->toContain(
+            'It publishes the one review report, with `splinter`\'s findings and candidate verdicts, '
+            . 'with the `interactive-testing` result and the MySQL report in it',
+        );
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('pass the `raphael` walkthrough report from the brief to the wrapper');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
@@ -107,7 +114,10 @@ test('report-code-review runs leonardo, splinter, raphael, and casey in one para
     $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
 
     expect($krang)
-        ->toContain('`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → splinter (security candidates, when the `raphael` report carries any) → leonardo (publish)`')
+        ->toContain(
+            '`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → '
+            . 'splinter (security candidates, when the `raphael` report carries any) → leonardo (publish)`',
+        )
         ->toContain('When the `raphael` report carries security candidates, dispatch `splinter` once more with `review_only` and those candidates')
         ->toContain('Then dispatch `leonardo` with `publish: now` and `review_only`');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))

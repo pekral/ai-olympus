@@ -2039,7 +2039,10 @@ test('splinter subjects the security plan publication to its own disclosure guar
     $content = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
     // Step 4 publishes the whole analysis, so it references the disclosure guard by name.
-    expect($content)->toContain('Publishing the plan is itself a disclosure decision — subject it to the guard in *Never disclose an unfixed vulnerability on a public tracker* below.');
+    expect($content)->toContain(
+        'Publishing the plan is itself a disclosure decision — subject it to the guard in '
+        . '*Never disclose an unfixed vulnerability on a public tracker* below.',
+    );
     expect($content)->toContain('this step publishes the **whole** analysis, so it is the larger disclosure');
 
     // The #212 checklist format is what makes the leak precise, so the guard has to say so.
