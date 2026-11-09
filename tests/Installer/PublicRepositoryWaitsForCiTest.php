@@ -11,7 +11,7 @@ test('a public github repository waits for ci instead of running a local pre-pus
         ->and($gates)->toContain('**Read the visibility once per run:** `gh repo view --json isPrivate`.')
         ->and($gates)->toContain('When the call fails, treat the repository as private')
         ->and($gates)->toContain('Do not run `pr-gate` before a push, whatever the CI result on the previous head.')
-        ->and($gates)->toContain('**Push, and let CI be the check.**')
+        ->and($gates)->toContain('before it hands the branch on — to the code review, a promotion out of Draft, or a merge.')
         ->and($gates)->toContain('per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*')
         ->and($gates)->toContain('On a private repository, or when the visibility read fails')
         ->and($gates)->toContain(
@@ -23,13 +23,21 @@ test('a public github repository waits for ci instead of running a local pre-pus
         ->toBeGreaterThan((int) strpos($gates, 'The rule is one full build at the merge boundary'))
         ->toBeLessThan((int) strpos($gates, '## Machine gate record'));
     expect((string) file_get_contents($packageDir . '/agents/donatello.md'))
-        ->toContain('On a repository that is public on GitHub, never run it: push and let CI be the check');
+        ->toContain(
+            'On a repository that is public on GitHub, never run it: push, then wait for the CI result on the pushed head before you hand the branch on',
+        );
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
     expect($donatello)->toContain('this repository\'s `composer build`, run only to correct an error a checker or CI reported');
     expect($donatello)->not->toContain('tells you to run before a push');
     expect((string) file_get_contents($packageDir . '/CLAUDE.md'))->toContain('It is never required before a push');
-    expect($gates)->toContain('A code review keeps its own rule there and does not wait.')
+    expect($gates)->toContain('3. **Push, then wait for CI.** After each push the implementer waits for the CI result on the pushed head')
+        ->and($gates)->toContain('The code review itself starts no wait of its own')
         ->and($gates)->toContain('This section changes only the pre-push gate.');
     expect((string) file_get_contents($packageDir . '/AGENTS.md'))
         ->toContain('On a repository that is public on GitHub no local pre-push gate runs');
+});
+
+test('the ci wait rule names the implementer handoff on a public repository', function (): void {
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/rules/git/pull-requests.md'))
+        ->toContain('or an implementer\'s handoff after a push on a public repository');
 });
