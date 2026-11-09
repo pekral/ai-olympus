@@ -13,9 +13,9 @@
 #                  any URL containing ?selectedIssue=<KEY>.
 #   COMMENT_ID     The comment to delete.
 #   FINAL_TLDR_ID  The final TL;DR this run published and read back.
-#   CURRENT_CR_ID  The current CR evidence comment on this issue. JIRA keeps one
-#                  update-in-place `cr-comment` per actor, so when the final
-#                  TL;DR is that comment, pass its ID for both protected slots.
+#   CURRENT_CR_ID  The current CR evidence comment on this issue. The JIRA TL;DR
+#                  updates this actor's newest `cr-comment` in place, so when the
+#                  final TL;DR is that comment, pass its ID for both protected slots.
 #
 # Ownership proof — every condition must hold, or nothing is deleted:
 #   1. COMMENT_ID is neither protected ID.

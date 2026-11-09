@@ -194,7 +194,7 @@ This step **assembles** the comment body; **Completion** publishes it. This skil
 - **`## Deferred to sub-issues`** — only when the Review loop deferred a Moderate at the cap round or a refactoring-only pull request carries over a discrepancy: one entry per finding with `file:line`, the original severity, the reason, and the sub-issue or follow-up issue URL (`references/round-three-deferral.md` *Reporting the deferral*).
 - **`## Pre-existing fixes`** — only when **Pre-fix phase** landed a security fix: each commit subject with a one-line rationale from the commit body. Omit when none landed.
 
-Never quote or reply to a previous CR comment body — this run's publish updates the same `cr-comment` in place, replacing it. That comment's `Reviewed revision:` / `Reviewed diff fingerprint:` header lines carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
+Never quote or reply to a previous CR comment body, and never copy a line from it — this run's publish posts a new `cr-comment` and leaves the earlier one unchanged. The `Reviewed revision:` / `Reviewed diff fingerprint:` header lines of the newest trusted comment carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
 
 
 #### Resolve addressed reviewer threads (GitHub)

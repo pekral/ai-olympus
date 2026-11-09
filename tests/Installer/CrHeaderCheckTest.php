@@ -111,7 +111,7 @@ test('the self-test covers every scenario of the assignment', function (): void 
 
 test('the publication step checks the header lines of the body it then publishes', function (): void {
     $contract = crHeaderCheckSource('skills/code-review-github/references/cr-wrapper-contract.md');
-    $publish = 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> <body-file>';
+    $publish = 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>';
 
     expect(substr_count($contract, '- **Check the header lines before publishing.**'))->toBe(1)
         ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <body-file>`'))->toBe(1)
@@ -126,7 +126,7 @@ test('the publication step checks the header lines of the body it then publishes
 test('the standalone review publication in the leonardo agent routes both pull request comments through the header check', function (): void {
     $leonardo = crHeaderCheckSource('agents/leonardo.md');
     $check = '`@skills/code-review-github/references/cr-wrapper-contract.md` *Check the header lines before publishing*';
-    $publish = 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> <body-file>';
+    $publish = 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>';
 
     expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> -'))->toBe(0)
         ->and(substr_count($leonardo, $publish))->toBe(2)

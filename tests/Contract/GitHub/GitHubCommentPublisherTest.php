@@ -342,10 +342,12 @@ test('the GitHub publisher carries a line the operator added to its previous com
     }
 });
 
-test('--create always POSTs a new cr-comment, even when this actor already owns a marked comment', function (): void {
+test('--create POSTs a new cr-comment beside this actor\'s marked comment and carries none of its lines', function (): void {
     $fixture = createGitHubCommentPublisherFixture();
+    $fingerprint = static fn (string $line): string => substr(hash('sha256', $line), 0, 8);
     $listJson = json_encode([
-        githubComment(901, '2026-01-01T00:00:00Z', 'bot', "review\n\n<!-- cr-comment:actor=bot -->"),
+        githubComment(901, '2026-01-01T00:00:00Z', 'bot', "review\nRozhodnuto: merge až po vydání 2.4.\n"
+            . "\n<!-- cr-comment:lines=" . $fingerprint('review') . " -->\n<!-- cr-comment:actor=bot -->"),
     ], JSON_THROW_ON_ERROR);
 
     $packageDir = dirname(__DIR__, 3);
@@ -373,7 +375,9 @@ test('--create always POSTs a new cr-comment, even when this actor already owns 
             ->and($calls)->not->toContain('comments/901')
             ->and($calls)->toContain('repos/acme/widgets/issues/42/comments -X POST')
             ->and($process->getErrorOutput())->toContain('action=created id=960')
-            ->and($payload)->toContain('<!-- cr-comment:actor=bot -->');
+            ->and($process->getErrorOutput())->not->toContain('carried:')
+            ->and($payload)->toContain('<!-- cr-comment:actor=bot -->')
+            ->and($payload)->not->toContain('Rozhodnuto');
     } finally {
         removeGitHubCommentPublisherFixture($fixture);
     }

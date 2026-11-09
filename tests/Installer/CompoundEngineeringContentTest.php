@@ -1759,7 +1759,7 @@ test('the two remaining MCP fallbacks name the agent marker they append (issue #
     $cr = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
     $cookbook = (string) file_get_contents($packageDir . '/skills/tester-cookbook/SKILL.md');
 
-    expect($cr)->toContain('`addIssueComment` otherwise, appending the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body')
+    expect($cr)->toContain('`addIssueComment`, never `updateIssueComment`, appending the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body')
         ->and($cr)->toContain('an agent marker per `@rules/code-review/general.md` *Authorship trust*');
 
     expect($cookbook)->toContain(

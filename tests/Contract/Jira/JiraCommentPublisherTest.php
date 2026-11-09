@@ -1303,13 +1303,26 @@ test('the JIRA publisher carries a node the operator added to its previous comme
     }
 });
 
-test('--create always creates a new cr-comment, even when this actor already owns a marked comment', function (): void {
+test('--create creates a new cr-comment beside this actor\'s marked comment and carries none of its nodes', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
+    $marker = jiraActorMarker('bot@example.com');
+    $fingerprint = static fn (string $line): string => substr(hash('sha256', $line), 0, 8);
+    $markerText = ['type' => 'text', 'text' => $marker . ' lines=' . $fingerprint('Round one'), 'marks' => [['type' => 'em']]];
     $listJson = json_encode([
         'comments' => [
-            jiraComment('9501', '2026-01-01T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com')),
+            [
+                'author' => ['emailAddress' => 'bot@example.com'],
+                'body' => ['version' => 1, 'type' => 'doc', 'content' => [
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Round one']]],
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Rozhodnuto: limit zůstává 100 položek.']]],
+                    ['type' => 'paragraph', 'content' => [$markerText]],
+                ],
+                ],
+                'created' => '2026-01-01T00:00:00.000+0000',
+                'id' => '9501',
+            ],
         ],
     ], JSON_THROW_ON_ERROR);
 
@@ -1339,7 +1352,9 @@ test('--create always creates a new cr-comment, even when this actor already own
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10099 --body-adf')
             ->and($process->getErrorOutput())->toContain('action=created id=10099')
-            ->and($created)->toContain(jiraActorMarker('bot@example.com'));
+            ->and($process->getErrorOutput())->not->toContain('carried:')
+            ->and($created)->toContain($marker)
+            ->and((string) file_get_contents($fixture['adf']))->not->toContain('Rozhodnuto');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }

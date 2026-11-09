@@ -44,7 +44,7 @@ Run the always-run set, the conditional set, and the reuse-first gate exactly as
 
 ### 4. Publish Results
 
-#### Linked-issue consolidated summary (mandatory — single comment per linked issue)
+#### Linked-issue consolidated summary (mandatory — one new comment per linked issue and CR run)
 - The linked GitHub issues in `closingIssues[]` are this wrapper's **only** non-technical destination, so the shared *Non-technical tracker summary* and *Linked GitHub issues* blocks collapse into this one delegation: invoke `@skills/pr-summary/SKILL.md` with the **GitHub** tracker target, exactly once per linked issue, under the consolidation contract in `references/cr-wrapper-contract.md`.
 - `pr-summary` mirrors the same format that `@skills/code-review-jira/SKILL.md` posts to JIRA, so reviewers reading either tracker see the same consolidated comment.
 - If `closingIssues[]` is empty, skip this step and note `no linked issue — issue summary skipped` in the PR comment summary line. `assignment-compliance-check` returns the same status in that case, so the wrapper does not even build an embedded block.
