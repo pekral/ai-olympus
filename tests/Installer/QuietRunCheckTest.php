@@ -159,7 +159,9 @@ test('record writes its state only where review-state.sh writes its own, through
         ->and($guard)->toContain('the state file is a symbolic link')
         ->and($guard)->toContain('the state must live under .claude/run/ or .codex/run/ of the git toplevel')
         ->and($guard)->toContain('the state file is tracked by git')
-        ->and($reviewState)->not->toContain('git -C "$top" ls-files --error-unmatch');
+        ->and($reviewState)->not->toContain('git -C "$top" ls-files --error-unmatch')
+        ->and(substr_count($guard, 'state_path_display() {'))->toBe(1)
+        ->and($reviewState)->not->toContain('safe_display');
 });
 
 test('the check needs nothing platform-specific on Codex', function (): void {
