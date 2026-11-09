@@ -15,6 +15,20 @@ Referenced from `skills/process-code-review/SKILL.md` *Review loop*. Extracted t
 - The very last iteration (the one whose findings satisfy the convergence gate of step 4) is the **only** iteration whose output is published — that publication is performed by the **PR update** + **Completion** steps below, not by the review skill itself.
 - Loop iterations may write quality-gate output (composer scripts, build logs) to the local terminal — that is not "publishing" and is allowed.
 
+#### Prove that a quiet run published nothing
+
+The quiet instruction is a request, and the reviewer's own handoff is not proof that it was kept. A render template can still print a header line such as `Linked-tracker mirror: posted …` in a run that posted nothing. `skills/_shared/quiet-run-check.sh` compares the comment state before and after, so every quiet run — each loop iteration here, and the quiet `leonardo` round in `agents/leonardo.md` *Parallel CR round* — is bracketed by it. The script only reads. It never writes to a tracker.
+
+1. **Before the review starts**, run `skills/_shared/quiet-run-check.sh record --pr <PR-URL> --state .claude/run/quiet-run/<source-slug>.json` (`.codex/run/` under Codex). Add `--linked <item>` for each linked tracker item the run could publish to that is not a GitHub issue the pull request closes: a JIRA key or URL, or a Bugsnag URL. The closing issues are read without a flag. Run `record` again before each iteration; it replaces the file.
+2. **After the review returns**, run `skills/_shared/quiet-run-check.sh verify --state <the same file>` and read its exit code and its `new-comment:`, `head:`, and `not-verified:` lines.
+3. **Act on the exit code.**
+   - `0` — nothing was published and the head did not move. Mark the returned report `Quiet run: verified — nothing published, head <sha> unchanged`.
+   - `3` — nothing was published, but the head moved during the review. Mark the report `Quiet run: verified — nothing published`, and add the line `The review covers <before>, the head is now <now>.` with the two SHAs from `head: moved <before> → <now>`. The next iteration reviews the delta from `<before>` as *Incremental review scope* below describes.
+   - `1` — the run published. Mark nothing as verified. Name every `new-comment:` URL in the loop record and in the handoff. Delete nothing: the comment is a fact the report states.
+   - `2` or `4` — the check did not run to its end. Mark nothing as verified and list the run under *Not verified* with the step that settles it: run `verify` again once the read works.
+4. **On exit `0` or `3`, mark every header line of the report that claims a publish.** A line such as `Issue tracker summary: posted summary to issue #N` or `Linked-tracker mirror: posted JIRA summary on <KEY>` keeps its wording and gets ` [not published — quiet run]` appended. The wording is never rewritten, so a reader sees both what the template rendered and that nothing was published.
+5. **Every `not-verified:` line goes under *Not verified* of the report**, with its own `settled by:` step. A tracker the script cannot count (Bugsnag, or any tracker that is neither GitHub nor JIRA) and a JIRA item with an empty comment list land there. They never change the exit code: the quiet verdict covers what the script counted.
+
 #### Incremental review scope (iterations after the first)
 
 The loop runs its iterations quiet, so nothing is published and the wrapper has no CR comment to resolve a baseline from. The caller is therefore the only source, and it must supply one:
