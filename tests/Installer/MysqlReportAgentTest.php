@@ -85,5 +85,5 @@ test('the casey report shape has one owner and the roster surfaces name casey (i
         ->and((string) file_get_contents($packageDir . '/codex/agents/krang.toml'))
         ->toContain('`michelangelo`, `april`, `casey`, or `shredder`')
         ->and((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'))
-        ->toContain('for agent in krang donatello leonardo raphael michelangelo april casey shredder; do');
+        ->toContain('for agent in krang donatello leonardo splinter raphael michelangelo april casey shredder; do');
 });

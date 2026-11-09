@@ -1628,14 +1628,14 @@ test('orchestration rule batches independent reads into one round and every read
     expect($rule)->not->toContain('does not make them concurrent');
 
     // Each agent whose context load is a batchable step references the rule from that step.
-    foreach (['krang', 'donatello', 'leonardo', 'april'] as $agent) {
+    foreach (['krang', 'donatello', 'leonardo', 'splinter', 'april'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('*Batch independent reads*');
     }
 
-    // leonardo carries it in both modes — code review and pre-implementation security analysis.
-    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    expect(substr_count($leonardo, '*Batch independent reads*'))->toBe(2);
+    // splinter carries it in both modes — pre-implementation security analysis and the CR round.
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    expect(substr_count($splinter, '*Batch independent reads*'))->toBe(2);
 });
 
 test('the operator trust value is defined once, in Authorship trust, never in tracker.md (issue #156)', function (): void {

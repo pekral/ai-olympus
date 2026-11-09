@@ -75,7 +75,7 @@ test('only the code review wires security-audit into its pipeline', function ():
     sort($callers);
 
     expect($callers)->toBe([
-        'agents/leonardo.md',
+        'agents/splinter.md',
         'skills/code-review/references/specialized-reviews.md',
     ]);
     expect(securityAuditSource('rules/code-review/general.md'))

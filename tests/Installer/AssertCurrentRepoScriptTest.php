@@ -259,30 +259,35 @@ test('composer check actually runs the shared shell self-tests', function (): vo
     expect((string) file_get_contents($packageDir . '/scripts/run-shell-self-tests.sh'))->toContain('bash "$script" --self-test');
 });
 
-test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped agent sets', function (): void {
+test('CR wrappers run no security lens under SECURITY_OWNER=splinter and keep them inline without it', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
         $content = crContractText('skills/' . $wrapper . '/SKILL.md');
-        expect($content)->toContain('SECURITY_OWNER=leonardo');
-        expect($content)->toContain('Absence of the flag means it runs');
-        expect($content)->toContain('security: owned by leonardo');
+        expect($content)->toContain('`SECURITY_OWNER=splinter` — the wrapper runs no security lens at all.');
+        expect($content)->toContain('this wrapper runs none of the six security skills');
+        expect($content)->toContain('Security still runs on every CR and is never skipped');
+        expect($content)->toContain('**Absence of the flag means the wrapper runs its own three security lenses inline, as before**');
+        expect($content)->toContain('security: owned by splinter');
+        expect($content)->not->toContain('SECURITY_OWNER=leonardo');
     }
 
-    // No shipped agent sets it any more: leonardo is the single reviewer, so the wrapper's inline
-    // security pass IS her security pass and suppressing it would skip the review with nothing
-    // behind it. The flag stays in the wrappers for an external caller that genuinely runs a
-    // second, concurrent security pass (issue #179).
+    // The security audit and the authorization lens follow the same owner, so nothing runs twice.
+    $specialized = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    expect($specialized)->toContain('@skills/security-audit/SKILL.md in its *Diff mode* — **skipped when the caller sets `SECURITY_OWNER=splinter`**');
+    expect($specialized)->toContain('and a run with `SECURITY_OWNER=splinter` runs none either, because `splinter` runs it');
+
+    // leonardo sets the flag in a round, because splinter owns security there.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    expect($leonardo)->toContain('Never set `SECURITY_OWNER=leonardo`');
-    expect($leonardo)->toContain('setting it here would skip the pass with nothing behind it');
+    expect($leonardo)->toContain('In a round you invoke the CR wrapper with **`SECURITY_OWNER=splinter`**');
+    expect($leonardo)->toContain('Never set `SECURITY_OWNER` outside a *Parallel CR round*');
 });
 
 test('a skipped security pass has somewhere to be declared on the summary line', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     // Pinning the SKILL.md instruction alone proved insufficient: the wrappers
-    // told the agent to declare `security: owned by leonardo`, but no template
+    // told the agent to declare `security: owned by <owner>`, but no template
     // carried the slot, so the declaration depended on the agent inventing it.
     // A skipped pass that is not declared is indistinguishable from one that
     // ran — which would make the whole opt-in contract unsafe on the way out.
@@ -295,8 +300,8 @@ test('a skipped security pass has somewhere to be declared on the summary line',
 
     foreach ($templates as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('security: owned by leonardo');
-        expect($content)->toContain('SECURITY_OWNER=leonardo');
+        expect($content)->toContain('security: owned by splinter');
+        expect($content)->toContain('SECURITY_OWNER=splinter');
     }
 });
 
@@ -315,15 +320,16 @@ test('the merge gate verifies a delegated security review actually arrived', fun
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    // `security: owned by leonardo` records a delegation, not a delivery. A
+    // `security: owned by splinter` records a delegation, not a delivery. A
     // security pass that dies mid-run (API error, session limit, cancelled
     // agent) leaves the PR positively marked as covered with zero coverage —
     // strictly worse than an obviously missing review.
     expect($merge)->toContain('Delegated security coverage is verified, never assumed');
-    expect($merge)->toContain('security: owned by leonardo');
+    expect($merge)->toContain('security: owned by splinter');
+    expect($merge)->toContain('that SHA must equal the PR head commit being merged');
 
-    // The token must carry a link, so a missing delivery is visible in the
-    // comment itself rather than only in the merge gate.
+    // The token must carry the head SHA, so a missing delivery is visible in
+    // the comment itself rather than only in the merge gate.
     foreach ([
         'code-review-github/templates/pr-comment-output.md',
         'code-review-bugsnag/templates/github-output.md',
@@ -331,8 +337,8 @@ test('the merge gate verifies a delegated security review actually arrived', fun
         'code-review/templates/review-output.md',
     ] as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('url of leonardo\'s security comment');
-        expect($content)->toContain('The URL is mandatory');
+        expect($content)->toContain('head SHA splinter reviewed');
+        expect($content)->toContain('The head SHA is mandatory');
     }
 });
 

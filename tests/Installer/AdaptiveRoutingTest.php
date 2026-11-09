@@ -299,7 +299,7 @@ test('donatello points at the lightweight self-check and nothing else', function
     expect($donatello)->toContain('it runs **no** review skill over your diff');
     expect($donatello)->toContain('never review your own work');
 
-    // An unregistered leonardo must not silently promote the implementer into the reviewer's place.
-    expect($krang)->toContain('leonardo is not registered — no pre-implementation security analysis runs');
-    expect($krang)->toContain('**Do not route the analysis into `donatello` instead:**');
+    // An unregistered splinter must not silently promote the implementer into the reviewer's place.
+    expect($krang)->toContain('splinter is not registered — the security analysis cannot run');
+    expect($krang)->toContain('**Never route the analysis into `leonardo` or `donatello` instead:**');
 });

@@ -187,11 +187,11 @@ test('the earlier contracts hand their open points to the wiring contract', func
         ->toContain('Phase 4 wires those steps: `skills/_shared/feedback-loop.sh` runs the extractor');
 });
 
-test('leonardo records each round on instruction, writes the analysis file in a third mode, and stays read-only', function (): void {
+test('leonardo records each round on instruction, writes the analysis file in a second mode, and stays read-only', function (): void {
     $leonardo = feedbackFile('agents/leonardo.md');
 
     expect($leonardo)
-        ->toContain('dispatches you in one of three modes')
+        ->toContain('dispatches you in one of two modes')
         ->toContain('- **Feedback analysis mode (recurring defect class)** — `krang` hands you one defect class')
         ->toContain('## Feedback analysis mode (recurring defect class)')
         ->toContain(
@@ -230,7 +230,7 @@ test('krang runs the feedback analysis as an analysis-only run and never starts 
         ->toContain(
             'When the source issue is a safeguard proposal (`@skills/resolve-issue/references/safeguard-implementation.md`), add `--floor STANDARD`',
         )
-        ->toContain('`leonardo:cr` / `leonardo:analysis` / `leonardo:feedback`')
+        ->toContain('`leonardo:cr` / `leonardo:feedback`, `splinter:review` / `splinter:analysis`')
         ->toContain(
             'and the one issue or comment that run files, only through `@skills/create-issue/SKILL.md` '
             . 'and `skills/code-review-github/scripts/upsert-comment.sh`',

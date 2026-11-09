@@ -100,3 +100,33 @@ test('agent migration ignores sources other than the package agent directories',
         installerRemoveDirectory($root);
     }
 });
+
+test('agent migration keeps a link to the splinter agent the package ships again', function (): void {
+    $root = agentMigrationFixtureDirectory();
+    installerWriteFile($root . '/agents/krang.md', 'replacement');
+    symlink((string) InstallerPath::resolveAgentsSource() . '/splinter.md', $root . '/agents/splinter.md');
+
+    try {
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
+
+        expect($removed)->toBe(0);
+        expect(is_link($root . '/agents/splinter.md'))->toBeTrue();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+})->skip(installerSymlinkUnsupported(), 'Symlinks are not supported on this platform');
+
+test('agent migration keeps an unchanged 0.3.1 orchestrator copy under the splinter name the package ships again', function (): void {
+    $root = agentMigrationFixtureDirectory();
+    installerWriteFile($root . '/agents/krang.md', 'replacement');
+    installerWriteFile($root . '/agents/splinter.md', (string) file_get_contents(__DIR__ . '/Fixtures/legacy-agents/splinter.md'));
+
+    try {
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
+
+        expect($removed)->toBe(0);
+        expect(is_file($root . '/agents/splinter.md'))->toBeTrue();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});

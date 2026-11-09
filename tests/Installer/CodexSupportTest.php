@@ -17,6 +17,7 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         'shredder' => ['gpt-6-luna', 'medium'],
         'michelangelo' => ['gpt-6-astra', 'medium'],
         'raphael' => ['gpt-6-luna', 'high'],
+        'splinter' => ['gpt-6.1-sol', 'high'],
         'krang' => ['gpt-6.1-sol', 'medium'],
     ];
 

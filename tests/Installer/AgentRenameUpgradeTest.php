@@ -24,6 +24,14 @@ function renamedAgentIdentifiers(): array
 /**
  * @return array<string, string>
  */
+function renamedAgentIdentifiersRetired(): array
+{
+    return array_diff_key(renamedAgentIdentifiers(), ['splinter' => true]);
+}
+
+/**
+ * @return array<string, string>
+ */
 function renamedAgentTargets(): array
 {
     return ['.claude/agents' => 'md', '.codex/agent-instructions' => 'md', '.codex/agents' => 'toml'];
@@ -51,12 +59,14 @@ test('a normal upgrade removes known old agents and installs the new identities 
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('24 pruned');
+        expect($output)->toContain('21 pruned');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
             expect(file_get_contents($root . '/' . $directory . '/custom.' . $extension))->toBe('user-owned agent');
+            expect((string) file_get_contents($root . '/' . $directory . '/splinter.' . $extension))->toContain('splinter');
+            expect((string) file_get_contents($root . '/' . $directory . '/splinter.' . $extension))->not->toContain('Krang');
 
-            foreach (renamedAgentIdentifiers() as $old => $new) {
+            foreach (renamedAgentIdentifiersRetired() as $old => $new) {
                 expect(file_exists($root . '/' . $directory . '/' . $old . '.' . $extension))->toBeFalse();
                 expect(is_file($root . '/' . $directory . '/' . $new . '.' . $extension))->toBeTrue();
             }
@@ -84,10 +94,12 @@ test('a normal upgrade preserves customized old agent definitions and reports th
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('24 file(s) across the target directories no longer exist in source');
+        expect($output)->toContain('21 file(s) across the target directories no longer exist in source');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
-            foreach (renamedAgentIdentifiers() as $old => $new) {
+            expect(file_get_contents($root . '/' . $directory . '/splinter.' . $extension))->not->toBe('customized splinter');
+
+            foreach (renamedAgentIdentifiersRetired() as $old => $new) {
                 expect(file_get_contents($root . '/' . $directory . '/' . $old . '.' . $extension))->toBe('customized ' . $old);
                 expect(is_file($root . '/' . $directory . '/' . $new . '.' . $extension))->toBeTrue();
             }

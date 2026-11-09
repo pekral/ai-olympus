@@ -40,7 +40,7 @@ test('krang requests context through the structured interface instead of reading
         )
         ->and($krang)->toContain('Never dispatch it when the effective verdict is `context_required: false`.')
         ->and($krang)->toContain('## Retrieved context  <path to the Context Package')
-        ->and($krang)->toContain('so `donatello`, `leonardo`, `raphael`, and `april` read the same package')
+        ->and($krang)->toContain('so `donatello`, `leonardo`, `splinter`, `raphael`, and `april` read the same package')
         ->and($krang)->toContain('Run `date +%s` first and keep the value.')
         ->and($krang)->toContain(
             '--output ${BRIEF%.md}.context.json --started-at <the value>`, so a cache hit carries the measured retrieval duration.',

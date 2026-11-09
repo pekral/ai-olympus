@@ -4233,10 +4233,12 @@ test('every shipped skill is either in the CR set or classified as deliberately 
     $classified = array_merge(...array_values($groups));
     expect(count($classified))->toBeGreaterThan(20);
 
-    // The CR set is read from the two carriers that name what a review runs, never from a list
-    // maintained here - a lens added there must not have to be added to a test as well.
+    // The CR set is read from the three carriers that name what a review runs, never from a list
+    // maintained here - a lens added there must not have to be added to a test as well. The
+    // security lenses of a round live in splinter, the security agent.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    preg_match_all('#@skills/([a-z0-9-]+)/SKILL\.md#', $parts[0] . $leonardo, $named);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    preg_match_all('#@skills/([a-z0-9-]+)/SKILL\.md#', $parts[0] . $leonardo . $splinter, $named);
     $crSet = array_unique($named[1]);
     expect(count($crSet))->toBeGreaterThan(20);
 

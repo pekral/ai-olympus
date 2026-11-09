@@ -82,8 +82,8 @@ test('leonardo owns every code-review wrapper and the no-source fallback (issue 
         'the default-branch manifest key `review.max-iterations`, default 3, which `skills/_shared/review-state.sh` reads and enforces',
     );
     expect($content)->not->toContain('never raise the cap');
-    // The inline security pass is leonardo's own, so the delegation flag must never be set.
-    expect($content)->toContain('Never set `SECURITY_OWNER=leonardo`');
+    // Security belongs to splinter, so a round's wrapper runs with the delegation flag set.
+    expect($content)->toContain('In a round you invoke the CR wrapper with **`SECURITY_OWNER=splinter`**');
     // Quality lens absorbed from argos.
     expect($content)->toContain('**Architecture agenda:**');
 });
@@ -292,7 +292,7 @@ test('krang requires a verified JIRA self-assignment before implementation', fun
     expect($krang)->toContain('a failed claim or self-assignment blocks the implementation');
 });
 
-test('agents directory ships the leonardo security-CR subagent with required frontmatter', function (): void {
+test('agents directory ships the leonardo code-review subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $agentPath = $packageDir . '/agents/leonardo.md';
 
@@ -304,12 +304,65 @@ test('agents directory ships the leonardo security-CR subagent with required fro
     // Opus by operator decision: the reviewer's mistakes cost every stage downstream, so this
     // roster pays for the stronger model here rather than escalating into it per dispatch.
     expect($content)->toContain('model: opus');
-    expect($content)->toContain('@skills/security-review/SKILL.md');
-    expect($content)->toContain('@skills/laravel-security/SKILL.md');
-    expect($content)->toContain('@skills/security-bounty-hunter/SKILL.md');
-    expect($content)->toContain('@skills/security-threat-analysis/SKILL.md');
     // Read-only stance: never edits, commits, pushes, or merges.
     expect($content)->toContain('read-only');
+});
+
+test('agents directory ships the splinter security subagent with required frontmatter', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $agentPath = $packageDir . '/agents/splinter.md';
+
+    expect(is_file($agentPath))->toBeTrue();
+
+    $content = (string) file_get_contents($agentPath);
+    expect($content)->toContain('name: splinter');
+    expect($content)->toContain('tools: Read, Glob, Grep, Bash, WebSearch, WebFetch');
+    expect($content)->toContain('disallowedTools: Write, Edit');
+    expect($content)->toContain('model: opus');
+    expect($content)->toContain('effort: high');
+    expect($content)->toContain('Read-only — never edits, commits, pushes, or merges.');
+});
+
+test('only splinter loads the security skills, and leonardo loads none of them', function (string $skill): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+    $loaders = [];
+
+    foreach ($agentFiles as $agentFile) {
+        if (str_contains((string) file_get_contents($agentFile), '@skills/' . $skill . '/')) {
+            $loaders[] = basename($agentFile, '.md');
+        }
+    }
+
+    expect($splinter)->toContain('@skills/' . $skill . '/SKILL.md');
+    expect($loaders)->toBe(['splinter']);
+})->with([
+    'security-review',
+    'security-audit',
+    'security-bounty-hunter',
+    'security-threat-analysis',
+    'laravel-security',
+    'laravel-authorization-review',
+]);
+
+test('splinter reviews security in the parallel CR round and publishes nothing of its own', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+
+    expect($splinter)->toContain('## Parallel CR round');
+    expect($splinter)->toContain('`### splinter — security review <head SHA>`');
+    expect($splinter)->toContain('**Publish nothing.** The one CR comment stays `leonardo`\'s');
+    expect($splinter)->toContain('Decide the security candidates of an earlier `raphael` report.');
+    expect($splinter)->toContain('never deferred at the cap round');
+    expect($splinter)->toContain('**When the dispatch carries `review_only`**');
+    expect($splinter)->toContain('.claude/worktrees/agent-cr-<slug>-splinter');
+
+    // The publishing leonardo carries splinter's findings and never publishes without them.
+    expect($leonardo)->toContain('Check that `splinter`\'s security review exists for the head SHA.');
+    expect($leonardo)->toContain('`splinter`\'s `Security assessment:` line in the header');
 });
 
 test('leonardo scopes every review pass to the current diff only (issue #179)', function (): void {
@@ -364,7 +417,7 @@ test('leonardo hands a critical pre-existing problem over instead of filing it i
     expect($content)->toContain('**Who decides, and who files.**');
 
     // The decision, and the right to drop the item, belong to krang.
-    expect($krang)->toContain('**You decide what happens to the critical pre-existing problems `leonardo` hands back.**');
+    expect($krang)->toContain('**You decide what happens to the critical pre-existing problems `leonardo` and `splinter` hand back.**');
     expect($krang)->toContain('**Judge the severity yourself**');
     expect($krang)->toContain('**File it, or drop it.**');
     expect($krang)->toContain('@skills/create-issue/SKILL.md');
@@ -383,37 +436,41 @@ test('leonardo hands a critical pre-existing problem over instead of filing it i
     expect($content)->toContain('- **Out-of-scope observations:**');
 });
 
-test('leonardo also runs a pre-implementation security-analysis mode that feeds donatello', function (): void {
+test('splinter runs the pre-implementation security-analysis mode that feeds donatello', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $content = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
-    // Dual-mode contract: security analysis (pre-implementation) plus the full code review (post-implementation).
-    expect($content)->toContain('Security analysis mode (pre-implementation)');
-    expect($content)->toContain('Code review mode (post-implementation)');
+    // Dual-mode contract: security analysis (pre-implementation) plus the security review of a CR round.
+    expect($content)->toContain('## Security analysis mode (pre-implementation)');
+    expect($content)->toContain('## Parallel CR round');
     // Analysis mode frames the remediation through analyze-problem so donatello can implement it.
     expect($content)->toContain('@skills/analyze-problem/SKILL.md');
     // Both handoff statuses exist so the caller can route the result.
     expect($content)->toContain('Security analysis done');
-    expect($content)->toContain('CR done');
+    expect($content)->toContain('Security review done');
+
+    // The mode moved: leonardo carries no analysis mode any more.
+    expect($leonardo)->not->toContain('## Security analysis mode');
+    expect($leonardo)->not->toContain('Security analysis done');
+    expect($leonardo)->toContain('Code review mode (post-implementation)');
 });
 
-test('the CR itself runs the broken-object-level-authorization lens leonardo used to run (issue #285)', function (): void {
+test('the broken-object-level-authorization lens runs in every CR, owned by splinter in a round (issue #285)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
     // `rules/code-review/general.md` builds a full Exclusion-Gate exemption around this lens's
-    // findings, so the OWASP A01 surface must actually be walked. The CR's own conditional set now
-    // runs it, so every CR run covers IDOR / BOLA — not only the ones leonardo drives. Leonardo names
-    // it twice: once as an analysis lens, once as the wrapper-run lens she must not repeat.
+    // findings, so the OWASP A01 surface must actually be walked. The CR's own conditional set runs
+    // it on a standalone review, and splinter runs it in a round. Splinter names it twice: once in
+    // its skill list, once as an analysis lens.
     expect($leonardo)->toContain('@skills/laravel-authorization-review/SKILL.md');
     expect(substr_count($leonardo, '@skills/laravel-authorization-review/SKILL.md'))->toBe(2);
 
     // The counts around the security set must move with it, or the handoff under-reports the pass.
     expect($leonardo)->toContain('five security skills as analysis lenses');
-    expect($leonardo)->toContain('Run the remaining three yourself over the same diff');
-    expect($leonardo)->toContain('the three security skills\' outputs');
-    expect($leonardo)->toContain('**Do not run the authorization lens a second time.**');
-    expect($leonardo)->toContain('which of the five security skills executed');
+    expect($leonardo)->toContain('You run the six security skills.');
+    expect($leonardo)->toContain('which of the six security skills ran');
 
     // A lens that cannot run is reported as skipped, never as a clean pass.
     expect($leonardo)->toContain('rather than reporting a clean authorization pass nobody ran');
@@ -433,9 +490,9 @@ test('the CR itself runs the broken-object-level-authorization lens leonardo use
     expect($lens)->toContain('`cr` (read-only lens');
 });
 
-test('leonardo references the laravel security audit workflow for existing-app audits', function (): void {
+test('splinter references the laravel security audit workflow for existing-app audits', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $content = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
     // The 7-area audit workflow lives in a references file; leonardo links to it, not re-implements it.
     expect($content)->toContain('@skills/laravel-security/references/audit-workflow.md');
@@ -477,9 +534,8 @@ test('leonardo never runs the CR wrapper standalone before the fix loop gates it
         . '(`@skills/process-code-review/SKILL.md` *Completion*) — never here, and never in step 3.',
     );
 
-    // Steps 5 and 7 fold into every loop iteration, so their findings gate convergence.
-    expect($leonardo)->toContain('Fold their findings into **every** iteration of the step-10 loop');
-    expect($leonardo)->toContain('a lens checked only once, outside the loop, cannot gate convergence');
+    // Step 7 folds into every loop iteration, so its findings gate convergence.
+    expect($leonardo)->toContain('fold the remediation-conformance derivation (step 7) into **every** iteration');
     expect($leonardo)->toContain('This derivation happens inside the step-10 loop\'s final, published iteration');
 
     // Step 10 is named as the single execution point of the wrapper.
@@ -568,6 +624,7 @@ test(
             'michelangelo' => 'medium',
             'raphael' => 'high',
             'shredder' => 'medium',
+            'splinter' => 'high',
         ];
 
         $globResult = glob($packageDir . '/agents/*.md');
@@ -846,11 +903,11 @@ test('krang processes multiple resolved sources in batches and fans out only the
     $concurrency = (string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md');
     expect($concurrency)->toContain('Processing of multiple sources — sequential by default, two at a time only when the planner proves it safe');
     expect($concurrency)->toContain('processes the resulting **batches one after another**');
-    // The analysis-only branch still dispatches leonardo sequentially, not as a parallel fan-out.
-    expect($content)->toContain('dispatch their `leonardo` runs one after another — strictly sequentially, never in parallel');
+    // The analysis-only branch still dispatches splinter sequentially, not as a parallel fan-out.
+    expect($content)->toContain('dispatch their `splinter` runs one after another — strictly sequentially, never in parallel');
     // The only fan-out is the two implementation units of a batch the planner approved.
     expect($concurrency)->toContain('A two-unit batch is the only fan-out.');
-    expect($concurrency)->toContain('Never fan out analysis-only `leonardo` runs, never dispatch more than two `Task` calls in one message');
+    expect($concurrency)->toContain('Never fan out analysis-only `splinter` runs, never dispatch more than two `Task` calls in one message');
     expect($concurrency)->toContain('The planner decides, never the orchestrator.');
     expect($concurrency)->toContain('That limit is fixed in the script and the manifest has no key for it.');
     // Each source still gets its own per-source brief.
@@ -873,8 +930,8 @@ test('krang keeps the default writing path on the shared tree, allows a worktree
     expect($concurrency)->toContain('Nothing else widens the exception');
     expect($concurrency)->toContain('A parallel unit takes **no** shared-tree write-lock');
     expect($concurrency)->toContain('`.claude/worktrees/agent-impl-<source-slug>-donatello`');
-    // The read-only CR agent may isolate in a worktree for its review.
-    expect($concurrency)->toContain('read-only code-review agent (`leonardo`) may use a git worktree');
+    // The read-only review agents may isolate in a worktree for their review.
+    expect($concurrency)->toContain('read-only review agents (`leonardo` and `splinter`) may use a git worktree');
     // Krang owns worktree cleanup so the repo stays clean after the run / merge.
     expect($content)->toContain('git worktree remove');
     expect($content)->toContain('git worktree prune');
@@ -1273,7 +1330,7 @@ test('parallel agents share their split output through the brief under an append
     expect($krang)->toContain('$BRIEF.lock');
     // The round holds a barrier until every handoff is in the brief, then one leonardo publishes.
     expect($krang)->toContain('Hold the barrier of a parallel round.');
-    expect($krang)->toContain('## Parallel CR round — `leonardo`, `raphael`, and `casey` together');
+    expect($krang)->toContain('## Parallel CR round — `leonardo`, `splinter`, `raphael`, and `casey` together');
 
     // The CR agent still takes the append lock unconditionally, so a future parallel step needs no retrofit.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
@@ -1335,9 +1392,9 @@ test('the head-SHA gate log is retired along with the repeated builds it dedupli
     }
 });
 
-test('leonardo frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {
+test('splinter frames a security remediation plan as a severity-prefixed GFM task list (issue #212)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
     expect($leonardo)->toContain('**Success criteria must be a machine-checkable acceptance checklist (issue #212).**');
     expect($leonardo)->toContain('one `- [ ] ` item per criterion, never a prose paragraph');
@@ -1977,20 +2034,19 @@ test('krang probes the same-slug brief before overwriting it, so a live peer sur
     expect($content)->toContain('an audit trail that a concurrent run can silently reset is not an audit trail');
 });
 
-test('leonardo subjects the security plan publication to its own disclosure guard (issue #228)', function (): void {
+test('splinter subjects the security plan publication to its own disclosure guard (issue #228)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $content = (string) file_get_contents($packageDir . '/agents/splinter.md');
 
-    // Step 4 published the whole analysis while the disclosure rule sat in step 9, unreferenced.
-    expect($content)->toContain('Publishing the plan is itself a disclosure decision — subject it to step 9\'s guard');
+    // Step 4 publishes the whole analysis, so it references the disclosure guard by name.
+    expect($content)->toContain('Publishing the plan is itself a disclosure decision — subject it to the guard in *Never disclose an unfixed vulnerability on a public tracker* below.');
     expect($content)->toContain('this step publishes the **whole** analysis, so it is the larger disclosure');
 
     // The #212 checklist format is what makes the leak precise, so the guard has to say so.
     expect($content)->toContain('a precise, machine-readable statement that a named control is missing at a named place');
 
     // A private tracker is not a disclosure surface. Two occurrences: this step's rule, and the
-    // Bash boundary that permits the call. Step 9 lost its own — leonardo no longer files anything,
-    // so the visibility decision moved to `krang`, which is what actually creates the issue.
+    // Bash boundary that permits the call.
     expect(substr_count($content, 'gh repo view --json isPrivate'))->toBe(2);
     expect($content)->toContain('On a **private** tracker nothing here applies — publish the plan as written');
 
@@ -2051,7 +2107,7 @@ test('krang dispatches every step blocking so a turn never ends mid-flight (issu
     expect($content)->not->toContain('more than every reviewer pass combined');
     // The CR round dispatches three blocking calls in one message, so the turn holds until all three return.
     expect($content)->not->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
-    expect($content)->toContain('Step 6 dispatches `leonardo`, `raphael`, and `casey` in one message, each blocking');
+    expect($content)->toContain('Step 6 dispatches `leonardo`, `splinter`, `raphael`, and `casey` in one message, each blocking');
 });
 
 test('krang keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
@@ -2193,7 +2249,7 @@ test('krang anchors run cleanup to every terminal path instead of the step-7 num
 
     // Step 6's non-convergence hard stop cleans up too, CR worktree included.
     expect($content)->toContain('Run *Run cleanup* before escalating');
-    expect($content)->toContain('any CR worktree `leonardo` recorded in its handoff');
+    expect($content)->toContain('any CR worktree `leonardo` or `splinter` recorded in its handoff');
 
     // No remaining cross-reference binds cleanup to the step number as its only anchor.
     expect($content)->not->toContain('removes it during cleanup (step 7)');
@@ -2307,7 +2363,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
     expect($rule)->toContain(
-        'Read-only agents (`leonardo`, `april`, `krang`, `casey`, `shredder`) never create, modify, or delete a tracked file through Bash',
+        'Read-only agents (`leonardo`, `splinter`, `april`, `krang`, `casey`, `shredder`) never create, modify, or delete a tracked file through Bash',
     );
     expect($rule)->toContain('**Residual risk — stated plainly, never assumed away.**');
     expect($rule)->toContain('not expressible');
@@ -2341,6 +2397,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     // file) — disallowedTools is always a new, additive line, never a replacement.
     $expectedDisallowed = [
         'leonardo' => 'Write, Edit',
+        'splinter' => 'Write, Edit',
         'april' => 'Write, Edit',
         'krang' => 'Write, Edit',
         'casey' => 'Write, Edit',
@@ -2943,4 +3000,33 @@ test('the startup sweep names the implementation worktrees of a parallel unit as
 
     expect($sweep)->toContain('`agent-impl-*` included');
     expect($sweep)->not->toContain('a peer\'s CR pass');
+});
+
+test('krang dispatches four agents per CR round and blocks on an unregistered splinter', function (): void {
+    $krang = krangContractText();
+
+    expect($krang)->toContain('1. **Dispatch the four agents at once.** Send one message with four blocking Task calls');
+    expect($krang)->toContain('`leonardo` in code review mode with `publish: after-barrier` and `SECURITY_OWNER=splinter`.');
+    expect($krang)->toContain('`splinter` in security review mode.');
+    expect($krang)->toContain('splinter is not registered — the CR round has no security review');
+    expect($krang)->toContain('Never fall back to security in `leonardo`: it loads no security skill.');
+    expect($krang)->toContain('A `Blocked` handoff from `splinter` stops the round');
+
+    // raphael's security candidates go to the next splinter round, never to leonardo.
+    expect($krang)->toContain('Pass the previous `raphael` report to the next `splinter` dispatch, so it decides each security candidate.');
+    expect($krang)->not->toContain('Pass the previous `raphael` report to the next `leonardo` dispatch');
+
+    // The pre-implementation analysis belongs to splinter, with the same hard stop.
+    expect($krang)->toContain('**Security-focused task → analyse with `splinter` (security-risk analysis, on demand).**');
+    expect($krang)->toContain('splinter is not registered — the security analysis cannot run');
+    expect($krang)->not->toContain('analyse with `leonardo`');
+});
+
+test('the route planner gives the pre-implementation security analysis to splinter', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $planRoute = (string) file_get_contents($packageDir . '/skills/_shared/plan-route.sh');
+
+    expect($planRoute)->toContain('stage_agent splinter security_analysis "$model_tier"');
+    expect($planRoute)->not->toContain('leonardo security_analysis');
+    expect($planRoute)->not->toContain('leonardo:security_analysis');
 });
