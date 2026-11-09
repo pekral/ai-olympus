@@ -338,7 +338,7 @@ test('the merge gate verifies a delegated security review actually arrived', fun
     ] as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
         expect($content)->toContain('head SHA splinter reviewed');
-        expect($content)->toContain('The head SHA is mandatory');
+        expect($content)->toContain('the delivery is the `Security review:` header line');
     }
 });
 
