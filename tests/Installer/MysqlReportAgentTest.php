@@ -101,11 +101,12 @@ test('the casey NoSQL trigger runs in every project and has one owner (criterion
 
     expect($reference)->toContain('- **NoSQL part.** The diff changes NoSQL access, in every project, whatever the SQL engine resolved to.')
         ->and($reference)->toContain('a diff can fire one, two, or all three.')
-        ->and($reference)->toContain('The Redis analysis is one pass over Redis access cost')
+        ->and($reference)->toContain('A Redis diff goes through `@skills/redis-patterns/SKILL.md` with `MODE=cr` in its `access-cost` scope')
+        ->and($reference)->toContain('`casey` runs `redis-patterns` with `MODE=cr` in its `access-cost` scope on every Redis diff.')
         ->and($reference)->toContain(
-            '`casey` keeps Redis access cost: `KEYS` or an unbounded `SCAN`, a round trip per item with no pipeline, and an unbounded read of a large key.',
+            'The review\'s cache lens keeps its whole scope, including TTL, key, stampede, lock, limiter, eviction, `KEYS *`, and per-command loops',
         )
-        ->and($reference)->toContain('`casey` never runs `redis-patterns` a second time when the cache lens patterns match the diff')
+        ->and($reference)->toContain('`casey` never restates a cache-lens item')
         ->and($reference)->toContain('Every other store gets one general advisory pass by `casey` itself, with no skill of its own')
         ->and($reference)->toContain('a call per item in a loop (N+1), and an unbounded read')
         ->and($reference)->toContain('`casey` connects to no NoSQL server and analyses statically.')
@@ -170,4 +171,17 @@ test('the database report heading is renamed on every surface while the mysql-re
         ->toContain('## Database report — critical optimizations (advisory)')
         ->and((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
         ->toContain('mysql-report');
+});
+
+test('redis-patterns has one scope per caller and the cache lens keeps KEYS and per-command loops (round 2)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $redis = (string) file_get_contents($packageDir . '/skills/redis-patterns/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+
+    expect($redis)->toContain('> **Scope — one per caller.**')
+        ->and($redis)->toContain('and `KEYS *` or per-command loops where `SCAN` or a pipeline belongs. These findings stay blocking review findings.')
+        ->and($redis)->toContain('`HGETALL`, `SMEMBERS`, `LRANGE 0 -1`, `ZRANGE 0 -1`, `MGET` over an unbounded key list')
+        ->and($redis)->toContain('It never restates a cache-lens item')
+        ->and($reference)->toContain('eviction policy against the store\'s role, and `KEYS *` or per-command loops where `SCAN` or a pipeline belongs.')
+        ->and($reference)->not->toContain('casey` keeps Redis access cost: `KEYS`');
 });

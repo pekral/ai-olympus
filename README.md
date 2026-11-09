@@ -208,9 +208,9 @@ Writes release announcements and publishes the final tracker report after review
 
 **Casey Jones (`casey`) — advisory database analyst** · read-only
 
-Runs in each code review round when the diff changes database access. It reads MySQL / MariaDB queries through `mysql-problem-solver`, PostgreSQL query plans from a local PostgreSQL instance only, Redis through `redis-patterns`, and every other NoSQL store in one general pass. It proposes optimizations for critical problems only. The NoSQL part runs in every project, whatever the SQL engine is. The report is advisory: it never blocks convergence or the merge.
+Runs in each code review round when the diff changes database access. It reads MySQL / MariaDB queries through `mysql-problem-solver`, PostgreSQL query plans from a local PostgreSQL instance only, Redis access cost through `redis-patterns`, and every other NoSQL store in one general pass. It proposes optimizations for critical problems only. The NoSQL part runs in every project, whatever the SQL engine is. The report is advisory: it never blocks convergence or the merge.
 
-**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`), `redis-patterns` (`MODE=cr`)
+**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`), `redis-patterns` (`MODE=cr`, `access-cost` scope)
 
 </td>
 </tr>
