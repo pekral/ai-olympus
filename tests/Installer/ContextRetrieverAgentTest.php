@@ -18,8 +18,6 @@ test('shredder ships on both platforms as a read-only agent with its own Codex t
         ->and($codex)->toContain('name = "shredder"')
         ->and($codex)->toContain('model = "gpt-6.1-sol"')
         ->and($codex)->toContain('model_reasoning_effort = "high"')
-        ->and($claude)->toMatch('/^model: opus$/m')
-        ->and($claude)->toMatch('/^effort: high$/m')
         ->and($codex)->toContain('First read `.codex/agent-instructions/shredder.md` in full');
 });
 

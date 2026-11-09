@@ -68,7 +68,7 @@
 <circle cx="1031.5" cy="366" r="52" fill="#8fbcbb" fill-opacity=".065" />
 <image x="956.5" y="294" width="150" height="150" xlink:href="agents/casey.png" />
 <text data-agent="casey" x="1031.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">casey</text>
-<text x="1031.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">MySQL report</text>
+<text x="1031.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Database report</text>
 <rect x="1102" y="278" width="120" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M1144 278H1180" stroke="#88c0d0" stroke-width="3" stroke-linecap="round" />
 <circle cx="1162" cy="366" r="52" fill="#88c0d0" fill-opacity=".065" />

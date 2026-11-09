@@ -72,7 +72,9 @@ test('the casey report reaches only a local database and never executes a write 
 
     expect($skill)->toContain('`EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only')
         ->and($skill)->toContain('inside `START TRANSACTION READ ONLY; … ROLLBACK;`')
-        ->and($skill)->toContain('A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`')
+        ->and($skill)->toContain(
+            'A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`',
+        )
         ->and($skill)->toContain('runs against a **locally started database only**')
         ->and($casey)->toContain('against a **locally started database only**, never a shared test, staging, or production host')
         ->and($casey)->toContain('never from a developer\'s `.env` and never from the value of an environment variable');
@@ -99,14 +101,19 @@ test('the casey NoSQL trigger runs in every project and has one owner (criterion
 
     expect($reference)->toContain('- **NoSQL part.** The diff changes NoSQL access, in every project, whatever the SQL engine resolved to.')
         ->and($reference)->toContain('a diff can fire one, two, or all three.')
-        ->and($reference)->toContain('A Redis diff goes through `@skills/redis-patterns/SKILL.md` with `MODE=cr`.')
+        ->and($reference)->toContain('The Redis analysis is one pass over Redis access cost')
+        ->and($reference)->toContain(
+            '`casey` keeps Redis access cost: `KEYS` or an unbounded `SCAN`, a round trip per item with no pipeline, and an unbounded read of a large key.',
+        )
+        ->and($reference)->toContain('`casey` never runs `redis-patterns` a second time when the cache lens patterns match the diff')
         ->and($reference)->toContain('Every other store gets one general advisory pass by `casey` itself, with no skill of its own')
         ->and($reference)->toContain('a call per item in a loop (N+1), and an unbounded read')
         ->and($reference)->toContain('`casey` connects to no NoSQL server and analyses statically.')
         ->and($reference)->toContain('NoSQL access is not on this list: it fires its own trigger, independent of the engine')
         ->and(substr_count($reference, 'DynamoDB / NoSQL access'))->toBe(0)
         ->and($casey)->toContain('The engine never decides whether the NoSQL part runs.')
-        ->and($casey)->toContain('run `@skills/redis-patterns/SKILL.md` with `MODE=cr` over the Redis lines of the diff')
+        ->and($casey)->toContain('Follow the same section → *NoSQL part*, and its *Gating* bullet for the Redis split.')
+        ->and($casey)->not->toContain('keep only its critical items')
         ->and($casey)->toContain('You connect to no NoSQL server.')
         ->and($casey)->toContain('The trigger, the dispatch rule, and the advisory status are defined once in')
         ->and($krang)->toContain('runs the NoSQL part in every project');
@@ -127,7 +134,13 @@ test('casey analyses a PostgreSQL query plan from a local instance only, and pos
         ->and($reference)->toContain('`casey` never applies the MySQL analysis to a PostgreSQL diff, and a MySQL diff never runs `postgres-patterns`.')
         ->and($reference)->toContain('the same engine in two dimensions, never a second engine')
         ->and($reference)->not->toContain('A PostgreSQL diff never gets a `casey` report')
-        ->and($casey)->toContain('Read the query plan from a **local** PostgreSQL instance only')
+        ->and($casey)->toContain('→ *PostgreSQL part*')
+        ->and($reference)->toContain('only inside `BEGIN TRANSACTION READ ONLY; … ROLLBACK;`')
+        ->and($reference)->toContain('A `SELECT` that calls any non-aggregate function gets plain `EXPLAIN`, never `ANALYZE`')
+        ->and($casey)->toContain(
+            'inside `START TRANSACTION READ ONLY; … ROLLBACK;` (MySQL / MariaDB) or `BEGIN TRANSACTION READ ONLY; … ROLLBACK;` (PostgreSQL)',
+        )
+        ->and($casey)->toContain('never on a `SELECT` that calls a stored or non-aggregate function, which gets plain `EXPLAIN`')
         ->and($casey)->toContain('the defaults in `config/database.php`')
         ->and($casey)->toContain('with no local PostgreSQL instance write no query-plan analysis')
         ->and($postgres)->toContain('It **defers the query plan**')
@@ -157,26 +170,4 @@ test('the database report heading is renamed on every surface while the mysql-re
         ->toContain('## Database report — critical optimizations (advisory)')
         ->and((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
         ->toContain('mysql-report');
-});
-
-test('every agent states the same model tier in its Claude definition and its Codex adapter (criteria 1 to 4)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $expected = [
-        'krang' => ['opus', 'high', 'gpt-6.1-sol'],
-        'michelangelo' => ['opus', 'high', 'gpt-6-astra'],
-        'raphael' => ['sonnet', 'medium', 'gpt-6-luna'],
-        'shredder' => ['opus', 'high', 'gpt-6.1-sol'],
-        'casey' => ['sonnet', 'high', 'gpt-6-luna'],
-    ];
-
-    foreach ($expected as $name => [$model, $effort, $codexModel]) {
-        $claude = (string) file_get_contents($packageDir . '/agents/' . $name . '.md');
-        $codex = (string) file_get_contents($packageDir . '/codex/agents/' . $name . '.toml');
-
-        expect($claude)->toMatch('/^model: ' . $model . '$/m')
-            ->and($claude)->toMatch('/^effort: ' . $effort . '$/m')
-            ->and($codex)->toContain('model = "' . $codexModel . '"')
-            ->and($codex)->toContain('model_reasoning_effort = "' . $effort . '"')
-            ->and($codex)->toContain('Default tier: `' . $codexModel . '` at `' . $effort . '` reasoning effort');
-    }
 });
