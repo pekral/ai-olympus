@@ -49,7 +49,7 @@
 <circle cx="640" cy="366" r="52" fill="#fb923c" fill-opacity=".065" />
 <image x="565" y="294" width="150" height="150" xlink:href="agents/michelangelo.png" />
 <text data-agent="michelangelo" x="640" y="466" text-anchor="middle" font-size="15" font-weight="700" fill="#fbf3e4">michelangelo</text>
-<text x="640" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Page redesign</text>
+<text x="640" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Design</text>
 <rect x="710.5" y="278" width="120" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M752.5 278H788.5" stroke="#fb7185" stroke-width="3" stroke-linecap="round" />
 <circle cx="770.5" cy="366" r="52" fill="#fb7185" fill-opacity=".065" />
@@ -62,13 +62,13 @@
 <circle cx="901" cy="366" r="52" fill="#facc15" fill-opacity=".065" />
 <image x="826" y="294" width="150" height="150" xlink:href="agents/april.png" />
 <text data-agent="april" x="901" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">april</text>
-<text x="901" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Reporting</text>
+<text x="901" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Communication</text>
 <rect x="971.5" y="278" width="120" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M1013.5 278H1049.5" stroke="#8fbcbb" stroke-width="3" stroke-linecap="round" />
 <circle cx="1031.5" cy="366" r="52" fill="#8fbcbb" fill-opacity=".065" />
 <image x="956.5" y="294" width="150" height="150" xlink:href="agents/casey.png" />
 <text data-agent="casey" x="1031.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">casey</text>
-<text x="1031.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">MySQL analysis</text>
+<text x="1031.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">MySQL report</text>
 <rect x="1102" y="278" width="120" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M1144 278H1180" stroke="#88c0d0" stroke-width="3" stroke-linecap="round" />
 <circle cx="1162" cy="366" r="52" fill="#88c0d0" fill-opacity=".065" />
