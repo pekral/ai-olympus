@@ -181,8 +181,12 @@ test('the merge-readiness TL;DR is published through the helper that matches the
     foreach ([$april, $skill] as $document) {
         expect($document)->toContain('skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>');
         expect($document)->toContain('`acli jira workitem comment delete`');
-        expect($document)->toContain('every remaining marker-carrying comment by the actor is a protected ID or');
-        expect($document)->toContain('a code-review report of an earlier run');
+        // The JIRA final check accepts every marked comment the manifest kept on purpose, so a
+        // resolve-issue report, a tester report, or a link-back never turns the cleanup into Blocked.
+        expect($document)->toContain('every manifested ID is gone, both protected IDs remain, and every other remaining marker-carrying comment by the actor is one the manifest kept on purpose');
+        expect($document)->toContain('(a code-review report, a `resolve-issue` or `tester-cookbook` report, a pull-request link-back, or an ambiguous comment).');
+        expect($document)->toContain('A comment the manifest kept never makes the cleanup `Blocked`.');
+        expect($document)->not->toContain('every remaining marker-carrying comment by the actor is a protected ID or');
     }
 
     expect($rule)->toContain('**Delete a comment only through `skills/code-review-jira/scripts/delete-owned-comment.sh`.**');
