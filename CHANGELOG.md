@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- ⏳ **Changed**: on a repository that is public on GitHub, no agent runs the local pre-push gate. The run reads the visibility once (`gh repo view --json isPrivate`), pushes, and waits for the CI result on the pushed head before the next step; a red check is a finding to fix, and a failed visibility read falls back to the private-repository rules. The pre-merge gate is unchanged (`skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*, `rules/general/general.md`, `CLAUDE.md`, `tests/Installer/PublicRepositoryWaitsForCiTest.php`).
+
 - 🏷️ **Changed**: the orchestrator `splinter` is renamed to `krang`, and the context retriever `metalhead` to `shredder`. Each rename keeps the role, tools, model tiers, modes, permissions, and handoff contract. `docs/agents.md` *Renamed agents* records both, and a reference to `splinter` from before 2026-11-09 means `krang`. The installer removes an unmodified `metalhead` definition from 0.3.1 once `shredder` is installed. `shredder` keeps the Shredder portrait, `krang` shows the placeholder portrait until its own portrait exists, and `assets/agents/prompts.json` carries the `krang` portrait prompt. The social preview is re-rendered (`agents/krang.md`, `agents/shredder.md`, `codex/agents/`, `src/InstallerAgentMigration.php`, `assets/`, `docs/agents.md`, `README.md`, and every file that named the two agents).
 
 ## [0.3.1] - 2026-11-09

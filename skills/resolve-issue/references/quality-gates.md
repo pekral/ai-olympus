@@ -61,6 +61,18 @@ Before each push, read the CI result of the pull request's current head: `gh pr 
 - **The one exception is a rebase that resolved a conflict.** Run `pr-gate` before that push, also when CI is green. The conflict resolution is new code that CI has not seen.
 - **Record the decision in the handoff.** Write `pr-gate: skipped — CI green on <sha>`, or the `run-gate.sh` result.
 - **This section changes only the pre-push gate.** The full gate at the merge boundary keeps its own rules below.
+
+### A public repository waits for CI instead of a local pre-push gate
+
+On a repository that is public on GitHub, CI runs on every push at no cost to the project, so the local pre-push gate only repeats it.
+
+1. **Read the visibility once per run:** `gh repo view --json isPrivate`. When the call fails, treat the repository as private and follow *Skip the pre-push gate when CI is green* above.
+2. **Public (`isPrivate` is `false`) → no local pre-push gate.** Do not run `pr-gate` before a push, whatever the CI result on the previous head. This includes a rebase that resolved a conflict: CI checks the new code on the push.
+3. **Push, then wait for CI on the pushed head:** `gh pr checks <PR> --watch`. Never start the next step on a pending result: a review round, a promotion out of Draft, or a merge.
+4. **Act on the result.** Green → continue. Red → the failure is a finding of the change: fix it, push, and wait again. A GitHub Actions billing failure follows the billing exception of `@skills/merge-github-pr/SKILL.md`.
+5. **Record the decision in the handoff:** `pr-gate: skipped — public repository, CI <green | red> on <sha>`.
+
+This section changes only the pre-push gate. The full gate at the merge boundary keeps its own rules below.
 - **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
 - **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — or, on a project that opted into the machine record, only when `verify-gate.sh` accepts it (*Machine gate record* below) — and it runs the gate itself otherwise —
   for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes. After a rebase that only moved the base, *Rebase that moves the head — analyse the incoming changes first* below decides whether the recorded run carries forward to the new head.
