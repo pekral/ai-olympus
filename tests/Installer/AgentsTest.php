@@ -347,6 +347,68 @@ test('only splinter loads the security skills, and leonardo loads none of them',
     'laravel-authorization-review',
 ]);
 
+test('every document that dispatches the reviewers runs splinter beside leonardo and loads no security skill itself', function (string $path): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/' . $path);
+
+    expect($content)->toContain('`splinter`');
+    expect($content)->toContain('SECURITY_OWNER=splinter');
+
+    foreach (['security-review', 'security-audit', 'security-bounty-hunter', 'security-threat-analysis', 'laravel-security', 'laravel-authorization-review'] as $skill) {
+        expect($content)->not->toContain('@skills/' . $skill . '/');
+    }
+})->with([
+    'agents/krang.md',
+    'agents/leonardo.md',
+    'skills/_shared/orchestration/merge-preparation.md',
+    'skills/verify-merge-readiness/SKILL.md',
+]);
+
+test('leonardo always delegates security to splinter and never falls back to the inline lenses', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $krang = krangContractText();
+
+    expect($leonardo)->toContain('and so does every other run of yours, in every mode');
+    expect($leonardo)->toContain('There is no run of yours in which the wrapper\'s inline security lenses stand in for `splinter`.');
+    expect($leonardo)->not->toContain('a standalone run with no `splinter` keeps the wrapper\'s inline security lenses');
+    expect($leonardo)->toContain('return `Blocked: no splinter security review for <head SHA>`');
+
+    // An unregistered leonardo still gets its security review from splinter, never from krang.
+    expect($krang)->toContain('That run still sets `SECURITY_OWNER=splinter` and still dispatches `splinter` in every round');
+});
+
+test('the merge gate accepts the security delegation only on the splinter Security review line', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $line = 'Security review: splinter · head ';
+
+    expect($splinter)->toContain('the line `Security review: splinter · head <full head SHA> · Critical <n> · Moderate <n> · skills <comma-separated security skills that ran>`');
+    expect($rule)->toContain('**Security review — `splinter`\'s delivery, copied verbatim.**');
+    expect($rule)->toContain('Its head SHA equals the comment\'s `Reviewed revision:`.');
+    expect($merge)->toContain($line . '<sha> · Critical <n> · Moderate <n> · skills <list>');
+    expect($merge)->toContain('its `<sha>` must equal the comment\'s own `Reviewed revision:`');
+
+    foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
+        expect((string) file_get_contents($packageDir . '/' . $template))->toContain('**' . 'Security review:** splinter · head ');
+    }
+});
+
+test('splinter files its plan through create-issue and owns the conformance verdict of its own plan', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $process = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
+
+    expect($splinter)->toContain('only through `@skills/create-issue/SKILL.md`, never a raw `gh issue create`');
+    expect($splinter)->toContain('7. **Record the remediation-conformance verdict of your own security plan.**');
+    expect($leonardo)->toContain('you render that verdict in the published review and never re-derive it');
+    expect($process)->not->toContain('On a single-reviewer roster there is only one candidate');
+    expect($process)->toContain('**`splinter`** owns the verdict for its own security-risk analysis');
+});
+
 test('splinter reviews security in the parallel CR round and publishes nothing of its own', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
@@ -362,7 +424,7 @@ test('splinter reviews security in the parallel CR round and publishes nothing o
 
     // The publishing leonardo carries splinter's findings and never publishes without them.
     expect($leonardo)->toContain('Check that `splinter`\'s security review exists for the head SHA.');
-    expect($leonardo)->toContain('`splinter`\'s `Security assessment:` line in the header');
+    expect($leonardo)->toContain('`splinter`\'s `Security review:` line and `Security assessment:` line in the header');
 });
 
 test('leonardo scopes every review pass to the current diff only (issue #179)', function (): void {
@@ -2336,20 +2398,21 @@ test('the reviewer delivers incrementally and treats the handoff as authoritativ
     }
 });
 
-test('the remediation-conformance verdict is derived once, by the single reviewer (issue #174, issue #179)', function (): void {
+test('the remediation-conformance verdict is derived once, by the owner of the plan (issue #174)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    // krang still states whether a plan exists — it is the only participant that knows whether
-    // step 4 ran — but there is no owner to assign and no non-owner to hold back any more.
+    // krang states whether a plan exists and who owns it — it is the only participant that knows
+    // whether step 4 ran. splinter owns its security plan, leonardo every other plan.
     $krang = krangContractText();
     expect($krang)->toContain('Name the remediation-conformance state in the dispatch prompt.');
-    expect($krang)->toContain('remediation-conformance: derive it — plan at <link>');
+    expect($krang)->toContain('remediation-conformance: derive it — plan at <link>, owner splinter');
+    expect($krang)->toContain('remediation-conformance: derive it — plan at <link>, owner leonardo');
     expect($krang)->toContain('remediation-conformance: no pre-implementation plan, step is empty');
     expect($krang)->not->toContain('remediation-conformance owner:');
 
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     expect($leonardo)->toContain('**Remediation-conformance agenda:**');
-    expect($leonardo)->toContain('you own it whenever a plan exists');
+    expect($leonardo)->toContain('**You own it for an `analyze-problem` plan artifact or any other non-security plan the shared brief carries.**');
     expect($leonardo)->toContain('Derive it exactly once per diff fingerprint');
     // A history-only rewrite keeps the verdict; changed content re-runs it.
     expect($leonardo)->toContain('a history-only rebase with the same fingerprint keeps the verdict');

@@ -218,7 +218,7 @@ When the outcome is *missing detail*, or the request is too vague to type, publi
 
 - Ask only what the check could not settle. One question asks for one fact.
 - Write the comment in the language of the issue and nowhere else (`@rules/reports/general.md`). The manifest `language.github`, read with `skills/_shared/read-manifest.sh`, replaces it when it is set. Translate the two list titles into that language.
-- Leave out secrets, personal data, and the details of a vulnerability. On a **public** repository (`gh repo view --json isPrivate --jq '.isPrivate'` returns `false`), publish no comment when the issue carries the `security` label **or** its text or the check's result describes a vulnerability. Hand such an issue to `leonardo`'s security analysis mode and report it for a human.
+- Leave out secrets, personal data, and the details of a vulnerability. On a **public** repository (`gh repo view --json isPrivate --jq '.isPrivate'` returns `false`), publish no comment when the issue carries the `security` label **or** its text or the check's result describes a vulnerability. Hand such an issue to `splinter`'s security analysis mode and report it for a human.
 - Publish through the canonical wrapper, never through `gh issue comment`:
 
 ```bash

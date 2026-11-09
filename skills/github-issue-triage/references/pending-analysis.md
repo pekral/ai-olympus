@@ -19,7 +19,7 @@ A listing that returns exactly 1000 issues may be truncated — report that inst
 
 - an **epic** — an epic is scoped by its owner, not analysed into a plan;
 - an issue that carries the claim label `Resolve_by_AI:in-progress` — another run owns it (`@rules/compound-engineering/tracker.md` *Claim a tracker issue before working on it*);
-- on a **public** repository (`isPrivate` is `false`), an issue labelled `security` — its analysis would describe a vulnerability before it is fixed, and disclosing an unfixed vulnerability on a public tracker is L3 (`@rules/compound-engineering/orchestration.md`). Report it for `leonardo`'s security analysis mode instead.
+- on a **public** repository (`isPrivate` is `false`), an issue labelled `security` — its analysis would describe a vulnerability before it is fixed, and disclosing an unfixed vulnerability on a public tracker is L3 (`@rules/compound-engineering/orchestration.md`). Report it for `splinter`'s security analysis mode instead.
 
 A repository without the `analyze` label has no pending analysis — report that and stop. An issue whose title says *"Analysis"* but that carries no `analyze` label is not selected: it usually holds a finished analysis already.
 
@@ -45,7 +45,7 @@ Read every report in full. Publish it only when:
 - it quotes no secret, token, or personal data from the tracker or the environment;
 - its facts about this repository hold — spot-check the claims the verdict rests on against the default branch;
 - it cites only state a reader of the issue can verify — the default branch, merged or open pull requests, the tracker — and never a local branch, uncommitted changes, or the analysing machine's working tree;
-- on a public repository, it discloses no unfixed vulnerability — no exploitable path, proof of concept, or bypass. A report that fails this check is never published; it stays in the conversation, and the issue is reported for `leonardo`'s security analysis mode.
+- on a public repository, it discloses no unfixed vulnerability — no exploitable path, proof of concept, or bypass. A report that fails this check is never published; it stays in the conversation, and the issue is reported for `splinter`'s security analysis mode.
 
 A report that fails a check goes back to its subagent with the concrete defect; it is never patched silently.
 

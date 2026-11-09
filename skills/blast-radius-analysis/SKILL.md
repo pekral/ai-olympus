@@ -15,7 +15,7 @@ metadata:
   - *Behaviour changed outside the diff* — callers and consumers of every changed symbol;
   - *Input consistency* — every entry point that writes the changed data;
   - *A caller or consumer outside the repository is a verification gap, never proof of absence* — external consumers.
-- **Risk areas are named, never re-specified.** Database, queue, API, and security risk is judged by the rule that owns it: `@rules/sql/optimalize.md`, `@rules/laravel/laravel.md` *Queue and Jobs*, `@rules/laravel/queue-debouncing.md`, `@skills/api-review/SKILL.md`, and the *Backward-compatible data / storage changes* and *Deploy-safe schema changes* bullets of `@rules/code-review/core-analysis.md`. This skill only names the security boundaries a change touches; `leonardo` owns the security review.
+- **Risk areas are named, never re-specified.** Database, queue, API, and security risk is judged by the rule that owns it: `@rules/sql/optimalize.md`, `@rules/laravel/laravel.md` *Queue and Jobs*, `@rules/laravel/queue-debouncing.md`, `@skills/api-review/SKILL.md`, and the *Backward-compatible data / storage changes* and *Deploy-safe schema changes* bullets of `@rules/code-review/core-analysis.md`. This skill only names the security boundaries a change touches; `splinter` owns the security review.
 - **The tier comes from `skills/_shared/classify-risk.sh`.** Never compute a second risk score. Grade individual risks `Critical` / `Moderate` / `Minor` only.
 - Never present a `Likely` or `Unknown` impact as `Verified`. Never invent a path, a call site, a dependency, or a test.
 

@@ -17,7 +17,7 @@ test('blast-radius-analysis is read-only and reuses the existing walks instead o
     expect($skill)->toContain('*Input consistency*');
     expect($skill)->toContain('*A caller or consumer outside the repository is a verification gap, never proof of absence*');
     expect($skill)->toContain('Never compute a second risk score.');
-    expect($skill)->toContain('`leonardo` owns the security review.');
+    expect($skill)->toContain('`splinter` owns the security review.');
 });
 
 test('blast-radius-analysis sets its depth by the existing tier and escalates only through the classifier', function (): void {

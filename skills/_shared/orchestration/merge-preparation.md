@@ -13,19 +13,22 @@ not a second implementation of it.
   in the shared brief.
 - **Change only what the assignment and the merge gate require.** Record the scope contract of
   `@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only* in the shared brief, and
-  repeat it in every `donatello` and `leonardo` dispatch prompt. An optimization, a refactoring, a
+  repeat it in every `donatello`, `leonardo`, and `splinter` dispatch prompt. An optimization, a refactoring, a
   pre-existing problem outside the security floor, or a nice-to-have point is not implemented and
   not filed. The agent records it under `## Open decisions` in the brief, and `april` publishes it
   as a question for a human — on a JIRA source in the pull-request `merge-readiness` comment, and on
   the JIRA ticket only when it is Critical (`@skills/verify-merge-readiness/SKILL.md` step 4).
 - **When the source issue resolves to no pull request, deliver it first.** The issue is not
   implemented yet, so run steps 4 to 6 of *The end-to-end run* on it — the optional security-risk
-  analysis, `donatello` for the implementation, then the `donatello` ↔ `leonardo` review-and-fix
-  loop to convergence — and prepare the Draft pull request that path opens. Take the working-tree
+  analysis, `donatello` for the implementation, then the review-and-fix loop of *Parallel CR
+  round* rounds (`leonardo` ∥ `splinter` ∥ `raphael` ∥ `casey`) to convergence — and prepare the Draft pull request that path opens. Take the working-tree
   write-lock in step 5 exactly as a full-delivery run does; prepare-only mode is not read-only once
   it delivers. Several matching pull requests remain a hard stop, a closed source issue is never
   implemented, and a delivery path that returns `Blocked` stops the preparation with that blocker.
-- Dispatch `leonardo` for `@skills/process-code-review/SKILL.md`. Before a CR round, require the
+- Run each CR round as the *Parallel CR round* of `agents/krang.md`: `leonardo` with
+  `SECURITY_OWNER=splinter` and `splinter` for the security review, in one message, with the same
+  barrier and the same one publishing `leonardo` dispatch. Never dispatch `leonardo` without
+  `splinter`: `leonardo` loads no security skill. Before a CR round, require the
   canonical effective-diff fingerprint decision. A trusted matching fingerprint means the diff is
   content-identical and the round is recorded as skipped; a missing or different fingerprint or
   new actionable feedback requires review. Never dispatch an identical-diff CR merely because a

@@ -41,7 +41,7 @@ test('the code review rule states that a script computes the merge risk and that
     $rule = mergeRiskSource('rules/code-review/general.md');
 
     expect(substr_count($rule, '**Merge risk — one triage grade for a person who reads many pull requests.**'))->toBe(1)
-        ->and($rule)->toContain('`Security assessment:`, `Merge risk:`, `Reviewed revision:`')
+        ->and($rule)->toContain('`Security assessment:`, `Merge risk:`, `Security review:` (when `splinter` owns security), `Reviewed revision:`')
         ->and($rule)->toContain('1. **A script computes the grade, never the reviewer.** Run `skills/_shared/classify-risk.sh --merge-risk')
         ->and($rule)->toContain('3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production')
         ->and($rule)->toContain('that point goes on the `Not verified:` line with the step that settles it.')

@@ -280,7 +280,7 @@ test('CR wrappers run no security lens under SECURITY_OWNER=splinter and keep th
     // leonardo sets the flag in a round, because splinter owns security there.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     expect($leonardo)->toContain('In a round you invoke the CR wrapper with **`SECURITY_OWNER=splinter`**');
-    expect($leonardo)->toContain('Never set `SECURITY_OWNER` outside a *Parallel CR round*');
+    expect($leonardo)->toContain('and so does every other run of yours, in every mode');
 });
 
 test('a skipped security pass has somewhere to be declared on the summary line', function (): void {
@@ -326,7 +326,7 @@ test('the merge gate verifies a delegated security review actually arrived', fun
     // strictly worse than an obviously missing review.
     expect($merge)->toContain('Delegated security coverage is verified, never assumed');
     expect($merge)->toContain('security: owned by splinter');
-    expect($merge)->toContain('that SHA must equal the PR head commit being merged');
+    expect($merge)->toContain('its `<sha>` must equal the comment\'s own `Reviewed revision:`');
 
     // The token must carry the head SHA, so a missing delivery is visible in
     // the comment itself rather than only in the merge gate.
