@@ -193,7 +193,7 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 | | Loaded by the plugin |
 |---|---|
 | 65 skills (`skills/*/SKILL.md`) | ✅ automatically |
-| 5 agents (`agents/*.md`) | ✅ automatically |
+| 8 agents (`agents/*.md`) | ✅ automatically |
 | `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` (`commands/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ Composer only |
 | `.claude/settings.local.json` switches (`--deny-network-bash`, …) | ❌ Composer only |
