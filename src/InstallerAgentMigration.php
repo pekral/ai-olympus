@@ -19,6 +19,7 @@ final class InstallerAgentMigration
         'hephaestus' => 'donatello',
         'hermes' => 'april',
         'metalhead' => 'shredder',
+        'splinter' => 'krang',
     ];
 
     private const array ORIGINAL_DIGESTS = [
@@ -36,6 +37,8 @@ final class InstallerAgentMigration
         'hermes.toml' => '8fa6c6dedc52f922a84a0ad67e84867ee7abdc9791c422577e1fb3830ce0f64b',
         'metalhead.md' => '67eff12a0d4ef0453baeadb9c09b7f9b7fe416d6425615624e2be73cfaf55b14',
         'metalhead.toml' => 'e220e83564abc6b413ae696f27dd4f49a3a4311552a780cda6e0e371ac7be0a0',
+        'splinter.md' => 'fa629261c902dee2f652baf90ee516eb82e3c086d1bf0f4115bca958e306dde0',
+        'splinter.toml' => '4c20df3a50d6f0091ba90338dce299d6c9cd19db41445b602da6a179841c4cdf',
     ];
 
     public static function removeKnownCopies(string $source, string $target): int
@@ -56,16 +59,21 @@ final class InstallerAgentMigration
             $filename = $previous . '.' . $extension;
             $oldTarget = $target . '/' . $filename;
 
-            if (!is_file($target . '/' . $current . '.' . $extension)) {
-                continue;
-            }
-
-            if (self::isUnmodifiedPackageFile($oldTarget, $source . '/' . $filename, self::ORIGINAL_DIGESTS[$filename])) {
+            if (self::isRemovableCopy($source, $target, $filename, $current . '.' . $extension)) {
                 $removed += (int) unlink($oldTarget);
             }
         }
 
         return $removed;
+    }
+
+    private static function isRemovableCopy(string $source, string $target, string $filename, string $replacement): bool
+    {
+        if (!is_file($target . '/' . $replacement) || is_file($source . '/' . $filename)) {
+            return false;
+        }
+
+        return self::isUnmodifiedPackageFile($target . '/' . $filename, $source . '/' . $filename, self::ORIGINAL_DIGESTS[$filename]);
     }
 
     private static function isUnmodifiedPackageFile(string $target, string $previousSource, string $digest): bool

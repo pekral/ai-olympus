@@ -297,7 +297,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
     // `.mdc`. Issue #277 was allowed to change the extension and the frontmatter keys and nothing
     // else, so a mismatch here means a normative sentence moved during the rename.
     // Re-baselined when the package moved to pekral/ai-olympus: the agent rename
-    // (daidalos -> krang, hefaistos -> donatello) and the PHP namespace rename
+    // (daidalos -> splinter, hefaistos -> donatello) and the PHP namespace rename
     // are the only edits these bodies carry. `rules/reports/general.md` carries one further
     // re-baseline: #11 deleted the skill whose report was the second half of the GitHub-PR English
     // exception, so that exception dropped back to a single one. `rules/code-review/general.md` and
