@@ -19,7 +19,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - Prose is terse. Business "why" first, enough technical context to locate the change, nothing more.
 - No code snippets, file paths, line numbers, diff fragments.
 - Length follows the facts the report carries. There is no word budget on GitHub and Bugsnag; JIRA caps the comment at 3 000 characters.
-- Publish through `upsert-comment.sh` — on GitHub and JIRA it updates this actor's existing comment in place, so one destination carries one permanent summary rather than a chain of them.
+- Publish through `upsert-comment.sh --create` — every run posts a new comment on GitHub and JIRA and leaves the comment of an earlier run unchanged.
 
 ---
 
@@ -129,12 +129,12 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - On JIRA, a finding outside the assignment appears only when it is Critical (*The JIRA shape* above).
   - End the bullet that retells a missing-test or a DRY finding with the author mention. The syntax is the one *An unmet criterion addresses the author* above defines (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*).
   - When the review found nothing, render one sentence that says so, and no bullets.
-- **One comment, updated in place.** A review-only run publishes through the GitHub and JIRA helpers like any other run, so a later run updates the comment an earlier run left. The Bugsnag helper cannot mark a comment and posts a new one on every run.
+- **A new comment on every run.** A review-only run publishes through the GitHub and JIRA helpers like any other run, with `--create`, so a later run adds a new comment and leaves the comment of an earlier run unchanged. The Bugsnag helper posts a new comment on every run.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten `What changed` first, then merge `Impact after deployment` bullets. Never drop a `Review findings` bullet.
 
 ### An issue with several pull requests
 
-When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them rewrites only that group and carries the others over.
+When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them renders only that group; the groups of the others stay in the earlier comments.
 
 ### Closing line — the PR and the source issue
 
@@ -231,12 +231,12 @@ GitHub and Bugsnag carry the same two sections and the same closing line, differ
 
 Post the summary as a comment to the related PR or issue if available, using the template that matches the target tracker. Publish through the shared helpers so each tracker receives its tracker-native markup — never via raw `gh issue comment` / `gh pr comment` / `acli jira workitem comment add` calls.
 
-- **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->`, and **PATCHes the newest comment already carrying that marker**, POSTing a new one only when none exists. Fall back to the GitHub MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure): `updateIssueComment` on the marker-carrying comment when you can resolve its ID, `addIssueComment` otherwise.
+- **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->`, and **POSTs a new comment**; it never PATCHes the comment of an earlier run. Fall back to the GitHub MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), and only after a read-back shows that the comment of this run did not land: `addIssueComment`, never `updateIssueComment`.
   Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call, per `@rules/compound-engineering/tracker.md` *Every comment an agent publishes on GitHub or JIRA carries a marker*.
-- **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`. The helper appends the visible marker line `_cr-comment:actor=<actor-digest>_` (a digest of the account e-mail, never the address), converts the source to ADF, and updates the newest comment already carrying that marker through `--body-adf`; only when none exists does it create a new comment and then apply the ADF to it. Fall back to the JIRA MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), passing an ADF document rather than Wiki Markup — append the same `_cr-comment:actor=<actor-digest>_` marker line to that ADF, per the same rule.
+- **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -`. The helper appends the visible marker line `_cr-comment:actor=<actor-digest>_` (a digest of the account e-mail, never the address), converts the source to ADF, creates a new comment, and applies the ADF to that new comment through `--body-adf`; it never updates the comment of an earlier run. Fall back to the JIRA MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), and only after a read-back shows that the comment of this run did not land, creating a new comment with an ADF document rather than Wiki Markup — append the same `_cr-comment:actor=<actor-digest>_` marker line to that ADF, per the same rule.
 - **Bugsnag target**: pipe the rendered body into `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -`. The helper POSTs a new comment on every run. Fall back to the Bugsnag MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
 - Pre-existing comments published before these conventions were introduced are left untouched.
-- Log the action (`created` or `updated`) plus the resulting comment URL in the CR wrapper's summary line.
+- Log the action (`created`) plus the resulting comment URL in the CR wrapper's summary line.
 
 ---
 

@@ -437,7 +437,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the DRY check names each rule, searches it by its mechanics, opens the siblings, and publishes `## Reuse (DRY)`.
         // Re-baselined: the evidence sections are the one exception to the no-confirmation rule, and `Reuse (DRY):` without evidence reads `not verified`.
         // Re-baselined: the review floor gains item 4 (environment values, production), and the not-verified example names a person with replica access.
-        'rules/code-review/general.md' => '0c74e646a2f5104e1c3bfa124afbd3e04dd096e55cb6e69fcaab2534d23ae816',
+        // Re-baselined: every code-review report is a new comment published with `--create`, and it carries no line over from an earlier comment.
+        'rules/code-review/general.md' => '61f81bd624296e580f319723aa4bd327daf77cdc61d6d73fb49c88bdd1704ba4',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -507,7 +508,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: a review-only run updates its comment in place instead of passing `--create`.
         // Re-baselined: two sanctioned transitions; no status change once the code review has started.
-        'rules/jira/general.md' => 'f141628e17dac5edfe629deb52f31017819df313bccbe9e020d2b1c1de2452a1',
+        // Re-baselined: a code-review report is a new comment on every run (`--create`); every other namespace keeps one comment per actor.
+        'rules/jira/general.md' => '66b52834b485c6c37993dd26eafdf17bb2a1308489f3095e8447ee40803267cc',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

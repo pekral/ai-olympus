@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# upsert-comment.sh — update-in-place JIRA issue comment publisher used by
-# CR-track skills. Each invocation looks for a comment already carrying this
+# upsert-comment.sh — JIRA issue comment publisher used by CR-track skills.
+# Without `--create`, each invocation looks for a comment already carrying this
 # actor's marker on the target issue and updates the newest match; only when no
-# match exists does it create a new comment. One issue therefore keeps one
-# permanent comment per actor and marker namespace instead of a growing chain.
+# match exists does it create a new comment. Such a namespace keeps one comment
+# per actor and marker namespace instead of a growing chain. With `--create`,
+# every invocation creates a new comment: every code-review report is published
+# that way, so each review run adds its own comment.
 #
 # This reverses the always-new behaviour a previous explicit request
 # introduced (see CHANGELOG). The lookup-and-update branch is added on a newer
@@ -27,11 +29,13 @@
 #
 # Inputs:
 #   --create    Optional. Always create a new comment in the given namespace and
-#               never update an existing one. The before-create snapshot still
-#               runs, because the new comment ID is resolved against it. No
-#               packaged workflow passes it; it stays for project skills. The marker namespace stays
-#               unchanged, so a later run without the flag updates the newest
-#               comment as usual.
+#               never update an existing one, so nothing is carried over from an
+#               earlier comment. The before-create snapshot still runs, because
+#               the new comment ID is resolved against it. Every code-review
+#               report publish passes it (the `pr-summary` JIRA comment). The
+#               marker namespace stays unchanged, so every marker-based check
+#               reads the newest comment, and a later run without the flag
+#               updates the newest comment as usual.
 #   KEY|URL     Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL,
 #               or any URL containing ?selectedIssue=<KEY>.
 #   BODY_FILE   Path to a file holding the JIRA Wiki Markup source, or `-` to
@@ -91,9 +95,11 @@
 #      The re-read runs up to three times, one second apart, because Jira Cloud
 #      can answer the first read after a create without the new comment.
 #
-# One result is one comment. The helper never creates a comment it cannot prove
-# is the first one, so a rerun — including a caller's retry after exit 3 —
-# updates the comment an earlier run created or refuses, and never duplicates it:
+# One result is one comment, for every call without `--create`. The helper never
+# creates a comment it cannot prove is the first one, so a rerun — including a
+# caller's retry after exit 3 — updates the comment an earlier run created or
+# refuses, and never duplicates it. A rerun with `--create` creates a second
+# comment, so its caller reads the issue back before it retries:
 #   - A failed or unparsable comment lookup exits 3 and creates nothing. Without
 #     the lookup, a create could duplicate a comment this actor already owns.
 #   - A comment carrying this actor's marker whose author can be neither
@@ -414,7 +420,7 @@ else
     if [[ -s "$LIST_STDERR" ]]; then
       echo "upsert-comment.sh: the last of 3 re-reads failed: $(<"$LIST_STDERR")" >&2
     fi
-    echo "upsert-comment.sh: do not publish this result again — the created comment carries this actor's marker, and a rerun of this helper updates it or refuses, never duplicates it" >&2
+    echo "upsert-comment.sh: do not publish this result again — the created comment carries this actor's marker; a rerun without --create updates it or refuses, and a rerun with --create adds a second comment" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
   fi

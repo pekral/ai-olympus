@@ -315,8 +315,8 @@ Delete each manifested JIRA comment only through:
 skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
 ```
 
-JIRA keeps one update-in-place `cr-comment` per actor, so pass the final TL;DR ID for both protected
-slots when it is that comment. `skills/code-review-jira/scripts/parse-comments.sh` returns each
+The JIRA TL;DR updates this actor's newest `cr-comment` in place, so pass the final TL;DR ID for both
+protected slots when it is that comment. `skills/code-review-jira/scripts/parse-comments.sh` returns each
 comment `id`. This also removes the duplicates a failed `upsert-comment.sh` run (exit 2/3) can leave
 behind, once the replacement TL;DR is published and read back. A protected comment needs no marker,
 so a TL;DR published through the sanctioned JIRA MCP fallback still anchors that cleanup: the helper

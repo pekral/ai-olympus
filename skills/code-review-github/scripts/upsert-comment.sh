@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# upsert-comment.sh — update-in-place GitHub issue / PR comment publisher used
-# by CR-track skills. Each invocation looks for a comment already carrying this
-# actor's hidden marker on the target and PATCHes the newest match; only when
-# no match exists does it POST a new one. One destination therefore keeps one
-# permanent comment per actor + namespace instead of a growing chain.
+# upsert-comment.sh — GitHub issue / PR comment publisher used by CR-track
+# skills. Without `--create`, each invocation looks for a comment already
+# carrying this actor's hidden marker on the target and PATCHes the newest
+# match; only when no match exists does it POST a new one. Such a namespace
+# keeps one comment per actor + namespace instead of a growing chain. With
+# `--create`, every invocation POSTs a new comment: every code-review report
+# is published that way, so each review run adds its own comment.
 #
 # This reverses the append-only behaviour a previous explicit request
 # introduced (see CHANGELOG). The lookup-and-PATCH branch is restored on a
@@ -16,10 +18,13 @@
 #
 # Inputs:
 #   --create    Optional. Always POST a new comment in the given namespace and
-#               never look up or PATCH an existing one. No packaged workflow
-#               passes it; it stays for project skills. Unlike `agent-note`, the marker namespace stays
-#               unchanged, so a later run without the flag updates the newest
-#               comment as usual.
+#               never look up or PATCH an existing one, so nothing is carried
+#               over from an earlier comment. Every code-review report publish
+#               passes it (the PR comment, the `pr-summary` tracker comment, and
+#               the linked-issue mirror). Unlike `agent-note`, the marker
+#               namespace stays unchanged, so every marker-based check reads
+#               the newest comment, and a later run without the flag updates
+#               the newest comment as usual.
 #   NUMBER|URL  Bare GitHub issue / PR number (resolved against the current
 #               git remote) or a full github.com URL containing /issues/<N> or
 #               /pull/<N>. The optional `www.` host prefix is tolerated.
@@ -55,7 +60,8 @@
 #      `gh api repos/<nwo>/issues/comments/<id>`; otherwise POST a new comment
 #      via `gh api repos/<nwo>/issues/<N>/comments`.
 #
-# One result is one comment, for every namespace except `agent-note`. A failing
+# One result is one comment, for every namespace except `agent-note` and every
+# call with `--create`. A failing
 # lookup publishes nothing and exits 3: without it, a POST could duplicate the
 # comment this actor already owns, and a rerun once the API answers again
 # updates that comment in place. `agent-note` is the deliberate exception:

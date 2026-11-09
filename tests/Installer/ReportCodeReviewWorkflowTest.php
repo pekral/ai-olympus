@@ -24,7 +24,10 @@ extend those steps in the dispatch prompt');
     );
     expect($krang)->toContain('It changes nothing in the pull request: no fix and no test.');
     expect($leonardo)->toContain('The branch checkout gate takes its worktree case there');
-    expect($leonardo)->toContain('Tell the wrapper to update the comments an earlier run left, never to pass `--create`.');
+    expect($leonardo)->toContain(
+        'Tell the wrapper to publish every comment as a new one, with `--create`, and to leave the comments of an earlier run unchanged.',
+    );
+    expect($leonardo)->not->toContain('never to pass `--create`');
     expect($leonardo)->toContain('When the dispatch carries `tracker-report: deferred`, pass it to `process-code-review`');
     expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
         ->toContain('When the caller passed `tracker-report: deferred`, pass it to the wrapper too');
@@ -34,8 +37,9 @@ extend those steps in the dispatch prompt');
         'When the brief\'s `## Source` carries a GitHub issue URL, a GitHub PR URL, or a JIRA key, state `tracker-report: deferred`.',
     );
     expect($krang)->toContain('rewritten in the brief\'s `## Language` and in the target tracker\'s format');
-    expect((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
-        ->toContain('No packaged workflow');
+    $githubPublisher = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh');
+    expect($githubPublisher)->toContain('Every code-review report publish')
+        ->and($githubPublisher)->not->toContain('No packaged workflow');
     expect($leonardo)->toContain('never a separate security comment, and never `SECURITY_OWNER` on the wrapper');
 
     expect($krang)->toContain('## Review-only mode — `/report-code-review`');
@@ -57,10 +61,10 @@ extend those steps in the dispatch prompt');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     expect($prSummary)
         ->toContain('### Review-only run — `Review findings` in place of `How to test`')
-        ->toContain('**One comment, updated in place.** A review-only run publishes through the GitHub and JIRA helpers like any other run');
-    expect($prSummary)->not->toContain('Pass `--create`');
+        ->toContain('**A new comment on every run.** A review-only run publishes through the GitHub and JIRA helpers like any other run, with `--create`');
+    expect($prSummary)->not->toContain('**One comment, updated in place.**');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
-        ->toContain('**A review-only run updates its comments in place too.**')
+        ->toContain('**A review-only run posts new comments too.**')
         ->toContain('**A deferred tracker report — `tracker-report: deferred`.**')
         ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
         ->toContain('as parallel tool calls in this same context, never as a subagent.');

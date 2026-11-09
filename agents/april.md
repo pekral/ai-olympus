@@ -138,8 +138,8 @@ qualified deletions. It is not authorization to merge or to delete anything outs
 6. For every manifested ID, call the helper that matches the source tracker:
    - **GitHub** → `skills/_shared/delete-owned-github-comment.sh <TARGET_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`
    - **JIRA** → `skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`.
-     JIRA keeps one update-in-place `cr-comment` per actor, so when the final TL;DR is that
-     comment, pass its ID for both protected slots. Read comment IDs from
+     The JIRA TL;DR updates this actor's newest `cr-comment` in place, so when the final TL;DR is
+     that comment, pass its ID for both protected slots. Read comment IDs from
      `skills/code-review-jira/scripts/parse-comments.sh`.
 
    The helper is the only deletion path. Never compose raw `gh api --method DELETE` or

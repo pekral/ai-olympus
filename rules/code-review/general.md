@@ -241,7 +241,7 @@ When the reviewed issue links more than one pull request, every remark and every
 - **The tracker comment groups per pull request.** On the issue — the source tracker comment and the linked-GitHub-issue mirror — each review finding, each reviewer remark, and each question that closes a finding sits under the pull request it concerns: one group per pull request, in pull-request number order. `@skills/pr-summary/references/several-pull-requests.md` owns the rendering per tracker.
 - **The issue-level verdict stays one.** The acceptance criteria belong to the issue, so the status line and the assignment verdict are rendered once, above the groups. An unmet criterion names the pull request that is meant to deliver it.
 - **A remark that concerns the issue as a whole stays outside the groups.** A question about the assignment that no pull request owns closes its criterion bullet, as on a single-PR issue.
-- **A run that reviews one of the pull requests rewrites only its own group.** The comment is updated in place, so the run reads it first and carries the groups of the other pull requests over unchanged. The review of the second pull request never erases the findings of the first.
+- **A run that reviews one of the pull requests renders only its own group.** Every run posts a new comment, so the groups of the other pull requests stay in the earlier comments that carried them. The review of the second pull request never erases the findings of the first.
 - **One pull request, no groups.** The comment keeps its usual shape.
 
 ## File and method size is never a code-review finding
@@ -560,21 +560,23 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **The merge gate reads this one comment.** Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
 
-**That one comment is updated in place, not re-posted.** Each helper appends a per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA — looks up the newest comment carrying it, and rewrites that comment; it creates one only when none exists. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. A destination therefore carries one permanent `cr-comment` per actor rather than a chain of them.
-A review-only run (`/report-code-review`) follows the same rule: a later run updates the comment an earlier run left, so repeated reviews never stack up as a chain of comments.
+**That one comment is a new comment on every run.** Every code-review report — the GitHub pull-request comment, the tracker comment `@skills/pr-summary/SKILL.md` renders, and the linked GitHub issue mirror — is published through the helper with `--create`. The helper creates a new comment and never looks up, rewrites, or deletes the comment of an earlier run, so that comment stays unchanged. This applies to a review-only run (`/report-code-review`) and to every round of the review-and-fix loop.
+Each helper still appends its per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. Every check that reads a code-review comment reads the **newest trusted** comment that carries the marker, so several marked comments on one destination are the normal state.
+A retry after an exit `2` or `3` first reads the destination back through its loader. When the comment of this run already landed, the run publishes nothing again, because a second `--create` call adds a second comment.
+A comment namespace that is not a code-review report — for example `mysql-report`, `merge-readiness`, and the merge-preparation TL;DR — keeps the helper's lookup-and-update behaviour.
 
-**A line the operator added survives the rewrite.** The operator posts under the same account as the agents and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`. A plain rewrite would delete it. Every helper that rewrites a comment in place therefore keeps it:
+**A line the operator added survives the rewrite.** The operator posts under the same account as the agents and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`. A plain rewrite would delete it. Every helper that rewrites a comment in place therefore keeps it. A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment, and the operator's line stays in the earlier comment where the operator wrote it.
 
 1. Each published version records a fingerprint of the lines the agent wrote: a hidden `<!-- <namespace>:lines=… -->` line on GitHub, a ` lines=…` suffix inside the visible marker on JIRA.
 2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, so a mention and its formatting survive too.
 3. The helper prints `carried_lines=<n>` and one `carried: <line>` per carried line on stderr.
 4. The run that called the helper states every carried line, verbatim, in its report and its handoff.
 
-`skills/_shared/carry-operator-lines.php` implements the carry for both trackers. A previous version without a fingerprint, written before this rule, carries nothing and the helper says `reason=no-fingerprint`. `agent-note` comments are never rewritten, so they carry nothing.
+`skills/_shared/carry-operator-lines.php` implements the carry for both trackers. A previous version without a fingerprint, written before this rule, carries nothing and the helper says `reason=no-fingerprint`. `agent-note` comments and comments published with `--create` are never rewritten, so they carry nothing.
 
-**What is lost, stated rather than hidden:** the chain was the cross-run history. A reader used to scroll the thread and see what round 1 said, then round 2. Update-in-place overwrites the previous body, so only the current round's verdict is visible on the tracker; the tracker's own edit history holds the rest, and nothing in this package reads it.
+**What the new comment keeps:** the thread is the cross-run history. A reader scrolls it and sees what round 1 said, then round 2, and a reply written under a report stays under the report it answers. The cost is a longer thread: one comment per run and destination.
 
-**What survives, because every gate depends on it:** the header block above carries each value a later round or the merge gate needs, and it is rewritten on every publish. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.
+**What every gate depends on:** the header block above carries each value a later round or the merge gate needs, and every publish writes it again in the new comment. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.
 
 ## Minor findings are not detected
 

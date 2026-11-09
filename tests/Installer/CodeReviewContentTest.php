@@ -14,11 +14,11 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
     expect($prSummary)->toContain('append them **verbatim** after `How to test`');
     expect($prSummary)->toContain('published once per linked tracker target');
 
-    expect($github)->toContain('#### Linked-issue consolidated summary (mandatory — single comment per linked issue)');
+    expect($github)->toContain('#### Linked-issue consolidated summary (mandatory — one new comment per linked issue and CR run)');
     expect($github)->toContain('Consolidation contract (issue #498)');
-    expect($github)->toContain('exactly one comment per linked issue');
+    expect($github)->toContain('exactly one new comment per linked issue and CR run');
 
-    expect($jira)->toContain('#### JIRA (consolidated non-technical comment — one comment per issue, updated in place)');
+    expect($jira)->toContain('#### JIRA (consolidated non-technical comment — one new comment per issue and CR run)');
     expect($jira)->toContain('Consolidation contract (issue #498)');
 
     expect($githubTemplate)->toContain('{embedded_blocks}');
@@ -200,7 +200,7 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     expect(mb_strlen($filledIn))->toBeLessThan(3_000);
 });
 
-test('CR skills publish through the publish helper — GitHub and JIRA both update their own comment in place', function (): void {
+test('CR skills publish through the publish helper — GitHub and JIRA both post a new code-review comment on every run', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     $githubScript = $packageDir . '/skills/code-review-github/scripts/upsert-comment.sh';
@@ -330,12 +330,11 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     expect($prSummary)->not->toContain('{anchor:cr-comment-actor-<slug>}');
 
     foreach ([$github, $jira] as $skill) {
-        // The wrapper contract states the update-in-place behaviour and the one
-        // case that still creates a comment; the retired always-new wording is
-        // gone from both wrappers.
-        expect(stripos($skill, 'updated in place'))->not->toBeFalse();
-        expect($skill)->toContain('updates the PR comment it already owns');
-        expect($skill)->toContain('POSTs a new comment only when no marker-carrying comment exists');
+        expect($skill)->toContain('Every CR run **posts its PR comment as a new comment**');
+        expect($skill)->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>');
+        expect($skill)->not->toContain('updated in place');
+        expect($skill)->not->toContain('updates the PR comment it already owns');
+        expect($skill)->not->toContain('POSTs a new comment only when no marker-carrying comment exists');
         expect($skill)->not->toContain('always-new comment');
         expect($skill)->not->toContain('Replying to code review from');
     }
@@ -367,7 +366,8 @@ test('CR skills publish through the publish helper — GitHub and JIRA both upda
     $reviewOutput = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
     expect($reviewOutput)->not->toContain('{anchor:');
     expect($reviewOutput)->not->toContain('Always-new comment');
-    expect($reviewOutput)->toContain('**Update in place:**');
+    expect($reviewOutput)->toContain('**A new comment per run:**');
+    expect($reviewOutput)->not->toContain('**Update in place:**');
     expect($reviewOutput)->toContain('<!-- cr-comment:actor=<gh-login> -->');
     expect($reviewOutput)->toContain('_cr-comment:actor=<actor-digest>_');
 });
@@ -567,7 +567,7 @@ test('code review skills delegate the non-technical issue-tracker summary to pr-
     expect($github)->toContain('@skills/pr-summary/SKILL.md');
     expect($github)->toContain('@skills/pr-summary/templates/pr-summary-github.md');
 
-    expect($jira)->toContain('#### Linked GitHub issues (consolidated mirror — one comment per issue, updated in place)');
+    expect(substr_count($jira, '#### Linked GitHub issues (consolidated mirror — one new comment per issue and CR run)'))->toBe(2);
     expect($jira)->toContain('skills/code-review-github/scripts/upsert-comment.sh');
     expect($jira)->toContain('no linked GitHub issue — mirror skipped');
     expect($jira)->toContain('cross-repo issue, lacking write access');
@@ -4459,7 +4459,7 @@ test('a standalone leonardo review on a JIRA source publishes its findings to th
 
     // The tracker-matching routing issue #691 added is preserved: the JIRA helper still publishes,
     // it just publishes the non-technical summary rather than the findings.
-    expect($leonardo)->toContain('skills/code-review-jira/scripts/upsert-comment.sh <JIRA-KEY> -');
+    expect($leonardo)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --create <JIRA-KEY> -');
     expect($leonardo)->toContain('composed by `@skills/pr-summary/SKILL.md`');
 });
 
@@ -4639,4 +4639,36 @@ test('the branch checkout gate pulls the default branch first and has one owner'
     }
 
     expect((string) file_get_contents($packageDir . '/rules/git/general.md'))->toContain('@' . $gatePath);
+});
+
+test('every code-review report is published as a new comment on each destination and carries nothing over (issue #331)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $contract = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+    $severalPullRequests = (string) file_get_contents($packageDir . '/skills/pr-summary/references/several-pull-requests.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $updateInPlace = '/\b(?:update|updates|updated|rewrites?)\b[^.\n]{0,60}\bin place\b(?! of)/i';
+
+    expect(substr_count($contract, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(1)
+        ->and($contract)->toContain('posts it via `skills/code-review-github/scripts/upsert-comment.sh --create` on **each** entry in `closingIssues[]`')
+        ->and($contract)->toContain('and `pr-summary` does the same on every tracker destination')
+        ->and(preg_match_all($updateInPlace, $contract))->toBe(0);
+    expect(substr_count($prSummary, 'skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -'))->toBe(1)
+        ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -'))->toBe(1)
+        ->and($prSummary)->toContain('`addIssueComment`, never `updateIssueComment`')
+        ->and(preg_match_all($updateInPlace, $prSummary))->toBe(0);
+    expect($severalPullRequests)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')
+        ->and($severalPullRequests)->not->toContain('Carry every other pull request\'s group over verbatim');
+    expect($krang)->toContain('It publishes the one CR comment from the brief as a new comment, with `upsert-comment.sh --create`')
+        ->and($krang)->toContain('`pr-summary` publishes it as a new comment (`--create`), so the tracker comment of an earlier run stays unchanged')
+        ->and(preg_match_all($updateInPlace, $krang))->toBe(0);
+    expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(2)
+        ->and(substr_count($leonardo, 'without `--create`'))->toBe(0);
+    expect($rule)->toContain('**That one comment is a new comment on every run.**')
+        ->and($rule)->toContain('Every check that reads a code-review comment reads the **newest trusted** comment that carries the marker')
+        ->and($rule)->toContain(
+            'A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment',
+        );
 });
