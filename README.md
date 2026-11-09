@@ -46,7 +46,7 @@ In Codex, request the role by name:
 Use the krang agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -136,7 +136,7 @@ The eight specialists keep their existing responsibilities and permissions under
 
 **Krang (`krang`) — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory database report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
 **Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `shredder`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
@@ -206,11 +206,11 @@ Writes release announcements and publishes the final tracker report after review
 <td width="96" valign="top"><a href="assets/agents/casey.png"><img src="assets/agents/thumbnails/casey.png" alt="Casey Jones avatar" width="80"></a></td>
 <td valign="top">
 
-**Casey Jones (`casey`) — advisory MySQL analyst** · read-only
+**Casey Jones (`casey`) — advisory database analyst** · read-only
 
-Runs after the code review of a MySQL change converged. It reads the diff through `mysql-problem-solver` and publishes one pull-request comment that proposes optimizations for critical MySQL problems only. The report is advisory: it never blocks convergence or the merge. On PostgreSQL it does not run.
+Runs in each code review round when the diff changes database access. It reads MySQL / MariaDB queries through `mysql-problem-solver`, PostgreSQL query plans from a local PostgreSQL instance only, Redis through `redis-patterns`, and every other NoSQL store in one general pass. It proposes optimizations for critical problems only. The NoSQL part runs in every project, whatever the SQL engine is. The report is advisory: it never blocks convergence or the merge.
 
-**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`)
+**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`), `redis-patterns` (`MODE=cr`)
 
 </td>
 </tr>

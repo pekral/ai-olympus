@@ -14,10 +14,10 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         'casey' => ['gpt-6-luna', 'high'],
         'donatello' => ['gpt-5.6-terra', 'high'],
         'leonardo' => ['gpt-6.1-sol', 'high'],
-        'shredder' => ['gpt-6-luna', 'medium'],
-        'michelangelo' => ['gpt-6-astra', 'medium'],
-        'raphael' => ['gpt-6-luna', 'high'],
-        'krang' => ['gpt-6.1-sol', 'medium'],
+        'shredder' => ['gpt-6.1-sol', 'high'],
+        'michelangelo' => ['gpt-6-astra', 'high'],
+        'raphael' => ['gpt-6-luna', 'medium'],
+        'krang' => ['gpt-6.1-sol', 'high'],
     ];
 
     expect($agentFiles)->not->toBeFalse();

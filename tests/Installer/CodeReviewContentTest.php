@@ -2744,7 +2744,9 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
 
     // The pattern list still decides whether a lens runs at all, so a diff that touches no DB
     // operation keeps running neither lens.
-    expect($contract)->toContain('The pattern list is engine-independent: it decides *whether* a DB lens runs, and the engine decides *which one*.');
+    expect($contract)->toContain(
+        'The pattern list is SQL-only and engine-independent: it decides *whether* a DB lens runs, and the engine decides *which one*.',
+    );
     expect($contract)->toContain('A diff matching none of those patterns runs no DB lens at all.');
 
     // The three sources are named and ordered, so the branch is reproducible instead of guessed.
@@ -2775,7 +2777,7 @@ test('each database engine branch names its own lens and the unresolved case kee
 
     // Issue #180: on MySQL the review runs no inline query lens; the advisory `casey` report owns it.
     expect($contract)->toContain(
-        '- **`mysql` / `mariadb` → no inline DB lens; the `casey` agent writes the MySQL report.**',
+        '- **`mysql` / `mariadb` → no inline DB lens; the `casey` agent writes the database report.**',
     );
     expect($contract)->toContain('The review never runs `mysql-problem-solver` inline.');
 
@@ -2807,7 +2809,7 @@ test('each database engine branch names its own lens and the unresolved case kee
 
     // One diff is never read through two engines' semantics.
     expect($contract)->toContain('- **Never analyse one diff through two engines.**');
-    expect($contract)->toContain('A PostgreSQL diff never gets a `casey` report, and a MySQL diff never runs `postgres-patterns`.');
+    expect($contract)->toContain('`casey` never applies the MySQL analysis to a PostgreSQL diff, and a MySQL diff never runs `postgres-patterns`.');
 
     // The PostgreSQL lens still fills the one section.
     expect($contract)->toContain('On PostgreSQL, pass the diff scope to `postgres-patterns` and capture its findings');
@@ -2904,7 +2906,9 @@ test('every CR wrapper and template renders the Database Analysis section for ei
     // runs no MySQL query lens and points at the advisory `casey` report instead.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     expect($leonardo)->toContain('the engine-resolved DB lens (`postgres-patterns` with `MODE=cr` on PostgreSQL)');
-    expect($leonardo)->toContain('`mysql-problem-solver` belongs to the `casey` agent\'s advisory report');
+    expect($leonardo)->toContain(
+        '`mysql-problem-solver`, the PostgreSQL query plan, and the NoSQL analysis belong to the `casey` agent\'s advisory database report',
+    );
 });
 
 test('a Blade or Livewire diff triggers all three frontend lenses (issue #60)', function (): void {

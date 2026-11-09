@@ -432,12 +432,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the agent-marker namespaces gain `analysis-plan`, the plan artifact `analyze-problem` publishes.
         // Re-baselined: the `Merge risk:` grade passes the assignment text to `classify-risk.sh --assignment`.
         // Re-baselined: a review-only run updates its comments in place instead of passing `--create`.
-        // Re-baselined: a converged comment may carry `## Interactive testing` and `## MySQL report` from a parallel CR round.
+        // Re-baselined: a converged comment may carry `## Interactive testing` and `## Database report` from a parallel CR round.
         // Re-baselined: the orchestrator `splinter` is renamed to `krang`.
         // Re-baselined: the DRY check names each rule, searches it by its mechanics, opens the siblings, and publishes `## Reuse (DRY)`.
         // Re-baselined: the evidence sections are the one exception to the no-confirmation rule, and `Reuse (DRY):` without evidence reads `not verified`.
         // Re-baselined: the review floor gains item 4 (environment values, production), and the not-verified example names a person with replica access.
-        'rules/code-review/general.md' => 'd98e5d3e3c6e1f9bac948ca7ad1ec7ef0a2d4f33d0751505a00edd2239c39f6b',
+        'rules/code-review/general.md' => '0c74e646a2f5104e1c3bfa124afbd3e04dd096e55cb6e69fcaab2534d23ae816',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
