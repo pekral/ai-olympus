@@ -175,6 +175,30 @@ Security ranks above every other check of a review, DRY included. A missed secur
 - **The same logic repeated inside the diff is the same finding.** Two or more places in the diff that carry the same steps are extracted once, into the layer that owns them.
 - Severity: **Critical**. Duplicated logic drifts apart the moment one copy changes, and the caller of the stale copy keeps working while it produces the wrong result. The **Suggested Fix** names the existing implementation with its `file:line` and the call that replaces the new code.
 
+### DRY check — every new rule is searched for in the whole codebase
+
+The reviewer goes through the code the diff adds and searches the whole codebase for the same logic elsewhere. Every duplicate found goes into the CR report. A diff can remove duplicates and add a new one in the same change, so the check covers both: the copies the diff removes and the copy it adds. Searching only inside the diff, or only for the same method name, is not a DRY check.
+
+1. **Name the rule.** For each function, method, or block that the diff adds or changes, write its business rule in one sentence, without identifiers. Example: *"When the consent is unknown, a new record is created inactive and an existing record keeps its status."*
+2. **Search for the rule by its mechanics, not by its name.** For each rule, search the project source for:
+   - the same callees with the same arguments, for example a service method called with the same named argument;
+   - the same repository lookups, for example the same "find existing by key" query;
+   - the same enum values next to the same branching, for example one status constant beside a split of records into existing and new;
+   - the same collection shape (`partition`, `groupBy`, `keyBy`) over the same DTO type.
+3. **Check the siblings explicitly.** When the change sits in one member of a family — one integration of several, one sender, one pipeline step, one importer — open the same place in every other member. A sibling that solves the same case is the most frequent source of duplication.
+4. **Treat variants as the same rule.** A single-record path (a webhook) and a batch path (a sync, an import) that apply the same rule are one rule implemented twice. So are two implementations that differ only in names or in the DTO they start from.
+5. **Decide.** For each candidate, read both implementations and state one of:
+   - **Duplicate:** both apply the same rule. Raise the finding with the `file:line` of both places and the shared method that replaces them, naming the class that should own it.
+   - **Not a duplicate:** the rules differ. State the concrete difference in one sentence.
+
+**Reporting.**
+
+- **A verdict of no DRY finding needs evidence.** The comment renders `## Reuse (DRY)` with each rule from step 1, the search patterns from step 2, and the sibling files from step 3 that were opened. A verdict of zero DRY findings without this list counts as a check that did not run.
+- **Consolidation does not offset duplication.** A pull request that removes three copies and adds one new copy still gets the finding for the new copy.
+- **Scope.** Report only duplication that the diff adds or extends. Duplication that already existed between two untouched places is not a finding.
+- **Severity** follows this section above. The check adds no severity level.
+- **Verify every claim about the other place.** A statement such as *"the other path already trims the e-mail"* cites the `file:line` that does it.
+
 ## Variable Ordering & Lazy Evaluation
 - For every variable introduced or modified by the diff, check **when** its value is computed versus **where** it is first used. Flag any variable whose initializer is an **expensive operation** — a DB query (Eloquent / query-builder / `DB::`), an HTTP / external-service call, materialization of a collection (`->get()`, `->all()`, `iterator_to_array`, `->toArray()` on a large set), file / filesystem I/O, or a heavy in-memory computation (sort / map over a large set, hashing, serialization, regex over large input) — when that value is computed **before** a control-flow branch on a path where it is never used: an early `return` / `throw` / `continue` / `break`, a guard `if` that exits, or an exception path that precedes the first use.
 - The rule is just-in-time evaluation: an expensive value must be computed as close as possible to its first use, **after** every guard that could skip it, so no path wastes the computation. Moving the assignment below the guard (or wrapping it so the guard short-circuits first) is the fix.
@@ -492,7 +516,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
-4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
+4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` and `## Reuse (DRY)` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
 5. `## Interactive testing` and `## MySQL report`, each rendered only when the caller passed the `raphael` or the `casey` report (`agents/krang.md` *Parallel CR round*).
 
 **Merge verdict — the direct answer to "can we merge, and is the assignment met with no Critical finding?".** Every review comment carries it in the header, converged or not. The verdict is `yes` only when all of these hold:
@@ -507,9 +531,9 @@ Otherwise the verdict is `no`, and the line names every blocker in one short cla
 **Input consistency and reuse — two questions every review answers.** Every review comment carries two more header lines, converged or not, and on every tier:
 
 1. `Input consistency:` answers "is the data stored consistently whatever input in the application writes it?". The answer is `yes`, `no`, or `not applicable — the diff writes no persisted data`. It comes from the write-path walk of `@rules/code-review/core-analysis.md` *Input consistency*. A `no` names each bypassing entry point.
-2. `Reuse (DRY):` answers "can existing code in the codebase be used instead of repeating it?". The answer is `no duplication found`, or names each existing implementation the diff should reuse with its `file:line`. It comes from *Reuse Existing Logic* above.
+2. `Reuse (DRY):` answers "can existing code in the codebase be used instead of repeating it?". The answer is `no duplication found`, only when the comment renders the `## Reuse (DRY)` evidence, or names each existing implementation the diff should reuse with its `file:line`. Without the evidence the line reads `not verified — no DRY evidence`, and the point goes on the `Not verified:` line. It comes from *Reuse Existing Logic* above.
 
-A `no` on either line is backed by a Critical finding in `## Findings`, so it also makes the merge verdict `no`. The lines add no new severity. The comment renders `## Input consistency` with the walked entry points on every run whose diff writes persisted data, on a converged run too.
+A `no` on either line is backed by a Critical finding in `## Findings`, so it also makes the merge verdict `no`. The lines add no new severity. The comment renders `## Input consistency` with the walked entry points on every run whose diff writes persisted data, on a converged run too. It renders `## Reuse (DRY)` with the evidence of *DRY check — every new rule is searched for in the whole codebase* on every run whose diff adds or changes logic, on a converged run too.
 
 **Security assessment — four questions every code change answers.** Every review comment carries a `Security assessment:` header line, converged or not, and on every tier. It holds four answers in this order, separated by ` · `:
 
@@ -529,7 +553,7 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production, that point goes on the `Not verified:` line with the step that settles it.
 4. **The line is informational.** It never blocks, adds no finding and no severity, and never replaces the `Merge verdict:` line or the merge gate of `@skills/merge-github-pr/SKILL.md`. No label carries the grade.
 
-**It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation, no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
+**It never carries a systematic report.** No section-by-section account of the walks that ran, no `## Technical Review` heading over an empty body, no per-check confirmation — the evidence sections `## Input consistency` and `## Reuse (DRY)` are the one exception, because a verdict without them counts as a check that did not run — no restatement of a finding the loop already fixed. A converged review has nothing outstanding, so the comment states what changed and stops. `## Findings` renders only when a finding is actually outstanding — which on a converged run is never.
 
 **A run that has not converged publishes nothing to the pull request.** Its findings go back into the loop as fixes (`@skills/process-code-review/SKILL.md` *Review loop*). The one exception is a **standalone** review a person invoked directly, outside that loop: there the findings *are* the deliverable, so the run publishes the findings report of *Two-Part CR Output* above, still as one comment.
 
