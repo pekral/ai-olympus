@@ -25,6 +25,17 @@ extend those steps in the dispatch prompt');
     expect($splinter)->toContain('It changes nothing in the pull request: no fix and no test.');
     expect($leonardo)->toContain('confirm that local `HEAD` equals the pull request\'s head SHA');
     expect($leonardo)->toContain('Tell the wrapper to update the comments an earlier run left, never to pass `--create`.');
+    expect($leonardo)->toContain('When the dispatch carries `tracker-report: deferred`, pass it to `process-code-review`');
+    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+        ->toContain('When the caller passed `tracker-report: deferred`, pass it to the wrapper too');
+    expect((string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md'))
+        ->toContain('With `tracker-report: deferred`, skip this section and the linked-GitHub-issue mirror below');
+    expect($splinter)->toContain(
+        'When the brief\'s `## Source` carries a GitHub issue URL, a GitHub PR URL, or a JIRA key, state `tracker-report: deferred`.',
+    );
+    expect($splinter)->toContain('rewritten in the brief\'s `## Language` and in the target tracker\'s format');
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh'))
+        ->toContain('No packaged workflow');
     expect($leonardo)->toContain('never a separate security comment, and never `SECURITY_OWNER` on the wrapper');
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');

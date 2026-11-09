@@ -28,9 +28,8 @@
 # Inputs:
 #   --create    Optional. Always create a new comment in the given namespace and
 #               never update an existing one. The before-create snapshot still
-#               runs, because the new comment ID is resolved against it. A
-#               review-only run (`/report-code-review`) passes it, so every
-#               invocation leaves its own comment. The marker namespace stays
+#               runs, because the new comment ID is resolved against it. No
+#               packaged workflow passes it; it stays for project skills. The marker namespace stays
 #               unchanged, so a later run without the flag updates the newest
 #               comment as usual.
 #   KEY|URL     Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL,
