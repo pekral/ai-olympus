@@ -68,7 +68,7 @@ A pull request is a **Draft** for as long as it is **not yet ready to merge and 
 
 ### Waiting for CI — read the checks every 3 minutes
 
-A check that is still running is waited for, never reported as a blocker. When the run's next step depends on CI — a merge, or a fix of a failing check — and a check of the pull request is still pending, the run waits for the result itself.
+A check that is still running is waited for, never reported as a blocker. When the run's next step depends on CI — a merge, a fix of a failing check, or an implementer's handoff after a push on a public repository (`@skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*) — and a check of the pull request is still pending, the run waits for the result itself.
 
 - **Read the checks every 3 minutes until none is pending.** Run the wait as a background loop, never as a foreground sleep: `gh pr checks <PR-URL> --json name,bucket`, then `sleep 180`. While a check is still pending, read again after the next interval; there is no time limit. The loop ends when no entry has `bucket == "pending"`. This read-only call is the one exception to loading the pull request through `skills/code-review-github/scripts/load-issue.sh`.
 - **Three failed reads in a row end the wait.** A single failed read is retried after the next interval. `gh pr checks` exits non-zero only on an error — for example when no check is reported on the branch, the login expired, or the pull request is gone — so after the third failure load the pull request again and run every check of the next step again.
