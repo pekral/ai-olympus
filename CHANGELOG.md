@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🔄 **Changed**: every code review pulls the default branch before it checks out the branch under review. The *Branch checkout gate* runs `git fetch`, `git checkout "$DEFAULT_BRANCH"`, and `git pull` first, then checks out and pulls the reviewed branch. The read-only exemption in *Pull Policy* states the same order (`skills/code-review/SKILL.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `agents/leonardo.md`, `rules/git/general.md`).
+
 ## [0.3] - 2026-11-09
 
 - 🧹 **Fixed**: review tooling leftovers. Two reviews that run at the same time no longer overwrite each other's comment body: `cr-wrapper-contract.md` creates the body file with `mktemp` instead of a fixed name. The `Merge risk:` grade in a review passes the assignment text through `classify-risk.sh --assignment`, so it no longer always reports `unclear-acceptance-criteria`. The linear-time self-test of `check-cr-header.sh` fails only when all three timing attempts exceed the limit, so a burst of load during a parallel build no longer fails it. The obsolete plans in `docs/plans/` are removed together with the `SECURITY.md` link to one of them, and `skills/code-review/SKILL.md` is back under the 5000-token body limit.

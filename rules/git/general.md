@@ -42,7 +42,7 @@ description: Unified Git workflow, commits and pull request rules
 - Do **not** run `git pull` again after step 3 — pulling after the rebase replays your commits back onto the branch's old remote tip and discards the sync. The branch's own remote was already taken in step 2; the only remaining publish step is the force-push below.
 - If the rebase changed `composer.lock` (the default branch updated dependencies), run `composer install` immediately afterwards so the installed packages match the new lockfile. Resolve a `composer.lock` conflict before installing.
 - Publishing the rebased branch to its remote uses `git push --force-with-lease` (never plain `--force`, and only when you are the sole contributor — see `@skills/git-workflow/SKILL.md`).
-- **Read-only review skills are exempt.** A read-only skill switches to the branch and runs `git pull` only to read the diff; it must never rebase, `composer install`, or otherwise rewrite the branch or working tree.
+- **Read-only review skills are exempt.** A read-only skill pulls the default branch first, then switches to the branch and runs `git pull` only to read the diff; it must never rebase, `composer install`, or otherwise rewrite the branch or working tree.
 
 ## Commit Messages
 - Language: commit messages and PR titles are in English, whatever the assignment language, unless the project manifest sets `language.github` (`@rules/general/general.md` *Project manifest*); then they use that language. The PR description follows `@rules/git/pull-requests.md` *Pull Requests*.
