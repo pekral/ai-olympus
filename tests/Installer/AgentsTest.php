@@ -133,40 +133,30 @@ test('donatello grants the two tracker phase writes its consent-table rows assig
     expect($boundary)->toContain('assigning the JIRA issue to the current `acli` user during that phase-1 claim');
 });
 
-test('leonardo grants the phase-3 ready-to-merge write its consent-table row assigns it (issue #194)', function (): void {
+test('leonardo labels the converged pull request and never writes a tracker status after the review starts', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $boundary = installerDocsSection($leonardo, '## Bash boundary');
 
-    // The consent table assigns leonardo the phase-3 write, and its GitHub mechanics are raw `gh`
-    // writes — so leonardo's own Bash boundary must name them, or the obligation contradicts the
-    // permission (the exact shape issue #194 forbids).
-    expect($orchestration)->toContain('| `leonardo` | Write the ready-to-merge phase signal on the source issue when the review converges');
+    expect($orchestration)->toContain('| `leonardo` | Add the `ready to merge` label to the pull request when the review converges');
+    expect($orchestration)->toContain('It never writes a status on the source tracker item');
 
     expect($boundary)->toContain('gh label create "ready to merge"');
-    expect($boundary)->toContain('gh issue edit --add-label "ready to merge"');
-    expect($boundary)->toContain('gh issue edit --remove-label "ready to merge"');
     expect($boundary)->toContain('gh pr edit --add-label "ready to merge"');
     expect($boundary)->toContain('gh pr edit --remove-label "ready to merge"');
-    // The revert direction returns the PR to Draft and reuses the existing review transition.
     expect($boundary)->toContain('gh pr ready --undo');
-    expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-ready-to-merge.sh');
-    expect($boundary)->toContain('skills/code-review-jira/scripts/transition-to-code-review.sh');
+    expect($boundary)->toContain('never a status or label write on the source issue and never a JIRA transition');
+    expect($boundary)->not->toContain('gh issue edit --add-label "ready to merge"');
+    expect($boundary)->not->toContain('transition-to-ready-to-merge.sh');
 
-    // Named as an exception to the wrapper rule, mirroring how donatello names its own surface.
     expect($boundary)->toContain('sanctioned exception to *never a raw `gh` write outside the canonical wrappers this package ships*');
     expect($boundary)->toContain('every other raw `gh` write stays forbidden');
+    expect($boundary)->toContain('and writing or withdrawing the `ready to merge` label on the pull request');
 
-    // The phase-3 write is externally visible, so it also owes its own audit line.
-    expect($boundary)->toContain('writing or withdrawing the ready-to-merge phase signal on the source issue');
-    expect($boundary)->toContain('and the `ready to merge` label on the pull request (see step 12');
-    expect($boundary)->toContain('re-reading the issue or the pull request through the deterministic loader');
-
-    // Step 12 owes the same audit line, and the non-converged note counts all three skipped writes.
     $stepTwelve = mb_substr($leonardo, (int) mb_strpos($leonardo, '12. **Append your own audit-trail lines.**'));
     expect($stepTwelve)->toContain('together with the `ready to merge` label added to the pull request');
-    expect($stepTwelve)->toContain('naming the three skipped writes');
+    expect($stepTwelve)->toContain('naming the two skipped writes');
 });
 
 test('leonardo grants the round-3 sub-issue write its step-10 obligation assigns it (issue #194)', function (): void {
@@ -2844,7 +2834,7 @@ test('splinter labels the pull request ready to merge when it closes a FAST run 
     expect($splinter)->toContain('3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"`');
     expect($splinter)->toContain('those commands are this agent\'s sanctioned `gh` writes outside the three backlog skills');
     expect($rule)->toContain('owns that promotion and the `ready to merge` label on the pull request');
-    expect($splinter)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready`, the `ready to merge` label on the pull request');
+    expect($splinter)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready` and the `ready to merge` label on the pull request)');
     expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('| `splinter` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
 });

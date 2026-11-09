@@ -1245,7 +1245,7 @@ test('the Bash capability boundary names the .env.example read exception the ski
     );
 });
 
-test('compound-engineering rule states the three-phase tracker status invariant', function (): void {
+test('compound-engineering rule states the two-phase tracker status invariant and the post-review boundary', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
 
@@ -1264,10 +1264,11 @@ test('compound-engineering rule states the three-phase tracker status invariant'
     expect($claimPos)->toBeLessThan($phasePos);
     expect($phasePos)->toBeLessThan($deferredPos);
 
-    // All three phases, all mandatory.
+    // Two phases, then no status write once the review has started.
     expect($rule)->toContain('**Phase 1 — in progress.**');
     expect($rule)->toContain('**Phase 2 — waiting for code review.**');
-    expect($rule)->toContain('**Phase 3 — ready to merge.**');
+    expect($rule)->toContain('**No status write once the code review has started.**');
+    expect($rule)->not->toContain('**Phase 3 — ready to merge.**');
     expect($rule)->toContain('**Every phase write is unconditional.**');
     expect($rule)->toContain('**Every phase write is verified.**');
     expect($rule)->toContain('**Every phase write is idempotent.**');
@@ -1277,8 +1278,7 @@ test('compound-engineering rule states the three-phase tracker status invariant'
     // touched, so it would pass without the new section existing at all.
     expect($rule)->toContain(
         'The per-tracker mechanics — the label names, the helper scripts, and the create-if-missing step — '
-        . 'live in `@skills/resolve-issue/SKILL.md` for phases 1 and 2, and in `@skills/process-code-review/SKILL.md` '
-        . 'for phase 3. This section owns the principle; those skills own the execution.',
+        . 'live in `@skills/resolve-issue/SKILL.md` for phases 1 and 2. This section owns the principle; those skills own the execution.',
     );
 });
 
@@ -1296,59 +1296,36 @@ test('the tracker status invariant documents the Bugsnag limitation instead of o
     // The substitute signal is named, so the exception is not a dead end.
     expect($rule)->toContain('The substitute signal is the comment the run posts on the error');
 
-    // The PR opt-out is the second named exception; phases 2 and 3 have nothing to signal without a PR.
-    expect($rule)->toContain('**No pull request, no phase 2 and no phase 3.**');
+    // The PR opt-out is the second named exception; phase 2 has nothing to signal without a PR.
+    expect($rule)->toContain('**No pull request, no phase 2.**');
 
     // The invariant lifts no gate: a resolution write stays human-only.
     expect($rule)->toContain('**A phase write is never a resolution write.**');
 });
 
-test('the ready-to-merge phase names its owner, its revert, and the no-source-issue no-op', function (): void {
+test('no agent writes a tracker status once the code review has started, on JIRA least of all', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-
-    // Phase 3 fires at convergence, before the merge, on both surfaces.
-    expect($rule)->toContain('**Phase 3 — ready to merge.**');
-    expect($rule)->toContain('the pull request leaves Draft and gains the `ready to merge` label');
-    expect($rule)->toContain('removes the `ready to merge` label from the pull request');
-    expect($rule)->toContain('the moment the code review converges, and before the merge itself');
-    // Exactly one convergence definition exists in the package, and phase 3 cites it rather than
-    // restating an older one beside it.
-    expect($rule)->toContain('**Convergence has exactly one definition in this package, and it is not restated here:**');
-
-    // Its owner differs from phases 1 and 2: the implementing agent never observes convergence.
-    expect($rule)->toContain('**Phase 3 has a different owner than phases 1 and 2.**');
-    expect($rule)->toContain('`@skills/process-code-review/SKILL.md`, run by the reviewing agent');
-
-    // A reopened review withdraws the signal, symmetrically with how it was written.
-    expect($rule)->toContain('**A reopened review reverts phase 3.**');
-    expect($rule)->toContain('A fix commit carrying only verbatim tool-generated output re-opens nothing');
-    expect($rule)->toContain('the detector reports the staleness, the review runs again');
-
-    // A described task carries no tracker item, so the issue-side half is an explicit no-op.
-    expect($rule)->toContain('**No source tracker item, no issue-side phase-3 write.**');
-    expect($rule)->toContain('an explicit no-op — nothing is missing, and nothing is reported as a failure');
-
-    // Ready to merge is not a resolution: it never merges and never closes.
-    expect($rule)->toContain('Phase 3 says the work is *ready* to merge; it never merges, and it never closes anything.');
-
-    // The phase-3 write is externally visible, so it carries its own row in the consent inventory,
-    // attributed to the reviewing agent rather than the implementer.
-    expect($orchestration)->toContain('| `leonardo` | Write the ready-to-merge phase signal on the source issue when the review converges');
-    expect($orchestration)->toContain('mechanics in `@skills/process-code-review/SKILL.md`');
-    // JIRA now sanctions three transitions, so the L3 default and the L1 row both say three.
-    expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
-    expect($orchestration)->toContain('the three sanctioned helper scripts, `@rules/jira/general.md`');
-
-    // The JIRA rule states the trigger for the same phase-3 write, so it cites the one definition
-    // instead of restating the withdrawn one beside it.
     $jira = (string) file_get_contents($packageDir . '/rules/jira/general.md');
+
+    expect($rule)->toContain('**No status write once the code review has started.** The last status an agent writes is phase 2.');
+    expect($rule)->toContain('no agent changes the status of the tracker item, on JIRA least of all');
+    expect($rule)->toContain('The pull request itself still leaves Draft and gains the `ready to merge` label on convergence');
+    expect($rule)->not->toContain('**Resumed work may write phase 1 again.**');
+    expect($rule)->not->toContain('**A reopened review reverts phase 3.**');
+
+    expect($orchestration)->toContain('| `leonardo` | Add the `ready to merge` label to the pull request when the review converges');
+    expect($orchestration)->toContain('every JIRA status transition outside the two sanctioned helper-driven ones');
+    expect($orchestration)->toContain('the two sanctioned helper scripts, `@rules/jira/general.md`');
+
+    expect($jira)->toContain('- Never change JIRA issue status, with two exceptions:');
+    expect($jira)->toContain('**No status change once the code review has started.**');
+    expect($jira)->not->toContain('transition-to-ready-to-merge.sh');
     expect($jira)->toContain('acli jira workitem assign --key <KEY> --assignee "@me" --yes');
     expect($jira)->toContain('assignee = currentUser()');
     expect($jira)->toContain('blocks implementation');
-    expect($jira)->not->toContain('zero Critical and zero Moderate');
-    expect($jira)->toContain('`@skills/process-code-review/SKILL.md` *Review loop* step 4');
+    expect(is_file($packageDir . '/skills/code-review-jira/scripts/transition-to-ready-to-merge.sh'))->toBeFalse();
 });
 
 test('compound-engineering rule requires every agent-opened PR to link back to its tracker item', function (): void {

@@ -234,7 +234,7 @@ test('the JIRA In Progress claim stops when current-user assignment cannot be ve
     }
 });
 
-test('a JIRA issue in review owned by the authenticated user returns to In Progress', function (): void {
+test('a JIRA issue in review owned by the authenticated user keeps its status', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $fixture = createJiraClaimFixture();
     file_put_contents($fixture['state'], 'Code Review');
@@ -255,9 +255,8 @@ test('a JIRA issue in review owned by the authenticated user returns to In Progr
         $process->run();
 
         expect($process->getExitCode())->toBe(0)
-            ->and(file_get_contents($fixture['state']))->toBe('Rozpracováno')
-            ->and(file_get_contents($fixture['assigned']))->toBe('@me')
-            ->and($process->getErrorOutput())->toContain('from=Code Review');
+            ->and(file_get_contents($fixture['state']))->toBe('Code Review')
+            ->and($process->getErrorOutput())->toContain('action=unchanged status=Code Review');
     } finally {
         removeJiraClaimFixture($fixture);
     }

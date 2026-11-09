@@ -204,8 +204,8 @@ The PR is merge-ready only when all of these hold at the same head:
 - required CI checks are green or explicitly absent;
 - the PR is non-Draft, mergeable, and neither `BEHIND` nor `DIRTY`.
 
-Promote the PR out of Draft and write the repository's ready-to-merge signal only through
-`@skills/process-code-review/SKILL.md`. Stop here with `Blocked` when any item fails. Never weaken a
+Promote the PR out of Draft and label it `ready to merge` only through
+`@skills/process-code-review/SKILL.md`. Never change the status of the source tracker item. Stop here with `Blocked` when any item fails. Never weaken a
 gate to manufacture a ready verdict.
 
 ### 4. Publish one TL;DR, then remove superseded comments

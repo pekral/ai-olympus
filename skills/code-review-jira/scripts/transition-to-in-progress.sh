@@ -3,15 +3,14 @@
 # user and move it to the project's In Progress status before work starts.
 #
 # Status transitions are otherwise human-only (rules/jira/general.md). This
-# script is one of three sanctioned exceptions: it can ONLY land an issue in an
+# script is one of two sanctioned exceptions: it can ONLY land an issue in an
 # In Progress (start-of-work) status. It structurally refuses any other target
 # (Done, Closed, Review, …) so an AI agent cannot use it to push work through
-# the board in unintended directions. It also returns an issue from a review
-# status to In Progress when the owner resumes work on the code (a code-review
-# fix round, a conflict resolution on the open pull request). Ready to Merge
-# already means an approved review sits behind the issue, so it is never
-# returned from there, whoever owns it — reverting Ready to Merge goes through
-# transition-to-code-review.sh instead.
+# the board in unintended directions. An issue already in a review status is
+# never moved: once the code review has started, no agent changes the status
+# (rules/jira/general.md). The owner's issue is left in review and the helper
+# succeeds; another run's issue aborts. Ready to Merge is set by a human and is
+# never returned, whoever owns it.
 #
 # Usage:
 #   transition-to-in-progress.sh <KEY|URL> [<STATUS>]
@@ -46,9 +45,9 @@
 #      ready-to-merge status (contains "merge", or matches
 #      $JIRA_READY_TO_MERGE_SYNONYMS), exit 4 unconditionally — never returned,
 #      whoever owns it. If already in a review status (contains "review", or
-#      matches $JIRA_CODE_REVIEW_SYNONYMS), continue only when currentUser()
-#      owns the issue — the owner is resuming work on it; otherwise exit 4
-#      instead of taking back another run's issue.
+#      matches $JIRA_CODE_REVIEW_SYNONYMS), leave the status unchanged and exit
+#      0 when currentUser() owns the issue; otherwise exit 4 instead of taking
+#      back another run's issue.
 #   5. Run `acli jira workitem transition --key <KEY> --status <target> --yes`.
 #   6. Run `acli jira workitem assign --key <KEY> --assignee "@me" --yes` and
 #      verify it with JQL `key = <KEY> AND assignee = currentUser()`.
@@ -178,8 +177,7 @@ current_user_owns_issue() {
 
 # $1 = a lower-cased status, $2 = a comma-separated synonym list. Matches the
 # same trim/lowercase handling as the progress-name guard above and the
-# review-name / merge-name guards in transition-to-code-review.sh and
-# transition-to-ready-to-merge.sh.
+# review-name guard in transition-to-code-review.sh.
 status_in_list() {
   local status="$1" list="$2" entry entry_trimmed
 
@@ -229,8 +227,7 @@ if [[ -n "$CURRENT_STATUS" && "$(printf '%s' "$CURRENT_STATUS" | tr '[:upper:]' 
 fi
 
 # Past-In-Progress guard: a finished issue is never re-opened, a ready-to-merge
-# issue is never returned by anyone, and an issue in review returns to In
-# Progress only for the user who owns it. The finished check runs first so a
+# issue is never returned by anyone, and an issue in review keeps its status. The finished check runs first so a
 # resolution status such as "Merged" is never misread as the ready-to-merge
 # column below.
 current_lower="$(printf '%s' "${CURRENT_STATUS:-}" | tr '[:upper:]' '[:lower:]')"
@@ -250,16 +247,16 @@ fi
 # Ready-to-merge guard: Ready to Merge already means an approved code review
 # sits behind the issue and it is ready to merge into the main branch, so it
 # is refused unconditionally here — like the finished check, before any
-# ownership lookup, transition, or assignment. Reverting it goes through
-# transition-to-code-review.sh (exception (2), run again), not this helper.
+# ownership lookup, transition, or assignment.
 if [[ "$current_lower" == *merge* ]] || status_in_list "$current_lower" "${JIRA_READY_TO_MERGE_SYNONYMS:-}"; then
-  echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' (Ready to Merge) — never returned to In Progress; use transition-to-code-review.sh to revert it instead." >&2
+  echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' (Ready to Merge) — never returned to In Progress; a human owns this status." >&2
   exit 4
 fi
 
 # Review-phase guard: the same synonym-aware detection transition-to-code-review.sh
 # uses for its own target, so a board whose review column carries no "review"
-# substring is still recognised here. Only the issue's owner may return it.
+# substring is still recognised here. No agent changes the status once the
+# code review has started: the owner's issue stays in review.
 if [[ "$current_lower" == *review* ]] || status_in_list "$current_lower" "${JIRA_CODE_REVIEW_SYNONYMS:-}"; then
   if current_user_owns_issue; then
     ownership_status=0
@@ -276,6 +273,10 @@ if [[ "$current_lower" == *review* ]] || status_in_list "$current_lower" "${JIRA
     echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' and is not assigned to currentUser() — another run owns the review; abort." >&2
     exit 4
   fi
+
+  echo "https://${SITE:-}/browse/${KEY}"
+  echo "action=unchanged status=${CURRENT_STATUS} (no status change once the code review has started)" >&2
+  exit 0
 fi
 
 # acli transitions by target status name. Capture stderr so a "status not

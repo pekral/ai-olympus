@@ -109,7 +109,7 @@ Keep an append-only ledger beside the brief at `.claude/run/<source-slug>.dispat
 `@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* owns the principle, the minimal record shape, and who reads it — this subsection is the mechanics you (the orchestrator) own, mirroring the dispatch ledger above:
 
 - **Create it empty** at `.claude/run/<source-slug>.audit` during the gather phase, alongside the brief and the dispatch ledger — but only after step 2's same-slug probe has cleared the path (*Atomic, PID-first brief creation* → *The two ledgers follow the brief's verdict*). Creating it empty over a live peer's file truncates the trail that peer has already accumulated, and an audit trail that a concurrent run can silently reset is not an audit trail.
-- **You append your own lines** (your gather-phase memory read, your `gh` reads, every label or issue a backlog run writes, and each write of *Closing a `FAST` run* step 3: `gh pr ready`, the `ready to merge` label on the pull request, and the phase signal on the source issue) under the same per-brief append-lock discipline the dispatch ledger and the brief use, keyed to this file. The shape is the **rule's**, not the dispatch ledger's above — restated inline here so the nearest visible template is the right one:
+- **You append your own lines** (your gather-phase memory read, your `gh` reads, every label or issue a backlog run writes, and each write of *Closing a `FAST` run* step 3: `gh pr ready` and the `ready to merge` label on the pull request) under the same per-brief append-lock discipline the dispatch ledger and the brief use, keyed to this file. The shape is the **rule's**, not the dispatch ledger's above — restated inline here so the nearest visible template is the right one:
 
   ```text
   splinter|<ISO-8601>|memory-read|docs/memory/PROJECT_MEMORY.md (full, gather phase)|<entries reused, or "none matched">
@@ -175,13 +175,13 @@ Brief layout:
 
 ### Closing a `FAST` run
 
-A `FAST` run dispatches no `leonardo`, so nothing in it runs `@skills/process-code-review/SKILL.md` — and that skill is what normally promotes the pull request out of Draft and writes the ready-to-merge phase signal on the tracker (`@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*, phase 3). Left unhandled, every `FAST` run would end with a Draft PR nobody can merge, which is the saving turning into a stall.
+A `FAST` run dispatches no `leonardo`, so nothing in it runs `@skills/process-code-review/SKILL.md` — and that skill is what normally promotes the pull request out of Draft and labels it `ready to merge`. Left unhandled, every `FAST` run would end with a Draft PR nobody can merge, which is the saving turning into a stall.
 
 You close it instead, and only in this exact shape:
 
 1. The post-implementation classification must still read `tier=FAST` on the final diff. A tier that rose is not a `FAST` run any more — dispatch `leonardo` and let the loop close it as usual.
 2. `donatello`'s scoped validation must have returned `Tests done (scoped)` with every acceptance criterion satisfied. A `Blocked` scoped pass stops the run exactly as on any other tier.
-3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"` (create the label first when the repository lacks it, per `@skills/process-code-review/references/ready-to-merge-signal.md` *Pull-request label*), and write the ready-to-merge phase signal on the source tracker item.
+3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"` (create the label first when the repository lacks it, per `@skills/process-code-review/references/ready-to-merge-signal.md` *Pull-request label*). Write no status on the source tracker item (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*).
 4. Record `stage|skipped|leonardo|tier FAST — <the classifier's score and signals>` in the routing ledger, so the skipped review is visible in the record rather than inferred from its absence.
 
 The pull request still carries no code-review comment, which is why `@skills/merge-github-pr/SKILL.md` has its own, independently verified `FAST`-tier exemption: it re-runs the classifier over the PR's own changed files rather than trusting anything this run wrote. Your promotion is not evidence for that gate, and it was never meant to be.
