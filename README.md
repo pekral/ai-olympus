@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.webp" alt="AI Olympus — eight AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
+  <img src="assets/logo.webp" alt="AI Olympus — nine AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
 
 <h1>AI Olympus — An AI Development Team for Laravel</h1>
 
@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 65 reusable skills, and eight specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 65 reusable skills, and nine specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ In Codex, request the role by name:
 Use the krang agent to resolve https://github.com/owner/repo/issues/123
 ```
 
-`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `splinter` (security), `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory MySQL report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
 ## What You Get
 
@@ -89,7 +89,7 @@ Use Composer for the dual Claude Code/Codex installation and CLI. The plugin mar
 /plugin install ai-olympus@ai-olympus
 ```
 
-That loads all 65 skills, the eight agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
+That loads all 65 skills, the nine agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
 
 The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
 
@@ -98,8 +98,8 @@ The opt-in security switches stay bound to the Composer installer. A plugin inst
 The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project for **Claude Code and Codex**:
 
 - `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the eight subagents)
-- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the eight custom-agent adapters)
+- `.claude/agents` (the nine subagents)
+- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the nine custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
 - `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, and the tracker's code-review wrapper)
 - `AGENTS.md` in the project root
@@ -127,7 +127,7 @@ Skills = reusable workflows
 Agents = specialised orchestration roles over multiple skills
 ```
 
-The eight specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
+The nine specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
 
 <table>
 <tr>
@@ -136,9 +136,9 @@ The eight specialists keep their existing responsibilities and permissions under
 
 **Krang (`krang`) — engineering-workflow orchestrator** · the front door
 
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
+Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `splinter` for security analysis and security review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory MySQL report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
 
-**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `shredder`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
+**Orchestrates:** `donatello`, `leonardo`, `splinter`, `michelangelo`, `raphael`, `casey`, `shredder`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
 
 </td>
 </tr>
@@ -160,9 +160,21 @@ Implements an issue from context or a tracker link, authors its test coverage, r
 
 **Leonardo (`leonardo`) — the code-review sentinel** · read-only
 
-The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate.
+The roster's **only** CR agent. It runs the authoritative code review after `donatello` — code quality, architecture, and optimisation — drives it to convergence, and publishes a single pull-request comment carrying a TL;DR of what changed. That comment also carries the security findings of `splinter`. Labels each finding Critical / Moderate.
 
-**Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
+**Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`
+
+</td>
+</tr>
+<tr>
+<td width="96" valign="top"><a href="assets/agents/splinter.png"><img src="assets/agents/thumbnails/splinter.png" alt="Splinter avatar" width="80"></a></td>
+<td valign="top">
+
+**Splinter (`splinter`) — the security reviewer** · read-only
+
+The roster's **only** security agent, and the only one that runs the security skills. Two modes: an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`, and the security review of every code review round, beside `leonardo`. Applies every security rule, labels each finding Critical / Moderate, and publishes nothing itself: `leonardo` puts its findings into the one review comment. It never discloses an unfixed vulnerability on a public tracker.
+
+**Orchestrates:** `security-review`, `security-audit`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
 
 </td>
 </tr>
@@ -230,7 +242,7 @@ Runs only when the relevance gate decides that a task needs project knowledge. I
 
 ### Avatars and activity animations
 
-All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). The portraits share one mascot style, a character in a dark navy capsule; `krang` shows a placeholder until its portrait exists. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
+All nine agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). The portraits share one mascot style, a character in a dark navy capsule; `krang` shows a placeholder until its portrait exists. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
 
 Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
 
@@ -303,7 +315,7 @@ To review a task's pull request and report the result, use the review-only workf
 $code-review-jira https://your-company.atlassian.net/browse/PROJ-123
 ```
 
-The workflow writes no test. A missing test is a review finding that mentions the author of the changes, who writes it. `krang` first dispatches `raphael` once. It runs `interactive-testing` against the pull request head in its own browser. To do that it may prepare your local environment: install dependencies, run pending migrations, start processes, and create test accounts and records, which it removes afterwards. It repairs nothing. Then `krang` dispatches `leonardo` once with the `raphael` report, and the review carries it in a `## Interactive testing` section. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
+The workflow writes no test. A missing test is a review finding that mentions the author of the changes, who writes it. `krang` first dispatches `raphael` once. It runs `interactive-testing` against the pull request head in its own browser. To do that it may prepare your local environment: install dependencies, run pending migrations, start processes, and create test accounts and records, which it removes afterwards. It repairs nothing. Then `krang` dispatches `leonardo` once with the `raphael` report, and the review carries it in a `## Interactive testing` section. `splinter` reviews the security of the same head and decides each security candidate of that report, and the review carries its findings. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
 
 To test a task's pull request against its assignment and prove that nothing else broke, use the test workflow:
 
@@ -325,8 +337,8 @@ Every `krang` run classifies the task before it dispatches anything, using `skil
 | Tier | Who runs | Typical change |
 |------|----------|----------------|
 | `FAST` | implementer (default tier) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
-| `STANDARD` | `+ leonardo` (default tier) | ordinary application and business-logic work |
-| `CRITICAL` | `+ leonardo` analysis where relevant, both at the escalated tier | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
+| `STANDARD` | `+ leonardo ∥ splinter` (default tier) | ordinary application and business-logic work |
+| `CRITICAL` | `+ splinter` analysis where relevant, then `leonardo ∥ splinter`, both at the escalated tier | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
 
 - A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
 - `raphael` runs at **every** tier when the change alters behaviour a user can observe. It checks the UI in a real browser whenever the change reaches a page, and it creates a local test account when it cannot sign in otherwise.

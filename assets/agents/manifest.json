@@ -33,12 +33,21 @@
     {
       "id": "leonardo",
       "displayName": "Leonardo",
-      "role": "Code review & security",
+      "role": "Code review",
       "previousId": "athena",
       "accent": "#60a5fa",
-      "summary": "Reviews architecture, correctness and security before work ships.",
+      "summary": "Reviews architecture, correctness and quality before work ships.",
       "portrait": "leonardo.png",
       "thumbnail": "thumbnails/leonardo.png"
+    },
+    {
+      "id": "splinter",
+      "displayName": "Splinter",
+      "role": "Security review",
+      "accent": "#a3be8c",
+      "summary": "Watches every change for attacks and scopes security work before it is built.",
+      "portrait": "splinter.png",
+      "thumbnail": "thumbnails/splinter.png"
     },
     {
       "id": "raphael",
