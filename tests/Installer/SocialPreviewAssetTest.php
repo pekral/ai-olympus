@@ -11,25 +11,24 @@ declare(strict_types = 1);
  * These tests close that gap: the portrait labels are checked against the live roster, and the rendered
  * PNG is bound to the SVG it came from so a future edit cannot ship the vector without the raster.
  */
-test('the social preview names exactly the live agent roster (issue #193)', function (): void {
+test('the social preview shows each available portrait and includes every live agent (issue #193)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
     $globResult = glob($packageDir . '/agents/*.md');
     $agentFiles = $globResult !== false ? $globResult : [];
-    expect($agentFiles)->not->toBeEmpty();
-
     $liveRoster = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
+    $globResult = glob($packageDir . '/assets/agents/*.png');
+    $portraitFiles = $globResult !== false ? $globResult : [];
+    $portraits = array_map(static fn (string $path): string => basename($path, '.png'), $portraitFiles);
+    $svg = (string) file_get_contents($packageDir . '/assets/social-preview.svg');
 
-    // Derived from the roster, never pinned as a literal: an agent added to or removed from
-    // `agents/` must fail this test rather than leave the asset quietly stale, which is exactly
-    // how `argos` survived here for two releases after it was retired.
-    preg_match_all(
-        '/<text data-agent="[a-z-]+"[^>]*>([a-z-]+)<\/text>/',
-        (string) file_get_contents($packageDir . '/assets/social-preview.svg'),
-        $matches,
-    );
+    preg_match_all('/<text data-agent="[a-z-]+"[^>]*>([a-z-]+)<\/text>/', $svg, $labels);
+    preg_match_all('/<image [^>]*xlink:href="agents\/([a-z-]+)\.png"/', $svg, $images);
 
-    expect($matches[1])->toEqualCanonicalizing($liveRoster);
+    expect($liveRoster)->not->toBeEmpty()
+        ->and(array_diff($liveRoster, $portraits))->toBeEmpty()
+        ->and($labels[1])->toEqualCanonicalizing($portraits)
+        ->and($images[1])->toEqualCanonicalizing($portraits);
 });
 
 test('the rendered PNG is bound to the SVG it was rendered from (issue #193)', function (): void {
@@ -51,10 +50,10 @@ test('the rendered PNG is bound to the SVG it was rendered from (issue #193)', f
     $svg = (string) file_get_contents($packageDir . '/assets/social-preview.svg');
 
     expect(hash('sha256', str_replace("\r\n", "\n", $svg)))
-        ->toBe('82b6db8d80619adb341f1a90f0cf2ab5c507d795e28e4db00e6d60bbcc3bf885');
+        ->toBe('63a0c6ac9b83394a2d9671fffb7ff9f62351103c63a95a1d9c23e504428ec3f9');
 
     expect(hash_file('sha256', $packageDir . '/assets/social-preview.png'))
-        ->toBe('fd4be448f5c6c4eb831f4840ebd5208458a3a34d9acb6b260a1b48eedf1b5994');
+        ->toBe('f518af6eccaeda01087f985f3d5e7d00e2d815ec2b4ea2710e9ccd440a7016d9');
 
     // The dimensions GitHub renders a social preview at; a re-render at the wrong size would
     // otherwise pass the digest check the moment someone updated it without looking.
