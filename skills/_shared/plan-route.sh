@@ -230,18 +230,22 @@ plan() {
     stage_deterministic deterministic_validation pre_review
   fi
 
+  # The acceptance pass is not gated on the tier: a change a user can observe is
+  # checked in the running application at every level of risk. With a review it
+  # runs in the same parallel CR round as `leonardo` (`agents/splinter.md`
+  # *Parallel CR round*), so it directly follows the review stage. Without one
+  # (FAST) it runs alone after the validation. The re-entry plan above never
+  # adds it, because the lower tier's plan already carried it.
   if [[ "$tier" != "FAST" ]]; then
     stage_agent leonardo "$review_mode" "$model_tier"
+    [[ "$runtime" -eq 1 ]] && stage_agent raphael acceptance default
   fi
 
   # Every tier validates, FAST included: it is the tier's only gate, so it is
   # the one stage that is never conditional.
   stage_deterministic deterministic_validation scoped
 
-  # The acceptance pass is not gated on the tier: a change a user can observe is
-  # checked in the running application at every level of risk. The re-entry plan
-  # above never adds it, because the lower tier's plan already carried it.
-  if [[ "$runtime" -eq 1 ]]; then
+  if [[ "$tier" == "FAST" && "$runtime" -eq 1 ]]; then
     stage_agent raphael acceptance default
   fi
 
@@ -361,14 +365,14 @@ self_test() {
     "$IMPL -> $RECLASS -> leonardo:review:default -> $VALIDATE -> $REPORT" --tier STANDARD --security-analysis
 
   expect_sequence 'runtime acceptance adds raphael on CRITICAL' \
-    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> raphael:acceptance:default -> $REPORT" \
+    "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> raphael:acceptance:default -> $VALIDATE -> $REPORT" \
     --tier CRITICAL --runtime-acceptance
 
   # A user-visible change is checked in the UI at every tier, not only CRITICAL.
   expect_sequence 'runtime acceptance adds raphael on FAST' \
     "$IMPL -> $RECLASS -> $VALIDATE -> raphael:acceptance:default -> $REPORT" --tier FAST --runtime-acceptance
   expect_sequence 'runtime acceptance adds raphael on STANDARD' \
-    "$IMPL -> $RECLASS -> leonardo:review:default -> $VALIDATE -> raphael:acceptance:default -> $REPORT" --tier STANDARD --runtime-acceptance
+    "$IMPL -> $RECLASS -> leonardo:review:default -> raphael:acceptance:default -> $VALIDATE -> $REPORT" --tier STANDARD --runtime-acceptance
 
   expect_sequence '--thorough runs the full pipeline over a FAST verdict' \
     "donatello:implementation:escalated -> $RECLASS -> deterministic_validation:pre_review -> leonardo:review:escalated -> $VALIDATE -> $REPORT" \

@@ -614,7 +614,7 @@ test('splinter delegates the end-to-end run by dispatching donatello and leonard
 
     // True delegation: each step is dispatched as the matching specialist agent through the Task tool.
     expect($content)->toContain('Dispatch `donatello` through the Task tool');
-    expect($content)->toContain('Dispatch `leonardo` through the Task tool');
+    expect($content)->toContain('Otherwise: **run the *Parallel CR round*** on the opened PR');
     // The implementation step still routes through resolve-issue (owned by donatello), and the convergence gate is named.
     expect($content)->toContain('@skills/resolve-issue');
     expect($content)->toContain('0 Critical');
@@ -738,7 +738,7 @@ test('a skipped post-convergence scoped pass is recorded in the ledger and named
     expect($splinter)->toContain('never omitted, so a deliberate skip never reads as a step that silently did not run');
 
     // The two dependent steps stop asserting that the scoped handoff always came from a fresh pass.
-    expect($splinter)->toContain('or after you skipped it under the four conditions above — decide one question');
+    expect($splinter)->toContain('Decide one question before the round: **does this change alter behaviour a user can observe?**');
     expect($splinter)->toContain('or once you have skipped it under the four conditions in step 6');
 });
 
@@ -1263,7 +1263,7 @@ test('agents directory ships the raphael acceptance-tester subagent with require
 
     // splinter gates the dispatch on the same question, and names the skip in the route.
     $splinter = splinterContractText();
-    expect($splinter)->toContain('**Acceptance pass (`raphael`) — on demand, not every run.**');
+    expect($splinter)->toContain('**Interactive testing (`raphael`) runs inside the CR round.**');
     expect($splinter)->toContain('skip it and say so in the route');
 
     // `raphael` is not the retired `argos`: the docs must resolve a stale reference to leonardo.
@@ -1276,14 +1276,14 @@ test('parallel agents share their split output through the brief under an append
     $packageDir = dirname(__DIR__, 2);
     $splinter = splinterContractText();
 
-    // The mechanism survives as the standing contract for a future parallel step, explicitly dormant
-    // now that every dispatch is sequential (issue #179).
-    expect($splinter)->toContain('Parallel handoff sharing (dormant — the roster dispatches sequentially)');
+    // Every CR round dispatches leonardo, raphael, and casey at once, so the mechanism is active.
+    expect($splinter)->toContain('Parallel handoff sharing (active in every CR round)');
     // Concurrency-safe append: a per-brief append lock guards every `cat >>` so parallel writes never interleave.
     expect($splinter)->toContain('Concurrency-safe append');
     expect($splinter)->toContain('$BRIEF.lock');
-    // With one reviewer there is no peer output to consolidate, so no barrier is held today.
-    expect($splinter)->toContain('No barrier to hold.');
+    // The round holds a barrier until every handoff is in the brief, then one leonardo publishes.
+    expect($splinter)->toContain('Hold the barrier of a parallel round.');
+    expect($splinter)->toContain('## Parallel CR round — `leonardo`, `raphael`, and `casey` together');
 
     // The CR agent still takes the append lock unconditionally, so a future parallel step needs no retrofit.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
@@ -2059,10 +2059,9 @@ test('splinter dispatches every step blocking so a turn never ends mid-flight (i
     // all of them combined -- only more than the largest single pass (428 897).
     expect($content)->toContain('more than any individual reviewer pass (the largest was 429 k), though less than the four of them combined (1.36 M)');
     expect($content)->not->toContain('more than every reviewer pass combined');
-    // There is no longer a two-call barrier whose correctness could rest on harness scheduling --
-    // one blocking dispatch per CR round removed the question (issue #179).
+    // The CR round dispatches three blocking calls in one message, so the turn holds until all three return.
     expect($content)->not->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
-    expect($content)->toContain('Collapsing the former parallel pair into one agent removed the barrier entirely');
+    expect($content)->toContain('Step 6 dispatches `leonardo`, `raphael`, and `casey` in one message, each blocking');
 });
 
 test('splinter keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
@@ -2909,7 +2908,7 @@ test('a parallel unit never switches a branch in the shared tree', function (): 
     $worktree = '`.claude/worktrees/agent-impl-<source-slug>-donatello`';
 
     expect(splinterContractText())->toContain(
-        'For a parallel unit, every dispatch of this step (the fix rounds and *Finalization*) '
+        'For a parallel unit, every dispatch of this step (the rounds, the fixes, and the publish) '
         . 'names the unit\'s worktree path ' . $worktree . ' and runs there',
     );
     expect(splinterContractText())->toContain('a parallel unit still takes no write-lock');

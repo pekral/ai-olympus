@@ -29,13 +29,15 @@ test('the casey report is advisory and never gates convergence or the merge (iss
         ->and($casey)->toContain('upsert-comment.sh <PR-URL> - mysql-report');
 });
 
-test('splinter dispatches casey once after convergence, and never on PostgreSQL (issue #180)', function (): void {
+test('splinter dispatches casey in every parallel cr round, and casey stops on PostgreSQL (issue #180)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
-    expect($splinter)->toContain('- **MySQL report (`casey`) — advisory, once, after convergence.**')
-        ->and($splinter)->toContain('Dispatch it **once per effective PR diff fingerprint**')
-        ->and($splinter)->toContain('On PostgreSQL and on a diff with no database operations, do not dispatch it.');
+    expect($splinter)->toContain('- **MySQL report (`casey`) — advisory, in every round.**')
+        ->and($splinter)->toContain('stops `Not applicable` on PostgreSQL or on a diff with no database operations');
+    expect($casey)->toContain('On `pgsql`, stop with `Not applicable — PostgreSQL project`.')
+        ->and($casey)->toContain('**Step 5 publishes nothing.**');
 });
 
 test('no review runs mysql-problem-solver inline, and a caller that cannot dispatch casey says so (issue #180)', function (): void {
