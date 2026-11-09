@@ -4616,6 +4616,7 @@ test('the branch checkout gate pulls the default branch first and has one owner'
         'skills/code-review/SKILL.md',
         'skills/code-review-github/references/cr-wrapper-contract.md',
         'agents/raphael.md',
+        'agents/leonardo.md',
     ];
 
     expect($gate)->toContain('Set `HEAD_REF` from command output, never by writing the name into a command')

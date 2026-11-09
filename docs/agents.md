@@ -71,7 +71,7 @@ The one who watches the database, named after **Casey Jones**, the Turtles' ally
 
 - **Trigger:** dispatched by `splinter` in every parallel CR round (`agents/splinter.md` *Parallel CR round*). It resolves the engine itself and stops `Not applicable` on PostgreSQL or on a diff with no database operations; its report goes to the brief and into the one CR comment. A CR wrapper run directly by the user is followed by the same dispatch from the top-level session. A caller that cannot dispatch it writes `MySQL report not run — dispatch casey`.
 - **Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`) — the only place that skill runs during a code review. `leonardo` no longer runs it inline.
-- **Advisory, never a gate:** the report is its own PR comment in the `mysql-report` marker namespace. Its items never enter the review's counts, the convergence gate, or the merge gate, and it never re-opens the review loop.
+- **Advisory, never a gate:** in a parallel CR round the report goes to the brief and into the `## MySQL report` section of the CR comment; a standalone run publishes it as its own comment in the `mysql-report` namespace. Its items never enter the review's counts, the convergence gate, or the merge gate, and it never re-opens the review loop.
 - **Why `model: sonnet` at `high` effort.** The report reads one diff against one schema and must get the `EXPLAIN` reasoning right, so effort stays `high`; the scope is narrow enough for Sonnet, and `splinter` escalates to Opus when the run is escalated.
 
 ### `metalhead` — context retriever
