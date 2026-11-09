@@ -335,10 +335,13 @@ protected ID before deletion. A failed check stops the cleanup; never replace it
 `gh api --method DELETE` or `acli jira workitem comment delete` call.
 
 Finally reload both targets. Require exactly one current `merge-readiness` comment by the actor on
-the source issue (on JIRA: every remaining marker-carrying comment by the actor is a protected ID or
-a code-review report of an earlier run, and the pull request carries exactly one current `merge-readiness` comment by the actor), require every
+the source issue, require every
 manifested stale ID to be gone (HTTP 404 on GitHub, absent from the issue view on JIRA), and require both protected
-review-evidence IDs to remain readable. A partial or unverified cleanup returns `Blocked` with the
+review-evidence IDs to remain readable. **On a JIRA source** the pull request carries exactly one
+current `merge-readiness` comment by the actor, and the check of the JIRA issue reads instead:
+every manifested ID is gone, both protected IDs remain, and every other remaining marker-carrying comment by the actor is one the manifest kept on purpose
+(a code-review report, a `resolve-issue` or `tester-cookbook` report, a pull-request link-back, or an ambiguous comment).
+A comment the manifest kept never makes the cleanup `Blocked`. A partial or unverified cleanup returns `Blocked` with the
 remaining IDs; it never reports success optimistically.
 
 ## Output
