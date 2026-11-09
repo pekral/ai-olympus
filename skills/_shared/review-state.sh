@@ -94,10 +94,6 @@ fail() {
   exit "$1"
 }
 
-safe_display() {
-  printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-160
-}
-
 require_tools() {
   local tool
   for tool in git jq; do
@@ -340,7 +336,7 @@ check_writable() {
 # load_state <file> <out> — validate the state and copy it to <out>. Exit 3 on a missing or invalid state.
 load_state() {
   local file="$1" out="$2" problems
-  [[ -f "$file" && -r "$file" ]] || fail 3 "the review state is missing or unreadable; the loop is not converged: $(safe_display "$file")"
+  [[ -f "$file" && -r "$file" ]] || fail 3 "the review state is missing or unreadable; the loop is not converged: $(state_path_display "$file")"
   if ! jq -e -s 'length == 1' "$file" >/dev/null 2>&1; then
     fail 3 "the review state is not one JSON document; the loop is not converged"
   fi
@@ -353,7 +349,7 @@ load_state() {
   fi
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
-      echo "$PROG: invalid review state: $(safe_display "$line")" >&2
+      echo "$PROG: invalid review state: $(state_path_display "$line")" >&2
     done <<<"$problems"
     fail 3 "the review state is invalid; the loop is not converged"
   fi
@@ -375,7 +371,7 @@ read_paths() {
   if [[ "$input" == '-' ]]; then
     head -n "$MAX_CHANGED_FILES" >"$out.raw"
   else
-    [[ -f "$input" ]] || fail 3 "changed-files list not found: $(safe_display "$input")"
+    [[ -f "$input" ]] || fail 3 "changed-files list not found: $(state_path_display "$input")"
     head -n "$MAX_CHANGED_FILES" <"$input" >"$out.raw"
   fi
   jq -R -s -c 'split("\n") | map(gsub("[\\x00-\\x1f\\x7f]"; "") | sub("^(\\./)+"; "") | .[0:300]) | map(select(. != "" and . != ".")) | unique' "$out.raw" >"$out"
@@ -394,12 +390,12 @@ cmd_init() {
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --repo) [[ $# -ge 2 ]] || die_usage '--repo needs a value'; repo="$2"; shift 2 ;;
     --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
-  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die_usage "--repo must be owner/name, got: $(safe_display "$repo")"
-  [[ "$pr" =~ ^[1-9][0-9]{0,8}$ ]] || die_usage "--pr must be a positive integer, got: $(safe_display "$pr")"
+  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die_usage "--repo must be owner/name, got: $(state_path_display "$repo")"
+  [[ "$pr" =~ ^[1-9][0-9]{0,8}$ ]] || die_usage "--pr must be a positive integer, got: $(state_path_display "$pr")"
   check_writable "$state"
 
   local config cap threshold
@@ -433,7 +429,7 @@ cmd_record() {
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
     --changed-files) [[ $# -ge 2 ]] || die_usage '--changed-files needs a value'; changed="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
@@ -498,7 +494,7 @@ cmd_evaluate() {
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --final) final=true; shift ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
@@ -527,7 +523,7 @@ cmd_scope() {
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --changed-files) [[ $# -ge 2 ]] || die_usage '--changed-files needs a value'; changed="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
@@ -571,7 +567,7 @@ rejection_association() {
   "$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"
   rc=$?
   set -e
-  [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(safe_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
+  [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(state_path_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
   verdict="$(jq -r --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" '
     if type != "object" or .kind != "pr" or .number != $pr
        or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
@@ -587,7 +583,7 @@ rejection_association() {
     end' "$TMP/pr.json" 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   case "$verdict" in
   trusted:OWNER | trusted:MEMBER | trusted:COLLABORATOR) printf '%s\n' "${verdict#trusted:}" ;;
-  *) fail 4 "only a trusted author dismisses a finding: $(safe_display "${verdict#refused:}"); the status is unchanged" ;;
+  *) fail 4 "only a trusted author dismisses a finding: $(state_path_display "${verdict#refused:}"); the status is unchanged" ;;
   esac
 }
 
@@ -598,11 +594,11 @@ cmd_dismiss() {
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --finding) [[ $# -ge 2 ]] || die_usage '--finding needs a value'; id="$2"; shift 2 ;;
     --comment) [[ $# -ge 2 ]] || die_usage '--comment needs a value'; comment="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
-  [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(safe_display "$id")"
+  [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
   [[ "$comment" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$ ]] \
     || die_usage '--comment must be the URL of a comment on the pull request (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>)'
   check_writable "$state"
@@ -639,11 +635,11 @@ cmd_defer() {
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --finding) [[ $# -ge 2 ]] || die_usage '--finding needs a value'; id="$2"; shift 2 ;;
     --url) [[ $# -ge 2 ]] || die_usage '--url needs a value'; url="$2"; shift 2 ;;
-    *) die_usage "unknown argument: $(safe_display "$1")" ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
-  [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(safe_display "$id")"
+  [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
   [[ "$url" =~ ^https://[^[:space:]]+$ && ${#url} -le 500 ]] || die_usage '--url must be the https URL of the filed sub-issue'
   check_writable "$state"
   new_tmp
@@ -1136,5 +1132,5 @@ scope) cmd_scope "$@" ;;
 dismiss) cmd_dismiss "$@" ;;
 defer) cmd_defer "$@" ;;
 -h | --help) usage ;;
-*) die_usage "unknown command: $(safe_display "$command")" ;;
+*) die_usage "unknown command: $(state_path_display "$command")" ;;
 esac

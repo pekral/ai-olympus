@@ -12,6 +12,10 @@
 #   Without `create` the state directory must exist. With `create` the directory may be missing, because the caller
 #   is about to create it: the nearest existing directory above it is checked instead, and a path with a `..`
 #   component is refused, so a missing directory can never lead out of the run directory.
+#
+# state_path_display <value>
+#   Prints <value> with printable characters only, cut to 160. `review-state.sh` uses it for every value it shows
+#   in a message, so the sanitiser exists here once.
 
 state_path_display() {
   printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-160
