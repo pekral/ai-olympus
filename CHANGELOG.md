@@ -12,6 +12,12 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 - 🩹 **Fixed**: the `shredder` agent definition is valid YAML. The unquoted `description` held `context_required: true`, which a YAML parser rejects with "mapping values are not allowed in this context". The description is quoted and its text is unchanged. `casey` quotes its description for the same reason. (`agents/shredder.md`, `agents/casey.md`)
 
+- 🔒 **Changed**: the PostgreSQL part of the `casey` report runs `EXPLAIN ANALYZE` on a `SELECT` only, inside `BEGIN TRANSACTION READ ONLY; … ROLLBACK;`, and uses plain `EXPLAIN` for a `SELECT` that calls any non-aggregate function. The MySQL part follows the same rule through `mysql-problem-solver`. (`skills/code-review/references/specialized-reviews.md`, `agents/casey.md`)
+
+- 🗄️ **Changed**: the Redis dimensions are split. The cache lens keeps TTL, key, stampede, lock, limiter, and eviction behaviour. `casey` keeps Redis access cost (`KEYS`, an unbounded `SCAN`, a round trip per item with no pipeline, an unbounded read), and runs `redis-patterns` only when the cache lens patterns match nothing. (`skills/code-review/references/specialized-reviews.md`, `skills/redis-patterns/SKILL.md`, `agents/casey.md`)
+
+- 🖼️ **Fixed**: the roster assets name `casey`'s role `Database report`. `assets/social-preview.png` is re-rendered with `rsvg-convert -w 1280 -h 640`, and both digests in `tests/Installer/SocialPreviewAssetTest.php` are updated. (`assets/agents/manifest.json`, `assets/social-preview.svg`, `assets/social-preview.png`)
+
 ## [0.4] - 2026-11-09
 
 - ⏳ **Changed**: on a repository that is public on GitHub, no agent runs the local pre-push gate. The run reads the visibility once (`gh repo view --json isPrivate`), pushes, and the implementer waits for the CI result on the pushed head through the existing *Waiting for CI* procedure before it hands the branch on to the code review, a promotion out of Draft, or a merge. A red check is a finding to fix, a repository without CI falls back to the local pre-merge gate, and a failed visibility read falls back to the private-repository rules. The code review starts no wait of its own, and the pre-merge gate is unchanged (`skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*, `rules/git/pull-requests.md`, `rules/general/general.md`, `agents/donatello.md`, `CLAUDE.md`, `AGENTS.md`, `docs/installation.md`, `tests/Installer/PublicRepositoryWaitsForCiTest.php`).

@@ -531,6 +531,50 @@ test('every dispatched agent reads and appends to the shared task brief', functi
     }
 });
 
+test('every agent definition declares the model its role calls for', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $expected = [
+        'april' => 'haiku',
+        'casey' => 'sonnet',
+        'donatello' => 'sonnet',
+        'krang' => 'opus',
+        'leonardo' => 'opus',
+        'michelangelo' => 'opus',
+        'raphael' => 'sonnet',
+        'shredder' => 'opus',
+    ];
+    $actual = [];
+
+    foreach (glob($packageDir . '/agents/*.md') ?: [] as $agentFile) {
+        $matched = preg_match('/^model:\s*(\S+)$/m', (string) file_get_contents($agentFile), $matches) === 1;
+        $actual[basename($agentFile, '.md')] = $matched ? $matches[1] : null;
+    }
+
+    ksort($actual);
+
+    expect($actual)->toBe($expected);
+});
+
+test('every agent definition has frontmatter that parses as YAML', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $agentFiles = glob($packageDir . '/agents/*.md') ?: [];
+
+    expect($agentFiles)->not->toBeEmpty();
+
+    foreach ($agentFiles as $agentFile) {
+        $parts = explode("\n---\n", (string) file_get_contents($agentFile), 2);
+        $frontmatter = ltrim($parts[0], "-\n");
+
+        expect(preg_match('/^description: (.+)$/m', $frontmatter, $matches))->toBe(1, basename($agentFile));
+
+        $description = $matches[1];
+        $isQuoted = str_starts_with($description, '"') && str_ends_with($description, '"');
+
+        expect($isQuoted || (!str_contains($description, ': ') && !str_contains($description, ' #')))
+            ->toBeTrue(basename($agentFile) . ' has an unquoted description that a YAML parser rejects');
+    }
+});
+
 test('every agent definition declares a model in frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $globResult = glob($packageDir . '/agents/*.md');

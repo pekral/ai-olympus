@@ -73,9 +73,9 @@
     {
       "id": "casey",
       "displayName": "Casey Jones",
-      "role": "MySQL report",
+      "role": "Database report",
       "accent": "#8fbcbb",
-      "summary": "Reads a reviewed MySQL change and proposes optimizations for its critical problems.",
+      "summary": "Reads the database access of a reviewed change (MySQL, PostgreSQL query plans, NoSQL) and proposes optimizations for its critical problems.",
       "portrait": "casey.png",
       "thumbnail": "thumbnails/casey.png"
     },
