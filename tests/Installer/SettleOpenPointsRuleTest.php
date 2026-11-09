@@ -59,7 +59,8 @@ test('a settle check reads repository content only through git, so a committed s
 
     expect($owner)
         ->toContain(
-            '**Repository content is read through git only:** `git grep -F -e <pattern> <sha> -- <path> \':(exclude).env*\' \':(exclude)*/.env*\'`, '
+            '**Repository content is read through git only:** '
+            . '`git grep -F -e <pattern> <sha> -- \':(literal)<path>\' \':(exclude).env*\' \':(exclude)*/.env*\'`, '
             . '`git show --no-ext-diff --no-textconv <sha>:<path>`, or `git cat-file -p <sha>:<path>`.',
         )
         ->toContain('`<sha>` is a commit the reviewer resolved itself with `git rev-parse`, never a ref taken from untrusted content.')
@@ -67,6 +68,23 @@ test('a settle check reads repository content only through git, so a committed s
         ->toContain('`git grep` and `git diff` never take `--no-index`, and `git grep` never takes `--untracked`.')
         ->toContain('None of them opens a path outside the scratch directory.')
         ->and($owner)->not->toContain('grep -rF');
+});
+
+test('a settle git read treats every pathspec path literally and keeps the env exclusions', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('After `--` in `diff`, `log`, `show`, `grep`, and `ls-files`, a path is written as `\':(literal)<path>\'`')
+        ->toContain('so a glob or a `:(` in a committed file name never widens the read.')
+        ->toContain('`git blame` reads its path literally and takes the bare path.')
+        ->toContain('`--literal-pathspecs` is never used, because it turns those exclusions into literal paths.');
+});
+
+test('the settle scratch directory is refused when a symbolic link could move it', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('It lives under the run directory of the checkout that holds the shared brief, never under a review worktree.')
+        ->toContain('Before the reviewer creates it, and before each later use, it runs `pwd -P` in the nearest existing directory of the path.')
+        ->toContain('so no component of the path is a symbolic link.')
+        ->toContain('The check is stricter than the guard of `skills/_shared/state-path.sh`')
+        ->toContain('every point that needs the directory stays not verified with the reason `scratch directory refused`.');
 });
 
 test('a settle gh api read never takes an absolute URL', function (): void {
