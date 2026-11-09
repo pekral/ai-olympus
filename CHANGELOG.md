@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-## [0.3.2] - 2026-11-09
+## [0.4] - 2026-11-09
 
 - ⏳ **Changed**: on a repository that is public on GitHub, no agent runs the local pre-push gate. The run reads the visibility once (`gh repo view --json isPrivate`), pushes, and the implementer waits for the CI result on the pushed head through the existing *Waiting for CI* procedure before it hands the branch on to the code review, a promotion out of Draft, or a merge. A red check is a finding to fix, a repository without CI falls back to the local pre-merge gate, and a failed visibility read falls back to the private-repository rules. The code review starts no wait of its own, and the pre-merge gate is unchanged (`skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*, `rules/git/pull-requests.md`, `rules/general/general.md`, `agents/donatello.md`, `CLAUDE.md`, `AGENTS.md`, `docs/installation.md`, `tests/Installer/PublicRepositoryWaitsForCiTest.php`).
 
