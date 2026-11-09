@@ -545,7 +545,9 @@ test('every agent definition declares the model its role calls for', function ()
     ];
     $actual = [];
 
-    foreach (glob($packageDir . '/agents/*.md') ?: [] as $agentFile) {
+    $globResult = glob($packageDir . '/agents/*.md');
+
+    foreach ($globResult !== false ? $globResult : [] as $agentFile) {
         $matched = preg_match('/^model:\s*(\S+)$/m', (string) file_get_contents($agentFile), $matches) === 1;
         $actual[basename($agentFile, '.md')] = $matched ? $matches[1] : null;
     }
@@ -557,17 +559,18 @@ test('every agent definition declares the model its role calls for', function ()
 
 test('every agent definition has frontmatter that parses as YAML', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentFiles = glob($packageDir . '/agents/*.md') ?: [];
+    $globResult = glob($packageDir . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
 
     expect($agentFiles)->not->toBeEmpty();
 
     foreach ($agentFiles as $agentFile) {
         $parts = explode("\n---\n", (string) file_get_contents($agentFile), 2);
-        $frontmatter = ltrim($parts[0], "-\n");
+        $isMatched = preg_match('/^description: (.+)$/m', $parts[0], $matches) === 1;
 
-        expect(preg_match('/^description: (.+)$/m', $frontmatter, $matches))->toBe(1, basename($agentFile));
+        expect($isMatched)->toBeTrue(basename($agentFile) . ' has no single-line description');
 
-        $description = $matches[1];
+        $description = $isMatched ? $matches[1] : '';
         $isQuoted = str_starts_with($description, '"') && str_ends_with($description, '"');
 
         expect($isQuoted || (!str_contains($description, ': ') && !str_contains($description, ' #')))
