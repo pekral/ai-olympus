@@ -276,9 +276,11 @@ unformatted Wiki Markup instead of the ADF document JIRA Cloud stores (`@rules/j
 *Comments Format*):
 
 - **GitHub issue** → `skills/code-review-github/scripts/upsert-comment.sh <ISSUE_URL> - merge-readiness`
-- **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`, which converts the
-  Wiki Markup source to ADF and applies it through `--body-adf`; on exit code 2/3 the only sanctioned
-  fallback is the JIRA MCP server with an **ADF** payload. The decisions comment goes to the pull
+- **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -`, which
+  converts the Wiki Markup source to ADF and applies it through `--body-adf` to a new comment, so the
+  code-review report of the last CR run stays unchanged; on exit code 2/3 follow
+  `@rules/code-review/general.md` *A retry identifies the comment of this run*, and
+  the only sanctioned fallback is the JIRA MCP server with an **ADF** payload. The decisions comment goes to the pull
   request through `skills/code-review-github/scripts/upsert-comment.sh <PR_URL> - merge-readiness`.
 
 Publish and read back the final TL;DR before deleting anything. Protect its returned comment ID for
@@ -293,15 +295,20 @@ the manifest only when all conditions hold:
    actor's `_cr-comment:actor=<actor-digest>_` marker, which the JIRA helper proves together with
    the author account ID. A JIRA comment with no marker, such as an empty duplicate a failed
    publish left behind, cannot be proven and is reported for a human instead;
-2. it concerns this PR's preparation, code review, acceptance verification, or testing;
+2. it concerns this PR's preparation, code review, acceptance verification, or testing, and it is
+   not a code-review report a CR run published — on a JIRA source, it is the duplicate a failed
+   `upsert-comment.sh` run (exit 2/3) left behind or an earlier merge-preparation TL;DR;
 3. it is superseded by the final TL;DR or by newer preserved merge evidence;
 4. its exact ID and target URL were read in this run.
 
 Never delete another account's comment. Never delete an ambiguous or unrelated actor-owned
-comment. Never delete submitted reviews or line-thread comments. Preserve the newest trusted
-`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence, even though
-older CR comments are superseded. Also preserve the new `merge-readiness`
-comment.
+comment. Never delete submitted reviews or line-thread comments.
+**A code-review report a CR run published never enters the manifest**, on either tracker: the `cr-comment` thread on the pull
+request, on the linked issue, and on the JIRA issue is the cross-run history
+(`@rules/code-review/general.md` *One published comment per review run*). Preserve the newest trusted
+`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence. A marked
+JIRA comment that cannot be told apart from a code-review report is ambiguous and stays. Also
+preserve the new `merge-readiness` comment.
 
 Delete each manifested top-level issue/PR comment only through:
 
@@ -315,8 +322,9 @@ Delete each manifested JIRA comment only through:
 skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
 ```
 
-The JIRA TL;DR updates this actor's newest `cr-comment` in place, so pass the final TL;DR ID for both
-protected slots when it is that comment. `skills/code-review-jira/scripts/parse-comments.sh` returns each
+The JIRA TL;DR is a new comment, so `FINAL_TLDR_ID` is that new comment and `CURRENT_CR_ID` is the
+newest code-review report on the issue. Only when the issue carries no code-review report, pass the
+final TL;DR ID for both protected slots. `skills/code-review-jira/scripts/parse-comments.sh` returns each
 comment `id`. This also removes the duplicates a failed `upsert-comment.sh` run (exit 2/3) can leave
 behind, once the replacement TL;DR is published and read back. A protected comment needs no marker,
 so a TL;DR published through the sanctioned JIRA MCP fallback still anchors that cleanup: the helper
@@ -327,8 +335,8 @@ protected ID before deletion. A failed check stops the cleanup; never replace it
 `gh api --method DELETE` or `acli jira workitem comment delete` call.
 
 Finally reload both targets. Require exactly one current `merge-readiness` comment by the actor on
-the source issue (on JIRA: every remaining marker-carrying comment by the actor is a protected ID,
-and the pull request carries exactly one current `merge-readiness` comment by the actor), require every
+the source issue (on JIRA: every remaining marker-carrying comment by the actor is a protected ID or
+a code-review report of an earlier run, and the pull request carries exactly one current `merge-readiness` comment by the actor), require every
 manifested stale ID to be gone (HTTP 404 on GitHub, absent from the issue view on JIRA), and require both protected
 review-evidence IDs to remain readable. A partial or unverified cleanup returns `Blocked` with the
 remaining IDs; it never reports success optimistically.

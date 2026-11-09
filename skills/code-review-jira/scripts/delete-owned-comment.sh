@@ -13,9 +13,10 @@
 #                  any URL containing ?selectedIssue=<KEY>.
 #   COMMENT_ID     The comment to delete.
 #   FINAL_TLDR_ID  The final TL;DR this run published and read back.
-#   CURRENT_CR_ID  The current CR evidence comment on this issue. The JIRA TL;DR
-#                  updates this actor's newest `cr-comment` in place, so when the
-#                  final TL;DR is that comment, pass its ID for both protected slots.
+#   CURRENT_CR_ID  The current CR evidence comment on this issue: the newest
+#                  code-review report. The JIRA TL;DR is a new comment, so it is
+#                  never that report. Only when the issue carries no code-review
+#                  report, pass the final TL;DR ID for both protected slots.
 #
 # Ownership proof — every condition must hold, or nothing is deleted:
 #   1. COMMENT_ID is neither protected ID.
@@ -64,8 +65,8 @@ usage() {
 Usage: delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
 
 Deletes only an actor-owned comment on the exact JIRA issue. The final TL;DR
-and the current CR evidence must be passed as protected IDs; pass the same ID
-twice when the final TL;DR is the current CR comment.
+and the newest code-review report must be passed as protected IDs; pass the
+final TL;DR ID twice only when the issue carries no code-review report.
 EOF
 }
 

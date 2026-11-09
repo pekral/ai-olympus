@@ -108,9 +108,11 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    given does not fit** — that is how a JIRA ticket ends up carrying an unformatted Wiki Markup
    comment instead of the ADF document JIRA Cloud stores (`@rules/jira/general.md` *Comments Format*).
    - **GitHub issue** → `skills/code-review-github/scripts/upsert-comment.sh <ISSUE_URL> - merge-readiness`
-   - **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh <KEY|URL> -`, which converts
-     the Wiki Markup source to ADF and applies it through `--body-adf`. On exit code 2/3 the only
-     sanctioned fallback is the JIRA MCP server with an **ADF** payload. The decisions comment of a
+   - **JIRA ticket** → `skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -`, which
+     converts the Wiki Markup source to ADF and applies it through `--body-adf` to a new comment, so
+     the code-review report of the last CR run stays unchanged. On exit code 2/3 follow
+     `@rules/code-review/general.md` *A retry identifies the comment of this run*;
+     the only sanctioned fallback is the JIRA MCP server with an **ADF** payload. The decisions comment of a
      JIRA source goes to the pull request through
      `skills/code-review-github/scripts/upsert-comment.sh <PR_URL> - merge-readiness`.
 
@@ -124,28 +126,33 @@ qualified deletions. It is not authorization to merge or to delete anything outs
 4. Build and report an exact deletion manifest. Include only top-level issue/PR comments whose
    author login equals the authenticated actor, whose content concerns this PR's preparation,
    review, acceptance verification, or testing, and which the final TL;DR or newer merge evidence
-   supersedes. Never delete another account's comment. Never delete an ambiguous or unrelated
+   supersedes. **A code-review report a CR run published never enters the manifest**, on either
+   tracker: the `cr-comment` thread on the pull request, on the linked issue, and on the JIRA issue
+   is the cross-run history (`@rules/code-review/general.md` *One published comment per review run*).
+   Never delete another account's comment. Never delete an ambiguous or unrelated
    actor-owned comment, submitted review, or line thread. **On a JIRA source** the manifest covers
    the JIRA issue's comments instead: a comment enters it only when it carries this actor's
-   `_cr-comment:actor=<actor-digest>_` marker and the final TL;DR supersedes it — typically the
-   duplicate a failed `upsert-comment.sh` run (exit 2/3) left behind, with a raw-Markup or an empty
-   body. A comment that carries no marker cannot be proven yours: name it in the handoff for a
+   `_cr-comment:actor=<actor-digest>_` marker and is either the duplicate a failed
+   `upsert-comment.sh` run (exit 2/3) left behind, with a raw-Markup or an empty body, or an earlier
+   merge-preparation TL;DR the final TL;DR supersedes. A marked comment you cannot tell apart from a
+   code-review report is ambiguous and stays. A comment that carries no marker cannot be proven yours: name it in the handoff for a
    human and never delete it. The pull-request comments of a JIRA source stay in place, because
    the GitHub helper protects a GitHub-side TL;DR that a JIRA source does not carry.
-5. Preserve the newly published TL;DR and the newest trusted `cr-comment` required by
-   `@skills/merge-github-pr/SKILL.md`. Older comments in that namespace may enter the manifest;
-   the current merge evidence never does.
+5. Preserve the newly published TL;DR and every code-review report. The newest trusted
+   `cr-comment` is the current merge evidence `@skills/merge-github-pr/SKILL.md` requires, and the
+   earlier ones are the cross-run history.
 6. For every manifested ID, call the helper that matches the source tracker:
    - **GitHub** → `skills/_shared/delete-owned-github-comment.sh <TARGET_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`
    - **JIRA** → `skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`.
-     The JIRA TL;DR updates this actor's newest `cr-comment` in place, so when the final TL;DR is
-     that comment, pass its ID for both protected slots. Read comment IDs from
+     The JIRA TL;DR is a new comment, so `FINAL_TLDR_ID` is that new comment and `CURRENT_CR_ID` is
+     the newest code-review report on the issue. Only when the issue carries no code-review report,
+     pass the final TL;DR ID for both protected slots. Read comment IDs from
      `skills/code-review-jira/scripts/parse-comments.sh`.
 
    The helper is the only deletion path. Never compose raw `gh api --method DELETE` or
    `acli jira workitem comment delete` yourself.
 7. Reload the issue and PR. Require exactly one current `merge-readiness` comment from the actor on
-   the issue (on a JIRA source: every remaining marker-carrying comment by the actor is a protected ID), every deleted
+   the issue (on a JIRA source: every remaining marker-carrying comment by the actor is a protected ID or a code-review report of an earlier run), every deleted
    ID absent, and all protected IDs still present. A partial cleanup is
    `Blocked`, with the remaining and protected IDs named.
 

@@ -562,8 +562,21 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **That one comment is a new comment on every run.** Every code-review report — the GitHub pull-request comment, the tracker comment `@skills/pr-summary/SKILL.md` renders, and the linked GitHub issue mirror — is published through the helper with `--create`. The helper creates a new comment and never looks up, rewrites, or deletes the comment of an earlier run, so that comment stays unchanged. This applies to a review-only run (`/report-code-review`) and to every round of the review-and-fix loop.
 Each helper still appends its per-actor marker — a hidden `<!-- cr-comment:actor=<gh-login> -->` on GitHub, a visible `_cr-comment:actor=<actor-digest>_` line on JIRA. The JIRA marker carries a digest of the account e-mail rather than the address, because that line is readable by everyone who can browse the issue. Every check that reads a code-review comment reads the **newest trusted** comment that carries the marker, so several marked comments on one destination are the normal state.
-A retry after an exit `2` or `3` first reads the destination back through its loader. When the comment of this run already landed, the run publishes nothing again, because a second `--create` call adds a second comment.
-A comment namespace that is not a code-review report — for example `mysql-report`, `merge-readiness`, and the merge-preparation TL;DR — keeps the helper's lookup-and-update behaviour.
+A comment namespace that is not a code-review report — for example `mysql-report` and `merge-readiness` — keeps the helper's lookup-and-update behaviour.
+**On JIRA every publish in the default `cr-comment` namespace passes `--create`.** The merge-preparation TL;DR (`@skills/verify-merge-readiness/SKILL.md`), the tester report (`@skills/tester-cookbook/SKILL.md`), and the pull-request link-back (`@skills/resolve-issue/references/tracker-follow-up.md`) share that namespace with the code-review report. Without the flag the helper would pick the newest code-review report and rewrite it.
+
+**A retry identifies the comment of this run, never a comment that only carries the marker.** Every earlier report carries the same marker, so a marker match proves nothing about this run. This is the one owner of the retry rule for every `--create` publish; every other file references it.
+
+1. Before the helper call, record the ID of every comment on the destination: the comment URL from `skills/code-review-github/scripts/load-issue.sh`, or the comment `id` from `skills/code-review-jira/scripts/load-issue.sh`.
+2. After an exit `2` or `3`, read the destination back through the same loader.
+3. A comment is the comment of this run only when all of these hold:
+   - its ID is absent from the IDs recorded in step 1;
+   - its author is the current actor, by the account test of *Authorship trust* (the GitHub login, or the JIRA `authorAccountId`);
+   - it carries this actor's marker.
+4. Exactly one comment of this run on GitHub: it landed. Publish nothing again.
+5. Exactly one comment of this run on JIRA: read its stored ADF `body` with `acli jira workitem view <KEY> --fields comment --json`. Real `heading`, `bulletList`, or `listItem` nodes mean it landed: publish nothing again. One flat `paragraph` means the helper created it and the ADF update did not run. Update that comment by its ID through the JIRA MCP server with the ADF payload, and never create a second one. With no JIRA MCP tool, stop as blocked and name the comment ID.
+6. No comment of this run: publish once more with `--create`, or through the MCP fallback, which creates a new comment.
+7. More than one comment of this run: publish nothing and report every ID for a human.
 
 **A line the operator added survives the rewrite.** The operator posts under the same account as the agents and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`. A plain rewrite would delete it. Every helper that rewrites a comment in place therefore keeps it. A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment, and the operator's line stays in the earlier comment where the operator wrote it.
 
