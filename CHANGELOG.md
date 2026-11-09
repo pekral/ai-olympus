@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-- 🔄 **Changed**: every code review pulls the default branch before it checks out the branch under review. The *Branch checkout gate* runs `git fetch`, `git checkout "$DEFAULT_BRANCH"`, and `git pull` first, then checks out and pulls the reviewed branch. The read-only exemption in *Pull Policy* states the same order (`skills/code-review/SKILL.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `agents/leonardo.md`, `rules/git/general.md`).
+- 🔄 **Changed**: every code review pulls the default branch before it checks out the branch under review. The *Branch checkout gate* has one owner, `skills/code-review/references/branch-checkout-gate.md`. It validates the branch name with `git check-ref-format` and a character allow-list, runs `git fetch origin`, `git checkout "$DEFAULT_BRANCH"`, and `git pull --ff-only`, then checks out and fast-forwards the reviewed branch. A review in a git worktree, or with the default branch held by another worktree, skips the default-branch checkout and reads `origin/$DEFAULT_BRANCH`. A failed step stops the review (`skills/code-review/SKILL.md`, `skills/code-review-github/references/cr-wrapper-contract.md`, `agents/leonardo.md`, `rules/git/general.md`, `tests/Installer/CodeReviewContentTest.php`).
 
 ## [0.3] - 2026-11-09
 

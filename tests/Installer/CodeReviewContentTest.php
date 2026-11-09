@@ -4607,3 +4607,29 @@ test('code-testing and code-review rules keep date tests correct across a daylig
         'The scope is the tests the diff adds or modifies and the production code the diff adds that computes a calendar interval.',
     );
 });
+
+test('the branch checkout gate pulls the default branch first and has one owner', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $gatePath = 'skills/code-review/references/branch-checkout-gate.md';
+    $gate = (string) file_get_contents($packageDir . '/' . $gatePath);
+    $referencingFiles = [
+        'skills/code-review/SKILL.md',
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'agents/leonardo.md',
+    ];
+
+    expect($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
+        ->and($gate)->toContain('^[A-Za-z0-9._/-]{1,255}$')
+        ->and($gate)->toContain('git checkout "$HEAD_REF"')
+        ->and($gate)->toContain('Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`.')
+        ->and($gate)->toContain('`git worktree list --porcelain` shows the default branch checked out in another worktree');
+
+    foreach ($referencingFiles as $relativePath) {
+        $text = (string) file_get_contents($packageDir . '/' . $relativePath);
+
+        expect($text)->toContain('@' . $gatePath)
+            ->and($text)->not->toContain('git checkout "$DEFAULT_BRANCH"');
+    }
+
+    expect((string) file_get_contents($packageDir . '/rules/git/general.md'))->toContain('@' . $gatePath);
+});

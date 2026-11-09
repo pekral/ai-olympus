@@ -40,7 +40,7 @@ Confirm the pull request belongs to the current checkout by running `skills/_sha
 
 #### Branch checkout gate (mandatory, always)
 
-Before running any review step, pull the default branch first — `git fetch origin`, `git checkout "$DEFAULT_BRANCH"`, `git pull`, with `DEFAULT_BRANCH` resolved per `@rules/git/general.md` *Pull Policy*. Then check out the PR branch (`headRefName` from the loaded PR JSON) and pull the latest commits — `git checkout <headRefName>`, `git pull` — so the review always runs against the **actual current codebase on disk (the checked-out working tree)**, never against the remote diff in isolation. Confirm local `HEAD` equals the PR head SHA from the loaded context. If the checkout fails (missing ref, detached `HEAD`, or local changes that would be overwritten), **stop and report it** instead of reviewing from the diff. Every sub-review then reads the checked-out files.
+Before running any review step, run `@skills/code-review/references/branch-checkout-gate.md` with the PR's `headRefName` from the loaded PR JSON as the branch under review. Confirm local `HEAD` equals the PR head SHA from the loaded context. When a step fails, **stop and report it** instead of reviewing from the diff. Every sub-review then reads the checked-out files.
 
 #### Incremental review scope (mandatory, after the checkout)
 
