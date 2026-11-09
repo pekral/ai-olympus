@@ -47,7 +47,7 @@ metadata:
 
 For every linked defect issue that is still open, and one at a time:
 
-1. Delegate the defect to the `splinter` agent (`agents/splinter.md`) with the full merge chain: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
+1. Delegate the defect to the `krang` agent (`agents/krang.md`) with the full merge chain: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
 2. Put these facts in the dispatch:
    - the defect URL and the interactive-testing issue that found it,
    - the environment facts the project memory records, for example a sandbox that blocks the database or the browser tests, and a known CI billing condition,

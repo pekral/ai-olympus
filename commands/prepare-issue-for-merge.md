@@ -3,7 +3,7 @@ description: Prepare one GitHub or JIRA issue's pull request for merge without m
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL]
 ---
 
-Delegate this request to the `splinter` agent and run
+Delegate this request to the `krang` agent and run
 `@skills/verify-merge-readiness/SKILL.md` with this reference:
 
 $ARGUMENTS
@@ -19,8 +19,8 @@ question in the separate `Decisions before merge` section — on the source GitH
 pull request for a JIRA source, where the JIRA ticket shows only the Critical ones — so a human
 decides it. The merge requires an answer to every question.
 
-When the issue carries no pull request, `splinter` resolves the task first — implementation and the
+When the issue carries no pull request, `krang` resolves the task first — implementation and the
 review-and-fix loop to convergence — and then prepares the pull request that delivery opens.
 
-For Codex, invoke `$verify-merge-readiness` with the same reference and ask the registered `splinter`
+For Codex, invoke `$verify-merge-readiness` with the same reference and ask the registered `krang`
 agent to orchestrate it.

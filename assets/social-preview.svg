@@ -21,8 +21,8 @@
 <rect x="58" y="278" width="135" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M107.5 278H143.5" stroke="#be8d69" stroke-width="3" stroke-linecap="round" />
 <circle cx="125.5" cy="366" r="58" fill="#be8d69" fill-opacity=".065" />
-<image x="41.5" y="288" width="168" height="168" xlink:href="agents/splinter.png" />
-<text data-agent="splinter" x="125.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">splinter</text>
+<image x="41.5" y="288" width="168" height="168" xlink:href="agents/krang.png" />
+<text data-agent="krang" x="125.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">krang</text>
 <text x="125.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Orchestration</text>
 <rect x="205" y="278" width="135" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M254.5 278H290.5" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" />
@@ -64,8 +64,8 @@
 <rect x="1087" y="278" width="135" height="262" rx="18" fill="#13292f" stroke="#2d474c" />
 <path d="M1136.5 278H1172.5" stroke="#88c0d0" stroke-width="3" stroke-linecap="round" />
 <circle cx="1154.5" cy="366" r="58" fill="#88c0d0" fill-opacity=".065" />
-<image x="1070.5" y="288" width="168" height="168" xlink:href="agents/metalhead.png" />
-<text data-agent="metalhead" x="1154.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">metalhead</text>
+<image x="1070.5" y="288" width="168" height="168" xlink:href="agents/shredder.png" />
+<text data-agent="shredder" x="1154.5" y="466" text-anchor="middle" font-size="18" font-weight="700" fill="#fbf3e4">shredder</text>
 <text x="1154.5" y="494" text-anchor="middle" font-size="13" fill="#b8cccb">Context retrieval</text>
 <path d="M58 571H1222" stroke="#344d51" />
 <text x="58" y="608" font-size="12" letter-spacing="1.65" fill="#8dafa9">FROM ISSUE TO REVIEWED PULL REQUEST</text>

@@ -29,13 +29,13 @@ test('the casey report is advisory and never gates convergence or the merge (iss
         ->and($casey)->toContain('upsert-comment.sh <PR-URL> - mysql-report');
 });
 
-test('splinter dispatches casey in every parallel cr round, and casey stops on PostgreSQL (issue #180)', function (): void {
+test('krang dispatches casey in every parallel cr round, and casey stops on PostgreSQL (issue #180)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
-    expect($splinter)->toContain('- **MySQL report (`casey`) — advisory, in every round.**')
-        ->and($splinter)->toContain('stops `Not applicable` on PostgreSQL or on a diff with no database operations');
+    expect($krang)->toContain('- **MySQL report (`casey`) — advisory, in every round.**')
+        ->and($krang)->toContain('stops `Not applicable` on PostgreSQL or on a diff with no database operations');
     expect($casey)->toContain('On `pgsql`, stop with `Not applicable — PostgreSQL project`.')
         ->and($casey)->toContain('**Step 5 publishes nothing.**');
 });
@@ -82,8 +82,8 @@ test('the casey report shape has one owner and the roster surfaces name casey (i
         ->toContain('In `MODE=cr-report`, use `templates/cr-report.md` instead.')
         ->and((string) file_get_contents($packageDir . '/agents/casey.md'))
         ->toContain('The report follows `skills/mysql-problem-solver/templates/cr-report.md`')
-        ->and((string) file_get_contents($packageDir . '/codex/agents/splinter.toml'))
-        ->toContain('`michelangelo`, `april`, `casey`, or `metalhead`')
+        ->and((string) file_get_contents($packageDir . '/codex/agents/krang.toml'))
+        ->toContain('`michelangelo`, `april`, `casey`, or `shredder`')
         ->and((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'))
-        ->toContain('for agent in splinter donatello leonardo raphael michelangelo april casey metalhead; do');
+        ->toContain('for agent in krang donatello leonardo raphael michelangelo april casey shredder; do');
 });

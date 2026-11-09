@@ -82,7 +82,7 @@ The review loop records its rounds and the issue-to-pull-request pipeline runs a
 
 `feedback-loop.md` owns the wiring of phase 4 (#189):
 
-- The collection and the analysis run from `skills/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `splinter` runs the analysis when the user asks for it.
+- The collection and the analysis run from `skills/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `krang` runs the analysis when the user asks for it.
 - The store is one file for each pull request in a derived, git-ignored directory. `analyze` merges them.
 - The `repo` value is the canonical `nameWithOwner` that GitHub reports, resolved by `feedback-loop.sh` before any record is written.
 - A prevention proposal for a reported class is the subject of `prevention-proposal.md`.

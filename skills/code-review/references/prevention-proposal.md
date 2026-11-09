@@ -136,6 +136,6 @@ Without an approval nothing is implemented. The proposal states it. The script w
 
 ## What this phase leaves to later phases
 
-- Phase 4 (#189) assigned the roles in `feedback-loop.md`: `splinter` runs the analysis and files the proposal, `leonardo` writes the analysis file, and the filing is **L1** for `splinter` in a feedback-analysis run that the user asked for (`@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*).
+- Phase 4 (#189) assigned the roles in `feedback-loop.md`: `krang` runs the analysis and files the proposal, `leonardo` writes the analysis file, and the filing is **L1** for `krang` in a feedback-analysis run that the user asked for (`@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*).
 - A canonical `repo` value is the `nameWithOwner` that `skills/_shared/feedback-loop.sh` resolves before it writes a record.
-- Only `skills/_shared/feedback-loop.sh` and the feedback-analysis run of `splinter` call the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.
+- Only `skills/_shared/feedback-loop.sh` and the feedback-analysis run of `krang` call the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.

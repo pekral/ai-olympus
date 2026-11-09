@@ -110,12 +110,12 @@ jobs:
           composer check-platform-reqs --no-dev
           vendor/bin/ai-olympus install --force
           test -f .claude/skills/resolve-issue/SKILL.md
-          test -f .codex/agents/splinter.toml
+          test -f .codex/agents/krang.toml
           test -f .agents/skills/resolve-issue/SKILL.md
           test ! -e CLAUDE.md
           test -f vendor/pekral/ai-olympus/assets/agents/manifest.json
           test -f vendor/pekral/ai-olympus/assets/agents/activity.css
-          for agent in splinter donatello leonardo raphael michelangelo april casey metalhead; do
+          for agent in krang donatello leonardo raphael michelangelo april casey shredder; do
             test -f "vendor/pekral/ai-olympus/assets/agents/$agent.png"
             test -f "vendor/pekral/ai-olympus/assets/agents/thumbnails/$agent.png"
           done

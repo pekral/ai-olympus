@@ -493,7 +493,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
-5. `## Interactive testing` and `## MySQL report`, each rendered only when the caller passed the `raphael` or the `casey` report (`agents/splinter.md` *Parallel CR round*).
+5. `## Interactive testing` and `## MySQL report`, each rendered only when the caller passed the `raphael` or the `casey` report (`agents/krang.md` *Parallel CR round*).
 
 **Merge verdict — the direct answer to "can we merge, and is the assignment met with no Critical finding?".** Every review comment carries it in the header, converged or not. The verdict is `yes` only when all of these hold:
 

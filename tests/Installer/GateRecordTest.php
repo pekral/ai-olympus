@@ -284,10 +284,10 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello`');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Exit `3` is a hard stop, like a gate that cannot be run.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('plus the tree and the record path when `run-gate.sh` wrote a record');
-    expect(splinterContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
-    expect(splinterContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
-    expect($read('agents/splinter.md'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
-    expect($read('agents/splinter.md'))->toContain('and `skills/_shared/verify-gate.sh` (the machine gate record check;');
+    expect(krangContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
+    expect(krangContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
+    expect($read('agents/krang.md'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
+    expect($read('agents/krang.md'))->toContain('and `skills/_shared/verify-gate.sh` (the machine gate record check;');
     expect($read('skills/_shared/orchestration/merge-preparation.md'))->toContain(
         '`0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.',
     );

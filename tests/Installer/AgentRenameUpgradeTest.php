@@ -13,9 +13,10 @@ function renamedAgentIdentifiers(): array
         'apollo' => 'michelangelo',
         'argus' => 'raphael',
         'athena' => 'leonardo',
-        'daedalus' => 'splinter',
+        'daedalus' => 'krang',
         'hephaestus' => 'donatello',
         'hermes' => 'april',
+        'metalhead' => 'shredder',
     ];
 }
 
@@ -49,7 +50,7 @@ test('a normal upgrade removes known old agents and installs the new identities 
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('18 pruned');
+        expect($output)->toContain('21 pruned');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
             expect(file_get_contents($root . '/' . $directory . '/custom.' . $extension))->toBe('user-owned agent');
@@ -82,7 +83,7 @@ test('a normal upgrade preserves customized old agent definitions and reports th
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('18 file(s) across the target directories no longer exist in source');
+        expect($output)->toContain('21 file(s) across the target directories no longer exist in source');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
             foreach (renamedAgentIdentifiers() as $old => $new) {

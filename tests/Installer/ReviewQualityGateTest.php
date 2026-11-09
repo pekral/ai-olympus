@@ -161,7 +161,7 @@ test('a blocking finding outside the delta widens the round, and a change after 
     expect(reviewQualityGateFile('skills/process-code-review/SKILL.md'))
         ->toContain('After a cap-round convergence, `review-state.sh record` refuses it (`cap-spent-after-convergence`): escalate.');
 
-    expect(reviewQualityGateFile('agents/splinter.md'))
+    expect(reviewQualityGateFile('agents/krang.md'))
         ->toContain('the `skills/_shared/review-state.sh` verdict `escalated`, including `cap-spent-after-convergence`');
 });
 
@@ -248,7 +248,7 @@ test('no file cites a fixed three-round cap any more', function (string $relativ
     expect($content)->not->toContain('Round 3 — the deferral boundary');
 })->with([
     'agents/leonardo.md',
-    'agents/splinter.md',
+    'agents/krang.md',
     'docs/agents.md',
     'rules/compound-engineering/orchestration.md',
     'skills/process-code-review/SKILL.md',
@@ -258,7 +258,7 @@ test('no file cites a fixed three-round cap any more', function (string $relativ
 test('every former citation of the fixed cap names the manifest key', function (string $relativePath, string $citation): void {
     expect(reviewQualityGateFile($relativePath))->toContain($citation);
 })->with([
-    ['agents/splinter.md', '`maxIterations` rounds — the default-branch manifest key `review.max-iterations`, default 3'],
+    ['agents/krang.md', '`maxIterations` rounds — the default-branch manifest key `review.max-iterations`, default 3'],
     ['docs/agents.md', '`maxIterations` from the manifest key `review.max-iterations`, default 3'],
     ['rules/compound-engineering/orchestration.md', '`maxIterations` from the default-branch manifest, default 3'],
     ['rules/git/pull-requests.md', 'at the cap round only (`review.max-iterations`, default 3), deferred into a tracker sub-issue'],
@@ -312,7 +312,7 @@ test('the run metrics store the review-loop counts and codes, never their conten
         ->toContain('if ! review_json="$("$HERE/review-state.sh" evaluate --state "$value" 2>/dev/null)"; then')
         ->toContain('printf \'ok    %-54s\\n\' \'review-loop counters are stored as counts and codes\'');
 
-    expect(reviewQualityGateFile('agents/splinter.md'))
+    expect(reviewQualityGateFile('agents/krang.md'))
         ->toContain('plus `--review-state <path>` for the loop state `leonardo` named in its handoff');
 });
 
@@ -322,7 +322,7 @@ test('leonardo writes only the loop state under the run directory and names it i
             'run `skills/_shared/review-state.sh` only as `@skills/process-code-review/SKILL.md` *Review loop* directs, '
             . 'which writes only the loop state under `.claude/run/review-state/`',
         )
-        ->toContain('Name the loop\'s state file in your handoff on every exit, so `splinter` records its counts.');
+        ->toContain('Name the loop\'s state file in your handoff on every exit, so `krang` records its counts.');
 });
 
 test('both review templates name the security lenses among the whole-PR readers', function (string $template): void {

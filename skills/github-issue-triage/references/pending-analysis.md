@@ -2,7 +2,7 @@
 
 Some issues are not work yet — they are a link, a tool name, or an idea that needs an analysis before anyone can decide whether to build it. The repository marks them with the `analyze` label. This pass finds them, analyses each one, publishes the analysis as a new comment on the issue, and leaves labels that describe the issue after the analysis rather than before it. It is the mode for requests such as *"analyse the issues that wait for analysis"*.
 
-**It runs in the top-level session, never inside `splinter`'s backlog tier.** A backlog run never analyses (`@rules/compound-engineering/backlog.md` *What a backlog run never does*); an analysis request is answered by `@skills/analyze-problem/SKILL.md` in the top-level session, and this pass is that answer applied to every pending issue at once.
+**It runs in the top-level session, never inside `krang`'s backlog tier.** A backlog run never analyses (`@rules/compound-engineering/backlog.md` *What a backlog run never does*); an analysis request is answered by `@skills/analyze-problem/SKILL.md` in the top-level session, and this pass is that answer applied to every pending issue at once.
 
 ## Consent
 

@@ -14,10 +14,10 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         'casey' => ['gpt-6-luna', 'high'],
         'donatello' => ['gpt-5.6-terra', 'high'],
         'leonardo' => ['gpt-6.1-sol', 'high'],
-        'metalhead' => ['gpt-6-luna', 'medium'],
+        'shredder' => ['gpt-6-luna', 'medium'],
         'michelangelo' => ['gpt-6-astra', 'medium'],
         'raphael' => ['gpt-6-luna', 'high'],
-        'splinter' => ['gpt-6.1-sol', 'medium'],
+        'krang' => ['gpt-6.1-sol', 'medium'],
     ];
 
     expect($agentFiles)->not->toBeFalse();
@@ -63,8 +63,8 @@ test('Codex installation uses official project locations and keeps existing AGEN
         expect($exitCode)->toBe(0);
         expect(file_get_contents($root . '/AGENTS.md'))->toBe('project-owned instructions');
         expect(is_file($root . '/.agents/skills/code-review/SKILL.md'))->toBeTrue();
-        expect(is_file($root . '/.codex/agents/splinter.toml'))->toBeTrue();
-        expect(is_file($root . '/.codex/agent-instructions/splinter.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/agents/krang.toml'))->toBeTrue();
+        expect(is_file($root . '/.codex/agent-instructions/krang.md'))->toBeTrue();
         expect(is_file($root . '/.codex/rules/php/core-standards.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {

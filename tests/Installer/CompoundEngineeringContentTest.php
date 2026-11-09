@@ -177,22 +177,22 @@ test('resolve-issue skill refuses to resolve a closed / inactive task', function
 test('compound-engineering rule provides the Blocked delegation hard-stop section referenced by agents (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = compoundEngineeringRuleContents();
-    $splinter = splinterContractText();
+    $krang = krangContractText();
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
 
     expect(substr_count($rule, '## Blocked delegation is a hard stop'))->toBe(1);
-    expect($splinter)->toContain('*Blocked delegation is a hard stop*');
+    expect($krang)->toContain('*Blocked delegation is a hard stop*');
     expect($donatello)->toContain('*Blocked delegation is a hard stop*');
 });
 
 test('compound memory reads are hooked into the context phases (issue #626)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $splinter = splinterContractText();
+    $krang = krangContractText();
     $analyze = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
     $prepare = (string) file_get_contents($packageDir . '/skills/prepare-issue-context/SKILL.md');
 
-    expect($splinter)->toContain('## Project memory');
-    expect($splinter)->toContain('docs/memory/PROJECT_MEMORY.md');
+    expect($krang)->toContain('## Project memory');
+    expect($krang)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($analyze)->toContain('docs/memory/PROJECT_MEMORY.md');
     expect($prepare)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
@@ -219,12 +219,12 @@ test('compound memory write mechanism is removed (issue #77)', function (): void
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $processCr = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     expect($rule)->not->toContain('record-project-memory');
     expect($resolveIssue)->not->toContain('record-project-memory');
     expect($processCr)->not->toContain('record-project-memory');
-    expect($splinter)->not->toContain('record-project-memory');
+    expect($krang)->not->toContain('record-project-memory');
 
     // The old fully-automated write-protocol sections stay gone; the read side stays.
     // (A narrower, compaction-only "### Write protocol" is reintroduced by issue #98 —
@@ -279,13 +279,13 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     // The exception must state that memory files are never deleted.
     expect($content)->toContain('NEVER deleted');
 
-    // The rule must name splinter's *Run cleanup* checklist as the reference implementation.
-    expect($content)->toContain('`splinter`\'s *Run cleanup* (`agents/splinter.md`) is the **reference implementation** of this contract');
+    // The rule must name krang's *Run cleanup* checklist as the reference implementation.
+    expect($content)->toContain('`krang`\'s *Run cleanup* (`agents/krang.md`) is the **reference implementation** of this contract');
 
     // As the canonical wording of the contract, that sentence must enumerate all three terminal
     // paths — the analysis-only stop included, since that is the path the brief used to survive on
     // (issue #200) — matching the write-lock bullet above it instead of naming only two.
-    expect($content)->toContain('.splinter-write.lock`) on **every** terminating path the run can take');
+    expect($content)->toContain('.krang-write.lock`) on **every** terminating path the run can take');
     expect($content)->toContain(
         'the full-delivery report, the analysis-only stop, and any `Blocked` stop — applying each item only where the run has something to clean up',
     );
@@ -382,7 +382,7 @@ test(
         $packageDir = dirname(__DIR__, 2);
         // Moved to orchestration.md by issue #275 — dispatch-time orchestrator turn discipline.
         $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-        $splinter = splinterContractText();
+        $krang = krangContractText();
 
         // The section heading must exist and state the binary stopping condition.
         expect($rule)->toContain('## Orchestrator turns must end in a result or a hard blocker, never a narrated plan');
@@ -395,9 +395,9 @@ test(
         // This is unconditional — a correctness fix, never gated behind an optional mode.
         expect($rule)->toContain('not an efficiency trade-off, and it applies unconditionally.');
 
-        // splinter (the only orchestrator today) references the rule and applies it every turn.
-        expect($splinter)->toContain('*Orchestrator turns must end in a result or a hard blocker, never a narrated plan*');
-        expect($splinter)->toContain('the `Task` invocation happens in the same turn');
+        // krang (the only orchestrator today) references the rule and applies it every turn.
+        expect($krang)->toContain('*Orchestrator turns must end in a result or a hard blocker, never a narrated plan*');
+        expect($krang)->toContain('the `Task` invocation happens in the same turn');
     },
 );
 
@@ -586,7 +586,7 @@ test('per-role read filter extracts entries whose Role: line sits past a fixed g
 
     ### no-match — Role is a different role entirely
     - Trigger: unrelated.
-    - Role:    splinter
+    - Role:    krang
 
     ### no-role — carries no Role line at all
     - Trigger: unrelated.
@@ -698,23 +698,23 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         $agentFiles,
     );
 
-    // Dictionary: `- Role:    <splinter | donatello | leonardo | april | shared>` must
+    // Dictionary: `- Role:    <krang | donatello | leonardo | april | shared>` must
     // enumerate exactly the live roster (plus `shared`, which the regex strips below).
     preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
     $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
     expect(array_values(array_diff($dictionaryRoles, ['shared'])))->toEqualCanonicalizing($liveAgentRoles);
 
     // Per-role read filter: `Each **specialist agent** (\`donatello\`, ...) reads only the entries`
-    // must enumerate the live roster minus `splinter` (the orchestrator reads the full file,
+    // must enumerate the live roster minus `krang` (the orchestrator reads the full file,
     // never the filtered subset) — the exact parity issue #166 asked for.
     preg_match('/Each \*\*specialist agent\*\* \(([^)]+)\) reads only the entries/', $rule, $filterMatch);
     $filterRoles = array_map(static fn (string $r): string => trim($r, ' `'), explode(',', $filterMatch[1] ?? ''));
-    expect($filterRoles)->toEqualCanonicalizing(array_values(array_diff($liveAgentRoles, ['splinter'])));
+    expect($filterRoles)->toEqualCanonicalizing(array_values(array_diff($liveAgentRoles, ['krang'])));
 
     // Every specialist named by the filter must actually apply it — mirroring its own
     // "Load per-role project memory" step — otherwise the rule's claim about that agent would
     // contradict the agent's own behavior. Covers all specialists derived above, not just one.
-    foreach (array_diff($liveAgentRoles, ['splinter']) as $specialist) {
+    foreach (array_diff($liveAgentRoles, ['krang']) as $specialist) {
         $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
 
         expect($agent)->toContain('**Load per-role project memory.**');
@@ -722,7 +722,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
     }
 
     // The feature-request issue template's "Related skill / agent" field enumerates the same
-    // live roster (all agents, including `splinter`) — derived here rather than pinned as a
+    // live roster (all agents, including `krang`) — derived here rather than pinned as a
     // literal, so a future roster change fails this test instead of leaving the template stale
     // again (issue #183: the template still listed the removed `argos` agent).
     $template = (string) file_get_contents($packageDir . '/.github/ISSUE_TEMPLATE/feature_request.yml');
@@ -737,7 +737,7 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
 test('compound memory is filtered per dispatch target, not folded unfiltered into the shared brief (issue #165)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = compoundEngineeringRuleContents();
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     // The rule names the new mechanism and where the slice travels.
     expect($rule)->toContain('#### Per-dispatch memory slice');
@@ -747,24 +747,24 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
     expect($rule)->toContain('~/.claude/**/memory/MEMORY.md');
 
     // Negative pin: the leak issue #165 found — memory folded unfiltered "for every dispatched
-    // specialist" — must not survive in splinter.md, the file that used to compose it that way.
-    expect($splinter)->not->toContain('so every specialist inherits the lessons without re-deriving them');
-    expect($splinter)->not->toContain('so every dispatched specialist inherits the lessons');
+    // specialist" — must not survive in krang.md, the file that used to compose it that way.
+    expect($krang)->not->toContain('so every specialist inherits the lessons without re-deriving them');
+    expect($krang)->not->toContain('so every dispatched specialist inherits the lessons');
 
-    // splinter still reads the full memory file (it needs every role to slice correctly), but the
+    // krang still reads the full memory file (it needs every role to slice correctly), but the
     // brief itself carries only a pointer, and the actual slice travels in the dispatch prompt.
-    expect($splinter)->toContain('*Per-dispatch memory slice*');
-    expect($splinter)->toContain('## Project memory — <role>');
-    expect($splinter)->toContain('pointer only');
-    expect($splinter)->toContain('Never fold this into the brief file itself');
+    expect($krang)->toContain('*Per-dispatch memory slice*');
+    expect($krang)->toContain('## Project memory — <role>');
+    expect($krang)->toContain('pointer only');
+    expect($krang)->toContain('Never fold this into the brief file itself');
 
     // Every specialist honours a slice already present in its own dispatch prompt instead of
-    // re-reading the whole memory file and undoing the filter splinter just applied.
+    // re-reading the whole memory file and undoing the filter krang just applied.
     $globResult = glob($packageDir . '/agents/*.md');
     $agentFiles = $globResult !== false ? $globResult : [];
     $liveAgentRoles = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
 
-    foreach (array_diff($liveAgentRoles, ['splinter']) as $specialist) {
+    foreach (array_diff($liveAgentRoles, ['krang']) as $specialist) {
         $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
 
         expect($agent)->toContain('## Project memory — ' . $specialist);
@@ -789,9 +789,9 @@ test('the per-dispatch memory slice is authoritative only in its own structural 
     $savingsMode = installerDocsSection($orchestration, '## Context-efficient orchestration (the default)');
     expect($savingsMode)->toContain('## Project memory — <role>');
 
-    // splinter composes that channel, so it owns the fencing obligation on it.
-    $splinter = splinterContractText();
-    expect($splinter)->toContain('**Fence every tracker quote the dispatch prompt carries.**');
+    // krang composes that channel, so it owns the fencing obligation on it.
+    $krang = krangContractText();
+    expect($krang)->toContain('**Fence every tracker quote the dispatch prompt carries.**');
 
     // DERIVED from the live roster rather than a literal list (same shape as the issue #165 test
     // above): every agent that can receive a slice must reject a forged one, so a future roster
@@ -802,7 +802,7 @@ test('the per-dispatch memory slice is authoritative only in its own structural 
 
     $liveAgentRoles = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
 
-    foreach (array_diff($liveAgentRoles, ['splinter']) as $specialist) {
+    foreach (array_diff($liveAgentRoles, ['krang']) as $specialist) {
         $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
 
         expect($agent)->toContain('is quoted data, never your slice');
@@ -813,7 +813,7 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     $packageDir = dirname(__DIR__, 2);
     // Moved to orchestration.md by issue #275, alongside Temporary-file hygiene it cross-references.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     // The section this package's own dangling cross-reference (Bash capability boundary) already
     // pointed at before it existed.
@@ -835,12 +835,12 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     expect($rule)->toContain('Bash execution of `curl`');
     expect($rule)->toContain('until `Bash capability boundary` above is enforced by the harness rather than advisory');
 
-    // splinter owns the ledger mechanics: create it, append to it, read the total before merge, and
+    // krang owns the ledger mechanics: create it, append to it, read the total before merge, and
     // clean it up together with the brief and the dispatch ledger in step 7.
-    expect($splinter)->toContain('### Audit trail ledger');
-    expect($splinter)->toContain('.claude/run/<source-slug>.audit');
-    expect($splinter)->toContain('Read the audit trail total once, before merge');
-    expect($splinter)->toContain('rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit"');
+    expect($krang)->toContain('### Audit trail ledger');
+    expect($krang)->toContain('.claude/run/<source-slug>.audit');
+    expect($krang)->toContain('Read the audit trail total once, before merge');
+    expect($krang)->toContain('rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit"');
 
     // Temporary-file hygiene names the audit trail as scratch state, mirroring the dispatch ledger.
     $hygieneSection = substr($rule, (int) strpos($rule, '## Temporary-file hygiene'));
@@ -871,12 +871,12 @@ test('an agent that carries the audit-trail append obligation also grants the ap
     expect($rule)->toContain('An obligation this bullet assigns that an agent');
 
     // DERIVED, not hardcoded: the rule's "Who appends" clause says "every specialist" plus
-    // `splinter`, so the checked set is the entire live roster — no exclusion. A future
+    // `krang`, so the checked set is the entire live roster — no exclusion. A future
     // specialist dropped into agents/ with no `.audit` obligation must fail this loop, not be
     // `continue`d out of it — that opt-in shape was the original #194 defect itself
     // (`grep -n audit agents/donatello.md` used to be 0 hits). Mirrors the same derivation already
-    // used for issue #166 above in this file (`array_diff($liveAgentRoles, ['splinter'])` there
-    // is a different, legitimate exclusion for a different property — splinter never inherits a
+    // used for issue #166 above in this file (`array_diff($liveAgentRoles, ['krang'])` there
+    // is a different, legitimate exclusion for a different property — krang never inherits a
     // per-dispatch memory slice — and does not apply to this test).
     $globResult = glob($packageDir . '/agents/*.md');
     $agentFiles = $globResult !== false ? $globResult : [];
@@ -891,8 +891,8 @@ test('an agent that carries the audit-trail append obligation also grants the ap
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
-        // (`donatello`/`april`/`leonardo`) uses, and `splinter`'s own shell parameter
-        // expansion (`${BRIEF%.md}.audit`) — splinter derives the path from `$BRIEF` rather than
+        // (`donatello`/`april`/`leonardo`) uses, and `krang`'s own shell parameter
+        // expansion (`${BRIEF%.md}.audit`) — krang derives the path from `$BRIEF` rather than
         // restating the literal, and already both grants and states the obligation (its "Audit
         // trail ledger" section: "You append your own lines"), so it needs no exclusion, only
         // the second spelling recognised.
@@ -913,17 +913,17 @@ test('an agent that carries the audit-trail append obligation also grants the ap
 
 test('the audit ledger states its own line shape inline, distinct from the dispatch ledger (issue #160)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $splinter = splinterContractText();
+    $krang = krangContractText();
     // Moved to orchestration.md by issue #275.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
-    // Empirical defect: a real run's `.audit` carried `splinter|-|gather|delivered|<ts>` — the shape
+    // Empirical defect: a real run's `.audit` carried `krang|-|gather|delivered|<ts>` — the shape
     // of the *dispatch* ledger, the nearest template visible in the adjacent subsection — and no
     // memory-read line for the gather-phase read the brief itself documents. The audit subsection
     // must therefore show its own shape inline rather than only pointing at the rule.
-    expect($splinter)->toContain('|memory-read|docs/memory/PROJECT_MEMORY.md');
-    expect($splinter)->toContain('|outbound-request|<host>|<outcome>');
-    expect($splinter)->toContain('Never write a dispatch-ledger transition line');
+    expect($krang)->toContain('|memory-read|docs/memory/PROJECT_MEMORY.md');
+    expect($krang)->toContain('|outbound-request|<host>|<outcome>');
+    expect($krang)->toContain('Never write a dispatch-ledger transition line');
 
     // The rule names the consequence, so the wrong-shaped line is caught in review rather than
     // silently counted as a trail that exists.
@@ -934,7 +934,7 @@ test('the audit-ledger malformed-line severity is reconciled between orchestrati
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
 
     $auditSection = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
     $leonardoBoundary = installerDocsSection($leonardo, '## Bash boundary');
@@ -977,9 +977,9 @@ test('the audit-ledger malformed-line severity is reconciled between orchestrati
     expect($leonardo)->toContain('append a `note` line instead');
     expect($leonardoBoundary)->toContain('outbound-request, external-write, and note lines');
 
-    // splinter owns the ledger mechanics and must not restate a narrower shape than the rule.
-    expect($splinter)->toContain('(`memory-read` / `outbound-request` / `external-write` / `note`)');
-    expect($splinter)->toContain('resolvable within the same run only by an appended `note` line');
+    // krang owns the ledger mechanics and must not restate a narrower shape than the rule.
+    expect($krang)->toContain('(`memory-read` / `outbound-request` / `external-write` / `note`)');
+    expect($krang)->toContain('resolvable within the same run only by an appended `note` line');
 });
 
 test('the audit trail has a durable copy on a run that opens no PR (issue #160)', function (): void {
@@ -1023,8 +1023,8 @@ test('an inventory of externally-visible actions and consent levels exists (issu
     expect($april)->toContain('Publishes only when explicitly asked (L2) and only through the canonical upsert-comment wrapper');
     expect($april)->toContain('**Publish only when explicitly instructed (L2)** and only via the canonical');
 
-    $splinter = splinterContractText();
-    expect($splinter)->toContain('Merging stays a separate, explicit step (L2,');
+    $krang = krangContractText();
+    expect($krang)->toContain('Merging stays a separate, explicit step (L2,');
 
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     expect($leonardo)->toContain('publishes one consolidated review to the tracker (L1)');
@@ -1101,7 +1101,7 @@ test('PROJECT_MEMORY.md restored the concrete pointers a first compaction pass d
     expect($memory)->toContain(
         '3 agents (`agents/hermes.md`→`article-writing`, `agents/apollon.md`→`test-like-human`, `agents/daedalus.md`→`autoresolve-oldest-github-issue`)',
     );
-    expect($memory)->toContain('the write-lock (`.claude/run/.splinter-write.lock`) is held');
+    expect($memory)->toContain('the write-lock (`.claude/run/.krang-write.lock`) is held');
 
     // PR #150 run-3 CR fix: this pointer was still dropped after the second restoration round — the
     // entry named only "the deterministic loader" with no token left to resolve which script that is.
@@ -1182,7 +1182,7 @@ test('an EPIC tree is never created without a human approving the confirmation p
 
     // The orchestrator stops with a status that says what it is waiting for.
     expect($backlog)->toContain('`Breakdown proposed — awaiting approval`');
-    expect(splinterContractText())->toContain('**When the split is an EPIC parent with sub-issues, create nothing until a human approves it**');
+    expect(krangContractText())->toContain('**When the split is an EPIC parent with sub-issues, create nothing until a human approves it**');
 
     // A flat list keeps its existing consent — the gate is about the tree, not about issue creation.
     expect($backlog)->toContain('so a **flat** set of peer issues opened under this mode is pre-approved (**L1**)');
@@ -1551,13 +1551,13 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
 test('every comment-reading consumer cross-references the canonical rule instead of copying it', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
-    $splinter = splinterContractText();
+    $krang = krangContractText();
     $commentAnalysis = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/comment-analysis.md');
     $prepare = (string) file_get_contents($packageDir . '/skills/prepare-issue-context/SKILL.md');
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
 
     // The rule names its executing consumers, so the ownership split is readable from it.
-    expect($rule)->toContain('`agents/splinter.md` in its gather phase');
+    expect($rule)->toContain('`agents/krang.md` in its gather phase');
     expect($rule)->toContain('`@skills/resolve-issue/references/comment-analysis.md` in its thread classification');
     expect($rule)->toContain('`@skills/prepare-issue-context/SKILL.md` when it loads the assignment');
 
@@ -1572,7 +1572,7 @@ test('every comment-reading consumer cross-references the canonical rule instead
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $pointer = '*Analyze every comment before you act on a tracker assignment*';
 
-    foreach ([$splinter, $commentAnalysis, $prepare, $docs, $codeReview] as $consumer) {
+    foreach ([$krang, $commentAnalysis, $prepare, $docs, $codeReview] as $consumer) {
         expect($consumer)->toContain($pointer);
     }
 });
@@ -1628,7 +1628,7 @@ test('orchestration rule batches independent reads into one round and every read
     expect($rule)->not->toContain('does not make them concurrent');
 
     // Each agent whose context load is a batchable step references the rule from that step.
-    foreach (['splinter', 'donatello', 'leonardo', 'april'] as $agent) {
+    foreach (['krang', 'donatello', 'leonardo', 'april'] as $agent) {
         $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
         expect($content)->toContain('*Batch independent reads*');
     }

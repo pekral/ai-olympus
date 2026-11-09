@@ -756,7 +756,7 @@ function ruleScopingConsumerAppTreePaths(): array
  * puts the rules scoped to their own path, which is what an agent reads when a skill names them.
  * Two more are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
- * every consuming project (per this package's own `agents/splinter.md` *Shared task brief*), and
+ * every consuming project (per this package's own `agents/krang.md` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
  * directory that walk skips. They live here for the same reason the rest of this corpus does.
  *
@@ -854,7 +854,7 @@ function ruleExtensionFrontmatter(string $path): string
  * shared file alone would miss the tracker-specific half.
  */
 /**
- * The whole `splinter` orchestration contract: its base prompt plus the rare
+ * The whole `krang` orchestration contract: its base prompt plus the rare
  * procedures extracted into `skills/_shared/orchestration/`.
  *
  * Those procedures were moved out so the orchestrator stops carrying ~30 KB of
@@ -864,10 +864,10 @@ function ruleExtensionFrontmatter(string $path): string
  * distinguishable to the suite. It mirrors `crContractText()`, which already
  * folds a skill's references back into the skill for the same reason.
  */
-function splinterContractText(): string
+function krangContractText(): string
 {
     $packageDir = dirname(__DIR__);
-    $text = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $text = (string) file_get_contents($packageDir . '/agents/krang.md');
 
     $references = glob($packageDir . '/skills/_shared/orchestration/*.md');
 

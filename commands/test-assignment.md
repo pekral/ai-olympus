@@ -3,7 +3,7 @@ description: Test one task's pull request against its assignment, prove that not
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [report|fix] [optional test data]
 ---
 
-Delegate this request to the `splinter` agent in test mode and run
+Delegate this request to the `krang` agent in test mode and run
 `@skills/test-assignment/SKILL.md` with these arguments:
 
 $ARGUMENTS
@@ -22,5 +22,5 @@ and fixes, then prepare the pull request for merge through `@skills/verify-merge
 Never merge. Publish every business decision, optimization, refactoring, and pre-existing problem
 as a question in the `Decisions before merge` section instead of implementing it.
 
-For Codex, invoke `$test-assignment` with the same arguments and ask the registered `splinter` agent
+For Codex, invoke `$test-assignment` with the same arguments and ask the registered `krang` agent
 to orchestrate it.

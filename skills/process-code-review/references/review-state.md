@@ -86,7 +86,7 @@ A finding may block only when it names a concrete defect or a violated explicit 
 
 **A change after a convergence in the cap round escalates.** The converged verdict covers only the diff the cap round reviewed. When a later commit needs another review round — a gate fix that changes business logic (`SKILL.md` *Finalization*) — `record` refuses the round, stores the escalation `cap-spent-after-convergence`, prints the verdict, and exits 5. Never promote the pull request on that verdict.
 
-**An escalation is terminal.** It preserves the branch, the commits, and the state file, starts no further automatic round (`record` exits 5), and publishes nothing. The caller reports the verdict's `blocking` list, its `reason`, and its `escalation_reason`, and hands the run to the orchestrator or the human: `agents/splinter.md` step 6 *Hard stop*. Nothing bypasses the quality gate, and the merge gate is unchanged: `@skills/merge-github-pr/SKILL.md` still requires a converged CR comment with `Critical 0` and no undeferred Moderate.
+**An escalation is terminal.** It preserves the branch, the commits, and the state file, starts no further automatic round (`record` exits 5), and publishes nothing. The caller reports the verdict's `blocking` list, its `reason`, and its `escalation_reason`, and hands the run to the orchestrator or the human: `agents/krang.md` step 6 *Hard stop*. Nothing bypasses the quality gate, and the merge gate is unchanged: `@skills/merge-github-pr/SKILL.md` still requires a converged CR comment with `Critical 0` and no undeferred Moderate.
 
 ## Incremental scope and the broad review
 

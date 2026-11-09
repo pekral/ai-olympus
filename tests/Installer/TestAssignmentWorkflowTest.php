@@ -2,11 +2,11 @@
 
 declare(strict_types = 1);
 
-test('test-assignment runs the assignment test through splinter, donatello, raphael, and april', function (): void {
+test('test-assignment runs the assignment test through krang, donatello, raphael, and april', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/commands/test-assignment.md');
     $skill = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
-    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
 
@@ -22,8 +22,8 @@ test('test-assignment runs the assignment test through splinter, donatello, raph
         ->and($skill)->toContain('dispatch `april` in *Test report mode*')
         ->and($skill)->toContain('continue with `@skills/verify-merge-readiness/SKILL.md` from its step 2');
 
-    expect($splinter)->toContain('## Test mode — `/test-assignment`')
-        ->and($splinter)->toContain('`Test report done`');
+    expect($krang)->toContain('## Test mode — `/test-assignment`')
+        ->and($krang)->toContain('`Test report done`');
     expect($april)->toContain('## Test report mode')
         ->and($april)->toContain('upsert-comment.sh <PR> - test-report');
     expect($raphael)->toContain('when the dispatch asks for a base-branch comparison (`@skills/test-assignment/SKILL.md`)');
