@@ -225,7 +225,10 @@ test('the routine report is rendered from run data, and april is reserved for re
     expect($april)->toContain('## When a model is warranted — and when a template is');
     expect($april)->toContain('you are not dispatched for it');
     expect($splinter)->toContain('skills/_shared/render-report.sh');
-    expect($splinter)->toContain('**Dispatch `april` only when the renderer cannot do the job**');
+    expect($splinter)->toContain('**The completion report is rendered, not written by a model, and it goes to the user only.**');
+    expect($splinter)->toContain('**This is the run\'s one tracker report, and it is final.**');
+    expect($splinter)->toContain('state `tracker-report: deferred`');
+    expect($splinter)->not->toContain('publish its output through the canonical `upsert-comment.sh` wrapper');
 });
 
 test('metrics are persisted as counts only, outside the repository', function (): void {

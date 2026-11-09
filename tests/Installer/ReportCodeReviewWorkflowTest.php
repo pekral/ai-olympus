@@ -24,7 +24,7 @@ extend those steps in the dispatch prompt');
     );
     expect($splinter)->toContain('It changes nothing in the pull request: no fix and no test.');
     expect($leonardo)->toContain('confirm that local `HEAD` equals the pull request\'s head SHA');
-    expect($leonardo)->toContain('(`--create` on the publish helper)');
+    expect($leonardo)->toContain('Tell the wrapper to update the comments an earlier run left, never to pass `--create`.');
     expect($leonardo)->toContain('never a separate security comment, and never `SECURITY_OWNER` on the wrapper');
 
     expect($splinter)->toContain('## Review-only mode — `/report-code-review`');
@@ -43,11 +43,14 @@ extend those steps in the dispatch prompt');
     expect($splinter)->toContain('The review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request.');
     expect($splinter)->toContain('switch the current working tree to the pull request\'s head branch');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
-    expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
+    $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+    expect($prSummary)
         ->toContain('### Review-only run — `Review findings` in place of `How to test`')
-        ->toContain('Pass `--create` as the first argument of the GitHub and JIRA publish helpers');
+        ->toContain('**One comment, updated in place.** A review-only run publishes through the GitHub and JIRA helpers like any other run');
+    expect($prSummary)->not->toContain('Pass `--create`');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
-        ->toContain('**A review-only run always creates new comments.**')
+        ->toContain('**A review-only run updates its comments in place too.**')
+        ->toContain('**A deferred tracker report — `tracker-report: deferred`.**')
         ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
         ->toContain('as parallel tool calls in this same context, never as a subagent.');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
@@ -93,6 +96,5 @@ test('report-code-review dispatches casey once after the review when the handoff
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
         ->toContain('A review-only run (`/report-code-review`) has no CR loop:')
         ->toContain('`agents/splinter.md` *Review-only mode* dispatches `casey` once, after its one review.');
-    expect((string) file_get_contents($packageDir . '/agents/casey.md'))
-        ->toContain('When the dispatch carries `review_only`, pass `--create` as the first argument');
+    expect((string) file_get_contents($packageDir . '/agents/casey.md'))->not->toContain('--create');
 });

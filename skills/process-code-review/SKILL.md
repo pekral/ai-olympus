@@ -218,6 +218,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 
 - **Run the final publishing run inline.** Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker, and it posts **one** comment per destination. The invocation must include the PR URL, the converged state (`criticalCount == 0`, no undeferred Moderate),
   the `reviewedRevision` and `reviewedDiffFingerprint` baseline of the last iteration (per **Incremental review scope**, so the published comment carries the `Reviewed revision:`, `Reviewed diff fingerprint:`, and `Review scope:` header lines), the parts **PR update** assembled, and the instruction to post the final PR comment + linked-issue / JIRA mirror per the CR wrapper's contract.
+  When the caller passed `tracker-report: deferred`, pass it to the wrapper too: the final publish then writes the pull-request comment only, and the caller publishes the one tracker report after every CR step finished (`@skills/code-review-github/references/cr-wrapper-contract.md` *Non-technical tracker summary*).
   Do not dispatch as a subagent — run it sequentially in the current context:
   - GitHub: `@skills/code-review-github/SKILL.md`
   - JIRA: `@skills/code-review-jira/SKILL.md`
