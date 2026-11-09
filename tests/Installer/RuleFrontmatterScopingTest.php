@@ -437,7 +437,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the DRY check names each rule, searches it by its mechanics, opens the siblings, and publishes `## Reuse (DRY)`.
         // Re-baselined: the evidence sections are the one exception to the no-confirmation rule, and `Reuse (DRY):` without evidence reads `not verified`.
         // Re-baselined: the review floor gains item 4 (environment values, production), and the not-verified example names a person with replica access.
-        'rules/code-review/general.md' => 'e9198b2a193aec39812d475bb7ac473c0cc1407378b88db25dd05ca616e217da',
+        'rules/code-review/general.md' => 'd98e5d3e3c6e1f9bac948ca7ad1ec7ef0a2d4f33d0751505a00edd2239c39f6b',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
