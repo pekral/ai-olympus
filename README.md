@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 65 reusable skills, and six specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+**AI Olympus** gives Laravel/PHP teams shared coding standards, 65 reusable skills, and eight specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
 
 ## Requirements
 
@@ -99,7 +99,7 @@ The [Quickstart](#quickstart) above carries the two commands. This is what they 
 
 - `.claude/rules` and `.claude/skills` in the project
 - `.claude/agents` (the six subagents)
-- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the six custom-agent adapters)
+- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the eight custom-agent adapters)
 - `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
 - `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, and the tracker's code-review wrapper)
 - `AGENTS.md` in the project root
