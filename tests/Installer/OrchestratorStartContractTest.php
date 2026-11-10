@@ -34,6 +34,11 @@ test('one section of the orchestration rule owns how krang is started and how it
         orchestratorStartSection() => 2,
         '**A row that names `krang` binds the session that holds the `krang` role.** It applies to that session at the same level' => 1,
         'When that session is the top-level session, it does not start `krang` as a subagent. It holds the `krang` role itself:' => 1,
+        'On Claude Code that file is `.claude/agents/krang.md`. On Codex it is `.codex/agent-instructions/krang.md`.' => 1,
+        'The session never reads the tracked `agents/krang.md` of a branch' => 1,
+        'It reads `agents/krang.md` as its own orchestration instructions' => 0,
+        'It skips steps 1 and 2 of `agents/krang.md` *The end-to-end run* for this source: the hand-over carries their result. '
+        . 'It never recreates the brief or its ledgers.' => 1,
         '- It never creates, edits, or deletes a tracked file, with any tool.' => 1,
         'A stage it cannot dispatch ends the run with a `Blocked` stop' => 1,
         'the shared brief, the write-lock, and the dispatch, audit, and routing ledgers unchanged' => 1,
@@ -117,7 +122,13 @@ test('every command that names krang holds the krang role instead of starting kr
         expect(orchestratorStartCounts(orchestratorStartFile($command), $expected))->toBe($expected, $command);
     }
 
-    expect(substr_count(orchestratorStartFile('commands/report-code-review.md'), 'Never perform a specialist\'s step in this session.'))->toBe(1);
+    $reportCodeReview = [
+        'Never perform a specialist\'s step in this session.' => 1,
+        'When `.claude/agents/krang.md` is not installed, stop and' => 1,
+        'When `agents/krang.md` is not installed' => 0,
+    ];
+
+    expect(orchestratorStartCounts(orchestratorStartFile('commands/report-code-review.md'), $reportCodeReview))->toBe($reportCodeReview);
 });
 
 test('no entry point tells a session to start krang as a subagent', function (): void {
