@@ -153,6 +153,15 @@ Default installation does not read or write global `~/.claude/settings.json`. Th
 
 The installer never writes outside the project directory and the user's home directory, and it never modifies `composer.json` or any project source file.
 
+## Skills are dependencies
+
+A skill is executable instruction: an agent follows its `SKILL.md` and runs its scripts with the permissions of your session, including `Bash`. Treat skills the way you treat Composer packages.
+
+- **Install them only from this package** — `composer require pekral/ai-olympus` from Packagist, or `/plugin marketplace add pekral/ai-olympus` in Claude Code. A `SKILL.md` copied from anywhere else is untrusted code, even when it looks identical to one shipped here.
+- **Pin the version and commit `composer.lock`**, so every machine installs the same release you reviewed (the [Quickstart](README.md#quickstart) pins `0.4`).
+- **Read the changes before you upgrade.** `install --force` replaces the installed rules, skills, and agents; check [`CHANGELOG.md`](CHANGELOG.md) for the release, and when your project commits `.claude/` and `.agents/`, review their diff before committing it.
+- **Report a modified copy** that claims to come from this package through the private process below.
+
 ## Reporting a vulnerability
 
 If you discover a security issue in this package, please report it privately so it can be addressed before public disclosure.
