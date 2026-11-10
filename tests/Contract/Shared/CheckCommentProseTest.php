@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
  * @param array<string, string> $files
  * @return array{exit: int|null, output: string, error: string}
  */
-function runCheckCommentProse(array $files, string $diff, bool $withDiff = true): array
+function runCheckCommentProse(array $files, string $diff, bool $withDiff = true, ?string $diffFile = null, bool $writeDiffFile = true): array
 {
     $packageDir = dirname(__DIR__, 3);
     $root = sys_get_temp_dir() . '/ai-olympus-prose-' . bin2hex(random_bytes(6));
@@ -27,9 +27,13 @@ function runCheckCommentProse(array $files, string $diff, bool $withDiff = true)
 
     $arguments = ['php', $packageDir . '/skills/_shared/check-comment-prose.php'];
 
+    if ($diffFile !== null && $writeDiffFile) {
+        file_put_contents($root . '/' . $diffFile, $diff);
+    }
+
     if ($withDiff) {
         $arguments[] = '--diff';
-        $arguments[] = '-';
+        $arguments[] = $diffFile === null ? '-' : $root . '/' . $diffFile;
         $arguments[] = '--root';
         $arguments[] = $root;
     }
@@ -107,13 +111,88 @@ test('a prose comment the diff does not touch is not reported', function (): voi
         ->and($result['output'])->toBe('{"valid":true,"findings":[]}');
 });
 
-test('a non-PHP file and a path that leaves the root are not read', function (): void {
-    $diff = proseTestDiff('readme.md', 1, 1) . proseTestDiff('../outside.php', 1, 1);
-
-    $result = runCheckCommentProse(['readme.md' => "// prose\n"], $diff);
+test('a non-PHP file in the diff is not read', function (): void {
+    $result = runCheckCommentProse(['readme.md' => "// prose\n"], proseTestDiff('readme.md', 1, 1));
 
     expect($result['exit'])->toBe(0)
         ->and($result['output'])->toBe('{"valid":true,"findings":[]}');
+});
+
+test('a path that leaves the root is refused', function (): void {
+    $result = runCheckCommentProse([], proseTestDiff('../outside.php', 1, 1));
+
+    expect($result['exit'])->toBe(1)
+        ->and($result['output'])->toBe('')
+        ->and($result['error'])->toBe("check-comment-prose.php: the diff names a path outside the root\n");
+});
+
+test('a PHP path the root does not hold fails closed instead of passing', function (): void {
+    $result = runCheckCommentProse([], "--- app/Missing.php\n+++ app/Missing.php\n@@ -0,0 +1,1 @@\n+line\n");
+
+    expect($result['exit'])->toBe(1)
+        ->and($result['error'])->toBe("check-comment-prose.php: the diff names a PHP file that is not under the root\n");
+});
+
+test('a diff without the b/ prefix and with context lines maps each added line to its file line', function (): void {
+    $source = "<?php\n\nfunction kept(): int\n{\n    // keep the total\n    return 1;\n}\n";
+    $diff = "--- app/kept.php\n+++ app/kept.php\n@@ -3,3 +3,4 @@\n function kept(): int\n {\n+    // keep the total\n     return 1;\n";
+
+    $result = runCheckCommentProse(['app/kept.php' => $source], $diff);
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/kept.php","line":5}]}');
+});
+
+test('a diff read from a file is checked like one read from standard input', function (): void {
+    $source = "<?php\n\n/* a block comment with prose */\nfunction block(): void\n{\n}\n";
+
+    $result = runCheckCommentProse(['app/block.php' => $source], proseTestDiff('app/block.php', 3, 3), diffFile: 'change.diff');
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/block.php","line":3}]}');
+});
+
+test('a diff file that cannot be read is an input error', function (): void {
+    $result = runCheckCommentProse([], '', diffFile: 'absent.diff', writeDiffFile: false);
+
+    expect($result['exit'])->toBe(1)
+        ->and($result['error'])->toBe("check-comment-prose.php: cannot read the diff\n");
+});
+
+test('a hash comment with prose is reported', function (): void {
+    $source = "<?php\n\n# legacy hash note\nfunction hashed(): void\n{\n}\n";
+
+    $result = runCheckCommentProse(['app/hashed.php' => $source], proseTestDiff('app/hashed.php', 3, 3));
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/hashed.php","line":3}]}');
+});
+
+test('a run of line comments is one block and one finding', function (): void {
+    $source = "<?php\n\nfunction run(): int\n{\n    // first line\n    // second line\n    // third line\n    return 1;\n}\n";
+
+    $result = runCheckCommentProse(['app/run.php' => $source], proseTestDiff('app/run.php', 5, 7));
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/run.php","line":5}]}');
+});
+
+test('a sentence after an annotation with an unclosed comparison is still prose', function (): void {
+    $source = "<?php\n\n/**\n * @param int \$limit must be < 100\n * The limit protects the queue.\n */\nfunction limited(int \$limit): void\n{\n}\n";
+
+    $result = runCheckCommentProse(['app/limited.php' => $source], proseTestDiff('app/limited.php', 3, 6));
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/limited.php","line":5}]}');
+});
+
+test('a tag that static analysis does not read is prose', function (): void {
+    $source = "<?php\n\n/**\n * @todo rewrite this\n */\nfunction pending(): void\n{\n}\n";
+
+    $result = runCheckCommentProse(['app/pending.php' => $source], proseTestDiff('app/pending.php', 3, 5));
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/pending.php","line":4}]}');
 });
 
 test('a run without a diff is a usage error', function (): void {

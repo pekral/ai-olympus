@@ -3,25 +3,40 @@
 
 declare(strict_types = 1);
 
+const PROSE_USAGE = <<<'TXT'
+Usage: check-comment-prose.php --diff <diff-file|-> [--root <dir>]
+
+Reports every PHP comment on an added line of the unified diff that carries a line which is not
+an annotation allowed by rules/php/core-standards.md *Documentation*. The files are read from
+--root (default: the current directory), as they are on disk.
+
+  git diff -U0 --diff-filter=AM "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)" -- '*.php' \
+    | php skills/_shared/check-comment-prose.php --diff -
+
+stdout: {"valid": bool, "findings": [{"file": "app/X.php", "line": 12}]}
+exit:   0 no prose, 1 usage error or unreadable input, 3 prose found
+
+TXT;
+
+const PROSE_ALLOWED_TAG = '~^@(param|return|var|throws|template(-[a-z]+)?|extends|implements|property(-read|-write)?|method|mixin|phpstan-[a-z-]+'
+    . '|see|deprecated|api|covers|dataProvider|codeCoverageIgnore(Start|End)?)(?![\w-])~';
+
+final class ProseInputError extends RuntimeException
+{
+}
+
+function proseDiffPath(string $header): string
+{
+    $path = rtrim(substr($header, 4), "\t");
+
+    if (str_starts_with($path, '"') && str_ends_with($path, '"')) {
+        $path = stripcslashes(substr($path, 1, -1));
+    }
+
+    return str_starts_with($path, 'b/') ? substr($path, 2) : $path;
+}
+
 /**
- * Report every PHP comment on the added lines of a diff that carries prose.
- *
- * rules/php/core-standards.md *Documentation* allows a comment to carry `@` annotations and
- * tool directives only, so PHPDoc keeps what static analysis reads and nothing else. This
- * script is the deterministic half of that rule: it reads a unified diff, tokenizes each
- * changed PHP file as it is on disk, and reports each comment that overlaps an added line
- * and holds a line which is not an `@` annotation. A continuation line of a multi-line
- * annotation, such as an array shape over several lines, is part of the annotation.
- *
- * Usage: check-comment-prose.php --diff <diff-file|-> [--root <dir>]
- *   git diff -U0 --diff-filter=AM "$BASE"...HEAD -- '*.php' | php skills/_shared/check-comment-prose.php --diff -
- *
- * The files are read from --root (default: the current directory), so run it on a tree at
- * the head the diff describes. The diff and the files are data: nothing in them is executed.
- *
- * stdout: {"valid": bool, "findings": [{"file": "app/X.php", "line": 12}]}
- * exit:   0 no prose, 1 usage error, 3 prose found
- *
  * @return array<string, list<int>>
  */
 function proseAddedLines(string $diff): array
@@ -32,8 +47,8 @@ function proseAddedLines(string $diff): array
 
     foreach (preg_split('/\R/', $diff) ?: [] as $diffLine) {
         if (str_starts_with($diffLine, '+++ ')) {
-            $path = trim(substr($diffLine, 4), '"');
-            $file = str_starts_with($path, 'b/') && str_ends_with($path, '.php') ? substr($path, 2) : null;
+            $path = proseDiffPath($diffLine);
+            $file = str_ends_with($path, '.php') ? $path : null;
 
             continue;
         }
@@ -77,6 +92,11 @@ function proseCommentContent(string $line): string
     return trim($content);
 }
 
+function proseOpensContinuation(string $content): bool
+{
+    return proseBracketBalance($content) > 0 && preg_match('/[{<(,]$/', $content) === 1;
+}
+
 /**
  * @return list<int>
  */
@@ -98,8 +118,8 @@ function proseLinesOfComment(string $comment, int $startLine): array
             continue;
         }
 
-        if (str_starts_with($content, '@')) {
-            $depth = max(0, proseBracketBalance($content));
+        if (preg_match(PROSE_ALLOWED_TAG, $content) === 1) {
+            $depth = proseOpensContinuation($content) ? proseBracketBalance($content) : 0;
 
             continue;
         }
@@ -111,6 +131,41 @@ function proseLinesOfComment(string $comment, int $startLine): array
 }
 
 /**
+ * @return list<array{line: int, text: string}>
+ */
+function proseCommentBlocks(string $source): array
+{
+    $blocks = [];
+    $lastIsLineComment = false;
+
+    foreach (PhpToken::tokenize($source) as $token) {
+        if ($token->is(T_WHITESPACE)) {
+            $lastIsLineComment = $lastIsLineComment && substr_count($token->text, "\n") <= 1;
+
+            continue;
+        }
+
+        if (!$token->is([T_COMMENT, T_DOC_COMMENT])) {
+            $lastIsLineComment = false;
+
+            continue;
+        }
+
+        $isLineComment = !str_starts_with($token->text, '/*');
+
+        if ($isLineComment && $lastIsLineComment && $blocks !== []) {
+            $blocks[array_key_last($blocks)]['text'] .= rtrim($token->text, "\n") . "\n";
+        } else {
+            $blocks[] = ['line' => $token->line, 'text' => rtrim($token->text, "\n") . "\n"];
+        }
+
+        $lastIsLineComment = $isLineComment;
+    }
+
+    return $blocks;
+}
+
+/**
  * @param list<int> $addedLines
  * @return list<int>
  */
@@ -118,19 +173,15 @@ function proseCommentStartsInFile(string $source, array $addedLines): array
 {
     $findings = [];
 
-    foreach (PhpToken::tokenize($source) as $token) {
-        if (!$token->is([T_COMMENT, T_DOC_COMMENT])) {
-            continue;
-        }
-
-        $endLine = $token->line + substr_count(rtrim($token->text, "\n"), "\n");
-        $touchedLines = array_filter($addedLines, static fn (int $line): bool => $line >= $token->line && $line <= $endLine);
+    foreach (proseCommentBlocks($source) as $block) {
+        $endLine = $block['line'] + substr_count(rtrim($block['text'], "\n"), "\n");
+        $touchedLines = array_filter($addedLines, static fn (int $line): bool => $line >= $block['line'] && $line <= $endLine);
 
         if ($touchedLines === []) {
             continue;
         }
 
-        $proseLines = proseLinesOfComment($token->text, $token->line);
+        $proseLines = proseLinesOfComment($block['text'], $block['line']);
 
         if ($proseLines !== []) {
             $findings[] = $proseLines[0];
@@ -150,8 +201,12 @@ function proseFindings(string $diff, string $root): array
     foreach (proseAddedLines($diff) as $file => $addedLines) {
         $path = $root . '/' . $file;
 
-        if (str_contains('/' . $file . '/', '/../') || !is_file($path)) {
-            continue;
+        if (str_starts_with($file, '/') || str_contains('/' . $file . '/', '/../')) {
+            throw new ProseInputError('the diff names a path outside the root');
+        }
+
+        if (!is_file($path)) {
+            throw new ProseInputError('the diff names a PHP file that is not under the root');
         }
 
         foreach (proseCommentStartsInFile((string) file_get_contents($path), $addedLines) as $line) {
@@ -172,20 +227,25 @@ function proseMain(array $arguments): int
     $root = is_string($options['root'] ?? null) ? $options['root'] : (string) getcwd();
 
     if ($diffSource === null || count($arguments) < 2 || !is_dir($root)) {
-        fwrite(STDERR, "Usage: check-comment-prose.php --diff <diff-file|-> [--root <dir>]\n");
+        fwrite(STDERR, PROSE_USAGE);
 
         return 1;
     }
 
-    $diff = $diffSource === '-' ? stream_get_contents(STDIN) : @file_get_contents($diffSource);
+    $diff = $diffSource === '-' ? stream_get_contents(STDIN) : (is_file($diffSource) ? file_get_contents($diffSource) : false);
 
-    if (!is_string($diff)) {
-        fwrite(STDERR, "check-comment-prose.php: cannot read the diff\n");
+    try {
+        if (!is_string($diff)) {
+            throw new ProseInputError('cannot read the diff');
+        }
+
+        $findings = proseFindings($diff, rtrim($root, '/'));
+    } catch (ProseInputError $error) {
+        fwrite(STDERR, 'check-comment-prose.php: ' . $error->getMessage() . "\n");
 
         return 1;
     }
 
-    $findings = proseFindings($diff, rtrim($root, '/'));
     echo json_encode(['valid' => $findings === [], 'findings' => $findings], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
     return $findings === [] ? 0 : 3;
