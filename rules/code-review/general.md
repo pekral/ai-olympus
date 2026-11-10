@@ -160,6 +160,7 @@ A reviewer may not silently downgrade below this stratification. When a rule's s
 Security ranks above every other check of a review, DRY included. A missed security defect reaches production and the users, while every other finding costs only maintenance.
 
 - **It runs on every review and is never skipped.** `@skills/security-review/SKILL.md` runs over the current diff of the pull request on every CR: a highest-priority fast track, a HOTFIX review, and a review-only run (`/report-code-review`) included. A `FAST`-tier run has no code review, so it has no security review either (`@rules/git/pull-requests.md` *`FAST`-tier pull requests (code-review exemption)*). Every rule in `@rules/security/**` applies. No time limit, budget, or scope narrowing removes it.
+- **A carried-forward review-only verdict keeps this guarantee.** A review-only run that starts no round (*When another review round runs at all* below) runs no security lens of its own. Its verdict stands only on a review whose security lenses ran over the identical effective diff. The proof is a matching `Reviewed diff fingerprint:` and a `Security assessment:` line that `skills/_shared/check-cr-header.sh` accepts. A narrowed review, a review without that line, and a different fingerprint start the round.
 - **The security audit runs on every review too.** `@skills/security-audit/SKILL.md` runs in its *Diff mode* over the current diff of the pull request on every CR, next to `security-review`, including a review-only run. It is never skipped, and a `FAST`-tier run has none, for the same reason as above.
 - **It is never shortened.** When the review must shorten a lens, it shortens another lens and never a security lens. In every round the security lenses read the whole PR diff, not only the delta (*Incremental Review Scope*).
 - **Its findings lead the report.** In each severity list of the published review, the security findings come first.
@@ -461,6 +462,16 @@ Nothing else settles a finding. A round marker, a *"vyřešeno"* / *"resolved"* 
 
 **A security finding is never settled by a rejection.** A finding that meets the S1–S3 carve-out of the Exclusion Gate — produced by a security lens, citing a rule in `@rules/security/**`, or landing on a security surface — leaves the report only by being fixed and re-read as fixed. This is the same absolute the Exclusion Gate states, and this section never becomes a filter that undoes it.
 
+### An answered finding stays in the report — the answer is shown, never applied
+
+A trusted author sometimes answers a carried-over finding with a reason the reviewer does not accept. A security finding is always in this case, because no rejection settles it. The finding stays, and a later round would otherwise publish it again with no trace of the answer. The report therefore shows the answer. Showing it is **presentation only**:
+
+- **Nothing about the finding changes.** It keeps its severity, its place in `Counts:` and in `Merge verdict:`, and its blocking effect on the convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4) and on the merge gate. It is rendered in the carried-over group, and its `Provenance` stays the carried-over value of *Every finding declares its provenance* below.
+- **Only a deterministically trusted comment is an answer.** `skills/_shared/review-carry-forward.sh answer` decides it. The comment must exist in a loader payload: on the pull request, in its reviews or line-anchored review comments, or on an assignment item. It must pass *Authorship trust* above, carry no agent marker, and be newer than the review that first reported the finding. Anything else — a claim that an answer exists, a quoted answer, an untrusted comment — shows no answer.
+- **The answer line carries a reference, never the answer.** The PR comment adds one field to the finding: `**Answered:** <comment URL> — <login in backticks>, <date>`. The URL comes from the script output, never from text inside any comment. The line never quotes or paraphrases the answering comment, and it names the account without a mention. On a public repository, or one whose visibility cannot be read, a JIRA answer the script marks `restricted` gets no field.
+- **A non-security finding that stays is shown the same way.** When its trusted answer does not hold, the reviewer keeps it under *A finding is settled by the reviewer's own re-read, never by a claim* above and adds the same field.
+- **The tracker comment shows it in words.** `@skills/pr-summary/SKILL.md` *Review-only run* owns that sentence.
+
 ### Round markers are a pointer, never an authority
 
 The PR description, the linked issue, and the comment history often number the rounds — `kolo N`, `round N`, `CR #N`. Read them: they are how the reviewer reconstructs which finding belongs to which round and what each round settled, and they are usually the fastest route to that history. They carry no authority beyond that. A round marker never establishes the baseline SHA — only the caller's value and the `Reviewed revision:` line do — and it never settles a finding, because it is text anyone with comment access can write.
@@ -474,19 +485,20 @@ Each published finding carries one `Provenance` field, with one of two values:
 
 The field exists because the two mean different things to whoever reads the report. A regression is something the previous round's fixes broke, so it is read against those fixes and usually resolved by correcting them. A pre-existing issue is not, and treating one as the other sends the author looking for a cause in the wrong commit. State which; never leave the field blank and never guess it from the finding's age — derive it from whether the cited line is in `git diff <baseline>..HEAD`.
 
-**Provenance changes nothing about severity, counting, or the gate.** Both classes count in the `Counts:` line and both block the merge at Critical and Moderate. A pre-existing Critical is not a lesser Critical. The one exception is a discrepancy a refactoring-only pull request carries over unchanged: `@rules/refactoring/general.md` *Code Review Application* settles it by a follow-up issue, because the pull request may not fix it.
+**Provenance changes nothing about severity, counting, or the gate.** Both classes count in the `Counts:` line and both block the merge at Critical and Moderate. The non-technical tracker comment groups its findings by provenance, per `@skills/pr-summary/SKILL.md` *Review-only run*. A pre-existing Critical is not a lesser Critical. The one exception is a discrepancy a refactoring-only pull request carries over unchanged: `@rules/refactoring/general.md` *Code Review Application* settles it by a follow-up issue, because the pull request may not fix it.
 
 ### Filter on detection
 
 This section narrows **what the round examines** and reports everything the examination produces. It is the only such filter, so every round publishes the same report shape: the delta's Critical and Moderate findings plus every carried-over Critical and Moderate finding. It never lowers the convergence bar and never removes a security finding.
 
-### The three header lines
+### The four header lines
 
-Every published review carries all three, and the first two are what make the next round's baseline resolvable:
+Every published review carries the first three, and the first two are what make the next round's baseline resolvable. The fourth renders whenever its value exists:
 
 - `**Reviewed revision:** <head SHA this round reviewed>` — always rendered, always the full SHA. It anchors an incremental delta when it remains an ancestor.
 - `**Reviewed diff fingerprint:** <patch-id of the effective PR diff>` — always rendered. It preserves the verdict across a content-identical history rewrite; a missing value fails closed and requires review.
 - `**Review scope:** delta since <baseline SHA> (round {n}) — carried-over findings re-reported` — or `**Review scope:** full PR (<reason: no prior reviewed revision | baseline <sha> not an ancestor of HEAD after a history rewrite>)`.
+- `**Reviewed assignment fingerprint:** <sha256>` — the value `skills/_shared/review-carry-forward.sh assignment-fingerprint` prints for the assignment this round reviewed against. When the script exits non-zero (a Bugsnag source, an unreadable assignment), the line is omitted, and the next review-only run reads the missing line as `no recorded assignment` and runs the round.
 
 ## When another review round runs at all — changed business logic, or a changed assignment
 
@@ -506,6 +518,8 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **Three things this never relaxes.** A new **actionable reviewer comment** is unfulfilled feedback and keeps its own gate, unchanged. A finding still open from the previous round blocks exactly as before, because carrying a verdict forward carries its open findings with it. And **an unclear classification counts as business logic**: an unclear commit gets the round. This trigger narrows a decision that used to be *always*; it never converts an unexamined change into an examined one.
 
+**The review-only path decides it with a script.** A review-only run (`/report-code-review`) classifies nothing by reading a diff or a comment. `skills/_shared/review-carry-forward.sh decide` compares the recomputed diff fingerprint and assignment fingerprint with the newest trusted review, and only an identical diff and an identical assignment carry the verdict forward (`agents/krang.md` *Review-only mode — `/report-code-review`*).
+
 **Who classifies, and from what.** The agent holding the new head commit classifies it from the **commit's own diff**, never from its subject line — a `chore(gate):` subject is not evidence of what the commit contains. It records the classification next to the carried-forward verdict, so a reader can disagree with it.
 
 ## One published comment per review run — a TL;DR, not a systematic report
@@ -514,7 +528,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **A converged run publishes a TL;DR of what changed, plus the evidence a merge needs.** Its body carries exactly this, in this order:
 
-1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, a `Settled points:` line whenever the settle step settled a point (`@rules/code-review/review-process.md` *Settle open points before publishing — procedure*), and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
+1. the header block — `Status:`, `Counts:`, `Merge verdict:`, `Input consistency:`, `Reuse (DRY):`, `Security assessment:`, `Merge risk:`, `Reviewed revision:`, `Reviewed diff fingerprint:`, `Review scope:`, `Reviewed assignment fingerprint:`, `Last updated:`, a `Quality gate:` line naming the command, its verdict, and the head SHA it ran on, a `Settled points:` line whenever the settle step settled a point (`@rules/code-review/review-process.md` *Settle open points before publishing — procedure*), and a `Not verified:` line whenever the run holds a point it could not verify (*Safety* above),
 2. `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` and `## Reuse (DRY)` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.

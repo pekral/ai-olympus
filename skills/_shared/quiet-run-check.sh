@@ -29,9 +29,8 @@
 #
 # What is read
 #   Pull request   the head SHA, the issue comments, the review submissions, and the line-anchored review
-#                  comments (skills/code-review-github/scripts/load-issue.sh returns the first two and the head;
-#                  its header lists the line-anchored comments as not fetched, so they are read here with a
-#                  paginated `gh api` call on the pull request's own comment list).
+#                  comments, all from skills/code-review-github/scripts/load-issue.sh. A payload whose
+#                  `reviewCommentsComplete` is not true is a failed read.
 #   GitHub issue   the issue comments (the same loader).
 #   JIRA issue     the issue comments (skills/code-review-jira/scripts/load-issue.sh).
 #   Anything else  not counted. Bugsnag is one: its loader returns comments without a URL and needs a token.
@@ -102,21 +101,14 @@ CLEAN_URLS='map(select(type == "string") | gsub("[\u0000-\u001f\u007f]"; "")) | 
 # collect_github <github.com issue or PR URL> — one JSON document on stdout:
 #   { "kind", "headSha", "closing": [url], "urls": [url], "count": n }
 collect_github() {
-  local url="$1" payload kind nwo number review_urls='[]'
+  local url="$1" payload
 
   payload="$("$GITHUB_LOADER" "$url")" || return 4
-  printf '%s' "$payload" | jq -e 'type == "object" and (.kind == "pr" or .kind == "issue")' >/dev/null 2>&1 || return 4
+  printf '%s' "$payload" | jq -e 'type == "object" and (.kind == "issue" or (.kind == "pr" and .reviewCommentsComplete == true))' \
+    >/dev/null 2>&1 || return 4
 
-  kind="$(printf '%s' "$payload" | jq -r '.kind')"
-  if [[ "$kind" == "pr" ]]; then
-    nwo="$(printf '%s' "$payload" | jq -r '.repo.nameWithOwner // ""')"
-    number="$(printf '%s' "$payload" | jq -r '.number // ""')"
-    [[ "$nwo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ && "$number" =~ ^[0-9]+$ ]] || return 4
-    review_urls="$(gh api --paginate "repos/$nwo/pulls/$number/comments" --jq '.[].html_url' | jq -R . | jq -sc .)" || return 4
-  fi
-
-  printf '%s' "$payload" | jq -c --argjson review "$review_urls" "
-    ([ (.comments // [])[].url, (.reviews // [])[].url ] + \$review) as \$all
+  printf '%s' "$payload" | jq -c "
+    [ (.comments // [])[].url, (.reviews // [])[].url, (.reviewComments // [])[].url ] as \$all
     | {
         kind: .kind,
         headSha: (if .kind == \"pr\" then (.headRefOid // null) else null end),
@@ -351,7 +343,7 @@ self_test() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
-  mkdir -p "$tmp/bin" "$tmp/fx"
+  mkdir -p "$tmp/fx"
   # The state file must live under .claude/run/ of a git toplevel, so the tests run in a throw-away repository.
   git init -q "$tmp/repo"
   state="$tmp/repo/.claude/run/quiet-run/state.json"
@@ -370,16 +362,9 @@ EOF
 [[ -f "$tmp/fx/jira.fail" ]] && exit 3
 cat "$tmp/fx/jira.json"
 EOF
-  # Stub gh: serves the line-anchored review comments of the pull request, one URL per line.
-  cat >"$tmp/bin/gh" <<EOF
-#!/usr/bin/env bash
-[[ "\$1" == "api" && -f "$tmp/fx/review-comments.txt" ]] || exit 1
-cat "$tmp/fx/review-comments.txt"
-EOF
-  chmod +x "$tmp/github-loader.sh" "$tmp/jira-loader.sh" "$tmp/bin/gh"
+  chmod +x "$tmp/github-loader.sh" "$tmp/jira-loader.sh"
   GITHUB_LOADER="$tmp/github-loader.sh"
   JIRA_LOADER="$tmp/jira-loader.sh"
-  PATH="$tmp/bin:$PATH"
 
   # fixtures <head-sha> <issue-comment-ids> <review-ids> <review-comment-ids> — rewrite the fixtures
   # A comment id n is the URL https://github.com/acme/widgets/pull/7#issuecomment-n.
@@ -401,12 +386,15 @@ EOF
         first=0
         printf '{"url":"https://github.com/acme/widgets/pull/7#pullrequestreview-%s"}' "$id"
       done
-      printf '],"closingIssues":[{"url":"%s"}]}' "$issue"
+      printf '],"reviewComments":['
+      first=1
+      for id in $inline; do
+        [[ $first -eq 1 ]] || printf ','
+        first=0
+        printf '{"url":"https://github.com/acme/widgets/pull/7#discussion_r%s"}' "$id"
+      done
+      printf '],"reviewCommentsComplete":true,"closingIssues":[{"url":"%s"}]}' "$issue"
     } >"$tmp/fx/pr.json"
-    : >"$tmp/fx/review-comments.txt"
-    for id in $inline; do
-      printf 'https://github.com/acme/widgets/pull/7#discussion_r%s\n' "$id" >>"$tmp/fx/review-comments.txt"
-    done
   }
   issue_fixture() {
     local ids="$1" id first=1
@@ -490,9 +478,14 @@ EOF
   fixtures "$sha_a" "1" "10" "20"
   run_verify 'a removed comment is not a publish' 0 'result: quiet'
 
+  # 4a. a line-anchored review comment list the loader could not read is a failed read, never a quiet run
+  fixtures "$sha_a" "1 2" "10" "20"
+  jq -c '.reviewComments = [] | .reviewCommentsComplete = false' "$tmp/fx/pr.json" >"$tmp/fx/pr.partial" && mv "$tmp/fx/pr.partial" "$tmp/fx/pr.json"
+  run_verify 'an unread line-anchored comment list is exit 4' 4 'a read failed'
+
   # 5. a count that grew without a URL
   fixtures "$sha_a" "1 2" "10" "20"
-  printf '%s' '{"kind":"pr","number":7,"repo":{"nameWithOwner":"acme/widgets"},"headRefOid":"'"$sha_a"'","comments":[{"url":"https://github.com/acme/widgets/pull/7#issuecomment-1"},{"url":"https://github.com/acme/widgets/pull/7#issuecomment-2"},{"url":null}],"reviews":[{"url":"https://github.com/acme/widgets/pull/7#pullrequestreview-10"}],"closingIssues":[{"url":"'"$issue"'"}]}' >"$tmp/fx/pr.json"
+  printf '%s' '{"kind":"pr","number":7,"repo":{"nameWithOwner":"acme/widgets"},"headRefOid":"'"$sha_a"'","comments":[{"url":"https://github.com/acme/widgets/pull/7#issuecomment-1"},{"url":"https://github.com/acme/widgets/pull/7#issuecomment-2"},{"url":null}],"reviews":[{"url":"https://github.com/acme/widgets/pull/7#pullrequestreview-10"}],"reviewComments":[{"url":"https://github.com/acme/widgets/pull/7#discussion_r20"}],"reviewCommentsComplete":true,"closingIssues":[{"url":"'"$issue"'"}]}' >"$tmp/fx/pr.json"
   run_verify 'a comment without a URL is still counted' 1 'the comment count grew from 4 to 5'
 
   # 6. a linked JIRA issue

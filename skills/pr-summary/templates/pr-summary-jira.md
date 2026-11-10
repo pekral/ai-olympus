@@ -13,6 +13,10 @@ h2. Review findings
 * [One finding per bullet: what can go wrong for the user or the business, and what the fix would change. A point that blocks the merge comes first and says so in words.]
 * [Next finding. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the finding it belongs to.]
 
+h3. Already reported in an earlier review
+
+* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
+
 h2. What changed
 
 * [One observable change in behaviour. Where a before exists: before -> after.]
@@ -116,6 +120,11 @@ Review findings
     finding outside the assignment stays on the pull request.
   - When the review found nothing to report, or no review has run yet, render
     one sentence that says so, and no bullets.
+  - The findings new in this review come first. The heading "Already reported
+    in an earlier review" renders only when that group has a finding. The two
+    groups and the answer sentence are owned by @skills/pr-summary/SKILL.md
+    (Review-only run); never add a round number, a provenance value, or a
+    count.
 
 What changed
   Three to five bullets, observable behaviour only, in before -> after form
