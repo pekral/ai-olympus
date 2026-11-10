@@ -84,6 +84,8 @@ One reading per plan node. A node line starts with the node type, at the top or 
 
 The `cost` figures and the `actual time` figures have different units, so the reading never compares one with the other.
 
+A PostgreSQL plan shows the rows a node outputs, never the rows it examines. The reading gives no figure for the rows examined and says that the plan carries none.
+
 ### PostgreSQL nodes
 
 A node matches a row of this table only when its node type, as printed before `on`, `using`, or `(`, equals the row's value. Any other node is named and quoted raw with no reading, for example `Parallel Seq Scan`, `Index Scan Backward`, `HashAggregate`, or `Memoize`.
