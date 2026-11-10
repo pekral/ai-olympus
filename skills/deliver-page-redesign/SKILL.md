@@ -13,15 +13,18 @@ The run has two phases, and no code exists before the user approves the design.
 1. **Design phase.** The invoking session resolves the page and captures it as it renders today.
    `michelangelo` writes the proposal and one rendered preview per state. The invoking session shows
    the previews to the user and refines them with `michelangelo` until the user explicitly approves.
-2. **Delivery phase.** The invoking session delegates the approved proposal to `krang`.
+2. **Delivery phase.** The invoking session delegates the approved proposal to `krang`. It holds
+   the `krang` role itself, per @rules/compound-engineering/orchestration.md
+   *Starting the orchestrator — the top-level role and the nested hand-over*.
    `donatello` implements it and opens the pull request, `leonardo` reviews it to convergence, and
    `raphael` exercises the page in its own interactive browser.
 
 This skill is the shared workflow for both clients:
 
 - Claude Code: `/redesign-page <page URL>`.
-- Codex: `$deliver-page-redesign` with the same URL. Use the registered `michelangelo` and
-  `krang` agents when the client supports project agents.
+- Codex: `$deliver-page-redesign` with the same URL. Use the registered `michelangelo` agent when
+  the client supports project agents. The root session holds the `krang` role under the same
+  section.
 
 The run redesigns how the page presents and interacts. It never changes business logic, and it
 never merges the pull request.
@@ -101,8 +104,9 @@ the date, and the list of approved previews.
 
 ### 4. Delegate the delivery route to `krang`
 
-Hand `krang` a described task: *implement the approved redesign proposal for the page at
-`<path>`*. The task carries the proposal directory, `APPROVED.md`, the resolved route and files, the
+The invoking session holds the `krang` role for this phase and never starts `krang` as a
+subagent (*TL;DR* above). Hand the `krang` role a described task: *implement the approved
+redesign proposal for the page at `<path>`*. The task carries the proposal directory, `APPROVED.md`, the resolved route and files, the
 local base URL, and the acceptance criteria from *Acceptance criteria* below. `krang` then:
 
 1. passes `--runtime-acceptance`, `--thorough`, and `--tracker no` to

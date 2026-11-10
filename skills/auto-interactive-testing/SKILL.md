@@ -47,12 +47,12 @@ metadata:
 
 For every linked defect issue that is still open, and one at a time:
 
-1. Delegate the defect to the `krang` agent (`agents/krang.md`) with the full merge chain: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
-2. Put these facts in the dispatch:
+1. Run the defect through the `krang` role (`agents/krang.md`) with the full merge chain. This session holds that role itself and never starts `krang` as a subagent, per `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
+2. Put these facts in the shared brief, so every dispatch of the chain carries them:
    - the defect URL and the interactive-testing issue that found it,
    - the environment facts the project memory records, for example a sandbox that blocks the database or the browser tests, and a known CI billing condition,
    - this instruction: *Do not file a new `interactive-testing` follow-up issue for this pull request. Record `interactive-testing: covered by #<issue>`, because the re-test runs in that issue.*
-3. Wait for the handoff. Verify it on GitHub: the pull request is merged, the defect issue is closed, and the claim label is gone. Stop and report when the chain ends `Blocked`.
+3. Wait for the chain to end. Verify the result on GitHub: the pull request is merged, the defect issue is closed, and the claim label is gone. Stop and report when the chain ends `Blocked`.
 4. Update the default branch (`git pull`), then run the post-merge refresh step the project documents.
 
 A defect issue that is already closed by a merged pull request needs nothing.

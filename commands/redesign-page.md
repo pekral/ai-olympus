@@ -5,7 +5,9 @@ argument-hint: [page URL]
 
 Run `@skills/deliver-page-redesign/SKILL.md` with this page URL. Resolve and capture the page in
 this session, get the redesign previews approved by me, then delegate the delivery route to the
-`krang` agent as the skill describes:
+`krang` role as the skill describes. This session holds that role itself and
+never starts `krang` as a subagent, per `@rules/compound-engineering/orchestration.md`
+*Starting the orchestrator — the top-level role and the nested hand-over*:
 
 $ARGUMENTS
 
@@ -17,4 +19,5 @@ convergence, verify the page in a real interactive browser, and report in the sk
 Never merge the pull request.
 
 For Codex, invoke `$deliver-page-redesign` with the same URL. Ask the registered `michelangelo`
-agent for the design phase and the registered `krang` agent for the delivery phase.
+agent for the design phase. For the delivery phase, the root session holds the `krang` role under
+the same section and spawns the registered specialists itself.

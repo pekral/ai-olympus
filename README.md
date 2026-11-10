@@ -34,17 +34,25 @@ vendor/bin/ai-olympus install --force
 
 The commands above pin version `0.4`, which contains the Ninja Turtles team shown below. Commit your project's `composer.lock` to keep installations reproducible. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
 
-Restart the agent session after installation. In Claude Code:
+Restart the agent session after installation. In Claude Code, start the session as `krang`, so the session itself orchestrates and dispatches the specialists:
 
 ```text
-@krang resolve https://github.com/owner/repo/issues/123
+claude --agent krang "resolve https://github.com/owner/repo/issues/123"
 ```
 
-In Codex, request the role by name:
+A command works in any session, because the session that receives it holds the `krang` role itself:
 
 ```text
-Use the krang agent to resolve https://github.com/owner/repo/issues/123
+/prepare-issue-for-merge https://github.com/owner/repo/issues/123
 ```
+
+In Codex, ask the root session to take the `krang` role, so it spawns the specialists itself:
+
+```text
+Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123
+```
+
+[`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md) *Starting the orchestrator — the top-level role and the nested hand-over* explains why `krang` is not started as a subagent.
 
 `krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
 
@@ -265,7 +273,7 @@ After the [Quickstart](#quickstart), choose a specialist when you do not need th
 @donatello implement the failing upload validation
 ```
 
-In Codex, ask it to use the corresponding agent by name, as in the `krang` example above. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
+In Codex, ask it to use the corresponding agent by name. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
 
 To prepare an existing GitHub or JIRA issue's PR for merge without merging it, use the shared workflow:
 
@@ -278,7 +286,7 @@ To prepare an existing GitHub or JIRA issue's PR for merge without merging it, u
 $verify-merge-readiness https://github.com/owner/repository/issues/123
 ```
 
-The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, ask the registered `krang` agent to orchestrate the skill when custom agents are available.
+The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, the root session holds the `krang` role and spawns the registered specialists when custom agents are available.
 
 To redesign one page of the running application from its URL, use the redesign workflow:
 
