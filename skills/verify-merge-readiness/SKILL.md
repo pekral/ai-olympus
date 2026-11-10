@@ -8,9 +8,11 @@ metadata:
 
 ## TL;DR
 
-Delegate the orchestration to `krang`. Bring one linked pull request to a verified merge-ready
-state, but stop before merge. When the issue carries no pull request yet, `krang` resolves the
-task first, and this workflow prepares the pull request that delivery opens. Reuse a trusted
+Delegate the orchestration to `krang`. The invoking session holds the `krang` role itself, per
+@rules/compound-engineering/orchestration.md
+*Starting the orchestrator — the top-level role and the nested hand-over*.
+Bring one linked pull request to a verified merge-ready state, but stop before merge. When the
+issue carries no pull request yet, `krang` resolves the task first, and this workflow prepares the pull request that delivery opens. Reuse a trusted
 converged review when the effective PR diff is content-identical; review again only when content or
 actionable feedback changed. Then dispatch `april` to publish one current TL;DR on the source
 issue — a GitHub issue or a JIRA ticket — and remove only superseded, actor-owned preparation
@@ -24,8 +26,9 @@ assignment only* below).
 This skill is the shared workflow for both clients:
 
 - Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL, or JIRA key or URL>`.
-- Codex: `$verify-merge-readiness` with the same reference. Use the registered `krang` agent when the
-  client supports project agents.
+- Codex: `$verify-merge-readiness` with the same reference. The root session holds the `krang`
+  role under the same section and spawns the registered specialists when the client supports
+  project agents.
 
 It never merges the pull request.
 

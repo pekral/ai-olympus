@@ -8,7 +8,7 @@ paths:
 
 This section is the normative contract. `agents/krang.md` is its one executor today and references it by name; nothing here is restated there.
 
-The backlog tier — what the team works on next, in what order, and at what size — used to be a peer agent the orchestrator dispatched (`zeus`, retired). It belongs to the orchestrator now, which runs it **inline, in its own context**, because there is no peer left to hand it to and the one-level nesting rule leaves no level to spend on inventing one. It is the **second exception** named in `agents/krang.md` *Delegation model*. It has two modes and only two; the backlog tier is the whole of this exception.
+The backlog tier — what the team works on next, in what order, and at what size — used to be a peer agent the orchestrator dispatched (`zeus`, retired). It belongs to the orchestrator now, which runs it **inline, in its own context**, because there is no peer left to hand it to. It is the **second exception** named in `agents/krang.md` *Delegation model*. It has two modes and only two; the backlog tier is the whole of this exception.
 
 A backlog run **ends at the backlog**. It dispatches no `donatello` and no `leonardo`, opens no pull request, and never carries a decomposed piece onward — each piece re-enters as its own `krang` run, which is the whole reason the subject was split. It takes **no working-tree write-lock** either: it writes to the tracker, never to the tree, so it overlaps freely with a writing run exactly as the analysis-only stop does.
 

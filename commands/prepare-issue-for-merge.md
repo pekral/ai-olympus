@@ -3,8 +3,9 @@ description: Prepare one GitHub or JIRA issue's pull request for merge without m
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL]
 ---
 
-Delegate this request to the `krang` agent and run
-`@skills/verify-merge-readiness/SKILL.md` with this reference:
+This session holds the `krang` role for this request and never starts `krang` as a subagent, per
+`@rules/compound-engineering/orchestration.md`
+*Starting the orchestrator — the top-level role and the nested hand-over*. Run `@skills/verify-merge-readiness/SKILL.md` with this reference:
 
 $ARGUMENTS
 
@@ -22,5 +23,5 @@ decides it. The merge requires an answer to every question.
 When the issue carries no pull request, `krang` resolves the task first — implementation and the
 review-and-fix loop to convergence — and then prepares the pull request that delivery opens.
 
-For Codex, invoke `$verify-merge-readiness` with the same reference and ask the registered `krang`
-agent to orchestrate it.
+For Codex, invoke `$verify-merge-readiness` with the same reference.
+The root session holds the `krang` role under the same section and spawns the registered specialists itself.

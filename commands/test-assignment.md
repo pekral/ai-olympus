@@ -3,8 +3,9 @@ description: Test one task's pull request against its assignment, prove that not
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [report|fix] [optional test data]
 ---
 
-Delegate this request to the `krang` agent in test mode and run
-`@skills/test-assignment/SKILL.md` with these arguments:
+This session holds the `krang` role in test mode and never starts `krang` as a subagent, per
+`@rules/compound-engineering/orchestration.md`
+*Starting the orchestrator — the top-level role and the nested hand-over*. Run `@skills/test-assignment/SKILL.md` with these arguments:
 
 $ARGUMENTS
 
@@ -22,5 +23,5 @@ and fixes, then prepare the pull request for merge through `@skills/verify-merge
 Never merge. Publish every business decision, optimization, refactoring, and pre-existing problem
 as a question in the `Decisions before merge` section instead of implementing it.
 
-For Codex, invoke `$test-assignment` with the same arguments and ask the registered `krang` agent
-to orchestrate it.
+For Codex, invoke `$test-assignment` with the same arguments.
+The root session holds the `krang` role under the same section and spawns the registered specialists itself.

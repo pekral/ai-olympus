@@ -189,7 +189,7 @@ When `krang` attempts to dispatch `leonardo` and the agent is not yet registered
 
 ## Single-reviewer dispatch model
 
-`leonardo` is dispatched **by `krang`** as the one CR pass on the PR. This is the one-level nesting rule in practice:
+`leonardo` is dispatched **by `krang`** as the one CR pass on the PR:
 
 - `krang` (top-level) dispatches `leonardo` as a single Task invocation on the PR, blocking, and reads the returned handoff.
 - `leonardo` handles the whole review: code quality, architecture, optimisation, API, assignment conformance, coverage, and security.
