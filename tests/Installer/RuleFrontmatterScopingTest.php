@@ -445,7 +445,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: round 1 of #333 — `answer` requires `--after` and prints `github_allowed`, and a carried-forward
         // verdict needs a header block in its exact canonical form.
         // Re-baselined: round 2 of #333 — the C8 bullet names the one header block of `cr-header.sh` and the two body signals.
-        'rules/code-review/general.md' => '8501ddb39a3cb3d06707d4ca9185b5ea02f3a4ac5c347481c6fdb2e6661b92cc',
+        // Re-baselined: the C8 bullet names the decision-label check after the header block and what it does not cover (#333).
+        'rules/code-review/general.md' => 'dc8b667bb7c3876e8ea541a0651208eb580c8a4add2773a61168aea98fb53296',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
