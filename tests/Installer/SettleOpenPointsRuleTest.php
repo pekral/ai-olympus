@@ -89,12 +89,23 @@ test('the settle scratch directory is refused when a symbolic link could move it
 
 test('a settle git read runs no driver or filter a committed attribute selects', function (): void {
     expect(settleOpenPointsOwner())
-        ->toContain('and `--no-textconv --no-ignore-revs-file` to `blame`, so `blame` reads no ignore-revs file')
+        ->toContain(
+            'Pass `--no-ext-diff --no-textconv` to every `diff`, `log`, and `show`, '
+            . 'and `--no-textconv --no-ignore-revs-file` to `blame`, so `blame` reads no ignore-revs file',
+        )
         ->toContain(
             '`diff` compares two commits and `blame` annotates a `<sha>`, each resolved by the reviewer, '
             . 'so neither reads the worktree or the index',
         )
         ->toContain('`cat-file` takes neither `--textconv` nor `--filters`.');
+});
+
+test('a settle git read runs no signature program, merge driver, or clean filter the reviewed branch selects', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('Pass `--no-show-signature` to every `log` and `show`, and use no `%G` placeholder in a `--format`')
+        ->toContain('`log` and `show` never take `-m`, `--diff-merges`, or `--remerge-diff`')
+        ->toContain('`ls-files` never takes `-m` or `--modified`')
+        ->toContain('`grep` never takes `--textconv`.');
 });
 
 test('every settle run writes into a fresh scratch directory that mktemp creates', function (): void {
