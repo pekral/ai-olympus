@@ -1519,7 +1519,7 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     expect($rule)->toContain('**A cap is not the only way the read set comes back short**');
     expect($rule)->toContain('**JIRA — no size cap, but the fetch can degrade to empty in silence.**');
     expect($rule)->toContain('substitutes `{"comments": []}` whenever the `acli` call fails');
-    expect($rule)->toContain('**An empty JIRA `comments[]` is therefore indistinguishable from a failed fetch**');
+    expect($rule)->toContain('**An empty JIRA `comments[]` without `commentsComplete: true` is unverified**');
 
     // The item's own comments on GitHub, and Bugsnag's request, fail hard instead, so the contrast
     // that makes the JIRA case readable is pinned on both sides rather than left to the reader.
@@ -1529,7 +1529,9 @@ test('the comment-analysis rule resolves body-vs-comment conflicts and mandates 
     // GitHub's sub-issue tree is the other half and degrades exactly as JIRA does: any GraphQL
     // failure falls back to an empty array, so the qualified wording is pinned rather than assumed.
     expect($rule)->toContain('The sub-issue tree is the other half: any GraphQL failure falls back to an empty array');
-    expect($rule)->toContain('an empty `subIssues[]` is indistinguishable from a failed sub-issue fetch');
+    expect($rule)->toContain('An empty `subIssues[]` reads as unverified whenever that flag is not `true`, exactly as on JIRA.');
+    expect($rule)->toContain('Line-anchored pull-request review comments come back in `reviewComments[]`');
+    expect($rule)->not->toContain('Line-anchored pull-request review comments are not fetched at all.');
 
     // The mandatory disclosure covers both shapes, or a JIRA run has no cap to name and says nothing.
     expect($rule)->toContain('Name which cap was hit, or which fetch degraded.');

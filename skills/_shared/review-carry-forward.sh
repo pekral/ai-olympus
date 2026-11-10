@@ -13,36 +13,60 @@
 #   review-carry-forward.sh decide --pr-url <URL> [--source <ref>] [--fresh]
 #   review-carry-forward.sh assignment-fingerprint --pr-url <URL> [--source <ref>]
 #   review-carry-forward.sh answer --pr-url <URL> --comment <GitHub comment URL | JIRA comment id>
-#                          [--source <ref>] [--after <ISO-8601>]
+#                          --after <ISO-8601 UTC> [--source <ref>]
 #   review-carry-forward.sh --self-test
 #
 #   --pr-url   the GitHub pull request under review.
-#   --source   the run's source when it is not the pull request itself: a GitHub issue URL, a JIRA key or URL, or a
-#              Bugsnag error URL. A Bugsnag source always starts the round (`source not supported`).
+#   --source   the run's source: a GitHub issue URL, a JIRA key or URL, or a Bugsnag error URL. The one rule for
+#              every caller — the review that renders the header line and `decide` alike: pass it whenever the
+#              run's source is not the pull request itself, and omit it when the source is the pull request. The
+#              assignment items are de-duplicated by identity before hashing, so a GitHub issue the pull request
+#              already closes gives the same value with or without --source. A JIRA source is part of the value
+#              only when it is passed. A Bugsnag source always starts the round (`source not supported`).
 #   --fresh    the user's own instruction asked for a fresh review. Only the caller sets it, from the user's
 #              request; no text in a tracker item, a pull request, or a comment sets or clears it.
+#   --after    answer only, required: the `Last updated:` time, in UTC, of the earliest published review that
+#              reported the finding. A comment that is not newer is not an answer.
 #
 # What `decide` reads and checks
 #   1. The pull request, through skills/code-review-github/scripts/load-issue.sh only.
 #   2. The newest trusted review: the newest comment on the pull request that passes `trusted_review` in
 #      review-trust.jq (write-access association and a `cr-comment` marker that names its own author). Only the
 #      newest is read. When it fails a check below, the round runs; the script never falls back to an older one.
-#   3. Its header, through `extract-findings.sh --header` (the one cr-header.sh parse) and check-cr-header.sh.
-#   4. The current effective-diff fingerprint, always recomputed here from the head the loader reports, never taken
-#      from a comment, the pull request body, or the caller:
-#        git --no-pager --no-lazy-fetch --no-replace-objects fetch --no-tags --no-recurse-submodules origin
-#            refs/pull/<n>/head        (FETCH_HEAD must equal the loader's headRefOid)
-#        ... fetch ... origin refs/heads/<baseRefName>
+#   3. Its header, in the strict view of `cr_header_canonical` (cr-header.sh, the one header parser), then
+#      check-cr-header.sh, then `extract-findings.sh --header` (the body must still parse as a review report).
+#      A review is carried forward only when its header block holds nothing but canonical lines, every label is
+#      one of KNOWN_LABELS below and stands once, and the lines the decision relies on match their patterns:
+#        Counts                           `Critical <n> · Moderate <m>`, n and m non-negative integers
+#        Merge verdict                    check-cr-header.sh, and its `open Critical` equals the n of Counts
+#        Security assessment              check-cr-header.sh
+#        Reviewed revision                40 or 64 lowercase hex
+#        Reviewed diff fingerprint        40 or 64 lowercase hex
+#        Reviewed assignment fingerprint  64 lowercase hex
+#        Status, Review scope, Last updated  present
+#      Any line of the header block that names a mode or HOTFIX, in any spelling or letter case and in any shape,
+#      marks a narrowed review.
+#   4. The current effective-diff fingerprint, always recomputed here from the commits the loader reports, never
+#      taken from a comment, the pull request body, or the caller. One fetch writes both commits into two
+#      run-private refs, which the script reads, compares, and deletes before it computes anything:
+#        git --no-pager --no-lazy-fetch --no-replace-objects fetch --quiet --no-tags --no-recurse-submodules
+#            --no-write-fetch-head --no-auto-maintenance --refmap= origin
+#            +refs/pull/<n>/head:refs/ai-olympus/review-carry-forward/<run>/head
+#            +refs/heads/<baseRefName>:refs/ai-olympus/review-carry-forward/<run>/base
+#        (the fetched head must equal the loader's headRefOid, the fetched base the loader's baseRefOid)
 #        git --no-pager --no-lazy-fetch --no-replace-objects diff --binary --full-index --no-color --no-ext-diff
 #            --no-textconv --no-renames <base>...<head> | git --no-pager ... patch-id --verbatim
 #      `--no-textconv` can only make this value differ from a recorded one, and a difference starts the round.
+#      What the fetch writes: the fetched objects in the object store, and the two run-private refs until they
+#      are deleted. It writes no FETCH_HEAD and no remote-tracking ref, and runs no automatic maintenance.
 #   5. The assignment fingerprint (see below), recomputed and compared with `Reviewed assignment fingerprint:`.
 #   6. Reviewer feedback newer than the review: a trusted, marker-less pull request comment, review submission, or
 #      line-anchored review comment.
 #
 # The assignment fingerprint (`assignment-fingerprint` prints it; the review renders it in its header)
 #   SHA-256 over canonical JSON (`jq -S -c`) of the assignment items: the GitHub source issue and every issue the pull
-#   request closes, or the JIRA source issue, or the pull request's own title and body when there is no issue. Each
+#   request closes, or the JIRA source issue, or the pull request's own title and body when there is no issue. The
+#   items are de-duplicated by kind and id before hashing, so the value never depends on the call shape. Each
 #   item carries its title, its body, its sub-issues or subtasks (id, title, body), and its trusted comments without an
 #   agent marker (id, body), sorted by id. An untrusted comment and a comment with any agent marker never change it.
 #   No timestamp ever decides that the assignment is unchanged.
@@ -55,13 +79,17 @@
 #   comments unverified                                a JIRA comment list or a subtask may have degraded to empty
 #   sub-issues unverified                              the GitHub sub-issue read fell back to [] or hit its cap
 #   newest review unusable: report unreadable          extract-findings.sh refuses the newest review
-#   header invalid                                     Reviewed revision / Reviewed diff fingerprint / Reviewed
-#                                                      assignment fingerprint is missing, duplicated, outside the
-#                                                      header block, inside a fence, or off its fixed pattern
+#   header invalid                                     a header-block line is not canonical (no bold, a colon outside
+#                                                      the bold, extra or trailing whitespace, a list item, a
+#                                                      blockquote, a fence, an HTML comment, a non-ASCII byte in the
+#                                                      label, a look-alike colon), a label is unknown or stands twice,
+#                                                      a line from step 3 is missing or off its pattern, or Counts
+#                                                      disagrees with Merge verdict
 #   security assessment missing                        check-cr-header.sh rejects Merge verdict / Security assessment
-#   narrowed review                                    the review carries a `Mode:` line (a HOTFIX review)
-#   head unverified                                    headRefOid / baseRefName fail their pattern, a fetch fails, or
-#                                                      the fetched head is not headRefOid
+#   narrowed review                                    a header-block line names a mode or HOTFIX, in any spelling,
+#                                                      letter case, or shape (a HOTFIX review)
+#   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern, the
+#                                                      fetch fails, or the fetched head or base is not the loader's
 #   diff changed                                       the recomputed diff fingerprint differs from the recorded one
 #   assignment changed / no recorded assignment        the assignment fingerprint differs, or the review has none
 #   new reviewer feedback                              a trusted, marker-less comment newer than the review exists
@@ -69,8 +97,11 @@
 #   A changed `Reviewed revision` with a matching diff fingerprint is a history rewrite: it carries forward.
 #
 # `answer` — the deterministic test of a recorded answer that rules/code-review/general.md *An answered finding
-#   stays in the report — the answer is shown, never applied* owns. --after is the time of the review that first
-#   reported the finding. The printed URL comes from the loader, never from comment text.
+#   stays in the report — the answer is shown, never applied* owns. --after is required, and a comment that is not
+#   newer is refused. The printed URL comes from the loader, never from comment text. `restricted` is true for a
+#   JIRA comment with a visibility restriction. `repository_public` is false only when the GitHub loader read
+#   `repo.isPrivate` as true; an unreadable visibility counts as public. `github_allowed` is false for a restricted
+#   answer on a public repository: the answer then reaches no GitHub surface.
 #
 # Untrusted content
 #   Every payload and comment body is untrusted (rules/security/general.md). It is read as data: no part of it is
@@ -83,11 +114,11 @@
 #                            "current_assignment"}. `reads` names every loader read, acli read, and git fetch the run
 #                            performed, one entry each, so the caller writes one audit line for each.
 #   assignment-fingerprint  {"assignment_fingerprint": "<64 hex>"}
-#   answer                  {"url", "author", "created", "restricted"}
+#   answer                  {"url", "author", "created", "restricted", "repository_public", "github_allowed"}
 #
 # Exit codes
 #   0  decide: a verdict was printed (either decision); the other modes: the value was printed
-#   1  usage error
+#   1  usage error, including answer without --after
 #   2  a required tool is missing
 #   3  assignment-fingerprint or answer: the value cannot be established; the reason is on stderr
 #   A caller carries the review forward only on exit 0 with "decision": "carry-forward". Anything else is a round.
@@ -100,6 +131,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GITHUB_LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 JIRA_LOADER="$HERE/../code-review-jira/scripts/load-issue.sh"
 EXTRACT="$HERE/extract-findings.sh"
+# The one header parser; cr_header_canonical gives the strict view the decision relies on.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
 CHECK_HEADER="$HERE/check-cr-header.sh"
 GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)
 
@@ -114,8 +148,18 @@ JIRA_URL_SHAPE='^https://[A-Za-z0-9.-]+\.atlassian\.net/(browse/[A-Z][A-Z0-9_]+-
 SHA_SHAPE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 SHA256_SHAPE='^[0-9a-f]{64}$'
 BRANCH_SHAPE='^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$'
+COUNTS_SHAPE=$'^Critical (0|[1-9][0-9]*) \xc2\xb7 Moderate (0|[1-9][0-9]*)$'
+VERDICT_SHAPE=$'^(yes|no) \xe2\x80\x94 assignment met: (yes|no|no linked issue) \xc2\xb7 open Critical: (0|[1-9][0-9]*)( \xc2\xb7 .+)?$'
+# Every label the published header block may carry (skills/code-review-github/templates/pr-comment-output.md and the
+# tracker-mirror labels of the three wrappers). A label outside this list starts the round.
+KNOWN_LABELS='|Status|Counts|Merge verdict|Input consistency|Reuse (DRY)|Security assessment|Merge risk|Mode|'
+KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed assignment fingerprint|Coverage|'
+KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
+REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
+  'Review scope' 'Last updated')
 
 TMP=''
+RUN_REF=''
 REASONS=()
 READS=()
 
@@ -142,8 +186,16 @@ require_tools() {
 
 new_tmp() {
   TMP="$(mktemp -d)"
-  # shellcheck disable=SC2064
-  trap "rm -rf '$TMP'" EXIT
+  trap cleanup EXIT
+}
+
+# cleanup — remove the temporary directory and the two run-private refs, if a fetch left them.
+cleanup() {
+  if [[ -n "$RUN_REF" ]]; then
+    "${GIT[@]}" update-ref -d "$RUN_REF/head" >/dev/null 2>&1 || true
+    "${GIT[@]}" update-ref -d "$RUN_REF/base" >/dev/null 2>&1 || true
+  fi
+  [[ -z "$TMP" ]] || rm -rf "$TMP"
 }
 
 sha256() {
@@ -197,6 +249,12 @@ load_pr() {
     and ((.comments // []) | type) == "array"' "$TMP/pr.json" >/dev/null 2>&1
 }
 
+# issue_url_key <GitHub issue URL> — one spelling per issue: no `www.`, no trailing slash. The shape check already ran.
+issue_url_key() {
+  local url="${1%/}"
+  printf '%s' "${url/#https:\/\/www.github.com\//https://github.com/}"
+}
+
 # assignment_items <source> — write the assignment items to $TMP/items.json; exit 1 after recording a reason.
 assignment_items() {
   local source="$1" kind url i=0 actor assignee
@@ -207,11 +265,12 @@ assignment_items() {
   : >"$TMP/items.jsonl"
 
   local -a urls=()
-  [[ "$kind" != 'github-issue' ]] || urls[0]="${source%/}"
+  [[ "$kind" != 'github-issue' ]] || urls[0]="$(issue_url_key "$source")"
   while IFS= read -r url; do
     [[ -n "$url" ]] || continue
     [[ "$url" =~ $ISSUE_URL_SHAPE ]] || { reason 'context unreadable'; return 1; }
-    urls[${#urls[@]}]="${url%/}"
+    url="$(issue_url_key "$url")"
+    [[ " ${urls[*]-} " == *" $url "* ]] || urls[${#urls[@]}]="$url"
   done < <(jq -r '(.closingIssues // [])[] | (.url // "-") | tostring' "$TMP/pr.json")
 
   for url in ${urls[@]+"${urls[@]}"}; do
@@ -247,18 +306,23 @@ assignment_items() {
     jq -c '{kind: "pull-request", id: (.url // ""), title: (.title // ""), body: (.body // ""), sub: [], comments: []}' \
       "$TMP/pr.json" >"$TMP/items.jsonl"
   fi
-  jq -s -S -c '{schema: 1, items: sort_by(.kind, .id)}' "$TMP/items.jsonl" >"$TMP/items.json"
+  jq -s -S -c '{schema: 1, items: (unique_by([.kind, .id]) | sort_by(.kind, .id))}' "$TMP/items.jsonl" >"$TMP/items.json"
 }
 
-# diff_fingerprint <head-sha> <base-branch> <pr-number> — the recomputed effective-diff fingerprint, or exit 1.
+# diff_fingerprint <head-sha> <base-branch> <base-sha> <pr-number> <run-ref> — the recomputed effective-diff
+# fingerprint, or exit 1. One fetch writes the pull request head and the base branch into <run-ref>/head and
+# <run-ref>/base; both must equal the loader's commits, and both refs are deleted before the diff runs.
 diff_fingerprint() {
-  local head="$1" base_branch="$2" number="$3" fetched base fp
-  "${GIT[@]}" fetch --quiet --no-tags --no-recurse-submodules origin "refs/pull/$number/head" >/dev/null 2>&1 || return 1
-  fetched="$("${GIT[@]}" rev-parse --verify --quiet 'FETCH_HEAD^{commit}' 2>/dev/null)" || return 1
-  [[ "$fetched" == "$head" ]] || return 1
-  "${GIT[@]}" fetch --quiet --no-tags --no-recurse-submodules origin "refs/heads/$base_branch" >/dev/null 2>&1 || return 1
-  base="$("${GIT[@]}" rev-parse --verify --quiet 'FETCH_HEAD^{commit}' 2>/dev/null)" || return 1
-  [[ "$base" =~ $SHA_SHAPE ]] || return 1
+  local head="$1" base_branch="$2" base_oid="$3" number="$4" ref="$5" fetched base fp
+  "${GIT[@]}" check-ref-format "refs/heads/$base_branch" >/dev/null 2>&1 || return 1
+  "${GIT[@]}" check-ref-format "$ref/head" >/dev/null 2>&1 || return 1
+  "${GIT[@]}" fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap= \
+    origin "+refs/pull/$number/head:$ref/head" "+refs/heads/$base_branch:$ref/base" >/dev/null 2>&1 || return 1
+  fetched="$("${GIT[@]}" rev-parse --verify --quiet "$ref/head^{commit}" 2>/dev/null)" || return 1
+  base="$("${GIT[@]}" rev-parse --verify --quiet "$ref/base^{commit}" 2>/dev/null)" || return 1
+  "${GIT[@]}" update-ref -d "$ref/head" >/dev/null 2>&1 || return 1
+  "${GIT[@]}" update-ref -d "$ref/base" >/dev/null 2>&1 || return 1
+  [[ "$fetched" == "$head" && "$base" == "$base_oid" ]] || return 1
   fp="$("${GIT[@]}" diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base...$head" \
     | "${GIT[@]}" patch-id --verbatim | cut -d' ' -f1)" || return 1
   [[ "$fp" =~ $SHA_SHAPE ]] || return 1
@@ -287,6 +351,7 @@ parse_mode_args() {
   [[ "$PR_URL" =~ $PR_URL_SHAPE ]] || die_usage '--pr-url must be a github.com pull request URL'
   PR_URL="${PR_URL%/}"
   [[ "$mode" != answer || -n "$COMMENT" ]] || die_usage 'answer needs --comment'
+  [[ "$mode" != answer || -n "$AFTER" ]] || die_usage 'answer needs --after: the time of the review that first reported the finding'
   [[ -z "$AFTER" || "$AFTER" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || die_usage '--after must be an ISO-8601 UTC time'
 }
 
@@ -333,43 +398,82 @@ cmd_decide() {
     --args ${REASONS[@]+"${REASONS[@]}"} "|reads|" ${READS[@]+"${READS[@]}"}
 }
 
-# read_review_header — the header checks of the newest trusted review. Sets revision, recorded_fp, recorded_afp.
+# names_mode <line> — true when the line names a mode or HOTFIX, in any letter case. "Moderate" is not a mode.
+names_mode() {
+  local LC_ALL=C lower
+  lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  [[ "$lower" =~ (^|[^a-z])mode([^a-z]|$) || "$lower" == *hotfix* ]]
+}
+
+# read_review_header — the header checks of the newest trusted review (step 3 of the header). Sets revision,
+# recorded_fp, and recorded_afp only from canonical lines. Every check runs; none of them stops the others.
 read_review_header() {
+  local line label value seen='|' counts='' verdict='' i=0 required
   jq -j '.body' "$TMP/review.json" >"$TMP/review.md"
-  if ! "$EXTRACT" --header --input "$TMP/review.md" >"$TMP/header.json" 2>/dev/null; then
-    reason 'newest review unusable: report unreadable'
-    return 0
-  fi
-  revision="$(jq -r '.revision // ""' "$TMP/header.json")"
-  recorded_fp="$(jq -r '.fingerprint // ""' "$TMP/header.json")"
-  recorded_afp="$(jq -r '.assignment_fingerprint // ""' "$TMP/header.json")"
-  if jq -e '(.irregular // []) | any(. == "reviewed revision" or . == "reviewed diff fingerprint"
-        or . == "reviewed assignment fingerprint")' "$TMP/header.json" >/dev/null 2>&1 \
-    || [[ ! "$revision" =~ $SHA_SHAPE || ! "$recorded_fp" =~ $SHA_SHAPE ]] \
-    || [[ -n "$recorded_afp" && ! "$recorded_afp" =~ $SHA256_SHAPE ]]; then
+  cr_header_canonical <"$TMP/review.md"
+
+  for line in ${CR_CANON_LINES[@]+"${CR_CANON_LINES[@]}"}; do
+    if names_mode "$line"; then
+      reason 'narrowed review'
+      break
+    fi
+  done
+  [[ ${#CR_CANON_REJECTED[@]} -eq 0 ]] || reason 'header invalid'
+
+  for label in ${CR_CANON_LABELS[@]+"${CR_CANON_LABELS[@]}"}; do
+    value="${CR_CANON_VALUES[i]}"
+    i=$((i + 1))
+    if [[ "$KNOWN_LABELS" != *"|$label|"* || "$seen" == *"|$label|"* ]]; then
+      reason 'header invalid'
+      continue
+    fi
+    seen+="$label|"
+    case "$label" in
+    'Counts') counts="$value" ;;
+    'Merge verdict') verdict="$value" ;;
+    'Reviewed revision') revision="$value" ;;
+    'Reviewed diff fingerprint') recorded_fp="$value" ;;
+    'Reviewed assignment fingerprint') recorded_afp="$value" ;;
+    esac
+  done
+  for required in "${REQUIRED_LABELS[@]}"; do
+    [[ "$seen" == *"|$required|"* ]] || reason 'header invalid'
+  done
+  [[ "$seen" == *'|Reviewed assignment fingerprint|'* ]] || reason 'no recorded assignment'
+
+  local LC_ALL=C
+  if [[ ! "$counts" =~ $COUNTS_SHAPE ]]; then
     reason 'header invalid'
+  else
+    local critical="${BASH_REMATCH[1]}"
+    [[ ! "$verdict" =~ $VERDICT_SHAPE || "${BASH_REMATCH[3]}" == "$critical" ]] || reason 'header invalid'
   fi
-  [[ -n "$recorded_afp" ]] || jq -e '(.irregular // []) | index(["reviewed assignment fingerprint"])' "$TMP/header.json" >/dev/null 2>&1 \
-    || reason 'no recorded assignment'
-  if jq -e '.mode != null or ((.irregular // []) | index(["mode"]) != null)' "$TMP/header.json" >/dev/null 2>&1; then
-    reason 'narrowed review'
-  fi
+  [[ "$revision" =~ $SHA_SHAPE && "$recorded_fp" =~ $SHA_SHAPE ]] || reason 'header invalid'
+  [[ -z "$recorded_afp" || "$recorded_afp" =~ $SHA256_SHAPE ]] || reason 'header invalid'
+  [[ "$revision" =~ $SHA_SHAPE ]] || revision=''
+  [[ "$recorded_fp" =~ $SHA_SHAPE ]] || recorded_fp=''
+  [[ "$recorded_afp" =~ $SHA256_SHAPE ]] || recorded_afp=''
+
   "$CHECK_HEADER" --file "$TMP/review.md" >/dev/null 2>&1 || reason 'security assessment missing'
+  "$EXTRACT" --header --input "$TMP/review.md" >/dev/null 2>&1 || reason 'newest review unusable: report unreadable'
 }
 
 # check_head — recompute the effective-diff fingerprint from the loader's head and compare it. Sets current_fp.
 check_head() {
-  local head base number
+  local head base base_oid number run
   head="$(jq -r '.headRefOid // ""' "$TMP/pr.json")"
   base="$(jq -r '.baseRefName // ""' "$TMP/pr.json")"
+  base_oid="$(jq -r '.baseRefOid // ""' "$TMP/pr.json")"
   number="$(jq -r '.number' "$TMP/pr.json")"
-  if [[ ! "$head" =~ ^[0-9a-f]{40}$ || ! "$base" =~ $BRANCH_SHAPE || "$base" == *..* || "$base" == *.lock || ! "$number" =~ ^[0-9]+$ ]]; then
+  if [[ ! "$head" =~ ^[0-9a-f]{40}$ || ! "$base_oid" =~ ^[0-9a-f]{40}$ || ! "$base" =~ $BRANCH_SHAPE || "$base" == *..* \
+    || "$base" == *.lock || ! "$number" =~ ^[0-9]+$ ]]; then
     reason 'head unverified'
     return 0
   fi
-  read_done "git fetch origin refs/pull/$number/head"
-  read_done "git fetch origin refs/heads/$base"
-  if ! current_fp="$(diff_fingerprint "$head" "$base" "$number")"; then
+  run="$(printf '%s' "${TMP##*/}" | LC_ALL=C tr -cd 'A-Za-z0-9_-')"
+  RUN_REF="refs/ai-olympus/review-carry-forward/run-$run"
+  read_done "git fetch origin refs/pull/$number/head refs/heads/$base"
+  if ! current_fp="$(diff_fingerprint "$head" "$base" "$base_oid" "$number" "$RUN_REF")"; then
     current_fp=''
     reason 'head unverified'
     return 0
@@ -455,7 +559,7 @@ cmd_answer() {
     printf '%s: %s\n' "$PROG" "$(safe_display "$(jq -r '.' <<<"$found" | sed 's/^refused://')")" >&2
     exit 3
   fi
-  if [[ -n "$AFTER" ]] && ! jq -e --arg after "$AFTER" '
+  if ! jq -e --arg after "$AFTER" '
       def epoch: if test("Z$") then sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601
         else (.[0:19] + "Z" | fromdateiso8601) - ((.[-5:-4] | if . == "-" then -1 else 1 end)
           * ((.[-4:-2] | tonumber) * 3600 + (.[-2:] | tonumber) * 60)) end;
@@ -463,7 +567,8 @@ cmd_answer() {
     printf '%s: the comment is not newer than the review that first reported the finding\n' "$PROG" >&2
     exit 3
   fi
-  printf '%s\n' "$found"
+  jq -c --argjson private "$(jq '.repo.isPrivate | if . == true then true else false end' "$TMP/pr.json")" \
+    '. + {repository_public: ($private | not), github_allowed: ((.restricted | not) or $private)}' <<<"$found"
 }
 
 # The fixtures are Markdown and JSON that carry backticks and dollar signs; none of it is meant to expand.
@@ -523,7 +628,8 @@ self_test() {
     printf 'base\nother change\n' >app.txt
     "${g[@]}" commit -q -am changed
   )
-  local head rewritten changed
+  local head rewritten changed base_oid
+  base_oid="$("${g[@]}" -C "$work" rev-parse main)"
   head="$("${g[@]}" -C "$work" rev-parse 'feature@{1}')"
   rewritten="$("${g[@]}" -C "$work" rev-parse feature)"
   changed="$("${g[@]}" -C "$work" rev-parse changed)"
@@ -564,9 +670,9 @@ EOF
   }
   # pr_fixture <head> <comments-file> [extra-jq] — the pull request payload.
   pr_fixture() {
-    jq -n -c --arg head "$1" --slurpfile c "$2" --arg issue "$issue_url" \
-      '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7", repo: {nameWithOwner: "acme/shop"},
-        title: "Add the export", body: "Closes #3", headRefOid: $head, baseRefName: "main", comments: $c,
+    jq -n -c --arg head "$1" --slurpfile c "$2" --arg issue "$issue_url" --arg base "$base_oid" \
+      '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7", repo: {nameWithOwner: "acme/shop", isPrivate: false},
+        title: "Add the export", body: "Closes #3", headRefOid: $head, baseRefName: "main", baseRefOid: $base, comments: $c,
         reviews: [], reviewComments: [], reviewCommentsComplete: true, closingIssues: [{url: $issue}]}' \
       | jq -c "${3:-.}" >"$fx/pr.json"
   }
@@ -605,12 +711,17 @@ EOF
   issue_fixture
   jira_fixture
   local fp afp jafp
-  fp="$(cd "$work" && diff_fingerprint "$head" main 7)"
+  fp="$(cd "$work" && diff_fingerprint "$head" main "$base_oid" 7 refs/ai-olympus/review-carry-forward/self-test)"
   pr_fixture "$head" /dev/null
   afp="$(cd "$work" && cmd_assignment_fingerprint --pr-url "$pr_url")"
   afp="$(jq -r '.assignment_fingerprint' <<<"$afp")"
   out="$fp $afp"
   expect 'the fixture fingerprints are well formed' "$([[ "$fp" =~ ^[0-9a-f]{40}$ && "$afp" =~ ^[0-9a-f]{64}$ ]] && echo 0 || echo 1)"
+  local afp_source
+  afp_source="$(cd "$work" && cmd_assignment_fingerprint --pr-url "$pr_url" --source "$issue_url/")"
+  out="$afp $afp_source"
+  expect 'a closed issue passed as --source gives the same assignment fingerprint as no --source' \
+    "$([[ "$(jq -r '.assignment_fingerprint' <<<"$afp_source")" == "$afp" ]] && echo 0 || echo 1)"
 
   review "$head" "$fp" "$afp" >"$fx/good.md"
   marked "$fx/good.md" leonardo-bot
@@ -618,14 +729,26 @@ EOF
   local CF='.decision == "carry-forward" and .reasons == []'
   # round_for <reason> — the jq condition for a round with exactly that reason.
   round_for() { printf '.decision == "round" and .reasons == ["%s"]' "$1"; }
+  # round_with <reason>... — the jq condition for a round whose reasons include every reason given.
+  round_with() {
+    local cond='.decision == "round"' r
+    for r in "$@"; do
+      cond+=" and (.reasons | index([\"$r\"]) != null)"
+    done
+    printf '%s' "$cond"
+  }
 
   # Everything matches.
   pr_fixture "$head" "$fx/c-good.jsonl"
   decide_case 'an unchanged head and assignment carry the review forward' "$CF and .review_url == \"$pr_url#issuecomment-1\"
     and .current_fingerprint == .recorded_fingerprint and .current_assignment == .recorded_assignment" -- --pr-url "$pr_url"
   expect 'every outbound read is named once for the audit ledger' "$(jq -e --arg pr "$pr_url" --arg issue "$issue_url" '
-      .reads == ["github loader: \($pr)", "git fetch origin refs/pull/7/head", "git fetch origin refs/heads/main",
+      .reads == ["github loader: \($pr)", "git fetch origin refs/pull/7/head refs/heads/main",
         "github loader: \($issue)"]' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  out="$("${g[@]}" -C "$work" for-each-ref refs/ai-olympus)"
+  expect 'the fetch leaves no run-private ref and writes no FETCH_HEAD' \
+    "$([[ -z "$out" && ! -e "$work/.git/FETCH_HEAD" ]] && echo 0 || echo 1)"
+  decide_case 'the closed issue passed as --source carries the review forward too' "$CF" -- --pr-url "$pr_url" --source "$issue_url"
   decide_case 'a fresh review the user asked for runs the round and says the head is unchanged' \
     "$(round_for 'fresh review requested by the user — head unchanged')" -- --pr-url "$pr_url" --fresh
 
@@ -649,6 +772,19 @@ EOF
   decide_case 'a base branch off its pattern runs the round' "$(round_for 'head unverified')" -- --pr-url "$pr_url"
   pr_fixture "$head" "$fx/c-good.jsonl" '.headRefOid = "HEAD"'
   decide_case 'a head that is not a SHA runs the round' "$(round_for 'head unverified')" -- --pr-url "$pr_url"
+  pr_fixture "$head" "$fx/c-good.jsonl" ".baseRefOid = \"$changed\""
+  decide_case 'a fetched base that is not the loader base runs the round' "$(round_for 'head unverified')" -- --pr-url "$pr_url"
+  local tracking_before tracking_after
+  tracking_before="$("${g[@]}" -C "$work" rev-parse refs/remotes/origin/main)"
+  "${g[@]}" --git-dir="$origin" update-ref refs/heads/main "$rewritten"
+  pr_fixture "$head" "$fx/c-good.jsonl"
+  decide_case 'a base branch that moved after the loader read runs the round' "$(round_for 'head unverified')" -- --pr-url "$pr_url"
+  tracking_after="$("${g[@]}" -C "$work" rev-parse refs/remotes/origin/main)"
+  out="$tracking_before $tracking_after"
+  expect 'the fetch updates no remote-tracking ref' "$([[ "$tracking_before" == "$tracking_after" ]] && echo 0 || echo 1)"
+  "${g[@]}" --git-dir="$origin" update-ref refs/heads/main "$base_oid"
+  pr_fixture "$head" "$fx/c-good.jsonl" '.baseRefOid = null'
+  decide_case 'a missing loader base runs the round' "$(round_for 'head unverified')" -- --pr-url "$pr_url"
 
   # No trusted review: none at all, a copied marker of an author without write access, a marker of another actor.
   pr_fixture "$head" /dev/null
@@ -667,31 +803,71 @@ EOF
   { cat "$fx/c-good.jsonl"; comment leonardo-bot OWNER 2026-10-02T12:00:00Z "$fx/notes.md" 3; } >"$fx/c.jsonl"
   pr_fixture "$head" "$fx/c.jsonl"
   decide_case 'a malformed newest review beside an older valid one runs the round' \
-    "$(round_for 'newest review unusable: report unreadable')" -- --pr-url "$pr_url"
+    "$(round_with 'newest review unusable: report unreadable')" -- --pr-url "$pr_url"
 
   # The header: missing, duplicated, fenced, or off-pattern lines.
-  # header_case <label> <reason> <body-file> — the review in <body-file> is the only one.
+  # header_case <label> <jq-condition> <body-file> — the review in <body-file> is the only one.
   header_case() {
     marked "$3" leonardo-bot
     comment leonardo-bot OWNER 2026-10-02T10:00:00Z "$3" 1 >"$fx/c.jsonl"
     pr_fixture "$head" "$fx/c.jsonl"
-    decide_case "$1" "$(round_for "$2")" -- --pr-url "$pr_url"
+    decide_case "$1" "$2" -- --pr-url "$pr_url"
   }
+  # shape <sed-or-awk-output> — helper fixtures are written by the callers below.
   awk -v fp="$fp" '{ print } /^\*\*Reviewed diff fingerprint:\*\*/ { print "**Reviewed diff fingerprint:** " fp }' \
     <(review "$head" "$fp" "$afp") >"$fx/h.md"
-  header_case 'a duplicated fingerprint line runs the round' 'header invalid' "$fx/h.md"
+  header_case 'a duplicated fingerprint line runs the round' "$(round_for 'header invalid')" "$fx/h.md"
   review "$head" "$fp" "$afp" | awk '/^\*\*Reviewed diff fingerprint:\*\*/ { print "```text"; print; print "```"; next } { print }' >"$fx/h.md"
-  header_case 'a fingerprint line inside a fence runs the round' 'header invalid' "$fx/h.md"
+  header_case 'a fingerprint line inside a fence runs the round' "$(round_for 'header invalid')" "$fx/h.md"
   review "$head" 'not-a-patch-id' "$afp" >"$fx/h.md"
-  header_case 'a fingerprint off its pattern runs the round' 'header invalid' "$fx/h.md"
+  header_case 'a fingerprint off its pattern runs the round' "$(round_for 'header invalid')" "$fx/h.md"
   review "$head" "$fp" 'abc' >"$fx/h.md"
-  header_case 'an assignment fingerprint off its pattern runs the round' 'header invalid' "$fx/h.md"
+  header_case 'an assignment fingerprint off its pattern runs the round' "$(round_for 'header invalid')" "$fx/h.md"
   review "$head" "$fp" '-' >"$fx/h.md"
-  header_case 'a review without an assignment fingerprint runs the round' 'no recorded assignment' "$fx/h.md"
+  header_case 'a review without an assignment fingerprint runs the round' "$(round_for 'no recorded assignment')" "$fx/h.md"
   review "$head" "$fp" "$afp" | grep -v '^\*\*Security assessment:\*\*' >"$fx/h.md"
-  header_case 'a review without a Security assessment line runs the round' 'security assessment missing' "$fx/h.md"
+  header_case 'a review without a Security assessment line runs the round' "$(round_with 'security assessment missing' 'header invalid')" "$fx/h.md"
   review "$head" "$fp" "$afp" '**Mode:** HOTFIX — coverage waived, review scoped to assignment + bug fix (declared by owner)' >"$fx/h.md"
-  header_case 'a narrowed HOTFIX review runs the round' 'narrowed review' "$fx/h.md"
+  header_case 'a narrowed HOTFIX review runs the round' "$(round_for 'narrowed review')" "$fx/h.md"
+
+  # Every shape class a header line can take that is not its exact canonical form starts the round.
+  # shape_case <label> <jq-condition> <awk-program> — rewrite the canonical review with <awk-program>, then decide.
+  shape_case() {
+    review "$head" "$fp" "$afp" | LC_ALL=C awk "$3" >"$fx/h.md"
+    header_case "$1" "$2" "$fx/h.md"
+  }
+  local HI NR_
+  HI="$(round_with 'header invalid')"
+  NR_="$(round_with 'narrowed review' 'header invalid')"
+  shape_case 'shape: a header line without the bold runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:\*\*/, "Counts:") } { print }'
+  shape_case 'shape: a colon outside the bold names a mode and runs the round' "$NR_" \
+    '/^\*\*Status:\*\*/ { print "**Mode**: HOTFIX \342\200\224 coverage waived" } { print }'
+  shape_case 'shape: a mode under another label runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "**Review mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode in another letter case runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "**MODE:** hotfix" } { print }'
+  shape_case 'shape: a label in another letter case runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:/, "**counts:") } { print }'
+  shape_case 'shape: extra whitespace after the label runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/:\*\* /, ":**  ") } { print }'
+  shape_case 'shape: trailing whitespace runs the round' "$HI" '/^\*\*Status:\*\*/ { $0 = $0 " " } { print }'
+  shape_case 'shape: trailing text after a SHA runs the round' "$HI" '/^\*\*Reviewed revision:\*\*/ { $0 = $0 " (rewritten)" } { print }'
+  shape_case 'shape: a duplicated label runs the round' "$HI" '/^\*\*Status:\*\*/ { print } { print }'
+  shape_case 'shape: a header line inside a fence runs the round' "$HI" \
+    '/^\*\*Security assessment:\*\*/ { print "```text"; print; print "```"; next } { print }'
+  shape_case 'shape: a mode inside a blockquote runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "> **Mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode inside a list item runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "- **Mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode inside an HTML comment runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "<!-- **Mode:** HOTFIX -->" } { print }'
+  shape_case 'shape: a look-alike colon runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:/, "**Counts\357\274\232") } { print }'
+  shape_case 'shape: a look-alike middle dot in Counts runs the round' "$HI" \
+    '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical 0 \342\200\242 Moderate 0" } { print }'
+  shape_case 'shape: a zero-width space in a label runs the round' "$HI" \
+    '/^\*\*Status:\*\*/ { print "**Mo\342\200\213de:** HOTFIX" } { print }'
+  shape_case 'shape: an unknown label runs the round' "$HI" '/^\*\*Status:\*\*/ { print "**Reviewer:** someone" } { print }'
+  shape_case 'shape: an unparseable Counts line runs the round' "$HI" \
+    '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical ? \302\267 Moderate lots" } { print }'
+  shape_case 'shape: a Counts number with a leading zero runs the round' "$HI" \
+    '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical 00 \302\267 Moderate 0" } { print }'
+  shape_case 'shape: Counts that contradict the Merge verdict run the round' "$(round_for 'header invalid')" \
+    '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical 3 \302\267 Moderate 0" } { print }'
+  shape_case 'shape: a missing Review scope line runs the round' "$(round_for 'header invalid')" '!/^\*\*Review scope:\*\*/ { print }'
+  shape_case 'shape: a second title runs the round' "$HI" '/^# Code Review/ { print; print "# Another title"; next } { print }'
 
   # The context: a failed pull request load, a failed closing-issue load, a source this version cannot fingerprint.
   rm -f "$fx/pr.json"
@@ -786,17 +962,35 @@ EOF
     --comment "$pr_url#issuecomment-40" --after 2026-10-02T10:00:00Z
   expect 'the verified answer carries the loader URL and the author' "$(jq -e --arg u "$pr_url#issuecomment-40" '
       .url == $u and .author == "owner" and .restricted == false' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
-  mode_case 'an answer on an assignment issue is verified' 0 -- cmd_answer --pr-url "$pr_url" --comment "$issue_url#issuecomment-31"
-  mode_case 'an answer from an author without write access is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-41"
-  mode_case 'an answer that carries an agent marker is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-42"
+  mode_case 'an answer on an assignment issue is verified' 0 -- cmd_answer --pr-url "$pr_url" --comment "$issue_url#issuecomment-31" \
+    --after 2026-09-01T00:00:00Z
+  mode_case 'an answer without the reference time is a usage error' 1 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-40"
+  mode_case 'an answer from an author without write access is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-41" \
+    --after 2026-10-02T10:00:00Z
+  mode_case 'an answer that carries an agent marker is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-42" \
+    --after 2026-10-02T10:00:00Z
   mode_case 'an answer older than the finding is refused' 3 -- cmd_answer --pr-url "$pr_url" \
     --comment "$pr_url#issuecomment-40" --after 2026-10-02T12:30:00Z
-  mode_case 'a comment URL the loader never returned is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-99"
+  mode_case 'a comment URL the loader never returned is refused' 3 -- cmd_answer --pr-url "$pr_url" --comment "$pr_url#issuecomment-99" \
+    --after 2026-10-02T10:00:00Z
   pr_fixture "$head" "$fx/c-jira.jsonl" '.closingIssues = []'
   mode_case 'a restricted JIRA answer from the assignee is verified as restricted' 0 -- cmd_answer --pr-url "$pr_url" \
     --source ACME-1 --comment 101 --after 2026-10-03T06:00:00Z
   expect 'the JIRA answer link is built from the loader URL and the comment id' "$(jq -e '
       .url == "https://acme.atlassian.net/browse/ACME-1?focusedCommentId=101" and .restricted == true' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  expect 'a restricted answer on a public repository reaches no GitHub surface' "$(jq -e '
+      .repository_public == true and .github_allowed == false' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  # visibility_case <label> <jq-condition> <isPrivate-json> <comment-id>
+  visibility_case() {
+    pr_fixture "$head" "$fx/c-jira.jsonl" ".closingIssues = [] | .repo.isPrivate = $3"
+    mode_case "$1" 0 -- cmd_answer --pr-url "$pr_url" --source ACME-1 --comment "$4" --after 2026-09-01T00:00:00Z
+    expect "$1: visibility verdict" "$(jq -e "$2" <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  }
+  visibility_case 'a restricted answer on a private repository may reach GitHub' '.repository_public == false and .github_allowed == true' true 101
+  visibility_case 'a restricted answer where the visibility could not be read counts as public' \
+    '.repository_public == true and .github_allowed == false' null 101
+  visibility_case 'an unrestricted answer on a public repository may reach GitHub' \
+    '.restricted == false and .repository_public == true and .github_allowed == true' false 100
   mode_case 'a JIRA answer older than the finding is refused' 3 -- cmd_answer --pr-url "$pr_url" \
     --source ACME-1 --comment 101 --after 2026-10-03T08:00:00Z
 

@@ -39,6 +39,19 @@ if [[ "$1" == "api" && "$2" == "graphql" ]]; then
   exit 0
 fi
 
+if [[ "$1" == "repo" && "$2" == "view" ]]; then
+  [[ "${FAKE_GH_REPO_OK:-1}" == "1" ]] || exit 1
+  printf '%s\n' "${FAKE_GH_PRIVATE:-false}"
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" == "--method" && "$4" == "--paginate" ]]; then
+  [[ "${FAKE_GH_REVIEW_COMMENTS_OK:-1}" == "1" ]] || exit 1
+  printf '%s' '{"author":"maintainer","authorAssociation":"MEMBER","body":"Rename it.","createdAt":"2026-01-02T00:00:00Z",'
+  printf '%s\n' '"url":"https://github.com/acme/widgets/pull/123#discussion_r1"}'
+  exit 0
+fi
+
 exit 1
 BASH;
 
@@ -246,6 +259,33 @@ test('a pull request URL is loaded through gh pr view and keeps a non-draft PR r
     expect(decodedJsonField($output, 'closingIssues.0.number'))->toBe(445);
 });
 
+test('a pull request load returns its line-anchored review comments and says when that read failed', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $loaded = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123')->getOutput();
+    $failed = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_REVIEW_COMMENTS_OK' => '0'])->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect(decodedJsonField($loaded, 'reviewComments.0.url'))->toBe('https://github.com/acme/widgets/pull/123#discussion_r1')
+        ->and(decodedJsonField($loaded, 'reviewComments.0.authorAssociation'))->toBe('MEMBER')
+        ->and(decodedJsonField($loaded, 'reviewCommentsComplete'))->toBeTrue()
+        ->and(decodedJsonField($failed, 'reviewComments'))->toBe([])
+        ->and(decodedJsonField($failed, 'reviewCommentsComplete'))->toBeFalse();
+});
+
+test('the repository visibility is read once and an unreadable visibility stays null', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $public = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123')->getOutput();
+    $private = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_PRIVATE' => 'true'])->getOutput();
+    $unread = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_REPO_OK' => '0'])->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect(decodedJsonField($public, 'repo.isPrivate'))->toBeFalse()
+        ->and(decodedJsonField($private, 'repo.isPrivate'))->toBeTrue()
+        ->and(decodedJsonField($unread, 'repo.isPrivate'))->toBeNull();
+});
+
 test('a www-prefixed URL resolves to the same issue as the bare host', function (): void {
     $fixture = createGitHubLoaderFixture();
 
@@ -348,6 +388,7 @@ test('a failed sub-issue GraphQL call degrades to an empty list while the issue 
 
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'subIssues'))->toBe([]);
+    expect(decodedJsonField($output, 'subIssuesComplete'))->toBeFalse();
     expect(decodedJsonField($output, 'number'))->toBe(445);
 });
 
