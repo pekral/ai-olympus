@@ -185,3 +185,140 @@ test('redis-patterns has one scope per caller and the cache lens keeps KEYS and 
         ->and($reference)->toContain('eviction policy against the store\'s role, and `KEYS *` or per-command loops where `SCAN` or a pipeline belongs.')
         ->and($reference)->not->toContain('casey` keeps Redis access cost: `KEYS`');
 });
+
+test('the report template pins a TL;DR before the first item with facts, consequence, plan, and not-verified lines (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
+
+    expect(strpos($template, '### TL;DR'))->toBeLessThan((int) strpos($template, '### 1. <one-sentence problem>'))
+        ->and($template)->toContain('  - **Facts:** <fact> (<source>); <fact> (<source>)')
+        ->and($template)->toContain('  - **If left as it is:** <the consequence for this query on this path>')
+        ->and($template)->toContain('  - **Plan today:** <the reading of the `EXPLAIN` row, one sentence per column>')
+        ->and($template)->toContain('  - **Plan proposed:** <the same reading for the proposed query>')
+        ->and($template)->toContain('- **Not verified:** <statement> — settled by <the step that settles it>')
+        ->and($template)->toContain('the raw `EXPLAIN` output of the baseline or the stated limitation')
+        ->and($template)->toContain('Drop the Plan proposed line when the proposal was not tested')
+        ->and($template)->toContain('replace both Plan lines with one line: **Plan:** not read — the proposal rests on static analysis: <reason>')
+        ->and($template)->toContain('replace the TL;DR and the items with: No critical database item in this diff.');
+});
+
+test(
+    'the skill pins the TL;DR content rules: three fact sources, a Not verified rule, and no TL;DR without a critical item (issue #334)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+
+        expect($skill)->toContain('**opens with a `TL;DR` that defends each proposal with facts.**')
+            ->and($skill)->toContain('the only sources are a `file:line`, a value read from the `EXPLAIN` output, and a table size the run read.')
+            ->and($skill)->toContain('A statement with no such source goes under *Not verified* with the step that settles it')
+            ->and($skill)->toContain('**explains the `EXPLAIN` result in plain language when `EXPLAIN` ran.**')
+            ->and($skill)->toContain('When `EXPLAIN` did not run, one line states that the proposal rests on static analysis and gives the reason')
+            ->and($skill)->toContain('and the report explains no plan.')
+            ->and($skill)->toContain('answers `No critical database item in this diff.` when nothing qualifies. That answer carries no `TL;DR`.');
+    },
+);
+
+test('the access values stay in the template, and the fact sources and plan readings stay out of the other files (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $others = array_map(
+        static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
+        [
+            'agents/casey.md',
+            'codex/agents/casey.toml',
+            'skills/code-review/references/specialized-reviews.md',
+            'skills/code-review-github/templates/pr-comment-output.md',
+            'docs/agents.md',
+        ],
+    );
+    $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+    $corpus = implode("\n", $others);
+
+    expect($template)->toContain('DB access: <the plain database client | static analysis only — <reason>>')
+        ->and(substr_count($corpus . $skill . $reading, 'the plain database client |'))->toBe(0)
+        ->and(substr_count($corpus . $template . $reading, 'a table size the run read'))->toBe(0)
+        ->and(substr_count($corpus . $template . $skill, '`Using filesort`'))->toBe(0)
+        ->and(substr_count($corpus . $template . $skill, '`index_merge`'))->toBe(0)
+        ->and((string) file_get_contents($packageDir . '/agents/casey.md'))
+        ->toContain('the value of the `DB access:` line of the report');
+});
+
+test(
+    'the reading file pins one sentence per column, the tabular plain EXPLAIN scope, and raw quoting of unexplained values (issue #334)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+
+        expect($reading)->toContain('**One sentence, one column.** Each sentence of a reading states the value that one named column')
+            ->and($reading)->toContain('A sentence that no column of the row supports is not written')
+            ->and($reading)->toContain('**Read the tabular output of plain `EXPLAIN` only.**')
+            ->and($reading)->toContain('or a PostgreSQL plan. For such output the `TL;DR` quotes the raw figures as they stand and gives no reading.')
+            ->and($reading)->toContain('**A value this file does not explain is named, and the report quotes it raw.**')
+            ->and($reading)->toContain('Extra text after a name, such as a suffix in parentheses, makes it a value that this file does not explain.')
+            ->and($reading)->toContain('The rows kept are `rows` × `filtered` ÷ 100, and the reading says they are estimated.')
+            ->and($reading)->toContain('When the `EXPLAIN` row has no `filtered` column, the reading gives no figure for the rows kept')
+            ->and($reading)->toContain('A `key` of `NULL` means it uses no index, and the reading names none.')
+            ->and($reading)->toContain('Every other `Extra` value is named in the `TL;DR` and quoted raw, with no reading.');
+    },
+);
+
+test('the reading file pins one reading row for the EXPLAIN type value', function (string $type): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+
+    expect(substr_count($reading, '| `' . $type . '` |'))->toBe(1);
+})->with(['system', 'const', 'eq_ref', 'ref', 'fulltext', 'ref_or_null', 'index_merge', 'unique_subquery', 'index_subquery', 'range', 'index', 'ALL']);
+
+test('the reading file pins a reading row for the Extra value', function (string $extra): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+
+    expect(substr_count($reading, '| `' . $extra . '` |'))->toBe(1);
+})->with(['Using filesort', 'Using temporary', 'Using index', 'Using where', 'Using index condition', 'Using join buffer', 'Using index for group-by']);
+
+test('the reading file pins that a full index scan is read as the whole index and not as a lookup (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+
+    expect($reading)->toContain('The database reads the whole index in `key` from the start to the end. It is a full scan of the index, not a lookup.')
+        ->and($reading)->toContain('`ALL` is the whole table, `index` is the whole index');
+});
+
+test('the TL;DR pins both places the report is published and the no-critical-item wording (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $commentTemplate = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
+
+    expect($casey)->toContain(
+        'Pipe the whole body, its `TL;DR` included, into `skills/code-review-github/scripts/upsert-comment.sh <PR-URL> - mysql-report`.',
+    )
+        ->and($casey)->toContain('with the full report and its `TL;DR`. The publishing `leonardo` renders it as the `## Database report` section')
+        ->and($casey)->toContain(
+            'A report with a critical item opens with the `TL;DR`. A report with no critical item keeps its one line and carries no `TL;DR`.',
+        )
+        ->and($reference)->toContain('Both places carry the whole report, its `TL;DR` included.')
+        ->and($reference)->toContain('A report with no critical item carries no `TL;DR`.')
+        ->and($commentTemplate)->toContain('A report with a critical item opens with its `TL;DR`, and the render keeps it.');
+});
+
+test('the Codex description pins the same TL;DR behaviour as the Claude definition (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/casey.toml');
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+
+    expect($codex)->toContain('The report opens with a fact-based TL;DR and reads the EXPLAIN result in plain language.')
+        ->and($codex)->toContain('First read `.codex/agent-instructions/casey.md` in full')
+        ->and($casey)->toContain('the `TL;DR`, and the plain-language reading of the plan.');
+});
+
+test('the casey tools line and the casey consent row stay unchanged (issue #334)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+
+    expect($casey)->toMatch('/^tools: Read, Glob, Grep, Bash$/m')
+        ->and($casey)->toMatch('/^disallowedTools: Write, Edit$/m')
+        ->and($orchestration)->toContain('and never a statement that writes data or schema |');
+});
