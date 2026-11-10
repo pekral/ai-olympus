@@ -2,12 +2,6 @@
 
 declare(strict_types = 1);
 
-// The review-only carry-forward, the provenance groups, and the answered finding (issue #333). Per the
-// project's test-isolation rule a Pest test cannot exec a real .sh, so the behavioural proof lives in the
-// script's own `--self-test` (one case per row of its fail-closed table, plus the forgery cases). The pins
-// below fix the contract that self-test enforces, the wiring that runs it in the build, and the one owner of
-// each behaviour.
-
 function reviewCarryForwardSource(string $relativePath): string
 {
     return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
@@ -323,7 +317,7 @@ test('round 2: one header-block boundary for both parsers, the mode from the can
 
     expect($parser)->toContain('cr_header_ends_block() {')
         ->and(substr_count($parser, 'cr_header_ends_block "$line"'))->toBe(2)
-        ->and(substr_count($parser, 'cr_header_is_fence "$line"'))->toBe(2);
+        ->and(substr_count($parser, 'cr_header_fence_step "$line"'))->toBe(2);
     expect($parser)->not->toContain('CR_CANON_LINES');
     expect($script)->not->toContain('names_mode');
     expect($script)
@@ -362,7 +356,7 @@ test('round 3: every decision label after the header block starts the round, and
 
     expect($script)
         ->toContain('! decision_label_after_block <"$TMP/review.md" || reason \'header invalid\'')
-        ->toContain('#      an inline-code span, and prose that names a mode without a colon after the label.');
+        ->toContain('#      decision label is not covered, for example a look-alike letter from another script (`Мode:`), a label split');
 
     foreach ([
         'a bold label with the colon outside the bold\' \'**Status**: needs-fix\'',
@@ -379,17 +373,20 @@ test('round 3: every decision label after the header block starts the round, and
         expect(substr_count($script, 'body_label_case \'' . $case))->toBe(1);
     }
 
-    expect(substr_count($script, "\n  body_label_case '"))->toBe(24);
+    expect(substr_count($script, "\n  body_label_case '"))->toBe(36);
     expect($script)
         ->toContain('shape_case \'body: a decision label in the heading that ends the block runs the round\'')
         ->toContain('shape_case \'body: a decision label inside a fence after the block changes nothing\'')
         ->toContain('shape_case \'body: a decision label inside an inline-code span changes nothing\'')
         ->toContain('shape_case \'body: prose that names a mode without a colon changes nothing\'');
     expect(reviewCarryForwardSource('rules/code-review/general.md'))
-        ->toContain('two more signals start it: a line that names a decision label followed by a colon, in any letter case and any shape,')
-        ->toContain('Not covered: a label inside a fence or inside an inline-code span, and prose that names a mode without a colon after the label.');
+        ->toContain('The shapes this catches are a closed list: a label in either letter case;')
+        ->toContain(
+            'Every other spelling of a decision label is not covered, for example a look-alike letter from another script, '
+            . 'a label split over two lines,',
+        );
     expect(reviewCarryForwardSource('CHANGELOG.md'))
-        ->toContain('(a label inside a fence or an inline-code span, and prose that names a mode without a colon, are not covered)');
+        ->toContain('while every other spelling, for example a look-alike letter from another script or a label split over two lines, is not covered');
 });
 
 test('round 3: the stated limits of the fetch and the sweep have self-test cases', function (): void {
@@ -401,4 +398,66 @@ test('round 3: the stated limits of the fetch and the sweep have self-test cases
         ->toContain('expect \'the repository store receives no object: the head stays absent and the object count is unchanged\'')
         ->toContain('touch -t 202001010000 "$scratch/run.orphan"')
         ->toContain('expect \'the next decide removes an old run directory without a holder and keeps a fresh one\'');
+});
+
+test('PR #344 round 1: the coverage claim is a closed list with the reason the limit is acceptable', function (): void {
+    $rule = reviewCarryForwardSource('rules/code-review/general.md');
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+    $header = explode("\nset -euo pipefail\n", $script, 2)[0];
+
+    foreach (['any shape', 'whatever its shape', 'every shape'] as $phrase) {
+        expect($rule)->not->toContain($phrase);
+        expect($header)->not->toContain($phrase);
+    }
+
+    expect($rule)
+        ->toContain('a line that holds a decision label and a colon once the body check has read a copy of it through eight steps, in this order:')
+        ->toContain(
+            '  5. decode `&colon;`, `&nbsp;`, `&ensp;`, `&emsp;`, `&thinsp;`, `&shy;`, `&zwj;`, `&zwnj;`, '
+            . 'and every decimal or hexadecimal character reference;',
+        )
+        ->toContain(
+            'The limit is acceptable because a carried review is a comment that passed *Authorship trust* and the `cr-comment` marker check, '
+            . 'and the merge gate reads HOTFIX only from the header `Mode:` line.',
+        );
+    expect($header)
+        ->toContain('#        3. it turns an escaped backtick into a neutral character and removes every balanced inline-code span of the')
+        ->toContain('#      passed *Authorship trust* and the `cr-comment` marker check (`trusted_review`), and the merge gate reads');
+
+    foreach ([
+        'a decimal character reference for the colon',
+        'a named character reference for the colon',
+        'a character reference for a letter of the label',
+        'a backslash-escaped colon',
+        'a no-break space before the colon',
+        'a thin space inside a two-word label',
+        'an ideographic space before the colon',
+        'an HTML tag around the label',
+        'a label as link text',
+        'text after an unbalanced backtick run',
+    ] as $case) {
+        expect(substr_count($script, 'body_label_case \'' . $case . '\''))->toBe(1);
+    }
+
+    expect($script)
+        ->toContain('shape_case \'body: a look-alike letter from another script is not covered\' "$CF"')
+        ->toContain('shape_case \'body: a label split over two lines is not covered\' "$CF"');
+});
+
+test('PR #344 round 1: one CommonMark fence test in cr-header.sh, used by every reader', function (): void {
+    $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($parser)
+        ->toContain('cr_header_fence_step() {')
+        ->toContain('local open_re=\'^ {0,3}(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+) *$\' run')
+        ->toContain('expect \'fence: an opener indented by four spaces is not a fence\'')
+        ->toContain('expect \'fence: a backtick info string that holds a backtick is not a fence\'')
+        ->toContain('expect \'fence: a three-backtick line inside a four-backtick fence does not close it\'');
+    expect($parser)->not->toContain('cr_header_is_fence');
+    expect($script)->not->toContain('cr_header_is_fence');
+    expect(substr_count($script, '! cr_header_fence_step "$raw" || continue'))->toBe(1);
+    expect($script)
+        ->toContain('shape_case \'fence: a Critical heading after an indented opener while Counts says Critical 0 runs the round\'')
+        ->toContain('shape_case \'fence: a decision line inside an unclosed fence changes nothing\' "$CF"');
 });

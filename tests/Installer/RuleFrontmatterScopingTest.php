@@ -440,13 +440,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every code-review report is a new comment published with `--create`, and it carries no line over from an earlier comment.
         // Re-baselined: on JIRA every `cr-comment` publish passes `--create`, and a retry identifies the comment of this run by the IDs recorded before the call.
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
-        // Re-baselined: the answered-finding subsection, the fourth header line `Reviewed assignment fingerprint:`, the
-        // review-only carry-forward script, and the provenance groups of the tracker comment (issue #333).
-        // Re-baselined: round 1 of #333 — `answer` requires `--after` and prints `github_allowed`, and a carried-forward
-        // verdict needs a header block in its exact canonical form.
-        // Re-baselined: round 2 of #333 — the C8 bullet names the one header block of `cr-header.sh` and the two body signals.
-        // Re-baselined: the C8 bullet names the decision-label check after the header block and what it does not cover (#333).
-        'rules/code-review/general.md' => 'dc8b667bb7c3876e8ea541a0651208eb580c8a4add2773a61168aea98fb53296',
+        'rules/code-review/general.md' => '6a5c94e76deb2de6b946217bc35b391bbe29980627ac23c6a6c62ec552d3e10c',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

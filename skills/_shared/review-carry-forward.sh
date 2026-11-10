@@ -50,15 +50,34 @@
 #      The header block is the one block of cr-header.sh: every line before the first `## ` heading outside a fence.
 #      A canonical `**Mode:**` line, whatever its value, marks a narrowed review. A mode line in any other shape is
 #      not canonical or carries an unknown label, so it gives `header invalid`. A value is never searched for words.
-#      After the block, outside a fence, a line that names a decision label followed by a colon gives `header invalid`
-#      (decision_label_after_block). The decision labels: Status, Counts, Merge verdict, Security assessment, Mode,
-#      Review scope, Reviewed revision, Reviewed diff fingerprint, Reviewed assignment fingerprint. The shapes, in any
-#      letter case: bold or emphasis around the label or the colon, a list item, a blockquote, indentation, a table
-#      cell, an HTML comment, heading text (the heading that ends the block included), a zero-width character
-#      (U+200B, U+200C, U+200D, U+2060, U+FEFF) or a soft hyphen (U+00AD) inside the label, and a look-alike colon
-#      (U+FF1A, U+FE55, U+A789, U+2236). A Critical finding heading outside a
-#      fence while `Counts:` says Critical 0 gives `header invalid` too. Not covered: a label inside a fence or inside
-#      an inline-code span, and prose that names a mode without a colon after the label.
+#      After the block, outside a fence (a CommonMark fenced code block, cr_header_fence_step), the body check reads a
+#      copy of each line through these steps, in this order:
+#        1. it removes U+200B, U+200C, U+200D, U+2060, U+FEFF, and U+00AD; it turns U+FF1A, U+FE55, U+A789, and
+#           U+2236 into a colon; it turns the tab and the space separators U+00A0, U+1680, U+2000–U+200A, U+202F,
+#           U+205F, and U+3000 into a space;
+#        2. it lowercases ASCII letters;
+#        3. it turns an escaped backtick into a neutral character and removes every balanced inline-code span of the
+#           line (a backtick run closed by a run of the same length); an unbalanced run stays text;
+#        4. it removes every backslash;
+#        5. it decodes `&colon;`, `&nbsp;`, `&ensp;`, `&emsp;`, `&thinsp;`, `&shy;`, `&zwj;`, `&zwnj;`, and every
+#           decimal or hexadecimal character reference: to a digit, a lowercase letter, a colon, a space, or nothing
+#           for the code points of step 1, and to `?` for any other code point;
+#        6. it removes HTML element tags; an HTML comment stays text;
+#        7. it turns a link `[text](url)` into its text and removes every remaining `[` and `]`;
+#        8. it removes every `*` and `_`.
+#      The line then gives `header invalid` when it holds a decision label (Status, Counts, Merge verdict, Security
+#      assessment, Mode, Review scope, Reviewed revision, Reviewed diff fingerprint, Reviewed assignment fingerprint),
+#      then optional spaces and a colon, with no letter or digit right before the label. The shapes this catches:
+#      a label in either letter case; bold or emphasis around the label or the colon; a list item, a blockquote,
+#      indentation, a table cell, an HTML comment, or heading text (the heading that ends the block included); a code
+#      point of step 1 inside or around the label; a character reference of step 5; a backslash escape; an HTML tag
+#      around the label; a label as link text; and text after an unbalanced backtick run. Every other spelling of a
+#      decision label is not covered, for example a look-alike letter from another script (`Мode:`), a label split
+#      over two lines, a label inside a fence, a label inside a balanced inline-code span, and prose that names a
+#      mode without a colon after the label. The limit is acceptable because a carried review is a comment that
+#      passed *Authorship trust* and the `cr-comment` marker check (`trusted_review`), and the merge gate reads
+#      HOTFIX only from the header `Mode:` line.
+#      A Critical finding heading outside a fence while `Counts:` says Critical 0 gives `header invalid` too.
 #      What the header check does not guarantee: it reads the header block and those two signals, never the meaning
 #      of the findings, the sections, or the prose. It does not prove that the body lists every finding `Counts:`
 #      counts, that a Moderate count matches the Moderate findings, or that no sentence declares a mode without a
@@ -112,9 +131,10 @@
 #   security assessment missing                        check-cr-header.sh rejects Merge verdict / Security assessment
 #   narrowed review                                    the header block has a canonical `Mode:` line (a HOTFIX
 #                                                      review), whatever its value
-#   header invalid (body)                              after the header block and outside a fence, a line names a
-#                                                      decision label followed by a colon in any shape (step 3), or a
-#                                                      Critical finding heading stands while Counts says Critical 0
+#   header invalid (body)                              after the header block and outside a fence, a line holds a
+#                                                      decision label and a colon after the eight steps of step 3 (the
+#                                                      closed list of shapes there), or a Critical finding heading
+#                                                      stands while Counts says Critical 0
 #   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern,
 #                                                      ls-remote or the fetch fails, a remote tip is not the
 #                                                      loader's commit, or a commit is missing after the fetch
@@ -191,8 +211,9 @@ KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed
 KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
   'Review scope' 'Last updated')
-# The labels a carried review's meaning depends on. After the header block and outside a fence, a line that names
-# one of them followed by a colon, in any shape, makes the review ambiguous, so the round runs (decision_label_after_block).
+# The labels a carried review's meaning depends on. After the header block and outside a fence, a line that holds
+# one of them and a colon after the steps of the header (step 3) makes the review ambiguous, so the round runs
+# (decision_label_after_block).
 DECISION_LINE='(^|[^a-z0-9])(status|counts|merge[[:space:]]+verdict|security[[:space:]]+assessment|mode|review[[:space:]]+scope'
 DECISION_LINE+='|reviewed[[:space:]]+revision|reviewed[[:space:]]+diff[[:space:]]+fingerprint'
 DECISION_LINE+='|reviewed[[:space:]]+assignment[[:space:]]+fingerprint)[[:space:]]*:'
@@ -465,39 +486,109 @@ cmd_decide() {
     --args ${REASONS[@]+"${REASONS[@]}"} "|reads|" ${READS[@]+"${READS[@]}"}
 }
 
+# ref_text <code point> — the text a decoded character reference stands for in the body check (step 5): a digit,
+# a lowercase letter, the colon (U+003A and the look-alikes of step 1), a space (U+0020, the tab, and the space
+# separators of step 1), nothing (the zero-width code points of step 1), or `?` for every other code point. Sets
+# REF_TEXT.
+ref_text() {
+  local n="$1"
+  if ((n == 58 || n == 0xff1a || n == 0xfe55 || n == 0xa789 || n == 0x2236)); then
+    REF_TEXT=':'
+  elif (((n >= 48 && n <= 57) || (n >= 97 && n <= 122))); then
+    printf -v REF_TEXT '%b' "\\0$(printf '%03o' "$n")"
+  elif ((n >= 65 && n <= 90)); then
+    printf -v REF_TEXT '%b' "\\0$(printf '%03o' "$((n + 32))")"
+  elif ((n == 32 || n == 9 || n == 0xa0 || n == 0x1680 || (n >= 0x2000 && n <= 0x200a) || n == 0x202f || n == 0x205f || n == 0x3000)); then
+    REF_TEXT=' '
+  elif ((n == 0xad || (n >= 0x200b && n <= 0x200d) || n == 0x2060 || n == 0xfeff)); then
+    REF_TEXT=''
+  else
+    REF_TEXT='?'
+  fi
+}
+
+# normalize_body_line <line> — steps 3 to 8 of the body check (the script header, step 3 of decide), on a line that
+# steps 1 and 2 already normalised. Sets LINE_NORM.
+normalize_body_line() {
+  local s="$1" out='' pre run rest scan after found n
+  local span_re="^([^\`]*)(\`+)(.*)\$" dec_re='^(.*)&#([0-9]{1,7});(.*)$' hex_re='^(.*)&#x([0-9a-f]{1,6});(.*)$'
+  local tag_re='^(.*)</?[a-z][^>]*>(.*)$' link_re='^(.*)\[([^]]*)\]\([^)]*\)(.*)$'
+  s="${s//\\\`/\'}"
+  while [[ "$s" =~ $span_re ]]; do
+    pre="${BASH_REMATCH[1]}" run="${BASH_REMATCH[2]}" rest="${BASH_REMATCH[3]}"
+    n=${#run} scan="$rest" found=0
+    while [[ "$scan" =~ $span_re ]]; do
+      if [[ ${#BASH_REMATCH[2]} -eq $n ]]; then
+        found=1 after="${BASH_REMATCH[3]}"
+        break
+      fi
+      scan="${BASH_REMATCH[3]}"
+    done
+    if [[ "$found" -eq 1 ]]; then
+      out+="$pre "
+      s="$after"
+    else
+      out+="$pre$run"
+      s="$rest"
+    fi
+  done
+  s="$out$s"
+  s="${s//\\/}"
+  s="${s//&colon;/:}"
+  s="${s//&nbsp;/ }" s="${s//&ensp;/ }" s="${s//&emsp;/ }" s="${s//&thinsp;/ }"
+  s="${s//&shy;/}" s="${s//&zwj;/}" s="${s//&zwnj;/}"
+  while [[ "$s" =~ $dec_re ]]; do
+    pre="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[3]}"
+    ref_text "$((10#${BASH_REMATCH[2]}))"
+    s="$pre$REF_TEXT$rest"
+  done
+  while [[ "$s" =~ $hex_re ]]; do
+    pre="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[3]}"
+    ref_text "$((16#${BASH_REMATCH[2]}))"
+    s="$pre$REF_TEXT$rest"
+  done
+  while [[ "$s" =~ $tag_re ]]; do
+    s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  done
+  while [[ "$s" =~ $link_re ]]; do
+    s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+  done
+  s="${s//\[/}"
+  s="${s//\]/}"
+  LINE_NORM="${s//[*_]/}"
+}
+
 # decision_label_after_block — read a review body on standard input. Succeed when a line after the header block,
-# outside a fence, names a decision label followed by a colon (DECISION_LINE), in any shape: any letter case, bold or
-# emphasis around the label or the colon, a list item, a blockquote, indentation, a table cell, an HTML comment,
-# heading text (the heading that ends the block included), a zero-width character or a soft hyphen inside the label,
-# or a look-alike colon (the step 3 list in the header names them). The block and the fences are those of cr-header.sh (cr_header_ends_block,
-# cr_header_is_fence). Not read: a line inside a fence, and the text inside an inline-code span (`…`), which quotes a
-# label the way a fence does. Prose that names a mode without a colon after the label is not matched.
+# outside a fence, holds a decision label followed by a colon (DECISION_LINE) once it went through the steps of the
+# script header (step 3 of decide). The block and the fences are those of cr-header.sh (cr_header_ends_block and
+# cr_header_fence_step, both read on the raw line); the steps run on a copy of the line.
 decision_label_after_block() {
-  local LC_ALL=C body line in_fence=0 in_block=1 strip
+  local LC_ALL=C body norm raw line in_block=1 strip
   body="$(cat)"
+  norm="$body"
   for strip in $'\xe2\x80\x8b' $'\xe2\x80\x8c' $'\xe2\x80\x8d' $'\xe2\x81\xa0' $'\xef\xbb\xbf' $'\xc2\xad'; do
-    body="${body//$strip/}"
+    norm="${norm//$strip/}"
   done
   for strip in $'\xef\xbc\x9a' $'\xef\xb9\x95' $'\xea\x9e\x89' $'\xe2\x88\xb6'; do
-    body="${body//$strip/:}"
+    norm="${norm//$strip/:}"
   done
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    if cr_header_is_fence "$line"; then
-      in_fence=$((1 - in_fence))
-      continue
-    fi
-    [[ "$in_fence" -eq 0 ]] || continue
+  for strip in $'\xc2\xa0' $'\xe1\x9a\x80' $'\xe2\x80\x80' $'\xe2\x80\x81' $'\xe2\x80\x82' $'\xe2\x80\x83' $'\xe2\x80\x84' \
+    $'\xe2\x80\x85' $'\xe2\x80\x86' $'\xe2\x80\x87' $'\xe2\x80\x88' $'\xe2\x80\x89' $'\xe2\x80\x8a' $'\xe2\x80\xaf' \
+    $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\t'; do
+    norm="${norm//$strip/ }"
+  done
+  CR_FENCE_CHAR=''
+  CR_FENCE_LEN=0
+  while IFS= read -r raw <&3 && IFS= read -r line <&4; do
+    raw="${raw%$'\r'}"
+    ! cr_header_fence_step "$raw" || continue
     if [[ "$in_block" -eq 1 ]]; then
-      cr_header_ends_block "$line" || continue
+      cr_header_ends_block "$raw" || continue
       in_block=0
     fi
-    while [[ "$line" =~ ^([^\`]*)\`[^\`]*\`(.*)$ ]]; do
-      line="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
-    done
-    line="${line//[*_]/}"
-    [[ ! "$line" =~ $DECISION_LINE ]] || return 0
-  done < <(printf '%s\n' "$body" | tr '[:upper:]' '[:lower:]')
+    normalize_body_line "${line%$'\r'}"
+    [[ ! "$LINE_NORM" =~ $DECISION_LINE ]] || return 0
+  done 3< <(printf '%s\n' "$body") 4< <(printf '%s\n' "$norm" | tr '[:upper:]' '[:lower:]')
   return 1
 }
 
@@ -544,7 +635,7 @@ read_review_header() {
   [[ "$recorded_fp" =~ $SHA_SHAPE ]] || recorded_fp=''
   [[ "$recorded_afp" =~ $SHA256_SHAPE ]] || recorded_afp=''
 
-  # The rest of the body: a decision label after the block in any shape, and the Critical headings the lenient
+  # The rest of the body: a decision label after the block (the steps of the header), and the Critical headings the lenient
   # parser counts with the same block and fence boundary.
   ! decision_label_after_block <"$TMP/review.md" || reason 'header invalid'
   cr_header_parse <"$TMP/review.md"
@@ -1001,7 +1092,7 @@ EOF
     '{ print } /^## TL;DR/ { print "## Findings"; print "### \360\237\224\264 Critical 1. Unchecked input" }'
   shape_case 'body: a Critical finding heading inside a fence changes nothing' "$CF" \
     '{ print } /^## TL;DR/ { print "```"; print "### Critical 1. quoted"; print "```" }'
-  # A decision label followed by a colon after the block, in every shape the line can take.
+  # A decision label followed by a colon after the block, one case per shape of the closed list in the header.
   # body_label_case <label> <line> — insert <line> after `## TL;DR`; the round runs with header invalid.
   body_label_case() {
     shape_case "body: $1 runs the round" "$HI" "{ print } /^## TL;DR/ { print \"$2\" }"
@@ -1030,6 +1121,18 @@ EOF
   body_label_case 'the Review scope label' '- Review scope: full PR'
   body_label_case 'the Reviewed diff fingerprint label' '- Reviewed diff fingerprint: 1234'
   body_label_case 'the Reviewed assignment fingerprint label' '- Reviewed assignment fingerprint: 1234'
+  body_label_case 'a decimal character reference for the colon' 'Mode&#58; HOTFIX'
+  body_label_case 'a hexadecimal character reference for the colon' 'Mode&#x3A; HOTFIX'
+  body_label_case 'a named character reference for the colon' 'Mode&colon; HOTFIX'
+  body_label_case 'a character reference for a letter of the label' 'Mo&#100;e: HOTFIX'
+  body_label_case 'a backslash-escaped colon' 'Mode\\: HOTFIX'
+  body_label_case 'backslash-escaped bold stars' '\\*\\*Mode\\*\\*: HOTFIX'
+  body_label_case 'a no-break space before the colon' 'Mode\302\240: HOTFIX'
+  body_label_case 'a thin space inside a two-word label' 'Merge\342\200\211verdict: no'
+  body_label_case 'an ideographic space before the colon' 'Mode\343\200\200: HOTFIX'
+  body_label_case 'an HTML tag around the label' '<b>Mode</b>: HOTFIX'
+  body_label_case 'a label as link text' '[Mode](https://example.invalid): HOTFIX'
+  body_label_case 'text after an unbalanced backtick run' '`Mode: HOTFIX``'
   shape_case 'body: a decision label in the heading that ends the block runs the round' "$HI" \
     '/^## TL;DR/ { print "## Mode: HOTFIX"; next } { print }'
   shape_case 'body: a decision label inside a fence after the block changes nothing' "$CF" \
@@ -1038,6 +1141,29 @@ EOF
     '{ print } /^## TL;DR/ { print "- The runner prints `status: invalid` and `Mode: HOTFIX` as data." }'
   shape_case 'body: prose that names a mode without a colon changes nothing' "$CF" \
     '{ print } /^## TL;DR/ { print "- This was not a HOTFIX mode run." }'
+  shape_case 'body: a look-alike letter from another script is not covered' "$CF" \
+    '{ print } /^## TL;DR/ { print "\320\234ode: HOTFIX" }'
+  shape_case 'body: a label split over two lines is not covered' "$CF" \
+    '{ print } /^## TL;DR/ { print "Merge"; print "verdict: no" }'
+  # Fences as CommonMark defines them (cr_header_fence_step): a line that only looks like a fence is read.
+  shape_case 'fence: an opener indented by four spaces does not hide a decision line' "$HI" \
+    '{ print } /^## TL;DR/ { print "    ```"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a backtick info string with a backtick does not hide a decision line' "$HI" \
+    '{ print } /^## TL;DR/ { print "```x`y"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a three-backtick line does not close a four-backtick fence' "$HI" \
+    '{ print } /^## TL;DR/ { print "````"; print "```"; print "````"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a closing run longer than the opener closes the fence' "$HI" \
+    '{ print } /^## TL;DR/ { print "```"; print "x"; print "`````"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a decision line inside a tilde fence changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "~~~"; print "**Mode:** HOTFIX"; print "~~~" }'
+  shape_case 'fence: a decision line inside an unclosed fence changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "```"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a Critical heading after an indented opener while Counts says Critical 0 runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "    ```"; print "### \360\237\224\264 Critical 1. Hidden" }'
+  shape_case 'fence: a Critical heading after a backtick info string with a backtick while Counts says Critical 0 runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "```x`y"; print "### \360\237\224\264 Critical 1. Hidden" }'
+  shape_case 'fence: a Critical heading after a four-backtick fence closes while Counts says Critical 0 runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "````"; print "```"; print "````"; print "### \360\237\224\264 Critical 1. Hidden" }'
   # A value is never searched for words.
   shape_case 'value: mode and HOTFIX inside a Not verified value carry forward' "$CF" \
     '{ print } /^\*\*Review scope:\*\*/ { print "**Not verified:** GNU mktemp mode; the HOTFIX path was not exercised" }'

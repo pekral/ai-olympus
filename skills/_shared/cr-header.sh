@@ -21,7 +21,7 @@
 #   hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
 #
 #   The block has one boundary for every reader: the first line, read outside a fence, that cr_header_ends_block
-#   accepts. cr_header_scan and cr_header_canonical both call cr_header_ends_block and cr_header_is_fence, so a line
+#   accepts. cr_header_scan and cr_header_canonical both call cr_header_ends_block and cr_header_fence_step, so a line
 #   the lenient view counts as a header-block line is always a line the strict view reads.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
@@ -58,10 +58,36 @@ CR_HEADER_BLOCK=()
 CR_HEADER_VALUES=()
 CR_HEADER_CRITICAL_HEADINGS=0
 
-# cr_header_is_fence <line> — true when <line> opens or closes a fenced code block: ``` or ~~~ after ASCII
-# indentation. Both views track fences with it.
-cr_header_is_fence() {
-  [[ ( "$1" == *'```'* || "$1" == *'~~~'* ) && "$1" =~ ^[[:space:]]*(\`\`\`|~~~) ]]
+CR_FENCE_CHAR=''
+CR_FENCE_LEN=0
+
+# cr_header_fence_step <line> — the one fence test, as CommonMark defines a fenced code block. Call it once per line,
+# in order, after resetting CR_FENCE_CHAR and CR_FENCE_LEN. It succeeds when <line> belongs to a fence: the line that
+# opens it, a line inside it, or the line that closes it; it fails for a line outside every fence.
+#   opens   0–3 spaces of indentation, then three or more backticks or tildes; after a backtick run, the rest of the
+#           line holds no backtick (a backtick info string never does)
+#   closes  0–3 spaces of indentation, then a run of the opening character at least as long as the opening run, then
+#           nothing but spaces
+#   An unclosed fence runs to the end of the body. The opening character and length are kept in CR_FENCE_CHAR and
+#   CR_FENCE_LEN.
+cr_header_fence_step() {
+  local open_re='^ {0,3}(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+) *$' run
+  if [[ -z "$CR_FENCE_CHAR" ]]; then
+    [[ ( "$1" == *'```'* || "$1" == *'~~~'* ) && "$1" =~ $open_re ]] || return 1
+    run="${BASH_REMATCH[1]}"
+    [[ "${run:0:1}" != '`' || "${BASH_REMATCH[2]}" != *'`'* ]] || return 1
+    CR_FENCE_CHAR="${run:0:1}"
+    CR_FENCE_LEN=${#run}
+    return 0
+  fi
+  if [[ "$1" =~ $close_re ]]; then
+    run="${BASH_REMATCH[1]}"
+    if [[ "${run:0:1}" == "$CR_FENCE_CHAR" && ${#run} -ge $CR_FENCE_LEN ]]; then
+      CR_FENCE_CHAR=''
+      CR_FENCE_LEN=0
+    fi
+  fi
+  return 0
 }
 
 # cr_header_ends_block <line> — true when <line>, read outside a fence, ends the header block: a level-2 heading
@@ -103,18 +129,16 @@ cr_header_parse() {
 # take ASCII whitespace only, as CommonMark defines them. The four arrays and `retrim` belong to the caller.
 cr_header_scan() {
   local LC_ALL=C
-  local line value count=0 in_fence=0 in_block=1 in_finding=0 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
+  local line value count=0 in_block=1 in_finding=0 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
   local finding='^#{3,6}[[:space:]]+([^[:space:]]+[[:space:]]+)?(Critical|Moderate)[[:space:]]+[0-9]+\.'
   local high=$'[\x80-\xff]'
 
+  CR_FENCE_CHAR=''
+  CR_FENCE_LEN=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     # Each regular expression runs only on a line that can match it: a glob test is cheaper.
-    if cr_header_is_fence "$line"; then
-      in_fence=$((1 - in_fence))
-      continue
-    fi
-    [[ "$in_fence" -eq 0 ]] || continue
+    ! cr_header_fence_step "$line" || continue
     if [[ "$line" == '#'* ]]; then
       if cr_header_ends_block "$line"; then
         in_block=0
@@ -159,17 +183,17 @@ CR_CANON_REJECTED=()
 # cr_header_canonical — read a comment body on standard input and fill the three CR_CANON_ arrays above.
 cr_header_canonical() {
   local LC_ALL=C
-  local line n=0 titled=0 labels=0 rejected=0 in_fence=0 after_blank=1
+  local line n=0 titled=0 labels=0 rejected=0 after_blank=1
   local shape='^[*][*]([A-Za-z][A-Za-z ()-]*):[*][*] ([^[:space:]](.*[^[:space:]])?)$'
   CR_CANON_LABELS=()
   CR_CANON_VALUES=()
   CR_CANON_REJECTED=()
+  CR_FENCE_CHAR=''
+  CR_FENCE_LEN=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     n=$((n + 1))
-    if cr_header_is_fence "$line"; then
-      in_fence=$((1 - in_fence))
-    elif [[ "$in_fence" -eq 0 ]]; then
+    if ! cr_header_fence_step "$line"; then
       cr_header_ends_block "$line" && break
       if [[ -z "$line" ]]; then
         after_blank=1
@@ -234,6 +258,24 @@ cr_header_self_test() {
   expect 'a trailing carriage return is dropped' $'Status|1|1|clean\n' $'**Status:** clean\r'
   expect 'a line inside a fenced code block is not read' $'After|1|1|y\n' "$(printf '%stext\n**Before:** x\n%s\n**After:** y\n' "$fence" "$fence")"
   expect 'a tilde fence is a fence too' $'After|1|1|y\n' "$(printf '~~~\n**Before:** x\n~~~\n**After:** y\n')"
+  # The fence as CommonMark defines it (cr_header_fence_step).
+  expect 'fence: an opener indented by four spaces is not a fence' $'Status|1|1|a\nLate|1|1|b\n' \
+    "$(printf '**Status:** a\n    %s\n**Late:** b\n' "$fence")"
+  expect 'fence: a backtick info string that holds a backtick is not a fence' $'Status|1|1|a\nLate|1|1|b\n' \
+    "$(printf '**Status:** a\n%sx`y\n**Late:** b\n' "$fence")"
+  expect 'fence: a three-backtick line inside a four-backtick fence does not close it' $'After|1|1|y\n' \
+    "$(printf '%s\n%s\n**In:** x\n%s\n**After:** y\n' "$fence\`" "$fence" "$fence\`")"
+  expect 'fence: a tilde info string may hold a backtick' $'After|1|1|y\n' "$(printf '~~~x`y\n**In:** x\n~~~\n**After:** y\n')"
+  expect 'fence: an unclosed fence runs to the end of the body' $'Status|1|1|a\n' \
+    "$(printf '**Status:** a\n%s\n**In:** x\n## TL;DR\n**Late:** y\n' "$fence")"
+  expect 'fence: a closing run longer than the opener closes the fence' $'After|1|1|y\n' \
+    "$(printf '%s\n**In:** x\n%s``\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a line with text after the run does not close the fence' $'After|1|1|z\n' \
+    "$(printf '%s\n**In:** x\n%sx\n**Still:** y\n%s\n**After:** z\n' "$fence" "$fence" "$fence")"
+  expect 'fence: a run of the other character does not close the fence' $'After|1|1|y\n' \
+    "$(printf '%s\n~~~\n**In:** x\n%s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a closer indented by three spaces closes the fence' $'After|1|1|y\n' \
+    "$(printf '%s\n**In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
   expect 'a line after the first section heading is reported outside the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n## TL;DR\n**Late:** b'
   expect 'a heading of a deeper level does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Sub\n**Late:** b'
   expect 'a section heading inside a fence does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' "$(printf '**Status:** a\n%s\n## quoted\n%s\n**Late:** b\n' "$fence" "$fence")"
