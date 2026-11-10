@@ -25,7 +25,7 @@ test('the carry-forward script is shipped, executable, self-testing, and run by 
     expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/review-carry-forward.sh '))->toBe(1);
 });
 
-test('each fail-closed reason stands once in the header table and has exactly one self-test case', function (string $reason, string $case): void {
+test('each fail-closed reason stands once in the header table and its named self-test case exists once', function (string $reason, string $case): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect(substr_count($script, '#   ' . $reason))->toBe(1)
@@ -258,7 +258,7 @@ test('the strict header view, the Counts-against-verdict check, and the 22 heade
     }
 });
 
-test('every label the review template renders is a label the carry-forward check knows', function (): void {
+test('every header-block label the review template renders, and the two mirror labels, is a label the carry-forward check knows', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
     $template = reviewCarryForwardSource('skills/code-review-github/templates/pr-comment-output.md');
     $header = explode("\n---\n", $template, 2)[0];
@@ -309,6 +309,11 @@ test('decide fetches into a run-directory object store after ls-remote, calls no
     expect($script)->not->toContain('"${GIT[@]}" update-ref');
     expect($script)->not->toContain('remote get-url');
     expect($script)->not->toContain('\'FETCH_HEAD^{commit}\'');
+
+    $lsRemote = strpos($script, 'ls-remote origin "refs/pull/$number/head" "refs/heads/$base_branch"');
+    $fetch = strpos($script, 'fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap=');
+
+    expect($lsRemote !== false && $fetch !== false && $lsRemote < $fetch)->toBeTrue();
 });
 
 test('both parsers share the block and fence functions, the mode comes from the canonical label, and the block and body cases exist', function (): void {
