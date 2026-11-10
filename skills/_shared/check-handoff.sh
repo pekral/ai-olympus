@@ -272,6 +272,25 @@ self_test() {
     failures=$((failures + 1))
   fi
 
+  # An inlined diff in a string larger than a pipe buffer. The detection reads the
+  # strings from a here-string: through a pipe, a writer that outlives the reader
+  # turns the match into no match under pipefail. The budget is raised so only the
+  # inlined diff can fail the handoff.
+  local pad
+  pad="$(awk 'BEGIN { for (i = 0; i < 4000; i++) printf "%60s\n", "x" }')"
+  jq -n --arg detail "diff --git a/a.php b/a.php
+$pad" '{ status: "completed", sha: "abc123", changed_files: ["a.php"], validation: { status: "passed" }, next: "review", detail: $detail }' >"$tmp/large-diff.json"
+  set +e
+  "$script" --file "$tmp/large-diff.json" --role implementation --budget 1000000 >/dev/null 2>&1
+  local large=$?
+  set -e
+  if [[ "$large" -eq 3 ]]; then
+    printf 'ok    %-54s exit 3\n' 'an inlined diff larger than a pipe is rejected'
+  else
+    printf 'FAIL  %-54s expected exit 3, got %s\n' 'an inlined diff larger than a pipe is rejected' "$large" >&2
+    failures=$((failures + 1))
+  fi
+
   local rc
   set +e
   "$script" --file "$tmp/big.json" --role nonsense >/dev/null 2>&1
