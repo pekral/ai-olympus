@@ -142,7 +142,7 @@ check() {
 
   local status
   status="$(printf '%s' "$body" | jq -r '.status // ""')"
-  if [[ -n "$status" ]] && ! printf '%s' " $VALID_STATUSES " | grep -q " $status "; then
+  if [[ -n "$status" ]] && ! grep -q " $status " <<<" $VALID_STATUSES "; then
     problems+=("unknown status: $status")
   fi
 
@@ -156,10 +156,10 @@ check() {
     [ .. | strings ] | .[]
   ' 2>/dev/null || true)"
 
-  if printf '%s' "$suspicious" | grep -qE '^(diff --git|@@ -|\+\+\+ |--- )'; then
+  if grep -qE '^(diff --git|@@ -|\+\+\+ |--- )' <<<"$suspicious"; then
     problems+=('handoff inlines a diff — reference the artifact path instead')
   fi
-  if printf '%s' "$suspicious" | grep -qiE 'PHPUnit [0-9]|Tests:[[:space:]]+[0-9]+ (passed|failed)|PASS +tests/|FAIL +tests/'; then
+  if grep -qiE 'PHPUnit [0-9]|Tests:[[:space:]]+[0-9]+ (passed|failed)|PASS +tests/|FAIL +tests/' <<<"$suspicious"; then
     problems+=('handoff inlines test output — reference the log path instead')
   fi
 

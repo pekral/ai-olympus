@@ -764,7 +764,7 @@ EOF
   pr 75 MERGED "$merged" '[41, 40]' '["rules/php/concurrency.md", "CHANGELOG.md"]'
   run 'a merged pull request that closes the proposal and changes the target promotes the candidate' 0 promote --dir "$D" --key "$K" --pr "$P/75"
   check 'a candidate is promoted once its change is on the default branch' "$(jq -e '.state == "promoted"' "$tmp/out" >/dev/null && jq -e -s --arg c "$merged" 'map(select(.event == "promoted")) | .[0].commit == $c' "$proj/$D/promotion.jsonl" >/dev/null && echo 0 || echo 1)"
-  check 'a pull request merged by rebase whose target change is not in its last commit promotes the candidate' "$(! git -C "$proj" diff --name-only "$merged^1" "$merged" | grep -Fxq rules/php/concurrency.md && jq -e '.state == "promoted"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'a pull request merged by rebase whose target change is not in its last commit promotes the candidate' "$(! git -C "$proj" diff --name-only "$merged^1" "$merged" | grep -Fx rules/php/concurrency.md >/dev/null && jq -e '.state == "promoted"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'a promoted candidate is decided again' 4 decide --dir "$D" --key "$K" --decision reject --fact instruction --reason 'Too late.'
   analysis counter-race
   run 'a promoted pattern is proposed again' 0 propose --dir "$D" --analysis "$tmp/a.json" --out "$tmp/body3.md"

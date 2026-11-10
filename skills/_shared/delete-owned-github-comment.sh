@@ -114,7 +114,7 @@ if VERIFY_OUTPUT="$(gh api --include "repos/$OWNER/$REPOSITORY/issues/comments/$
   exit 3
 fi
 
-if ! printf '%s\n' "$VERIFY_OUTPUT" | grep -Eq '^HTTP/[^ ]+ 404([[:space:]]|$)'; then
+if ! grep -Eq '^HTTP/[^ ]+ 404([[:space:]]|$)' <<<"$VERIFY_OUTPUT"; then
   printf '%s\n' "$PROG: deletion could not be verified as HTTP 404" >&2
   exit 3
 fi

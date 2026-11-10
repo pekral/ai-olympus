@@ -121,7 +121,7 @@ ssh_host_is_github() {
   # `--` terminates option parsing: the host comes from a git remote, and this
   # script calls `ssh` unqualified from PATH, so it must not depend on a
   # particular ssh build refusing a leading dash.
-  resolved="$(ssh -G -- "$host" 2>/dev/null | awk '$1 == "hostname" { print $2; exit }' | tr '[:upper:]' '[:lower:]')"
+  resolved="$(ssh -G -- "$host" 2>/dev/null | awk '$1 == "hostname" && !seen++ { print $2 }' | tr '[:upper:]' '[:lower:]')"
   [[ "$resolved" == "github.com" ]]
 }
 
@@ -606,7 +606,7 @@ CURRENT_NWOS="$(current_repo_nwos || true)"
 # repair a verdict this script could not reach on its own, hiding the gap. An
 # unprovable ownership check must stay unprovable.
 REMOTES_PRESENT=0
-if git remote 2>/dev/null | grep -q .; then
+if git remote 2>/dev/null | grep . >/dev/null; then
   REMOTES_PRESENT=1
 fi
 
