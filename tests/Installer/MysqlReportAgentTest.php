@@ -186,6 +186,33 @@ test('redis-patterns has one scope per caller and the cache lens keeps KEYS and 
         ->and($reference)->not->toContain('casey` keeps Redis access cost: `KEYS`');
 });
 
+/**
+ * @return list<string>
+ */
+function caseyReportSurfaceFiles(): array
+{
+    return [
+        'agents/casey.md',
+        'codex/agents/casey.toml',
+        'skills/code-review/references/specialized-reviews.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'docs/agents.md',
+        'skills/mysql-problem-solver/templates/cr-report.md',
+        'skills/mysql-problem-solver/references/explain-reading.md',
+        'skills/mysql-problem-solver/SKILL.md',
+    ];
+}
+
+function caseyReportSurfaceWithout(string $owner): string
+{
+    $packageDir = dirname(__DIR__, 2);
+
+    return implode("\n", array_map(
+        static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
+        array_values(array_diff(caseyReportSurfaceFiles(), [$owner])),
+    ));
+}
+
 test('the report template pins the TL;DR heading before the first item heading (issue #334)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
@@ -200,7 +227,7 @@ test('the report template pins the full text of the line', function (string $tex
     expect($template)->toContain($text);
 })->with([
     'the consequence line' => [
-        '- **If left as it is:** <the consequence for this query on this path>',
+        '  - **If left as it is:** <the consequence for this query on this path>',
     ],
     'the DB access value comment' => [
         '<!-- DB access names one value for the whole report: the plain database client when any fact of the '
@@ -211,7 +238,7 @@ test('the report template pins the full text of the line', function (string $tex
             . 'stated limitation, table or key-space size when known>',
     ],
     'the facts line' => [
-        '- **Facts:** <fact> (<source>); <fact> (<source>)',
+        '  - **Facts:** <fact> (<source>); <fact> (<source>)',
     ],
     'the no-critical-item comment' => [
         '<!-- When no item qualifies in any part that ran, keep the heading, the advisory line, and the '
@@ -223,10 +250,10 @@ test('the report template pins the full text of the line', function (string $tex
         '- **Not verified:** <statement> — settled by <the step that settles it>',
     ],
     'the plan proposed line' => [
-        '- **Plan proposed:** <the same reading for the proposed query>',
+        '  - **Plan proposed:** <the same reading for the proposed query>',
     ],
     'the plan today line' => [
-        '- **Plan today:** <the reading of the `EXPLAIN` output, one sentence per column, node, or detail '
+        '  - **Plan today:** <the reading of the `EXPLAIN` output, one sentence per column, node, or detail '
             . 'line>',
     ],
     'the stores line with the DB access values' => [
@@ -436,12 +463,20 @@ test('the reading file pins the full text of the rule line', function (string $t
     ],
 ]);
 
-test('the reading file pins the full row of the MySQL and MariaDB column', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the MySQL and MariaDB column and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     'Extra' => [
         '| `Extra` | The extra steps of this row. See *The `Extra` column*. |',
     ],
@@ -467,12 +502,20 @@ test('the reading file pins the full row of the MySQL and MariaDB column', funct
     ],
 ]);
 
-test('the reading file pins the full row of the `type` value', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the `type` value and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     'ALL' => [
         '| `ALL` | The database reads every row of the table, once for each combination of rows from the '
             . 'tables before it. |',
@@ -520,12 +563,20 @@ test('the reading file pins the full row of the `type` value', function (string 
     ],
 ]);
 
-test('the reading file pins the full row of the `Extra` value', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the `Extra` value and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     'Using filesort' => [
         '| `Using filesort` | The database does an extra pass to retrieve the rows in sorted order. |',
     ],
@@ -554,12 +605,20 @@ test('the reading file pins the full row of the `Extra` value', function (string
     ],
 ]);
 
-test('the reading file pins the full row of the PostgreSQL figure', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the PostgreSQL figure and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     '`actual time=<start>..<total>`' => [
         '| `actual time=<start>..<total>` | `EXPLAIN ANALYZE` only. The measured start-up time and total time '
             . 'of the node, in milliseconds of real time, averaged per execution of the node. |',
@@ -585,12 +644,20 @@ test('the reading file pins the full row of the PostgreSQL figure', function (st
     ],
 ]);
 
-test('the reading file pins the full row of the PostgreSQL node', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the PostgreSQL node and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     'Bitmap Heap Scan' => [
         '| `Bitmap Heap Scan` | The database sorts the row locations that its child node found into physical '
             . 'order and fetches those rows from the table. |',
@@ -642,12 +709,20 @@ test('the reading file pins the full row of the PostgreSQL node', function (stri
     ],
 ]);
 
-test('the reading file pins the full row of the PostgreSQL detail line', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+test(
+    'the reading file pins the full row of the PostgreSQL detail line and that exactly one reading row opens with its first cell',
+    function (string $text): void {
+        $packageDir = dirname(__DIR__, 2);
+        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
 
-    expect($reading)->toContain($text);
-})->with([
+        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
+
+        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+
+        expect($reading)->toContain($text)
+            ->and($rowCount)->toBe(1);
+    },
+)->with([
     'Buffers' => [
         '| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child '
             . 'nodes. These are not distinct buffers. On PostgreSQL 18, `EXPLAIN ANALYZE` includes this line on its '
@@ -699,16 +774,16 @@ test(
     },
 );
 
-test('the template carries the DB access values and no other casey file or the skill or the reading file carries them (issue #334)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+test(
+    'the template carries the DB access values and none of the other seven files of the casey report surface carries them (issue #334)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
 
-    expect($template)->toContain('DB access: <the plain database client | static analysis only — <reason>>')
-        ->and(substr_count($casey . $skill . $reading, 'the plain database client |'))->toBe(0);
-});
+        expect($template)->toContain('DB access: <the plain database client | static analysis only — <reason>>')
+            ->and(substr_count(caseyReportSurfaceWithout('skills/mysql-problem-solver/templates/cr-report.md'), 'the plain database client |'))->toBe(0);
+    },
+);
 
 test('the casey handoff points to the DB access line of the report (issue #334)', function (): void {
     $packageDir = dirname(__DIR__, 2);
@@ -717,43 +792,23 @@ test('the casey handoff points to the DB access line of the report (issue #334)'
     expect($casey)->toContain('the value of the `DB access:` line of the report');
 });
 
-test('the fact-source sentence appears in the skill and in no template, reading file, or other casey file (issue #334)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
-    $others = implode("\n", array_map(
-        static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
-        [
-            'agents/casey.md',
-            'codex/agents/casey.toml',
-            'skills/code-review/references/specialized-reviews.md',
-            'skills/code-review-github/templates/pr-comment-output.md',
-            'docs/agents.md',
-            'skills/mysql-problem-solver/templates/cr-report.md',
-            'skills/mysql-problem-solver/references/explain-reading.md',
-        ],
-    ));
+test(
+    'the skill carries the fact-source sentence and none of the other seven files of the casey report surface carries it (issue #334)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
 
-    expect($skill)->toContain('a table size the run read')
-        ->and(substr_count($others, 'a table size the run read'))->toBe(0);
-});
+        expect($skill)->toContain('a table size the run read')
+            ->and(substr_count(caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md'), 'a table size the run read'))->toBe(0);
+    },
+);
 
 test(
-    'the plan readings `Using filesort` and `index_merge` appear in the reading file and in no skill, template, or casey file (issue #334)',
+    'the reading file carries `Using filesort` and `index_merge` and none of the other seven files of the casey report surface carries them (issue #334)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-        $others = implode("\n", array_map(
-            static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
-            [
-                'agents/casey.md',
-                'codex/agents/casey.toml',
-                'skills/code-review/references/specialized-reviews.md',
-                'skills/code-review-github/templates/pr-comment-output.md',
-                'docs/agents.md',
-                'skills/mysql-problem-solver/templates/cr-report.md',
-                'skills/mysql-problem-solver/SKILL.md',
-            ],
-        ));
+        $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/references/explain-reading.md');
 
         expect($reading)->toContain('`Using filesort`')
             ->and($reading)->toContain('`index_merge`')
@@ -786,27 +841,22 @@ test(
     },
 );
 
-test('the rule of when a report carries a TL;DR stays in its owner and is pinned absent from the other files (issue #334)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
-    $others = implode("\n", array_map(
-        static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
-        [
-            'agents/casey.md',
-            'codex/agents/casey.toml',
-            'skills/code-review/references/specialized-reviews.md',
-            'skills/code-review-github/templates/pr-comment-output.md',
-            'docs/agents.md',
-        ],
-    ));
+test(
+    'the skill carries the no-TL;DR answer sentence and none of the other seven files of the casey report '
+        . 'surface carries one of five TL;DR rule phrases (issue #334)',
+    function (): void {
+        $packageDir = dirname(__DIR__, 2);
+        $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+        $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md');
 
-    expect($skill)->toContain('That answer carries no `TL;DR`.')
-        ->and($others)->not->toContain('carries no `TL;DR`')
-        ->and($others)->not->toContain('opens with the `TL;DR`')
-        ->and($others)->not->toContain('opens with its `TL;DR`')
-        ->and($others)->not->toContain('opens with a `TL;DR`')
-        ->and($others)->not->toContain('opens with one');
-});
+        expect($skill)->toContain('That answer carries no `TL;DR`.')
+            ->and($others)->not->toContain('carries no `TL;DR`')
+            ->and($others)->not->toContain('opens with the `TL;DR`')
+            ->and($others)->not->toContain('opens with its `TL;DR`')
+            ->and($others)->not->toContain('opens with a `TL;DR`')
+            ->and($others)->not->toContain('opens with one');
+    },
+);
 
 test(
     'the Codex description pins the TL;DR sentence and the delegation to the Claude definition, and the '
