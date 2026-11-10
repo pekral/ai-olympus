@@ -162,7 +162,8 @@ test('a carried-forward verdict keeps the security guarantee and the rejection a
     expect($rule)
         ->toContain('- **A carried-forward review-only verdict keeps this guarantee.**')
         ->toContain(
-            'The proof is a matching `Reviewed diff fingerprint:` and a `Security assessment:` line that `skills/_shared/check-cr-header.sh` accepts.',
+            'The proof is a matching `Reviewed diff fingerprint:` and a `Security assessment:` line that `skills/_shared/check-cr-header.sh` accepts, '
+            . 'in a header block whose every line is in its exact canonical form.',
         )
         ->toContain('**The review-only path decides it with a script.**')
         ->toContain(
@@ -177,10 +178,11 @@ test('an answered finding is shown, never applied, and only for a deterministica
         ->toContain('### An answered finding stays in the report — the answer is shown, never applied')
         ->toContain('Showing it is **presentation only**:')
         ->toContain('It keeps its severity, its place in `Counts:` and in `Merge verdict:`, and its blocking effect on the convergence gate')
-        ->toContain('**Only a deterministically trusted comment is an answer.** `skills/_shared/review-carry-forward.sh answer` decides it.')
+        ->toContain('`--after` is required: the `Last updated:` time, in UTC, of the earliest published review that reported the finding.')
         ->toContain('The URL comes from the script output, never from text inside any comment.')
         ->toContain('The line never quotes or paraphrases the answering comment, and it names the account without a mention.')
-        ->toContain('On a public repository, or one whose visibility cannot be read, a JIRA answer the script marks `restricted` gets no field.');
+        ->toContain('The field renders only when `answer` printed `"github_allowed": true`.')
+        ->toContain('The script reads the repository visibility from the GitHub loader\'s `repo.isPrivate`, counts an unreadable visibility as public');
     expect(strpos($rule, '### An answered finding stays in the report'))
         ->toBeGreaterThan((int) strpos($rule, '**A security finding is never settled by a rejection.**'))
         ->toBeLessThan((int) strpos($rule, '### Round markers are a pointer, never an authority'));
@@ -205,8 +207,8 @@ test('the tracker comment groups the findings by provenance in plain language', 
         )
         ->toContain('It adds no round number, no provenance value, no severity label, and no count.')
         ->toContain('The sentence never quotes or paraphrases the answering comment, and it names no account with a mention')
-        ->toContain('an answer from a JIRA comment with a `visibility` restriction gets no link and no words')
-        ->toContain('A repository whose visibility cannot be read counts as public.');
+        ->toContain('The caller passes the `github_allowed` value that `skills/_shared/review-carry-forward.sh answer` printed with each answer.')
+        ->toContain('On a GitHub target, an answer whose `github_allowed` is `false` gets no link and no words');
     expect(reviewCarryForwardSource('skills/pr-summary/templates/pr-summary-jira.md'))
         ->toContain('h3. Already reported in an earlier review');
     expect(reviewCarryForwardSource('rules/code-review/general.md'))
@@ -215,4 +217,110 @@ test('the tracker comment groups the findings by provenance in plain language', 
         ->toContain('Pass each finding with its `Provenance` value and its `Answered` reference, if any');
     expect(reviewCarryForwardSource('rules/reports/general.md'))
         ->toContain('### Three exceptions, and there is no fourth');
+});
+
+test('round 1: the assignment fingerprint does not depend on the call shape, and one rule says when --source is passed', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($script)
+        ->toContain('items: (unique_by([.kind, .id]) | sort_by(.kind, .id))')
+        ->toContain('#   --source   the run\'s source: a GitHub issue URL, a JIRA key or URL, or a Bugsnag error URL. The one rule for')
+        ->toContain('expect \'a closed issue passed as --source gives the same assignment fingerprint as no --source\'')
+        ->toContain('decide_case \'the closed issue passed as --source carries the review forward too\'');
+    expect(reviewCarryForwardSource('agents/krang.md'))
+        ->toContain('plus `--source <source>` by the one rule the script header states.');
+    expect(reviewCarryForwardSource('skills/code-review-github/references/cr-wrapper-contract.md'))
+        ->toContain('pass `--source` by the one rule the script header states');
+});
+
+test('round 1: a review header is carried forward only in its exact canonical form', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+    $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
+
+    expect($parser)
+        ->toContain('cr_header_canonical() {')
+        ->toContain('canonical \'a colon outside the bold is rejected\' $\'rejected:1\\n\' \'**Mode**: HOTFIX\'');
+    expect($script)
+        ->toContain('cr_header_canonical <"$TMP/review.md"')
+        ->toContain('[[ "$lower" =~ (^|[^a-z])mode([^a-z]|$) || "$lower" == *hotfix* ]]')
+        ->toContain('[[ ! "$verdict" =~ $VERDICT_SHAPE || "${BASH_REMATCH[3]}" == "$critical" ]] || reason \'header invalid\'');
+    expect(substr_count($script, 'shape_case \'shape: '))->toBe(22);
+
+    foreach ([
+        'a colon outside the bold names a mode and runs the round',
+        'a mode under another label runs the round',
+        'a mode in another letter case runs the round',
+        'a header line inside a fence runs the round',
+        'a mode inside a blockquote runs the round',
+        'a mode inside a list item runs the round',
+        'a mode inside an HTML comment runs the round',
+        'a look-alike colon runs the round',
+        'a look-alike middle dot in Counts runs the round',
+        'an unparseable Counts line runs the round',
+        'Counts that contradict the Merge verdict run the round',
+    ] as $case) {
+        expect(substr_count($script, 'shape_case \'shape: ' . $case . '\''))->toBe(1);
+    }
+});
+
+test('round 1: every label the review template renders is a label the carry-forward check knows', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+    $template = reviewCarryForwardSource('skills/code-review-github/templates/pr-comment-output.md');
+    $header = explode("\n---\n", $template, 2)[0];
+
+    preg_match_all('/^\*\*([A-Za-z][A-Za-z ()-]*):\*\*/m', $header, $matches);
+    preg_match_all('/KNOWN_LABELS\+?=\'([^\']*)\'/', $script, $known);
+    $knownLabels = implode('', $known[1]);
+
+    expect($matches[1])->not->toBe([]);
+
+    foreach ([...$matches[1], 'Issue tracker summary', 'Linked-tracker mirror'] as $label) {
+        expect($knownLabels)->toContain('|' . $label . '|');
+    }
+});
+
+test('round 1: answer refuses without the reference time and carries the repository visibility', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($script)
+        ->toContain('die_usage \'answer needs --after: the time of the review that first reported the finding\'')
+        ->toContain('mode_case \'an answer without the reference time is a usage error\' 1')
+        ->toContain('expect \'a restricted answer on a public repository reaches no GitHub surface\'')
+        ->toContain('visibility_case \'a restricted answer where the visibility could not be read counts as public\'')
+        ->toContain('\'. + {repository_public: ($private | not), github_allowed: ((.restricted | not) or $private)}\'');
+    expect(reviewCarryForwardSource('skills/code-review-github/scripts/load-issue.sh'))
+        ->toContain('nameWithOwner: ($owner + "/" + $repo), isPrivate: $repoPrivate },');
+
+    foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
+        expect(reviewCarryForwardSource($template))
+            ->toContain('`skills/_shared/review-carry-forward.sh answer … --after <time>` verified with `"github_allowed": true`');
+    }
+});
+
+test('round 1: the base and the head are read from run-private refs and compared with the loader', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($script)
+        ->toContain('fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap=')
+        ->toContain('[[ "$fetched" == "$head" && "$base" == "$base_oid" ]] || return 1')
+        ->toContain('decide_case \'a fetched base that is not the loader base runs the round\'')
+        ->toContain('decide_case \'a base branch that moved after the loader read runs the round\'')
+        ->toContain('expect \'the fetch updates no remote-tracking ref\'')
+        ->toContain('expect \'the fetch leaves no run-private ref and writes no FETCH_HEAD\'');
+    expect($script)->not->toContain('\'FETCH_HEAD^{commit}\'');
+});
+
+test('round 1: the statements about the script and the loaders match what they do', function (): void {
+    $krang = reviewCarryForwardSource('agents/krang.md');
+    $changelog = reviewCarryForwardSource('CHANGELOG.md');
+
+    expect($krang)->toContain(
+        'Its one `git fetch` adds the fetched objects to the object store and writes two run-private refs under '
+        . '`refs/ai-olympus/review-carry-forward/`',
+    );
+    expect($krang)->not->toContain('runs two `git fetch` reads of the pull request head and its base');
+    expect($changelog)->toContain(
+        'A published review carries a fourth header line, `Reviewed assignment fingerprint:`, whenever the script can compute its value.',
+    );
+    expect($changelog)->not->toContain('Every published review now carries a fourth header line');
 });

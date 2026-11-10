@@ -442,7 +442,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
         // Re-baselined: the answered-finding subsection, the fourth header line `Reviewed assignment fingerprint:`, the
         // review-only carry-forward script, and the provenance groups of the tracker comment (issue #333).
-        'rules/code-review/general.md' => 'd19ff7cdbe5d256886c7873ea157c5a4768f391dece510f28d2383d96e4b3bbc',
+        // Re-baselined: round 1 of #333 — `answer` requires `--after` and prints `github_allowed`, and a carried-forward
+        // verdict needs a header block in its exact canonical form.
+        'rules/code-review/general.md' => '2584f45ac8cf5672981d240b0751856ed59cfd2f265ba034a296533af21d2ce8',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

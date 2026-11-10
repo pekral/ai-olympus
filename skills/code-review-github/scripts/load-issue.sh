@@ -22,7 +22,7 @@
 #     "kind": "issue" | "pr",
 #     "number": <int>,
 #     "url": <string>,
-#     "repo": { "owner", "name", "nameWithOwner" },
+#     "repo": { "owner", "name", "nameWithOwner", "isPrivate" },
 #     "title", "body", "state", "stateReason",
 #     "author", "assignees", "labels", "milestone",
 #     "createdAt", "updatedAt", "closedAt",
@@ -81,6 +81,8 @@
 #     first 50 sub-issues with the first 100 comments each. `subIssuesComplete` is false when the GraphQL
 #     read failed and `subIssues` fell back to [], or when the list reached the cap of 50, so a caller can
 #     tell an empty list from an unread one.
+#   - `repo.isPrivate` is the repository visibility from `gh repo view --json isPrivate`: true, false, or null when
+#     the read failed. A caller that decides what may be published reads null as public.
 #   - `reviewComments` (for PRs) are the line-anchored review comments, read in full from the REST list of
 #     the pull request. `reviewCommentsComplete` is false when that read failed and the list fell back to [].
 #
@@ -238,6 +240,12 @@ if [[ "$KIND" == "issue" && -n "${RAW_SUBISSUES:-}" ]] \
   SUBISSUES_COMPLETE=true
 fi
 
+# The repository visibility. A failed read stays null, never a guessed value.
+REPO_PRIVATE='null'
+if RAW_PRIVATE="$(gh repo view "$NWO" --json isPrivate --jq '.isPrivate' 2>/dev/null)" && [[ "$RAW_PRIVATE" == true || "$RAW_PRIVATE" == false ]]; then
+  REPO_PRIVATE="$RAW_PRIVATE"
+fi
+
 # The line-anchored review comments of a pull request come from the REST list of the pull request, read in
 # full with --paginate. A failed read degrades to [] and REVIEW_COMMENTS_COMPLETE records that it did.
 REVIEW_COMMENTS_JSON='[]'
@@ -262,7 +270,8 @@ jq -n \
   --argjson subIssuesComplete "$SUBISSUES_COMPLETE" \
   --argjson reviewComments "$REVIEW_COMMENTS_JSON" \
   --argjson reviewCommentsComplete "$REVIEW_COMMENTS_COMPLETE" \
-  --argjson association "$ISSUE_ASSOCIATION" '
+  --argjson association "$ISSUE_ASSOCIATION" \
+  --argjson repoPrivate "$REPO_PRIVATE" '
 def total_reactions:
   ([ (.reactionGroups // [])[] | (.users.totalCount // .reactors.totalCount // 0) ] | add) // 0;
 
@@ -315,7 +324,7 @@ $payload as $p
     kind: $kind,
     number: ($p.number // null),
     url: ($p.url // null),
-    repo: { owner: $owner, name: $repo, nameWithOwner: ($owner + "/" + $repo) },
+    repo: { owner: $owner, name: $repo, nameWithOwner: ($owner + "/" + $repo), isPrivate: $repoPrivate },
     title: ($p.title // null),
     body: ($p.body // ""),
     state: ($p.state // null),
