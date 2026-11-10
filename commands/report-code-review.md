@@ -19,7 +19,7 @@ defines which agents run, in which order, what each one publishes, and what the 
 mode with the reference, and with the fresh-review request when the user gave `fresh`, and nothing
 else. Do not restate, shorten, or
 extend those steps in the dispatch prompt: a step that this command and the agent definition state
-differently makes the run follow the wrong one. When `agents/krang.md` is not installed, stop and
+differently makes the run follow the wrong one. When `.claude/agents/krang.md` is not installed, stop and
 report it. Never perform a specialist's step in this session.
 
 For Codex, invoke the matching wrapper — `$code-review-github`, `$code-review-jira`, or
