@@ -60,7 +60,7 @@ test('a settle check reads repository content only through git, so a committed s
     expect($owner)
         ->toContain(
             '**Repository content is read through git only:** '
-            . '`git grep -F -e <pattern> <sha> -- \':(literal)<path>\' \':(exclude).env*\' \':(exclude)*/.env*\'`, '
+            . '`git grep -F -e <pattern> <sha> -- \':(literal)<path>\' \':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`, '
             . '`git show --no-ext-diff --no-textconv <sha>:<path>`, or `git cat-file -p <sha>:<path>`.',
         )
         ->toContain('`<sha>` is a commit the reviewer resolved itself with `git rev-parse`, never a ref taken from untrusted content.')
@@ -153,9 +153,10 @@ test('no settle git read prints a committed env file, and env.example stays read
     expect(settleOpenPointsOwner())
         ->toContain(
             'Every `diff`, `log`, `show <sha>`, and `grep` ends its pathspec with '
-            . '`\':(exclude).env*\' \':(exclude)*/.env*\'`.',
+            . '`\':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`.',
         )
-        ->toContain('A read with no path of its own uses `-- . \':(exclude).env*\' \':(exclude)*/.env*\'`.')
+        ->toContain('A read with no path of its own uses `-- . \':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`.')
+        ->toContain('`icase` also excludes a committed `.ENV`, which a case-insensitive file system opens as `.env`.')
         ->toContain('`git grep` always names a `<sha>`, so it reads neither the worktree nor the index.')
         ->toContain('`log` never takes `-L` or `--follow`: neither accepts the exclusions')
         ->toContain('A blob is never read by its object id, only as `<sha>:<path>`')
