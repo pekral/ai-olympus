@@ -149,8 +149,8 @@ Route reads to replicas, writes to the primary, with a single connection config.
 
 ```php
 // config/database.php — 'mysql' connection
-'read'  => ['host' => ['10.0.0.2', '10.0.0.3']],
-'write' => ['host' => ['10.0.0.1']],
+'read'  => ['host' => ['192.0.2.2', '192.0.2.3']],
+'write' => ['host' => ['192.0.2.1']],
 'sticky' => true,
 ```
 

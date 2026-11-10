@@ -41,6 +41,8 @@
 
 - {what changed, in one sentence}
 
+History exposure: not run — the repository is private.  *(render this one body line when the reviewed repository is private: under `## TL;DR` on a converged run, and directly under `## Technical Review` otherwise — `@skills/git-history-exposure-audit/SKILL.md` *Review mode*. Omit it on a public repository, where the lens ran and its findings are security findings.)*
+
 ---
 
 ## Technical Review

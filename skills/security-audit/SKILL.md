@@ -26,6 +26,7 @@ How this differs from its neighbours:
 - `@skills/security-review/SKILL.md` stays the quick workflow for a pull request or a diff. This skill never replaces it and never changes it. Inside a code review it runs next to it, in *Diff mode*. It reuses that skill's *Core Checks* as the lens catalogue a hunter walks.
 - `@skills/security-bounty-hunter/SKILL.md` hunts for a disclosure or bounty submission. This skill covers a defined scope completely and proves its coverage.
 - `@skills/security-threat-analysis/SKILL.md` remediates one known advisory. This skill discovers the unknown ones.
+- `@skills/git-history-exposure-audit/SKILL.md` reads the git history and the GitHub texts for values that a later commit removed from the code, and in a review the commits a pull request adds. This skill audits the code at its security boundaries and never reads the history.
 - The coordinator and bounded read-only worker pattern is the one the `simplification-audit` skill uses (its *Execution* steps 1 to 4): a coverage contract first, one subsystem per worker with a non-overlapping boundary, fresh workers where the host has them and sequential passes where it does not, and the coordinator re-checks every result itself. This skill reuses it and adds reconnaissance, hunting waves, a verification stage, and a budget.
 - `composer security-audit` is this repository's Composer alias for `composer audit` (dependency advisories). It is a different thing in a different namespace and keeps its name.
 
