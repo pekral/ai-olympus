@@ -78,8 +78,10 @@
 #   after a fixed-pattern check.
 #
 # Output (stdout, one JSON line)
-#   decide                  {"decision": "carry-forward" | "round", "reasons": [...], "review_url", "reviewed_revision",
-#                            "recorded_fingerprint", "current_fingerprint", "recorded_assignment", "current_assignment"}
+#   decide                  {"decision": "carry-forward" | "round", "reasons": [...], "reads": [...], "review_url",
+#                            "reviewed_revision", "recorded_fingerprint", "current_fingerprint", "recorded_assignment",
+#                            "current_assignment"}. `reads` names every loader read, acli read, and git fetch the run
+#                            performed, one entry each, so the caller writes one audit line for each.
 #   assignment-fingerprint  {"assignment_fingerprint": "<64 hex>"}
 #   answer                  {"url", "author", "created", "restricted"}
 #
@@ -115,6 +117,7 @@ BRANCH_SHAPE='^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$'
 
 TMP=''
 REASONS=()
+READS=()
 
 die_usage() {
   printf '%s: %s\n' "$PROG" "$1" >&2
@@ -155,6 +158,11 @@ reason() {
   REASONS[${#REASONS[@]}]="$1"
 }
 
+# read_done <what> — one entry per outbound read, so the caller can write one audit line for each.
+read_done() {
+  READS[${#READS[@]}]="$1"
+}
+
 # source_kind <ref> — github-issue | pull-request | jira | bugsnag | unknown
 source_kind() {
   local ref="$1"
@@ -175,6 +183,7 @@ source_kind() {
 
 # load_github <url> <file> — the GitHub loader's payload, or exit 1.
 load_github() {
+  read_done "github loader: $1"
   "$GITHUB_LOADER" "$1" >"$2" 2>/dev/null || return 1
   jq -e 'type == "object"' "$2" >/dev/null 2>&1
 }
@@ -218,11 +227,13 @@ assignment_items() {
   done
 
   if [[ "$kind" == 'jira' ]]; then
+    read_done "jira loader: $source"
     "$JIRA_LOADER" "$source" >"$TMP/jira.json" 2>/dev/null || { reason 'context unreadable'; return 1; }
     jq -e '(.key | type) == "string" and ((.comments // []) | type) == "array"' "$TMP/jira.json" >/dev/null 2>&1 \
       || { reason 'context unreadable'; return 1; }
     jq -e '.commentsComplete == true and all((.subtasks // [])[]; .commentsComplete == true)' "$TMP/jira.json" >/dev/null 2>&1 \
       || { reason 'comments unverified'; return 1; }
+    read_done 'acli: the account of the operator (jira-actor.sh)'
     actor="$(jira_actor_account_id 2>/dev/null || true)"
     assignee="$(jq -r '.assignee // ""' "$TMP/jira.json")"
     jq -c -L "$HERE" --arg actor "$actor" --arg assignee "$assignee" 'include "review-trust";
@@ -283,6 +294,7 @@ cmd_decide() {
   parse_mode_args decide "$@"
   new_tmp
   REASONS=()
+  READS=()
   local review_url='' revision='' recorded_fp='' current_fp='' recorded_afp='' current_afp='' review_time=''
 
   if ! load_pr "$PR_URL"; then
@@ -312,11 +324,13 @@ cmd_decide() {
   [[ ${#REASONS[@]} -eq 0 ]] || decision=round
   jq -n -c --arg decision "$decision" --arg url "$review_url" --arg rev "$revision" --arg rfp "$recorded_fp" \
     --arg cfp "$current_fp" --arg rafp "$recorded_afp" --arg cafp "$current_afp" \
-    '{decision: $decision, reasons: ($ARGS.positional | reduce .[] as $r ([]; if index([$r]) then . else . + [$r] end)),
+    '($ARGS.positional | index("|reads|")) as $cut
+     | {decision: $decision, reasons: ($ARGS.positional[:$cut] | reduce .[] as $r ([]; if index([$r]) then . else . + [$r] end)),
+      reads: $ARGS.positional[$cut + 1:],
       review_url: ($url | if . == "" then null else . end), reviewed_revision: ($rev | if . == "" then null else . end),
       recorded_fingerprint: ($rfp | if . == "" then null else . end), current_fingerprint: ($cfp | if . == "" then null else . end),
       recorded_assignment: ($rafp | if . == "" then null else . end), current_assignment: ($cafp | if . == "" then null else . end)}' \
-    --args ${REASONS[@]+"${REASONS[@]}"}
+    --args ${REASONS[@]+"${REASONS[@]}"} "|reads|" ${READS[@]+"${READS[@]}"}
 }
 
 # read_review_header — the header checks of the newest trusted review. Sets revision, recorded_fp, recorded_afp.
@@ -349,8 +363,13 @@ check_head() {
   head="$(jq -r '.headRefOid // ""' "$TMP/pr.json")"
   base="$(jq -r '.baseRefName // ""' "$TMP/pr.json")"
   number="$(jq -r '.number' "$TMP/pr.json")"
-  if [[ ! "$head" =~ ^[0-9a-f]{40}$ || ! "$base" =~ $BRANCH_SHAPE || "$base" == *..* || "$base" == *.lock || ! "$number" =~ ^[0-9]+$ ]] \
-    || ! current_fp="$(diff_fingerprint "$head" "$base" "$number")"; then
+  if [[ ! "$head" =~ ^[0-9a-f]{40}$ || ! "$base" =~ $BRANCH_SHAPE || "$base" == *..* || "$base" == *.lock || ! "$number" =~ ^[0-9]+$ ]]; then
+    reason 'head unverified'
+    return 0
+  fi
+  read_done "git fetch origin refs/pull/$number/head"
+  read_done "git fetch origin refs/heads/$base"
+  if ! current_fp="$(diff_fingerprint "$head" "$base" "$number")"; then
     current_fp=''
     reason 'head unverified'
     return 0
@@ -604,6 +623,9 @@ EOF
   pr_fixture "$head" "$fx/c-good.jsonl"
   decide_case 'an unchanged head and assignment carry the review forward' "$CF and .review_url == \"$pr_url#issuecomment-1\"
     and .current_fingerprint == .recorded_fingerprint and .current_assignment == .recorded_assignment" -- --pr-url "$pr_url"
+  expect 'every outbound read is named once for the audit ledger' "$(jq -e --arg pr "$pr_url" --arg issue "$issue_url" '
+      .reads == ["github loader: \($pr)", "git fetch origin refs/pull/7/head", "git fetch origin refs/heads/main",
+        "github loader: \($issue)"]' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
   decide_case 'a fresh review the user asked for runs the round and says the head is unchanged' \
     "$(round_for 'fresh review requested by the user — head unchanged')" -- --pr-url "$pr_url" --fresh
 
