@@ -69,6 +69,11 @@ Length
   section, severity counts, file paths, line numbers, or code snippets — none of
   those belongs on any target this skill publishes to.
 
+Review findings (review-only run, in place of the test steps)
+  The findings new in this review come first. The line "Already reported in an
+  earlier review" renders only when that group has a finding. The groups and the
+  answer sentence are owned by @skills/pr-summary/SKILL.md (Review-only run).
+
 Closing links line
   One line, the pull request and the source tracker item, separated by " · ",
   each written as a label, a colon, and the full URL. Render whichever of the two

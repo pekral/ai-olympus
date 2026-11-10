@@ -568,16 +568,16 @@ rejection_association() {
   rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(state_path_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
-  verdict="$(jq -r --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" '
+  verdict="$(jq -r -L "$HERE" --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" 'include "review-trust";
     if type != "object" or .kind != "pr" or .number != $pr
        or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
     then "refused:the loader returned another item than the pull request of the state"
     else [ (.comments // [])[] | select(.url == $url) ] as $m
     | if ($m | length) != 1 then "refused:the pull request of the state has no comment with this URL"
-      elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then
+      elif ($m[0].body | type) != "string" or ($m[0].body | agent_marker) then
         "refused:the comment carries an agent marker; agent output is never a trusted rejection"
       elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \($id)"
-      elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then
+      elif ($m[0].authorAssociation | write_access | not) then
         "refused:the author association \($m[0].authorAssociation // "null") is not trusted"
       else "trusted:\($m[0].authorAssociation)" end
     end' "$TMP/pr.json" 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
@@ -670,7 +670,7 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
   mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts"
-  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$tmp/pkg/skills/_shared/"
+  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$tmp/pkg/skills/_shared/"
   script="$tmp/pkg/skills/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash

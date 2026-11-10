@@ -37,6 +37,7 @@
 #         "labels", "createdAt", "updatedAt", "closedAt",
 #         "comments": [ { "author", "body", "createdAt", "updatedAt", "url" } ]
 #     } ],
+#     "subIssuesComplete": <bool>,
 #
 #     # pr-only (null / [] when kind == "issue")
 #     "baseRefName", "headRefName", "baseRefOid", "headRefOid",
@@ -46,6 +47,8 @@
 #     "files":             [ { "path", "additions", "deletions" } ],
 #     "commits":           [ { "oid", "messageHeadline", "authoredDate", "authors" } ],
 #     "reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ],
+#     "reviewComments":    [ { "author", "authorAssociation", "body", "createdAt", "url" } ],
+#     "reviewCommentsComplete": <bool>,
 #     "reviewRequests":    [ <login> ],
 #     "reviewDecision":    <string|null>,
 #     "statusCheckRollup": [ { "context", "state", "description", "targetUrl" } ],
@@ -75,10 +78,13 @@
 #     field — uploaded files live as inline URLs inside the body / comments, so
 #     embedding both already covers "attachments". Sub-issues are loaded one
 #     level deep (sub-issues of sub-issues are not traversed) and capped at the
-#     first 50 sub-issues with the first 100 comments each.
+#     first 50 sub-issues with the first 100 comments each. `subIssuesComplete` is false when the GraphQL
+#     read failed and `subIssues` fell back to [], or when the list reached the cap of 50, so a caller can
+#     tell an empty list from an unread one.
+#   - `reviewComments` (for PRs) are the line-anchored review comments, read in full from the REST list of
+#     the pull request. `reviewCommentsComplete` is false when that read failed and the list fell back to [].
 #
 # Known limitations (intentionally out of scope, fall back to GitHub MCP):
-#   - Review thread / line-anchored review comments (`gh api .../pulls/<N>/comments`)
 #   - Per-commit check runs and detailed CI logs
 #   - Attachment binary contents (only URLs and metadata are returned)
 #   - Sub-issues beyond one level / the first 50, and beyond 100 comments each
@@ -224,6 +230,25 @@ fi
 if ! printf '%s' "$SUBISSUES_JSON" | jq -e . >/dev/null 2>&1; then
   SUBISSUES_JSON='[]'
 fi
+# The sub-issue list is complete only when the GraphQL read succeeded and stayed under its cap of 50.
+SUBISSUES_COMPLETE=false
+if [[ "$KIND" == "issue" && -n "${RAW_SUBISSUES:-}" ]] \
+  && printf '%s' "$RAW_SUBISSUES" | jq -e '(.data.repository.issue.subIssues.nodes | type) == "array"' >/dev/null 2>&1 \
+  && printf '%s' "$SUBISSUES_JSON" | jq -e 'length < 50' >/dev/null 2>&1; then
+  SUBISSUES_COMPLETE=true
+fi
+
+# The line-anchored review comments of a pull request come from the REST list of the pull request, read in
+# full with --paginate. A failed read degrades to [] and REVIEW_COMMENTS_COMPLETE records that it did.
+REVIEW_COMMENTS_JSON='[]'
+REVIEW_COMMENTS_COMPLETE=false
+if [[ "$KIND" == "pr" ]] \
+  && RAW_REVIEW_COMMENTS="$(gh api --method GET --paginate "repos/$NWO/pulls/$NUMBER/comments" \
+    --jq '.[] | {author: (.user.login // null), authorAssociation: (.author_association // null), body: (.body // ""), createdAt: (.created_at // null), url: (.html_url // null)}' 2>/dev/null)" \
+  && PARSED_REVIEW_COMMENTS="$(printf '%s' "$RAW_REVIEW_COMMENTS" | jq -s -c '.' 2>/dev/null)" && [[ -n "$PARSED_REVIEW_COMMENTS" ]]; then
+  REVIEW_COMMENTS_JSON="$PARSED_REVIEW_COMMENTS"
+  REVIEW_COMMENTS_COMPLETE=true
+fi
 if ! printf '%s' "$ISSUE_ASSOCIATION" | jq -e 'type == "string" or . == null' >/dev/null 2>&1; then
   ISSUE_ASSOCIATION='null'
 fi
@@ -234,6 +259,9 @@ jq -n \
   --arg repo "$REPO" \
   --argjson payload "$PAYLOAD" \
   --argjson subIssues "$SUBISSUES_JSON" \
+  --argjson subIssuesComplete "$SUBISSUES_COMPLETE" \
+  --argjson reviewComments "$REVIEW_COMMENTS_JSON" \
+  --argjson reviewCommentsComplete "$REVIEW_COMMENTS_COMPLETE" \
   --argjson association "$ISSUE_ASSOCIATION" '
 def total_reactions:
   ([ (.reactionGroups // [])[] | (.users.totalCount // .reactors.totalCount // 0) ] | add) // 0;
@@ -307,6 +335,7 @@ $payload as $p
       then ($p.closedByPullRequestsReferences | map_refs)
       else [] end),
     subIssues: (if $kind == "issue" then $subIssues else [] end),
+    subIssuesComplete: (if $kind == "issue" then $subIssuesComplete else null end),
 
     baseRefName: (if $kind == "pr" then ($p.baseRefName // null) else null end),
     headRefName: (if $kind == "pr" then ($p.headRefName // null) else null end),
@@ -326,6 +355,8 @@ $payload as $p
     files:           (if $kind == "pr" then ($p.files       | map_files)       else [] end),
     commits:         (if $kind == "pr" then ($p.commits     | map_commits)     else [] end),
     reviews:         (if $kind == "pr" then ($p.reviews     | map_reviews)     else [] end),
+    reviewComments:  (if $kind == "pr" then $reviewComments else [] end),
+    reviewCommentsComplete: (if $kind == "pr" then $reviewCommentsComplete else null end),
     reviewRequests:  (if $kind == "pr" then [ ($p.reviewRequests // [])[] | (.login // .slug // .name // null) ] else [] end),
     reviewDecision:  (if $kind == "pr" then ($p.reviewDecision // null) else null end),
     statusCheckRollup: (if $kind == "pr" then ($p.statusCheckRollup | map_status_checks) else [] end),

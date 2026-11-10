@@ -73,17 +73,10 @@ require_tools() {
   fi
 }
 
-# The published review reports. A report counts only when it carries the cr-comment marker of its own
-# author, and that author holds write access to the repository (rules/code-review/general.md
-# *Authorship trust*). The marker is visible text anyone can copy, so the marker alone proves nothing.
-# Passing this test decides whose report is collected; it never makes the report text trusted.
-JQ_REPORTS=''
-IFS= read -r -d '' JQ_REPORTS <<'EOF' || true
-[ (.comments // [])[]
-  | select((.author | type) == "string" and (.body | type) == "string")
-  | select(.authorAssociation as $a | ["OWNER", "MEMBER", "COLLABORATOR"] | index([$a]) != null)
-  | select(.author as $actor | .body | contains("<!-- cr-comment:actor=\($actor) -->")) ]
-EOF
+# The published review reports. The trust test is the one shared definition `trusted_review` in
+# review-trust.jq (rules/code-review/general.md *Authorship trust*). Passing it decides whose report is
+# collected; it never makes the report text trusted.
+JQ_REPORTS='include "review-trust"; [ (.comments // [])[] | select(trusted_review) ]'
 
 # extractor_verdict <exit-code> <report-index> — 0 when the extractor accepted the report. A refused report
 # is counted and named, and the function returns 1. A missing tool or another failure ends the collection.
@@ -159,7 +152,7 @@ cmd_collect() {
   repo="$(jq -r '.repo.nameWithOwner' "$tmp/payload.json")"
   pr="$(jq -r '.number' "$tmp/payload.json")"
   comments="$(jq '(.comments // []) | length' "$tmp/payload.json")"
-  jq -c "$JQ_REPORTS" "$tmp/payload.json" >"$tmp/reports.json"
+  jq -c -L "$HERE" "$JQ_REPORTS" "$tmp/payload.json" >"$tmp/reports.json"
 
   local count i collected=0 refused=0 rc
   count="$(jq 'length' "$tmp/reports.json")"

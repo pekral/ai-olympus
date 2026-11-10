@@ -17,7 +17,7 @@ Render these once, above the groups, because they describe the issue and not one
 
 Everything that retells one pull request:
 
-- `Review findings`, with each question that closes a finding bullet, and the author mention a review-only run adds (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*).
+- `Review findings`, with each question that closes a finding bullet, and the author mention a review-only run adds (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). The new and already-reported groups of `SKILL.md` *Review-only run* sit inside each pull request's group.
 - `What changed`, `How to test`, and `Impact after deployment`, wherever the target renders them.
 - A clarifying question or a reviewer remark that concerns this pull request only.
 
