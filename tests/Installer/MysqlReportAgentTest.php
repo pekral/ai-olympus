@@ -375,6 +375,10 @@ test('the reading file pins the full text of the rule line', function (string $t
             . 'equals the row\'s value. Any other node is named and quoted raw with no reading, for example '
             . '`Parallel Seq Scan`, `Index Scan Backward`, `HashAggregate`, or `Memoize`.',
     ],
+    'a PostgreSQL plan carries no figure for the rows examined' => [
+        'A PostgreSQL plan shows the rows a node outputs, never the rows it examines. The reading gives no figure '
+            . 'for the rows examined and says that the plan carries none.',
+    ],
     'a value the file does not explain is quoted raw' => [
         '- **A value this file does not explain is named, and the report quotes it raw.** The matching rules '
             . 'of *The `Extra` column* and of *PostgreSQL nodes* decide whether a value is explained. Anything they '
