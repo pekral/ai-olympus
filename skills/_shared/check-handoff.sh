@@ -276,10 +276,9 @@ self_test() {
   # strings from a here-string: through a pipe, a writer that outlives the reader
   # turns the match into no match under pipefail. The budget is raised so only the
   # inlined diff can fail the handoff.
-  local pad
-  pad="$(awk 'BEGIN { for (i = 0; i < 4000; i++) printf "%60s\n", "x" }')"
-  jq -n --arg detail "diff --git a/a.php b/a.php
-$pad" '{ status: "completed", sha: "abc123", changed_files: ["a.php"], validation: { status: "passed" }, next: "review", detail: $detail }' >"$tmp/large-diff.json"
+  # The text reaches jq on stdin: a single argument above 128 KB fails on Linux.
+  awk 'BEGIN { print "diff --git a/a.php b/a.php"; for (i = 0; i < 4000; i++) printf "%60s\n", "x" }' \
+    | jq -Rs '{ status: "completed", sha: "abc123", changed_files: ["a.php"], validation: { status: "passed" }, next: "review", detail: . }' >"$tmp/large-diff.json"
   set +e
   "$script" --file "$tmp/large-diff.json" --role implementation --budget 1000000 >/dev/null 2>&1
   local large=$?
