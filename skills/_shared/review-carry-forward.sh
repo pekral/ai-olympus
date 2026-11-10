@@ -1388,7 +1388,7 @@ EOF
   mode_case '--fresh outside decide is a usage error' 1 -- "$HERE/$PROG" assignment-fingerprint --pr-url "$pr_url" --fresh
   mode_case 'an unknown mode is a usage error' 1 -- "$HERE/$PROG" skip --pr-url "$pr_url"
   out=''
-  expect 'no payload value was executed' "$([[ ! -e "$tmp/pwned" ]] && echo 0 || echo 1)"
+  expect 'the --upload-pack value in a base branch name is never executed' "$([[ ! -e "$tmp/pwned" ]] && echo 0 || echo 1)"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "review-carry-forward self-test: $failures failure(s) of $checks" >&2

@@ -25,7 +25,7 @@ test('the carry-forward script is shipped, executable, self-testing, and run by 
     expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/review-carry-forward.sh '))->toBe(1);
 });
 
-test('every row of the fail-closed table starts the round and has its own self-test case', function (string $reason, string $case): void {
+test('each fail-closed reason stands once in the header table and has exactly one self-test case', function (string $reason, string $case): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect(substr_count($script, '#   ' . $reason))->toBe(1)
@@ -53,7 +53,7 @@ test('every row of the fail-closed table starts the round and has its own self-t
     'sub-issues unverified' => ['sub-issues unverified   ', 'decide_case \'a sub-issue list that fell back to empty runs the round\''],
 ]);
 
-test('the forgery cases are self-tested and no payload value reaches git or a shell', function (): void {
+test('the forgery cases are self-tested, a base-branch --upload-pack value is never run, and git runs with the closed prefix', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -63,7 +63,7 @@ test('the forgery cases are self-tested and no payload value reaches git or a sh
         ->toContain('assignment_case \'an untrusted comment added to the issue changes nothing\'')
         ->toContain('assignment_case \'a trusted comment that carries an agent marker changes nothing\'')
         ->toContain('decide_case \'a content-identical history rewrite carries the review forward\'')
-        ->toContain('expect \'no payload value was executed\'')
+        ->toContain('expect \'the --upload-pack value in a base branch name is never executed\'')
         ->toContain('expect \'every outbound read is named once for the audit ledger\'')
         ->toContain('GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)')
         ->toContain('diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base_oid...$head"')
@@ -73,7 +73,7 @@ test('the forgery cases are self-tested and no payload value reaches git or a sh
     expect($script)->not->toContain('upsert-comment.sh');
 });
 
-test('one shared trust predicate decides which comment is a published review or a trusted answer', function (): void {
+test('one shared jq module defines the trust predicates, and the three scripts include it instead of an inline association list', function (): void {
     $trust = reviewCarryForwardSource('skills/_shared/review-trust.jq');
 
     expect($trust)
@@ -90,7 +90,7 @@ test('one shared trust predicate decides which comment is a published review or 
     }
 });
 
-test('the loaders report an incomplete read instead of an empty list that reads as complete', function (): void {
+test('the loaders flag incomplete comment, sub-issue, and review-comment reads, and quiet-run-check stops on an unread list', function (): void {
     $jira = reviewCarryForwardSource('skills/code-review-jira/scripts/load-issue.sh');
     $github = reviewCarryForwardSource('skills/code-review-github/scripts/load-issue.sh');
 
@@ -140,7 +140,7 @@ test('review-only mode decides the carry-forward with the script before it dispa
         ->toContain('is the one owner of this run.');
 });
 
-test('a carried-forward verdict keeps the security guarantee and the rejection absolute stays unchanged', function (): void {
+test('the rule states the carry-forward security guarantee, and the rejection absolute stands once, unchanged', function (): void {
     $rule = reviewCarryForwardSource('rules/code-review/general.md');
 
     expect(
@@ -167,7 +167,7 @@ test('a carried-forward verdict keeps the security guarantee and the rejection a
         );
 });
 
-test('an answered finding is shown, never applied, and only for a deterministically trusted comment', function (): void {
+test('the rule states an answer is shown, never applied, after the rejection absolute, and each template carries its fields once', function (): void {
     $rule = reviewCarryForwardSource('rules/code-review/general.md');
 
     expect($rule)
@@ -191,7 +191,7 @@ test('an answered finding is shown, never applied, and only for a deterministica
     }
 });
 
-test('the tracker comment groups the findings by provenance in plain language', function (): void {
+test('pr-summary states the provenance groups, the JIRA template has their heading, and the rule and the wrapper point to them', function (): void {
     $skill = reviewCarryForwardSource('skills/pr-summary/SKILL.md');
 
     expect($skill)
@@ -215,7 +215,7 @@ test('the tracker comment groups the findings by provenance in plain language', 
         ->toContain('### Three exceptions, and there is no fourth');
 });
 
-test('round 1: the assignment fingerprint does not depend on the call shape, and one rule says when --source is passed', function (): void {
+test('assignment items are de-duplicated before hashing, a case compares both call shapes, and the --source rule is cited', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -229,7 +229,7 @@ test('round 1: the assignment fingerprint does not depend on the call shape, and
         ->toContain('pass `--source` by the one rule the script header states');
 });
 
-test('round 1: a review header is carried forward only in its exact canonical form', function (): void {
+test('the strict header view, the Counts-against-verdict check, and the 22 header-shape self-test cases are present', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
     $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
 
@@ -258,7 +258,7 @@ test('round 1: a review header is carried forward only in its exact canonical fo
     }
 });
 
-test('round 1: every label the review template renders is a label the carry-forward check knows', function (): void {
+test('every label the review template renders is a label the carry-forward check knows', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
     $template = reviewCarryForwardSource('skills/code-review-github/templates/pr-comment-output.md');
     $header = explode("\n---\n", $template, 2)[0];
@@ -274,7 +274,7 @@ test('round 1: every label the review template renders is a label the carry-forw
     }
 });
 
-test('round 1: answer refuses without the reference time and carries the repository visibility', function (): void {
+test('answer requires --after, derives github_allowed from repo.isPrivate, and both templates name the verified field', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -292,7 +292,7 @@ test('round 1: answer refuses without the reference time and carries the reposit
     }
 });
 
-test('round 2: the fetch writes only into a run directory under --scratch', function (): void {
+test('decide fetches into a run-directory object store after ls-remote, calls no update-ref, and has its run-directory cases', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -311,7 +311,7 @@ test('round 2: the fetch writes only into a run directory under --scratch', func
     expect($script)->not->toContain('\'FETCH_HEAD^{commit}\'');
 });
 
-test('round 2: one header-block boundary for both parsers, the mode from the canonical label, and the body checked', function (): void {
+test('both parsers share the block and fence functions, the mode comes from the canonical label, and the block and body cases exist', function (): void {
     $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
@@ -334,7 +334,7 @@ test('round 2: one header-block boundary for both parsers, the mode from the can
         ->toContain('\'value: mode and HOTFIX inside a Not verified value carry forward\'');
 });
 
-test('round 1: the statements about the script and the loaders match what they do', function (): void {
+test('krang states what decide reads and writes, and the CHANGELOG says when the fourth header line renders', function (): void {
     $krang = reviewCarryForwardSource('agents/krang.md');
     $changelog = reviewCarryForwardSource('CHANGELOG.md');
 
@@ -351,7 +351,7 @@ test('round 1: the statements about the script and the loaders match what they d
     expect($changelog)->not->toContain('Every published review now carries a fourth header line');
 });
 
-test('round 3: a decision label after the header block starts the round, and the claim names what is not covered', function (): void {
+test('the body check runs, its 38 label and four shape cases exist, and the header, rule, and CHANGELOG name what is not covered', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -388,7 +388,7 @@ test('round 3: a decision label after the header block starts the round, and the
         );
 });
 
-test('round 3: the stated limits of the fetch and the sweep have self-test cases', function (): void {
+test('the stated limits of the fetch and the sweep have self-test cases', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
@@ -399,7 +399,7 @@ test('round 3: the stated limits of the fetch and the sweep have self-test cases
         ->toContain('expect \'the next decide removes an old run directory without a holder and keeps a fresh one\'');
 });
 
-test('PR #344 round 1: the coverage claim is a closed list with the reason the limit is acceptable', function (): void {
+test('the coverage claim states its steps and why the limit is acceptable, uses no listed category phrase, and has its cases', function (): void {
     $rule = reviewCarryForwardSource('rules/code-review/general.md');
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
     $header = explode("\nset -euo pipefail\n", $script, 2)[0];
@@ -447,7 +447,7 @@ test('PR #344 round 1: the coverage claim is a closed list with the reason the l
         ->toContain('shape_case \'body: a label split over two lines is not covered\' "$CF"');
 });
 
-test('PR #344 round 1: one fence line rule in cr-header.sh, used by every reader', function (): void {
+test('cr-header.sh defines the fence line rule and its cases, the body check calls it once, and the old fence test is gone', function (): void {
     $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
@@ -466,7 +466,7 @@ test('PR #344 round 1: one fence line rule in cr-header.sh, used by every reader
 });
 
 test(
-    'PR #344 round 2: the line rule, the reference links, and the span carry each have a self-test case, and the claim names no category',
+    'the line rule, the reference links, and the span carry each have a self-test case, and the cr-header.sh header holds no listed category word',
     function (): void {
         $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
         $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
