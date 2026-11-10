@@ -294,6 +294,7 @@ test('a failed comment fetch degrades to an empty list while the issue still loa
 
     expect($process->getExitCode())->toBe(0);
     expect(decodedJsonField($output, 'comments'))->toBe([]);
+    expect(decodedJsonField($output, 'commentsComplete'))->toBeFalse();
     expect(decodedJsonField($output, 'key'))->toBe('ACME-1234');
 });
 

@@ -5,10 +5,11 @@
 #   Two scripts read the header block of a code-review comment: check-cr-header.sh (the publication check)
 #   and extract-findings.sh (the finding records and --header). Each had its own parser, so the two could
 #   disagree about what a header line is. This file is the only place that decides it. Both scripts source
-#   it; neither parses a header line itself.
+#   it; neither parses a header line itself. review-carry-forward.sh sources it too, for the strict view of
+#   cr_header_canonical below.
 #
 # Usage
-#   source cr-header.sh        # then: cr_header_parse < body
+#   source cr-header.sh        # then: cr_header_parse < body, or cr_header_canonical < body
 #   cr-header.sh --self-test
 #
 # What it reads
@@ -28,6 +29,17 @@
 #   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and outside a
 #                     finding), otherwise 0
 #   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
+#
+# Result of cr_header_canonical (the strict view a decision that skips work relies on)
+#   The header block ends at the first `---` line or the first `## ` heading. Before it, only three kinds of
+#   line are canonical: a blank line, one `# ` title as the first line with text, and a line of the exact
+#   shape `**<Label>:** <value>` — ASCII colon inside the bold, one space, a value with no leading or trailing
+#   whitespace, and a label of ASCII letters, spaces, parentheses, and hyphens. Every other line is rejected:
+#   no bold, a colon outside the bold, extra whitespace, a list item, a blockquote, a fence, an HTML comment,
+#   a non-ASCII byte in the label, a Unicode look-alike of the colon. A fence hides nothing in this view.
+#   CR_CANON_LABELS / CR_CANON_VALUES  the canonical lines, in document order
+#   CR_CANON_REJECTED                  the 1-based line number of every rejected line
+#   CR_CANON_LINES                     every line of the block that has text, canonical or not
 #
 # Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
 
@@ -116,6 +128,44 @@ cr_header_scan() {
   done
 }
 
+CR_CANON_LABELS=()
+CR_CANON_VALUES=()
+CR_CANON_REJECTED=()
+CR_CANON_LINES=()
+
+# cr_header_canonical — read a comment body on standard input and fill the four CR_CANON_ arrays above.
+cr_header_canonical() {
+  local LC_ALL=C
+  local line n=0 titled=0 labels=0 rejected=0 lines=0
+  local shape='^[*][*]([A-Za-z][A-Za-z ()-]*):[*][*] ([^[:space:]](.*[^[:space:]])?)$'
+  CR_CANON_LABELS=()
+  CR_CANON_VALUES=()
+  CR_CANON_REJECTED=()
+  CR_CANON_LINES=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    n=$((n + 1))
+    [[ "$line" != '## '* && ! "$line" =~ ^---[[:space:]]*$ ]] || break
+    [[ -n "$line" ]] || continue
+    # shellcheck disable=SC2034  # read by the sourcing script (review-carry-forward.sh)
+    CR_CANON_LINES[lines]="$line"
+    lines=$((lines + 1))
+    if [[ "$titled" -eq 0 && "$line" =~ ^#\ [^[:space:]] ]]; then
+      titled=1
+      continue
+    fi
+    titled=1
+    if [[ "$line" =~ $shape ]]; then
+      CR_CANON_LABELS[labels]="${BASH_REMATCH[1]}"
+      CR_CANON_VALUES[labels]="${BASH_REMATCH[2]}"
+      labels=$((labels + 1))
+    else
+      CR_CANON_REJECTED[rejected]="$n"
+      rejected=$((rejected + 1))
+    fi
+  done
+}
+
 cr_header_self_test() {
   local failures=0 fence tmp
   fence=$'\x60\x60\x60'
@@ -184,6 +234,44 @@ cr_header_self_test() {
   else
     printf 'skip  %s\n' 'no UTF-8 locale: the cases for a byte that is not valid UTF-8'
   fi
+
+  # canonical <label> <expected> <body> — the canonical view, flattened to `label=value` lines and `rejected:<n>` lines.
+  canonical() {
+    local label="$1" expected="$2" body="$3" actual="" i
+    cr_header_canonical <<<"$body"
+    for ((i = 0; i < ${#CR_CANON_LABELS[@]}; i++)); do
+      actual+="${CR_CANON_LABELS[$i]}=${CR_CANON_VALUES[$i]}"$'\n'
+    done
+    for ((i = 0; i < ${#CR_CANON_REJECTED[@]}; i++)); do
+      actual+="rejected:${CR_CANON_REJECTED[$i]}"$'\n'
+    done
+    if [[ "$actual" == "$expected" ]]; then
+      printf 'ok    %s\n' "$label"
+    else
+      printf 'FAIL  %s: expected "%s", got "%s"\n' "$label" "$expected" "$actual" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  canonical 'a canonical header block is read line by line' $'Status=clean\nCounts=Critical 0 \xc2\xb7 Moderate 0\n' \
+    $'# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 \xc2\xb7 Moderate 0\n\n---\n\n**Late:** x'
+  canonical 'the block ends at the first section heading' $'Status=a\n' $'**Status:** a\n## TL;DR\n- **Mode:** b'
+  canonical 'a line without the bold is rejected' $'rejected:1\n' 'Status: a'
+  canonical 'a colon outside the bold is rejected' $'rejected:1\n' '**Mode**: HOTFIX'
+  canonical 'a bold on one side is rejected' $'rejected:1\n' '**Status: a'
+  canonical 'two spaces after the label are rejected' $'rejected:1\n' '**Status:**  a'
+  canonical 'a leading space is rejected' $'rejected:1\n' ' **Status:** a'
+  canonical 'trailing whitespace is rejected' $'rejected:1\n' '**Status:** a '
+  canonical 'an empty value is rejected' $'rejected:1\n' '**Status:**'
+  canonical 'a list item is rejected' $'rejected:1\n' '- **Mode:** HOTFIX'
+  canonical 'a blockquote is rejected' $'rejected:1\n' '> **Mode:** HOTFIX'
+  canonical 'an HTML comment is rejected' $'rejected:1\n' '<!-- **Mode:** HOTFIX -->'
+  canonical 'a fence is rejected and hides nothing inside it' $'Mode=HOTFIX\nrejected:1\nrejected:3\n' \
+    "$(printf '%stext\n**Mode:** HOTFIX\n%s' "$fence" "$fence")"
+  canonical 'a full-width colon is rejected' $'rejected:1\n' $'**Counts\xef\xbc\x9a** Critical 0'
+  canonical 'a zero-width space in the label is rejected' $'rejected:1\n' $'**Mo\xe2\x80\x8bde:** HOTFIX'
+  canonical 'a second title is rejected' $'rejected:2\n' $'# Code Review\n# Again'
+  canonical 'a heading of a deeper level is rejected' $'rejected:1\n' '### Critical 1. Early'
+  canonical 'a carriage return is dropped before the check' $'Status=a\n' $'**Status:** a\r'
 
   local injected="\$(touch $tmp/pwned)"
   expect 'instruction-like text in a value is read as data' "Status|1|1|$injected"$'\n' "**Status:** $injected"
