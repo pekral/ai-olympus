@@ -283,7 +283,7 @@ run_gate() {
   # 4. Skill metadata
   local sk_lower
   sk_lower="$(printf '%s' "$skill" | tr '[:upper:]' '[:lower:]')"
-  if [[ "$sk_lower" =~ (security-review|security-audit) ]]; then
+  if [[ "$sk_lower" =~ (security-review|security-audit|git-history-exposure-audit) ]]; then
     context_required=true
     domains+="security${nl}"
     src_rules=true
@@ -382,6 +382,9 @@ self_test() {
 
   expect_field 'ambiguous task without paths, symbols, or labels skips retrieval' \
     'false:deterministic' '"\(.context_required):\(.classifier)"' --task-type bug --skill resolve-issue
+
+  expect_field 'the history exposure skill counts as a security review' \
+    'true:security' '"\(.context_required):\(.domains[0])"' --skill git-history-exposure-audit
 
   expect_field 'a concrete class in a known domain returns context_required true' \
     'true' '.context_required' --symbols OrderController --task-type bug
