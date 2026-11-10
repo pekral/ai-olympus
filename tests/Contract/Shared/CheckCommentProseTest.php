@@ -126,6 +126,24 @@ test('a path that leaves the root is refused', function (): void {
         ->and($result['error'])->toBe("check-comment-prose.php: the diff names a path outside the root\n");
 });
 
+test('an absolute path in the diff is refused', function (): void {
+    $result = runCheckCommentProse([], "--- /dev/null\n+++ /etc/outside.php\n@@ -0,0 +1,1 @@\n+line\n");
+
+    expect($result['exit'])->toBe(1)
+        ->and($result['output'])->toBe('')
+        ->and($result['error'])->toBe("check-comment-prose.php: the diff names a path outside the root\n");
+});
+
+test('a git-quoted non-ASCII path is unescaped to the file it names', function (): void {
+    $source = "<?php\n\n// prose in a file with an accented name\nfunction accented(): void\n{\n}\n";
+    $diff = "--- /dev/null\n+++ \"b/app/caf\\303\\251.php\"\n@@ -0,0 +3,1 @@\n+line\n";
+
+    $result = runCheckCommentProse(["app/caf\u{e9}.php" => $source], $diff);
+
+    expect($result['exit'])->toBe(3)
+        ->and($result['output'])->toBe('{"valid":false,"findings":[{"file":"app/caf\\u00e9.php","line":3}]}');
+});
+
 test('a PHP path the root does not hold fails closed instead of passing', function (): void {
     $result = runCheckCommentProse([], "--- app/Missing.php\n+++ app/Missing.php\n@@ -0,0 +1,1 @@\n+line\n");
 
@@ -208,7 +226,16 @@ test('the PHP standards and the code review run the prose check', function (): v
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
 
-    expect(substr_count($standards, '| php skills/_shared/check-comment-prose.php --diff -`'))->toBe(1)
+    expect(
+        substr_count(
+            $standards,
+            '`git diff -U0 --diff-filter=AMR "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)" -- \'*.php\''
+            . ' | php skills/_shared/check-comment-prose.php --diff -`',
+        ),
+    )->toBe(
+        1,
+    )
+        ->and(substr_count($review, '`git diff -U0 --diff-filter=AMR <base>...HEAD -- \'*.php\'`'))->toBe(1)
         ->and(substr_count($review, 'Detect it with `skills/_shared/check-comment-prose.php --diff -`'))->toBe(1)
         ->and(is_executable($packageDir . '/skills/_shared/check-comment-prose.php'))->toBeTrue();
 });
