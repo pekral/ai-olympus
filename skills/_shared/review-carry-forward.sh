@@ -47,37 +47,54 @@
 #        Reviewed diff fingerprint        40 or 64 lowercase hex
 #        Reviewed assignment fingerprint  64 lowercase hex
 #        Status, Review scope, Last updated  present
-#      The header block is the one block of cr-header.sh: every line before the first `## ` heading outside a fence.
+#      The header block is the one block of cr-header.sh: every line before the first line that the line rule below
+#      does not skip and that matches `^##\s`.
 #      A canonical `**Mode:**` line, whatever its value, marks a narrowed review. A mode line in any other shape is
 #      not canonical or carries an unknown label, so it gives `header invalid`. A value is never searched for words.
-#      After the block, outside a fence (a CommonMark fenced code block, cr_header_fence_step), the body check reads a
-#      copy of each line through these steps, in this order:
+#      After the block the body check walks the lines with the line rule of cr_header_fence_step (cr-header.sh):
+#        - a line of 0–3 spaces, then three or more backticks or three or more tildes (after backticks, no further
+#          backtick on the line), opens a skipped region; that line and the lines after it are skipped;
+#        - the region closes on a line of 0–3 spaces, the opening character at least as many times as it opened, and
+#          then only spaces or tabs (that line is skipped too); before the first non-blank line that starts with fewer
+#          spaces than the opening line (that line is read); or at the end of the body;
+#        - a line of 0–3 spaces and `<` opens an HTML region instead: its lines are read and no skipped region opens
+#          in it, until the line that holds `-->` (opened by `<!--`), `?>` (by `<?`), `]]>` (by `<![CDATA[`), `>` (by
+#          `<!` and a letter), or `</pre>`, `</script>`, `</style>`, or `</textarea>` after lowercasing (opened by
+#          `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, then whitespace, `>`, or the end of the
+#          line); after any other opening line, until the next blank line. The end can be on the opening line.
+#      It reads a copy of each line it does not skip through these steps, in this order:
 #        1. it removes U+200B, U+200C, U+200D, U+2060, U+FEFF, and U+00AD; it turns U+FF1A, U+FE55, U+A789, and
-#           U+2236 into a colon; it turns the tab and the space separators U+00A0, U+1680, U+2000–U+200A, U+202F,
-#           U+205F, and U+3000 into a space;
-#        2. it lowercases ASCII letters;
-#        3. it turns an escaped backtick into a neutral character and removes every balanced inline-code span of the
-#           line (a backtick run closed by a run of the same length); an unbalanced run stays text;
-#        4. it removes every backslash;
-#        5. it decodes `&colon;`, `&nbsp;`, `&ensp;`, `&emsp;`, `&thinsp;`, `&shy;`, `&zwj;`, `&zwnj;`, and every
-#           decimal or hexadecimal character reference: to a digit, a lowercase letter, a colon, a space, or nothing
-#           for the code points of step 1, and to `?` for any other code point;
-#        6. it removes HTML element tags; an HTML comment stays text;
-#        7. it turns a link `[text](url)` into its text and removes every remaining `[` and `]`;
-#        8. it removes every `*` and `_`.
-#      The line then gives `header invalid` when it holds a decision label (Status, Counts, Merge verdict, Security
-#      assessment, Mode, Review scope, Reviewed revision, Reviewed diff fingerprint, Reviewed assignment fingerprint),
-#      then optional spaces and a colon, with no letter or digit right before the label. The shapes this catches:
-#      a label in either letter case; bold or emphasis around the label or the colon; a list item, a blockquote,
-#      indentation, a table cell, an HTML comment, or heading text (the heading that ends the block included); a code
-#      point of step 1 inside or around the label; a character reference of step 5; a backslash escape; an HTML tag
-#      around the label; a label as link text; and text after an unbalanced backtick run. Every other spelling of a
-#      decision label is not covered, for example a look-alike letter from another script (`Мode:`), a label split
-#      over two lines, a label inside a fence, a label inside a balanced inline-code span, and prose that names a
-#      mode without a colon after the label. The limit is acceptable because a carried review is a comment that
-#      passed *Authorship trust* and the `cr-comment` marker check (`trusted_review`), and the merge gate reads
-#      HOTFIX only from the header `Mode:` line.
-#      A Critical finding heading outside a fence while `Counts:` says Critical 0 gives `header invalid` too.
+#           U+2236 into a colon; it turns the tab and U+00A0, U+1680, U+2000–U+200A, U+202F, U+205F, and U+3000 into
+#           a space;
+#        2. it lowercases the ASCII letters A–Z;
+#        3. it turns the two characters `\`` into `'`; then, from left to right, it replaces a backtick run, the next
+#           run of the same length on the same line, and the text between them with one space; a run without such a
+#           partner stays text, and after a line where a run stayed text, step 3 replaces nothing on the lines that
+#           follow up to the next blank line the line rule does not skip;
+#        4. it removes the character `\`;
+#        5. it turns `&colon;` into `:`, `&nbsp;`, `&ensp;`, `&emsp;`, and `&thinsp;` into a space, removes
+#           `&shy;`, `&zwj;`, and `&zwnj;`, and decodes `&#` and 1–7 decimal digits and `;`, and `&#x` and 1–6
+#           hexadecimal digits and `;`: to a digit, a lowercase letter, `:` (U+003A and the colons of step 1), a space
+#           (U+0020 and the spaces of step 1), nothing (the removed code points of step 1), or `?` for another value;
+#        6. it removes `<`, an optional `/`, a letter a–z, and the following characters up to the next `>`;
+#        7. it turns `[text](url)`, `[text][label]`, and `[text][]` into `text`, where `text` and `label` hold no `]`
+#           and `url` holds no `)`; then it removes the characters `[` and `]`;
+#        8. it removes the characters `*` and `_`.
+#      The line starts the round (`header invalid`) when the result matches DECISION_LINE:
+#        (^|[^a-z0-9])(status|counts|merge\s+verdict|security\s+assessment|mode|review\s+scope|reviewed\s+revision
+#        |reviewed\s+diff\s+fingerprint|reviewed\s+assignment\s+fingerprint)\s*:    (\s: ASCII whitespace)
+#      Examples of lines that start the round, each a self-test case: `**MODE**: HOTFIX`, `- **Mode:** HOTFIX`,
+#      `Mode&#58; HOTFIX`, `<b>Mode</b>: HOTFIX`, `[Mode](https://example.invalid): HOTFIX`, `[Mode][r]: HOTFIX`.
+#      Not covered: a line that the steps do not turn into a match of DECISION_LINE, and every line inside a skipped
+#      region. Examples, each a self-test case that carries forward: `Мode: HOTFIX` with a Cyrillic `М`; `Merge` on one
+#      line and `verdict: no` on the next; `` `Mode: HOTFIX` `` between two backticks; `**Mode:** HOTFIX` after a line
+#      ```` ```text ```` and before a line ```` ``` ````; `~~Mode~~: HOTFIX`; `&lt;b&gt;Mode&lt;/b&gt;: HOTFIX`; `Mode&#92;: HOTFIX`; and
+#      `- This was not a HOTFIX mode run.` The limit is acceptable because decide carries forward only a comment that
+#      passed `trusted_review` (an author with write access and that author's own `cr-comment` marker), and it reads
+#      HOTFIX only from a canonical header `Mode:` line, which is also the only line the merge gate reads it from
+#      (rules/git/pull-requests.md *HOTFIX pull requests*).
+#      A line the line rule does not skip and that matches `^#{3,6}\s+(\S+\s+)?Critical\s+[0-9]+\.` while `Counts:`
+#      says Critical 0 starts the round too (`header invalid`).
 #      What the header check does not guarantee: it reads the header block and those two signals, never the meaning
 #      of the findings, the sections, or the prose. It does not prove that the body lists every finding `Counts:`
 #      counts, that a Moderate count matches the Moderate findings, or that no sentence declares a mode without a
@@ -131,10 +148,10 @@
 #   security assessment missing                        check-cr-header.sh rejects Merge verdict / Security assessment
 #   narrowed review                                    the header block has a canonical `Mode:` line (a HOTFIX
 #                                                      review), whatever its value
-#   header invalid (body)                              after the header block and outside a fence, a line holds a
-#                                                      decision label and a colon after the eight steps of step 3 (the
-#                                                      closed list of shapes there), or a Critical finding heading
-#                                                      stands while Counts says Critical 0
+#   header invalid (body)                              after the header block, a line the line rule of step 3 does
+#                                                      not skip matches DECISION_LINE after the eight steps of step 3,
+#                                                      or matches the Critical-heading pattern there while Counts
+#                                                      says Critical 0
 #   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern,
 #                                                      ls-remote or the fetch fails, a remote tip is not the
 #                                                      loader's commit, or a commit is missing after the fetch
@@ -211,7 +228,7 @@ KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed
 KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
   'Review scope' 'Last updated')
-# The labels a carried review's meaning depends on. After the header block and outside a fence, a line that holds
+# The labels a carried review's meaning depends on. After the header block, a line the line rule does not skip that holds
 # one of them and a colon after the steps of the header (step 3) makes the review ambiguous, so the round runs
 # (decision_label_after_block).
 DECISION_LINE='(^|[^a-z0-9])(status|counts|merge[[:space:]]+verdict|security[[:space:]]+assessment|mode|review[[:space:]]+scope'
@@ -507,14 +524,17 @@ ref_text() {
   fi
 }
 
-# normalize_body_line <line> — steps 3 to 8 of the body check (the script header, step 3 of decide), on a line that
-# steps 1 and 2 already normalised. Sets LINE_NORM.
+# normalize_body_line <line> [nospan] — steps 3 to 8 of the body check (the script header, step 3 of decide), on a
+# line that steps 1 and 2 already normalised. With `nospan`, step 3 removes no span. Sets LINE_NORM, and
+# LINE_RUN_OPEN to 1 when a backtick run stayed text.
 normalize_body_line() {
   local s="$1" out='' pre run rest scan after found n
   local span_re="^([^\`]*)(\`+)(.*)\$" dec_re='^(.*)&#([0-9]{1,7});(.*)$' hex_re='^(.*)&#x([0-9a-f]{1,6});(.*)$'
   local tag_re='^(.*)</?[a-z][^>]*>(.*)$' link_re='^(.*)\[([^]]*)\]\([^)]*\)(.*)$'
+  local ref_re='^(.*)\[([^]]*)\]\[[^]]*\](.*)$'
+  LINE_RUN_OPEN=0
   s="${s//\\\`/\'}"
-  while [[ "$s" =~ $span_re ]]; do
+  while [[ "${2:-}" != nospan && "$s" =~ $span_re ]]; do
     pre="${BASH_REMATCH[1]}" run="${BASH_REMATCH[2]}" rest="${BASH_REMATCH[3]}"
     n=${#run} scan="$rest" found=0
     while [[ "$scan" =~ $span_re ]]; do
@@ -530,6 +550,7 @@ normalize_body_line() {
     else
       out+="$pre$run"
       s="$rest"
+      LINE_RUN_OPEN=1
     fi
   done
   s="$out$s"
@@ -553,17 +574,20 @@ normalize_body_line() {
   while [[ "$s" =~ $link_re ]]; do
     s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
   done
+  while [[ "$s" =~ $ref_re ]]; do
+    s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+  done
   s="${s//\[/}"
   s="${s//\]/}"
   LINE_NORM="${s//[*_]/}"
 }
 
-# decision_label_after_block — read a review body on standard input. Succeed when a line after the header block,
-# outside a fence, holds a decision label followed by a colon (DECISION_LINE) once it went through the steps of the
-# script header (step 3 of decide). The block and the fences are those of cr-header.sh (cr_header_ends_block and
-# cr_header_fence_step, both read on the raw line); the steps run on a copy of the line.
+# decision_label_after_block — read a review body on standard input. Succeed when a line after the header block that
+# the line rule of cr_header_fence_step does not skip matches DECISION_LINE once it went through the steps of the
+# script header (step 3 of decide). The block boundary (cr_header_ends_block) and the line rule read the raw line; the
+# steps run on a copy of the line.
 decision_label_after_block() {
-  local LC_ALL=C body norm raw line in_block=1 strip
+  local LC_ALL=C body norm raw line in_block=1 strip span=''
   body="$(cat)"
   norm="$body"
   for strip in $'\xe2\x80\x8b' $'\xe2\x80\x8c' $'\xe2\x80\x8d' $'\xe2\x81\xa0' $'\xef\xbb\xbf' $'\xc2\xad'; do
@@ -577,8 +601,7 @@ decision_label_after_block() {
     $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\t'; do
     norm="${norm//$strip/ }"
   done
-  CR_FENCE_CHAR=''
-  CR_FENCE_LEN=0
+  cr_header_fence_reset
   while IFS= read -r raw <&3 && IFS= read -r line <&4; do
     raw="${raw%$'\r'}"
     ! cr_header_fence_step "$raw" || continue
@@ -586,8 +609,13 @@ decision_label_after_block() {
       cr_header_ends_block "$raw" || continue
       in_block=0
     fi
-    normalize_body_line "${line%$'\r'}"
+    if [[ ! "$raw" =~ [^[:space:]] ]]; then
+      span=''
+      continue
+    fi
+    normalize_body_line "${line%$'\r'}" "$span"
     [[ ! "$LINE_NORM" =~ $DECISION_LINE ]] || return 0
+    [[ "$LINE_RUN_OPEN" -eq 0 ]] || span=nospan
   done 3< <(printf '%s\n' "$body") 4< <(printf '%s\n' "$norm" | tr '[:upper:]' '[:lower:]')
   return 1
 }
@@ -1036,7 +1064,7 @@ EOF
   review "$head" "$fp" "$afp" '**Mode:** HOTFIX — coverage waived, review scoped to assignment + bug fix (declared by owner)' >"$fx/h.md"
   header_case 'a narrowed HOTFIX review runs the round' "$(round_for 'narrowed review')" "$fx/h.md"
 
-  # Every shape class a header line can take that is not its exact canonical form starts the round.
+  # The shape classes below, none of them the exact canonical form of a header line, start the round.
   # shape_case <label> <jq-condition> <awk-program> — rewrite the canonical review with <awk-program>, then decide.
   shape_case() {
     review "$head" "$fp" "$afp" | LC_ALL=C awk "$3" >"$fx/h.md"
@@ -1131,8 +1159,20 @@ EOF
   body_label_case 'a thin space inside a two-word label' 'Merge\342\200\211verdict: no'
   body_label_case 'an ideographic space before the colon' 'Mode\343\200\200: HOTFIX'
   body_label_case 'an HTML tag around the label' '<b>Mode</b>: HOTFIX'
-  body_label_case 'a label as link text' '[Mode](https://example.invalid): HOTFIX'
+  body_label_case 'a label inside an inline link' '[Mode](https://example.invalid): HOTFIX'
   body_label_case 'text after an unbalanced backtick run' '`Mode: HOTFIX``'
+  body_label_case 'a reference-style link' '[Mode][r]: HOTFIX'
+  body_label_case 'a collapsed reference link' '[Mode][]: HOTFIX'
+  shape_case 'body: a label after a backtick that closes a run of the line before runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "a `x"; print "y` Mode: HOTFIX `z`" }'
+  shape_case 'body: a span of the next paragraph is removed again after a blank line' "$CF" \
+    '{ print } /^## TL;DR/ { print "a `x"; print ""; print "`Mode: HOTFIX`" }'
+  # The examples of the not-covered sentence carry forward, so the sentence stays true.
+  shape_case 'body: `Mode: HOTFIX` between two backticks is not covered' "$CF" '{ print } /^## TL;DR/ { print "`Mode: HOTFIX`" }'
+  shape_case 'body: ~~Mode~~: HOTFIX is not covered' "$CF" '{ print } /^## TL;DR/ { print "~~Mode~~: HOTFIX" }'
+  shape_case 'body: an escaped tag around the label is not covered' "$CF" \
+    '{ print } /^## TL;DR/ { print "&lt;b&gt;Mode&lt;/b&gt;: HOTFIX" }'
+  shape_case 'body: a reference that decodes to a backslash is not covered' "$CF" '{ print } /^## TL;DR/ { print "Mode&#92;: HOTFIX" }'
   shape_case 'body: a decision label in the heading that ends the block runs the round' "$HI" \
     '/^## TL;DR/ { print "## Mode: HOTFIX"; next } { print }'
   shape_case 'body: a decision label inside a fence after the block changes nothing' "$CF" \
@@ -1145,7 +1185,7 @@ EOF
     '{ print } /^## TL;DR/ { print "\320\234ode: HOTFIX" }'
   shape_case 'body: a label split over two lines is not covered' "$CF" \
     '{ print } /^## TL;DR/ { print "Merge"; print "verdict: no" }'
-  # Fences as CommonMark defines them (cr_header_fence_step): a line that only looks like a fence is read.
+  # The line rule of cr_header_fence_step: a line that only looks like a fence is read.
   shape_case 'fence: an opener indented by four spaces does not hide a decision line' "$HI" \
     '{ print } /^## TL;DR/ { print "    ```"; print "**Mode:** HOTFIX" }'
   shape_case 'fence: a backtick info string with a backtick does not hide a decision line' "$HI" \
@@ -1158,6 +1198,18 @@ EOF
     '{ print } /^## TL;DR/ { print "~~~"; print "**Mode:** HOTFIX"; print "~~~" }'
   shape_case 'fence: a decision line inside an unclosed fence changes nothing' "$CF" \
     '{ print } /^## TL;DR/ { print "```"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a closer followed by a tab does not hide a decision line' "$HI" \
+    '{ print } /^## TL;DR/ { print "```"; print "x"; print "```\t"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: the end of a list item closes its fence' "$HI" \
+    '{ print } /^## TL;DR/ { print "- item"; print ""; print "  ```"; print "  code"; print ""; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: three backticks inside an HTML comment open no fence' "$HI" \
+    '{ print } /^## TL;DR/ { print "<!--"; print "```"; print "-->"; print ""; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: three backticks inside an HTML block open no fence' "$HI" \
+    '{ print } /^## TL;DR/ { print "<div>"; print "```"; print "</div>"; print ""; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: a Critical heading after three backticks in an HTML block while Counts says Critical 0 runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "<div>"; print "```"; print "</div>"; print ""; print "### \360\237\224\264 Critical 1. Hidden" }'
+  shape_case 'fence: a fence after the HTML block ended hides its lines' "$CF" \
+    '{ print } /^## TL;DR/ { print "<details>"; print ""; print "```"; print "**Mode:** HOTFIX"; print "```" }'
   shape_case 'fence: a Critical heading after an indented opener while Counts says Critical 0 runs the round' "$HI" \
     '{ print } /^## TL;DR/ { print "    ```"; print "### \360\237\224\264 Critical 1. Hidden" }'
   shape_case 'fence: a Critical heading after a backtick info string with a backtick while Counts says Critical 0 runs the round' "$HI" \

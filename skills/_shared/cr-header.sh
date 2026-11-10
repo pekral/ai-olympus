@@ -13,15 +13,15 @@
 #   cr-header.sh --self-test
 #
 # What it reads
-#   A header line is `**<Label>:** <value>`, or the same line without the Markdown bold. A line inside a
-#   fenced code block is a quotation and is not read. The header block is the lines before the first `## `
+#   A header line is `**<Label>:** <value>`, or the same line without the Markdown bold. A line that the line rule
+#   of cr_header_fence_step skips is a quotation and is not read. The header block is the lines before the first `## `
 #   heading, without the lines of a finding: a finding heading (`### Critical 1. <title>`) opens a finding, and
 #   another `###`–`######` heading or a `---` line closes it. The parser reports a header line wherever it stands
 #   in the body and marks the ones that stand in the block. A byte that is not valid UTF-8 in a value does not
 #   hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
 #
-#   The block has one boundary for every reader: the first line, read outside a fence, that cr_header_ends_block
-#   accepts. cr_header_scan and cr_header_canonical both call cr_header_ends_block and cr_header_fence_step, so a line
+#   The block has one boundary for every reader: the first line that the line rule of cr_header_fence_step does not
+#   skip and that cr_header_ends_block accepts. cr_header_scan and cr_header_canonical both call cr_header_ends_block and cr_header_fence_step, so a line
 #   the lenient view counts as a header-block line is always a line the strict view reads.
 #
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
@@ -33,8 +33,8 @@
 #   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and outside a
 #                     finding), otherwise 0
 #   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
-#   CR_HEADER_CRITICAL_HEADINGS  the number of Critical finding headings (`### … Critical <n>.`) outside a fence,
-#                     anywhere in the body
+#   CR_HEADER_CRITICAL_HEADINGS  the number of lines that match `^#{3,6}\s+(\S+\s+)?Critical\s+[0-9]+\.` and that
+#                     the line rule of cr_header_fence_step does not skip, anywhere in the body
 #
 # Result of cr_header_canonical (the strict view a decision that skips work relies on)
 #   It reads the same block as cr_header_scan. Inside the block it accepts exactly four kinds of line:
@@ -43,7 +43,8 @@
 #     - a `---` line that follows a blank line or starts the body (a thematic break), which is skipped;
 #     - a line of the exact shape `**<Label>:** <value>` — ASCII colon inside the bold, one space, a value with no
 #       leading or trailing whitespace, and a label of ASCII letters, spaces, parentheses, and hyphens.
-#   Every other line in the block is rejected, and so is every line of a fence there, the fence lines included:
+#   Every other line in the block is rejected, and so is every line the line rule skips there, the opening and closing
+#   lines included:
 #   prose, a whitespace-only line, a list item, a blockquote, a table row, an HTML comment, a deeper heading, a
 #   `---` directly under a line of text (a setext underline, which turns that line into a heading), a `===` line,
 #   no bold, a colon outside the bold, extra whitespace, a non-ASCII byte in a label, a Unicode look-alike colon.
@@ -60,37 +61,104 @@ CR_HEADER_CRITICAL_HEADINGS=0
 
 CR_FENCE_CHAR=''
 CR_FENCE_LEN=0
+CR_FENCE_INDENT=0
+CR_HTML_END=''
 
-# cr_header_fence_step <line> — the one fence test, as CommonMark defines a fenced code block. Call it once per line,
-# in order, after resetting CR_FENCE_CHAR and CR_FENCE_LEN. It succeeds when <line> belongs to a fence: the line that
-# opens it, a line inside it, or the line that closes it; it fails for a line outside every fence.
-#   opens   0–3 spaces of indentation, then three or more backticks or tildes; after a backtick run, the rest of the
-#           line holds no backtick (a backtick info string never does)
-#   closes  0–3 spaces of indentation, then a run of the opening character at least as long as the opening run, then
-#           nothing but spaces
-#   An unclosed fence runs to the end of the body. The opening character and length are kept in CR_FENCE_CHAR and
-#   CR_FENCE_LEN.
+# cr_header_fence_reset — start a new walk of the line rule below. Every reader calls it before its first line.
+cr_header_fence_reset() {
+  CR_FENCE_CHAR=''
+  CR_FENCE_LEN=0
+  CR_FENCE_INDENT=0
+  CR_HTML_END=''
+}
+
+# cr_header_fence_step <line> — the one line rule that decides which lines a reader skips. Call it once per line, in
+# order, after cr_header_fence_reset. It succeeds for a line the reader skips and fails for a line the reader reads.
+#   A skipped region opens on a line, outside a skipped region and outside an HTML region, of 0–3 spaces, then three or
+#   more backticks or three or more tildes; after backticks the rest of the line holds no backtick. That line and the
+#   lines after it are skipped. The region closes:
+#     - on a line of 0–3 spaces, then the opening character at least as many times as it opened, then only spaces or
+#       tabs; that line is skipped too;
+#     - before the first non-blank line that starts with fewer spaces than the opening line; that line is read;
+#     - at the end of the body.
+#   An HTML region opens on a line, outside a skipped region, of 0–3 spaces and `<`. Its lines are read, and no skipped
+#   region opens inside it. It ends after the line that holds `-->` when the opening line starts with `<!--`; `?>` for
+#   `<?`; `]]>` for `<![CDATA[`; `>` for `<!` and a letter; `</pre>`, `</script>`, `</style>`, or `</textarea>`, after
+#   lowercasing, when the opening line starts with `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, and
+#   then whitespace, `>`, or the end of the line; and at the next blank line after any other opening line. The end can
+#   be on the opening line.
+#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_INDENT (the skipped region), CR_HTML_END (the HTML region).
 cr_header_fence_step() {
-  local open_re='^ {0,3}(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+) *$' run
-  if [[ -z "$CR_FENCE_CHAR" ]]; then
-    [[ ( "$1" == *'```'* || "$1" == *'~~~'* ) && "$1" =~ $open_re ]] || return 1
-    run="${BASH_REMATCH[1]}"
-    [[ "${run:0:1}" != '`' || "${BASH_REMATCH[2]}" != *'`'* ]] || return 1
-    CR_FENCE_CHAR="${run:0:1}"
-    CR_FENCE_LEN=${#run}
-    return 0
-  fi
-  if [[ "$1" =~ $close_re ]]; then
-    run="${BASH_REMATCH[1]}"
-    if [[ "${run:0:1}" == "$CR_FENCE_CHAR" && ${#run} -ge $CR_FENCE_LEN ]]; then
-      CR_FENCE_CHAR=''
-      CR_FENCE_LEN=0
+  local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' run lead
+  if [[ -n "$CR_FENCE_CHAR" ]]; then
+    lead="${1%%[! ]*}"
+    if [[ ! "$1" =~ [^[:space:]] || ${#lead} -ge $CR_FENCE_INDENT ]]; then
+      if [[ "$1" =~ $close_re ]]; then
+        run="${BASH_REMATCH[1]}"
+        if [[ "${run:0:1}" == "$CR_FENCE_CHAR" && ${#run} -ge $CR_FENCE_LEN ]]; then
+          CR_FENCE_CHAR=''
+          CR_FENCE_LEN=0
+          CR_FENCE_INDENT=0
+        fi
+      fi
+      return 0
     fi
+    CR_FENCE_CHAR=''
+    CR_FENCE_LEN=0
+    CR_FENCE_INDENT=0
   fi
+  if [[ -n "$CR_HTML_END" ]]; then
+    cr_header_html_end "$1"
+    return 1
+  fi
+  if [[ "$1" == *'<'* && "$1" =~ ^\ {0,3}\< ]]; then
+    cr_header_html_open "$1"
+    return 1
+  fi
+  [[ ( "$1" == *'```'* || "$1" == *'~~~'* ) && "$1" =~ $open_re ]] || return 1
+  run="${BASH_REMATCH[2]}"
+  [[ "${run:0:1}" != '`' || "${BASH_REMATCH[3]}" != *'`'* ]] || return 1
+  CR_FENCE_CHAR="${run:0:1}"
+  CR_FENCE_LEN=${#run}
+  CR_FENCE_INDENT=${#BASH_REMATCH[1]}
   return 0
 }
 
-# cr_header_ends_block <line> — true when <line>, read outside a fence, ends the header block: a level-2 heading
+# cr_header_html_open <line> — the line opens an HTML region (cr_header_fence_step); set its end and test the line.
+cr_header_html_open() {
+  local tag="${1#"${1%%[! ]*}"}"
+  case "$tag" in
+  '<!--'*) CR_HTML_END='-->' ;;
+  '<?'*) CR_HTML_END='?>' ;;
+  '<![CDATA['*) CR_HTML_END=']]>' ;;
+  '<!'[A-Za-z]*) CR_HTML_END='>' ;;
+  *)
+    if [[ "$tag" =~ ^\<([Pp][Rr][Ee]|[Ss][Cc][Rr][Ii][Pp][Tt]|[Ss][Tt][Yy][Ll][Ee]|[Tt][Ee][Xx][Tt][Aa][Rr][Ee][Aa])([[:space:]>]|$) ]]; then
+      CR_HTML_END='raw'
+    else
+      CR_HTML_END='blank'
+      return 0
+    fi
+    ;;
+  esac
+  cr_header_html_end "$1"
+}
+
+# cr_header_html_end <line> — end the HTML region after this line when the line holds its end.
+cr_header_html_end() {
+  local lower
+  case "$CR_HTML_END" in
+  blank) [[ "$1" =~ [^[:space:]] ]] || CR_HTML_END='' ;;
+  raw)
+    lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+    [[ "$lower" != *'</pre>'* && "$lower" != *'</script>'* && "$lower" != *'</style>'* && "$lower" != *'</textarea>'* ]] \
+      || CR_HTML_END=''
+    ;;
+  *) [[ "$1" != *"$CR_HTML_END"* ]] || CR_HTML_END='' ;;
+  esac
+}
+
+# cr_header_ends_block <line> — true when <line>, a line the line rule does not skip, ends the header block: a heading
 # (`## ` or `##` and a tab). The one boundary of the block; cr_header_scan and cr_header_canonical both call it.
 cr_header_ends_block() {
   [[ "$1" == '##'* && "$1" =~ ^##[[:space:]] ]]
@@ -125,16 +193,15 @@ cr_header_parse() {
 
 # cr_header_scan — the body is read in the C locale, byte by byte. Under a UTF-8 locale a line that carries a byte
 # which is not valid UTF-8 matches no pattern at all, so its header line would be lost; the C locale also makes
-# every match cheaper. Bash restores the caller's locale when the function returns. A Markdown heading and a fence
-# take ASCII whitespace only, as CommonMark defines them. The four arrays and `retrim` belong to the caller.
+# every match cheaper. Bash restores the caller's locale when the function returns. A Markdown heading and the line
+# rule of cr_header_fence_step take ASCII whitespace only. The four arrays and `retrim` belong to the caller.
 cr_header_scan() {
   local LC_ALL=C
   local line value count=0 in_block=1 in_finding=0 shape='^(\*\*)?([^*:]+):(\*\*)?[[:space:]]*(.*)$'
   local finding='^#{3,6}[[:space:]]+([^[:space:]]+[[:space:]]+)?(Critical|Moderate)[[:space:]]+[0-9]+\.'
   local high=$'[\x80-\xff]'
 
-  CR_FENCE_CHAR=''
-  CR_FENCE_LEN=0
+  cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     # Each regular expression runs only on a line that can match it: a glob test is cheaper.
@@ -188,8 +255,7 @@ cr_header_canonical() {
   CR_CANON_LABELS=()
   CR_CANON_VALUES=()
   CR_CANON_REJECTED=()
-  CR_FENCE_CHAR=''
-  CR_FENCE_LEN=0
+  cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     n=$((n + 1))
@@ -258,7 +324,7 @@ cr_header_self_test() {
   expect 'a trailing carriage return is dropped' $'Status|1|1|clean\n' $'**Status:** clean\r'
   expect 'a line inside a fenced code block is not read' $'After|1|1|y\n' "$(printf '%stext\n**Before:** x\n%s\n**After:** y\n' "$fence" "$fence")"
   expect 'a tilde fence is a fence too' $'After|1|1|y\n' "$(printf '~~~\n**Before:** x\n~~~\n**After:** y\n')"
-  # The fence as CommonMark defines it (cr_header_fence_step).
+  # The line rule of cr_header_fence_step.
   expect 'fence: an opener indented by four spaces is not a fence' $'Status|1|1|a\nLate|1|1|b\n' \
     "$(printf '**Status:** a\n    %s\n**Late:** b\n' "$fence")"
   expect 'fence: a backtick info string that holds a backtick is not a fence' $'Status|1|1|a\nLate|1|1|b\n' \
@@ -276,6 +342,20 @@ cr_header_self_test() {
     "$(printf '%s\n~~~\n**In:** x\n%s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: a closer indented by three spaces closes the fence' $'After|1|1|y\n' \
     "$(printf '%s\n**In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a closer followed by a tab closes the fence' $'After|1|1|y\n' \
+    "$(printf '%s\n**In:** x\n%s\t\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a line indented less than the opener closes the fence and is read' $'After|1|1|y\n' \
+    "$(printf '  %s\n  **In:** x\n\n**After:** y\n' "$fence")"
+  expect 'fence: a blank line does not close an indented fence' $'After|1|1|y\n' \
+    "$(printf '  %s\n\n  **In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: no fence opens inside an HTML comment' $'Late|1|1|y\n' \
+    "$(printf '<!--\n%s\n-->\n\n**Late:** y\n' "$fence")"
+  expect 'fence: no fence opens inside an HTML block before the blank line' $'Late|1|1|y\n' \
+    "$(printf '<div>\n%s\n</div>\n\n**Late:** y\n' "$fence")"
+  expect 'fence: no fence opens inside a pre block across a blank line' $'Late|1|1|y\n' \
+    "$(printf '<PRE>\n\n%s\n</pre>\n\n**Late:** y\n' "$fence")"
+  expect 'fence: a fence opens again after the HTML block ends' $'Late|1|1|y\n' \
+    "$(printf '<div>\n\n%s\n**In:** x\n%s\n**Late:** y\n' "$fence" "$fence")"
   expect 'a line after the first section heading is reported outside the header block' $'Status|1|1|a\nLate|1|0|b\n' $'**Status:** a\n## TL;DR\n**Late:** b'
   expect 'a heading of a deeper level does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' $'**Status:** a\n### Sub\n**Late:** b'
   expect 'a section heading inside a fence does not end the header block' $'Status|1|1|a\nLate|1|1|b\n' "$(printf '**Status:** a\n%s\n## quoted\n%s\n**Late:** b\n' "$fence" "$fence")"
