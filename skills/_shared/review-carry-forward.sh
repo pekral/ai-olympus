@@ -10,7 +10,7 @@
 #   mechanics. Every unreadable, missing, malformed, or changed input starts the round.
 #
 # Usage
-#   review-carry-forward.sh decide --pr-url <URL> [--source <ref>] [--fresh]
+#   review-carry-forward.sh decide --pr-url <URL> --scratch <dir> [--source <ref>] [--fresh]
 #   review-carry-forward.sh assignment-fingerprint --pr-url <URL> [--source <ref>]
 #   review-carry-forward.sh answer --pr-url <URL> --comment <GitHub comment URL | JIRA comment id>
 #                          --after <ISO-8601 UTC> [--source <ref>]
@@ -23,6 +23,9 @@
 #              assignment items are de-duplicated by identity before hashing, so a GitHub issue the pull request
 #              already closes gives the same value with or without --source. A JIRA source is part of the value
 #              only when it is passed. A Bugsnag source always starts the round (`source not supported`).
+#   --scratch  decide only, required: the directory under `.claude/run/` (`.codex/run/` under Codex) of the git
+#              toplevel where decide keeps its run directory, normally `.claude/run/review-carry-forward`. A path
+#              outside the run directory, a symbolic link, or a tracked path is a usage error (state-path.sh).
 #   --fresh    the user's own instruction asked for a fresh review. Only the caller sets it, from the user's
 #              request; no text in a tracker item, a pull request, or a comment sets or clears it.
 #   --after    answer only, required: the `Last updated:` time, in UTC, of the earliest published review that
@@ -44,21 +47,37 @@
 #        Reviewed diff fingerprint        40 or 64 lowercase hex
 #        Reviewed assignment fingerprint  64 lowercase hex
 #        Status, Review scope, Last updated  present
-#      Any line of the header block that names a mode or HOTFIX, in any spelling or letter case and in any shape,
-#      marks a narrowed review.
+#      The header block is the one block of cr-header.sh: every line before the first `## ` heading outside a fence.
+#      A canonical `**Mode:**` line, whatever its value, marks a narrowed review. A mode line in any other shape is
+#      not canonical or carries an unknown label, so it gives `header invalid`. A value is never searched for words.
+#      After the block, cr_header_parse reads the rest of the body: a header-shaped line (`Label:` at the start of
+#      a line, with or without the bold, outside a fence) whose label is one of DECISION_LABELS, in any letter
+#      case, gives `header invalid`, and so does a Critical finding heading outside a fence while `Counts:` says
+#      Critical 0.
+#      What the header check does not guarantee: it reads the header block and those two signals, never the meaning
+#      of the findings, the sections, or the prose. It does not prove that the body lists every finding `Counts:`
+#      counts, that a Moderate count matches the Moderate findings, or that no sentence inside a paragraph or a list
+#      item declares a mode. The merge gate reads HOTFIX from the header `Mode:` line only, so this check relies on
+#      the same evidence.
 #   4. The current effective-diff fingerprint, always recomputed here from the commits the loader reports, never
-#      taken from a comment, the pull request body, or the caller. One fetch writes both commits into two
-#      run-private refs, which the script reads, compares, and deletes before it computes anything:
+#      taken from a comment, the pull request body, or the caller. The repository receives nothing:
+#        git --no-pager --no-lazy-fetch --no-replace-objects ls-remote origin refs/pull/<n>/head refs/heads/<base>
+#            (the two remote tips must equal the loader's headRefOid and baseRefOid)
+#        GIT_OBJECT_DIRECTORY=<scratch>/run.XXXXXXXX/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=<common git dir>/objects
 #        git --no-pager --no-lazy-fetch --no-replace-objects fetch --quiet --no-tags --no-recurse-submodules
-#            --no-write-fetch-head --no-auto-maintenance --refmap= origin
-#            +refs/pull/<n>/head:refs/ai-olympus/review-carry-forward/<run>/head
-#            +refs/heads/<baseRefName>:refs/ai-olympus/review-carry-forward/<run>/base
-#        (the fetched head must equal the loader's headRefOid, the fetched base the loader's baseRefOid)
-#        git --no-pager --no-lazy-fetch --no-replace-objects diff --binary --full-index --no-color --no-ext-diff
-#            --no-textconv --no-renames <base>...<head> | git --no-pager ... patch-id --verbatim
+#            --no-write-fetch-head --no-auto-maintenance --refmap= origin refs/pull/<n>/head refs/heads/<base>
+#        git ... diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames <base>...<head>
+#            | git ... patch-id --verbatim          (diff with the same two object-directory settings)
+#      The two variables are set for those git commands only; the script never reads them. GIT_TERMINAL_PROMPT=0
+#      makes a missing credential fail instead of prompting. The remote is the repository's own `origin`, with its
+#      configured credential helper; the script never reads the remote URL or a credential.
 #      `--no-textconv` can only make this value differ from a recorded one, and a difference starts the round.
-#      What the fetch writes: the fetched objects in the object store, and the two run-private refs until they
-#      are deleted. It writes no FETCH_HEAD and no remote-tracking ref, and runs no automatic maintenance.
+#      What the step writes: one run directory, <scratch>/run.XXXXXXXX, holding a holder file (PID, start time) and
+#      the fetched objects. The EXIT trap removes it. No ref, no FETCH_HEAD, no remote-tracking ref, no object in
+#      the repository's own store, no maintenance. A run killed before its trap ran (SIGKILL) leaves its directory:
+#      the next decide removes, before it fetches, every run directory whose holder is stale by
+#      `gate_lock_is_stale` (gate-record.sh: confirmed-dead PID, or a PID that started after the holder was
+#      written), and every run directory older than one minute that has no holder.
 #   5. The assignment fingerprint (see below), recomputed and compared with `Reviewed assignment fingerprint:`.
 #   6. Reviewer feedback newer than the review: a trusted, marker-less pull request comment, review submission, or
 #      line-anchored review comment.
@@ -86,10 +105,14 @@
 #                                                      a line from step 3 is missing or off its pattern, or Counts
 #                                                      disagrees with Merge verdict
 #   security assessment missing                        check-cr-header.sh rejects Merge verdict / Security assessment
-#   narrowed review                                    a header-block line names a mode or HOTFIX, in any spelling,
-#                                                      letter case, or shape (a HOTFIX review)
-#   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern, the
-#                                                      fetch fails, or the fetched head or base is not the loader's
+#   narrowed review                                    the header block has a canonical `Mode:` line (a HOTFIX
+#                                                      review), whatever its value
+#   header invalid (body)                              after the header block, a header-shaped line carries a
+#                                                      decision label, or a Critical finding heading stands while
+#                                                      Counts says Critical 0
+#   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern,
+#                                                      ls-remote or the fetch fails, a remote tip is not the
+#                                                      loader's commit, or a commit is missing after the fetch
 #   diff changed                                       the recomputed diff fingerprint differs from the recorded one
 #   assignment changed / no recorded assignment        the assignment fingerprint differs, or the review has none
 #   new reviewer feedback                              a trusted, marker-less comment newer than the review exists
@@ -137,6 +160,12 @@ source "$HERE/cr-header.sh"
 CHECK_HEADER="$HERE/check-cr-header.sh"
 GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)
 
+# gate_lock_is_stale and gate_holder_text: the one stale-holder probe, shared with the gate lock.
+# shellcheck source=gate-record.sh
+source "$HERE/gate-record.sh"
+# state_path_problem: the one guard for a path a helper writes under the run directory.
+# shellcheck source=state-path.sh
+source "$HERE/state-path.sh"
 # jira_actor_account_id comes from the one shared definition of the acli actor.
 # shellcheck source=../code-review-jira/scripts/jira-actor.sh
 source "$HERE/../code-review-jira/scripts/jira-actor.sh"
@@ -157,9 +186,14 @@ KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed
 KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
   'Review scope' 'Last updated')
+# The labels a carried review's meaning depends on. After the header block, a header-shaped line with one of them,
+# in any letter case, makes the review ambiguous, so the round runs.
+DECISION_LABELS='|status|counts|merge verdict|security assessment|mode|reviewed revision|reviewed diff fingerprint|'
+DECISION_LABELS+='reviewed assignment fingerprint|review scope|'
 
 TMP=''
-RUN_REF=''
+RUN_DIR=''
+SCRATCH=''
 REASONS=()
 READS=()
 
@@ -189,13 +223,25 @@ new_tmp() {
   trap cleanup EXIT
 }
 
-# cleanup — remove the temporary directory and the two run-private refs, if a fetch left them.
+# cleanup — remove the temporary directory and the run directory of the fetch, if one exists.
 cleanup() {
-  if [[ -n "$RUN_REF" ]]; then
-    "${GIT[@]}" update-ref -d "$RUN_REF/head" >/dev/null 2>&1 || true
-    "${GIT[@]}" update-ref -d "$RUN_REF/base" >/dev/null 2>&1 || true
-  fi
+  [[ -z "$RUN_DIR" ]] || rm -rf -- "$RUN_DIR"
   [[ -z "$TMP" ]] || rm -rf "$TMP"
+}
+
+# sweep_run_dirs — remove every run directory a killed decide left in --scratch: its holder is stale by
+# gate_lock_is_stale, or it has no holder and is older than one minute (killed between mkdir and the holder).
+sweep_run_dirs() {
+  local dir
+  for dir in "$SCRATCH"/run.*; do
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    if [[ -f "$dir/holder" ]]; then
+      gate_lock_is_stale "$dir" || continue
+    else
+      [[ -n "$(find "$dir" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]] || continue
+    fi
+    rm -rf -- "$dir"
+  done
 }
 
 sha256() {
@@ -309,21 +355,28 @@ assignment_items() {
   jq -s -S -c '{schema: 1, items: (unique_by([.kind, .id]) | sort_by(.kind, .id))}' "$TMP/items.jsonl" >"$TMP/items.json"
 }
 
-# diff_fingerprint <head-sha> <base-branch> <base-sha> <pr-number> <run-ref> — the recomputed effective-diff
-# fingerprint, or exit 1. One fetch writes the pull request head and the base branch into <run-ref>/head and
-# <run-ref>/base; both must equal the loader's commits, and both refs are deleted before the diff runs.
+# diff_fingerprint <head-sha> <base-branch> <base-sha> <pr-number> — the recomputed effective-diff fingerprint, or
+# exit 1. ls-remote proves the two remote tips; the fetch writes both commits into the run directory only.
 diff_fingerprint() {
-  local head="$1" base_branch="$2" base_oid="$3" number="$4" ref="$5" fetched base fp
+  local head="$1" base_branch="$2" base_oid="$3" number="$4" tips objects common fp
   "${GIT[@]}" check-ref-format "refs/heads/$base_branch" >/dev/null 2>&1 || return 1
-  "${GIT[@]}" check-ref-format "$ref/head" >/dev/null 2>&1 || return 1
-  "${GIT[@]}" fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap= \
-    origin "+refs/pull/$number/head:$ref/head" "+refs/heads/$base_branch:$ref/base" >/dev/null 2>&1 || return 1
-  fetched="$("${GIT[@]}" rev-parse --verify --quiet "$ref/head^{commit}" 2>/dev/null)" || return 1
-  base="$("${GIT[@]}" rev-parse --verify --quiet "$ref/base^{commit}" 2>/dev/null)" || return 1
-  "${GIT[@]}" update-ref -d "$ref/head" >/dev/null 2>&1 || return 1
-  "${GIT[@]}" update-ref -d "$ref/base" >/dev/null 2>&1 || return 1
-  [[ "$fetched" == "$head" && "$base" == "$base_oid" ]] || return 1
-  fp="$("${GIT[@]}" diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base...$head" \
+  tips="$(GIT_TERMINAL_PROMPT=0 "${GIT[@]}" ls-remote origin "refs/pull/$number/head" "refs/heads/$base_branch" 2>/dev/null)" || return 1
+  [[ "$tips" == "$head"$'\t'"refs/pull/$number/head"$'\n'"$base_oid"$'\t'"refs/heads/$base_branch" \
+    || "$tips" == "$base_oid"$'\t'"refs/heads/$base_branch"$'\n'"$head"$'\t'"refs/pull/$number/head" ]] || return 1
+  common="$("${GIT[@]}" rev-parse --git-common-dir 2>/dev/null)" && common="$(cd "$common" && pwd -P)" || return 1
+  RUN_DIR="$(mktemp -d "$SCRATCH/run.XXXXXXXX")" || return 1
+  gate_holder_text >"$RUN_DIR/holder"
+  objects="$RUN_DIR/objects"
+  mkdir "$objects" || return 1
+  GIT_TERMINAL_PROMPT=0 GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects" \
+    "${GIT[@]}" fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap= \
+    origin "refs/pull/$number/head" "refs/heads/$base_branch" >/dev/null 2>&1 || return 1
+  GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects" \
+    "${GIT[@]}" cat-file -e "$head^{commit}" 2>/dev/null || return 1
+  GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects" \
+    "${GIT[@]}" cat-file -e "$base_oid^{commit}" 2>/dev/null || return 1
+  fp="$(GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects" \
+    "${GIT[@]}" diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base_oid...$head" \
     | "${GIT[@]}" patch-id --verbatim | cut -d' ' -f1)" || return 1
   [[ "$fp" =~ $SHA_SHAPE ]] || return 1
   printf '%s' "$fp"
@@ -343,6 +396,7 @@ parse_mode_args() {
     --pr-url) [[ $# -ge 2 ]] || die_usage '--pr-url needs a value'; PR_URL="$2"; shift 2 ;;
     --source) [[ $# -ge 2 ]] || die_usage '--source needs a value'; SOURCE="$2"; shift 2 ;;
     --fresh) [[ "$mode" == decide ]] || die_usage '--fresh belongs to decide'; FRESH=1; shift ;;
+    --scratch) [[ "$mode" == decide && $# -ge 2 ]] || die_usage '--scratch belongs to decide and needs a value'; SCRATCH="$2"; shift 2 ;;
     --comment) [[ "$mode" == answer && $# -ge 2 ]] || die_usage '--comment belongs to answer and needs a value'; COMMENT="$2"; shift 2 ;;
     --after) [[ "$mode" == answer && $# -ge 2 ]] || die_usage '--after belongs to answer and needs a value'; AFTER="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
@@ -353,6 +407,13 @@ parse_mode_args() {
   [[ "$mode" != answer || -n "$COMMENT" ]] || die_usage 'answer needs --comment'
   [[ "$mode" != answer || -n "$AFTER" ]] || die_usage 'answer needs --after: the time of the review that first reported the finding'
   [[ -z "$AFTER" || "$AFTER" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || die_usage '--after must be an ISO-8601 UTC time'
+  if [[ "$mode" == decide ]]; then
+    local problem
+    [[ -n "$SCRATCH" ]] || die_usage 'decide needs --scratch: a directory under the run directory'
+    SCRATCH="${SCRATCH%/}"
+    problem="$(state_path_problem "$SCRATCH/run.probe" create)" || die_usage "--scratch: $problem"
+    mkdir -p -- "$SCRATCH" || die_usage '--scratch cannot be created'
+  fi
 }
 
 cmd_decide() {
@@ -398,26 +459,12 @@ cmd_decide() {
     --args ${REASONS[@]+"${REASONS[@]}"} "|reads|" ${READS[@]+"${READS[@]}"}
 }
 
-# names_mode <line> — true when the line names a mode or HOTFIX, in any letter case. "Moderate" is not a mode.
-names_mode() {
-  local LC_ALL=C lower
-  lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-  [[ "$lower" =~ (^|[^a-z])mode([^a-z]|$) || "$lower" == *hotfix* ]]
-}
-
 # read_review_header — the header checks of the newest trusted review (step 3 of the header). Sets revision,
 # recorded_fp, and recorded_afp only from canonical lines. Every check runs; none of them stops the others.
 read_review_header() {
-  local line label value seen='|' counts='' verdict='' i=0 required
+  local label value seen='|' counts='' verdict='' i=0 required lower critical=''
   jq -j '.body' "$TMP/review.json" >"$TMP/review.md"
   cr_header_canonical <"$TMP/review.md"
-
-  for line in ${CR_CANON_LINES[@]+"${CR_CANON_LINES[@]}"}; do
-    if names_mode "$line"; then
-      reason 'narrowed review'
-      break
-    fi
-  done
   [[ ${#CR_CANON_REJECTED[@]} -eq 0 ]] || reason 'header invalid'
 
   for label in ${CR_CANON_LABELS[@]+"${CR_CANON_LABELS[@]}"}; do
@@ -428,6 +475,7 @@ read_review_header() {
       continue
     fi
     seen+="$label|"
+    [[ "$label" != 'Mode' ]] || reason 'narrowed review'
     case "$label" in
     'Counts') counts="$value" ;;
     'Merge verdict') verdict="$value" ;;
@@ -445,7 +493,7 @@ read_review_header() {
   if [[ ! "$counts" =~ $COUNTS_SHAPE ]]; then
     reason 'header invalid'
   else
-    local critical="${BASH_REMATCH[1]}"
+    critical="${BASH_REMATCH[1]}"
     [[ ! "$verdict" =~ $VERDICT_SHAPE || "${BASH_REMATCH[3]}" == "$critical" ]] || reason 'header invalid'
   fi
   [[ "$revision" =~ $SHA_SHAPE && "$recorded_fp" =~ $SHA_SHAPE ]] || reason 'header invalid'
@@ -454,13 +502,27 @@ read_review_header() {
   [[ "$recorded_fp" =~ $SHA_SHAPE ]] || recorded_fp=''
   [[ "$recorded_afp" =~ $SHA256_SHAPE ]] || recorded_afp=''
 
+  # The rest of the body, through the lenient parser and the same block boundary.
+  cr_header_parse <"$TMP/review.md"
+  i=0
+  for label in ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"}; do
+    if [[ "${CR_HEADER_BLOCK[i]}" -eq 0 ]]; then
+      lower="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]')"
+      lower="${lower#"${lower%%[![:space:]]*}"}"
+      lower="${lower%"${lower##*[![:space:]]}"}"
+      [[ "$DECISION_LABELS" != *"|$lower|"* ]] || reason 'header invalid'
+    fi
+    i=$((i + 1))
+  done
+  [[ "$CR_HEADER_CRITICAL_HEADINGS" -eq 0 || "$critical" != 0 ]] || reason 'header invalid'
+
   "$CHECK_HEADER" --file "$TMP/review.md" >/dev/null 2>&1 || reason 'security assessment missing'
   "$EXTRACT" --header --input "$TMP/review.md" >/dev/null 2>&1 || reason 'newest review unusable: report unreadable'
 }
 
 # check_head — recompute the effective-diff fingerprint from the loader's head and compare it. Sets current_fp.
 check_head() {
-  local head base base_oid number run
+  local head base base_oid number
   head="$(jq -r '.headRefOid // ""' "$TMP/pr.json")"
   base="$(jq -r '.baseRefName // ""' "$TMP/pr.json")"
   base_oid="$(jq -r '.baseRefOid // ""' "$TMP/pr.json")"
@@ -470,10 +532,10 @@ check_head() {
     reason 'head unverified'
     return 0
   fi
-  run="$(printf '%s' "${TMP##*/}" | LC_ALL=C tr -cd 'A-Za-z0-9_-')"
-  RUN_REF="refs/ai-olympus/review-carry-forward/run-$run"
+  sweep_run_dirs
+  read_done "git ls-remote origin refs/pull/$number/head refs/heads/$base"
   read_done "git fetch origin refs/pull/$number/head refs/heads/$base"
-  if ! current_fp="$(diff_fingerprint "$head" "$base" "$base_oid" "$number" "$RUN_REF")"; then
+  if ! diff_fingerprint "$head" "$base" "$base_oid" "$number" >"$TMP/fp" || ! current_fp="$(cat "$TMP/fp")"; then
     current_fp=''
     reason 'head unverified'
     return 0
@@ -596,7 +658,7 @@ self_test() {
     local label="$1" cond="$2"
     shift 3
     set +e
-    out="$(cd "$work" && cmd_decide "$@" 2>&1)"
+    out="$(cd "$work" && cmd_decide "$@" --scratch .claude/run/review-carry-forward 2>&1)"
     rc=$?
     set -e
     expect "$label" "$([[ "$rc" -eq 0 ]] && jq -e "$cond" <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
@@ -637,6 +699,7 @@ self_test() {
   "${g[@]}" -C "$work" remote add origin "$origin"
   "${g[@]}" -C "$work" push -q origin main "$head:refs/pull/7/head" 2>/dev/null
   "${g[@]}" -C "$work" checkout -q main
+  mkdir -p "$work/.claude/run"
 
   # set_head <sha> — point the pull request ref of the origin at <sha>.
   set_head() {
@@ -711,7 +774,8 @@ EOF
   issue_fixture
   jira_fixture
   local fp afp jafp
-  fp="$(cd "$work" && diff_fingerprint "$head" main "$base_oid" 7 refs/ai-olympus/review-carry-forward/self-test)"
+  fp="$(cd "$work" && SCRATCH=.claude/run/review-carry-forward && mkdir -p "$SCRATCH" && trap cleanup EXIT \
+    && diff_fingerprint "$head" main "$base_oid" 7)"
   pr_fixture "$head" /dev/null
   afp="$(cd "$work" && cmd_assignment_fingerprint --pr-url "$pr_url")"
   afp="$(jq -r '.assignment_fingerprint' <<<"$afp")"
@@ -743,10 +807,10 @@ EOF
   decide_case 'an unchanged head and assignment carry the review forward' "$CF and .review_url == \"$pr_url#issuecomment-1\"
     and .current_fingerprint == .recorded_fingerprint and .current_assignment == .recorded_assignment" -- --pr-url "$pr_url"
   expect 'every outbound read is named once for the audit ledger' "$(jq -e --arg pr "$pr_url" --arg issue "$issue_url" '
-      .reads == ["github loader: \($pr)", "git fetch origin refs/pull/7/head refs/heads/main",
-        "github loader: \($issue)"]' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
-  out="$("${g[@]}" -C "$work" for-each-ref refs/ai-olympus)"
-  expect 'the fetch leaves no run-private ref and writes no FETCH_HEAD' \
+      .reads == ["github loader: \($pr)", "git ls-remote origin refs/pull/7/head refs/heads/main",
+        "git fetch origin refs/pull/7/head refs/heads/main", "github loader: \($issue)"]' <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  out="$(ls -A "$work/.claude/run/review-carry-forward"; "${g[@]}" -C "$work" for-each-ref --format='%(refname)' | grep -v -e '^refs/heads/' -e '^refs/remotes/origin/' || true)"
+  expect 'the fetch leaves no run directory, no extra ref, and no FETCH_HEAD' \
     "$([[ -z "$out" && ! -e "$work/.git/FETCH_HEAD" ]] && echo 0 || echo 1)"
   decide_case 'the closed issue passed as --source carries the review forward too' "$CF" -- --pr-url "$pr_url" --source "$issue_url"
   decide_case 'a fresh review the user asked for runs the round and says the head is unchanged' \
@@ -836,14 +900,13 @@ EOF
     review "$head" "$fp" "$afp" | LC_ALL=C awk "$3" >"$fx/h.md"
     header_case "$1" "$2" "$fx/h.md"
   }
-  local HI NR_
+  local HI
   HI="$(round_with 'header invalid')"
-  NR_="$(round_with 'narrowed review' 'header invalid')"
   shape_case 'shape: a header line without the bold runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:\*\*/, "Counts:") } { print }'
-  shape_case 'shape: a colon outside the bold names a mode and runs the round' "$NR_" \
+  shape_case 'shape: a colon outside the bold names a mode and runs the round' "$HI" \
     '/^\*\*Status:\*\*/ { print "**Mode**: HOTFIX \342\200\224 coverage waived" } { print }'
-  shape_case 'shape: a mode under another label runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "**Review mode:** HOTFIX" } { print }'
-  shape_case 'shape: a mode in another letter case runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "**MODE:** hotfix" } { print }'
+  shape_case 'shape: a mode under another label runs the round' "$HI" '/^\*\*Status:\*\*/ { print "**Review mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode in another letter case runs the round' "$HI" '/^\*\*Status:\*\*/ { print "**MODE:** hotfix" } { print }'
   shape_case 'shape: a label in another letter case runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:/, "**counts:") } { print }'
   shape_case 'shape: extra whitespace after the label runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/:\*\* /, ":**  ") } { print }'
   shape_case 'shape: trailing whitespace runs the round' "$HI" '/^\*\*Status:\*\*/ { $0 = $0 " " } { print }'
@@ -851,9 +914,9 @@ EOF
   shape_case 'shape: a duplicated label runs the round' "$HI" '/^\*\*Status:\*\*/ { print } { print }'
   shape_case 'shape: a header line inside a fence runs the round' "$HI" \
     '/^\*\*Security assessment:\*\*/ { print "```text"; print; print "```"; next } { print }'
-  shape_case 'shape: a mode inside a blockquote runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "> **Mode:** HOTFIX" } { print }'
-  shape_case 'shape: a mode inside a list item runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "- **Mode:** HOTFIX" } { print }'
-  shape_case 'shape: a mode inside an HTML comment runs the round' "$NR_" '/^\*\*Status:\*\*/ { print "<!-- **Mode:** HOTFIX -->" } { print }'
+  shape_case 'shape: a mode inside a blockquote runs the round' "$HI" '/^\*\*Status:\*\*/ { print "> **Mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode inside a list item runs the round' "$HI" '/^\*\*Status:\*\*/ { print "- **Mode:** HOTFIX" } { print }'
+  shape_case 'shape: a mode inside an HTML comment runs the round' "$HI" '/^\*\*Status:\*\*/ { print "<!-- **Mode:** HOTFIX -->" } { print }'
   shape_case 'shape: a look-alike colon runs the round' "$HI" '/^\*\*Counts:\*\*/ { sub(/^\*\*Counts:/, "**Counts\357\274\232") } { print }'
   shape_case 'shape: a look-alike middle dot in Counts runs the round' "$HI" \
     '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical 0 \342\200\242 Moderate 0" } { print }'
@@ -868,6 +931,55 @@ EOF
     '/^\*\*Counts:\*\*/ { $0 = "**Counts:** Critical 3 \302\267 Moderate 0" } { print }'
   shape_case 'shape: a missing Review scope line runs the round' "$(round_for 'header invalid')" '!/^\*\*Review scope:\*\*/ { print }'
   shape_case 'shape: a second title runs the round' "$HI" '/^# Code Review/ { print; print "# Another title"; next } { print }'
+
+  # One block boundary: a line the lenient parser counts as a header line is a line the strict view reads.
+  shape_case 'block: a Mode line between --- and the first section heading marks a narrowed review' \
+    "$(round_for 'narrowed review')" '/^## TL;DR/ { print "---"; print "**Mode:** HOTFIX"; print } !/^## TL;DR/ { print }'
+  shape_case 'block: a second Counts line between --- and the first section heading runs the round' "$HI" \
+    '/^## TL;DR/ { print "---"; print "**Counts:** Critical 2 \302\267 Moderate 0"; print } !/^## TL;DR/ { print }'
+  shape_case 'block: a setext underline under a header line runs the round' "$HI" \
+    '{ print } /^\*\*Last updated:\*\*/ { print "---" }'
+  shape_case 'block: a section heading inside a fence does not end the block' "$HI" \
+    '/^## TL;DR/ { print "```"; print "## Inside"; print "```"; print "**Mode:** HOTFIX"; print } !/^## TL;DR/ { print }'
+  # The body after the block.
+  shape_case 'body: a Counts line after the first section heading runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "**Counts:** Critical 2 \302\267 Moderate 0" }'
+  shape_case 'body: a Mode sentence at the start of a line after the block runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "Mode: HOTFIX, coverage waived" }'
+  shape_case 'body: a Critical finding heading while Counts says Critical 0 runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "## Findings"; print "### \360\237\224\264 Critical 1. Unchecked input" }'
+  shape_case 'body: a Critical finding heading inside a fence changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "```"; print "### Critical 1. quoted"; print "```" }'
+  # A value is never searched for words.
+  shape_case 'value: mode and HOTFIX inside a Not verified value carry forward' "$CF" \
+    '{ print } /^\*\*Review scope:\*\*/ { print "**Not verified:** GNU mktemp mode; the HOTFIX path was not exercised" }'
+
+  # The run directory: a leftover of a killed run is removed by the next decide, a live one is kept.
+  local scratch="$work/.claude/run/review-carry-forward" dead_pid
+  mkdir -p "$scratch/run.killed" "$scratch/run.live"
+  ( exit 0 ) & dead_pid=$!
+  wait "$dead_pid" 2>/dev/null || true
+  printf 'PID=%s\nSTARTED_EPOCH=%s\n' "$dead_pid" "$(date +%s)" >"$scratch/run.killed/holder"
+  printf 'PID=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date +%s)" >"$scratch/run.live/holder"
+  pr_fixture "$head" "$fx/c-good.jsonl"
+  decide_case 'a decide beside a leftover run directory carries forward' "$CF" -- --pr-url "$pr_url"
+  out="$(ls -A "$scratch")"
+  expect 'the next decide removes the run directory of a killed run and keeps a live one' \
+    "$([[ "$out" == 'run.live' ]] && echo 0 || echo 1)"
+  rm -rf "$scratch/run.live"
+  # Six decides at the same time.
+  local k pids=()
+  for k in 1 2 3 4 5 6; do
+    ( cd "$work" && cmd_decide --pr-url "$pr_url" --scratch .claude/run/review-carry-forward >"$tmp/concurrent.$k" 2>&1 ) &
+    pids[${#pids[@]}]=$!
+  done
+  for k in "${pids[@]}"; do wait "$k" || true; done
+  out="$(cat "$tmp"/concurrent.*)"
+  expect 'six concurrent decides all carry forward and leave no run directory' \
+    "$([[ "$(jq -s '[.[] | select(.decision == "carry-forward")] | length' "$tmp"/concurrent.* 2>/dev/null)" == 6 \
+      && -z "$(ls -A "$scratch")" ]] && echo 0 || echo 1)"
+  mode_case 'a --scratch outside the run directory is a usage error' 1 -- "$HERE/$PROG" decide --pr-url "$pr_url" --scratch /tmp/rcf
+  mode_case 'decide without --scratch is a usage error' 1 -- "$HERE/$PROG" decide --pr-url "$pr_url"
 
   # The context: a failed pull request load, a failed closing-issue load, a source this version cannot fingerprint.
   rm -f "$fx/pr.json"
