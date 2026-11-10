@@ -46,7 +46,7 @@ The engine never decides whether the NoSQL part runs. `pgsql` runs the PostgreSQ
 
 ## Report shape
 
-The report follows `skills/mysql-problem-solver/templates/cr-report.md` — the template owns the shape, for the `TL;DR` and for the items of every part. A report with a critical item opens with the `TL;DR`. A report with no critical item keeps its one line and carries no `TL;DR`. A part that applies and finds nothing critical contributes its one line instead of items. It is in English, or in the manifest's `language.github` when it is set (`@rules/general/general.md` *Project manifest*).
+The report follows `skills/mysql-problem-solver/templates/cr-report.md` — the template owns the shape, for the `TL;DR` and for the items of every part, and `skills/mysql-problem-solver/SKILL.md` `MODE=cr-report` owns when the report carries a `TL;DR`. A part that applies and finds nothing critical contributes its one line instead of items. It is in English, or in the manifest's `language.github` when it is set (`@rules/general/general.md` *Project manifest*).
 
 ## Bash boundary
 

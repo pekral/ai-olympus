@@ -8,7 +8,7 @@ Stores: <mysql | mariadb | pgsql | unresolved — the review's `Not verified:` e
 - **1. <the proposal in one sentence>.**
   - **Facts:** <fact> (<source>); <fact> (<source>)
   - **If left as it is:** <the consequence for this query on this path>
-  - **Plan today:** <the reading of the `EXPLAIN` row, one sentence per column>
+  - **Plan today:** <the reading of the `EXPLAIN` output, one sentence per column, node, or detail line>
   - **Plan proposed:** <the same reading for the proposed query>
 - **Not verified:** <statement> — settled by <the step that settles it>
 

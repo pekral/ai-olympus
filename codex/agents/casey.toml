@@ -1,5 +1,5 @@
 name = "casey"
-description = "Read-only advisory database analyst that reads a reviewed diff for MySQL / MariaDB queries, PostgreSQL query plans from a local instance, and NoSQL access, and reports proposed optimizations of critical problems without gating the merge. The report opens with a fact-based TL;DR and reads the EXPLAIN result in plain language."
+description = "Read-only advisory database analyst that reads a reviewed diff for MySQL / MariaDB queries, PostgreSQL query plans from a local instance, and NoSQL access, and reports proposed optimizations of critical problems without gating the merge. Its report follows mysql-problem-solver MODE=cr-report, including the fact-based TL;DR and the plain-language reading of the EXPLAIN result."
 model = "gpt-6-luna"
 model_reasoning_effort = "high"
 
