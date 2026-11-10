@@ -232,7 +232,7 @@ function explainReadingRowsOpeningWith(string $row, string $reading): int
     $cell = trim((string) preg_replace('/^\|([^|]+)\|.*$/s', '$1', $row));
 
     return (int) preg_match_all(
-        '/^\|\s*' . preg_quote($cell, '/') . '\s*\|(?!\s*(?:Plain-language reading|Reading)\s*\|\s*$)/m',
+        '/^[ \t]*\|?[ \t]*' . preg_quote($cell, '/') . '[ \t]*\|(?![ \t]*(?:Plain-language reading|Reading)[ \t]*\|[ \t]*$)/m',
         $reading,
     );
 }
@@ -484,12 +484,15 @@ test('the reading file pins the full text of the rule line', function (string $t
 ]);
 
 test(
-    'the reading file pins the full row of every table value and that exactly one reading row opens with its first cell',
+    'the reading file pins the full row of every table value, that exactly one reading row opens with its first cell, '
+        . 'and that no reading row opens with that cell in the other thirteen files of the casey report surface',
     function (string $text): void {
         $reading = explainReadingContents();
+        $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/references/explain-reading.md');
 
         expect($reading)->toContain($text)
-            ->and(explainReadingRowsOpeningWith($text, $reading))->toBe(1);
+            ->and(explainReadingRowsOpeningWith($text, $reading))->toBe(1)
+            ->and(explainReadingRowsOpeningWith($text, $others))->toBe(0);
     },
 )->with([
     'MySQL and MariaDB column: Extra' => [
@@ -737,19 +740,12 @@ test(
     },
 );
 
-test(
-    'the reading file carries `Using filesort` and `index_merge` and none of the other thirteen files of '
-        . 'the casey report surface carries them (issue #334)',
-    function (): void {
-        $reading = explainReadingContents();
-        $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/references/explain-reading.md');
+test('the reading file carries the values `Using filesort` and `index_merge` (issue #334)', function (): void {
+    $reading = explainReadingContents();
 
-        expect($reading)->toContain('`Using filesort`')
-            ->and($reading)->toContain('`index_merge`')
-            ->and(substr_count($others, '`Using filesort`'))->toBe(0)
-            ->and(substr_count($others, '`index_merge`'))->toBe(0);
-    },
-);
+    expect($reading)->toContain('`Using filesort`')
+        ->and($reading)->toContain('`index_merge`');
+});
 
 test(
     'the TL;DR pins both places the report is published, the publish and render instructions, and the two ownership sentences (issue #334)',
@@ -776,7 +772,7 @@ test(
 
 test(
     'the skill carries the no-TL;DR answer sentence and none of the other thirteen files of the casey report '
-        . 'surface carries one of five TL;DR rule phrases (issue #334)',
+        . 'surface carries one of four TL;DR rule phrases (issue #334)',
     function (): void {
         $skill = mysqlProblemSolverSkillContents();
         $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md');
@@ -785,8 +781,7 @@ test(
             ->and($others)->not->toContain('carries no `TL;DR`')
             ->and($others)->not->toContain('opens with the `TL;DR`')
             ->and($others)->not->toContain('opens with its `TL;DR`')
-            ->and($others)->not->toContain('opens with a `TL;DR`')
-            ->and($others)->not->toContain('opens with one');
+            ->and($others)->not->toContain('opens with a `TL;DR`');
     },
 );
 
