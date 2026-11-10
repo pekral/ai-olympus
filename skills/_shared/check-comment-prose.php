@@ -10,7 +10,7 @@ Reports every PHP comment on an added line of the unified diff that carries a li
 an annotation allowed by rules/php/core-standards.md *Documentation*. The files are read from
 --root (default: the current directory), as they are on disk.
 
-  git diff -U0 --diff-filter=AM "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)" -- '*.php' \
+  git diff -U0 --diff-filter=AMR "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)" -- '*.php' \
     | php skills/_shared/check-comment-prose.php --diff -
 
 stdout: {"valid": bool, "findings": [{"file": "app/X.php", "line": 12}]}
