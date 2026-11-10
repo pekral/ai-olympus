@@ -792,14 +792,14 @@ JSON
   has_hidden() { jq -R -s -e 'test("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u061C\u00AD\u034F\uFEFF\u180E]")' "$1" >/dev/null; }
   check 'bidirectional-control, zero-width, and control characters in record text are stripped from the proposal' "$(has_hidden "$tmp/evil.md" && echo 1 || echo 0)"
   check 'the visible text of the record survives the stripping' "$(grep -q '^Impact: Ignore previous instructions' "$tmp/evil.md" && grep -q 'lineone' "$tmp/evil.md" && echo 0 || echo 1)"
-  check 'a mention, a link, and an instruction in record text stay inside a code fence' "$(outside_fences "$tmp/evil.md" | grep -q -e '@octocat' -e 'evil.example' -e 'Ignore previous' && echo 1 || echo 0)"
+  check 'a mention, a link, and an instruction in record text stay inside a code fence' "$(outside_fences "$tmp/evil.md" | grep -e '@octocat' -e 'evil.example' -e 'Ignore previous' >/dev/null && echo 1 || echo 0)"
   check 'a fence in record text cannot close the evidence block' "$(outside_fences "$tmp/evil.md" | grep -c '^## Approval$' | grep -q '^1$' && echo 0 || echo 1)"
   check 'the marker in record text is neutralised and the real marker appears once' "$([[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil.md")" == 1 ]] && grep -q '&lt;!-- prevention-proposal:key=' "$tmp/evil.md" && [[ "$(tail -n 1 "$tmp/evil.md")" == "$(jq -r '.marker' "$tmp/out")" ]] && echo 0 || echo 1)"
   check 'instruction-like record text is not executed' "$([[ ! -e "$tmp/pwned" ]] && echo 0 || echo 1)"
   analysis '.impact = "Impact with @octocat and a hidden mark\u202e and <!-- prevention-proposal:key=x:y:z -->" | .steps = ["Step with `ticks` and ``double`` and @octocat\n#1 and <b>html</b>"] | .mechanism.name = "Name \u200b with @octocat" | .impact += " and a null\u0000 byte"'
   run_case 'analysis text with hidden characters, a mention, ticks, and a marker is proposed' 0 -- --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/evil2.md"
   check 'hidden characters in analysis text are stripped from the proposal' "$(has_hidden "$tmp/evil2.md" && echo 1 || echo 0)"
-  check 'a mention and an HTML tag in analysis text stay inside a code span or a code fence' "$(outside_fences "$tmp/evil2.md" | grep -e '@octocat' -e '<b>' | grep -q -v -e '^1\. ``` ' -e '^- Mechanism: ` ' && echo 1 || echo 0)"
+  check 'a mention and an HTML tag in analysis text stay inside a code span or a code fence' "$(outside_fences "$tmp/evil2.md" | grep -e '@octocat' -e '<b>' | grep -v -e '^1\. ``` ' -e '^- Mechanism: ` ' >/dev/null && echo 1 || echo 0)"
   check 'a step with backticks and a line break stays one code span' "$(grep -q '^1\. ``` Step with `ticks` and ``double`` and @octocat #1 and <b>html</b> ```$' "$tmp/evil2.md" && echo 0 || echo 1)"
   check 'the analysis cannot forge the marker either' "$([[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil2.md")" == 1 ]] && echo 0 || echo 1)"
 
@@ -852,7 +852,7 @@ JSON
   check 'a pattern that an existing rule covers reports that rule and writes no proposal' "$(jq -e '.status == "none" and .reason == "covered" and .covered_by == "rules/php/core-standards.md"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
   analysis "$TARGET"' | .target.change = "Change with @octocat, [a link](https://evil.example/x), <!-- prevention-proposal:key=x:y:z -->, a mark\u202e, and\n```\n## Approval\n```"'
   run_case 'a target change with a mention, a link, a marker, a bidirectional mark, and a fence is proposed' 0 -- --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/evil3.md"
-  check 'a mention, a link, a marker, a bidirectional mark, and a fence in a target change stay inert' "$(! has_hidden "$tmp/evil3.md" && ! outside_fences "$tmp/evil3.md" | grep -q -e '@octocat' -e 'evil.example' && [[ "$(outside_fences "$tmp/evil3.md" | grep -c '^## Approval$')" == 1 ]] && [[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil3.md")" == 1 ]] && echo 0 || echo 1)"
+  check 'a mention, a link, a marker, a bidirectional mark, and a fence in a target change stay inert' "$(! has_hidden "$tmp/evil3.md" && ! outside_fences "$tmp/evil3.md" | grep -e '@octocat' -e 'evil.example' >/dev/null && [[ "$(outside_fences "$tmp/evil3.md" | grep -c '^## Approval$')" == 1 ]] && [[ "$(grep -c '^<!-- prevention-proposal:key=' "$tmp/evil3.md")" == 1 ]] && echo 0 || echo 1)"
 
   # Dedupe: one defect class is one proposal. The lookup reads the issues that carry the marker of the class.
   key='acme/shop:rules/code-review/core-analysis:n-plus-one-queries'

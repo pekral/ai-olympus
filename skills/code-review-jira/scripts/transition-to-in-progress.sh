@@ -205,7 +205,7 @@ SITE="$(printf '%s' "$ISSUE_JSON" | jq -r '.url // empty' | sed -nE 's#https?://
 # Fall back to the authenticated acli site when the loaded JSON carries no URL,
 # so the emitted link never degrades to a malformed https:///browse/<KEY>.
 if [[ -z "$SITE" ]]; then
-  SITE="$(acli jira auth status 2>/dev/null | awk -F': *' 'tolower($0) ~ /site:/ { gsub(/[[:space:]]+$/, "", $2); print $2; exit }')"
+  SITE="$(acli jira auth status 2>/dev/null | awk -F': *' 'tolower($0) ~ /site:/ && !seen++ { gsub(/[[:space:]]+$/, "", $2); print $2 }')"
 fi
 
 # Idempotent no-op: already in the target status.
@@ -303,7 +303,7 @@ if [[ "$TRANSITION_OK" == true ]]; then
   exit 5
 fi
 
-if printf '%s' "$TRANSITION_ERR" | grep -qiE 'not (found|available|valid)|no transition|invalid|does not exist'; then
+if grep -qiE 'not (found|available|valid)|no transition|invalid|does not exist' <<<"$TRANSITION_ERR"; then
   echo "transition-to-in-progress.sh: status '$TARGET' is not available for $KEY (current: ${CURRENT_STATUS:-?})." >&2
   echo "transition-to-in-progress.sh: discover the real in-progress status via JIRA MCP (available next transitions), then re-run with it as STATUS, or ask a human." >&2
   exit 5

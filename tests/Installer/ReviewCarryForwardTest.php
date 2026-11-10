@@ -416,7 +416,7 @@ test('a run directory gets its holder by rename, the shared probe reads a holder
     expect($script)->not->toContain('gate_holder_text >"$RUN_DIR/holder"' . "\n");
     expect($record)
         ->toContain('text="$(cat -- "$holder" 2>/dev/null)" || return 1')
-        ->toContain('pid="$(sed -n \'s/^PID=\\([0-9]\\{1,7\\}\\)$/\\1/p\' <<<"$text" | head -1)"');
+        ->toContain('pid="$(sed -n \'/^PID=[0-9]\\{1,7\\}$/{s/^PID=//p;q;}\' <<<"$text")"');
     expect(reviewCarryForwardSource('skills/_shared/run-gate.sh'))
         ->toContain('check \'a holder that cannot be read counts as live and the probe prints nothing\'');
 });

@@ -221,7 +221,7 @@ self_test() {
       return 0
     fi
     for needle in "$@"; do
-      if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+      if ! grep -qF -- "$needle" <<<"$out"; then
         printf 'FAIL  %-54s missing %s\n' "$label" "$needle" >&2
         missing=1
       fi
@@ -240,7 +240,7 @@ self_test() {
     printf '%s' "$json" >"$file"
     out="$("$script" --data "$file" 2>&1 || true)"
     for needle in "$@"; do
-      if printf '%s' "$out" | grep -qF -- "$needle"; then
+      if grep -qF -- "$needle" <<<"$out"; then
         printf 'FAIL  %-54s should not contain %s\n' "$label" "$needle" >&2
         failures=$((failures + 1))
         return 0

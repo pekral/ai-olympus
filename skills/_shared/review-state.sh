@@ -938,7 +938,7 @@ EOF
     run_case "a cap of $bad is evaluated" 0 -- evaluate --state "$S"
     check "a cap of $bad falls back to 3" "$(q '.max_iterations == 3')"
   done
-  check 'a refused cap is named on stderr' "$(manifest '{ "review": { "max-iterations": 0 } }'; (cd "$repo" && "$script" evaluate --state "$S" 2>&1 >/dev/null) | grep -q 'refused: review.max-iterations' && echo 0 || echo 1)"
+  check 'a refused cap is named on stderr' "$(manifest '{ "review": { "max-iterations": 0 } }'; (cd "$repo" && "$script" evaluate --state "$S" 2>&1 >/dev/null) | grep 'refused: review.max-iterations' >/dev/null && echo 0 || echo 1)"
   manifest '{ "review": { "blocking-threshold": "none" } }'
   run_case 'an unknown threshold is evaluated' 0 -- evaluate --state "$S"
   check 'an unknown threshold falls back to critical' "$(q '.blocking_threshold == "critical"')"

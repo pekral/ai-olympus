@@ -384,8 +384,8 @@ gate_lock_is_stale() {
   holder="$dir/holder"
   [[ -f "$holder" && ! -L "$holder" ]] || return 1
   text="$(cat -- "$holder" 2>/dev/null)" || return 1
-  pid="$(sed -n 's/^PID=\([0-9]\{1,7\}\)$/\1/p' <<<"$text" | head -1)"
-  started="$(sed -n 's/^STARTED_EPOCH=\([0-9]\{1,12\}\)$/\1/p' <<<"$text" | head -1)"
+  pid="$(sed -n '/^PID=[0-9]\{1,7\}$/{s/^PID=//p;q;}' <<<"$text")"
+  started="$(sed -n '/^STARTED_EPOCH=[0-9]\{1,12\}$/{s/^STARTED_EPOCH=//p;q;}' <<<"$text")"
   [[ -n "$pid" ]] || return 1
 
   if ! probe="$(LC_ALL=C kill -0 "$pid" 2>&1)"; then

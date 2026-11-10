@@ -317,12 +317,12 @@ done
 extract_key_from_url() {
   local url="$1"
   local key
-  key="$(printf '%s' "$url" | grep -oE '[?&]selectedIssue=[A-Z][A-Z0-9_]+-[0-9]+' | head -n1 | sed -E 's/^[?&]selectedIssue=//')"
+  key="$(printf '%s' "$url" | grep -oE '[?&]selectedIssue=[A-Z][A-Z0-9_]+-[0-9]+' | sed -nE '1s/^[?&]selectedIssue=//p')"
   if [[ -n "$key" ]]; then
     printf '%s' "$key"
     return 0
   fi
-  key="$(printf '%s' "$url" | grep -oE '/browse/[A-Z][A-Z0-9_]+-[0-9]+' | head -n1 | sed -E 's#^/browse/##')"
+  key="$(printf '%s' "$url" | grep -oE '/browse/[A-Z][A-Z0-9_]+-[0-9]+' | sed -nE '1s#^/browse/##p')"
   if [[ -n "$key" ]]; then
     printf '%s' "$key"
     return 0

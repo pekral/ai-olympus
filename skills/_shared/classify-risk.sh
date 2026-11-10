@@ -236,7 +236,7 @@ project_critical_paths() {
   fi
 
   if [[ "$status" -ne 0 ]]; then
-    if bash "$reader" --raw 2>/dev/null | grep -q '"critical-paths"'; then
+    if bash "$reader" --raw 2>/dev/null | grep '"critical-paths"' >/dev/null; then
       return 3
     fi
     return 2
@@ -722,7 +722,7 @@ merge_risk() {
   # The impact is the tier of the same diff, classified by the same function.
   local classification tier
   classification="$(classify --files - ${pass[@]+"${pass[@]}"} <<<"$files")" || return 1
-  tier="$(printf '%s\n' "$classification" | awk -F= '$1 == "tier" { print $2; exit }')"
+  tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$classification")"
 
   local -a verification=()
   case "$coverage" in
@@ -810,7 +810,7 @@ self_test() {
       failures=$((failures + 1))
       return 0
     fi
-    actual="$(printf '%s' "$out" | awk -F= '$1 == "tier" { print $2; exit }')"
+    actual="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$out")"
     if [[ "$actual" != "$expected" ]]; then
       printf 'FAIL  %-52s expected %s, got %s\n' "$label" "$expected" "$actual" >&2
       printf '%s\n' "$out" >&2
@@ -825,7 +825,7 @@ self_test() {
     shift 2
     local out
     out="$("$script" "$@" 2>&1 || true)"
-    if printf '%s' "$out" | grep -qF -- "$needle"; then
+    if grep -qF -- "$needle" <<<"$out"; then
       printf 'ok    %-52s %s\n' "$label" "$needle"
     else
       printf 'FAIL  %-52s missing %s\n' "$label" "$needle" >&2
@@ -1155,6 +1155,19 @@ self_test() {
   # An escape sequence in a path must not rewrite the verdict it is printed in.
   expect_line 'untrusted paths are rendered safely' 'signal=' \
     --files "$(writefiles "$(printf 'app/\033[2JEvil.php')")" --assignment "$tmp/clear.txt"
+
+  # The verdict is read while the script may still be writing, so a reader that
+  # stops at the first match must never fail the writer. The stand-in prints the
+  # real verdict first and then more bytes than a pipe buffer holds (#347).
+  local real_script="$script"
+  printf '#!/usr/bin/env bash\n%q "$@"\nprintf "%%200000s\\n" padding\n' "$real_script" >"$tmp/padded.sh"
+  chmod +x "$tmp/padded.sh"
+  script="$tmp/padded.sh"
+  expect_tier 'a verdict followed by more output than a pipe holds' FAST \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt"
+  expect_line 'a needle at the top of an output larger than a pipe' 'tier=FAST' \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt"
+  script="$real_script"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "classify-risk self-test: $failures failure(s)" >&2
