@@ -105,7 +105,7 @@
 
 ## Database report
 
-> Render the `casey` report verbatim whenever the caller passes one with the status `Database report done`. The report covers MySQL / MariaDB queries, PostgreSQL query plans, and NoSQL access. Omit the heading when `casey` returned `Not applicable` or did not run. The report is advisory: its items never enter the Counts line or any gate.
+> Render the `casey` report verbatim whenever the caller passes one with the status `Database report done`. A report with a critical item opens with its `TL;DR`, and the render keeps it. The report covers MySQL / MariaDB queries, PostgreSQL query plans, and NoSQL access. Omit the heading when `casey` returned `Not applicable` or did not run. The report is advisory: its items never enter the Counts line or any gate.
 
 {casey report}
 
