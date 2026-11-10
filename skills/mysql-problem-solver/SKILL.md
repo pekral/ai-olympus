@@ -31,11 +31,21 @@ Focus on:
 - **Default (no `MODE`)** — investigate a reported problem and answer with the full analysis report below.
 - **`MODE=cr-report`** — the code-review report the `casey` agent writes (`agents/casey.md`, `@skills/code-review/references/specialized-reviews.md` *Database report — the `casey` agent*). The review itself never runs this skill inline. In this mode the skill:
   - runs against a **locally started database only** — never a shared, staging, or production host. With no local database, it analyses statically and says so;
-  - is **read-only** — it never writes a migration, an index, a query, or a configuration change, and never runs a statement that changes data or schema. Plain `EXPLAIN` and `SHOW` only; `EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only, inside `START TRANSACTION READ ONLY; … ROLLBACK;` — never on `INSERT` / `UPDATE` / `DELETE`. A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`;
+  - is **read-only** — it never writes a migration, an index, a query, or a configuration change, and never runs a statement that changes data or schema. Plain `EXPLAIN` and `SHOW` only, plus the one bounded Telescope read that `references/tinker-testing.md` defines; `EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only, inside `START TRANSACTION READ ONLY; … ROLLBACK;` — never on `INSERT` / `UPDATE` / `DELETE`. A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`;
   - is **diff-scoped** — every item anchors to a `file:line` the diff added or modified; a pre-existing query the diff does not touch is out of scope;
   - reports **critical items only** — a full scan, `filesort`, or `temporary` on a realistically large table on a hot path, a per-row query in a loop, an N+1 on a list, a DDL that blocks writes during a deploy, or a comparable outage or data-loss risk. A non-critical observation is omitted, never downgraded into the report;
-  - gives each item its evidence (`file:line`, the reconstructed SQL, the `EXPLAIN` baseline when DB access exists, or the stated limitation when it does not) and one proposed optimization held against *Performance Non-Regression on Query Changes* in `@rules/sql/optimalize.md`;
-  - answers `No critical database item in this diff.` when nothing qualifies.
+  - gives each item its evidence (`file:line`, the SQL the application produced when Tinker or Laravel Boost ran and the SQL reconstructed from the code otherwise, the raw `EXPLAIN` baseline when DB access exists, or the stated limitation when it does not) and one proposed optimization held against *Performance Non-Regression on Query Changes* in `@rules/sql/optimalize.md`;
+  - answers `No critical database item in this diff.` when nothing qualifies. That answer carries no `TL;DR`.
+  - **tests the queries through the local application when it can.** In a Laravel project that lists `laravel/tinker`, the SQL comes from the application: the builder chain of the changed code runs through `php artisan tinker --execute`, and `toSql()` and `getBindings()` supply the statement.
+    `EXPLAIN` runs on the original query and on the proposed query, and the two plans are compared. Nothing that changes data or schema runs.
+    Every snippet starts with a guard that shows a local database target without printing an environment or configuration value, and it refuses the run when it cannot.
+    Laravel Boost and Laravel Telescope are optional helpers and are never required. `references/tinker-testing.md` owns the guard, the snippets, the Boost tools, the Telescope limits, and the fallback to the plain database client or to static analysis.
+    A project without Laravel, without a local database, or without Boost and Telescope keeps the behaviour above.
+  - **opens with a `TL;DR` that defends each proposal with facts.** Per item it states the proposal, the facts that support it, and the consequence of leaving the code as it is.
+    Every fact names its source: a `file:line`, the SQL the application produced, a value read from the output of `EXPLAIN`, `SHOW CREATE TABLE`, or `SHOW INDEX`, or a query Laravel Telescope recorded.
+    A statement with no such source goes under *Not verified* with the step that settles it (`@rules/general/general.md` *Verified statements only*).
+    The `DB access:` line names how the facts were obtained.
+  - **explains the `EXPLAIN` result in plain language when `EXPLAIN` ran.** The `TL;DR` says which table the database reads, how it reads it (the whole table, or through which index), how many rows it examines against how many it keeps, and what an extra step such as a sort or a temporary table means for this query. Where the proposal was tested, it says the same for the proposed query. The raw output stays in the item's evidence. When `EXPLAIN` did not run, one line states that the proposal rests on static analysis and gives the reason, and the report explains no plan.
 
 **In a code review this skill owns query performance and its plan, never the shape of a schema feature.** When the CR's schema-feature trigger fires on the same diff (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*), `@skills/mysql-patterns/SKILL.md` with `MODE=cr` runs in the review beside this skill's `casey` report and owns whether an upsert is one statement over a backing unique index, whether a JSON path is indexed through a generated column, whether the partition key matches the predicate, whether `sticky` survives a read-after-write path, and whether a concurrent transaction carries a deadlock retry.
 Raise one point per violation: keep index usage, rows examined, `EXPLAIN` shape, and the non-regression gate here, and never restate a schema-shape finding in your own words. The schema-pattern findings stay in the review's `## Database Analysis` section; this skill's items stay in the `casey` report.
@@ -45,7 +55,7 @@ The same division holds against the CR's latency lens. When `@skills/latency-cri
 ## Execution
 
 ### 1. Identify the Query
-- Find the actual SQL or reconstruct it from Laravel/Eloquent/query builder code
+- Find the actual SQL or reconstruct it from Laravel/Eloquent/query builder code (in `MODE=cr-report` the application produces it where `references/tinker-testing.md` applies)
 - Include filters, joins, ordering, grouping, pagination, and subqueries
 
 ### 2. Inspect Schema
@@ -56,7 +66,7 @@ The same division holds against the CR's latency lens. When `@skills/latency-cri
     - DB tools when available
 
 ### 3. Run EXPLAIN
-- If MySQL access is available, run `EXPLAIN` on the query and read its plan.
+- If MySQL access is available, run `EXPLAIN` on the query and read its plan. In `MODE=cr-report` the same applies to the proposed query, and the two plans are compared.
 
 ### 4. Diagnose the Problem
 Look for:
