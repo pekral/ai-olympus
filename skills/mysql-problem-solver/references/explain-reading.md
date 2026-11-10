@@ -97,7 +97,7 @@ A node matches a row of this table only when its node type, as printed before `o
 | `Bitmap Heap Scan` | The database sorts the row locations that its child node found into physical order and fetches those rows from the table. |
 | `Sort` | The database sorts the rows in an explicit step. |
 | `Incremental Sort` | The database sorts the rows in batches, and it can return rows before the whole result is sorted. |
-| `Hash` | The database enters the rows of its child node into an in-memory hash table, for the `Hash Join` above it. |
+| `Hash` | The database enters the rows of its child node into an in-memory hash table, for the join node above it. |
 | `Hash Join` | The database scans the other input and probes the hash table for matches to each row. |
 | `Nested Loop` | The database runs the second (inner) child once for each row of the first (outer) child. |
 | `Merge Join` | The database joins two inputs that are sorted on the join keys. |
@@ -115,7 +115,7 @@ A detail line matches a row of this table only when it starts with the row's nam
 | `Rows Removed by Filter` | The scanned rows, or the potential join pairs of a join node, that the filter condition rejected. The line appears only when the condition rejected at least one. The documentation shows it in `EXPLAIN ANALYZE` output. |
 | `Rows Removed by Index Recheck` | The candidate rows that the index returned and that a recheck of the index condition rejected. The documentation shows it in `EXPLAIN ANALYZE` output. |
 | `Sort Method` | Shown by `EXPLAIN ANALYZE`. The sort method used, including whether the sort ran in memory or on disk, and the memory or disk space it needed. |
-| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child nodes. These are not distinct buffers. `EXPLAIN ANALYZE` includes this line on its own; plain `EXPLAIN` without the `BUFFERS` option, which is the form `casey` runs, does not. |
+| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child nodes. These are not distinct buffers. On PostgreSQL 18, `EXPLAIN ANALYZE` includes this line on its own; plain `EXPLAIN` without the `BUFFERS` option, which is the form `casey` runs, does not. |
 | `Planning Time` | `EXPLAIN ANALYZE` only. The time the planner took to generate and optimize the plan, without parsing and rewriting. |
 | `Execution Time` | `EXPLAIN ANALYZE` only. The time to run the query, including executor start-up and shut-down and any triggers fired, without parsing, rewriting, and planning. |
 
