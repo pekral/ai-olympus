@@ -22,7 +22,7 @@
 #       neither holds nor reported any issue, or when acli or jq fails.
 
 jira_auth_status_field() {
-  printf '%s' "$1" | awk -F': *' -v label="$2" 'tolower($0) ~ (label ":") { gsub(/[[:space:]]+$/, "", $2); print $2; exit }'
+  awk -F': *' -v label="$2" 'tolower($0) ~ (label ":") { gsub(/[[:space:]]+$/, "", $2); print $2; exit }' <<<"$1"
 }
 
 jira_actor_digest() {
