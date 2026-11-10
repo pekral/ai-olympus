@@ -437,6 +437,17 @@ self_test() {
   check 'a lock left by a dead holder is reclaimed' \
     "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
 
+  # The probe reads a holder silently: a holder that cannot be read is inconclusive, and the probe prints nothing.
+  local probe_dir="$tmp/probe-unread" probe_err probe_code
+  mkdir -p "$probe_dir"
+  printf 'PID=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(date +%s)" >"$probe_dir/holder"
+  chmod 000 "$probe_dir/holder"
+  probe_code=0
+  probe_err="$(gate_lock_is_stale "$probe_dir" 2>&1)" || probe_code=$?
+  chmod 600 "$probe_dir/holder"
+  check 'a holder that cannot be read counts as live and the probe prints nothing' \
+    "$([[ "$probe_code" -ne 0 && -z "$probe_err" ]] && echo pass)"
+
   # --- One gate on the whole machine: the lock is shared by every worktree ------
   local worktree="$tmp/worktree" spans
   git -C "$project" worktree add -q --detach "$worktree"

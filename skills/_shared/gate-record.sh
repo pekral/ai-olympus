@@ -376,13 +376,16 @@ gate_holder_text() {
 # is gone when its PID is confirmed dead, or when the PID now belongs to a
 # process that started after the lock was written (recycled). Anything
 # inconclusive counts as a live holder: reclaiming a live run's lock would let
-# two gates corrupt one test database.
+# two gates corrupt one test database. The holder is read once and silently: a
+# holder that its run removed after the -f test, or that cannot be read, is
+# inconclusive, and the probe writes nothing to the caller's output.
 gate_lock_is_stale() {
-  local dir="${1:-$GATE_LOCK}" holder pid started probe etime elapsed now
+  local dir="${1:-$GATE_LOCK}" holder text pid started probe etime elapsed now
   holder="$dir/holder"
   [[ -f "$holder" && ! -L "$holder" ]] || return 1
-  pid="$(sed -n 's/^PID=\([0-9]\{1,7\}\)$/\1/p' "$holder" | head -1)"
-  started="$(sed -n 's/^STARTED_EPOCH=\([0-9]\{1,12\}\)$/\1/p' "$holder" | head -1)"
+  text="$(cat -- "$holder" 2>/dev/null)" || return 1
+  pid="$(sed -n 's/^PID=\([0-9]\{1,7\}\)$/\1/p' <<<"$text" | head -1)"
+  started="$(sed -n 's/^STARTED_EPOCH=\([0-9]\{1,12\}\)$/\1/p' <<<"$text" | head -1)"
   [[ -n "$pid" ]] || return 1
 
   if ! probe="$(LC_ALL=C kill -0 "$pid" 2>&1)"; then

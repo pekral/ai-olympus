@@ -114,11 +114,13 @@
 #      configured credential helper; the script never reads the remote URL or a credential.
 #      `--no-textconv` can only make this value differ from a recorded one, and a difference starts the round.
 #      What the step writes: one run directory, <scratch>/run.XXXXXXXX, holding a holder file (PID, start time) and
-#      the fetched objects. The EXIT trap removes it. No ref, no FETCH_HEAD, no remote-tracking ref, no object in
-#      the repository's own store, no maintenance. A run killed before its trap ran (SIGKILL) leaves its directory:
-#      the next decide removes, before it fetches, every run directory whose holder is stale by
+#      the fetched objects. The holder is written as holder.tmp and renamed to holder, so another decide sees a
+#      complete holder or none. The EXIT trap removes the directory. No ref, no FETCH_HEAD, no remote-tracking ref,
+#      no object in the repository's own store, no maintenance. A run killed before its trap ran (SIGKILL) leaves its
+#      directory: the next decide removes, before it fetches, every run directory whose holder is stale by
 #      `gate_lock_is_stale` (gate-record.sh: confirmed-dead PID, or a PID that started after the holder was
-#      written), and every run directory older than one minute that has no holder.
+#      written), and every run directory older than one minute that has no holder. A holder that is empty, has no
+#      PID, or cannot be read (its run removed it) is live, and the sweep writes nothing to the decide output.
 #   5. The assignment fingerprint (see below), recomputed and compared with `Reviewed assignment fingerprint:`.
 #   6. Reviewer feedback newer than the review: a trusted, marker-less pull request comment, review submission, or
 #      line-anchored review comment.
@@ -274,7 +276,7 @@ cleanup() {
 }
 
 # sweep_run_dirs — remove every run directory a killed decide left in --scratch: its holder is stale by
-# gate_lock_is_stale, or it has no holder and is older than one minute (killed between mkdir and the holder).
+# gate_lock_is_stale, or it has no holder and is older than one minute (killed before the holder was renamed in).
 sweep_run_dirs() {
   local dir
   for dir in "$SCRATCH"/run.*; do
@@ -409,7 +411,7 @@ diff_fingerprint() {
     || "$tips" == "$base_oid"$'\t'"refs/heads/$base_branch"$'\n'"$head"$'\t'"refs/pull/$number/head" ]] || return 1
   common="$("${GIT[@]}" rev-parse --git-common-dir 2>/dev/null)" && common="$(cd "$common" && pwd -P)" || return 1
   RUN_DIR="$(mktemp -d "$SCRATCH/run.XXXXXXXX")" || return 1
-  gate_holder_text >"$RUN_DIR/holder"
+  gate_holder_text >"$RUN_DIR/holder.tmp" && mv -f -- "$RUN_DIR/holder.tmp" "$RUN_DIR/holder" || return 1
   objects="$RUN_DIR/objects"
   mkdir "$objects" || return 1
   GIT_TERMINAL_PROMPT=0 GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects" \
@@ -1241,6 +1243,20 @@ EOF
   expect 'the next decide removes an old run directory without a holder and keeps a fresh one' \
     "$([[ "$out" == 'run.fresh' ]] && echo 0 || echo 1)"
   rm -rf "$scratch/run.fresh"
+  # The holder of a live run, read by another decide's sweep: unreadable (the run removed it), empty, written in the
+  # current second, or not yet renamed into place. Each directory is kept, and the sweep adds nothing to the output.
+  mkdir -p "$scratch/run.unread" "$scratch/run.empty" "$scratch/run.now" "$scratch/run.writing"
+  printf 'PID=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date +%s)" >"$scratch/run.unread/holder"
+  chmod 000 "$scratch/run.unread/holder"
+  : >"$scratch/run.empty/holder"
+  printf 'PID=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date +%s)" >"$scratch/run.now/holder"
+  printf 'PID=1' >"$scratch/run.writing/holder.tmp"
+  decide_case 'a sweep beside a live run whose holder cannot be read prints nothing and carries forward' "$CF" -- --pr-url "$pr_url"
+  out="$(cd "$scratch" && printf '%s ' run.*)"
+  expect 'the sweep keeps a live run directory with an unreadable, an empty, a current-second, or a holder.tmp holder' \
+    "$([[ "$out" == 'run.empty run.now run.unread run.writing ' ]] && echo 0 || echo 1)"
+  chmod 600 "$scratch/run.unread/holder"
+  rm -rf "$scratch/run.unread" "$scratch/run.empty" "$scratch/run.now" "$scratch/run.writing"
   # Six decides at the same time.
   local k pids=()
   for k in 1 2 3 4 5 6; do
@@ -1249,9 +1265,16 @@ EOF
   done
   for k in "${pids[@]}"; do wait "$k" || true; done
   out="$(cat "$tmp"/concurrent.*)"
-  expect 'six concurrent decides all carry forward and leave no run directory' \
-    "$([[ "$(jq -s '[.[] | select(.decision == "carry-forward")] | length' "$tmp"/concurrent.* 2>/dev/null)" == 6 \
-      && -z "$(ls -A "$scratch")" ]] && echo 0 || echo 1)"
+  local concurrent_ok=1
+  [[ "$(jq -s '[.[] | select(.decision == "carry-forward")] | length' "$tmp"/concurrent.* 2>/dev/null)" == 6 \
+    && -z "$(ls -A "$scratch")" ]] && concurrent_ok=0
+  expect 'six concurrent decides all carry forward and leave no run directory' "$concurrent_ok"
+  if [[ "$concurrent_ok" -ne 0 ]]; then
+    for k in 1 2 3 4 5 6; do
+      printf -- '--- decide %s output, in full:\n%s\n' "$k" "$(cat "$tmp/concurrent.$k")" >&2
+    done
+    printf -- '--- %s after the six decides:\n%s\n' "$scratch" "$(ls -lA "$scratch")" >&2
+  fi
   mode_case 'a --scratch outside the run directory is a usage error' 1 -- "$HERE/$PROG" decide --pr-url "$pr_url" --scratch /tmp/rcf
   mode_case 'decide without --scratch is a usage error' 1 -- "$HERE/$PROG" decide --pr-url "$pr_url"
 

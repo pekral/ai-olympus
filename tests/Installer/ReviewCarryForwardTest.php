@@ -399,6 +399,23 @@ test('the stated limits of the fetch and the sweep have self-test cases', functi
         ->toContain('expect \'the next decide removes an old run directory without a holder and keeps a fresh one\'');
 });
 
+test('a run directory gets its holder by rename, the shared probe reads a holder silently, and both have self-test cases', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+    $record = reviewCarryForwardSource('skills/_shared/gate-record.sh');
+
+    expect($script)
+        ->toContain('gate_holder_text >"$RUN_DIR/holder.tmp" && mv -f -- "$RUN_DIR/holder.tmp" "$RUN_DIR/holder" || return 1')
+        ->toContain('decide_case \'a sweep beside a live run whose holder cannot be read prints nothing and carries forward\'')
+        ->toContain('expect \'the sweep keeps a live run directory with an unreadable, an empty, a current-second, or a holder.tmp holder\'')
+        ->toContain('printf -- \'--- decide %s output, in full:\\n%s\\n\' "$k" "$(cat "$tmp/concurrent.$k")" >&2');
+    expect($script)->not->toContain('gate_holder_text >"$RUN_DIR/holder"' . "\n");
+    expect($record)
+        ->toContain('text="$(cat -- "$holder" 2>/dev/null)" || return 1')
+        ->toContain('pid="$(sed -n \'s/^PID=\\([0-9]\\{1,7\\}\\)$/\\1/p\' <<<"$text" | head -1)"');
+    expect(reviewCarryForwardSource('skills/_shared/run-gate.sh'))
+        ->toContain('check \'a holder that cannot be read counts as live and the probe prints nothing\'');
+});
+
 test('the coverage claim states its steps and why the limit is acceptable, uses no listed category phrase, and has its cases', function (): void {
     $rule = reviewCarryForwardSource('rules/code-review/general.md');
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
