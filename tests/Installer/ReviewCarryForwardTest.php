@@ -159,7 +159,7 @@ test('a carried-forward verdict keeps the security guarantee and the rejection a
         ->toContain(
             'The proof is a matching `Reviewed diff fingerprint:` and a `Security assessment:` line that `skills/_shared/check-cr-header.sh` accepts, '
             . 'in a header block whose every line is canonical. The header block is the one block of `skills/_shared/cr-header.sh`: '
-            . 'every line before the first `## ` heading outside a fence.',
+            . 'every line before the first line that the line rule below does not skip and that matches `^##\\s`.',
         )
         ->toContain('**The review-only path decides it with a script.**')
         ->toContain(
@@ -351,12 +351,12 @@ test('round 1: the statements about the script and the loaders match what they d
     expect($changelog)->not->toContain('Every published review now carries a fourth header line');
 });
 
-test('round 3: every decision label after the header block starts the round, and the claim names what is not covered', function (): void {
+test('round 3: a decision label after the header block starts the round, and the claim names what is not covered', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
         ->toContain('! decision_label_after_block <"$TMP/review.md" || reason \'header invalid\'')
-        ->toContain('#      decision label is not covered, for example a look-alike letter from another script (`Мode:`), a label split');
+        ->toContain('#      Not covered: a line that the steps do not turn into a match of DECISION_LINE, and every line inside a skipped');
 
     foreach ([
         'a bold label with the colon outside the bold\' \'**Status**: needs-fix\'',
@@ -373,20 +373,19 @@ test('round 3: every decision label after the header block starts the round, and
         expect(substr_count($script, 'body_label_case \'' . $case))->toBe(1);
     }
 
-    expect(substr_count($script, "\n  body_label_case '"))->toBe(36);
+    expect(substr_count($script, "\n  body_label_case '"))->toBe(38);
     expect($script)
         ->toContain('shape_case \'body: a decision label in the heading that ends the block runs the round\'')
         ->toContain('shape_case \'body: a decision label inside a fence after the block changes nothing\'')
         ->toContain('shape_case \'body: a decision label inside an inline-code span changes nothing\'')
         ->toContain('shape_case \'body: prose that names a mode without a colon changes nothing\'');
     expect(reviewCarryForwardSource('rules/code-review/general.md'))
-        ->toContain('The shapes this catches are a closed list: a label in either letter case;')
-        ->toContain(
-            'Every other spelling of a decision label is not covered, for example a look-alike letter from another script, '
-            . 'a label split over two lines,',
-        );
+        ->toContain('  Not covered: a line that the steps do not turn into a match of the pattern, and every line inside a skipped region.');
     expect(reviewCarryForwardSource('CHANGELOG.md'))
-        ->toContain('while every other spelling, for example a look-alike letter from another script or a label split over two lines, is not covered');
+        ->toContain(
+            'A line those steps do not turn into a match, and a line inside a region the line rule skips, is not covered: '
+            . 'for example `Мode: HOTFIX` with a Cyrillic `М`, or `Merge` and `verdict: no` on two lines.',
+        );
 });
 
 test('round 3: the stated limits of the fetch and the sweep have self-test cases', function (): void {
@@ -405,24 +404,28 @@ test('PR #344 round 1: the coverage claim is a closed list with the reason the l
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
     $header = explode("\nset -euo pipefail\n", $script, 2)[0];
 
-    foreach (['any shape', 'whatever its shape', 'every shape'] as $phrase) {
-        expect($rule)->not->toContain($phrase);
+    $c8 = explode(
+        '- **The security audit runs on every review too.**',
+        explode('- **A carried-forward review-only verdict keeps this guarantee.**', $rule, 2)[1],
+        2,
+    )[0];
+
+    foreach (['any shape', 'whatever its shape', 'every shape', 'CommonMark', 'as link text', 'in either letter case', 'outside a fence'] as $phrase) {
+        expect($c8)->not->toContain($phrase);
         expect($header)->not->toContain($phrase);
     }
 
     expect($rule)
-        ->toContain('a line that holds a decision label and a colon once the body check has read a copy of it through eight steps, in this order:')
+        ->toContain('and a line whose copy matches the decision-line pattern after these eight steps, in this order:')
+        ->toContain('  7. turn `[text](url)`, `[text][label]`, and `[text][]` into `text`, where `text` and `label` hold no `]` and `url` holds no `)`;')
         ->toContain(
-            '  5. decode `&colon;`, `&nbsp;`, `&ensp;`, `&emsp;`, `&thinsp;`, `&shy;`, `&zwj;`, `&zwnj;`, '
-            . 'and every decimal or hexadecimal character reference;',
-        )
-        ->toContain(
-            'The limit is acceptable because a carried review is a comment that passed *Authorship trust* and the `cr-comment` marker check, '
-            . 'and the merge gate reads HOTFIX only from the header `Mode:` line.',
+            '  The limit is acceptable because a review-only run carries forward only a comment that passed `trusted_review` '
+            . '(an author with write access and that author\'s own `cr-comment` marker), and it reads HOTFIX only from a canonical header '
+            . '`Mode:` line, which is also the only line the merge gate reads it from',
         );
     expect($header)
-        ->toContain('#        3. it turns an escaped backtick into a neutral character and removes every balanced inline-code span of the')
-        ->toContain('#      passed *Authorship trust* and the `cr-comment` marker check (`trusted_review`), and the merge gate reads');
+        ->toContain('#        7. it turns `[text](url)`, `[text][label]`, and `[text][]` into `text`, where `text` and `label` hold no `]`')
+        ->toContain('#      passed `trusted_review` (an author with write access and that author\'s own `cr-comment` marker), and it reads');
 
     foreach ([
         'a decimal character reference for the colon',
@@ -433,7 +436,7 @@ test('PR #344 round 1: the coverage claim is a closed list with the reason the l
         'a thin space inside a two-word label',
         'an ideographic space before the colon',
         'an HTML tag around the label',
-        'a label as link text',
+        'a label inside an inline link',
         'text after an unbalanced backtick run',
     ] as $case) {
         expect(substr_count($script, 'body_label_case \'' . $case . '\''))->toBe(1);
@@ -444,13 +447,13 @@ test('PR #344 round 1: the coverage claim is a closed list with the reason the l
         ->toContain('shape_case \'body: a label split over two lines is not covered\' "$CF"');
 });
 
-test('PR #344 round 1: one CommonMark fence test in cr-header.sh, used by every reader', function (): void {
+test('PR #344 round 1: one fence line rule in cr-header.sh, used by every reader', function (): void {
     $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($parser)
         ->toContain('cr_header_fence_step() {')
-        ->toContain('local open_re=\'^ {0,3}(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+) *$\' run')
+        ->toContain('local open_re=\'^( {0,3})(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+)[[:blank:]]*$\' run lead')
         ->toContain('expect \'fence: an opener indented by four spaces is not a fence\'')
         ->toContain('expect \'fence: a backtick info string that holds a backtick is not a fence\'')
         ->toContain('expect \'fence: a three-backtick line inside a four-backtick fence does not close it\'');
@@ -461,3 +464,38 @@ test('PR #344 round 1: one CommonMark fence test in cr-header.sh, used by every 
         ->toContain('shape_case \'fence: a Critical heading after an indented opener while Counts says Critical 0 runs the round\'')
         ->toContain('shape_case \'fence: a decision line inside an unclosed fence changes nothing\' "$CF"');
 });
+
+test(
+    'PR #344 round 2: the line rule, the reference links, and the span carry each have a self-test case, and the claim names no category',
+    function (): void {
+        $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
+        $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+        $parserHeader = explode("\nCR_HEADER_LABELS=()", $parser, 2)[0];
+
+        foreach (['CommonMark', 'fenced code block', 'outside a fence', 'in either letter case'] as $phrase) {
+            expect($parserHeader)->not->toContain($phrase);
+            expect($parser)->not->toContain('# cr_header_fence_step <line> — the one fence test, as ' . $phrase);
+        }
+
+        expect($parser)
+            ->toContain('cr_header_fence_reset() {')
+            ->toContain('cr_header_html_open() {')
+            ->toContain('expect \'fence: a closer followed by a tab closes the fence\'')
+            ->toContain('expect \'fence: a line indented less than the opener closes the fence and is read\'')
+            ->toContain('expect \'fence: no fence opens inside an HTML comment\'')
+            ->toContain('expect \'fence: no fence opens inside a pre block across a blank line\'');
+        expect(substr_count($script, 'cr_header_fence_reset'))->toBe(1);
+        expect($script)
+            ->toContain('body_label_case \'a reference-style link\' \'[Mode][r]: HOTFIX\'')
+            ->toContain('body_label_case \'a collapsed reference link\' \'[Mode][]: HOTFIX\'')
+            ->toContain('shape_case \'body: a label after a backtick that closes a run of the line before runs the round\'')
+            ->toContain('shape_case \'fence: a closer followed by a tab does not hide a decision line\'')
+            ->toContain('shape_case \'fence: the end of a list item closes its fence\'')
+            ->toContain('shape_case \'fence: three backticks inside an HTML comment open no fence\'')
+            ->toContain('shape_case \'fence: three backticks inside an HTML block open no fence\'')
+            ->toContain('shape_case \'body: ~~Mode~~: HOTFIX is not covered\' "$CF"')
+            ->toContain('shape_case \'body: an escaped tag around the label is not covered\' "$CF"')
+            ->toContain('shape_case \'body: a reference that decodes to a backslash is not covered\' "$CF"')
+            ->toContain('shape_case \'body: `Mode: HOTFIX` between two backticks is not covered\' "$CF"');
+    },
+);
