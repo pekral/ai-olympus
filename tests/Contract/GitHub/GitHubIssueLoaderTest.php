@@ -273,7 +273,7 @@ test('a pull request load returns its line-anchored review comments and says whe
         ->and(decodedJsonField($failed, 'reviewCommentsComplete'))->toBeFalse();
 });
 
-test('the repository visibility is read once and an unreadable visibility stays null', function (): void {
+test('the repository visibility is returned as false or true, and an unreadable visibility stays null', function (): void {
     $fixture = createGitHubLoaderFixture();
 
     $public = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123')->getOutput();
@@ -374,7 +374,7 @@ test('a failed GraphQL call leaves the association of the issue author null, whi
     expect(decodedJsonField($output, 'authorAssociation'))->toBeNull();
 });
 
-test('a failed sub-issue GraphQL call degrades to an empty list while the issue still loads', function (): void {
+test('a failed sub-issue GraphQL call degrades to an empty list marked incomplete while the issue still loads', function (): void {
     // This degradation is deliberate — a repository without the sub-issue feature must still load
     // — but it makes an empty `subIssues` indistinguishable from a failed fetch, which
     // `@rules/compound-engineering/tracker.md` requires callers to disclose as unverified. Pinning
