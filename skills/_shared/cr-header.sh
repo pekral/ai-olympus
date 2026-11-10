@@ -20,6 +20,10 @@
 #   in the body and marks the ones that stand in the block. A byte that is not valid UTF-8 in a value does not
 #   hide its line. It does not judge a label, a value, a duplicate, or a place: the caller decides.
 #
+#   The block has one boundary for every reader: the first line, read outside a fence, that cr_header_ends_block
+#   accepts. cr_header_scan and cr_header_canonical both call cr_header_ends_block and cr_header_is_fence, so a line
+#   the lenient view counts as a header-block line is always a line the strict view reads.
+#
 #   The body is untrusted input (rules/security/general.md). It is read as data: no part of it is executed,
 #   expanded, or used to build a command, a path, or a program.
 #
@@ -29,17 +33,22 @@
 #   CR_HEADER_BLOCK   1 when the line stands in the header block (before the first `## ` heading and outside a
 #                     finding), otherwise 0
 #   CR_HEADER_VALUES  the value, without the leading and the trailing whitespace
+#   CR_HEADER_CRITICAL_HEADINGS  the number of Critical finding headings (`### … Critical <n>.`) outside a fence,
+#                     anywhere in the body
 #
 # Result of cr_header_canonical (the strict view a decision that skips work relies on)
-#   The header block ends at the first `---` line or the first `## ` heading. Before it, only three kinds of
-#   line are canonical: a blank line, one `# ` title as the first line with text, and a line of the exact
-#   shape `**<Label>:** <value>` — ASCII colon inside the bold, one space, a value with no leading or trailing
-#   whitespace, and a label of ASCII letters, spaces, parentheses, and hyphens. Every other line is rejected:
-#   no bold, a colon outside the bold, extra whitespace, a list item, a blockquote, a fence, an HTML comment,
-#   a non-ASCII byte in the label, a Unicode look-alike of the colon. A fence hides nothing in this view.
+#   It reads the same block as cr_header_scan. Inside the block it accepts exactly four kinds of line:
+#     - a blank line (empty once a trailing carriage return is dropped), which is skipped;
+#     - one `# ` title, as the first line with text, which is skipped;
+#     - a `---` line that follows a blank line or starts the body (a thematic break), which is skipped;
+#     - a line of the exact shape `**<Label>:** <value>` — ASCII colon inside the bold, one space, a value with no
+#       leading or trailing whitespace, and a label of ASCII letters, spaces, parentheses, and hyphens.
+#   Every other line in the block is rejected, and so is every line of a fence there, the fence lines included:
+#   prose, a whitespace-only line, a list item, a blockquote, a table row, an HTML comment, a deeper heading, a
+#   `---` directly under a line of text (a setext underline, which turns that line into a heading), a `===` line,
+#   no bold, a colon outside the bold, extra whitespace, a non-ASCII byte in a label, a Unicode look-alike colon.
 #   CR_CANON_LABELS / CR_CANON_VALUES  the canonical lines, in document order
 #   CR_CANON_REJECTED                  the 1-based line number of every rejected line
-#   CR_CANON_LINES                     every line of the block that has text, canonical or not
 #
 # Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
 
@@ -47,6 +56,19 @@ CR_HEADER_LABELS=()
 CR_HEADER_BOLD=()
 CR_HEADER_BLOCK=()
 CR_HEADER_VALUES=()
+CR_HEADER_CRITICAL_HEADINGS=0
+
+# cr_header_is_fence <line> — true when <line> opens or closes a fenced code block: ``` or ~~~ after ASCII
+# indentation. Both views track fences with it.
+cr_header_is_fence() {
+  [[ ( "$1" == *'```'* || "$1" == *'~~~'* ) && "$1" =~ ^[[:space:]]*(\`\`\`|~~~) ]]
+}
+
+# cr_header_ends_block <line> — true when <line>, read outside a fence, ends the header block: a level-2 heading
+# (`## ` or `##` and a tab). The one boundary of the block; cr_header_scan and cr_header_canonical both call it.
+cr_header_ends_block() {
+  [[ "$1" == '##'* && "$1" =~ ^##[[:space:]] ]]
+}
 
 # cr_header_parse — read a comment body on standard input and fill the four arrays above.
 cr_header_parse() {
@@ -57,6 +79,7 @@ cr_header_parse() {
   CR_HEADER_BOLD=()
   CR_HEADER_BLOCK=()
   CR_HEADER_VALUES=()
+  CR_HEADER_CRITICAL_HEADINGS=0
 
   cr_header_scan
 
@@ -87,13 +110,13 @@ cr_header_scan() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     # Each regular expression runs only on a line that can match it: a glob test is cheaper.
-    if [[ ( "$line" == *'```'* || "$line" == *'~~~'* ) && "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
+    if cr_header_is_fence "$line"; then
       in_fence=$((1 - in_fence))
       continue
     fi
     [[ "$in_fence" -eq 0 ]] || continue
     if [[ "$line" == '#'* ]]; then
-      if [[ "$line" =~ ^##[[:space:]] ]]; then
+      if cr_header_ends_block "$line"; then
         in_block=0
         continue
       fi
@@ -101,6 +124,7 @@ cr_header_scan() {
       # a `---` line. A header line inside a finding is not in the header block, as in extract-findings.sh.
       if [[ "$line" =~ $finding ]]; then
         in_finding=1
+        [[ "${BASH_REMATCH[2]}" != Critical ]] || CR_HEADER_CRITICAL_HEADINGS=$((CR_HEADER_CRITICAL_HEADINGS + 1))
       elif [[ "$line" =~ ^#{3,6}[[:space:]] ]]; then
         in_finding=0
       fi
@@ -131,38 +155,49 @@ cr_header_scan() {
 CR_CANON_LABELS=()
 CR_CANON_VALUES=()
 CR_CANON_REJECTED=()
-CR_CANON_LINES=()
 
-# cr_header_canonical — read a comment body on standard input and fill the four CR_CANON_ arrays above.
+# cr_header_canonical — read a comment body on standard input and fill the three CR_CANON_ arrays above.
 cr_header_canonical() {
   local LC_ALL=C
-  local line n=0 titled=0 labels=0 rejected=0 lines=0
+  local line n=0 titled=0 labels=0 rejected=0 in_fence=0 after_blank=1
   local shape='^[*][*]([A-Za-z][A-Za-z ()-]*):[*][*] ([^[:space:]](.*[^[:space:]])?)$'
   CR_CANON_LABELS=()
   CR_CANON_VALUES=()
   CR_CANON_REJECTED=()
-  CR_CANON_LINES=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     n=$((n + 1))
-    [[ "$line" != '## '* && ! "$line" =~ ^---[[:space:]]*$ ]] || break
-    [[ -n "$line" ]] || continue
-    # shellcheck disable=SC2034  # read by the sourcing script (review-carry-forward.sh)
-    CR_CANON_LINES[lines]="$line"
-    lines=$((lines + 1))
-    if [[ "$titled" -eq 0 && "$line" =~ ^#\ [^[:space:]] ]]; then
+    if cr_header_is_fence "$line"; then
+      in_fence=$((1 - in_fence))
+    elif [[ "$in_fence" -eq 0 ]]; then
+      cr_header_ends_block "$line" && break
+      if [[ -z "$line" ]]; then
+        after_blank=1
+        continue
+      fi
+      if [[ "$titled" -eq 0 && "$line" =~ ^#\ [^[:space:]] ]]; then
+        titled=1
+        after_blank=0
+        continue
+      fi
       titled=1
-      continue
+      if [[ "$line" =~ ^---[[:space:]]*$ && "$after_blank" -eq 1 ]]; then
+        after_blank=0
+        continue
+      fi
+      after_blank=0
+      if [[ "$line" =~ $shape ]]; then
+        CR_CANON_LABELS[labels]="${BASH_REMATCH[1]}"
+        CR_CANON_VALUES[labels]="${BASH_REMATCH[2]}"
+        labels=$((labels + 1))
+        continue
+      fi
     fi
+    # A fence line, a line inside a fence, and every other line of the block.
     titled=1
-    if [[ "$line" =~ $shape ]]; then
-      CR_CANON_LABELS[labels]="${BASH_REMATCH[1]}"
-      CR_CANON_VALUES[labels]="${BASH_REMATCH[2]}"
-      labels=$((labels + 1))
-    else
-      CR_CANON_REJECTED[rejected]="$n"
-      rejected=$((rejected + 1))
-    fi
+    after_blank=0
+    CR_CANON_REJECTED[rejected]="$n"
+    rejected=$((rejected + 1))
   done
 }
 
@@ -252,8 +287,17 @@ cr_header_self_test() {
       failures=$((failures + 1))
     fi
   }
-  canonical 'a canonical header block is read line by line' $'Status=clean\nCounts=Critical 0 \xc2\xb7 Moderate 0\n' \
+  canonical 'a canonical header block is read line by line' $'Status=clean\nCounts=Critical 0 \xc2\xb7 Moderate 0\nLate=x\n' \
     $'# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 \xc2\xb7 Moderate 0\n\n---\n\n**Late:** x'
+  canonical 'a line between --- and the first section heading is read' $'Status=a\nMode=HOTFIX\n' \
+    $'**Status:** a\n\n---\n**Mode:** HOTFIX\n## TL;DR'
+  canonical 'a setext underline under a header line is rejected' $'Status=a\nrejected:2\n' $'**Status:** a\n---'
+  canonical 'a === underline is rejected' $'Status=a\nrejected:2\n' $'**Status:** a\n==='
+  canonical 'a table row is rejected' $'rejected:1\n' '| a | b |'
+  canonical 'a whitespace-only line is rejected' $'rejected:1\n' '  '
+  canonical 'a section heading inside a fence does not end the block' $'Mode=HOTFIX\nrejected:1\nrejected:2\nrejected:3\n' \
+    "$(printf '%stext\n## Inside\n%s\n**Mode:** HOTFIX\n## TL;DR' "$fence" "$fence")"
+  canonical 'a level-2 heading with a tab ends the block in both views' $'Status=a\n' $'**Status:** a\n##\tTL;DR\n**Mode:** b'
   canonical 'the block ends at the first section heading' $'Status=a\n' $'**Status:** a\n## TL;DR\n- **Mode:** b'
   canonical 'a line without the bold is rejected' $'rejected:1\n' 'Status: a'
   canonical 'a colon outside the bold is rejected' $'rejected:1\n' '**Mode**: HOTFIX'
@@ -265,7 +309,7 @@ cr_header_self_test() {
   canonical 'a list item is rejected' $'rejected:1\n' '- **Mode:** HOTFIX'
   canonical 'a blockquote is rejected' $'rejected:1\n' '> **Mode:** HOTFIX'
   canonical 'an HTML comment is rejected' $'rejected:1\n' '<!-- **Mode:** HOTFIX -->'
-  canonical 'a fence is rejected and hides nothing inside it' $'Mode=HOTFIX\nrejected:1\nrejected:3\n' \
+  canonical 'a fence is rejected with every line inside it' $'rejected:1\nrejected:2\nrejected:3\n' \
     "$(printf '%stext\n**Mode:** HOTFIX\n%s' "$fence" "$fence")"
   canonical 'a full-width colon is rejected' $'rejected:1\n' $'**Counts\xef\xbc\x9a** Critical 0'
   canonical 'a zero-width space in the label is rejected' $'rejected:1\n' $'**Mo\xe2\x80\x8bde:** HOTFIX'

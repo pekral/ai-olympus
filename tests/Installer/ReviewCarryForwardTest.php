@@ -72,7 +72,7 @@ test('the forgery cases are self-tested and no payload value reaches git or a sh
         ->toContain('expect \'no payload value was executed\'')
         ->toContain('expect \'every outbound read is named once for the audit ledger\'')
         ->toContain('GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)')
-        ->toContain('diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base...$head"')
+        ->toContain('diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base_oid...$head"')
         ->toContain('# The loaders are plain variables, never read from the environment. The self-test replaces them with stubs.');
     expect($script)->not->toContain('eval ');
     expect($script)->not->toContain('printenv');
@@ -120,7 +120,8 @@ test('review-only mode decides the carry-forward with the script before it dispa
     expect($krang)
         ->toContain(
             '2. **Check whether the newest trusted review still holds, before any dispatch.** '
-                . 'For each linked pull request, run `skills/_shared/review-carry-forward.sh decide --pr-url <PR>`',
+                . 'For each linked pull request, run `skills/_shared/review-carry-forward.sh decide --pr-url <PR> '
+                . '--scratch .claude/run/review-carry-forward`',
         )
         ->toContain('**Any other exit code or any other decision starts the round**')
         ->toContain(
@@ -163,7 +164,8 @@ test('a carried-forward verdict keeps the security guarantee and the rejection a
         ->toContain('- **A carried-forward review-only verdict keeps this guarantee.**')
         ->toContain(
             'The proof is a matching `Reviewed diff fingerprint:` and a `Security assessment:` line that `skills/_shared/check-cr-header.sh` accepts, '
-            . 'in a header block whose every line is in its exact canonical form.',
+            . 'in a header block whose every line is canonical. The header block is the one block of `skills/_shared/cr-header.sh`: '
+            . 'every line before the first `## ` heading outside a fence.',
         )
         ->toContain('**The review-only path decides it with a script.**')
         ->toContain(
@@ -242,7 +244,6 @@ test('round 1: a review header is carried forward only in its exact canonical fo
         ->toContain('canonical \'a colon outside the bold is rejected\' $\'rejected:1\\n\' \'**Mode**: HOTFIX\'');
     expect($script)
         ->toContain('cr_header_canonical <"$TMP/review.md"')
-        ->toContain('[[ "$lower" =~ (^|[^a-z])mode([^a-z]|$) || "$lower" == *hotfix* ]]')
         ->toContain('[[ ! "$verdict" =~ $VERDICT_SHAPE || "${BASH_REMATCH[3]}" == "$critical" ]] || reason \'header invalid\'');
     expect(substr_count($script, 'shape_case \'shape: '))->toBe(22);
 
@@ -297,17 +298,46 @@ test('round 1: answer refuses without the reference time and carries the reposit
     }
 });
 
-test('round 1: the base and the head are read from run-private refs and compared with the loader', function (): void {
+test('round 2: the fetch writes only into a run directory under --scratch', function (): void {
     $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
 
     expect($script)
+        ->toContain('ls-remote origin "refs/pull/$number/head" "refs/heads/$base_branch"')
+        ->toContain('GIT_OBJECT_DIRECTORY="$objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$common/objects"')
         ->toContain('fetch --quiet --no-tags --no-recurse-submodules --no-write-fetch-head --no-auto-maintenance --refmap=')
-        ->toContain('[[ "$fetched" == "$head" && "$base" == "$base_oid" ]] || return 1')
         ->toContain('decide_case \'a fetched base that is not the loader base runs the round\'')
         ->toContain('decide_case \'a base branch that moved after the loader read runs the round\'')
-        ->toContain('expect \'the fetch updates no remote-tracking ref\'')
-        ->toContain('expect \'the fetch leaves no run-private ref and writes no FETCH_HEAD\'');
+        ->toContain('\'the fetch leaves no run directory, no extra ref, and no FETCH_HEAD\'')
+        ->toContain('\'the next decide removes the run directory of a killed run and keeps a live one\'')
+        ->toContain('\'six concurrent decides all carry forward and leave no run directory\'')
+        ->toContain('\'a --scratch outside the run directory is a usage error\'');
+    expect($script)->not->toContain('refs/ai-olympus');
+    expect($script)->not->toContain('"${GIT[@]}" update-ref');
+    expect($script)->not->toContain('remote get-url');
     expect($script)->not->toContain('\'FETCH_HEAD^{commit}\'');
+});
+
+test('round 2: one header-block boundary for both parsers, the mode from the canonical label, and the body checked', function (): void {
+    $parser = reviewCarryForwardSource('skills/_shared/cr-header.sh');
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($parser)->toContain('cr_header_ends_block() {')
+        ->and(substr_count($parser, 'cr_header_ends_block "$line"'))->toBe(2)
+        ->and(substr_count($parser, 'cr_header_is_fence "$line"'))->toBe(2);
+    expect($parser)->not->toContain('CR_CANON_LINES');
+    expect($script)->not->toContain('names_mode');
+    expect($script)
+        ->toContain('[[ "$label" != \'Mode\' ]] || reason \'narrowed review\'')
+        ->toContain('[[ "$CR_HEADER_CRITICAL_HEADINGS" -eq 0 || "$critical" != 0 ]] || reason \'header invalid\'')
+        ->toContain('\'block: a Mode line between --- and the first section heading marks a narrowed review\'')
+        ->toContain('\'block: a second Counts line between --- and the first section heading runs the round\'')
+        ->toContain('\'block: a setext underline under a header line runs the round\'')
+        ->toContain('\'block: a section heading inside a fence does not end the block\'')
+        ->toContain('\'body: a Counts line after the first section heading runs the round\'')
+        ->toContain('\'body: a Mode sentence at the start of a line after the block runs the round\'')
+        ->toContain('\'body: a Critical finding heading while Counts says Critical 0 runs the round\'')
+        ->toContain('\'body: a Critical finding heading inside a fence changes nothing\'')
+        ->toContain('\'value: mode and HOTFIX inside a Not verified value carry forward\'');
 });
 
 test('round 1: the statements about the script and the loaders match what they do', function (): void {
@@ -315,8 +345,10 @@ test('round 1: the statements about the script and the loaders match what they d
     $changelog = reviewCarryForwardSource('CHANGELOG.md');
 
     expect($krang)->toContain(
-        'Its one `git fetch` adds the fetched objects to the object store and writes two run-private refs under '
-        . '`refs/ai-olympus/review-carry-forward/`',
+        'and runs one `git ls-remote` and one `git fetch` of the repository\'s own `origin`. It writes only under its `--scratch` '
+        . 'directory below `.claude/run/`: one run directory with the fetched objects, which it removes when it exits and which the '
+        . 'next `decide` removes when a killed run left it. It writes no ref, no `FETCH_HEAD`, no remote-tracking ref, and no object '
+        . 'in the repository\'s own store)',
     );
     expect($krang)->not->toContain('runs two `git fetch` reads of the pull request head and its base');
     expect($changelog)->toContain(
