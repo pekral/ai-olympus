@@ -266,7 +266,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
         // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
-        'rules/php/core-standards.md' => 'b0822ceb04a57b7ca3ff69657eb7ad8b5d0611f4badaf640fd3a6ca9093a0da9',
+        // Re-baselined: *Documentation* runs `skills/_shared/check-comment-prose.php` before a commit.
+        'rules/php/core-standards.md' => '99c3743a2455de487d3a26b1fd2c56f7f8fd9521ba7b4cc7b32a8961f267a9ea',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
