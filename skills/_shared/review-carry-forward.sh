@@ -50,14 +50,19 @@
 #      The header block is the one block of cr-header.sh: every line before the first `## ` heading outside a fence.
 #      A canonical `**Mode:**` line, whatever its value, marks a narrowed review. A mode line in any other shape is
 #      not canonical or carries an unknown label, so it gives `header invalid`. A value is never searched for words.
-#      After the block, cr_header_parse reads the rest of the body: a header-shaped line (`Label:` at the start of
-#      a line, with or without the bold, outside a fence) whose label is one of DECISION_LABELS, in any letter
-#      case, gives `header invalid`, and so does a Critical finding heading outside a fence while `Counts:` says
-#      Critical 0.
+#      After the block, outside a fence, a line that names a decision label followed by a colon gives `header invalid`
+#      (decision_label_after_block). The decision labels: Status, Counts, Merge verdict, Security assessment, Mode,
+#      Review scope, Reviewed revision, Reviewed diff fingerprint, Reviewed assignment fingerprint. The shapes, in any
+#      letter case: bold or emphasis around the label or the colon, a list item, a blockquote, indentation, a table
+#      cell, an HTML comment, heading text (the heading that ends the block included), a zero-width character
+#      (U+200B, U+200C, U+200D, U+2060, U+FEFF) or a soft hyphen (U+00AD) inside the label, and a look-alike colon
+#      (U+FF1A, U+FE55, U+A789, U+2236). A Critical finding heading outside a
+#      fence while `Counts:` says Critical 0 gives `header invalid` too. Not covered: a label inside a fence or inside
+#      an inline-code span, and prose that names a mode without a colon after the label.
 #      What the header check does not guarantee: it reads the header block and those two signals, never the meaning
 #      of the findings, the sections, or the prose. It does not prove that the body lists every finding `Counts:`
-#      counts, that a Moderate count matches the Moderate findings, or that no sentence inside a paragraph or a list
-#      item declares a mode. The merge gate reads HOTFIX from the header `Mode:` line only, so this check relies on
+#      counts, that a Moderate count matches the Moderate findings, or that no sentence declares a mode without a
+#      colon after the label. The merge gate reads HOTFIX from the header `Mode:` line only, so this check relies on
 #      the same evidence.
 #   4. The current effective-diff fingerprint, always recomputed here from the commits the loader reports, never
 #      taken from a comment, the pull request body, or the caller. The repository receives nothing:
@@ -107,9 +112,9 @@
 #   security assessment missing                        check-cr-header.sh rejects Merge verdict / Security assessment
 #   narrowed review                                    the header block has a canonical `Mode:` line (a HOTFIX
 #                                                      review), whatever its value
-#   header invalid (body)                              after the header block, a header-shaped line carries a
-#                                                      decision label, or a Critical finding heading stands while
-#                                                      Counts says Critical 0
+#   header invalid (body)                              after the header block and outside a fence, a line names a
+#                                                      decision label followed by a colon in any shape (step 3), or a
+#                                                      Critical finding heading stands while Counts says Critical 0
 #   head unverified                                    headRefOid / baseRefOid / baseRefName fail their pattern,
 #                                                      ls-remote or the fetch fails, a remote tip is not the
 #                                                      loader's commit, or a commit is missing after the fetch
@@ -186,10 +191,11 @@ KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed
 KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
   'Review scope' 'Last updated')
-# The labels a carried review's meaning depends on. After the header block, a header-shaped line with one of them,
-# in any letter case, makes the review ambiguous, so the round runs.
-DECISION_LABELS='|status|counts|merge verdict|security assessment|mode|reviewed revision|reviewed diff fingerprint|'
-DECISION_LABELS+='reviewed assignment fingerprint|review scope|'
+# The labels a carried review's meaning depends on. After the header block and outside a fence, a line that names
+# one of them followed by a colon, in any shape, makes the review ambiguous, so the round runs (decision_label_after_block).
+DECISION_LINE='(^|[^a-z0-9])(status|counts|merge[[:space:]]+verdict|security[[:space:]]+assessment|mode|review[[:space:]]+scope'
+DECISION_LINE+='|reviewed[[:space:]]+revision|reviewed[[:space:]]+diff[[:space:]]+fingerprint'
+DECISION_LINE+='|reviewed[[:space:]]+assignment[[:space:]]+fingerprint)[[:space:]]*:'
 
 TMP=''
 RUN_DIR=''
@@ -459,10 +465,46 @@ cmd_decide() {
     --args ${REASONS[@]+"${REASONS[@]}"} "|reads|" ${READS[@]+"${READS[@]}"}
 }
 
+# decision_label_after_block — read a review body on standard input. Succeed when a line after the header block,
+# outside a fence, names a decision label followed by a colon (DECISION_LINE), in any shape: any letter case, bold or
+# emphasis around the label or the colon, a list item, a blockquote, indentation, a table cell, an HTML comment,
+# heading text (the heading that ends the block included), a zero-width character or a soft hyphen inside the label,
+# or a look-alike colon (the step 3 list in the header names them). The block and the fences are those of cr-header.sh (cr_header_ends_block,
+# cr_header_is_fence). Not read: a line inside a fence, and the text inside an inline-code span (`…`), which quotes a
+# label the way a fence does. Prose that names a mode without a colon after the label is not matched.
+decision_label_after_block() {
+  local LC_ALL=C body line in_fence=0 in_block=1 strip
+  body="$(cat)"
+  for strip in $'\xe2\x80\x8b' $'\xe2\x80\x8c' $'\xe2\x80\x8d' $'\xe2\x81\xa0' $'\xef\xbb\xbf' $'\xc2\xad'; do
+    body="${body//$strip/}"
+  done
+  for strip in $'\xef\xbc\x9a' $'\xef\xb9\x95' $'\xea\x9e\x89' $'\xe2\x88\xb6'; do
+    body="${body//$strip/:}"
+  done
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if cr_header_is_fence "$line"; then
+      in_fence=$((1 - in_fence))
+      continue
+    fi
+    [[ "$in_fence" -eq 0 ]] || continue
+    if [[ "$in_block" -eq 1 ]]; then
+      cr_header_ends_block "$line" || continue
+      in_block=0
+    fi
+    while [[ "$line" =~ ^([^\`]*)\`[^\`]*\`(.*)$ ]]; do
+      line="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+    done
+    line="${line//[*_]/}"
+    [[ ! "$line" =~ $DECISION_LINE ]] || return 0
+  done < <(printf '%s\n' "$body" | tr '[:upper:]' '[:lower:]')
+  return 1
+}
+
 # read_review_header — the header checks of the newest trusted review (step 3 of the header). Sets revision,
 # recorded_fp, and recorded_afp only from canonical lines. Every check runs; none of them stops the others.
 read_review_header() {
-  local label value seen='|' counts='' verdict='' i=0 required lower critical=''
+  local label value seen='|' counts='' verdict='' i=0 required critical=''
   jq -j '.body' "$TMP/review.json" >"$TMP/review.md"
   cr_header_canonical <"$TMP/review.md"
   [[ ${#CR_CANON_REJECTED[@]} -eq 0 ]] || reason 'header invalid'
@@ -502,18 +544,10 @@ read_review_header() {
   [[ "$recorded_fp" =~ $SHA_SHAPE ]] || recorded_fp=''
   [[ "$recorded_afp" =~ $SHA256_SHAPE ]] || recorded_afp=''
 
-  # The rest of the body, through the lenient parser and the same block boundary.
+  # The rest of the body: a decision label after the block in any shape, and the Critical headings the lenient
+  # parser counts with the same block and fence boundary.
+  ! decision_label_after_block <"$TMP/review.md" || reason 'header invalid'
   cr_header_parse <"$TMP/review.md"
-  i=0
-  for label in ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"}; do
-    if [[ "${CR_HEADER_BLOCK[i]}" -eq 0 ]]; then
-      lower="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]')"
-      lower="${lower#"${lower%%[![:space:]]*}"}"
-      lower="${lower%"${lower##*[![:space:]]}"}"
-      [[ "$DECISION_LABELS" != *"|$lower|"* ]] || reason 'header invalid'
-    fi
-    i=$((i + 1))
-  done
   [[ "$CR_HEADER_CRITICAL_HEADINGS" -eq 0 || "$critical" != 0 ]] || reason 'header invalid'
 
   "$CHECK_HEADER" --file "$TMP/review.md" >/dev/null 2>&1 || reason 'security assessment missing'
@@ -813,6 +847,23 @@ EOF
   expect 'the fetch leaves no run directory, no extra ref, and no FETCH_HEAD' \
     "$([[ -z "$out" && ! -e "$work/.git/FETCH_HEAD" ]] && echo 0 || echo 1)"
   decide_case 'the closed issue passed as --source carries the review forward too' "$CF" -- --pr-url "$pr_url" --source "$issue_url"
+
+  # The repository's own object store receives no object: a clone that does not hold the pull request head before
+  # decide still does not hold it afterwards, and its object count is unchanged.
+  local clone="$tmp/clone" objects_before objects_after
+  "${g[@]}" clone -q --no-local "$origin" "$clone" 2>/dev/null
+  objects_before="$("${g[@]}" -C "$clone" count-objects -v | awk '$1 == "count:" || $1 == "in-pack:" { n += $2 } END { print n }')"
+  out="$(cd "$clone" && "${g[@]}" cat-file -e "$head^{commit}" 2>&1 && echo present || echo absent)"
+  expect 'the clone does not hold the pull request head before decide' "$([[ "$out" == *absent ]] && echo 0 || echo 1)"
+  set +e
+  out="$(cd "$clone" && cmd_decide --pr-url "$pr_url" --scratch .claude/run/review-carry-forward 2>&1)"
+  set -e
+  expect 'a decide in a clone without the pull request head carries the review forward' \
+    "$(jq -e "$CF" <<<"$out" >/dev/null 2>&1 && echo 0 || echo 1)"
+  objects_after="$("${g[@]}" -C "$clone" count-objects -v | awk '$1 == "count:" || $1 == "in-pack:" { n += $2 } END { print n }')"
+  out="$objects_before $objects_after $(cd "$clone" && "${g[@]}" cat-file -e "$head^{commit}" 2>/dev/null && echo present || echo absent)"
+  expect 'the repository store receives no object: the head stays absent and the object count is unchanged' \
+    "$([[ "$objects_before" == "$objects_after" && "$out" == *absent && -z "$(ls -A "$clone/.claude/run/review-carry-forward")" ]] && echo 0 || echo 1)"
   decide_case 'a fresh review the user asked for runs the round and says the head is unchanged' \
     "$(round_for 'fresh review requested by the user — head unchanged')" -- --pr-url "$pr_url" --fresh
 
@@ -950,6 +1001,43 @@ EOF
     '{ print } /^## TL;DR/ { print "## Findings"; print "### \360\237\224\264 Critical 1. Unchecked input" }'
   shape_case 'body: a Critical finding heading inside a fence changes nothing' "$CF" \
     '{ print } /^## TL;DR/ { print "```"; print "### Critical 1. quoted"; print "```" }'
+  # A decision label followed by a colon after the block, in every shape the line can take.
+  # body_label_case <label> <line> — insert <line> after `## TL;DR`; the round runs with header invalid.
+  body_label_case() {
+    shape_case "body: $1 runs the round" "$HI" "{ print } /^## TL;DR/ { print \"$2\" }"
+  }
+  body_label_case 'a bold label with the colon outside the bold' '**Status**: needs-fix'
+  body_label_case 'an upper-case label with the colon outside the bold' '**MODE**: HOTFIX'
+  body_label_case 'a decision label in a list item' '- **Mode:** HOTFIX'
+  body_label_case 'an indented decision label' '    **Mode:** HOTFIX'
+  body_label_case 'a decision label in a blockquote' '> Mode: HOTFIX'
+  body_label_case 'a decision label in a table cell' '| **Merge verdict:** | yes |'
+  body_label_case 'a decision label in an HTML comment' '<!-- Mode: HOTFIX -->'
+  body_label_case 'a decision label in heading text' '### Status: needs-fix'
+  body_label_case 'a decision label with a full-width colon' 'Mode\357\274\232 HOTFIX'
+  body_label_case 'a decision label with a zero-width space inside it' 'Mo\342\200\213de: HOTFIX'
+  body_label_case 'an emphasised two-word decision label' '_Reviewed revision_: 1234'
+  body_label_case 'a two-word decision label with extra spaces' 'Merge  verdict : no'
+  body_label_case 'a zero-width non-joiner inside a label' 'Mo\342\200\214de: HOTFIX'
+  body_label_case 'a zero-width joiner inside a label' 'Mo\342\200\215de: HOTFIX'
+  body_label_case 'a word joiner inside a label' 'Mo\342\201\240de: HOTFIX'
+  body_label_case 'a zero-width no-break space inside a label' 'Mo\357\273\277de: HOTFIX'
+  body_label_case 'a soft hyphen inside a label' 'Mo\302\255de: HOTFIX'
+  body_label_case 'a small colon' 'Mode\357\271\225 HOTFIX'
+  body_label_case 'a modifier-letter colon' 'Mode\352\236\211 HOTFIX'
+  body_label_case 'a ratio sign as the colon' 'Mode\342\210\266 HOTFIX'
+  body_label_case 'the Security assessment label' '- Security assessment: none'
+  body_label_case 'the Review scope label' '- Review scope: full PR'
+  body_label_case 'the Reviewed diff fingerprint label' '- Reviewed diff fingerprint: 1234'
+  body_label_case 'the Reviewed assignment fingerprint label' '- Reviewed assignment fingerprint: 1234'
+  shape_case 'body: a decision label in the heading that ends the block runs the round' "$HI" \
+    '/^## TL;DR/ { print "## Mode: HOTFIX"; next } { print }'
+  shape_case 'body: a decision label inside a fence after the block changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "```text"; print "**Mode:** HOTFIX"; print "```" }'
+  shape_case 'body: a decision label inside an inline-code span changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "- The runner prints `status: invalid` and `Mode: HOTFIX` as data." }'
+  shape_case 'body: prose that names a mode without a colon changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "- This was not a HOTFIX mode run." }'
   # A value is never searched for words.
   shape_case 'value: mode and HOTFIX inside a Not verified value carry forward' "$CF" \
     '{ print } /^\*\*Review scope:\*\*/ { print "**Not verified:** GNU mktemp mode; the HOTFIX path was not exercised" }'
@@ -967,6 +1055,14 @@ EOF
   expect 'the next decide removes the run directory of a killed run and keeps a live one' \
     "$([[ "$out" == 'run.live' ]] && echo 0 || echo 1)"
   rm -rf "$scratch/run.live"
+  # A run directory without a holder file is removed once it is older than the limit; a fresh one is kept.
+  mkdir -p "$scratch/run.orphan" "$scratch/run.fresh"
+  touch -t 202001010000 "$scratch/run.orphan"
+  decide_case 'a decide beside run directories without a holder carries forward' "$CF" -- --pr-url "$pr_url"
+  out="$(ls -A "$scratch")"
+  expect 'the next decide removes an old run directory without a holder and keeps a fresh one' \
+    "$([[ "$out" == 'run.fresh' ]] && echo 0 || echo 1)"
+  rm -rf "$scratch/run.fresh"
   # Six decides at the same time.
   local k pids=()
   for k in 1 2 3 4 5 6; do

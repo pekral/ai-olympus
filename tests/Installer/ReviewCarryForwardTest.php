@@ -356,3 +356,49 @@ test('round 1: the statements about the script and the loaders match what they d
     );
     expect($changelog)->not->toContain('Every published review now carries a fourth header line');
 });
+
+test('round 3: every decision label after the header block starts the round, and the claim names what is not covered', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($script)
+        ->toContain('! decision_label_after_block <"$TMP/review.md" || reason \'header invalid\'')
+        ->toContain('#      an inline-code span, and prose that names a mode without a colon after the label.');
+
+    foreach ([
+        'a bold label with the colon outside the bold\' \'**Status**: needs-fix\'',
+        'an upper-case label with the colon outside the bold\' \'**MODE**: HOTFIX\'',
+        'a decision label in a list item\' \'- **Mode:** HOTFIX\'',
+        'an indented decision label\' \'    **Mode:** HOTFIX\'',
+        'a decision label in a blockquote\'',
+        'a decision label in a table cell\'',
+        'a decision label in an HTML comment\'',
+        'a decision label in heading text\'',
+        'a decision label with a full-width colon\'',
+        'a decision label with a zero-width space inside it\'',
+    ] as $case) {
+        expect(substr_count($script, 'body_label_case \'' . $case))->toBe(1);
+    }
+
+    expect(substr_count($script, "\n  body_label_case '"))->toBe(24);
+    expect($script)
+        ->toContain('shape_case \'body: a decision label in the heading that ends the block runs the round\'')
+        ->toContain('shape_case \'body: a decision label inside a fence after the block changes nothing\'')
+        ->toContain('shape_case \'body: a decision label inside an inline-code span changes nothing\'')
+        ->toContain('shape_case \'body: prose that names a mode without a colon changes nothing\'');
+    expect(reviewCarryForwardSource('rules/code-review/general.md'))
+        ->toContain('two more signals start it: a line that names a decision label followed by a colon, in any letter case and any shape,')
+        ->toContain('Not covered: a label inside a fence or inside an inline-code span, and prose that names a mode without a colon after the label.');
+    expect(reviewCarryForwardSource('CHANGELOG.md'))
+        ->toContain('(a label inside a fence or an inline-code span, and prose that names a mode without a colon, are not covered)');
+});
+
+test('round 3: the stated limits of the fetch and the sweep have self-test cases', function (): void {
+    $script = reviewCarryForwardSource('skills/_shared/review-carry-forward.sh');
+
+    expect($script)
+        ->toContain('"${g[@]}" clone -q --no-local "$origin" "$clone"')
+        ->toContain('expect \'the clone does not hold the pull request head before decide\'')
+        ->toContain('expect \'the repository store receives no object: the head stays absent and the object count is unchanged\'')
+        ->toContain('touch -t 202001010000 "$scratch/run.orphan"')
+        ->toContain('expect \'the next decide removes an old run directory without a holder and keeps a fresh one\'');
+});
