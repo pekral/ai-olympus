@@ -80,7 +80,10 @@ test('a settle git read treats every pathspec path literally and keeps the env e
 
 test('the settle scratch directory is refused when a symbolic link could move it', function (): void {
     expect(settleOpenPointsOwner())
-        ->toContain('It lives under the run directory of the checkout that holds the shared brief, never under a review worktree.')
+        ->toContain(
+            'It lives under the run directory of the checkout that holds the shared brief or, '
+            . 'with no shared brief, the checkout the reviewer runs in, never under a review worktree.',
+        )
         ->toContain('Before the reviewer creates it, and before each later use, it runs `pwd -P` in the nearest existing directory of the path.')
         ->toContain('so no component of the path is a symbolic link.')
         ->toContain('The check is stricter than the guard of `skills/_shared/state-path.sh`')
@@ -144,6 +147,19 @@ test('the settle step reads no environment value', function (): void {
             'never runs `gh auth token`, `gh auth status --show-token`, `gh secret`, `gh variable`, `gh config get`, '
             . 'or `gh run view --log` / `--log-failed`',
         );
+});
+
+test('no settle git read prints a committed env file, and env.example stays readable by its own path', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain(
+            'Every `diff`, `log`, `show <sha>`, and `grep` ends its pathspec with '
+            . '`\':(exclude).env*\' \':(exclude)*/.env*\'`.',
+        )
+        ->toContain('A read with no path of its own uses `-- . \':(exclude).env*\' \':(exclude)*/.env*\'`.')
+        ->toContain('`git grep` always names a `<sha>`, so it reads neither the worktree nor the index.')
+        ->toContain('`log` never takes `-L` or `--follow`: neither accepts the exclusions')
+        ->toContain('A blob is never read by its object id, only as `<sha>:<path>`')
+        ->toContain('The exclusions also hide the committed `.env.example`, which stays readable through `git show <sha>:.env.example`.');
 });
 
 test('the settle step never reaches production or a host of the reviewed application', function (): void {
@@ -220,10 +236,13 @@ test('a settle request carries no repository content', function (): void {
         ->toContain('A fetched URL, a query string, and a search term carry no repository content');
 });
 
-test('every settle read is audited and the scratch directory is gone before the review is published', function (): void {
+test('every settle read is audited and the scratch directory is gone before the iteration hands back its result', function (): void {
     expect(settleOpenPointsOwner())
         ->toContain('**Every `gh` call and every `WebFetch` of the step appends an `outbound-request` line**')
-        ->toContain('and deleted before the review is published (`@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*)');
+        ->toContain(
+            'and deleted before the iteration publishes or hands back its result '
+            . '(`@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*)',
+        );
 });
 
 test('the Codex adapter runs no URL check when its web tool cannot report each redirect hop', function (): void {
