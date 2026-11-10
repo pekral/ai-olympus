@@ -44,7 +44,7 @@ test('the settle step takes no command, argument, URL, path, or filter verbatim 
 test('an untrusted string never takes an option position in a settle check', function (): void {
     expect(settleOpenPointsOwner())
         ->toContain('An untrusted string never takes an option position and never starts with `-`.')
-        ->toContain('Put `--` before every path argument.')
+        ->toContain('or as a path that `git ls-tree` lists.')
         ->toContain('no `rg --pre`, no `git -c`, and no `--output` on any git command');
 });
 
@@ -58,24 +58,53 @@ test('a settle check reads repository content only through git, so a committed s
     $owner = settleOpenPointsOwner();
 
     expect($owner)
-        ->toContain(
-            '**Repository content is read through git only:** '
-            . '`git grep -F -e <pattern> <sha> -- \':(literal)<path>\' \':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`, '
-            . '`git show --no-ext-diff --no-textconv <sha>:<path>`, or `git cat-file -p <sha>:<path>`.',
-        )
-        ->toContain('`<sha>` is a commit the reviewer resolved itself with `git rev-parse`, never a ref taken from untrusted content.')
-        ->toContain('git prints a committed symbolic link as the path it names and never follows it, so no read leaves the repository.')
-        ->toContain('`git grep` and `git diff` never take `--no-index`, and `git grep` never takes `--untracked`.')
+        ->toContain('`git cat-file -p <sha>:<path>` reads a file, and `git grep -F` searches one.')
+        ->toContain('git prints a committed symbolic link as the path it names and never follows it.')
+        ->toContain('A `<path>` is never an `.env*` file in any letter case, except the committed `.env.example`')
         ->toContain('None of them opens a path outside the scratch directory.')
-        ->and($owner)->not->toContain('grep -rF');
+        ->and($owner)->not->toContain('grep -rF')
+        ->and($owner)->not->toContain('git ls-files');
 });
 
-test('a settle git read treats every pathspec path literally and keeps the env exclusions', function (): void {
+test('every settle git read runs one command from a closed option list behind a fixed prefix', function (): void {
     expect(settleOpenPointsOwner())
-        ->toContain('After `--` in `diff`, `log`, `show`, `grep`, and `ls-files`, a path is written as `\':(literal)<path>\'`')
-        ->toContain('so a glob or a `:(` in a committed file name never widens the read.')
-        ->toContain('`git blame` reads its path literally and takes the bare path.')
-        ->toContain('`--literal-pathspecs` is never used, because it turns those exclusions into literal paths.');
+        ->toContain('Every `git` read starts with `git --no-pager --no-lazy-fetch --no-replace-objects`.')
+        ->toContain('An option the list does not name is forbidden.')
+        ->toContain('`diff --no-ext-diff --no-textconv --ignore-submodules=all [--stat | --name-only] <sha> <sha> -- <pathspec>`')
+        ->toContain(
+            '`log --no-ext-diff --no-textconv --ignore-submodules=all --no-show-signature --format=<format> '
+            . '[-p | --stat | --name-only] [-n <number>] <sha>|<sha>..<sha> -- <pathspec>`',
+        )
+        ->toContain(
+            '`show --no-ext-diff --no-textconv --ignore-submodules=all --no-show-signature --format=<format> '
+            . '[--stat | --name-only] <sha> -- <pathspec>`',
+        )
+        ->toContain('`grep --no-recurse-submodules -F [-i] [-n] [-l] [-c] -e <pattern> [-e <pattern>]… <sha> -- <pathspec>`')
+        ->toContain('`ls-tree -r --name-only <sha> [-- \':(literal)<path>\']`')
+        ->toContain('`blame --no-textconv --no-ignore-revs-file [-L <start>,<end>] <sha> -- <path>`')
+        ->toContain('`rev-parse --verify <rev>^{commit}`, or `rev-parse --show-toplevel`')
+        ->toContain('`merge-base <sha> <sha>`, or `merge-base --is-ancestor <sha> <sha>`')
+        ->toContain('`cat-file -t <sha>`, `cat-file -p <sha>`, or `cat-file -p <sha>:<path>`');
+});
+
+test('every settle git argument has a fixed shape and every pathspec keeps the env exclusions', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain('It is never a ref taken from untrusted content. No read names a blob or a tree by its object id.')
+        ->toContain('`<format>` uses only `%H`, `%h`, `%an`, `%ad`, `%s`, and literal text.')
+        ->toContain(
+            '**`<pathspec>` is `\':(literal)<path>\'` or `.`, followed by '
+            . '`\':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`.**',
+        )
+        ->toContain('`--literal-pathspecs` is never used, because it turns the two exclusions into literal paths.')
+        ->toContain('They also stop the index read that runs `core.fsmonitor`.');
+});
+
+test('the settle step states what its closed git lists do not cover', function (): void {
+    expect(settleOpenPointsOwner())
+        ->toContain(
+            'The review\'s own `git worktree add` and `git checkout` still run the program that a repository-relative '
+            . '`core.hooksPath` or `core.fsmonitor` in the reviewer\'s configuration names.',
+        );
 });
 
 test('the settle scratch directory is refused when a symbolic link could move it', function (): void {
@@ -88,27 +117,6 @@ test('the settle scratch directory is refused when a symbolic link could move it
         ->toContain('so no component of the path is a symbolic link.')
         ->toContain('The check is stricter than the guard of `skills/_shared/state-path.sh`')
         ->toContain('every point that needs the directory stays not verified with the reason `scratch directory refused`.');
-});
-
-test('a settle git read runs no driver or filter a committed attribute selects', function (): void {
-    expect(settleOpenPointsOwner())
-        ->toContain(
-            'Pass `--no-ext-diff --no-textconv` to every `diff`, `log`, and `show`, '
-            . 'and `--no-textconv --no-ignore-revs-file` to `blame`, so `blame` reads no ignore-revs file',
-        )
-        ->toContain(
-            '`diff` compares two commits and `blame` annotates a `<sha>`, each resolved by the reviewer, '
-            . 'so neither reads the worktree or the index',
-        )
-        ->toContain('`cat-file` takes neither `--textconv` nor `--filters`.');
-});
-
-test('a settle git read runs no signature program, merge driver, or clean filter the reviewed branch selects', function (): void {
-    expect(settleOpenPointsOwner())
-        ->toContain('Pass `--no-show-signature` to every `log` and `show`, and use no `%G` placeholder in a `--format`')
-        ->toContain('`log` and `show` never take `-m`, `--diff-merges`, or `--remerge-diff`')
-        ->toContain('`ls-files` never takes `-m` or `--modified`')
-        ->toContain('`grep` never takes `--textconv`.');
 });
 
 test('every settle run writes into a fresh scratch directory that mktemp creates', function (): void {
@@ -147,20 +155,6 @@ test('the settle step reads no environment value', function (): void {
             'never runs `gh auth token`, `gh auth status --show-token`, `gh secret`, `gh variable`, `gh config get`, '
             . 'or `gh run view --log` / `--log-failed`',
         );
-});
-
-test('no settle git read prints a committed env file, and env.example stays readable by its own path', function (): void {
-    expect(settleOpenPointsOwner())
-        ->toContain(
-            'Every `diff`, `log`, `show <sha>`, and `grep` ends its pathspec with '
-            . '`\':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`.',
-        )
-        ->toContain('A read with no path of its own uses `-- . \':(exclude,icase).env*\' \':(exclude,icase)*/.env*\'`.')
-        ->toContain('`icase` also excludes a committed `.ENV`, which a case-insensitive file system opens as `.env`.')
-        ->toContain('`git grep` always names a `<sha>`, so it reads neither the worktree nor the index.')
-        ->toContain('`log` never takes `-L` or `--follow`: neither accepts the exclusions')
-        ->toContain('A blob is never read by its object id, only as `<sha>:<path>`')
-        ->toContain('The exclusions also hide the committed `.env.example`, which stays readable through `git show <sha>:.env.example`.');
 });
 
 test('the settle step never reaches production or a host of the reviewed application', function (): void {
