@@ -150,19 +150,9 @@ test('casey analyses a PostgreSQL query plan from a local instance only, and pos
 
 test('the database report heading is renamed on every surface while the mysql-report marker namespace stays (criteria 5 and 9)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $files = [
-        'agents/casey.md',
-        'agents/krang.md',
-        'agents/leonardo.md',
-        'skills/code-review/references/specialized-reviews.md',
-        'skills/code-review-github/references/cr-wrapper-contract.md',
-        'skills/code-review-github/templates/pr-comment-output.md',
-        'skills/process-code-review/SKILL.md',
-        'rules/code-review/general.md',
-    ];
 
-    foreach ($files as $file) {
-        expect((string) file_get_contents($packageDir . '/' . $file))->not->toContain('## MySQL report');
+    foreach (caseyReportSurfaceFiles() as $file) {
+        expect(caseyReportFile($file))->not->toContain('## MySQL report');
     }
 
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md'))
@@ -194,8 +184,14 @@ function caseyReportSurfaceFiles(): array
     return [
         'agents/casey.md',
         'codex/agents/casey.toml',
+        'agents/krang.md',
+        'agents/leonardo.md',
         'skills/code-review/references/specialized-reviews.md',
         'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/process-code-review/SKILL.md',
+        'rules/code-review/general.md',
+        'rules/compound-engineering/orchestration.md',
         'docs/agents.md',
         'skills/mysql-problem-solver/templates/cr-report.md',
         'skills/mysql-problem-solver/references/explain-reading.md',
@@ -203,26 +199,52 @@ function caseyReportSurfaceFiles(): array
     ];
 }
 
+function caseyReportFile(string $relativePath): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
+}
+
+function explainReadingContents(): string
+{
+    return caseyReportFile('skills/mysql-problem-solver/references/explain-reading.md');
+}
+
+function crReportTemplateContents(): string
+{
+    return caseyReportFile('skills/mysql-problem-solver/templates/cr-report.md');
+}
+
+function mysqlProblemSolverSkillContents(): string
+{
+    return caseyReportFile('skills/mysql-problem-solver/SKILL.md');
+}
+
 function caseyReportSurfaceWithout(string $owner): string
 {
-    $packageDir = dirname(__DIR__, 2);
-
     return implode("\n", array_map(
-        static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file),
+        caseyReportFile(...),
         array_values(array_diff(caseyReportSurfaceFiles(), [$owner])),
     ));
 }
 
+function explainReadingRowsOpeningWith(string $row, string $reading): int
+{
+    $cell = trim((string) preg_replace('/^\|([^|]+)\|.*$/s', '$1', $row));
+
+    return (int) preg_match_all(
+        '/^\|\s*' . preg_quote($cell, '/') . '\s*\|(?!\s*(?:Plain-language reading|Reading)\s*\|\s*$)/m',
+        $reading,
+    );
+}
+
 test('the report template pins the TL;DR heading before the first item heading (issue #334)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
+    $template = crReportTemplateContents();
 
     expect(strpos($template, '### TL;DR'))->toBeLessThan((int) strpos($template, '### 1. <one-sentence problem>'));
 });
 
 test('the report template pins the full text of the line', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
+    $template = crReportTemplateContents();
 
     expect($template)->toContain($text);
 })->with([
@@ -276,8 +298,7 @@ test('the report template pins the full text of the line', function (string $tex
 ]);
 
 test('the skill pins the full text of the TL;DR sentence', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+    $skill = mysqlProblemSolverSkillContents();
 
     expect($skill)->toContain($text);
 })->with([
@@ -297,7 +318,7 @@ test('the skill pins the full text of the TL;DR sentence', function (string $tex
             . 'with no `PRIMARY` index has no table size.',
     ],
     'the no-critical-item answer carries no TL;DR' => [
-        'That answer carries no `TL;DR`.',
+        'answers `No critical database item in this diff.` when nothing qualifies. That answer carries no `TL;DR`.',
     ],
     'the no-EXPLAIN line' => [
         'When `EXPLAIN` did not run, one line states that the proposal rests on static analysis and gives the '
@@ -340,8 +361,7 @@ test('the skill pins the full text of the TL;DR sentence', function (string $tex
 ]);
 
 test('the reading file pins the full text of the rule line', function (string $text): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+    $reading = explainReadingContents();
 
     expect($reading)->toContain($text);
 })->with([
@@ -464,297 +484,212 @@ test('the reading file pins the full text of the rule line', function (string $t
 ]);
 
 test(
-    'the reading file pins the full row of the MySQL and MariaDB column and that exactly one reading row opens with its first cell',
+    'the reading file pins the full row of every table value and that exactly one reading row opens with its first cell',
     function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
+        $reading = explainReadingContents();
 
         expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
+            ->and(explainReadingRowsOpeningWith($text, $reading))->toBe(1);
     },
 )->with([
-    'Extra' => [
+    'MySQL and MariaDB column: Extra' => [
         '| `Extra` | The extra steps of this row. See *The `Extra` column*. |',
     ],
-    'filtered' => [
+    'MySQL and MariaDB column: filtered' => [
         '| `filtered` | The estimated percentage of the table\'s rows that the table condition keeps; `100` '
             . 'means that the condition removes no row. `rows` × `filtered` ÷ 100 is the estimated number of rows '
             . 'joined with the following table. When the output has no `filtered` column (plain `EXPLAIN` on '
             . 'MariaDB), the reading gives no figure for the rows kept and says that the plan carries none. |',
     ],
-    'key' => [
+    'MySQL and MariaDB column: key' => [
         '| `key` | The index the database decided to use. A `key` of `NULL` means it found no index to use, '
             . 'and the reading names none. |',
     ],
-    'rows' => [
+    'MySQL and MariaDB column: rows' => [
         '| `rows` | The estimated number of rows the database examines for this table. The product of the '
             . '`rows` values of all rows of the output roughly gives the number of rows the whole query examines. |',
     ],
-    'table' => [
+    'MySQL and MariaDB column: table' => [
         '| `table` | The table this row of the output refers to. |',
     ],
-    'type' => [
+    'MySQL and MariaDB column: type' => [
         '| `type` | How the database finds rows in that table. See *The `type` values*. |',
     ],
-]);
-
-test(
-    'the reading file pins the full row of the `type` value and that exactly one reading row opens with its first cell',
-    function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
-
-        expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
-    },
-)->with([
-    'ALL' => [
-        '| `ALL` | The database reads every row of the table, once for each combination of rows from the '
-            . 'tables before it. |',
-    ],
-    'const' => [
-        '| `const` | At most one row of the table matches, and the database reads it once, at the start of '
-            . 'the query. MySQL uses it when the query compares all parts of a primary key or a unique index with '
-            . 'constant values. |',
-    ],
-    'eq_ref' => [
-        '| `eq_ref` | The database reads one row of this table for each combination of rows from the tables '
-            . 'before it, through all parts of a primary key or a `UNIQUE NOT NULL` index. |',
-    ],
-    'fulltext' => [
-        '| `fulltext` | The database uses a `FULLTEXT` index. |',
-    ],
-    'index' => [
-        '| `index` | The database reads the whole index in `key`. With `Using index` in `Extra`, it reads '
-            . 'only the index. Without it, it also reads every table row in the order of the index. |',
-    ],
-    'index_merge' => [
-        '| `index_merge` | The database uses the Index Merge optimization: it reads ranges of several indexes '
-            . 'of this table and merges the rows it finds. `key` lists the indexes. |',
-    ],
-    'index_subquery' => [
-        '| `index_subquery` | Like `unique_subquery`, through an index that is not unique. |',
-    ],
-    'range' => [
-        '| `range` | The database reads only the rows in a given range, through the index in `key`. |',
-    ],
-    'ref' => [
-        '| `ref` | The database reads all rows with matching index values from this table, for each '
-            . 'combination of rows from the tables before it. The index is used through a leftmost prefix, or it is '
-            . 'not a primary key or unique index. |',
-    ],
-    'ref_or_null' => [
-        '| `ref_or_null` | Like `ref`, with an extra search for rows that contain `NULL`. |',
-    ],
-    'system' => [
-        '| `system` | The table has at most one row. |',
-    ],
-    'unique_subquery' => [
-        '| `unique_subquery` | An `IN (SELECT …)` subquery runs as a lookup through a primary key, in place '
-            . 'of the subquery. |',
-    ],
-]);
-
-test(
-    'the reading file pins the full row of the `Extra` value and that exactly one reading row opens with its first cell',
-    function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
-
-        expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
-    },
-)->with([
-    'Using filesort' => [
-        '| `Using filesort` | The database does an extra pass to retrieve the rows in sorted order. |',
-    ],
-    'Using index' => [
-        '| `Using index` | The database reads the column values from the index alone, without reading the '
-            . 'table row. |',
-    ],
-    'Using index condition' => [
-        '| `Using index condition` | The database reads index entries and tests the condition on them first, '
-            . 'to decide whether to read the full table row. |',
-    ],
-    'Using index for group-by' => [
-        '| `Using index for group-by` | The database reads all columns of the `GROUP BY` or `DISTINCT` from '
-            . 'an index, without reading the table. |',
-    ],
-    'Using join buffer' => [
-        '| `Using join buffer` | The database reads the rows of the earlier tables into the join buffer, in '
-            . 'portions, and joins this table against the buffered rows. |',
-    ],
-    'Using temporary' => [
-        '| `Using temporary` | The database creates a temporary table to hold the result. |',
-    ],
-    'Using where' => [
-        '| `Using where` | A `WHERE` condition restricts which rows are matched against the next table or '
-            . 'sent to the client. |',
-    ],
-]);
-
-test(
-    'the reading file pins the full row of the PostgreSQL figure and that exactly one reading row opens with its first cell',
-    function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
-
-        expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
-    },
-)->with([
-    '`actual time=<start>..<total>`' => [
-        '| `actual time=<start>..<total>` | `EXPLAIN ANALYZE` only. The measured start-up time and total time '
-            . 'of the node, in milliseconds of real time, averaged per execution of the node. |',
-    ],
-    '`cost=<start>..<total>`' => [
-        '| `cost=<start>..<total>` | The estimated start-up cost, spent before the output phase of the node '
-            . 'can begin, and the estimated total cost, if the node runs to completion. The unit is the planner\'s '
-            . 'arbitrary cost unit, not time. The cost of a node includes the cost of all its child nodes. |',
-    ],
-    '`loops=<n>`' => [
-        '| `loops=<n>` | `EXPLAIN ANALYZE` only. How many times the node ran. The total time and rows of the '
-            . 'node are the averages × `loops`. |',
-    ],
-    '`rows=<n>`' => [
-        '| `rows=<n>` | The estimated number of rows the node outputs, if it runs to completion. |',
-    ],
-    '`rows=<n>` after `actual time`' => [
-        '| `rows=<n>` after `actual time` | `EXPLAIN ANALYZE` only. The measured rows the node output, '
-            . 'averaged per execution of the node. |',
-    ],
-    '`width=<n>`' => [
-        '| `width=<n>` | The estimated average width of an output row, in bytes. |',
-    ],
-]);
-
-test(
-    'the reading file pins the full row of the PostgreSQL node and that exactly one reading row opens with its first cell',
-    function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
-
-        expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
-    },
-)->with([
-    'Bitmap Heap Scan' => [
-        '| `Bitmap Heap Scan` | The database sorts the row locations that its child node found into physical '
-            . 'order and fetches those rows from the table. |',
-    ],
-    'Bitmap Index Scan' => [
-        '| `Bitmap Index Scan` | The database visits the index to find the locations of the rows that match '
-            . 'the index condition. |',
-    ],
-    'Hash' => [
-        '| `Hash` | The database enters the rows of its child node into an in-memory hash table, for the join '
-            . 'node above it. |',
-    ],
-    'Hash Join' => [
-        '| `Hash Join` | The database scans the other input and probes the hash table for matches to each '
-            . 'row. |',
-    ],
-    'Incremental Sort' => [
-        '| `Incremental Sort` | The database sorts the rows in batches, and it can return rows before the '
-            . 'whole result is sorted. |',
-    ],
-    'Index Only Scan' => [
-        '| `Index Only Scan` | The database answers from the index named after `using`. It reads the table '
-            . 'only for rows on pages that the visibility map does not mark as visible to all transactions. |',
-    ],
-    'Index Scan' => [
-        '| `Index Scan` | The database fetches the table rows in the order of the index named after `using`. '
-            . '|',
-    ],
-    'Limit' => [
-        '| `Limit` | The database stops requesting rows from its child node at the limit. The child\'s '
-            . 'estimated cost and rows are shown as if it ran to completion. |',
-    ],
-    'Materialize' => [
-        '| `Materialize` | The database saves the rows of its child node in memory as it reads them and '
-            . 'returns them from memory on each later pass. |',
-    ],
-    'Merge Join' => [
-        '| `Merge Join` | The database joins two inputs that are sorted on the join keys. |',
-    ],
-    'Nested Loop' => [
-        '| `Nested Loop` | The database runs the second (inner) child once for each row of the first (outer) '
-            . 'child. |',
-    ],
-    'Seq Scan' => [
-        '| `Seq Scan` | The database reads all rows of the table in sequence. |',
-    ],
-    'Sort' => [
-        '| `Sort` | The database sorts the rows in an explicit step. |',
-    ],
-]);
-
-test(
-    'the reading file pins the full row of the PostgreSQL detail line and that exactly one reading row opens with its first cell',
-    function (string $text): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
-
-        $cell = (string) preg_replace('/^(\| [^|]+ \|).*$/s', '$1', $text);
-
-        $rowCount = preg_match_all('/^' . preg_quote($cell, '/') . ' (?!Plain-language reading \||Reading \|)/m', $reading);
-
-        expect($reading)->toContain($text)
-            ->and($rowCount)->toBe(1);
-    },
-)->with([
-    'Buffers' => [
+    'PostgreSQL detail line: Buffers' => [
         '| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child '
             . 'nodes. These are not distinct buffers. On PostgreSQL 18, `EXPLAIN ANALYZE` includes this line on its '
             . 'own; plain `EXPLAIN` without the `BUFFERS` option, which is the form `casey` runs, does not. |',
     ],
-    'Execution Time' => [
+    'PostgreSQL detail line: Execution Time' => [
         '| `Execution Time` | `EXPLAIN ANALYZE` only. The time to run the query, including executor start-up '
             . 'and shut-down and any triggers fired, without parsing, rewriting, and planning. |',
     ],
-    'Filter' => [
+    'PostgreSQL detail line: Filter' => [
         '| `Filter` | The node checks this condition for each row it scans and outputs only the rows that '
             . 'pass. |',
     ],
-    'Index Cond' => [
+    'PostgreSQL detail line: Index Cond' => [
         '| `Index Cond` | The condition that the node applies through the index. |',
     ],
-    'Planning Time' => [
+    'PostgreSQL detail line: Planning Time' => [
         '| `Planning Time` | `EXPLAIN ANALYZE` only. The time the planner took to generate and optimize the '
             . 'plan, without parsing and rewriting. |',
     ],
-    'Rows Removed by Filter' => [
+    'PostgreSQL detail line: Rows Removed by Filter' => [
         '| `Rows Removed by Filter` | The scanned rows, or the potential join pairs of a join node, that the '
             . 'filter condition rejected. The line appears only when the condition rejected at least one. The '
             . 'documentation shows it in `EXPLAIN ANALYZE` output. |',
     ],
-    'Rows Removed by Index Recheck' => [
+    'PostgreSQL detail line: Rows Removed by Index Recheck' => [
         '| `Rows Removed by Index Recheck` | The candidate rows that the index returned and that a recheck of '
             . 'the index condition rejected. The documentation shows it in `EXPLAIN ANALYZE` output. |',
     ],
-    'Sort Method' => [
+    'PostgreSQL detail line: Sort Method' => [
         '| `Sort Method` | Shown by `EXPLAIN ANALYZE`. The sort method used, including whether the sort ran '
             . 'in memory or on disk, and the memory or disk space it needed. |',
+    ],
+    'PostgreSQL figure: `actual time=<start>..<total>`' => [
+        '| `actual time=<start>..<total>` | `EXPLAIN ANALYZE` only. The measured start-up time and total time '
+            . 'of the node, in milliseconds of real time, averaged per execution of the node. |',
+    ],
+    'PostgreSQL figure: `cost=<start>..<total>`' => [
+        '| `cost=<start>..<total>` | The estimated start-up cost, spent before the output phase of the node '
+            . 'can begin, and the estimated total cost, if the node runs to completion. The unit is the planner\'s '
+            . 'arbitrary cost unit, not time. The cost of a node includes the cost of all its child nodes. |',
+    ],
+    'PostgreSQL figure: `loops=<n>`' => [
+        '| `loops=<n>` | `EXPLAIN ANALYZE` only. How many times the node ran. The total time and rows of the '
+            . 'node are the averages × `loops`. |',
+    ],
+    'PostgreSQL figure: `rows=<n>`' => [
+        '| `rows=<n>` | The estimated number of rows the node outputs, if it runs to completion. |',
+    ],
+    'PostgreSQL figure: `rows=<n>` after `actual time`' => [
+        '| `rows=<n>` after `actual time` | `EXPLAIN ANALYZE` only. The measured rows the node output, '
+            . 'averaged per execution of the node. |',
+    ],
+    'PostgreSQL figure: `width=<n>`' => [
+        '| `width=<n>` | The estimated average width of an output row, in bytes. |',
+    ],
+    'PostgreSQL node: Bitmap Heap Scan' => [
+        '| `Bitmap Heap Scan` | The database sorts the row locations that its child node found into physical '
+            . 'order and fetches those rows from the table. |',
+    ],
+    'PostgreSQL node: Bitmap Index Scan' => [
+        '| `Bitmap Index Scan` | The database visits the index to find the locations of the rows that match '
+            . 'the index condition. |',
+    ],
+    'PostgreSQL node: Hash' => [
+        '| `Hash` | The database enters the rows of its child node into an in-memory hash table, for the join '
+            . 'node above it. |',
+    ],
+    'PostgreSQL node: Hash Join' => [
+        '| `Hash Join` | The database scans the other input and probes the hash table for matches to each '
+            . 'row. |',
+    ],
+    'PostgreSQL node: Incremental Sort' => [
+        '| `Incremental Sort` | The database sorts the rows in batches, and it can return rows before the '
+            . 'whole result is sorted. |',
+    ],
+    'PostgreSQL node: Index Only Scan' => [
+        '| `Index Only Scan` | The database answers from the index named after `using`. It reads the table '
+            . 'only for rows on pages that the visibility map does not mark as visible to all transactions. |',
+    ],
+    'PostgreSQL node: Index Scan' => [
+        '| `Index Scan` | The database fetches the table rows in the order of the index named after `using`. '
+            . '|',
+    ],
+    'PostgreSQL node: Limit' => [
+        '| `Limit` | The database stops requesting rows from its child node at the limit. The child\'s '
+            . 'estimated cost and rows are shown as if it ran to completion. |',
+    ],
+    'PostgreSQL node: Materialize' => [
+        '| `Materialize` | The database saves the rows of its child node in memory as it reads them and '
+            . 'returns them from memory on each later pass. |',
+    ],
+    'PostgreSQL node: Merge Join' => [
+        '| `Merge Join` | The database joins two inputs that are sorted on the join keys. |',
+    ],
+    'PostgreSQL node: Nested Loop' => [
+        '| `Nested Loop` | The database runs the second (inner) child once for each row of the first (outer) '
+            . 'child. |',
+    ],
+    'PostgreSQL node: Seq Scan' => [
+        '| `Seq Scan` | The database reads all rows of the table in sequence. |',
+    ],
+    'PostgreSQL node: Sort' => [
+        '| `Sort` | The database sorts the rows in an explicit step. |',
+    ],
+    '`Extra` value: Using filesort' => [
+        '| `Using filesort` | The database does an extra pass to retrieve the rows in sorted order. |',
+    ],
+    '`Extra` value: Using index' => [
+        '| `Using index` | The database reads the column values from the index alone, without reading the '
+            . 'table row. |',
+    ],
+    '`Extra` value: Using index condition' => [
+        '| `Using index condition` | The database reads index entries and tests the condition on them first, '
+            . 'to decide whether to read the full table row. |',
+    ],
+    '`Extra` value: Using index for group-by' => [
+        '| `Using index for group-by` | The database reads all columns of the `GROUP BY` or `DISTINCT` from '
+            . 'an index, without reading the table. |',
+    ],
+    '`Extra` value: Using join buffer' => [
+        '| `Using join buffer` | The database reads the rows of the earlier tables into the join buffer, in '
+            . 'portions, and joins this table against the buffered rows. |',
+    ],
+    '`Extra` value: Using temporary' => [
+        '| `Using temporary` | The database creates a temporary table to hold the result. |',
+    ],
+    '`Extra` value: Using where' => [
+        '| `Using where` | A `WHERE` condition restricts which rows are matched against the next table or '
+            . 'sent to the client. |',
+    ],
+    '`type` value: ALL' => [
+        '| `ALL` | The database reads every row of the table, once for each combination of rows from the '
+            . 'tables before it. |',
+    ],
+    '`type` value: const' => [
+        '| `const` | At most one row of the table matches, and the database reads it once, at the start of '
+            . 'the query. MySQL uses it when the query compares all parts of a primary key or a unique index with '
+            . 'constant values. |',
+    ],
+    '`type` value: eq_ref' => [
+        '| `eq_ref` | The database reads one row of this table for each combination of rows from the tables '
+            . 'before it, through all parts of a primary key or a `UNIQUE NOT NULL` index. |',
+    ],
+    '`type` value: fulltext' => [
+        '| `fulltext` | The database uses a `FULLTEXT` index. |',
+    ],
+    '`type` value: index' => [
+        '| `index` | The database reads the whole index in `key`. With `Using index` in `Extra`, it reads '
+            . 'only the index. Without it, it also reads every table row in the order of the index. |',
+    ],
+    '`type` value: index_merge' => [
+        '| `index_merge` | The database uses the Index Merge optimization: it reads ranges of several indexes '
+            . 'of this table and merges the rows it finds. `key` lists the indexes. |',
+    ],
+    '`type` value: index_subquery' => [
+        '| `index_subquery` | Like `unique_subquery`, through an index that is not unique. |',
+    ],
+    '`type` value: range' => [
+        '| `range` | The database reads only the rows in a given range, through the index in `key`. |',
+    ],
+    '`type` value: ref' => [
+        '| `ref` | The database reads all rows with matching index values from this table, for each '
+            . 'combination of rows from the tables before it. The index is used through a leftmost prefix, or it is '
+            . 'not a primary key or unique index. |',
+    ],
+    '`type` value: ref_or_null' => [
+        '| `ref_or_null` | Like `ref`, with an extra search for rows that contain `NULL`. |',
+    ],
+    '`type` value: system' => [
+        '| `system` | The table has at most one row. |',
+    ],
+    '`type` value: unique_subquery' => [
+        '| `unique_subquery` | An `IN (SELECT …)` subquery runs as a lookup through a primary key, in place '
+            . 'of the subquery. |',
     ],
 ]);
 
@@ -762,8 +697,7 @@ test(
     'the reading file pins the absence of the removed wording: one pass, the whole query examines, GROUP '
         . 'BY naming, a full index scan as no lookup, the old PostgreSQL exclusion, and the Hash Join parent',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+        $reading = explainReadingContents();
 
         expect($reading)->not->toContain('in one pass')
             ->and($reading)->not->toContain('that is the number of rows the whole query examines')
@@ -775,10 +709,9 @@ test(
 );
 
 test(
-    'the template carries the DB access values and none of the other seven files of the casey report surface carries them (issue #334)',
+    'the template carries the DB access values and none of the other thirteen files of the casey report surface carries them (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $template = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/templates/cr-report.md');
+        $template = crReportTemplateContents();
 
         expect($template)->toContain('DB access: <the plain database client | static analysis only — <reason>>')
             ->and(substr_count(caseyReportSurfaceWithout('skills/mysql-problem-solver/templates/cr-report.md'), 'the plain database client |'))->toBe(0);
@@ -786,28 +719,29 @@ test(
 );
 
 test('the casey handoff points to the DB access line of the report (issue #334)', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+    $casey = caseyReportFile('agents/casey.md');
 
     expect($casey)->toContain('the value of the `DB access:` line of the report');
 });
 
 test(
-    'the skill carries the fact-source sentence and none of the other seven files of the casey report surface carries it (issue #334)',
+    'the skill carries the full fact-source sentence and none of the other thirteen files of the casey report surface carries its phrase '
+        . '"a table size the run read" (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+        $skill = mysqlProblemSolverSkillContents();
 
-        expect($skill)->toContain('a table size the run read')
+        expect($skill)->toContain(
+            'A fact names its source, and the only sources are a `file:line`, a value read from the `EXPLAIN` output, and a table size the run read.',
+        )
             ->and(substr_count(caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md'), 'a table size the run read'))->toBe(0);
     },
 );
 
 test(
-    'the reading file carries `Using filesort` and `index_merge` and none of the other seven files of the casey report surface carries them (issue #334)',
+    'the reading file carries `Using filesort` and `index_merge` and none of the other thirteen files of '
+        . 'the casey report surface carries them (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $reading = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/references/explain-reading.md');
+        $reading = explainReadingContents();
         $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/references/explain-reading.md');
 
         expect($reading)->toContain('`Using filesort`')
@@ -820,10 +754,9 @@ test(
 test(
     'the TL;DR pins both places the report is published, the publish and render instructions, and the two ownership sentences (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
-        $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
-        $commentTemplate = (string) file_get_contents($packageDir . '/skills/code-review-github/templates/pr-comment-output.md');
+        $casey = caseyReportFile('agents/casey.md');
+        $reference = caseyReportFile('skills/code-review/references/specialized-reviews.md');
+        $commentTemplate = caseyReportFile('skills/code-review-github/templates/pr-comment-output.md');
 
         expect($casey)->toContain(
             'Pipe the whole body, its `TL;DR` included, into `skills/code-review-github/scripts/upsert-comment.sh <PR-URL> - mysql-report`.',
@@ -842,11 +775,10 @@ test(
 );
 
 test(
-    'the skill carries the no-TL;DR answer sentence and none of the other seven files of the casey report '
+    'the skill carries the no-TL;DR answer sentence and none of the other thirteen files of the casey report '
         . 'surface carries one of five TL;DR rule phrases (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $skill = (string) file_get_contents($packageDir . '/skills/mysql-problem-solver/SKILL.md');
+        $skill = mysqlProblemSolverSkillContents();
         $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md');
 
         expect($skill)->toContain('That answer carries no `TL;DR`.')
@@ -862,9 +794,8 @@ test(
     'the Codex description pins the TL;DR sentence and the delegation to the Claude definition, and the '
         . 'Claude definition pins its matching sentence (issue #334)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $codex = (string) file_get_contents($packageDir . '/codex/agents/casey.toml');
-        $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
+        $codex = caseyReportFile('codex/agents/casey.toml');
+        $casey = caseyReportFile('agents/casey.md');
 
         expect($codex)->toContain(
             'Its report follows mysql-problem-solver MODE=cr-report, including the fact-based TL;DR and the plain-language reading of the EXPLAIN result.',
@@ -878,9 +809,8 @@ test(
     'the casey tools line, the statements its Bash boundary allows, the casey consent row, and the number '
         . 'of casey consent rows match master (issue #334, criterion 7)',
     function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
-        $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+        $casey = caseyReportFile('agents/casey.md');
+        $orchestration = caseyReportFile('rules/compound-engineering/orchestration.md');
 
         expect($casey)->toMatch('/^tools: Read, Glob, Grep, Bash$/m')
             ->and($casey)->toContain(
