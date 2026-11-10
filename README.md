@@ -73,7 +73,7 @@ Codex exposes no user-defined slash command, so `.claude/commands` has no Codex 
 
 - **Issue-to-PR workflow** — separate roles implement, review, test, and report
 - **Adaptive routing** — a deterministic classifier picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline per task, so a typo fix does not pay for an authorization rewrite's review
-- **Cheapest model that works** — each agent declares a default model tier and escalates only on a recorded reason: the implementer starts on Sonnet, while the reviewer and the orchestrator run on Opus by default because their mistakes cost every later stage; the same contract binds to Codex / OpenAI's own model controls ([default tiers](#default-model-tiers))
+- **Cheapest model that works** — each agent starts on its [default model tier](#default-model-tiers) and escalates only on a recorded reason. The implementer starts on Sonnet. The reviewer and the orchestrator start on Opus, because their mistakes cost every later stage. The same contract binds to the model controls of Codex / OpenAI
 - **Agent-friendly tool output** — when your project installs `laravel/pao`, the rules read the compact JSON it gives agents from Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code as the green signal
 - **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
 - **Coverage requirements** — implementation skills require tests for the changed behaviour
@@ -250,7 +250,7 @@ Each agent starts on its default tier and escalates only on a recorded reason (s
 | `michelangelo` | page redesign | `opus` · high | `gpt-6-astra` · high |
 | `casey` | database report | `sonnet` · high | `gpt-6-luna` · high |
 | `shredder` | context retrieval | `opus` · high | `gpt-6.1-sol` · high |
-| `april` | final report | `haiku` · medium | `gpt-6-luna` · medium |
+| `april` | final report | `haiku` · medium (not applied to Haiku) | `gpt-6-luna` · medium |
 
 ### Avatars and activity animations
 
