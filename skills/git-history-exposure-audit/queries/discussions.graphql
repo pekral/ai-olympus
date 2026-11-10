@@ -1,0 +1,28 @@
+query($owner: String!, $name: String!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    hasDiscussionsEnabled
+    discussions(first: 25, after: $endCursor) {
+      nodes {
+        url
+        title
+        body
+        comments(first: 50) {
+          nodes {
+            url
+            body
+            replies(first: 50) {
+              nodes {
+                url
+                body
+              }
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
