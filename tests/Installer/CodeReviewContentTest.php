@@ -2619,7 +2619,7 @@ test('code review rule scopes a later round to the diff since the last reviewed 
     expect($rule)->toContain('### Filter on detection');
     expect($rule)->toContain('It never lowers the convergence bar and never removes a security finding.');
     // The header line is the anchor the next round resolves its baseline from.
-    expect($rule)->toContain('### The three header lines');
+    expect($rule)->toContain('### The four header lines');
     expect($rule)->toContain('a missing value fails closed and requires review.');
     // One canonical home, cross-referenced from the vague "do not repeat" bullet it makes concrete.
     expect(substr_count($rule, '## Incremental Review Scope — Diff Since the Last Reviewed Revision'))->toBe(1);

@@ -123,7 +123,7 @@ test('the extractor and the review state load one shared jq module for the findi
         expect($script)
             ->toContain('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
             ->toContain("include \"finding-defs\";\n")
-            ->and(substr_count($script, '-L "$HERE"'))->toBe(substr_count($script, $program));
+            ->and(substr_count($script, '-L "$HERE"'))->toBe(substr_count($script, $program) + substr_count($script, 'include "review-trust";'));
         expect($script)->not->toContain('def isstr(');
         expect($script)->not->toContain('def severity_rank:');
         expect($script)->not->toContain('def status_rank:');
@@ -171,8 +171,9 @@ test('a dismissal reads the author association from the GitHub loader, never fro
     expect($script)
         ->toContain('LOADER="$HERE/../code-review-github/scripts/load-issue.sh"')
         ->toContain('"$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"')
-        ->toContain('elif ($m[0].body | type) != "string" or ($m[0].body | test("[a-z][a-z0-9-]*:actor=")) then')
-        ->toContain('elif (["OWNER", "MEMBER", "COLLABORATOR"] | index([$m[0].authorAssociation])) == null then')
+        ->toContain('elif ($m[0].body | type) != "string" or ($m[0].body | agent_marker) then')
+        ->toContain('elif ($m[0].authorAssociation | write_access | not) then')
+        ->toContain('verdict="$(jq -r -L "$HERE" --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" \'include "review-trust";')
         ->toContain('elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \\($id)"')
         ->toContain('association="$(rejection_association "$comment" "$id")"')
         ->toContain('isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")')

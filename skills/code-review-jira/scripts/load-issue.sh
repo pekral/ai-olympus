@@ -28,8 +28,10 @@
 #     "subtasks":    [ { "key", "summary", "status", "type",
 #                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
+#                        "commentsComplete": <bool>,
 #                        "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ] } ],
 #     "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
+#     "commentsComplete": <bool>,
 #     "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ],  # "id" is a string
 #     "customFields":  { "customfield_XXXXX": <parsed value>, … },
 #     "devSummary":    { "pullRequestCount", "branchCount", "commitCount", "state", "isStale", "byInstance" } | null,
@@ -57,6 +59,10 @@
 #     fallback); `mentionAccountIds` is every `mention` node's `attrs.id` found in the comment's ADF
 #     body (deduplicated). A comment carries neither field when acli exposes no `accountId` for it —
 #     a display name or `@Name` text is never a substitute for either.
+#   - `commentsComplete` (on the issue and on each subtask) is false when the comment list may be shorter than
+#     the thread: the `comment list` fetch failed and degraded to [], it returned fewer comments than the view's
+#     `.fields.comment.total`, or the subtask's own view failed. A caller that needs the whole thread reads false
+#     as unverified, never as "no comments" (rules/compound-engineering/tracker.md *Truncated input is disclosed*).
 #   - `customFields` runs every customfield_* value through a universal Java/Groovy
 #     toString unwrap: any string that starts with `{` and contains `json={…}` is
 #     parsed back into JSON. The leading-`{` anchor keeps the unwrap from firing
@@ -136,18 +142,38 @@ self_test() {
   err_file="$tmp/err"
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
 
+  # The stub reads the case it plays from the `mode` file beside it: ok, list-fails, short, subtasks,
+  # or subtask-list-fails.
+  printf 'ok' >"$stubbin/mode"
   cat >"$stubbin/acli" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
+mode="$(cat "${0%/*}/mode")"
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" ]]; then
+  printf '%s\n' '{"fields": {"summary": "Subtask two", "description": null, "comment": {"total": 0, "comments": []}}}'
+  exit 0
+fi
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-3" ]]; then
+  exit 1
+fi
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "${6:-}" == "TEST-2" ]]; then
+  [[ "$mode" != "subtask-list-fails" ]] || exit 1
+  printf '%s\n' '{"comments": []}'
+  exit 0
+fi
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
-  cat <<'JSON'
+  subtasks='[]'
+  [[ "$mode" != subtask* ]] || subtasks='[{"key": "TEST-2", "fields": {"summary": "Subtask two"}}, {"key": "TEST-3", "fields": {"summary": "Subtask three"}}]'
+  total=2
+  [[ "$mode" != "short" ]] || total=3
+  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" <<'JSON'
 {
   "fields": {
     "summary": "Fixture issue",
     "status": { "name": "In Progress" },
-    "subtasks": [],
+    "subtasks": __SUBTASKS__,
     "comment": {
-      "total": 2,
+      "total": __TOTAL__,
       "comments": [
         {
           "id": "10001",
@@ -182,6 +208,7 @@ JSON
   exit 0
 fi
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "list" ]]; then
+  [[ "$mode" != "list-fails" ]] || exit 1
   cat <<'JSON'
 {
   "comments": [
@@ -242,6 +269,23 @@ STUB
   check 'mentionAccountIds extracted from the ADF body' '.comments[0].mentionAccountIds | join(",")' 'acc-mentioned'
   check 'authorAccountId falls back to the view-embedded author' '.comments[1].authorAccountId' 'acc-view-fallback'
   check 'mentionAccountIds is empty with no mention node' '.comments[1].mentionAccountIds | length' '0'
+  check 'a whole comment thread is complete' '.commentsComplete' 'true'
+
+  # load_case <mode> — load the fixture again with the stub playing <mode>; the result goes to $out.
+  load_case() {
+    printf '%s' "$1" >"$stubbin/mode"
+    out="$(PATH="$stubbin:$PATH" "$script" TEST-1 2>/dev/null || true)"
+  }
+  load_case list-fails
+  check 'a failed comment list degrades to an empty list' '.comments | length' '0'
+  check 'a failed comment list is reported as incomplete' '.commentsComplete' 'false'
+  load_case short
+  check 'fewer comments than the view total are reported as incomplete' '.commentsComplete' 'false'
+  load_case subtasks
+  check 'a subtask with a whole comment list is complete' '.subtasks[0].commentsComplete' 'true'
+  check 'a subtask whose own view failed is reported as incomplete' '.subtasks[1].commentsComplete' 'false'
+  load_case subtask-list-fails
+  check 'a subtask whose comment list failed is reported as incomplete' '.subtasks[0].commentsComplete' 'false'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
@@ -353,9 +397,17 @@ fi
 # `|| printf` would append the fallback to whatever jq had already written, leaving two JSON
 # documents in one variable and failing `--argjson` below with exit 2 — the load died where it was
 # documented to degrade. Take whatever the pipeline produced, then validate it.
-COMMENTS_JSON="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || true)"
-if [[ -z "$COMMENTS_JSON" ]] || ! printf '%s' "$COMMENTS_JSON" | jq -e . >/dev/null 2>&1; then
-  COMMENTS_JSON='{"comments": []}'
+# The acli exit status is read on its own: piped into `jq -s`, a failed fetch would come out as a valid empty list.
+# A failed or unparseable fetch degrades to an empty list, and COMMENTS_FETCHED records that it did.
+merge_comment_pages() {
+  jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null
+}
+COMMENTS_FETCHED=false
+COMMENTS_JSON='{"comments": []}'
+if COMMENTS_RAW="$(acli jira workitem comment list --key "$KEY" --json --paginate 2>/dev/null)" \
+  && COMMENTS_PARSED="$(printf '%s' "$COMMENTS_RAW" | merge_comment_pages)" && [[ -n "$COMMENTS_PARSED" ]]; then
+  COMMENTS_JSON="$COMMENTS_PARSED"
+  COMMENTS_FETCHED=true
 fi
 
 # Fetch the full context of every subtask (description, comments, attachments).
@@ -372,16 +424,20 @@ if [[ -n "$SUBTASK_KEYS" ]]; then
     if [[ -z "$SUBTASK_VIEW" ]] || ! printf '%s' "$SUBTASK_VIEW" | jq -e . >/dev/null 2>&1; then
       continue
     fi
-    SUBTASK_COMMENTS="$(acli jira workitem comment list --key "$SUBTASK_KEY" --json --paginate 2>/dev/null | jq -s '{ comments: ([ .[].comments // [] ] | add // []) }' 2>/dev/null || true)"
-    if [[ -z "$SUBTASK_COMMENTS" ]] || ! printf '%s' "$SUBTASK_COMMENTS" | jq -e . >/dev/null 2>&1; then
-      SUBTASK_COMMENTS='{"comments": []}'
+    SUBTASK_FETCHED=false
+    SUBTASK_COMMENTS='{"comments": []}'
+    if SUBTASK_RAW="$(acli jira workitem comment list --key "$SUBTASK_KEY" --json --paginate 2>/dev/null)" \
+      && SUBTASK_PARSED="$(printf '%s' "$SUBTASK_RAW" | merge_comment_pages)" && [[ -n "$SUBTASK_PARSED" ]]; then
+      SUBTASK_COMMENTS="$SUBTASK_PARSED"
+      SUBTASK_FETCHED=true
     fi
     SUBTASK_DETAILS="$(jq -c -n \
       --arg key "$SUBTASK_KEY" \
       --argjson acc "$SUBTASK_DETAILS" \
       --argjson view "$SUBTASK_VIEW" \
       --argjson commentsResp "$SUBTASK_COMMENTS" \
-      '$acc + { ($key): { view: $view, comments: ($commentsResp.comments // []) } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
+      --argjson fetched "$SUBTASK_FETCHED" \
+      '$acc + { ($key): { view: $view, comments: ($commentsResp.comments // []), fetched: $fetched } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
   done <<< "$SUBTASK_KEYS"
 fi
 
@@ -403,6 +459,7 @@ jq -n \
   --argjson view "$VIEW_JSON" \
   --argjson commentsResp "$COMMENTS_JSON" \
   --argjson subtaskDetails "$SUBTASK_DETAILS" \
+  --argjson commentsFetched "$COMMENTS_FETCHED" \
   --argjson prs "$PRS_JSON" '
 def tryParseTrimEnd:
   . as $s
@@ -539,6 +596,11 @@ def commentOut($viewIdx; $atts):
       visibility: (if ($c.visibility | type) == "object" then $c.visibility.value else ($c.visibility // $v.visibility // null) end)
     };
 
+# A comment list is complete only when its fetch did not degrade to [] and it holds at least the number of
+# comments the issue view reports in `.fields.comment.total`.
+def commentsComplete($fetched; $list; $fields):
+  $fetched == true and (($list | length) >= ((($fields.comment.total // 0) | tonumber? // 0)));
+
 def viewCommentIdx:
   ((.comment.comments // []) | map({ key: ((.id // "") | tostring), value: { body: .body, created: .created, visibility: (.visibility.value // null), author: .author } }) | from_entries);
 
@@ -620,6 +682,7 @@ def viewCommentIdx:
           descriptionText: (if $sdesc == null then "" else ($sdesc | adfPlain) end),
           descriptionMediaRefs: (if $sdesc == null then [] else ($sdesc | mediaRefs($sf.attachment // [])) end),
           comments: (if $d == null then [] else (($sf | viewCommentIdx) as $subIdx | ($d.comments // []) | map(commentOut($subIdx; $sf.attachment // []))) end),
+          commentsComplete: (if $d == null then false else commentsComplete($d.fetched; $d.comments // []; $sf) end),
           attachments: (if $sf == null then [] else (($sf.attachment // []) | map({
             id: attachmentId,
             name: (.filename // null),
@@ -631,6 +694,7 @@ def viewCommentIdx:
           })) end)
         })),
     comments: ($commentsResp.comments // [] | map(commentOut($viewCommentIdx; $att))),
+    commentsComplete: commentsComplete($commentsFetched; $commentsResp.comments // []; $f),
     attachments: ($att | map({
       id: attachmentId,
       name: (.filename // null),

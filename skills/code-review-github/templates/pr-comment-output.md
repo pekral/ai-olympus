@@ -24,6 +24,7 @@
 **Reviewed revision:** {full head SHA this round reviewed}  *(always rendered — the next round resolves its baseline from this line)*
 **Reviewed diff fingerprint:** {patch-id of the effective PR diff}  *(always rendered — preserves the verdict across a content-identical history rewrite)*
 **Review scope:** delta since {baseline SHA} (round {n}) — carried-over findings re-reported  *(or `full PR ({reason: no prior reviewed revision | baseline {sha} not an ancestor of HEAD after a history rewrite})` — always rendered, never omitted as an empty section)*
+**Reviewed assignment fingerprint:** {the value `skills/_shared/review-carry-forward.sh assignment-fingerprint` printed}  *(render it whenever the script printed a value; omit it when the script exited non-zero — `@rules/code-review/general.md` *The four header lines*)*
 **Coverage:** {result} (tool: {name or "not available — <reason>"})  *(render this line only when the `## Coverage` section is rendered — i.e. uncovered changed lines or unavailable tooling)*
 **Last updated:** {ISO-8601 timestamp of this CR run}
 **Quality gate:** {command} — {green | reported: <what>} on {full head SHA the gate ran on}{, tree {tree} — record {record path}, when `run-gate.sh` wrote one}  *(rendered on a converged run; `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* reads this line off this comment. Omit it on a run that carries no gate record.)*
@@ -54,6 +55,7 @@
 - **Location:** `path/to/file.php:42`
 - **Rule:** `@rules/<area>/<file>.md#<section>`
 - **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
+- **Answered:** {comment URL} — `{login}`, {date}  *(render only on a carried-over finding whose answer `skills/_shared/review-carry-forward.sh answer` verified; the finding keeps its severity and still blocks — `@rules/code-review/general.md` *An answered finding stays in the report — the answer is shown, never applied*. Never quote the answer.)*
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Evidence:** `failing-test` | `static-analysis` | `runtime-failure` | `exploit-path` | `logic-trace` | `rule-violation` — the evidence another reader can check without trusting this review: the failing test, the analyser error, the reproducible failure, the exploit path, the traced logic defect, or the explicit rule the line breaks. *(Required on every finding. A point that has none goes under `## Needs verification`, never here.)*
 - **Faulty Example:**

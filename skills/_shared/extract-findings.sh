@@ -25,7 +25,10 @@
 #              created when it does not exist and is replaced atomically. One writer at a time.
 #              Without --store the extracted records are printed to standard output, one per line.
 #   --header   read the report and write nothing. Print its `Reviewed revision` and its `Last updated` time
-#              in UTC, from the same parse the extraction uses. A report the parse refuses is refused.
+#              in UTC, from the same parse the extraction uses. A report the parse refuses is refused. It also
+#              prints the `Reviewed diff fingerprint`, `Reviewed assignment fingerprint`, `Mode`, and `Review scope`
+#              values that skills/_shared/review-carry-forward.sh reads; each is null unless its label stands
+#              exactly once, in bold, in the header block, and `irregular` names every such label that does not.
 #   --round    read one round report of the review loop and print one review-loop record (schema 2) per
 #              finding identity. It writes nothing; skills/_shared/review-state.sh keeps the loop state.
 #   --validate check every line of a record file against the schema of its records and refuse a repeated
@@ -37,7 +40,8 @@
 #
 # Output
 #   stdout  the records (no --store, and --round), or one summary line {"repo","pr","extracted","added",
-#           "updated","resolved","records"} (--store), {"revision","time"} (--header), or
+#           "updated","resolved","records"} (--store), {"revision","time","fingerprint","assignment_fingerprint",
+#           "mode","scope","irregular"} (--header), or
 #           {"valid":true,"records":N} (--validate)
 #   stderr  one line per problem, each prefixed with the script name
 #
@@ -522,7 +526,40 @@ cmd_header() {
   trap "rm -rf '$tmp'" EXIT
 
   read_report "$input" "$tmp"
-  jq -c '{revision, time}' "$tmp/parsed.json"
+  header_extras "$tmp/extras.json"
+  jq -c --slurpfile x "$tmp/extras.json" '{revision, time} + $x[0]' "$tmp/parsed.json"
+}
+
+# header_extras <file> — the lines a carry-forward decision reads, from the same cr-header.sh parse read_report
+# filled. A value is kept only when its label stands exactly once in the body, in bold, in the header block. A label
+# that stands more than once, outside the block, or without the bold is named in `irregular`, and its value is null.
+# The arrays are read in one pass, never by index (bash 3.2 walks the whole array on every indexed read).
+header_extras() {
+  local out="$1" bold block label value i=0
+  local -a seen=() values=()
+  while IFS=$'\t' read -r bold block label value; do
+    label="${label#"${label%%[![:space:]]*}"}"
+    label="${label%"${label##*[![:space:]]}"}"
+    case "$label" in
+    'reviewed revision' | 'reviewed diff fingerprint' | 'reviewed assignment fingerprint' | 'mode' | 'review scope')
+      seen[i]="$label|$bold|$block"
+      values[i]="$value"
+      i=$((i + 1))
+      ;;
+    esac
+  done < <(LC_ALL=C paste <(printf '%s\n' ${CR_HEADER_BOLD[@]+"${CR_HEADER_BOLD[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_BLOCK[@]+"${CR_HEADER_BLOCK[@]}"}) \
+    <(printf '%s\n' ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"} | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr '\t' ' ') \
+    <(printf '%s\n' ${CR_HEADER_VALUES[@]+"${CR_HEADER_VALUES[@]}"} | LC_ALL=C tr '\t' ' '))
+  jq -n -c --args '
+    ($ARGS.positional | length / 2) as $n
+    | [range(0; $n) as $k | ($ARGS.positional[$k] | split("|")) as $s
+        | {label: $s[0], ok: ($s[1] == "1" and $s[2] == "1"), value: $ARGS.positional[$n + $k]}] as $lines
+    | def pick($l): [$lines[] | select(.label == $l)] | if length == 1 and .[0].ok then .[0].value else null end;
+    {fingerprint: pick("reviewed diff fingerprint"), assignment_fingerprint: pick("reviewed assignment fingerprint"),
+     mode: pick("mode"), scope: pick("review scope"),
+     irregular: ([$lines | group_by(.label)[] | select(length > 1 or (.[0].ok | not)) | .[0].label] | sort)}' \
+    ${seen[@]+"${seen[@]}"} ${values[@]+"${values[@]}"} >"$out"
 }
 
 cmd_extract() {
@@ -753,7 +790,31 @@ self_test() {
   # --header reads the revision and the time from the same parse and writes nothing.
   run_case 'the header of a report is read from standard input' 0 no -- --header --input - <"$tmp/r2.md"
   check 'the header mode prints the revision and the time in UTC' "$(jq -e -s '
-      . == [{revision: "2222222222222222222222222222222222222222", time: "2026-10-02T08:00:00Z"}]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+      . == [{revision: "2222222222222222222222222222222222222222", time: "2026-10-02T08:00:00Z", fingerprint: "1234567890abcdef",
+        assignment_fingerprint: null, mode: null, scope: null, irregular: []}]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+  # The carry-forward lines: a value counts only when its label stands once, in bold, in the header block.
+  local FP=abcdefabcdefabcdefabcdefabcdefabcdefabcd AFP=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  awk -v fp="$FP" -v afp="$AFP" '!/^\*\*Reviewed diff fingerprint:\*\*/ { print; next } {
+      print "**Reviewed diff fingerprint:** " fp; print "**Reviewed assignment fingerprint:** " afp
+      print "**Review scope:** full PR (no prior reviewed revision)" }' "$tmp/r2.md" >"$tmp/carry.md"
+  run_case 'a report with the carry-forward lines is read by --header' 0 no -- --header --input "$tmp/carry.md"
+  check 'the header mode prints both fingerprints and the scope' "$(jq -e --arg fp "$FP" --arg afp "$AFP" '
+      .fingerprint == $fp and .assignment_fingerprint == $afp and .scope == "full PR (no prior reviewed revision)"
+      and .mode == null and .irregular == []' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+  awk -v fp="$FP" '{ print } /^\*\*Reviewed diff fingerprint:\*\*/ { print "**Reviewed diff fingerprint:** " fp }' "$tmp/carry.md" >"$tmp/carry-dup.md"
+  run_case 'a report with a duplicated fingerprint line is read by --header' 0 no -- --header --input "$tmp/carry-dup.md"
+  check 'a duplicated fingerprint line is irregular and has no value' "$(jq -e '
+      .fingerprint == null and .irregular == ["reviewed diff fingerprint"]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+  { cat "$tmp/carry.md"; printf '\n**Mode:** HOTFIX — coverage waived\n'; } >"$tmp/carry-late.md"
+  run_case 'a report with a Mode line after the header block is read by --header' 0 no -- --header --input "$tmp/carry-late.md"
+  check 'a Mode line outside the header block is irregular' "$(jq -e '.mode == null and .irregular == ["mode"]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+  sed 's/^\*\*Reviewed assignment fingerprint:\*\* /Reviewed assignment fingerprint: /' "$tmp/carry.md" >"$tmp/carry-nobold.md"
+  run_case 'a report with an unbolded assignment fingerprint is read by --header' 0 no -- --header --input "$tmp/carry-nobold.md"
+  check 'an assignment fingerprint without the bold is irregular' "$(jq -e '
+      .assignment_fingerprint == null and .irregular == ["reviewed assignment fingerprint"]' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
+  { printf '```text\n**Reviewed assignment fingerprint:** %s\n```\n' "$AFP"; grep -v '^\*\*Reviewed assignment fingerprint:\*\*' "$tmp/carry.md"; } >"$tmp/carry-fenced.md"
+  run_case 'a report with a fenced assignment fingerprint is read by --header' 0 no -- --header --input "$tmp/carry-fenced.md"
+  check 'a fenced assignment fingerprint is not read' "$(jq -e '.assignment_fingerprint == null and .irregular == []' "$tmp/case.out" >/dev/null && echo 0 || echo 1)"
 
   # The same defect in another file of the same subsystem is the same fingerprint; another pull request is another id.
   report "$tmp/r3.md" "$SHA1" 2026-10-01T10:00:00Z "$R1" "app/Actions/Invoice/ListInvoices.php:9" "Invoices load their lines one query at a time."

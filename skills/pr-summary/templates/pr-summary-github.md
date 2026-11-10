@@ -61,6 +61,12 @@
        "satisfies the assignment" line of its own; it appends the passed block
        verbatim.
 
+     Review findings (review-only run, in place of `How to test`)
+       The findings new in this review come first. `### Already reported in an
+       earlier review` renders only when that group has a finding. The groups and
+       the answer sentence are owned by `@skills/pr-summary/SKILL.md`
+       *Review-only run*.
+
      Closing links line
        One line, the pull request and the source tracker item, separated by ` · `.
        Render whichever of the two links exists; omit the line when neither does.

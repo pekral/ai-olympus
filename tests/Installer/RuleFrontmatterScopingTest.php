@@ -440,7 +440,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every code-review report is a new comment published with `--create`, and it carries no line over from an earlier comment.
         // Re-baselined: on JIRA every `cr-comment` publish passes `--create`, and a retry identifies the comment of this run by the IDs recorded before the call.
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
-        'rules/code-review/general.md' => '2a46e36004ff0e96cca119badc87263fbfbe4070747c6b601ed0618d0dbcf9a5',
+        // Re-baselined: the answered-finding subsection, the fourth header line `Reviewed assignment fingerprint:`, the
+        // review-only carry-forward script, and the provenance groups of the tracker comment (issue #333).
+        'rules/code-review/general.md' => 'd19ff7cdbe5d256886c7873ea157c5a4768f391dece510f28d2383d96e4b3bbc',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
