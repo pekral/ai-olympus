@@ -772,7 +772,8 @@ test(
 
 test(
     'the skill carries the no-TL;DR answer sentence and none of the other thirteen files of the casey report '
-        . 'surface carries one of four TL;DR rule phrases (issue #334)',
+        . 'surface carries one of four TL;DR rule phrases or a sentence that matches "report with a/no critical item opens/keeps/carries" '
+        . '(issue #334)',
     function (): void {
         $skill = mysqlProblemSolverSkillContents();
         $others = caseyReportSurfaceWithout('skills/mysql-problem-solver/SKILL.md');
@@ -781,7 +782,8 @@ test(
             ->and($others)->not->toContain('carries no `TL;DR`')
             ->and($others)->not->toContain('opens with the `TL;DR`')
             ->and($others)->not->toContain('opens with its `TL;DR`')
-            ->and($others)->not->toContain('opens with a `TL;DR`');
+            ->and($others)->not->toContain('opens with a `TL;DR`')
+            ->and($others)->not->toMatch('/report with (?:a|no) critical item (?:opens|keeps|carries)/i');
     },
 );
 
