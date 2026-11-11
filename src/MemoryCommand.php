@@ -118,18 +118,11 @@ final class MemoryCommand
      */
     private static function defaultBranchFile(string $root, string $source): string
     {
-        $resolver = escapeshellarg(__DIR__ . '/../skills/_shared/read-manifest.sh');
-        $reference = [];
         $lines = [];
         $code = 1;
+        $reference = self::defaultReference($root);
 
-        exec('cd ' . escapeshellarg($root) . ' && bash ' . $resolver . ' --default-ref 2>&1', $reference, $code);
-
-        if ($code !== 0) {
-            throw InstallerFailure::memoryDefaultBranchUnresolved(trim(implode(' ', $reference)));
-        }
-
-        $argument = escapeshellarg(($reference[0] ?? '') . ':./' . $source);
+        $argument = escapeshellarg($reference . ':./' . $source);
         exec('git -C ' . escapeshellarg($root) . ' show ' . $argument . ' 2>/dev/null', $lines, $code);
 
         if ($code !== 0) {
@@ -137,6 +130,30 @@ final class MemoryCommand
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * The ref is read from the resolver's stdout alone. Its stderr is a diagnostic, never a ref: a shell warning such as a
+     * `setlocale` notice exits 0 on stderr, and a short name made of its first word would resolve to a local branch or tag.
+     */
+    private static function defaultReference(string $root): string
+    {
+        $process = proc_open(
+            ['bash', __DIR__ . '/../skills/_shared/read-manifest.sh', '--default-ref'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $root,
+        );
+        $stdout = is_resource($process) ? (string) stream_get_contents($pipes[1]) : '';
+        $stderr = is_resource($process) ? (string) stream_get_contents($pipes[2]) : 'the resolver did not start';
+        $code = is_resource($process) ? proc_close($process) : 1;
+        $reference = trim($stdout);
+
+        if ($code !== 0 || preg_match('~\Arefs/remotes/origin/[A-Za-z0-9._/-]+\z~', $reference) !== 1) {
+            throw InstallerFailure::memoryDefaultBranchUnresolved(trim((string) preg_replace('~\s+~', ' ', $stderr)));
+        }
+
+        return $reference;
     }
 
     private static function add(string $root, string $location, string $entryFile): int
