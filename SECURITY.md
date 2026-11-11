@@ -150,6 +150,7 @@ Default installation does not read or write global `~/.claude/settings.json`. Th
 | `.codex/rules/`, `.codex/agent-instructions/`, `.codex/agents/` | `install` | always |
 | `.agents/skills/` (and `~/.agents/skills/` with `--global`) | `install` | always |
 | `AGENTS.md` | `install` | only when the project has none; never overwritten |
+| `.claude/run/code-review-memory.sqlite` (`.codex/run/` under Codex) | `ai-olympus memory migrate` and `memory add`, never `install` | git ignores the path and does not track it; otherwise the command exits `2` and writes nothing. `install --prune` never deletes it. |
 
 The installer never writes outside the project directory and the user's home directory, and it never modifies `composer.json` or any project source file.
 

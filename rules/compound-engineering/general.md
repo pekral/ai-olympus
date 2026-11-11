@@ -1,5 +1,5 @@
 ---
-description: Compound engineering — every change must make future work easier; the per-project memory file is read at task start.
+description: Compound engineering — every change must make future work easier; the code-review memory is read only when a Critical finding is open.
 ---
 
 ## Compound Engineering
@@ -12,9 +12,9 @@ Compound engineering is **not** "let the AI write the code". It is a system wher
 
 ## Compound Memory — the companion file
 
-Durable, project-specific lessons live in `docs/memory/PROJECT_MEMORY.md` in the project being worked on. The sections that govern that file live in `@rules/compound-engineering/memory.md`, not in this file: *Compound Memory (per project)*, with *Where to store it*, *Entry format*, *Read protocol* (with *Per-dispatch memory slice* and *Per-role read filter*), and *Write protocol*. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
+Durable solutions of resolved Critical code-review findings live in a per-user, git-ignored SQLite database, `.claude/run/code-review-memory.sqlite` (`.codex/run/` under Codex). The sections that govern it live in `@rules/compound-engineering/memory.md`, not in this file: *Compound Memory (per project)*, with *Where to store it*, *Entry fields*, *Read protocol* (with *Per-dispatch memory slice*), *Write protocol*, and the one-time migration of the legacy `docs/memory/PROJECT_MEMORY.md`. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
 
-- **A run that reads, slices, or writes `docs/memory/PROJECT_MEMORY.md` reads and applies `@rules/compound-engineering/memory.md` first.** Reading the memory file itself attaches the rule. Every skill and agent that reads or writes the memory names the file.
+- **A run that reads, slices, or writes the code-review memory reads and applies `@rules/compound-engineering/memory.md` first.** Reading the memory file itself attaches the rule. Every skill and agent that reads or writes the memory names the file.
 
 ## Tracker workflow — the companion file
 
@@ -37,7 +37,7 @@ The goal of every assignment is that every acceptance criterion is met. This sec
 
 ## No generated documentation in `docs/`
 
-An agent never generates documentation into `docs/` — no new file and no new subdirectory, unless the user explicitly asks for that file. Nothing checks generated documentation: no test, no fixer, no reviewer. The code moves and the document does not, so the next reader trusts a description of code that no longer exists. The one path an agent writes under `docs/` on its own is `docs/memory/PROJECT_MEMORY.md` (`@rules/compound-engineering/memory.md`).
+An agent never generates documentation into `docs/` — no new file and no new subdirectory, unless the user explicitly asks for that file. Nothing checks generated documentation: no test, no fixer, no reviewer. The code moves and the document does not, so the next reader trusts a description of code that no longer exists. An agent writes nothing under `docs/` on its own initiative. The code-review memory is a git-ignored database, not a file under `docs/` (`@rules/compound-engineering/memory.md`).
 
 | Documentation | Where it belongs |
 |---|---|

@@ -22,7 +22,7 @@ test('compound-engineering rule codifies easier-future-work and per-project comp
 
     // Pillar 2 — per-project compound memory, stored in the project, not this package.
     expect($content)->toContain('## Compound Memory (per project)');
-    expect($content)->toContain('in the project being worked on, never in this shared rules package');
+    expect($content)->toContain('never in git, and never in this shared rules package');
     expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
 });
 
@@ -185,27 +185,29 @@ test('compound-engineering rule provides the Blocked delegation hard-stop sectio
     expect($donatello)->toContain('*Blocked delegation is a hard stop*');
 });
 
-test('compound memory reads are hooked into the context phases (issue #626)', function (): void {
+test('compound memory is read only when a Critical finding is open, never in the context phases (issue #343)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $krang = krangContractText();
     $analyze = (string) file_get_contents($packageDir . '/skills/analyze-problem/SKILL.md');
     $prepare = (string) file_get_contents($packageDir . '/skills/prepare-issue-context/SKILL.md');
 
     expect($krang)->toContain('## Project memory');
-    expect($krang)->toContain('docs/memory/PROJECT_MEMORY.md');
-    expect($analyze)->toContain('docs/memory/PROJECT_MEMORY.md');
-    expect($prepare)->toContain('docs/memory/PROJECT_MEMORY.md');
+    expect($krang)->toContain('code-review-memory.sqlite');
+    expect($krang)->toContain('skills/_shared/orchestration/critical-memory-read.md');
+    expect($analyze)->not->toContain('PROJECT_MEMORY');
+    expect($prepare)->not->toContain('PROJECT_MEMORY');
 });
 
-test('CLAUDE.md points to the per-project memory file so it stays discoverable (issue #148)', function (): void {
+test('CLAUDE.md and AGENTS.md point to the code-review memory and call the Markdown file a migration source (issue #343)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $claudeMd = (string) file_get_contents($packageDir . '/CLAUDE.md');
-    $rule = compoundEngineeringRuleContents();
 
-    // general.md already mandates the pointer; CLAUDE.md (root, and the shipped template
-    // installed into consumer projects) must actually carry it.
-    expect($rule)->toContain('Reference the memory file from `CLAUDE.md`');
-    expect($claudeMd)->toContain('docs/memory/PROJECT_MEMORY.md');
+    foreach (['CLAUDE.md', 'AGENTS.md'] as $file) {
+        $content = (string) file_get_contents($packageDir . '/' . $file);
+
+        expect($content)->toContain('per-user, git-ignored SQLite database');
+        expect($content)->toContain('ai-olympus memory migrate');
+        expect($content)->toContain('docs/memory/PROJECT_MEMORY.md');
+    }
 });
 
 test('compound memory write mechanism is removed (issue #77)', function (): void {
@@ -452,151 +454,67 @@ test('context-efficient orchestration advertises no build reuse, since the build
     expect($section)->toContain('it skips no gate, changes no reviewer, and weakens no convergence criterion');
 });
 
-test(
-    'compound-engineering rule adds a narrower compaction-only Write protocol sibling to Read protocol (issue #98)',
-    function (): void {
-        $packageDir = dirname(__DIR__, 2);
-        // Compound Memory moved verbatim into the on-demand `memory.md`, so the section runs to the
-        // end of that file.
-        $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/memory.md');
+test('the memory rule has a Write protocol in which only krang writes, after a human approved (issue #343)', function (): void {
+    $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/memory.md');
 
-        // The new section is a sibling of Read protocol, under the same Compound Memory heading.
-        expect($rule)->toContain('### Write protocol (compact after every write)');
-        $compoundMemoryPos = strpos($rule, '## Compound Memory (per project)');
-        $writeProtocolPos = strpos($rule, '### Write protocol (compact after every write)');
-        $readProtocolPos = strpos($rule, '### Read protocol');
-        // Compound Memory is the last section of `memory.md`, so its end is the end of the file.
-        $nextSectionPos = strlen($rule);
-        expect($compoundMemoryPos)->not->toBeFalse();
-        expect($writeProtocolPos)->not->toBeFalse();
-        expect($readProtocolPos)->not->toBeFalse();
+    $positions = array_map(
+        static fn (string $heading): int|false => strpos($rule, $heading),
+        [
+            '## Compound Memory (per project)',
+            '### Read protocol',
+            '### Write protocol (krang writes, a human approves)',
+            '### The legacy Markdown file (one-time migration)',
+        ],
+    );
+    $ordered = $positions;
+    sort($ordered);
 
-        if (!is_int($compoundMemoryPos) || !is_int($writeProtocolPos) || !is_int($readProtocolPos)) {
-            return;
-        }
+    expect(in_array(needle: false, haystack: $positions, strict: true))->toBeFalse();
+    expect($positions)->toBe($ordered);
 
-        // Read protocol, then Write protocol, both nested inside Compound Memory, before the next `##` section.
-        expect($compoundMemoryPos)->toBeLessThan($readProtocolPos);
-        expect($readProtocolPos)->toBeLessThan($writeProtocolPos);
-        expect($writeProtocolPos)->toBeLessThan($nextSectionPos);
-
-        // The protocol names the compacting skill and is an unconditional default, not opt-in.
-        expect($rule)->toContain('@skills/compact-project-memory/SKILL.md');
-        expect($rule)->toContain('immediately after the write, before the run reports completion');
-        expect($rule)->toContain('This is an unconditional default, not an opt-in step.');
-
-        // Scoped to the touched entries, not a whole-file maintenance pass; a no-op without a diff.
-        expect($rule)->toContain('scoped to the entries the write actually touched (plus at most 3 demonstrably related ones)');
-        expect($rule)->toContain('is a no-op when the file carries no diff');
-
-        // Never resurrects the automated lesson-generation mechanism removed in #77.
-        expect($rule)->toContain('This protocol never generates lessons');
-        expect($rule)->toContain('it never invents, re-derives, or adds new lesson content');
-
-        // Cross-referenced from Entry format, so the per-entry budget has one home.
-        $entryFormatPos = strpos($rule, '### Entry format');
-        expect($entryFormatPos)->not->toBeFalse();
-
-        if (!is_int($entryFormatPos)) {
-            return;
-        }
-
-        expect($entryFormatPos)->toBeLessThan($writeProtocolPos);
-        expect($rule)->toContain('has one home in `### Write protocol` below');
-    },
-);
+    expect($rule)->toContain('**`krang` is the only writer.**');
+    expect($rule)->toContain('only after the human approval step of `@skills/code-review/references/learning-promotion.md`');
+    expect($rule)->toContain('`ai-olympus memory add --entry <file> [--run-dir <dir>]`');
+    expect($rule)->toContain('The insert is one SQLite transaction, so a concurrent write is safe.');
+    expect($rule)->toContain('The per-entry budget of the compaction (`@skills/compact-project-memory/SKILL.md`) applies to a Markdown memory file only.');
+    expect($rule)->toContain('A secret and personal data never enter an entry.');
+    expect($rule)->not->toContain('This is an unconditional default, not an opt-in step.');
+});
 
 // The compact-project-memory SKILL.md content itself (frontmatter, invariant list) is
 // pinned in tests/Installer/SkillsContentTest.php, matching every other skill-content
 // assertion; this file owns only the compound-engineering rule wiring above.
 
-// Per the project's test-isolation rule a Pest test cannot exec a real shell command, so
-// this mirrors the documented awk block-extraction algorithm in PHP and proves it against
-// a synthetic fixture instead of shelling out to the awk snippet pinned in general.md.
-function compoundMemoryLineDeclaresRole(string $line, string $role): bool
-{
-    return str_starts_with($line, '- Role:') && preg_match('/(' . preg_quote($role, '/') . '|shared)/', $line) === 1;
-}
-
-/**
- * @return array<int, string>
- */
-function compoundMemoryFilterRoleBlocks(string $content, string $role): array
-{
-    $blocks = [];
-    $buf = '';
-    $matched = false;
-
-    foreach (explode("\n", $content) as $line) {
-        if (str_starts_with($line, '### ')) {
-            if ($matched) {
-                $blocks[] = $buf;
-            }
-
-            $buf = '';
-            $matched = false;
-        }
-
-        $buf .= $line . "\n";
-        $matched = $matched || compoundMemoryLineDeclaresRole($line, $role);
-    }
-
-    if ($matched) {
-        $blocks[] = $buf;
-    }
-
-    return $blocks;
-}
-
-test('per-role read filter extracts entries whose Role: line sits past a fixed grep -A5 window (issue #148)', function (): void {
+test('the read protocol reads the memory only for an open Critical finding and builds the query from paths and symbols (issue #343)', function (): void {
     $rule = compoundEngineeringRuleContents();
 
-    // The old fixed-offset idiom is gone; the corrected filter is a whole-block awk extraction.
-    expect($rule)->not->toContain('grep -A5 "^### " docs/memory/PROJECT_MEMORY.md | grep -E "Role:.*(<your-role>|shared)"');
-    expect($rule)->toContain('entry bodies carry a variable number of inserted lines');
-    expect($rule)->toContain('/^### / { if (buf != "" && matched) printf "%s", buf; buf = ""; matched = 0 }');
-    expect($rule)->toContain('/^- Role:/ { if ($0 ~ ("(" role "|shared)")) matched = 1 }');
-    // The role binding, the accumulation line, and the END clause complete the shipped awk
-    // program — previously unpinned, so a regression in any of them kept the suite green while
-    // the idiom itself broke (PR #150 CR fix — Minor 5).
-    expect($rule)->toContain('awk -v role="<your-role>" \'');
-    expect($rule)->toContain('{ buf = buf $0 "\n" }');
-    expect($rule)->toContain('END { if (buf != "" && matched) printf "%s", buf }');
+    expect($rule)->not->toContain('awk -v role=');
+    expect($rule)->not->toContain('#### Per-role read filter');
+    expect($rule)->toContain('A run reads the memory only when a code review in that run opens a **Critical** finding.');
+    expect($rule)->toContain('A run without a Critical code-review finding never reads it.');
+    expect($rule)->toContain('does not trigger a read on its own');
+    expect($rule)->toContain(
+        '`ai-olympus memory query --role <the role that fixes the finding> --path <p>… --symbol <s>… [--limit <n>] [--run-dir <dir>]`',
+    );
+    expect($rule)->toContain('It builds the query only from the paths and the symbols of that finding');
+    expect($rule)->toContain('Tracker text never enters the query.');
+    expect($rule)->toContain(
+        'the role filter (`role` equal to the given role or `shared`), then the entries whose `paths` name a task path, then the FTS5 `bm25()` ranking',
+    );
+    expect($rule)->toContain('The same input gives the same output.');
+    expect($rule)->toContain('A specialist never loads the memory at the start of its run, and never reads the database itself.');
+    expect($rule)->toContain('Exit `2` means the memory is unavailable.');
+});
 
-    // Fixture: one entry whose `Role:` sits immediately after `Trigger:` (shallow — the old
-    // `grep -A5` window already covered this) and one whose `Role:` sits past a fixed 5-line
-    // offset behind several inserted continuation lines, mirroring a real `**Recurrence (#N)**`
-    // paragraph — the exact shape that made the old fixed-offset window miss most real entries.
-    $fixture = <<<'MEMORY'
-    # Project memory — fixture
+test('the memory database is git-ignored, never installed, and fails safely (issue #343)', function (): void {
+    $rule = compoundEngineeringRuleContents();
 
-    ### shallow-match — Role sits immediately after Trigger
-    - Trigger: something happens.
-    - Role:    donatello
-
-    ### deep-match — Role sits past a fixed 5-line offset
-    - Trigger: something else happens.
-    - Rule:    do the thing.
-    - Example: see file X.
-    - Example: a second continuation line.
-    - Example: a third continuation line.
-    - Example: a fourth continuation line.
-    - Source:  https://example.com/pull/1   Added: 2026-01-01
-    - Role:    shared
-
-    ### no-match — Role is a different role entirely
-    - Trigger: unrelated.
-    - Role:    krang
-
-    ### no-role — carries no Role line at all
-    - Trigger: unrelated.
-    MEMORY;
-
-    $matches = compoundMemoryFilterRoleBlocks($fixture, 'donatello');
-
-    expect($matches)->toHaveCount(2);
-    expect($matches[0])->toContain('shallow-match');
-    expect($matches[1])->toContain('deep-match');
+    expect($rule)->toContain('`.claude/run/code-review-memory.sqlite`, and `.codex/run/code-review-memory.sqlite` under Codex');
+    expect($rule)->toContain('A read or a write fails safely when `git check-ignore` does not confirm that the path is ignored and untracked.');
+    expect($rule)->toContain('The installer never creates, changes, or deletes it.');
+    expect($rule)->toContain('It stores only solutions of resolved Critical code-review findings.');
+    expect($rule)->toContain('An agent never stops because the memory is unavailable.');
+    expect($rule)->toContain('lists the extension under `suggest` in `composer.json` and does not require it');
 });
 
 /**
@@ -680,7 +598,7 @@ test('every PROJECT_MEMORY.md entry declares a Role from the allowed dictionary 
     }
 });
 
-test('Role dictionary and per-role read filter cover the full live agent roster (issue #166)', function (): void {
+test('the role dictionary of an entry and every specialist step 0 cover the full live agent roster (issue #166, #343)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = compoundEngineeringRuleContents();
 
@@ -698,27 +616,16 @@ test('Role dictionary and per-role read filter cover the full live agent roster 
         $agentFiles,
     );
 
-    // Dictionary: `- Role:    <krang | donatello | leonardo | april | shared>` must
-    // enumerate exactly the live roster (plus `shared`, which the regex strips below).
-    preg_match('/^- Role:\s+<([^>]+)>$/m', $rule, $dictMatch);
+    preg_match('/^\| `role` \|[^|]*: `<([^>]+)>`/m', $rule, $dictMatch);
     $dictionaryRoles = array_map('trim', explode('|', $dictMatch[1] ?? ''));
     expect(array_values(array_diff($dictionaryRoles, ['shared'])))->toEqualCanonicalizing($liveAgentRoles);
 
-    // Per-role read filter: `Each **specialist agent** (\`donatello\`, ...) reads only the entries`
-    // must enumerate the live roster minus `krang` (the orchestrator reads the full file,
-    // never the filtered subset) — the exact parity issue #166 asked for.
-    preg_match('/Each \*\*specialist agent\*\* \(([^)]+)\) reads only the entries/', $rule, $filterMatch);
-    $filterRoles = array_map(static fn (string $r): string => trim($r, ' `'), explode(',', $filterMatch[1] ?? ''));
-    expect($filterRoles)->toEqualCanonicalizing(array_values(array_diff($liveAgentRoles, ['krang'])));
-
-    // Every specialist named by the filter must actually apply it — mirroring its own
-    // "Load per-role project memory" step — otherwise the rule's claim about that agent would
-    // contradict the agent's own behavior. Covers all specialists derived above, not just one.
     foreach (array_diff($liveAgentRoles, ['krang']) as $specialist) {
         $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
 
-        expect($agent)->toContain('**Load per-role project memory.**');
-        expect($agent)->toContain('`Role: ' . $specialist . '` or `Role: shared`');
+        expect($agent)->toContain('**Project memory comes only from the dispatch.**');
+        expect($agent)->toContain('Load no memory at the start of a run');
+        expect($agent)->not->toContain('**Load per-role project memory.**');
     }
 
     // The feature-request issue template's "Related skill / agent" field enumerates the same
@@ -756,6 +663,7 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
     expect($krang)->toContain('*Per-dispatch memory slice*');
     expect($krang)->toContain('## Project memory — <role>');
     expect($krang)->toContain('pointer only');
+    expect($krang)->toContain('only for a Critical finding');
     expect($krang)->toContain('Never fold this into the brief file itself');
 
     // Every specialist honours a slice already present in its own dispatch prompt instead of
@@ -768,7 +676,7 @@ test('compound memory is filtered per dispatch target, not folded unfiltered int
         $agent = (string) file_get_contents($packageDir . '/agents/' . $specialist . '.md');
 
         expect($agent)->toContain('## Project memory — ' . $specialist);
-        expect($agent)->toContain('do not re-read the full `docs/memory/PROJECT_MEMORY.md`');
+        expect($agent)->toContain('never read the code-review memory database, `docs/memory/PROJECT_MEMORY.md`, or a user-level memory file yourself');
     }
 });
 
@@ -819,7 +727,7 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     // pointed at before it existed.
     expect($rule)->toContain('## Audit trail for memory reads, outbound requests, and external writes');
     expect($rule)->toContain('.claude/run/<source-slug>.audit');
-    expect($rule)->toContain('memory-read|<PROJECT_MEMORY.md');
+    expect($rule)->toContain('memory-read|<the code-review memory database');
     expect($rule)->toContain('outbound-request|<host>');
     expect($rule)->toContain('external-write|<target');
     expect($rule)->toContain('Moderate');
@@ -921,7 +829,7 @@ test('the audit ledger states its own line shape inline, distinct from the dispa
     // of the *dispatch* ledger, the nearest template visible in the adjacent subsection — and no
     // memory-read line for the gather-phase read the brief itself documents. The audit subsection
     // must therefore show its own shape inline rather than only pointing at the rule.
-    expect($krang)->toContain('|memory-read|docs/memory/PROJECT_MEMORY.md');
+    expect($krang)->toContain('|memory-read|.claude/run/code-review-memory.sqlite');
     expect($krang)->toContain('|outbound-request|<host>|<outcome>');
     expect($krang)->toContain('Never write a dispatch-ledger transition line');
 
