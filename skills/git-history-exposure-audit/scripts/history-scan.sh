@@ -1260,7 +1260,12 @@ st_check_not() {
 }
 
 st_rnd() {
-  LC_ALL=C tr -dc "$2" </dev/urandom 2>/dev/null | head -c "$1"
+  local out='' tries=0
+  while ((${#out} < $1 && tries < 64)); do
+    out+="$(head -c 4096 /dev/urandom 2>/dev/null | LC_ALL=C tr -dc "$2" 2>/dev/null)"
+    tries=$((tries + 1))
+  done
+  printf '%s' "${out:0:$1}"
 }
 
 st_git() {
