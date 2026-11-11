@@ -19,6 +19,19 @@ final class MemoryUnavailable extends RuntimeException
         return new self(sprintf('Code-review memory unavailable: SQLite with FTS5 could not open the database (%s). Continue without memory.', $reason));
     }
 
+    public static function operation(string $reason): self
+    {
+        return new self(sprintf('Code-review memory unavailable: the SQLite operation failed (%s). Continue without memory.', $reason));
+    }
+
+    public static function locationLinked(string $location): self
+    {
+        return new self(sprintf(
+            'Code-review memory unavailable: %s or a directory above it is a symbolic link. Replace it with a regular path. Continue without memory.',
+            $location,
+        ));
+    }
+
     public static function locationNotIgnored(string $location): self
     {
         return new self(sprintf(

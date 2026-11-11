@@ -62,6 +62,25 @@ final class CommandOptions
         return in_array($directory, self::RUN_DIRECTORIES, strict: true) ? $directory : null;
     }
 
+    /**
+     * Whether any component of the location, below the project root, is a symbolic link (a dangling one included).
+     * A link there moves the file outside the path that `git check-ignore` judged.
+     */
+    public static function containsLink(string $root, string $location): bool
+    {
+        $current = $root;
+
+        foreach (explode('/', $location) as $segment) {
+            $current .= '/' . $segment;
+
+            if (is_link($current)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function isIgnored(string $root, string $location): bool
     {
         $git = 'git -C ' . escapeshellarg($root);

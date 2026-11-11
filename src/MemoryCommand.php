@@ -46,9 +46,7 @@ final class MemoryCommand
         $location = $directory . '/' . self::DATABASE_FILE;
 
         try {
-            if (!CommandOptions::isIgnored($root, $location)) {
-                throw MemoryUnavailable::locationNotIgnored($location);
-            }
+            self::assertLocation($root, $location);
 
             return match ($action) {
                 'migrate' => self::migrate($root, $location, $flags['--source'][0] ?? self::DEFAULT_SOURCE),
@@ -59,6 +57,17 @@ final class MemoryCommand
             fwrite(STDERR, $exception->getMessage() . PHP_EOL);
 
             return 2;
+        }
+    }
+
+    private static function assertLocation(string $root, string $location): void
+    {
+        if (CommandOptions::containsLink($root, $location)) {
+            throw MemoryUnavailable::locationLinked($location);
+        }
+
+        if (!CommandOptions::isIgnored($root, $location)) {
+            throw MemoryUnavailable::locationNotIgnored($location);
         }
     }
 
@@ -87,21 +96,60 @@ final class MemoryCommand
 
     private static function migrate(string $root, string $location, string $source): int
     {
-        $file = $root . '/' . $source;
-
-        if (preg_match('~^(?!/)(?!.*\.\.)[\w./-]+\.md$~', $source) !== 1 || !is_file($file)) {
+        if (preg_match('~^(?!/)(?!.*\.\.)[\w./-]+\.md$~', $source) !== 1) {
             throw InstallerFailure::memorySourceInvalid($source);
         }
 
-        $entries = MemoryMarkdown::parse((string) file_get_contents($file));
-        $inserted = self::store($root, $location)->insertAll($entries);
+        $parsed = MemoryMarkdown::parse(self::defaultBranchFile($root, $source));
+        $inserted = self::store($root, $location)->insertAll($parsed->entries);
 
         echo json_encode(
-            ['memory' => $location, 'source' => $source, 'parsed' => count($entries), 'inserted' => $inserted, 'skipped' => count($entries) - $inserted],
+            new MemoryMigration($location, $source, count($parsed->entries), $inserted, $parsed->rejected),
             CommandOptions::JSON_FLAGS,
         ) . PHP_EOL;
 
         return 0;
+    }
+
+    /**
+     * The source comes from the default branch, never from the working tree: a branch under review can edit that file,
+     * and every entry it adds would reach an agent as a lesson to apply.
+     */
+    private static function defaultBranchFile(string $root, string $source): string
+    {
+        $git = 'git -C ' . escapeshellarg($root);
+        $reference = self::defaultReference($git);
+        $lines = [];
+        $code = 1;
+
+        if ($reference !== null) {
+            exec($git . ' show ' . escapeshellarg($reference . ':./' . $source) . ' 2>/dev/null', $lines, $code);
+        }
+
+        if ($code !== 0) {
+            throw InstallerFailure::memorySourceInvalid($source);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private static function defaultReference(string $git): ?string
+    {
+        exec($git . ' symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null', $found, $code);
+
+        if ($code === 0 && isset($found[0])) {
+            return $found[0];
+        }
+
+        foreach (['origin/main', 'origin/master'] as $candidate) {
+            exec($git . ' rev-parse --verify --quiet ' . escapeshellarg($candidate . '^{commit}') . ' 2>/dev/null', result_code: $code);
+
+            if ($code === 0) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private static function add(string $root, string $location, string $entryFile): int
