@@ -1132,6 +1132,8 @@ test('a missing login never ends the UI check of a user-visible change', functio
     expect($skill)->toContain('A missing record, relation, or record state never ends the walkthrough');
     expect($skill)->toContain('**A state the application can produce.**');
     expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Missing test data*');
+    expect($skill)->toContain('whose prerequisites *Missing test data* cannot produce');
+    expect($skill)->not->toContain('*Missing test data* cannot create');
 
     // Changing an existing record on a local development or test database is allowed, inside fixed limits.
     $start = (int) strpos($skill, '## Missing test data');
