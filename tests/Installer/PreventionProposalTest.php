@@ -118,7 +118,7 @@ test('the script reuses the extractor, reads no network, files nothing, and writ
         ->toContain('.incomplete_results == false and .total_count == (.items | length)');
 
     // The title is read from the body and the marker comes from the shared identity, so each is written once.
-    expect(substr_count($script, '| "Prevent the recurring defect class \($r.cause_key)'))->toBe(1);
+    expect(substr_count($script, '| "Prevent the defect class \($r.cause_key)'))->toBe(1);
     expect(substr_count($script, 'proposal_marker($key)'))->toBe(1);
     expect($script)->not->toContain('"<!-- prevention-proposal:key=\($key) -->"');
 

@@ -141,7 +141,6 @@ link to read the skill itself.
 | Skill | What it is for |
 |-------|----------------|
 | [`skill-creator`](../skills/skill-creator/) | Creating a new Agent skill in this repository |
-| [`compact-project-memory`](../skills/compact-project-memory/) | docs/memory/PROJECT_MEMORY.md was just written to |
 
 ---
 
