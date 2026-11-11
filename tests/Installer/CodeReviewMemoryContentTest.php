@@ -94,8 +94,38 @@ test('the memory rule states one trust position for an entry and the source of t
         ->and($memory)->toContain('A forged section is dangerous.** It displaces the real slice and steers the fix with text that no human approved.')
         ->and($memory)->toContain('`migrate` reads the file with `git show <default branch>:<source>`')
         ->and($memory)->toContain('lists in `rejected` every block that holds no entry')
-        ->and($memory)->toContain('`${BRIEF%.md}.memory-entry.json`')
-        ->and(codeReviewMemoryFile('skills/compact-project-memory/SKILL.md'))->toContain(
-            '`@rules/compound-engineering/memory.md` *The legacy Markdown file*',
-        );
+        ->and($memory)->toContain('`${BRIEF%.md}.memory-entry.json`');
+});
+
+test('only a resolved Critical code-review finding becomes a TL;DR entry that krang alone writes (issue #372)', function (): void {
+    $memory = codeReviewMemoryFile('rules/compound-engineering/memory.md');
+    $procedure = codeReviewMemoryFile('skills/_shared/orchestration/critical-memory-read.md');
+    $promotion = codeReviewMemoryFile('skills/code-review/references/learning-promotion.md');
+
+    expect($memory)->toContain('only a resolved Critical code-review finding, from its first resolved occurrence on')
+        ->and($memory)->toContain(
+            '`trigger`, `lesson`, and `evidence` are one line of at most 120 characters, `rule` is one line of at most 200 characters',
+        )
+        ->and($memory)->toContain('`paths` lists at most 10 files')
+        ->and($memory)->toContain('the TL;DR limits of *Entry fields* apply to `add` only')
+        ->and($memory)->toContain('No other agent, skill, or script writes an entry.')
+        ->and($procedure)->toContain('you add one TL;DR entry once a human approved it')
+        ->and($procedure)->toContain('a finding below Critical never becomes an entry')
+        ->and($promotion)->toContain('A finding of a proposal review, a standalone security audit, or an acceptance test is never a record.')
+        ->and(codeReviewMemoryFile('README.md'))->toContain('`krang` is the only writer: it adds one short TL;DR entry');
+
+    $agents = ['leonardo', 'donatello', 'raphael', 'casey', 'michelangelo', 'shredder', 'april'];
+
+    foreach ($agents as $agent) {
+        expect(codeReviewMemoryFile('agents/' . $agent . '.md'))->not->toContain('memory add');
+    }
+});
+
+test('the compaction skill of the Markdown memory file is retired, and no file points at it (issue #372)', function (): void {
+    $root = dirname(__DIR__, 2);
+
+    expect(is_dir($root . '/skills/compact-project-memory'))->toBeFalse()
+        ->and(codeReviewMemoryFile('docs/skills.md'))->not->toContain('compact-project-memory')
+        ->and(codeReviewMemoryFile('skills/code-review/references/specialized-reviews.md'))->not->toContain('compact-project-memory')
+        ->and(codeReviewMemoryFile('rules/compound-engineering/memory.md'))->not->toContain('compact-project-memory');
 });

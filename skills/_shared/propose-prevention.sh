@@ -16,7 +16,7 @@
 #   line. Change the contract there, then change this script to match it.
 #
 # Usage
-#   propose-prevention.sh --report <file|-> --store <file> --analysis <file> --out <file>
+#   propose-prevention.sh --report <file|-> --store <file> --analysis <file> --out <file> [--min-pull-requests <n>]
 #   propose-prevention.sh --find --key <key> --results <file>
 #   propose-prevention.sh --self-test
 #
@@ -26,6 +26,9 @@
 #   --analysis  one JSON object: the class, the root cause, the safeguards checked, the mechanism, and
 #               the other proposal fields. An optional `target` names the knowledge file a promotion
 #               candidate changes (skills/code-review/references/learning-promotion.md).
+#   --min-pull-requests
+#               the distinct pull requests a class must rest on. 2 by default, 1 for a promotion candidate of
+#               a resolved Critical finding (skills/_shared/promote-learning.sh).
 #   --out       the file that receives the proposal. It starts with a `# <title>` line and ends with the
 #               dedupe marker line. It is written only when the status is `ready`.
 #   --find      look up the proposal that already exists for a class. It reads no network.
@@ -64,7 +67,7 @@ MAX_BODY=60000
 
 usage() {
   cat >&2 <<'EOF'
-Usage: propose-prevention.sh --report <file|-> --store <file> --analysis <file> --out <file>
+Usage: propose-prevention.sh --report <file|-> --store <file> --analysis <file> --out <file> [--min-pull-requests <n>]
        propose-prevention.sh --find --key <key> --results <file>
        propose-prevention.sh --self-test
 
@@ -128,7 +131,8 @@ def target_roots: {
   "skill": "^skills/.+\\.md$",
   "checklist": "^skills/.+\\.md$",
   "agent-instruction": "^(agents/.+\\.md|codex/agents/.+\\.toml|AGENTS\\.md|CLAUDE\\.md)$",
-  "documentation": "^(README\\.md|docs/memory/PROJECT_MEMORY\\.md)$"
+  "documentation": "^README\\.md$",
+  "memory": "^\\.(claude|codex)/run/code-review-memory\\.sqlite$"
 };
 def safe_path: type == "string" and length <= 200 and test("^[A-Za-z0-9_.][A-Za-z0-9_./-]*$")
   and (test("(^|/)\\.{1,2}(/|$)") | not) and (test("//") | not);
@@ -145,7 +149,7 @@ def target_errors:
       | [
           (if ($t | only(["type", "path", "change", "knowledge", "supersedes"])) then empty else "target holds a key the contract does not define" end),
           (if ($t.type | type) == "string" and target_roots[$t.type] != null then empty
-           else "target.type must be rule, skill, checklist, documentation, agent-instruction, or architecture-guideline" end),
+           else "target.type must be rule, skill, checklist, documentation, agent-instruction, architecture-guideline, or memory" end),
           (if ($t.type | type) == "string" and target_roots[$t.type] != null and ($t.path | root_path($t.type)) then empty
            else "target.path must be a relative path inside the knowledge root of its type, without a . or .. segment" end),
           (if $t.change | isstr($maxtext) then empty else "target.change is required" end),
@@ -223,7 +227,7 @@ def occurrence_errors:
   ($st[0] | map({key: .id, value: .}) | from_entries) as $byid
   | $ana[0].class as $c
   | . as $r
-  | [ (if ($r.occurrences | type) == "array" and ($r.occurrences | length) >= 2 then empty else "the recurrence in the report is malformed" end),
+  | [ (if ($r.occurrences | type) == "array" and ($r.occurrences | length) >= $minprs then empty else "the recurrence in the report is malformed" end),
       ($r.occurrences | if type == "array" then .[] else empty end
         | if type != "object" or (.finding | type) != "string" or $byid[.finding] == null then "an occurrence of the report is not in the record store"
           else . as $o | $byid[.finding] as $f
@@ -240,7 +244,7 @@ def gap_label: {"architecture": "Architecture", "static-analysis": "Static analy
   "unclear-rules": "Unclear rules", "missing-guidance": "Missing guidance", "tool-limits": "Tool limits"}[.];
 def safeguard_label: {"phpstan": "PHPStan", "phpcs": "PHPCS", "tests": "Tests", "architecture": "Architecture rules", "ci": "CI", "other": "Other"}[.];
 def target_label: {"rule": "Rule", "skill": "Skill", "checklist": "Checklist", "documentation": "Documentation",
-  "agent-instruction": "Agent instruction", "architecture-guideline": "Architecture guideline"}[.];
+  "agent-instruction": "Agent instruction", "architecture-guideline": "Architecture guideline", "memory": "Code-review memory"}[.];
 def mdlist: map("- " + .) | join("\n");
 def mdnum: to_entries | map("\(.key + 1). \(.value)") | join("\n");
 
@@ -252,10 +256,12 @@ $rec[0] as $r
 | ($m.level) as $level
 | (($m.skipped // []) | sort_by(.level)) as $skipped
 | "\($r.repo):\($r.category):\($r.cause_key)" as $key
-| "Prevent the recurring defect class \($r.cause_key) (\($r.category)) in \($r.repo)" as $title
+| "Prevent the defect class \($r.cause_key) (\($r.category)) in \($r.repo)" as $title
 | [
     "# \($title)",
-    "This is a prevention proposal for a defect class that recurs across independent pull requests. It is a proposal only: nothing in it is implemented until a human approves it.",
+    (if ($occ | map(.pr) | unique | length) >= 2 then "This is a prevention proposal for a defect class that recurs across independent pull requests."
+     else "This is a prevention proposal for the defect class of one resolved Critical code-review finding." end)
+      + " It is a proposal only: nothing in it is implemented until a human approves it.",
     "## Defect class",
     ([
       "Repository: \($r.repo | inline)",
@@ -345,9 +351,10 @@ report_problems() {
 }
 
 cmd_propose() {
-  local report='' store='' analysis='' out=''
+  local report='' store='' analysis='' out='' min_prs=2
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    --min-pull-requests) [[ $# -ge 2 ]] || die_usage '--min-pull-requests needs a value'; min_prs="$2"; shift 2 ;;
     --report) [[ $# -ge 2 ]] || die_usage '--report needs a value'; report="$2"; shift 2 ;;
     --store) [[ $# -ge 2 ]] || die_usage '--store needs a value'; store="$2"; shift 2 ;;
     --analysis) [[ $# -ge 2 ]] || die_usage '--analysis needs a value'; analysis="$2"; shift 2 ;;
@@ -355,6 +362,7 @@ cmd_propose() {
     *) die_usage "unknown argument: $(safe_display "$1")" ;;
     esac
   done
+  [[ "$min_prs" == 1 || "$min_prs" == 2 ]] || die_usage '--min-pull-requests must be 1 or 2'
   [[ -n "$report" ]] || die_usage '--report is required'
   [[ -n "$store" ]] || die_usage '--store is required'
   [[ -n "$analysis" ]] || die_usage '--analysis is required'
@@ -399,7 +407,7 @@ cmd_propose() {
   # run_check <file> <jq-program> — run one check program of the contract over a JSON file; one message per line.
   run_check() {
     jq -r --argjson maxtext "$MAX_TEXT" --arg repo_re "$REPO_RE" --arg category_re "$CATEGORY_RE" --arg cause_re "$CAUSE_RE" \
-      --arg key_re "$KEY_PATTERN" --slurpfile st "$tmp/records.json" --slurpfile ana "$tmp/analysis.json" "$JQ_TEXT"$'\n'"$JQ_CHECK"$'\n'"$2" "$1"
+      --arg key_re "$KEY_PATTERN" --argjson minprs "$min_prs" --slurpfile st "$tmp/records.json" --slurpfile ana "$tmp/analysis.json" "$JQ_TEXT"$'\n'"$JQ_CHECK"$'\n'"$2" "$1"
   }
 
   local errors
@@ -412,12 +420,12 @@ cmd_propose() {
   local key
   key="$(jq -r '"\(.class.repo):\(.class.category):\(.class.cause_key)"' "$tmp/analysis.json")"
 
-  # A class that the report does not list, or that rests on fewer than two pull requests, gets no proposal.
-  jq -c --slurpfile ana "$tmp/analysis.json" '
+  # A class that the report does not list, or that rests on fewer pull requests than the minimum, gets no proposal.
+  jq -c --argjson minprs "$min_prs" --slurpfile ana "$tmp/analysis.json" '
       $ana[0].class as $c
       | [.recurrences[] | objects | select(.repo == $c.repo and .category == $c.category and .cause_key == $c.cause_key)]
       | .[0] // empty
-      | select(([.occurrences[]? | objects | .pr] | unique | length) >= 2)' "$tmp/report-one.json" >"$tmp/rec.json"
+      | select(([.occurrences[]? | objects | .pr] | unique | length) >= $minprs)' "$tmp/report-one.json" >"$tmp/rec.json"
   if [[ ! -s "$tmp/rec.json" ]]; then
     jq -n -c --arg key "$key" '{schema: 1, status: "none", reason: "not-recurring", key: $key}'
     return 0
@@ -593,8 +601,8 @@ JSON
       .status == "ready" and .level == 2 and .occurrences == 2
       and .key == "acme/shop:rules/code-review/core-analysis:n-plus-one-queries"
       and .marker == "<!-- prevention-proposal:key=acme/shop:rules/code-review/core-analysis:n-plus-one-queries -->"
-      and .title == "Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  check 'the proposal starts with its title, which the issue creation reads as the title' "$([[ "$(head -n 1 "$tmp/body.md")" == '# Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop' ]] && echo 0 || echo 1)"
+      and .title == "Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'the proposal starts with its title, which the issue creation reads as the title' "$([[ "$(head -n 1 "$tmp/body.md")" == '# Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop' ]] && echo 0 || echo 1)"
   check 'the proposal links both independent occurrences' "$(grep -q '(https://github.com/acme/shop/pull/7)' "$tmp/body.md" && grep -q '(https://github.com/acme/shop/pull/9)' "$tmp/body.md" && echo 0 || echo 1)"
   check 'the proposal carries every mandatory field' "$(
     ok=0
@@ -637,6 +645,15 @@ JSON
   "$HERE/analyze-recurrence.sh" --store "$tmp/samepr.jsonl" >"$tmp/reportsame.json"
   run_case 'two findings of one pull request are proposed' 0 -- --report "$tmp/reportsame.json" --store "$tmp/samepr.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/none.md"
   check 'two findings of one pull request give no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
+  rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"' >"$tmp/first.jsonl"
+  "$HERE/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns >"$tmp/reportfirst.json"
+  rm -f "$tmp/first.md"
+  run_case 'a resolved Critical finding is proposed at a minimum of one pull request' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 1
+  check 'a single resolved Critical finding gives a proposal that does not claim a recurrence' "$(jq -e '.status == "ready" and .occurrences == 1' "$tmp/out" >/dev/null && grep -q 'the defect class of one resolved Critical code-review finding' "$tmp/first.md" && ! grep -q 'recurs across' "$tmp/first.md" && echo 0 || echo 1)"
+  rm -f "$tmp/first.md"
+  run_case 'the same report is proposed at the default minimum' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md"
+  check 'the default minimum of two pull requests still gives no proposal for one' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/first.md" ]] && echo 0 || echo 1)"
+  run_case 'a minimum of three pull requests is a usage error' 1 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 3
   analysis '.class.cause_key = "missing-authorization"'
   propose 'another class than the reported one is proposed' 0
   check 'a class that the report does not list gives no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring" and .key == "acme/shop:rules/code-review/core-analysis:missing-authorization"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
@@ -810,7 +827,8 @@ JSON
   rm -f "$tmp/body.md"
   propose 'a candidate with a promotion target is proposed' 0
   check 'the proposal names the target type, path, change, and the existing knowledge checked' "$(jq -e '.status == "ready"' "$tmp/out" >/dev/null && grep -q '^## Promotion target$' "$tmp/body.md" && grep -q '^- Type: Rule$' "$tmp/body.md" && grep -q '^- Path: ` rules/php/concurrency.md `$' "$tmp/body.md" && grep -q '^Add a section that requires a lock' "$tmp/body.md" && grep -q '^- ` rules/php/concurrency.md `, coverage of this pattern: partial. ` It names the race but not the lock. `$' "$tmp/body.md" && grep -q '^An approval holds only for this exact text. A changed proposal needs a new approval.$' "$tmp/body.md" && echo 0 || echo 1)"
-  for kind in skill:skills/code-review/references/locks.md checklist:skills/code-review/references/checklist.md documentation:docs/memory/PROJECT_MEMORY.md agent-instruction:agents/leonardo.md agent-instruction:codex/agents/leonardo.toml architecture-guideline:.ai/guidelines/locks.md; do
+  local mem_claude=".cl""aude/run/code-review-memory.sqlite" mem_codex=".co""dex/run/code-review-memory.sqlite"
+  for kind in skill:skills/code-review/references/locks.md checklist:skills/code-review/references/checklist.md documentation:README.md "memory:$mem_claude" "memory:$mem_codex" agent-instruction:agents/leonardo.md agent-instruction:codex/agents/leonardo.toml architecture-guideline:.ai/guidelines/locks.md; do
     analysis "$TARGET"' | .target.type = "'"${kind%%:*}"'" | .target.path = "'"${kind#*:}"'" | .target.knowledge[1].path = "'"${kind#*:}"'"'
     rm -f "$tmp/body.md"
     rc=0
@@ -820,7 +838,7 @@ JSON
     set -e
     check "a candidate can be promoted into the target type ${kind%%:*}" "$([[ "$rc" == 0 ]] && grep -q "^- Path: \` ${kind#*:} \`\$" "$tmp/body.md" && echo 0 || echo 1)"
   done
-  for bad in rule:../../.github/workflows/x.yml rule:.github/workflows/x.yml rule:rules/../x.md rule:rules/./x.md rule:/rules/x.md rule:skills/x/SKILL.md documentation:docs/notes.md skill:skills//x.md; do
+  for bad in rule:../../.github/workflows/x.yml rule:.github/workflows/x.yml rule:rules/../x.md rule:rules/./x.md rule:/rules/x.md rule:skills/x/SKILL.md documentation:docs/notes.md documentation:docs/memory/PROJECT_MEMORY.md memory:docs/memory/code-review-memory.sqlite "memory:${mem_claude%/*}/other.sqlite" "memory:$mem_claude.bak" skill:skills//x.md; do
     analysis "$TARGET"' | .target.type = "'"${bad%%:*}"'" | .target.path = "'"${bad#*:}"'" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]'
     rm -f "$tmp/bad.md"
     rc=0
