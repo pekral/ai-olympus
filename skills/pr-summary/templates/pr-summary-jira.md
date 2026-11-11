@@ -121,7 +121,10 @@ Review findings
     behaviour, a failing or passing test, a query result). Plain prose only.
   - A point with no evidence is never a problem or a solution. It renders under
     "Not verified" (h3.), after the findings, with the step that settles it,
-    and is never dropped for length. The rule is owned by
+    and is never dropped for length. It carries only points about the
+    assignment or a rendered finding; a process point stays on the pull
+    request. When the body still overflows, merge the points into one bullet,
+    then write each finding in two sentences. The rule is owned by
     @skills/pr-summary/SKILL.md (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
