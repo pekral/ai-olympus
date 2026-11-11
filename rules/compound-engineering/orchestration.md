@@ -15,7 +15,7 @@ On completion — both on the final handoff and on a `Blocked` stop — every ag
 - **Per-brief append lock** (`$BRIEF.lock`) — must not outlive the run.
 - **Working-tree write-lock** (`.claude/run/.krang-write.lock`) — released by `krang` during *Run cleanup* (`agents/krang.md`), which runs on **every** terminating path the run can take — the full-delivery report, the analysis-only stop, and any `Blocked` stop — never only on the step that checklist is written under.
 - **Temporary `.md` preparation files** created during the run (aligns with `@rules/git/general.md` *Cleanup*).
-- **Worktrees and local branches the run created** — removed once their work is safe, per `@rules/git/general.md` *Clean up after the task — on every terminating path*.
+- **Worktrees and local branches the run created** — removed only by the owner that `@rules/git/general.md` *Clean up after the task — on every terminating path* names; every other agent hands the path or branch back in its handoff.
 
 **Memory files are NEVER deleted** — `docs/memory/PROJECT_MEMORY.md` in the target project and any user-level memory files (`~/.claude/.../memory/*.md`) are durable, not temporary; they survive every run. The hand-maintained `CLAUDE.md` is also excluded from this cleanup.
 

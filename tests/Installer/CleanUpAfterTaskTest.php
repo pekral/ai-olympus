@@ -9,16 +9,20 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
 
     expect($git)->toContain('- **Clean up after the task — on every terminating path.**')
         ->and($git)->toContain('When a run ends — the final report, a `Blocked` stop, or an abort')
-        ->and($git)->toContain(
-            'run `git worktree unlock <path>` when it is locked',
-        )
-        ->and($git)->toContain(
-            '`@rules/compound-engineering/concurrency.md`), then `git worktree remove <path>` and `git worktree prune`',
-        )
+        ->and($git)->toContain('unlock a locked worktree only when its lock reason names this run\'s own `$PPID`')
+        ->and($git)->not->toContain('run `git worktree unlock <path>` when it is locked')
+        ->and($git)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel units*')
+        ->and($git)->toContain('`agents/leonardo.md` *Review worktree*')
+        ->and($git)->toContain('A worktree locked by another run is unlocked only by its owner, after the confirmed-dead probe')
+        ->and($git)->toContain('`@skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*')
+        ->and($git)->toContain('A match with the pushed upstream proves only that the branch is pushed.')
+        ->and($git)->toContain('`git merge-base --is-ancestor <branch> "origin/$DEFAULT_BRANCH"`, then run `git branch -d`')
+        ->and($git)->not->toContain('`git branch -d` when it matches its pushed upstream')
         ->and($git)->toContain('the patch-identity proof of `@skills/cleanup-local-branches/SKILL.md` step 5')
         ->and($git)->toContain('- **The owner removes, the others hand back.**')
         ->and($git)->toContain('`krang` *Run cleanup* removes the review and parallel-unit worktrees of an orchestrated run')
         ->and($git)->toContain('is never removed with `--force` or `-D`')
         ->and($git)->not->toContain("paths:\n");
-    expect($orchestration)->toContain('- **Worktrees and local branches the run created** — removed once their work is safe');
+    expect($orchestration)->toContain('- **Worktrees and local branches the run created** — removed only by the owner that `@rules/git/general.md`')
+        ->and($orchestration)->toContain('every other agent hands the path or branch back in its handoff.');
 });
