@@ -2980,11 +2980,20 @@ test('krang treats unreadable evidence as a wait and gives every wait one end', 
     expect($rule)->toContain('A brief gives the run id (its slug), the tree `unknown`');
     expect($rule)->toContain('`write` for every other role, including a role this rule does not name');
 
-    expect($rule)->toContain('- **A wait has one end.** `krang` decides again at most three times for one step');
-    expect($rule)->toContain('A step that still waits after the third decision stops with `Blocked`, naming the blocker and the `reason`');
-    expect($rule)->toContain('`krang` runs *Run cleanup*');
-    expect($rule)->toContain('- **The write-lock holder is not a second wait.**');
-    expect($rule)->toContain('`krang` does not decide again for it.');
+    expect($rule)->toContain('- **A wait has one end.** A wait ends in one of two ways, by the kind of blocker.');
+    expect($rule)->toContain('1. **The blocker is a unit of this request.**');
+    expect($rule)->toContain('`krang` decides again after that handoff, at most three decisions in total, the first included.');
+    expect($rule)->toContain('A step that still waits after the third decision stops with `Blocked`, naming the blocker and the `reason`.');
+    expect($rule)->toContain('2. **The blocker is another run, a lock, or unreadable evidence.**');
+    expect($rule)->toContain('another top-level session never reports to this one');
+    expect($rule)->toContain('`krang` stops with `Blocked` at once, naming the blocker and the `reason`');
+    expect($rule)->toContain('In both cases `krang` runs *Run cleanup* (`agents/krang.md` step 7) before the stop');
+    expect($rule)->not->toContain('exit `6`, *One gate lock for the machine*');
+    expect($rule)->not->toContain('at most three times for one step');
+    expect($rule)->toContain('- **The write-lock holder is not a second wait.** This applies to a `write` step.');
+    expect($rule)->toContain('`krang` does not decide again for it. A `heavy` step first takes the gate-worktree decision of *A gate beside other runs*');
+    expect($rule)->toContain('A locked worktree whose reason carries no valid `pid <N>` token counts as live with the kind `write`');
+    expect($read('CHANGELOG.md'))->toContain('after at most three decisions in total, the first included, when the blocker is a unit of the request');
     expect($rule)->not->toContain('decides again when the blocker is gone');
 
     $krang = krangContractText();
