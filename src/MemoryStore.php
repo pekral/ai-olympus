@@ -45,38 +45,17 @@ final readonly class MemoryStore
      */
     public function insertAll(array $entries): int
     {
-        $insert = $this->pdo->prepare(
-            'INSERT INTO memory_entries (' . self::COLUMNS . ')'
-            . ' VALUES (:slug, :role, :trigger, :lesson, :rule, :evidence, :paths, :example, :source, :added) ON CONFLICT(slug) DO NOTHING',
-        );
-        $index = $this->pdo->prepare(
-            'INSERT INTO memory_fts (rowid, "trigger", lesson, rule, evidence, paths, example)'
-            . ' VALUES (:id, :trigger, :lesson, :rule, :evidence, :paths, :example)',
-        );
-        $inserted = 0;
-
-        $this->pdo->exec('BEGIN IMMEDIATE');
-
-        foreach ($entries as $entry) {
-            $values = [
-                ':evidence' => $entry->evidence,
-                ':example' => $entry->example,
-                ':lesson' => $entry->lesson,
-                ':paths' => implode("\n", $entry->paths),
-                ':rule' => $entry->rule,
-                ':trigger' => $entry->trigger,
-            ];
-            $insert->execute($values + [':slug' => $entry->slug, ':role' => $entry->role, ':source' => $entry->source, ':added' => $entry->added]);
-
-            if ($insert->rowCount() !== 1) {
-                continue;
+        try {
+            $this->pdo->exec('BEGIN IMMEDIATE');
+            $inserted = $this->insertEntries($entries);
+            $this->pdo->exec('COMMIT');
+        } catch (PDOException $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->exec('ROLLBACK');
             }
 
-            $index->execute($values + [':id' => $this->pdo->lastInsertId()]);
-            ++$inserted;
+            throw MemoryUnavailable::operation($exception->getMessage());
         }
-
-        $this->pdo->exec('COMMIT');
 
         return $inserted;
     }
@@ -97,16 +76,23 @@ final readonly class MemoryStore
             $params[':p' . $index] = $path;
         }
 
-        $statement = $this->pdo->prepare(
-            'WITH ranked AS (SELECT rowid AS id, bm25(memory_fts) AS score FROM memory_fts WHERE memory_fts MATCH :match) '
-            . 'SELECT ' . $this->columns('e.') . ', (' . implode(' OR ', $hits) . ') AS path_hit FROM memory_entries e LEFT JOIN ranked r ON r.id = e.id '
-            . 'WHERE (e.role = :role OR e.role = \'shared\') AND (path_hit = 1 OR r.id IS NOT NULL) '
-            . 'ORDER BY path_hit DESC, r.score ASC, e.slug ASC LIMIT ' . $limit,
-        );
-        $statement->execute($params);
+        try {
+            $statement = $this->pdo->prepare(
+                'WITH ranked AS (SELECT rowid AS id, bm25(memory_fts) AS score FROM memory_fts WHERE memory_fts MATCH :match) '
+                . 'SELECT ' . $this->columns('e.') . ', (' . implode(
+                    ' OR ',
+                    $hits,
+                ) . ') AS path_hit FROM memory_entries e LEFT JOIN ranked r ON r.id = e.id '
+                . 'WHERE (e.role = :role OR e.role = \'shared\') AND (path_hit = 1 OR r.id IS NOT NULL) '
+                . 'ORDER BY path_hit DESC, r.score ASC, e.slug ASC LIMIT ' . $limit,
+            );
+            $statement->execute($params);
 
-        /** @var list<array<string, string>> $rows */
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+            /** @var list<array<string, string>> $rows */
+            $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $exception) {
+            throw MemoryUnavailable::operation($exception->getMessage());
+        }
 
         return array_map(MemoryEntry::fromRow(...), $rows);
     }
@@ -116,6 +102,43 @@ final readonly class MemoryStore
         if (!in_array($driver, PDO::getAvailableDrivers(), strict: true)) {
             throw MemoryUnavailable::driverMissing($driver);
         }
+    }
+
+    /**
+     * @param list<\Pekral\AiOlympus\MemoryEntry> $entries
+     */
+    private function insertEntries(array $entries): int
+    {
+        $insert = $this->pdo->prepare(
+            'INSERT INTO memory_entries (' . self::COLUMNS . ')'
+            . ' VALUES (:slug, :role, :trigger, :lesson, :rule, :evidence, :paths, :example, :source, :added) ON CONFLICT(slug) DO NOTHING',
+        );
+        $index = $this->pdo->prepare(
+            'INSERT INTO memory_fts (rowid, "trigger", lesson, rule, evidence, paths, example)'
+            . ' VALUES (:id, :trigger, :lesson, :rule, :evidence, :paths, :example)',
+        );
+        $inserted = 0;
+
+        foreach ($entries as $entry) {
+            $values = [
+                ':evidence' => $entry->evidence,
+                ':example' => $entry->example,
+                ':lesson' => $entry->lesson,
+                ':paths' => implode("\n", $entry->paths),
+                ':rule' => $entry->rule,
+                ':trigger' => $entry->trigger,
+            ];
+            $insert->execute($values + [':slug' => $entry->slug, ':role' => $entry->role, ':source' => $entry->source, ':added' => $entry->added]);
+
+            if ($insert->rowCount() !== 1) {
+                continue;
+            }
+
+            $index->execute($values + [':id' => $this->pdo->lastInsertId()]);
+            ++$inserted;
+        }
+
+        return $inserted;
     }
 
     private function columns(string $prefix): string

@@ -414,7 +414,7 @@ vendor/bin/ai-olympus memory add --entry .claude/run/entry.json
 vendor/bin/ai-olympus memory query --role donatello --path src/Installer.php --symbol InstallerPath --limit 5
 ```
 
-`memory migrate` moves the entries of `docs/memory/PROJECT_MEMORY.md` into the database once. A second run skips every slug it already holds, and the source file stays as it is. `memory query` filters by role, then matches the entries that name one of the paths, then ranks by FTS5 `bm25()`. It prints one `pack-context.sh` candidates document, and the same input gives the same output. Pass `--run-dir .codex/run` under Codex. Exit `0` is a result (possibly empty), `1` a usage error, `2` an unavailable memory.
+`memory migrate` moves the entries of `docs/memory/PROJECT_MEMORY.md`, as the default branch holds that file, into the database once. A second run skips every slug it already holds, and the source file stays as it is. The JSON report lists in `rejected` every block that holds no entry. `memory query` filters by role, then matches the entries that name one of the paths, then ranks by FTS5 `bm25()`. It prints one `pack-context.sh` candidates document, and the same input gives the same output. Pass `--run-dir .codex/run` under Codex. Exit `0` is a result (possibly empty), `1` a usage error, `2` an unavailable memory.
 
 Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
 
