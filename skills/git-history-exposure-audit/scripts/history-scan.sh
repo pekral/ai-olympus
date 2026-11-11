@@ -10,6 +10,11 @@
 #   nothing proves which surface it skipped. This script is the one repeatable search: the same
 #   rules, the same surfaces, and the same redaction in every run.
 #
+# Requirements
+#   git 2.45 or newer (the global options --no-lazy-fetch, 2.45, and --attr-source, 2.41), bash, awk,
+#   jq, and the standard shell tools; the full audit also needs gh. An older git is a failed scan
+#   (exit 3) that names the git version, never a missing commit.
+#
 # Usage
 #   history-scan.sh range --base <sha> --head <sha>
 #   history-scan.sh text  < <load-issue.sh JSON of a pull request>
@@ -199,6 +204,17 @@ git_ro() {
 pin_empty_tree() {
   EMPTY_TREE="$(git_ro hash-object -t tree --stdin </dev/null 2>/dev/null)" || EMPTY_TREE=''
   is_sha "$EMPTY_TREE" || die 3 'cannot resolve the empty tree of this repository'
+  require_git
+}
+
+# The git floor. --no-lazy-fetch needs git 2.45 and --attr-source needs git 2.41. An older git rejects the
+# option on every call, which would surface as a missing commit or a failed clone. This probe names the
+# real cause instead. It runs before the first git call of a mode and again once the attribute source is set.
+require_git() {
+  git_ro --version >/dev/null 2>&1 && return 0
+  printf 'not-verified: git version - this git rejects a global option the scan sets (--no-lazy-fetch needs git 2.45, --attr-source needs git 2.41); install git 2.45 or newer, then run the scan again\n'
+  printf 'summary: findings=0 status=failed\n'
+  exit 3
 }
 
 DIFF_OPTS=(--no-ext-diff --no-textconv --no-show-signature --ignore-submodules=all --no-renames
@@ -504,7 +520,7 @@ function scan_cred(text, surf, c, loc, blob,   i, n, j, v, l, p, q, u, host, pas
       emit("credential", CR[i], v, surf, c, loc, blob, "")
     }
   }
-  if (index(text, "PRIVATE KEY-----") && match(text, RE_PEM)) {
+  if (index(text, "PRIVATE KEY-----") && match(text, RE_PEM) && (WLIM == 0 || RSTART <= WLIM)) {
     if (surf == "line" || surf == "tree") {
       pend_flush()
       PEND = 1; PSID = SID; PSURF = surf; PC = c; PLOC = loc; PBLOB = blob
@@ -591,10 +607,13 @@ function scan_email(text, surf, c, loc, blob,   l, n, j, v, at, dom) {
   }
 }
 function ignored_domain(d) { return (d ~ /(^|[.])noreply[.]github[.]com$/ || doc_host(d)) }
-function scan_terms(text, surf, c, loc, blob,   l, i) {
+function scan_terms(text, surf, c, loc, blob,   l, i, p) {
   if (!NT) return
   l = tolower(text)
-  for (i = 1; i <= NT; i++) if (index(l, LT[i])) emit("named-term", "user-term", TERM[i], surf, c, loc, blob, "")
+  for (i = 1; i <= NT; i++) {
+    p = index(l, LT[i])
+    if (p && (WLIM == 0 || p <= WLIM)) emit("named-term", "user-term", TERM[i], surf, c, loc, blob, "")
+  }
 }
 function scan_text(text, surf, c, loc, blob) {
   if (text == "") return
@@ -906,6 +925,7 @@ mode_range() {
     die 1 '--base and --head must be full commit object ids'
   fi
   need_tools git awk jq od tr
+  require_git
   pick_hash
   build_sensitive
   top="$(git_ro rev-parse --show-toplevel 2>/dev/null)" || die 1 'not inside a git checkout'
@@ -1196,6 +1216,7 @@ mode_full() {
       die 1 'a term carries a NUL or a control character; the terms file is refused'
   fi
   need_tools git gh jq awk sed sort od tr ps date mktemp
+  require_git
   pick_hash
   build_sensitive
   # shellcheck source=../../_shared/gate-record.sh
@@ -1347,6 +1368,8 @@ st_values() {
   ST_AWS_ATTR="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_LONG_A="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_LONG_B="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_OVERLAP="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_GLUED="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_REVIEW="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_DISC="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_GH_TOKEN="gh""p_$(st_rnd 36 'A-Za-z0-9')"
@@ -1358,7 +1381,7 @@ st_values() {
   ST_DOMAIN="mail$(st_rnd 8 'a-z').org"
   ST_TERM="Proj$(st_rnd 8 'a-z')"
   ST_VALUES=("$ST_AWS_DELETED" "$ST_AWS_KEEP" "$ST_AWS_ENV" "$ST_AWS_RANGE" "$ST_AWS_BASE" "$ST_AWS_MERGE"
-    "$ST_AWS_HOSTILE" "$ST_AWS_HOSTILE2" "$ST_AWS_PATH" "$ST_AWS_ISSUE" "$ST_AWS_TEXT" "$ST_AWS_ATTR" "$ST_AWS_LONG_A" "$ST_AWS_LONG_B" "$ST_AWS_REVIEW" "$ST_AWS_DISC" "$ST_GH_TOKEN" "$ST_GH_EXAMPLE" "$ST_PASSWORD"
+    "$ST_AWS_HOSTILE" "$ST_AWS_HOSTILE2" "$ST_AWS_PATH" "$ST_AWS_ISSUE" "$ST_AWS_TEXT" "$ST_AWS_ATTR" "$ST_AWS_LONG_A" "$ST_AWS_LONG_B" "$ST_AWS_OVERLAP" "$ST_AWS_GLUED" "$ST_AWS_REVIEW" "$ST_AWS_DISC" "$ST_GH_TOKEN" "$ST_GH_EXAMPLE" "$ST_PASSWORD"
     "$ST_IP" "$ST_IP_ALLOWED" "$ST_HOST")
 }
 
@@ -1374,6 +1397,11 @@ st_recorder() {
     printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\nexec %s "$@"\n' \
       "'$prog'" "'$log'" "'$real'" >"$bin/$prog"
   done
+  # awk: the tree-listing stage, the one call that passes blobs=, fails while the awk-tree flag file exists.
+  printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' \
+    "'awk'" "'$log'" >"$bin/awk"
+  printf 'for a in "$@"; do case "$a" in blobs=*) [ -f %s/awk-tree ] && exit 1 ;; esac; done\nexec %s "$@"\n' \
+    "'$ST_TMP/gitfail'" "'$(command -v awk)'" >>"$bin/awk"
   for prog in curl wget nc ssh scp; do
     printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\nexit 1\n' \
       "'$prog'" "'$log'" >"$bin/$prog"
@@ -1428,6 +1456,17 @@ st_line() {
     [[ $hit -eq 1 ]] && return 0
   done
   return 1
+}
+st_count() {
+  # st_count <needle>...: how many finding lines carry every needle
+  local line needle hit n=0
+  local IFS=$'\n'
+  for line in $ST_OUT; do
+    hit=1
+    for needle in "$@"; do [[ "$line" == *"$needle"* ]] || { hit=0; break; }; done
+    n=$((n + hit))
+  done
+  printf '%s' "$n"
 }
 st_field() {
   # st_field <column> <needle>...: the column of the first finding line that carries every needle
@@ -1489,6 +1528,7 @@ st_build_main() {
   st_commit "work for $ST_TERM"
   printf 'GITHUB_TOKEN=%s\n' "$ST_GH_EXAMPLE" >.env.example
   printf 'aws = %s\n' "$ST_AWS_KEEP" >keep.txt
+  { printf '%*s' 3700 '' | tr ' ' 'a'; printf ' %s ' "$ST_TERM"; printf '%*s\n' 1000 '' | tr ' ' 'a'; } >term-long.txt
   st_commit 'keep a value'
   st_git checkout -q -b side "$side"
   printf 'dsn = "https://deploy:%s@db-%s.net/app"\n' "$ST_PASSWORD" "$(st_rnd 6 'a-z')" >side.txt
@@ -1552,6 +1592,9 @@ st_build_range() {
   printf 'k = %s\n' "$ST_AWS_ATTR" >planted.hid.txt
   { printf '%*s' 4089 '' | tr ' ' 'a'; printf 'k=%s\n' "$ST_AWS_LONG_A"; } >long-a.txt
   { printf '%*s' 5000 '' | tr ' ' 'a'; printf ' k=%s\n' "$ST_AWS_LONG_B"; } >long-b.txt
+  { printf '%*s' 3600 '' | tr ' ' 'a'; printf ' %s ' "$ST_AWS_OVERLAP"; printf '%*s\n' 1000 '' | tr ' ' 'a'; } >overlap.txt
+  { printf '%*s' 3584 '' | tr ' ' 'a'; printf '%s ' "$ST_AWS_GLUED"; printf '%*s\n' 1000 '' | tr ' ' 'a'; } >glued.txt
+  { printf '%*s' 3700 '' | tr ' ' 'a'; printf ' %s ' '-----BEGIN RSA PRIV''ATE KEY-----'; printf '%*s\n' 1000 '' | tr ' ' 'a'; printf 'body\n'; } >pem-long.txt
   st_commit 'hostile and edge cases'
   ST_HEAD="$(git rev-parse HEAD)"
   ST_MERGE="$(git rev-parse HEAD~1)"
@@ -1600,6 +1643,9 @@ st_range_cases() {
   st_check 'range: a value after byte 4096 of one line is reported' st_line $'credential\taws-access-key-id\tline' 'long-b.txt'
   st_check 'range: a value across the 4096-byte window edge is reported once' st_line $'credential\taws-access-key-id\tline' 'long-a.txt' $'occurrences=1\t'
   st_check_not 'range: no line is left partly unscanned' st_has 'lines cut'
+  st_check 'range: a value inside the window overlap is reported once' st_line $'credential\taws-access-key-id\tline' 'overlap.txt' $'occurrences=1\t'
+  st_check_not 'range: a value glued to the byte before a window start is no finding' st_line $'credential\taws-access-key-id' 'glued.txt'
+  st_check 'range: a private-key header inside the window overlap is one finding' st_is "$(st_count $'credential\tprivate-key-block' 'pem-long.txt')" 1
   st_check 'range: a .gitattributes the branch commits cannot hide an added line' st_line $'credential\taws-access-key-id\tline' 'planted.hid.txt'
   st_res=0
   [[ "$ST_ARGV" == *$'\037--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904\037'* && "$ST_ARGV" == *$'\037core.attributesFile=/dev/null\037'* ]] || st_res=1
@@ -1638,10 +1684,27 @@ st_range_cases() {
   (cd "$repo" && PATH="$ST_TMP/no-tools" "$BASH" "$SCRIPT_PATH" range --base "$ST_BASE" --head "$ST_HEAD" >/dev/null 2>&1)
   st_check 'range: a missing tool exits 2' st_is "$?" 2
 
+  : >"$ST_TMP/gitfail/--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+  st_scan range-old-attr "$repo" /dev/null range --base "$ST_BASE" --head "$ST_HEAD"
+  rm -f "$ST_TMP/gitfail/--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+  st_old_git 'a git without --attr-source'
+  : >"$ST_TMP/gitfail/--no-lazy-fetch"
+  st_scan range-old-lazy "$repo" /dev/null range --base "$ST_BASE" --head "$ST_HEAD"
+  rm -f "$ST_TMP/gitfail/--no-lazy-fetch"
+  st_old_git 'a git without --no-lazy-fetch'
+
   st_scan range-usage "$repo" /dev/null range --base HEAD --head HEAD
   st_res=0
   [[ $ST_RC == 1 ]] || st_res=1
   st_ok "$st_res" 'range: a ref name instead of an object id is a usage error'
+}
+
+# st_old_git <label>: a git that rejects a global option fails the scan with the git version as the reason.
+st_old_git() {
+  st_res=0
+  [[ $ST_RC == 3 && "$ST_OUT" == *'not-verified: git version'* && "$ST_OUT" == *'git 2.45'* && "$ST_OUT" == *'status=failed'* &&
+    "$ST_OUT" != *'commit range'* ]] || st_res=1
+  st_ok "$st_res" "range: $1 exits 3 and names the git version, not a missing commit"
 }
 
 st_text_cases() {
@@ -1681,6 +1744,7 @@ st_full_fixtures() {
   local repo_json='{"full_name":"o/r","html_url":"https://github.com/o/r","permissions":{"push":true},"fork":false,"archived":false,"private":false,"visibility":"public","description":"demo","topics":["demo"],"homepage":"","security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"}}}'
   st_gh_fixture 'repos/o/r' "$repo_json"
   st_gh_fixture 'repos/o/clean' "${repo_json//o\/r/o\/clean}"
+  st_gh_fixture 'repos/o/topics' "$(jq -c '.full_name = "o/topics" | .topics = "demo"' <<<"$repo_json")"
   st_gh_fixture 'repos/o/plain' '{"full_name":"o/plain","html_url":"https://github.com/o/plain","permissions":{"push":true},"fork":false,"private":false}'
   st_gh_fixture 'repos/o/nopush' '{"full_name":"o/nopush","permissions":{"push":false}}'
   st_gh_fixture 'repos/o/noperm' '{"full_name":"o/noperm"}'
@@ -1689,7 +1753,7 @@ st_full_fixtures() {
   st_gh_fixture 'repos/up/r' '{"full_name":"up/r","permissions":{"push":false}}'
   st_gh_fixture 'rate_limit' '{"resources":{"core":{"remaining":5000,"reset":1700000000}}}'
   local name
-  for name in o/r o/clean o/plain; do
+  for name in o/r o/clean o/plain o/topics; do
     st_gh_fixture "repos/$name/issues?state=all&per_page=100" '[]'
     st_gh_fixture "repos/$name/issues/comments?per_page=100" '[]'
     st_gh_fixture "repos/$name/pulls/comments?per_page=100" '[]'
@@ -1747,11 +1811,21 @@ st_full_failures() {
   st_scan full-difftree-failed "$home" /dev/null full --repo o/clean
   st_full_failed 'a failed numstat read' 'default-branch tree'
   rm -f "$ST_TMP/gitfail/diff-tree"
+  : >"$ST_TMP/gitfail/awk-tree"
+  st_scan full-treestage-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed tree-listing stage' 'default-branch and tag trees'
+  rm -f "$ST_TMP/gitfail/awk-tree"
+  st_scan full-topics-failed "$home" /dev/null full --repo o/topics
+  st_full_failed 'a repository description and topics read that fails' 'repository description and topics'
   : >"$ST_TMP/gitfail/for-each-ref"
   st_scan full-refs-failed "$home" /dev/null full --repo o/clean
   st_full_failed 'a failed ref list' 'commit history' 'annotated tags' 'tag trees'
   rm -f "$ST_TMP/gitfail/for-each-ref"
   printf '%s' "$main" >"$ST_TMP/fixture-path"
+  : >"$ST_TMP/gitfail/diff-tree"
+  st_scan full-tagtree-failed "$home" /dev/null full --repo o/r
+  st_full_failed 'a failed numstat read of a tag tree' 'default-branch tree' 'tag trees'
+  rm -f "$ST_TMP/gitfail/diff-tree"
   : >"$ST_TMP/gitfail/cat-file"
   st_scan full-catfile-failed "$home" /dev/null full --repo o/r
   st_full_failed 'a failed object read' 'default-branch and tag trees' 'annotated tags'
@@ -1799,6 +1873,7 @@ st_full_cases() {
   st_check 'full: a commit e-mail domain is an identity finding that prints the domain' st_line $'identity\tcommit-email-domain' "$ST_DOMAIN"
   st_check_not 'full: a committed .mailmap changes no reported identity' st_line $'commit-email-domain' 'other-'
   st_check 'full: a user-supplied term is found' st_line $'named-term\tuser-term\tmessage' "$ST_TERM"
+  st_check 'full: a term inside the window overlap of a long line is counted once' st_line $'named-term\tuser-term\tline' "$ST_TERM" 'term-long.txt' $'occurrences=1\t'
   st_check 'full: a term that looks like a pattern matches only its literal text' st_line $'named-term\tuser-term\tline' 'a.*(b+)+$' 'occurrences=1'
   st_check 'full: a credential in an issue body is found' st_line $'credential\taws-access-key-id\tgithub' 'https://github.com/o/r/issues/1'
   st_check 'full: a credential in a pull-request review is found' st_line $'credential\taws-access-key-id\tgithub' 'pull/2#pullrequestreview-1'
