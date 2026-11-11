@@ -1133,8 +1133,44 @@ test('a missing login never ends the UI check of a user-visible change', functio
     expect($skill)->toContain('## Missing test data');
     expect($skill)->toContain('A missing record, relation, or record state never ends the walkthrough');
     expect($skill)->toContain('**A state the application can produce.**');
-    expect($skill)->toContain('**Existing data stays untouched.**');
     expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Missing test data*');
+    expect($skill)->toContain('whose prerequisites *Missing test data* cannot produce');
+    expect($skill)->not->toContain('*Missing test data* cannot create');
+
+    // Changing an existing record on a local development or test database is allowed, inside fixed limits.
+    $start = (int) strpos($skill, '## Missing test data');
+    $missingData = substr($skill, $start, (int) strpos($skill, '## Execution') - $start);
+    expect($missingData)->toContain('5. **A temporary change of an existing record.**');
+    expect($missingData)->toContain('only when sources 1 to 4 cannot produce the state');
+    expect($missingData)->toContain('- **The database is shown to be a development or test database.**');
+    expect(substr_count($missingData, '`@rules/security/general.md` *Production is never touched*'))->toBe(1);
+    expect(substr_count($missingData, '`@rules/security/general.md` *Environment values are never read*'))->toBe(1);
+    expect($missingData)->toContain('When the database cannot be shown, no existing record changes');
+    expect($missingData)->toContain('Use no database client and no raw SQL statement that writes.');
+    expect($missingData)->toContain('never set a status, a flag, or a computed value directly to force a pass');
+    expect($missingData)->toContain('It never sets the result that the criterion checks.');
+    expect($missingData)->toContain('- **Access stays untouched.** Never change the credentials, role, permissions, membership,');
+    expect($missingData)->toContain('owner, tenant, verification, two-factor, session, or token state of an existing record.');
+    expect($missingData)->toContain('Never delete or re-assign an existing record.');
+    expect($missingData)->toContain('- **Restore every change.** Before the change, record the original value of each changed attribute.');
+    expect($missingData)->toContain('Restore only an attribute that still holds the value this run set');
+    expect($missingData)->toContain('Read the restored value back through the application\'s code');
+    expect($missingData)->toContain('A data change never replaces the walkthrough');
+    expect($missingData)->toContain('creating, changing, or restoring data never sends e-mails');
+    expect($missingData)->toContain('Never report the value of a personal-data or secret attribute.');
+    expect($missingData)->not->toContain('Existing data stays untouched');
+    expect($skill)->not->toContain('Never modify, re-assign, or delete a record this run did not create.');
+
+    // The account limits stay as they were: real accounts are never re-passworded, re-roled, or deleted.
+    expect($skill)->toContain('- **Real accounts stay untouched.** Never reuse, re-password, re-role, or delete an account that is not a test account.');
+
+    // Every other file references the owner section instead of restating its limits.
+    $autoTesting = (string) file_get_contents($packageDir . '/skills/auto-interactive-testing/SKILL.md');
+    $testAssignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
+    expect($autoTesting)->toContain('`@skills/interactive-testing/SKILL.md` *Missing test data*');
+    expect($autoTesting)->not->toContain('Never write a raw SQL row');
+    expect($testAssignment)->toContain('`@skills/interactive-testing/SKILL.md` *Missing test data*');
+    expect($raphael)->toContain('create, or temporarily change and restore, the test data a scenario needs');
 
     // The account is runtime data, so raphael's read-only boundary on tracked files still holds.
     expect($raphael)->toContain('that account is runtime data in the local database, not a tracked file');
