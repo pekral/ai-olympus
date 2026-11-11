@@ -441,7 +441,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: on JIRA every `cr-comment` publish passes `--create`, and a retry identifies the comment of this run by the IDs recorded before the call.
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
         // Re-baselined: the history exposure lens runs on every review of a public repository and joins the S1 source-lens test (issue #336).
-        'rules/code-review/general.md' => 'fd4943b663a9a1d3b1be2c678cf237b54e6e872c8b789b208a9907168a26c093',
+        // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
+        'rules/code-review/general.md' => '343e45e20b7380cb2229bd70e28c54523a1adae67c0ddbf6c473fea3c2ac0678',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

@@ -19,8 +19,8 @@ not a second implementation of it.
   as a question for a human — on a JIRA source in the pull-request `merge-readiness` comment, and on
   the JIRA ticket only when it is Critical (`@skills/verify-merge-readiness/SKILL.md` step 4).
 - **When the source issue resolves to no pull request, deliver it first.** The issue is not
-  implemented yet, so run steps 4 to 6 of *The end-to-end run* on it — the optional security-risk
-  analysis, `donatello` for the implementation, then the `donatello` ↔ `leonardo` review-and-fix
+  implemented yet, so run steps 4 to 6 of *The end-to-end run* on it — the proposal
+  review of `skills/_shared/orchestration/proposal-review.md` on every such run, `donatello` for the implementation, then the `donatello` ↔ `leonardo` review-and-fix
   loop to convergence — and prepare the Draft pull request that path opens. Take the working-tree
   write-lock in step 5 exactly as a full-delivery run does; prepare-only mode is not read-only once
   it delivers. Several matching pull requests remain a hard stop, a closed source issue is never
