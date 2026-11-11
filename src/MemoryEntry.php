@@ -9,6 +9,10 @@ final readonly class MemoryEntry
 
     private const string PATH_PATTERN = '/^(?=.*[A-Za-z0-9])[\w.\/\\\\:@$-]{1,200}$/';
 
+    private const int MAX_PATHS = 10;
+
+    private const array LINE_LIMITS = ['trigger' => 120, 'lesson' => 120, 'rule' => 200, 'evidence' => 120, 'example' => 120];
+
     /**
      * @param list<string> $paths
      */
@@ -57,6 +61,10 @@ final readonly class MemoryEntry
             throw InstallerFailure::memoryEntryInvalid('"role" has the wrong format');
         }
 
+        if (!$legacy) {
+            self::assertTldr($entry);
+        }
+
         return $entry;
     }
 
@@ -87,6 +95,19 @@ final readonly class MemoryEntry
     public static function isRole(string $value): bool
     {
         return preg_match('/^[a-z][a-z-]{0,31}$/', $value) === 1;
+    }
+
+    private static function assertTldr(self $entry): void
+    {
+        foreach (self::LINE_LIMITS as $field => $limit) {
+            if (preg_match('/\A[^\r\n\x{2028}\x{2029}]{0,' . $limit . '}\z/u', $entry->{$field}) !== 1) {
+                throw InstallerFailure::memoryEntryInvalid(sprintf('"%s" must be one line of at most %d characters', $field, $limit));
+            }
+        }
+
+        if (count($entry->paths) > self::MAX_PATHS) {
+            throw InstallerFailure::memoryEntryInvalid(sprintf('"paths" must list at most %d file paths', self::MAX_PATHS));
+        }
     }
 
     /**
