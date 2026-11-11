@@ -406,7 +406,7 @@ The Context Retriever (`shredder`) builds or refreshes the graph with `graph bui
 
 The agents keep durable solutions of resolved Critical code-review findings in one per-user SQLite database with an FTS5 index: `.claude/run/code-review-memory.sqlite`, and `.codex/run/code-review-memory.sqlite` under Codex. Git always ignores the file. A read or a write exits `2` and does nothing when `git check-ignore` does not confirm that the path is ignored and untracked. The installer never creates or deletes it.
 
-`krang` reads the memory only when a code review opens a Critical finding. It builds the query from the paths and the symbols of that finding, never from tracker text, and gives the result only to the agent that fixes the finding. A run without a Critical finding does not read the memory. The extension `pdo_sqlite` with FTS5 is optional (`suggest` in `composer.json`). When it is missing, every `memory` command exits `2` and the agents continue without memory.
+`krang` is the only writer: it adds one short TL;DR entry (lesson, rule, one evidence pointer) after a Critical code-review finding is resolved and a human approved the entry. A finding below Critical never becomes an entry. `krang` reads the memory only when a code review opens a Critical finding. It builds the query from the paths and the symbols of that finding, never from tracker text, and gives the result only to the agent that fixes the finding. A run without a Critical finding does not read the memory. The extension `pdo_sqlite` with FTS5 is optional (`suggest` in `composer.json`). When it is missing, every `memory` command exits `2` and the agents continue without memory.
 
 ```bash
 vendor/bin/ai-olympus memory migrate

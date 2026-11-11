@@ -1,8 +1,17 @@
 # Learning promotion — from a repeated learning to permanent knowledge, with a human in between
 
-This file is the one contract for the promotion lifecycle of issue #137 (part of #131). A lesson that review finds again and again becomes a candidate for permanent knowledge: a rule, a skill, a checklist, documentation, an agent instruction, or an architecture guideline. The lifecycle never changes that knowledge itself. It produces a proposal, and a human approves the exact text of the proposal before the ordinary pipeline implements it.
+This file is the one contract for the promotion lifecycle of issue #137 (part of #131). A lesson of a resolved Critical code-review finding becomes a candidate for permanent knowledge: a rule, a skill, a checklist, documentation, an agent instruction, an architecture guideline, or an entry of the code-review memory. The lifecycle never changes that knowledge itself. It produces a proposal, and a human approves the exact text of the proposal before the ordinary pipeline implements it.
 
-The lifecycle builds on the feedback loop of epic #185 and adds no second memory system. It reads the finding records of `finding-records.md`, groups them with `recurrence-analysis.md`, renders the proposal with `prevention-proposal.md`, and keeps its own history in the store of `feedback-loop.md` *The store*. The code-review memory (`@rules/compound-engineering/memory.md`) stays as it is: a per-user SQLite database that `krang` alone writes.
+The lifecycle builds on the feedback loop of epic #185 and adds no second memory system. It reads the finding records of `finding-records.md`, groups them with `recurrence-analysis.md`, renders the proposal with `prevention-proposal.md`, and keeps its own history in the store of `feedback-loop.md` *The store*. The code-review memory (`@rules/compound-engineering/memory.md`) is a per-user SQLite database that `krang` alone writes. It is the write target of a candidate of type `memory`.
+
+## The severity gate
+
+This section is the one owner of what may become a candidate. `@rules/compound-engineering/memory.md` *Write protocol* references it.
+
+- **Only a Critical finding of a code review counts.** The records come from the published code-review report (`finding-records.md`). A finding of a proposal review, a standalone security audit, or an acceptance test is never a record. A Moderate finding is a record, and it is never evidence of a candidate, whatever its recurrence count.
+- **Only a resolved finding counts.** A Critical record with the status `open` is not evidence yet.
+- **The first resolved occurrence is enough.** A Critical lesson is a candidate after one resolved record, so the mistake does not have to repeat before it is recorded. The human approval below stays.
+- **A refused candidate states its reason.** `propose` prints `{"status":"none","reason":"below-critical"}` for a class with no Critical record, `"unresolved"` for a class whose Critical records are all open, and `"not-eligible"` when a stricter threshold of the project settings below is not reached. It writes nothing.
 
 ## Command
 
@@ -25,10 +34,10 @@ Every learning has one explicit state. `status` reports it for every defect clas
 
 | State | Meaning |
 | --- | --- |
-| `observation` | The class rests on one task. |
-| `learning` | The class appears in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds and has no candidate yet. |
+| `observation` | The class rests on one task, or has no resolved Critical record. |
+| `learning` | The class has resolved Critical records in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds and has no candidate yet. |
 | `candidate` | `propose` rendered a proposal for the class. `awaiting` is `approval`, or `re-approval` when the proposal changed after an approval. |
-| `approved` | A trusted fact approved the current proposal text. `awaiting` is `merge`. |
+| `approved` | A trusted fact approved the current proposal text. `awaiting` is `merge`, or `memory-write` for a candidate of type `memory`. |
 | `promoted` | The approved change is on the default branch. |
 | `rejected` | A trusted fact rejected the candidate. The same evidence does not create it again. |
 | `superseded` | A later, broader candidate was promoted and covers this one. It stays in the history. |
@@ -39,9 +48,9 @@ A state is derived from the history in order. No record field states it, and no 
 
 A pattern is one defect class of `recurrence-analysis.md` *What counts as a recurrence*: its `repo`, `category`, and `cause_key`. `analyze-recurrence.sh --patterns` reports each pattern with its evidence. Grouping uses only these schema fields. No similarity search and no model takes part.
 
-- **Occurrences** are the validated records of the pattern. The store check of `extract-findings.sh --validate` runs first, so text that is not a record never counts.
+- **Occurrences** are the validated records of the pattern that are Critical and resolved (*The severity gate*). The store check of `extract-findings.sh --validate` runs first, so text that is not a record never counts.
 - **Distinct tasks** are distinct pull requests of the canonical repository. Several records from one pull request are one task.
-- **The resolved share** is the share of the pattern's records that a fix resolved, in percent. It is measured, never estimated, and the `promotion.min-confidence` threshold compares it.
+- **The resolved share** is the share of the pattern's Critical records that a fix resolved, in percent. It is measured, never estimated, and the `promotion.min-confidence` threshold compares it.
 - **Evidence** is the sorted list of the finding ids, and the proposal links every pull request.
 
 A pattern is eligible when it reaches all three thresholds below.
@@ -50,22 +59,22 @@ A pattern is eligible when it reaches all three thresholds below.
 
 | Setting | Manifest key | Default | Range |
 | --- | --- | --- | --- |
-| Occurrences | `promotion.min-occurrences` | 3 | at least 2 |
-| Distinct tasks | `promotion.min-distinct-tasks` | 2 | at least 2 |
+| Occurrences | `promotion.min-occurrences` | 1 | at least 1 |
+| Distinct tasks | `promotion.min-distinct-tasks` | 1 | at least 1 |
 | Resolved share in percent | `promotion.min-confidence` | 0 | 0 to 100 |
 
-A setting resolves in this order: the flag of `analyze-recurrence.sh`, then the manifest key of the default branch (`@rules/general/general.md` *Project manifest*), then the default. The manifest is read only through `read-manifest.sh`, never from the working tree. A manifest value outside its range is ignored, and the script says so on standard error. A single occurrence therefore never becomes a candidate.
+A setting resolves in this order: the flag of `analyze-recurrence.sh`, then the manifest key of the default branch (`@rules/general/general.md` *Project manifest*), then the default. The manifest is read only through `read-manifest.sh`, never from the working tree. A manifest value outside its range is ignored, and the script says so on standard error. A project can raise a threshold to demand more evidence. The defaults let one resolved Critical record become a candidate.
 
 ## The candidate
 
 `propose` takes the analysis file of `prevention-proposal.md` *The analysis file* with a `target`. It runs these checks in order and stops at the first that applies:
 
-1. **Not eligible.** A pattern below a threshold gives `{"status":"none","reason":"not-eligible"}` and writes nothing.
+1. **Not eligible.** A class with no Critical record gives `"reason":"below-critical"`, a class with no resolved Critical record gives `"unresolved"`, and a pattern below a threshold gives `"not-eligible"`. Each result is `{"status":"none","reason":<reason>}`, and nothing is written.
 2. **Already promoted.** A promoted or superseded key gives `{"status":"none","reason":"promoted"}` or `"superseded"`.
 3. **Suppressed.** A key whose last decision is a rejection of the same evidence gives `{"status":"none","reason":"rejected"}`.
 4. **Supersedes.** Each key in `target.supersedes` must be a promoted candidate. Anything else exits `4`.
 5. **Existing knowledge.** Each file in `target.knowledge` is checked with `git cat-file` on the default branch that `read-manifest.sh --default-ref` names. A file that only the working tree holds covers nothing: its coverage becomes `none`, and the script says so. A file that covers the pattern in full gives `{"status":"none","reason":"covered","covered_by":<path>}`. A file that covers it in part must be the target, so the existing file is extended.
-6. **Render.** `propose-prevention.sh` renders the proposal with its sanitizer. The script stores the SHA-256 digest of the rendered file in a `candidate` record.
+6. **Render.** `propose-prevention.sh` renders the proposal with its sanitizer, with `--min-pull-requests 1` so that one pull request is enough. The script stores the SHA-256 digest of the rendered file in a `candidate` record.
 
 The same pattern with the same proposal text adds no second record. A changed text adds a new `candidate` record for the same key.
 
@@ -77,7 +86,8 @@ The same pattern with the same proposal text adds no second record. A changed te
 | `architecture-guideline` | `rules/**.md`, `.ai/rules/**.md`, `.ai/guidelines/**.md` |
 | `skill`, `checklist` | `skills/**.md` |
 | `agent-instruction` | `agents/**.md`, `codex/agents/**.toml`, `AGENTS.md`, `CLAUDE.md` |
-| `documentation` | `README.md`, `docs/memory/PROJECT_MEMORY.md` |
+| `documentation` | `README.md` |
+| `memory` | `.claude/run/code-review-memory.sqlite`, `.codex/run/code-review-memory.sqlite` |
 
 The analysis picks the type that fits the lesson. A rule is not the default. `target.path` must sit inside the root of its type, and it holds no `.` or `..` segment and no `//`. `target.knowledge` lists 1 to 30 existing files, each with a `path`, a `coverage` (`none`, `partial`, `full`), and a `note`. `target.change` states the change. The proposal renders a `## Promotion target` section with all of them.
 
@@ -104,6 +114,8 @@ The candidate id and the dedupe key are `<repo>:<category>:<cause_key>`. The tit
 - **Named runs record the decisions.** The feedback-analysis run of `feedback-loop.md` records the label before it refreshes a proposal, and records the rejection of a proposal that is closed as not planned. The same run records a rejection by the user's instruction when the user's request for the run names the rejected proposal and the reason. The implementation run of `@skills/resolve-issue/references/safeguard-implementation.md` records an approval by the instruction or the label before its first file write.
 
 ## Promotion
+
+A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`. After the approval, `krang` writes the entry (*Permanent knowledge*), and the state stays `approved` with `awaiting: "memory-write"`.
 
 `promote --pr <URL>` loads the pull request through `skills/code-review-github/scripts/load-issue.sh` and sets `promoted` only when all of these hold:
 
@@ -137,4 +149,4 @@ The record text, the analysis text, the issue payload, and the rejection reason 
 
 ## Permanent knowledge
 
-No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or `docs/memory/PROJECT_MEMORY.md`, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`: `krang` runs `ai-olympus memory add`.
+No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or the code-review memory database, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`: `krang` runs `ai-olympus memory add` with the TL;DR entry (lesson, rule, one evidence pointer) that the approved proposal names. No other agent writes it.
