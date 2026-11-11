@@ -117,6 +117,7 @@ Today those gates are scattered across five separate formulations (`agents/april
 | `leonardo` | Publish a CR / security-analysis comment to the tracker | L1 | publishing the review is the deliverable of the invocation itself |
 | `leonardo` | Promote a converged PR out of Draft (`gh pr ready`) | L1 | `@skills/process-code-review/SKILL.md` — only on a converged loop (0 Critical, no undeferred Moderate), never on a PR that still carries a blocking finding |
 | `leonardo` | Add the `ready to merge` label to the pull request when the review converges, and remove it when a later commit re-opens the review. It never writes a status on the source tracker item | L1 | `@skills/process-code-review/SKILL.md` *Promote the PR out of Draft*; the same converged-loop precondition as the Draft promotion above; `@rules/compound-engineering/tracker.md` *No status write once the code review has started* |
+| `krang` | Publish the one new `proposal-review` comment with the Critical findings of the issue analysis on the source issue (`skills/_shared/orchestration/proposal-review.md` step 6) | L1 | the deliverable of the proposal review itself, which `krang` runs; it publishes nothing when no Critical finding exists |
 | `krang` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it (creating the label when the repository lacks it), and write no status on the source issue | L1 | `agents/krang.md` *Closing a `FAST` run* — only when the final classification is still `FAST` and `donatello`'s scoped validation returned green; never on a tier that dispatched `leonardo` |
 | `leonardo` | Disclose an unfixed vulnerability on a public tracker | L3 | withheld, routed to a private security channel, or left in the review comment only — never filed as a public issue |
 | `casey` | Run plain `EXPLAIN` / `SHOW` (and `EXPLAIN ANALYZE` on a `SELECT` only) against a local MySQL / MariaDB or PostgreSQL database | L1 | `agents/casey.md` *Bash boundary* — a locally started database only; never a shared test, staging, or production host, and never a statement that writes data or schema |
@@ -256,6 +257,15 @@ The tiers above buy **depth**: how much reasoning a change is worth. One stage i
 - **A re-classification never replays it.** An escalation owes the stages the lower tier skipped; the redesign is not one of them, because it already ran. Replaying it would redo the work and hand the implementer a second, competing specification.
 - **An approved redesign is never replayed.** When the task carries a redesign proposal the user already approved (`@skills/deliver-page-redesign/SKILL.md` *Get the design approved*), `krang` does not pass `--redesign` and does not dispatch `michelangelo`. The approved proposal is the specification `donatello` implements. A second proposal would override the user's approval.
 - **A redesign with no implementation ask is an analysis-only run.** `michelangelo`'s proposal is then the whole deliverable and the run stops there — the same shape as a security-analysis-only run.
+
+### Dispatch only the agents the work needs, and propose the ones it lacks
+
+This section is the one owner of the rule. `agents/krang.md` and `codex/agents/krang.toml` reference it and never restate it.
+
+- **Each agent owns its own part.** `krang` dispatches the agent that owns the work to be done, for that part only. It dispatches no agent for a part the request does not need. A dispatch that the request does not need costs a session and buys nothing.
+- **A missing agent is proposed, never built and never replaced.** When no agent exists for a part the request needs, or when an additional agent would improve the output, `krang` proposes that agent to the user in its report. The proposal names the role, what the agent would own, and why it improves the result. `krang` does not create the agent. It does not do the work of that agent itself.
+- **The one exception is the issue analysis.** `krang` runs the issue analysis and the proposal review itself, because the roster has no agent dedicated to them (`skills/_shared/orchestration/proposal-review.md`). The exception ends when such an agent exists.
+- **The proposal is a report line, not a stop.** The run continues with the agents the roster has. The report line `Proposed agents` carries the proposal, or `none`.
 
 ### The acceptance pass is chosen by the change, not by the tier
 

@@ -52,7 +52,7 @@ The orchestrator's step 1 routes here when a resolved subject bundles separable 
 
 Absorbing the backlog tier never widens into the roles the roster deliberately keeps elsewhere — or keeps with nobody:
 
-- **Analyse, diagnose, or design.** Not a backlog decision. The roster carries **no general (non-security) analysis agent**, and the orchestrator is not one: a request to investigate, diagnose, or design is answered by running `@skills/analyze-problem` in the top-level session, and a security-focused analysis belongs to `leonardo`. Refusing that work is the point of the boundary, not a gap in it, and gaining the backlog tier does not change it — it is the same stop the orchestrator's step 3 already takes on a general analysis-only request.
+- **Analyse, diagnose, or design.** Not a backlog decision. A backlog run never analyses, and gaining the backlog tier does not change that. A request to investigate, diagnose, or design is not a backlog decision. The orchestrator answers a general analysis-only request through `skills/_shared/orchestration/proposal-review.md`, which is the orchestrator's analysis exception and not part of the backlog tier, and a security-focused analysis belongs to `leonardo`.
 - **Implement, test, or open a pull request.** → `donatello`, dispatched through the orchestrator's step 5.
 - **Review anything.** → `leonardo`, the roster's single code-review agent.
 - **Merge.** Merging is always a separate, explicitly requested step through `@skills/merge-github-pr/SKILL.md` — never ad-hoc CLI, and never a side effect of a backlog run.
