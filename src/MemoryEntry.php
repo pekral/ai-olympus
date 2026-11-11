@@ -27,9 +27,12 @@ final readonly class MemoryEntry
     }
 
     /**
+     * The one validating constructor of an entry. `memory add` and `memory migrate` both build entries here.
+     * The legacy Markdown format has no evidence field and often no source or date, so `$legacy` makes those three optional.
+     *
      * @param array<mixed> $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data, bool $legacy = false): self
     {
         $entry = new self(
             self::text($data, 'slug'),
@@ -37,14 +40,14 @@ final readonly class MemoryEntry
             self::text($data, 'trigger'),
             self::text($data, 'lesson'),
             self::text($data, 'rule'),
-            self::text($data, 'evidence'),
+            self::text($data, 'evidence', required: !$legacy),
             self::paths($data['paths'] ?? []),
             self::text($data, 'example', required: false),
-            self::text($data, 'source'),
-            self::text($data, 'added'),
+            self::text($data, 'source', required: !$legacy),
+            self::text($data, 'added', required: !$legacy),
         );
 
-        foreach (['slug' => '/^[a-z0-9][a-z0-9-]{0,99}$/', 'added' => '/^\d{4}-\d{2}-\d{2}$/'] as $field => $pattern) {
+        foreach (['slug' => '/^[a-z0-9][a-z0-9-]{0,99}$/', 'added' => '/^(\d{4}-\d{2}-\d{2})?$/'] as $field => $pattern) {
             if (preg_match($pattern, $entry->{$field}) !== 1) {
                 throw InstallerFailure::memoryEntryInvalid(sprintf('"%s" has the wrong format', $field));
             }

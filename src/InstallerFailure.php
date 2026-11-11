@@ -61,7 +61,9 @@ final class InstallerFailure extends RuntimeException
 
     public static function memorySourceInvalid(string $source): self
     {
-        return new self(sprintf('Cannot read the memory source "%s": give an existing relative Markdown file inside the project.', $source));
+        return new self(
+            sprintf('Cannot read the memory source "%s": give a relative Markdown file inside the project that the default branch holds.', $source),
+        );
     }
 
     public static function settingsSubagentWritesInvalid(string $path, string $reason): self
