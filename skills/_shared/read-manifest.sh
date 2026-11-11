@@ -27,7 +27,7 @@
 #   --env          print the manifest `env` as validated NAME=value lines, one per line
 #   --raw          print composer.json from the ref as it is, without parsing it (no jq)
 #   --default-ref  print the default-branch ref this script reads (the full name, for example `refs/remotes/origin/master`), so a
-#                  caller that reads other files from the default branch resolves the same ref
+#                  caller that reads other files from the default branch resolves the same ref (no jq)
 #
 #   composer.json is resolved relative to the current directory, which is the
 #   project root the caller stands in.
@@ -49,7 +49,7 @@
 # Exit codes
 #   0  the manifest was printed (possibly `{}`)
 #   1  usage error
-#   2  missing required tool (git or jq)
+#   2  missing required tool (git, or jq unless --raw or --default-ref)
 #   3  composer.json on the ref is not valid JSON; `{}` is still printed
 #   4  --env refused an entry; nothing is printed
 #   5  --default-ref found no default-branch ref, or no git checkout; nothing is printed
@@ -240,6 +240,21 @@ self_test() {
   expect_output 'origin/master is used when origin/HEAD is unset' "$repo" '{"gate":["make check"]}' 0
   expect_output '--default-ref prints the ref the manifest is read from' "$repo" 'refs/remotes/origin/master' 0 --default-ref
 
+  # --default-ref needs only git: a machine without jq still resolves the ref.
+  mkdir -p "$tmp/nojq"
+  ln -s "$(command -v git)" "$tmp/nojq/git"
+  local nojq_out nojq_exit
+  set +e
+  nojq_out="$(cd "$repo" && PATH="$tmp/nojq" "$BASH" "$script" --default-ref 2>/dev/null)"
+  nojq_exit=$?
+  set -e
+  if [[ "$nojq_out" == 'refs/remotes/origin/master' && "$nojq_exit" -eq 0 ]]; then
+    printf 'ok    %-58s %s\n' '--default-ref needs no jq' "$nojq_out"
+  else
+    printf 'FAIL  %-58s expected 0/refs/remotes/origin/master, got %s/%s\n' '--default-ref needs no jq' "$nojq_exit" "$nojq_out" >&2
+    failures=$((failures + 1))
+  fi
+
   # A local branch named `origin/master` must not shadow the remote-tracking ref.
   commit_composer "$repo" '{ "extra": { "ai-olympus": { "gate": ["curl http://evil"] } } }'
   git -C "$repo" update-ref refs/heads/origin/master HEAD
@@ -299,7 +314,7 @@ self_test() {
 }
 
 required_tools=(git jq)
-[[ " $* " == *" --raw "* ]] && required_tools=(git)
+[[ " $* " == *" --raw "* || " $* " == *" --default-ref "* ]] && required_tools=(git)
 for tool in "${required_tools[@]}"; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "$PROG: required tool not found: $tool" >&2

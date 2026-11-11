@@ -66,6 +66,11 @@ final class InstallerFailure extends RuntimeException
         );
     }
 
+    public static function memoryDefaultBranchUnresolved(string $diagnostic): self
+    {
+        return new self(sprintf('Cannot resolve the default branch of the project, so the memory source cannot be read: %s', $diagnostic));
+    }
+
     public static function settingsSubagentWritesInvalid(string $path, string $reason): self
     {
         return new self(sprintf('Invalid subagent-write permissions for %s: %s.', $path, $reason));

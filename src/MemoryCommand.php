@@ -123,12 +123,14 @@ final class MemoryCommand
         $lines = [];
         $code = 1;
 
-        exec('cd ' . escapeshellarg($root) . ' && bash ' . $resolver . ' --default-ref 2>/dev/null', $reference, $code);
+        exec('cd ' . escapeshellarg($root) . ' && bash ' . $resolver . ' --default-ref 2>&1', $reference, $code);
 
-        if ($code === 0) {
-            $argument = escapeshellarg(($reference[0] ?? '') . ':./' . $source);
-            exec('git -C ' . escapeshellarg($root) . ' show ' . $argument . ' 2>/dev/null', $lines, $code);
+        if ($code !== 0) {
+            throw InstallerFailure::memoryDefaultBranchUnresolved(trim(implode(' ', $reference)));
         }
+
+        $argument = escapeshellarg(($reference[0] ?? '') . ':./' . $source);
+        exec('git -C ' . escapeshellarg($root) . ' show ' . $argument . ' 2>/dev/null', $lines, $code);
 
         if ($code !== 0) {
             throw InstallerFailure::memorySourceInvalid($source);

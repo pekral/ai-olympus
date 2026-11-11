@@ -537,7 +537,9 @@ test('migrate falls back to origin/main and refuses a repository with no default
     expect($mainOutput)->toContain('"inserted":3')->toContain('"parsed":3');
     expect($noneExit)->toBe(1);
     expect($noneOutput)->toBe('');
-    expect($noneError)->toStartWith('Cannot read the memory source "docs/memory/PROJECT_MEMORY.md"');
+    expect($noneError)->toBe(
+        'Cannot resolve the default branch of the project, so the memory source cannot be read: read-manifest.sh: no default-branch ref' . PHP_EOL,
+    );
     expect(is_file($root . '/.codex/run/code-review-memory.sqlite'))->toBeFalse();
 
     installerRemoveDirectory($root);
