@@ -69,7 +69,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 - This project supports git worktrees. Isolating a work unit in its own worktree (`git worktree add`) is a supported way of working here. The default stays unchanged: per `@rules/git/general.md` an agent works in the current tree and creates a worktree only when the user explicitly asks for one, then removes it once the work unit's PR is merged.
 - Files in the generated `.claude/`, `.codex/`, and `.agents/` directories are not tracked by Git. Edit the tracked `rules/`, `skills/`, `agents/`, and `codex/` sources instead.
-- See `docs/memory/PROJECT_MEMORY.md` for durable, project-specific lessons from past work — read the entries relevant to your role before starting a new task.
+- The code-review memory is a per-user, git-ignored SQLite database that `krang` reads only when a code review opens a Critical finding (`rules/compound-engineering/memory.md`). `docs/memory/PROJECT_MEMORY.md` is only the source of its one-time migration (`ai-olympus memory migrate`): do not read or write it.
 
 ## AI Olympus repository maintenance
 

@@ -2,7 +2,7 @@
 
 This file is the one contract for the promotion lifecycle of issue #137 (part of #131). A lesson that review finds again and again becomes a candidate for permanent knowledge: a rule, a skill, a checklist, documentation, an agent instruction, or an architecture guideline. The lifecycle never changes that knowledge itself. It produces a proposal, and a human approves the exact text of the proposal before the ordinary pipeline implements it.
 
-The lifecycle builds on the feedback loop of epic #185 and adds no second memory system. It reads the finding records of `finding-records.md`, groups them with `recurrence-analysis.md`, renders the proposal with `prevention-proposal.md`, and keeps its own history in the store of `feedback-loop.md` *The store*. The hand-curated project memory (`@rules/compound-engineering/memory.md`, `@skills/compact-project-memory/SKILL.md`) stays as it is.
+The lifecycle builds on the feedback loop of epic #185 and adds no second memory system. It reads the finding records of `finding-records.md`, groups them with `recurrence-analysis.md`, renders the proposal with `prevention-proposal.md`, and keeps its own history in the store of `feedback-loop.md` *The store*. The code-review memory (`@rules/compound-engineering/memory.md`) stays as it is: a per-user SQLite database that `krang` alone writes.
 
 ## Command
 
@@ -137,4 +137,4 @@ The record text, the analysis text, the issue payload, and the rejection reason 
 
 ## Permanent knowledge
 
-No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or `docs/memory/PROJECT_MEMORY.md`, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`, compaction included.
+No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or `docs/memory/PROJECT_MEMORY.md`, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`: `krang` runs `ai-olympus memory add`.

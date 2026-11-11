@@ -139,7 +139,7 @@ The earlier `talos` → `hephaestus` rename took place on 2026-08-11. Its implem
 
 Run `vendor/bin/ai-olympus install --force` and restart the agent session. The installer removes only known, unmodified copies of the previous definitions in this table that it recognises (`src/InstallerAgentMigration.php`) and their Codex adapters, or symlinks to the package’s previous files. Edited definitions and unrelated custom agents are preserved. Older or edited copies that cannot be verified remain reported as orphans; review them manually before removing them. `--prune` retains its broader behaviour and removes every orphan, including custom files.
 
-Update saved invocations, external automation, and in-progress briefs to the current identifiers. Live memory role tags and routing references use the new names; old names are not dispatch aliases. Re-tag the entries of your own `docs/memory/PROJECT_MEMORY.md`: `Role: metalhead` becomes `Role: shredder`, and `Role: splinter` from before 2026-11-09 becomes `Role: krang`, or the orchestration lessons reach the wrong agent.
+Update saved invocations, external automation, and in-progress briefs to the current identifiers. Live memory role tags and routing references use the new names; old names are not dispatch aliases. Re-tag the entries of your own `docs/memory/PROJECT_MEMORY.md` before `ai-olympus memory migrate` moves them into the database: `Role: metalhead` becomes `Role: shredder`, and `Role: splinter` from before 2026-11-09 becomes `Role: krang`, or the orchestration lessons reach the wrong agent.
 
 ## Naming convention — Ninja Turtles
 
