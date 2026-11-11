@@ -160,10 +160,10 @@ test('the retriever builds or refreshes the graph once before its first query so
 
 test('the graph slice is bounded by the gate budget and the graph stays in git-ignored scratch (issue #136)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $command = (string) file_get_contents($packageDir . '/src/GraphCommand.php');
+    $command = (string) file_get_contents($packageDir . '/src/CommandOptions.php');
     $packer = (string) file_get_contents($packageDir . '/skills/_shared/pack-context.sh');
 
-    expect($command)->toContain('private const string DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
+    expect($command)->toContain('public const string DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
         ->and($command)->toContain('private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, \'.codex/run\'];')
         ->and($packer)->toContain('GRAPH_RUN_DIR=\'.claude/run\'')
         ->and($packer)->toContain('GRAPH_PATH="${run_dir:-$GRAPH_RUN_DIR}/graph.json"')

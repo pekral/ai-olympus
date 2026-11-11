@@ -21,12 +21,10 @@ final class Installer
                 return self::showHelp();
             }
 
-            if ($command === 'stats') {
-                return MetricsCommand::run($normalizedArgv);
-            }
+            $commandExit = self::runDataCommand($command, $normalizedArgv);
 
-            if ($command === 'graph') {
-                return GraphCommand::run($normalizedArgv);
+            if ($commandExit !== null) {
+                return $commandExit;
             }
 
             if ($command !== 'install') {
@@ -55,6 +53,19 @@ final class Installer
     /**
      * @param array<int, string> $argv
      */
+    private static function runDataCommand(string $command, array $argv): ?int
+    {
+        return match ($command) {
+            'stats' => MetricsCommand::run($argv),
+            'graph' => GraphCommand::run($argv),
+            'memory' => MemoryCommand::run($argv),
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $argv
+     */
     private static function hasEditorArgument(array $argv): bool
     {
         foreach ($argv as $arg) {
@@ -73,11 +84,13 @@ final class Installer
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
         echo "                                 [--disable-co-author-attribution]\n\n";
         echo "  vendor/bin/ai-olympus stats [--last=7d|30d|all]\n";
-        echo "  vendor/bin/ai-olympus graph build | graph query <path|class|symbol>\n\n";
+        echo "  vendor/bin/ai-olympus graph build | graph query <path|class|symbol>\n";
+        echo "  vendor/bin/ai-olympus memory migrate | memory add --entry <file.json> | memory query --role <role> --path <p> --symbol <s>\n\n";
         echo "Commands:\n";
         echo "  install                 Install rules, skills, agents, and commands for Claude Code and Codex.\n";
         echo "  stats                   Summarise local orchestration metrics (tiers, dispatches, escalations).\n";
-        echo "  graph                   Build the repository knowledge graph, or query one slice of it as JSON.\n\n";
+        echo "  graph                   Build the repository knowledge graph, or query one slice of it as JSON.\n";
+        echo "  memory                  Migrate, extend, or query the per-user code-review memory (SQLite with FTS5).\n\n";
         self::showInstallOptions();
 
         return 0;

@@ -10,13 +10,7 @@ namespace Pekral\AiOlympus;
 final class GraphCommand
 {
 
-    private const string DEFAULT_RUN_DIRECTORY = '.claude/run';
-
-    private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, '.codex/run'];
-
     private const string GRAPH_FILE = 'graph.json';
-
-    private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
 
     /**
      * @param array<int, string> $argv
@@ -26,12 +20,12 @@ final class GraphCommand
         $root = InstallerPath::resolveProjectRoot();
         $action = $argv[2] ?? '';
         $flags = match ($action) {
-            'build' => self::flags(array_slice($argv, 3), ['--run-dir']),
-            'query' => isset($argv[3]) ? self::flags(array_slice($argv, 4), ['--limit', '--run-dir']) : null,
+            'build' => CommandOptions::flags(array_slice($argv, 3), ['--run-dir']),
+            'query' => isset($argv[3]) ? CommandOptions::flags(array_slice($argv, 4), ['--limit', '--run-dir']) : null,
             default => null,
         };
-        $directory = self::runDirectory($flags ?? []);
-        $limit = self::limit($flags ?? []);
+        $directory = CommandOptions::runDirectory($flags ?? []);
+        $limit = CommandOptions::limit($flags ?? []);
 
         if ($flags !== null && $directory !== null && $limit !== false) {
             $location = $directory . '/' . self::GRAPH_FILE;
@@ -51,7 +45,9 @@ final class GraphCommand
     {
         $path = $root . '/' . $location;
 
-        self::assertLocationIgnored($root, $location);
+        if (!CommandOptions::isIgnored($root, $location)) {
+            throw InstallerFailure::graphLocationNotIgnored($location);
+        }
 
         $result = GraphIndexer::index($root, self::read($path) ?? []);
 
@@ -60,7 +56,7 @@ final class GraphCommand
         set_error_handler(static fn (): bool => true);
         $written = file_put_contents(
             $path,
-            json_encode(['version' => GraphIndexer::VERSION, 'files' => $result->files], self::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL,
+            json_encode(['version' => GraphIndexer::VERSION, 'files' => $result->files], CommandOptions::JSON_FLAGS | JSON_PRETTY_PRINT) . PHP_EOL,
         );
         restore_error_handler();
 
@@ -68,71 +64,9 @@ final class GraphCommand
             throw InstallerFailure::graphWriteFailed($path);
         }
 
-        echo json_encode(['graph' => $location] + $result->summary->jsonSerialize(), self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode(['graph' => $location] + $result->summary->jsonSerialize(), CommandOptions::JSON_FLAGS) . PHP_EOL;
 
         return 0;
-    }
-
-    private static function assertLocationIgnored(string $root, string $location): void
-    {
-        $git = 'git -C ' . escapeshellarg($root);
-        $argument = escapeshellarg($location);
-
-        exec($git . ' check-ignore -q -- ' . $argument . ' 2>&1', result_code: $ignored);
-
-        $tracked = [];
-
-        if ($ignored === 0) {
-            exec($git . ' ls-files -- ' . $argument . ' 2>&1', $tracked);
-        }
-
-        if ($ignored !== 0 || $tracked !== []) {
-            throw InstallerFailure::graphLocationNotIgnored($location);
-        }
-    }
-
-    /**
-     * @param array<string, string> $flags
-     */
-    private static function limit(array $flags): null|int|false
-    {
-        if (!isset($flags['--limit'])) {
-            return null;
-        }
-
-        return preg_match('/^[1-9][0-9]{0,8}$/', $flags['--limit']) === 1 ? (int) $flags['--limit'] : false;
-    }
-
-    /**
-     * @param array<string, string> $flags
-     */
-    private static function runDirectory(array $flags): ?string
-    {
-        $directory = rtrim($flags['--run-dir'] ?? self::DEFAULT_RUN_DIRECTORY, '/');
-
-        return in_array($directory, self::RUN_DIRECTORIES, strict: true) ? $directory : null;
-    }
-
-    /**
-     * @param array<int, string> $arguments
-     * @param list<string> $allowed
-     * @return array<string, string>|null
-     */
-    private static function flags(array $arguments, array $allowed): ?array
-    {
-        $flags = [];
-
-        foreach (array_chunk($arguments, 2) as $pair) {
-            $value = $pair[1] ?? null;
-
-            if (!in_array($pair[0], $allowed, strict: true) || $value === null || isset($flags[$pair[0]])) {
-                return null;
-            }
-
-            $flags[$pair[0]] = $value;
-        }
-
-        return $flags;
     }
 
     private static function query(string $root, string $location, string $entity, ?int $limit): int
@@ -149,7 +83,10 @@ final class GraphCommand
         $changed = $current->summary->parsed + $current->summary->removed;
         $graph = new SliceGraph($changed === 0 ? 'fresh' : 'refreshed', $current->summary->files, $changed);
 
-        echo json_encode([...GraphQuery::slice($current->files, $entity, $limit)->jsonSerialize(), 'graph' => $graph], self::JSON_FLAGS) . PHP_EOL;
+        echo json_encode(
+            [...GraphQuery::slice($current->files, $entity, $limit)->jsonSerialize(), 'graph' => $graph],
+            CommandOptions::JSON_FLAGS,
+        ) . PHP_EOL;
 
         return 0;
     }

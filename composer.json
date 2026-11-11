@@ -58,6 +58,9 @@
     "roave/security-advisories": "dev-latest",
     "squizlabs/php_codesniffer": "^4.0.4"
   },
+  "suggest": {
+    "ext-pdo_sqlite": "Stores the per-user code-review memory (SQLite with FTS5); without it the memory command exits 2 and agents continue without memory"
+  },
   "autoload": {
     "psr-4": {
       "Pekral\\AiOlympus\\": "src/"
