@@ -7,7 +7,10 @@ test('pr-summary owns the TL;DR of the solution that every review finding bullet
     $skill = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
     expect($skill)
-        ->toContain('- **A finding bullet is a TL;DR of the solution, backed by evidence.** This skill is the one owner of the rule;')
+        ->toContain(
+            '- **A finding bullet is a TL;DR of the solution, backed by evidence.** '
+                . 'This skill is the one owner of the rule; the wrappers and the templates only point here.',
+        )
         ->toContain(
             '1. **Three statements per bullet:** what is wrong, what the fix is, and what the fix changes for the user or the business, '
                 . 'each in plain language.',
@@ -17,6 +20,7 @@ test('pr-summary owns the TL;DR of the solution that every review finding bullet
         ->toContain('Example: *an order created without a customer fails.*')
         ->toContain('describe the behaviour, never a test name, a file, or a count.')
         ->toContain('Write one bullet per finding, as a TL;DR of its solution for a human, backed by evidence');
+    expect($skill)->not->toContain('the rule file and the wrappers only point here');
     expect($skill)->not->toContain('Write one bullet per finding: what can go wrong for the user or the business, and what the fix would change.');
 });
 
@@ -94,4 +98,35 @@ test('the wrappers point at the pr-summary owner and pass the evidence (issue #3
             'Each finding there is a TL;DR of its solution backed by the evidence the wrapper passes, '
                 . 'and a point with no evidence goes under *Not verified*',
         );
+});
+
+test('an open decision keeps the caller shape and the TL;DR rule covers code-review findings only (issue #371)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($skill)
+        ->toContain('One bullet per code-review finding, written as a TL;DR of the solution backed by evidence')
+        ->toContain(
+            '- An open decision that `verify-merge-readiness` or `april` passes keeps the question-and-recommendation shape its caller defines',
+        )
+        ->toContain('7. **The rule covers the findings of a code review only.**')
+        ->toContain('keeps the question-and-recommendation shape its caller defines. It carries no `Evidence`, and it never moves under *Not verified*.');
+});
+
+test('a JIRA body that overflows the cap shortens the findings in two steps and keeps the Not verified points (issue #371)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+    $jira = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
+
+    expect($skill)
+        ->toContain('8. **On JIRA, *Not verified* carries only points about the assignment or a rendered finding.**')
+        ->toContain('A process point, such as a deferred gate or an unresolved database engine, stays on the pull request.')
+        ->toContain('9. **When a JIRA body still overflows 3 000 characters, shorten the findings in two steps.**')
+        ->toContain('First merge the *Not verified* points into one bullet. Then write each finding bullet as two sentences:')
+        ->toContain('then shorten the findings per item 9 above. Never drop a `Review findings` bullet or a *Not verified* point.')
+        ->toContain('then shorten the findings per item 9 of *A finding bullet is a TL;DR of the solution, backed by evidence*;')
+        ->not->toContain('is carrying content the banned list already forbids');
+    expect($jira)
+        ->toContain('assignment or a rendered finding; a process point stays on the pull')
+        ->toContain('then write each finding in two sentences.');
 });
