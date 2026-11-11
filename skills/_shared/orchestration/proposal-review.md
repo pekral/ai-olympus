@@ -37,8 +37,8 @@ The roster has no agent dedicated to the analysis of an issue, so two agents sha
 1. **Delivery path of a merge preparation.** It runs on every run that has to implement the task,
    before `donatello`. For a security-focused task, the dispatch of `leonardo` in step 3 below is
    the same dispatch as the security analysis of step 4, and one handoff reports both.
-2. **A general analysis-only request.** It runs as the whole answer: steps 1 to 6 below, with the
-   corrected proposal in the handoff as the deliverable.
+2. **A general analysis-only request.** It runs as the whole answer: steps 1 to 6 and step 8 below,
+   with the corrected proposal in the handoff as the deliverable.
 3. **No other run.** A full-delivery run outside the merge preparation keeps its own step 4.
 
 ## Steps
