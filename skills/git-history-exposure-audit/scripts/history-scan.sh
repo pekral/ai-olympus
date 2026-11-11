@@ -212,7 +212,12 @@ pin_empty_tree() {
 # real cause instead. It runs before the first git call of a mode and again once the attribute source is set.
 require_git() {
   git_ro --version >/dev/null 2>&1 && return 0
-  printf 'not-verified: git version - this git rejects a global option the scan sets (--no-lazy-fetch needs git 2.45, --attr-source needs git 2.41); install git 2.45 or newer, then run the scan again\n'
+  fail_scan 'git version - this git rejects a global option the scan sets (--no-lazy-fetch needs git 2.45, --attr-source needs git 2.41); install git 2.45 or newer, then run the scan again'
+}
+
+# The failed-scan exit: the not-verified line, the failed summary, exit code 3.
+fail_scan() {
+  printf 'not-verified: %s\n' "$1"
   printf 'summary: findings=0 status=failed\n'
   exit 3
 }
@@ -934,9 +939,7 @@ mode_range() {
 
   printf 'history-scan: mode=range base=%s head=%s engine=history-scan.sh\n' "$base" "$head"
   if ! git_ro cat-file -e "$base^{commit}" 2>/dev/null || ! git_ro cat-file -e "$head^{commit}" 2>/dev/null; then
-    printf 'not-verified: commit range - the base or the head commit is not in this checkout; fetch the pull request head and base, then run the scan again\n'
-    printf 'summary: findings=0 status=failed\n'
-    exit 3
+    fail_scan 'commit range - the base or the head commit is not in this checkout; fetch the pull request head and base, then run the scan again'
   fi
 
   {
@@ -1247,9 +1250,7 @@ mode_full() {
     clone --mirror --template= --quiet \
     --config core.hooksPath=/dev/null --config core.fsmonitor=false --config protocol.allow=never \
     "https://github.com/$repo.git" "$RUN_DIR/mirror.git" >/dev/null 2>&1; then
-    printf 'not-verified: git history - the mirror clone failed; check the network and the gh login, then run the audit again\n'
-    printf 'summary: findings=0 status=failed\n'
-    exit 3
+    fail_scan 'git history - the mirror clone failed; check the network and the gh login, then run the audit again'
   fi
   cd "$RUN_DIR/mirror.git" || die 3 'cannot enter the mirror'
   pin_empty_tree
@@ -1385,6 +1386,12 @@ st_values() {
     "$ST_IP" "$ST_IP_ALLOWED" "$ST_HOST")
 }
 
+# The head of every stub: the shebang line and the line that appends the program's argv to the log.
+# shellcheck disable=SC2016  # the stub is shell text written to a file: its $ belongs to it
+st_stub_head() {
+  printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' "'$1'" "'$2'"
+}
+
 # The argument recorder: one wrapper per program, logging its argv (never its standard input).
 # shellcheck disable=SC2016  # the wrappers are shell text written to files: their $ belongs to them
 st_recorder() {
@@ -1394,21 +1401,26 @@ st_recorder() {
     basename find grep env bash ls; do
     real="$(command -v "$prog" 2>/dev/null)" || continue
     [[ "$prog" == git ]] && continue
-    printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\nexec %s "$@"\n' \
-      "'$prog'" "'$log'" "'$real'" >"$bin/$prog"
+    {
+      st_stub_head "$prog" "$log"
+      printf 'exec %s "$@"\n' "'$real'"
+    } >"$bin/$prog"
   done
   # awk: the tree-listing stage, the one call that passes blobs=, fails while the awk-tree flag file exists.
-  printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' \
-    "'awk'" "'$log'" >"$bin/awk"
-  printf 'for a in "$@"; do case "$a" in blobs=*) [ -f %s/awk-tree ] && exit 1 ;; esac; done\nexec %s "$@"\n' \
-    "'$ST_TMP/gitfail'" "'$(command -v awk)'" >>"$bin/awk"
+  {
+    st_stub_head awk "$log"
+    printf 'for a in "$@"; do case "$a" in blobs=*) [ -f %s/awk-tree ] && exit 1 ;; esac; done\nexec %s "$@"\n' \
+      "'$ST_TMP/gitfail'" "'$(command -v awk)'"
+  } >"$bin/awk"
   for prog in curl wget nc ssh scp; do
-    printf '#!/bin/sh\n{ printf %%s %s; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\nexit 1\n' \
-      "'$prog'" "'$log'" >"$bin/$prog"
+    {
+      st_stub_head "$prog" "$log"
+      printf 'exit 1\n'
+    } >"$bin/$prog"
   done
   real="$(command -v git)"
   {
-    printf '#!/bin/sh\n{ printf %%s git; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' "'$log'"
+    st_stub_head git "$log"
     printf 'for a in "$@"; do [ -f %s/"$a" ] && exit 1; done\n' "'$ST_TMP/gitfail'"
     printf 'case " $* " in *" clone "*) for a in "$@"; do dest="$a"; done\n'
     printf '  exec env GIT_CONFIG_GLOBAL=/dev/null %s clone --mirror --quiet --template= "$(%s %s)" "$dest" ;;\nesac\n' \
@@ -1417,7 +1429,7 @@ st_recorder() {
   } >"$bin/git"
   # gh: a stub that serves one JSON fixture per endpoint and never touches the network.
   {
-    printf '#!/bin/sh\n{ printf %%s gh; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' "'$log'"
+    st_stub_head gh "$log"
     printf 'ep=""\nfor a in "$@"; do case "$a" in repos/*|rate_limit|graphql) ep="$a" ;; esac; done\n'
     printf 'key=$(printf %%s "$ep" | %s %s %s)\n' "'$(command -v tr)'" "'/?&=.'" "'_____'"
     printf '[ -f %s/"$key".fail ] && exit 1\n[ -f %s/"$key".json ] || exit 1\nexec %s %s/"$key".json\n' \
@@ -1446,37 +1458,34 @@ st_scan() {
 }
 
 st_has() { [[ "$ST_OUT" == *"$1"* ]]; }
+st_match() {
+  # st_match <line> <needle>...: the line carries every needle
+  local line="$1" needle
+  shift
+  for needle in "$@"; do [[ "$line" == *"$needle"* ]] || return 1; done
+  return 0
+}
 st_line() {
   # st_line <needle>...: one finding line carries every needle
-  local line needle hit
+  local line
   local IFS=$'\n'
-  for line in $ST_OUT; do
-    hit=1
-    for needle in "$@"; do [[ "$line" == *"$needle"* ]] || { hit=0; break; }; done
-    [[ $hit -eq 1 ]] && return 0
-  done
+  for line in $ST_OUT; do st_match "$line" "$@" && return 0; done
   return 1
 }
 st_count() {
   # st_count <needle>...: how many finding lines carry every needle
-  local line needle hit n=0
+  local line n=0
   local IFS=$'\n'
-  for line in $ST_OUT; do
-    hit=1
-    for needle in "$@"; do [[ "$line" == *"$needle"* ]] || { hit=0; break; }; done
-    n=$((n + hit))
-  done
+  for line in $ST_OUT; do st_match "$line" "$@" && n=$((n + 1)); done
   printf '%s' "$n"
 }
 st_field() {
   # st_field <column> <needle>...: the column of the first finding line that carries every needle
-  local column="$1" line needle hit
+  local column="$1" line
   shift
   local IFS=$'\n'
   for line in $ST_OUT; do
-    hit=1
-    for needle in "$@"; do [[ "$line" == *"$needle"* ]] || { hit=0; break; }; done
-    if [[ $hit -eq 1 ]]; then
+    if st_match "$line" "$@"; then
       printf '%s' "$line" | cut -f "$column"
       return 0
     fi
@@ -1786,9 +1795,19 @@ st_full_failed() {
   st_ok "$st_res" "full: $name exits 3 and names the surface under not-verified"
 }
 
+# A git that rejects a global option fails a full audit with the git version as the reason, before any outbound request.
+st_full_old_git() {
+  : >"$ST_TMP/gitfail/--no-lazy-fetch"
+  st_scan full-old-git "$1" /dev/null full --repo o/clean
+  rm -f "$ST_TMP/gitfail/--no-lazy-fetch"
+  st_full_failed 'a git without --no-lazy-fetch' 'git version'
+  st_check_not 'full: a git without --no-lazy-fetch sends no outbound request' st_has 'outbound-request:'
+}
+
 # One failing read per producer: the surface becomes not-verified and the exit code is 3, never a clean audit.
 st_full_failures() {
   local home="$1" main="$2" clean="$3"
+  st_full_old_git "$home"
   st_gh_fixture 'repos/o/clean/pulls?state=all&per_page=100' '[{"number":7}]'
   st_scan full-review-failed "$home" /dev/null full --repo o/clean
   st_full_failed 'a failed review read' 'reviews of pull request 7'
