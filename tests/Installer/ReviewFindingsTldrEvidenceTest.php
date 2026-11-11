@@ -124,8 +124,8 @@ test('a JIRA body that overflows the cap shortens the findings in two steps and 
         ->toContain('9. **When a JIRA body still overflows 3 000 characters, shorten the findings in two steps.**')
         ->toContain('First merge the *Not verified* points into one bullet. Then write each finding bullet as two sentences:')
         ->toContain('then shorten the findings per item 9 above. Never drop a `Review findings` bullet or a *Not verified* point.')
-        ->toContain('then shorten the findings per item 9 of *A finding bullet is a TL;DR of the solution, backed by evidence*;')
-        ->not->toContain('is carrying content the banned list already forbids');
+        ->toContain('then shorten the findings per item 9 of *A finding bullet is a TL;DR of the solution, backed by evidence*;');
+    expect($skill)->not->toContain('is carrying content the banned list already forbids');
     expect($jira)
         ->toContain('assignment or a rendered finding; a process point stays on the pull')
         ->toContain('then write each finding in two sentences.');
