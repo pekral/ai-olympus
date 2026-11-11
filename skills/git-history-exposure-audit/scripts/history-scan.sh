@@ -59,7 +59,8 @@
 #   named-term       (full only) every term of --terms-file, matched case-insensitively as a fixed
 #                    string (awk index()), never as a pattern.
 #   Every pattern is a POSIX ERE without back-references, built with explicit repetition, so no
-#   pattern backtracks. A line longer than LINE_CAP bytes is cut at the cap and counted.
+#   pattern backtracks. A line longer than LINE_CAP bytes is matched in overlapping windows of that
+#   size, so no byte of a line goes unscanned.
 #   Skipped and counted (`skipped-placeholder:`): a template value (`<…>`, `${…}`, `$NAME`, `%…%`,
 #   `{{…}}`), a run of one character, a value that carries a documentation marker word (example,
 #   placeholder, changeme, dummy, sample, redacted, your, acme), a value that is only a
@@ -181,11 +182,23 @@ die() {
   exit "$1"
 }
 
-# The one git function. Every git call of this script goes through it.
+# The one git function. Every git call of this script goes through it. Once pin_empty_tree has run, git
+# reads attributes from the empty tree, never from the work tree: a .gitattributes the branch under
+# review commits (`* -diff`, `binary`) cannot turn an added line into a binary blob.
+EMPTY_TREE=''
 git_ro() {
+  local attr=()
+  [[ -z "$EMPTY_TREE" ]] || attr=(--attr-source="$EMPTY_TREE")
   GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 \
-    git --no-pager --no-lazy-fetch --no-replace-objects \
-    -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.quotePath=true -c protocol.allow=never "$@"
+    git --no-pager --no-lazy-fetch --no-replace-objects ${attr[@]+"${attr[@]}"} \
+    -c core.attributesFile=/dev/null -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.quotePath=true \
+    -c protocol.allow=never "$@"
+}
+
+# The empty tree of the repository the script is in (its object id depends on the hash algorithm).
+pin_empty_tree() {
+  EMPTY_TREE="$(git_ro hash-object -t tree --stdin </dev/null 2>/dev/null)" || EMPTY_TREE=''
+  is_sha "$EMPTY_TREE" || die 3 'cannot resolve the empty tree of this repository'
 }
 
 DIFF_OPTS=(--no-ext-diff --no-textconv --no-show-signature --ignore-submodules=all --no-renames
@@ -339,6 +352,7 @@ state == 2 {
 # shellcheck disable=SC2016  # an awk or jq program: its $ belongs to the program, not to the shell
 AWK_TAGS='
 BEGIN { FS = "\t"; MX = "\001X\t" }
+substr($0, 1, 2) == "E\t" { print; next }
 index($0, MX) == 1 { oid = $2; ref = rest(2); hdr = 1; print "O\t" oid; next }
 oid == "" { next }
 hdr && $0 == " " { hdr = 0; next }
@@ -425,7 +439,8 @@ function find_all(text, re, bnd,   s, off, st, ln, b, a, n) {
     st = off + RSTART
     ln = RLENGTH
     if (ln <= 0) break
-    b = (st > 1) ? substr(text, st - 1, 1) : ""
+    if (WLIM > 0 && st > WLIM) break
+    b = (st > 1) ? substr(text, st - 1, 1) : WPREV
     a = substr(text, st + ln, 1)
     if ((b == "" || b !~ bnd) && (a == "" || a !~ bnd)) {
       n++
@@ -588,9 +603,23 @@ function scan_text(text, surf, c, loc, blob) {
   if (ON["identity"] && surf != "path") scan_email(text, surf, c, loc, blob)
   scan_terms(text, surf, c, loc, blob)
 }
-function cap(s) {
-  if (length(s) > CAPN) { CUT++; return substr(s, 1, CAPN) }
-  return s
+# A line longer than CAPN bytes is matched in windows of CAPN bytes that overlap by OVL bytes, so no
+# byte of a line is left unscanned. A window keeps only the matches that start in its first WLIM
+# bytes (the next window finds the rest whole), and WPREV is the byte before the window, so a token
+# boundary is judged as it is in the full line.
+function scan_long(t, surf, c, loc, blob,   n, o, step, last) {
+  n = length(t)
+  if (n <= CAPN) { scan_text(t, surf, c, loc, blob); return }
+  step = CAPN - OVL
+  for (o = 1; ; o += step) {
+    last = (o + CAPN - 1 >= n)
+    WLIM = last ? 0 : step
+    WPREV = (o > 1) ? substr(t, o - 1, 1) : ""
+    scan_text(substr(t, o, CAPN), surf, c, loc, blob)
+    if (last) break
+  }
+  WLIM = 0
+  WPREV = ""
 }
 function redact(s,   i, n, j, out) {
   for (i = 1; i <= NC; i++) {
@@ -629,6 +658,7 @@ BEGIN {
   for (i = 1; i <= n; i++) ON[CLS[i]] = 1
   RANK["credential"] = 1; RANK["sensitive-file"] = 2; RANK["infrastructure"] = 3; RANK["identity"] = 4; RANK["named-term"] = 5
   CAPN = cap_bytes + 0
+  OVL = 512
   AN = "[A-Za-z0-9]"
   TK = "[A-Za-z0-9_-]"
   addc("aws-access-key-id", "AKIA|ASIA", "(AKIA|ASIA)" rep("[A-Z0-9]", 16), "[A-Za-z0-9]", 4)
@@ -670,16 +700,16 @@ BEGIN {
   if (t == "N") { COUNTER[$2] += $3; next }
   if (t == "R") { record_root($2, $3, rest(3)); next }
   if (t == "B" || t == "L") {
-    if (t == "B") { SID = "B" $2; surf = "tree"; c = ""; loc = ""; blob = $2; text = cap(rest(2)) }
-    else { SID = "L" $2 SUBSEP $3; surf = "line"; c = $2; loc = $3; blob = ""; text = cap(rest(3)) }
+    if (t == "B") { SID = "B" $2; surf = "tree"; c = ""; loc = ""; blob = $2; text = rest(2) }
+    else { SID = "L" $2 SUBSEP $3; surf = "line"; c = $2; loc = $3; blob = ""; text = rest(3) }
     if (PEND && PSID != SID) pend_flush()
-    if (PEND && PSID == SID) { emit("credential", "private-key-block", text, PSURF, PC, PLOC, PBLOB, ""); PEND = 0 }
-    scan_text(text, surf, c, loc, blob)
+    if (PEND && PSID == SID) { emit("credential", "private-key-block", substr(text, 1, CAPN), PSURF, PC, PLOC, PBLOB, ""); PEND = 0 }
+    scan_long(text, surf, c, loc, blob)
     next
   }
-  if (t == "M") { scan_text(cap(rest(2)), "message", $2, "-", ""); next }
-  if (t == "X") { scan_text(cap(rest(3)), "tag", $2, $3, ""); next }
-  if (t == "G") { scan_text(cap(rest(2)), "github", "-", $2, ""); next }
+  if (t == "M") { scan_long(rest(2), "message", $2, "-", ""); next }
+  if (t == "X") { scan_long(rest(3), "tag", $2, $3, ""); next }
+  if (t == "G") { scan_long(rest(2), "github", "-", $2, ""); next }
   if (t == "P") {
     v = rest(3)
     r = sens_rule(v)
@@ -726,7 +756,6 @@ END {
   }
   print "C\tsuppressed\t" (SUPPRESSED + 0)
   print "C\tskipped-placeholder\t" (PLACEHOLDER + 0)
-  print "C\tlines-cut\t" (CUT + 0)
   print "C\tbinary\t" (COUNTER["binary"] + 0)
   print "C\tmissing\t" (COUNTER["missing"] + 0)
   print "Z"
@@ -781,7 +810,6 @@ emit_report() {
       case "$name" in
       suppressed) printf 'suppressed: %s (default-branch allow-list history-exposure.allow)\n' "$count" ;;
       skipped-placeholder) printf 'skipped-placeholder: %s\n' "$count" ;;
-      lines-cut) [[ "$count" == 0 ]] || printf 'not-verified: %s lines cut at %s bytes - the part after the cap was not scanned; a reviewer reads those lines in the diff\n' "$count" "$LINE_CAP" ;;
       binary) [[ "$count" == 0 ]] || printf 'not-verified: %s binary blobs - their content was not scanned; the owner checks each binary file the history carries\n' "$count" ;;
       missing)
         if [[ "$count" != 0 ]]; then
@@ -812,7 +840,7 @@ emit_report() {
 
 # A commit message or an identity stays in every ref whose history holds its commit.
 reach_head() {
-  if [[ "$1" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] && git_ro merge-base --is-ancestor "$1" HEAD >/dev/null 2>&1; then
+  if is_sha "$1" && git_ro merge-base --is-ancestor "$1" HEAD >/dev/null 2>&1; then
     printf 'yes'
   else
     printf 'no'
@@ -821,7 +849,7 @@ reach_head() {
 
 reach_tags() {
   local list
-  [[ "$1" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || { printf -- '-'; return; }
+  is_sha "$1" || { printf -- '-'; return; }
   list="$(git_ro for-each-ref --contains "$1" --format='%(refname)' refs/tags 2>/dev/null |
     awk -v sens='' "$AWK_LIB"'BEGIN { init_lib() } { sub(/^refs\/tags\//, ""); out = out (out == "" ? "" : ",") esc($0) } END { print out }' 2>/dev/null)"
   printf '%s' "${list:--}"
@@ -882,6 +910,7 @@ mode_range() {
   build_sensitive
   top="$(git_ro rev-parse --show-toplevel 2>/dev/null)" || die 1 'not inside a git checkout'
   cd "$top" || die 1 'cannot enter the checkout'
+  pin_empty_tree
 
   printf 'history-scan: mode=range base=%s head=%s engine=history-scan.sh\n' "$base" "$head"
   if ! git_ro cat-file -e "$base^{commit}" 2>/dev/null || ! git_ro cat-file -e "$head^{commit}" 2>/dev/null; then
@@ -899,17 +928,24 @@ mode_range() {
   exit "${status[2]}"
 }
 
+# The two jq definitions both modes share: control characters to spaces, and one G record per line.
 # shellcheck disable=SC2016  # an awk or jq program: its $ belongs to the program, not to the shell
-JQ_TEXT='
+JQ_LINES='
 def clean: tostring | explode | map(if (. < 32 and . != 9 and . != 10) or . == 127 then 32 else . end) | implode;
-def lines($u): clean | split("\n")[] | "G\t\($u)\t\(.)";
+def lines($u): clean | split("\n")[] | "G\t\($u)\t\(.)";'
+
+# shellcheck disable=SC2016  # an awk or jq program: its $ belongs to the program, not to the shell
+JQ_TEXT="$JQ_LINES"'
 def url($fallback): ((.url // $fallback) | clean | gsub("[\t\n]"; " "));
-. as $p | ($p | url("-")) as $u
-| (($p.title // ""), ($p.body // "") | lines($u)),
-  (($p.comments // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
-  (($p.reviewComments // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
-  (($p.reviews // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
-  (if $p.reviewCommentsComplete == false then "E\tpull-request review comments\tthe loader could not read them; run the loader and the scan again" else empty end)'
+(try input catch null) as $p | ([inputs] | length) as $more
+| if ($p | type) == "object" and $p.kind == "pr" and $more == 0 then
+    ($p | url("-")) as $u
+    | (($p.title // ""), ($p.body // "") | lines($u)),
+      (($p.comments // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
+      (($p.reviewComments // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
+      (($p.reviews // [])[] | url($u) as $cu | (.body // "") | lines($cu)),
+      (if $p.reviewCommentsComplete == false then "E\tpull-request review comments\tthe loader could not read them; run the loader and the scan again" else empty end)
+  else "E\tpull-request texts\tthe input is not the loader JSON of one pull request; run the loader and the scan again" end'
 
 mode_text() {
   local status
@@ -922,7 +958,7 @@ mode_text() {
     if git_ro rev-parse --show-toplevel >/dev/null 2>&1; then
       allow_records
     fi
-    jq -r "$JQ_TEXT" 2>/dev/null ||
+    jq -rn "$JQ_TEXT" 2>/dev/null ||
       printf 'E\tpull-request texts\tthe input is not the loader JSON of a pull request; run the loader and the scan again\n'
   } | awk -v classes='credential,infrastructure' -v sens="$SENS_ERE" -v cap_bytes="$LINE_CAP" \
     -v presence_on=0 "$AWK_LIB$AWK_MATCH" 2>/dev/null | emit_report
@@ -935,9 +971,7 @@ mode_text() {
 # ---------------------------------------------------------------------------------------------------
 
 # shellcheck disable=SC2016  # an awk or jq program: its $ belongs to the program, not to the shell
-GH_JQ_LIB='
-def clean: tostring | explode | map(if (. < 32 and . != 9 and . != 10) or . == 127 then 32 else . end) | implode;
-def lines($u): clean | split("\n")[] | "G\t\($u)\t\(.)";
+GH_JQ_LIB="$JQ_LINES"'
 def url: ((.html_url // .url // "-") | clean | gsub("[\t\n]"; " "));'
 
 valid_repo() {
@@ -1003,15 +1037,15 @@ make_run_dir() {
 # The tree of the default-branch head and of every tag: R records for every entry, and the text blobs
 # that are neither binary nor a sensitive path into the blob list. Then the blobs as B records.
 produce_trees() {
-  local empty line oid ptype target ref
-  empty="$(git_ro hash-object -t tree --stdin </dev/null 2>/dev/null)"
+  local line oid ptype target ref status
   : >"$RUN_DIR/blobs"
   {
     if [[ -n "$HEAD_OID" ]]; then
       printf '\001R\thead\n'
       git_ro ls-tree -r --full-tree "$HEAD_OID" 2>/dev/null || printf 'E\tdefault-branch tree\tgit ls-tree failed; run the audit again\n'
       printf '\001N\n'
-      git_ro diff-tree -r --numstat "${DIFF_OPTS[@]}" "$empty" "$HEAD_OID" 2>/dev/null
+      git_ro diff-tree -r --numstat "${DIFF_OPTS[@]}" "$EMPTY_TREE" "$HEAD_OID" 2>/dev/null ||
+        printf 'E\tdefault-branch tree\tgit diff-tree failed; run the audit again\n'
     fi
     git_ro for-each-ref --format='%(objectname)%09%(objecttype)%09%(*objectname)%09%(*objecttype)%09%(refname)' refs/tags 2>/dev/null |
       while IFS= read -r line; do
@@ -1025,17 +1059,22 @@ produce_trees() {
         printf '\001R\ttag:%s\n' "${ref#refs/tags/}"
         git_ro ls-tree -r --full-tree "$target" 2>/dev/null || printf 'E\ttag trees\tgit ls-tree failed; run the audit again\n'
         printf '\001N\n'
-        git_ro diff-tree -r --numstat "${DIFF_OPTS[@]}" "$empty" "$target" 2>/dev/null
+        git_ro diff-tree -r --numstat "${DIFF_OPTS[@]}" "$EMPTY_TREE" "$target" 2>/dev/null ||
+          printf 'E\ttag trees\tgit diff-tree failed; run the audit again\n'
       done
+    [[ "${PIPESTATUS[0]}" == 0 ]] || printf 'E\ttag trees\tgit for-each-ref failed; run the audit again\n'
   } | awk -v sens="$SENS_ERE" -v blobs="$RUN_DIR/blobs" "$AWK_LIB$AWK_TREE" 2>/dev/null
+  status=("${PIPESTATUS[@]}")
+  [[ "${status[1]}" == 0 ]] || printf 'E\tdefault-branch and tag trees\tthe tree listing failed; run the audit again\n'
   sort -u "$RUN_DIR/blobs" | git_ro cat-file --batch 2>/dev/null | awk "$AWK_BLOB" 2>/dev/null
   status=("${PIPESTATUS[@]}")
-  [[ "${status[1]}" == 0 && "${status[2]}" == 0 ]] || printf 'E\tdefault-branch and tag trees\tgit cat-file failed; run the audit again\n'
+  [[ "${status[0]}" == 0 && "${status[1]}" == 0 && "${status[2]}" == 0 ]] ||
+    printf 'E\tdefault-branch and tag trees\tgit cat-file failed; run the audit again\n'
   rm -f -- "$RUN_DIR/blobs"
 }
 
 produce_tags() {
-  local line oid ref
+  local line oid ref status
   git_ro for-each-ref --format='%(objectname)%09%(objecttype)%09%(refname)' 2>/dev/null |
     while IFS= read -r line; do
       oid="${line%%$'\t'*}"; line="${line#*$'\t'}"
@@ -1044,7 +1083,11 @@ produce_tags() {
       is_sha "$oid" || continue
       printf '\001X\t%s\t%s\n' "$oid" "$ref"
       git_ro cat-file tag "$oid" 2>/dev/null | sed 's/^/ /'
+      status=("${PIPESTATUS[@]}")
+      [[ "${status[0]}" == 0 && "${status[1]}" == 0 ]] || printf 'E\tannotated tags\tgit cat-file failed; run the audit again\n'
     done | awk "$AWK_LIB$AWK_TAGS" 2>/dev/null
+  status=("${PIPESTATUS[@]}")
+  [[ "${status[0]}" == 0 && "${status[2]}" == 0 ]] || printf 'E\tannotated tags\tthe tag list failed; run the audit again\n'
 }
 
 # One paginated GitHub surface: the endpoint, a Q record, and the jq fields that become G records.
@@ -1082,6 +1125,8 @@ produce_github() {
     return
   fi
   printf '%s' "$REPO_JSON" | jq -r "$GH_JQ_LIB"' url as $u | ((.description // ""), (.homepage // ""), ((.topics // [])[])) | lines($u)' 2>/dev/null
+  status=("${PIPESTATUS[@]}")
+  [[ "${status[1]}" == 0 ]] || printf 'E\trepository description and topics\tthe repository JSON could not be read; run the audit again\n'
   github_surface 'issue and pull-request titles and bodies' "repos/$repo/issues?state=all&per_page=100" '(.title // ""), (.body // "")'
   github_surface 'issue and pull-request comments' "repos/$repo/issues/comments?per_page=100" '(.body // "")'
   github_surface 'review comments' "repos/$repo/pulls/comments?per_page=100" '(.body // "")'
@@ -1089,8 +1134,10 @@ produce_github() {
   github_surface 'releases' "repos/$repo/releases?per_page=100" '(.name // ""), (.body // ""), ((.assets // [])[] | (.name // ""))'
 
   printf 'Q\tgithub.com GET repos/%s/pulls?state=all\n' "$repo"
-  numbers="$(gh_get --paginate "repos/$repo/pulls?state=all&per_page=100" | jq -r '.[].number | select(type == "number")' 2>/dev/null)"
+  gh_get --paginate "repos/$repo/pulls?state=all&per_page=100" | jq -r '.[].number | select(type == "number")' >"$RUN_DIR/numbers" 2>/dev/null
   status=("${PIPESTATUS[@]}")
+  numbers="$(<"$RUN_DIR/numbers")"
+  rm -f -- "$RUN_DIR/numbers"
   if [[ "${status[0]}" != 0 || "${status[1]}" != 0 ]]; then
     printf 'E\treviews\tthe pull-request list could not be read, so reviews are unread; run the audit again\n'
     numbers=''
@@ -1184,6 +1231,7 @@ mode_full() {
     exit 3
   fi
   cd "$RUN_DIR/mirror.git" || die 3 'cannot enter the mirror'
+  pin_empty_tree
 
   HEAD_OID="$(git_ro rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null)"
   default="$(git_ro symbolic-ref --quiet HEAD 2>/dev/null | awk -v sens='' "$AWK_LIB"'BEGIN { init_lib() } { sub(/^refs\/heads\//, ""); print esc($0) }')"
@@ -1199,9 +1247,14 @@ mode_full() {
   fi
   print_always_not_verified
 
-  revs="$(git_ro for-each-ref --format='%(objectname) %(objecttype) %(*objecttype)' 2>/dev/null |
-    awk '$2 == "commit" || $3 == "commit" { print $1 }' | sort -u)"
+  git_ro for-each-ref --format='%(objectname) %(objecttype) %(*objecttype)' 2>/dev/null |
+    awk '$2 == "commit" || $3 == "commit" { print $1 }' | sort -u >"$RUN_DIR/revs"
+  status=("${PIPESTATUS[@]}")
+  revs="$(<"$RUN_DIR/revs")"
+  rm -f -- "$RUN_DIR/revs"
   {
+    [[ "${status[0]}" == 0 && "${status[1]}" == 0 && "${status[2]}" == 0 ]] ||
+      printf 'E\tcommit history\tthe ref list could not be read, so the commit history is unread; run the audit again\n'
     if [[ -n "$terms" ]]; then
       awk 'length($0) > 0 { print "T\t" $0 }' <"$terms"
     fi
@@ -1291,6 +1344,11 @@ st_values() {
   ST_AWS_PATH="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_ISSUE="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_AWS_TEXT="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_ATTR="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_LONG_A="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_LONG_B="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_REVIEW="AK""IA$(st_rnd 16 'A-Z0-9')"
+  ST_AWS_DISC="AK""IA$(st_rnd 16 'A-Z0-9')"
   ST_GH_TOKEN="gh""p_$(st_rnd 36 'A-Za-z0-9')"
   ST_GH_EXAMPLE="gh""p_$(st_rnd 36 'A-Za-z0-9')"
   ST_PASSWORD="Pw$(st_rnd 14 'A-Za-z0-9')"
@@ -1300,7 +1358,7 @@ st_values() {
   ST_DOMAIN="mail$(st_rnd 8 'a-z').org"
   ST_TERM="Proj$(st_rnd 8 'a-z')"
   ST_VALUES=("$ST_AWS_DELETED" "$ST_AWS_KEEP" "$ST_AWS_ENV" "$ST_AWS_RANGE" "$ST_AWS_BASE" "$ST_AWS_MERGE"
-    "$ST_AWS_HOSTILE" "$ST_AWS_HOSTILE2" "$ST_AWS_PATH" "$ST_AWS_ISSUE" "$ST_AWS_TEXT" "$ST_GH_TOKEN" "$ST_GH_EXAMPLE" "$ST_PASSWORD"
+    "$ST_AWS_HOSTILE" "$ST_AWS_HOSTILE2" "$ST_AWS_PATH" "$ST_AWS_ISSUE" "$ST_AWS_TEXT" "$ST_AWS_ATTR" "$ST_AWS_LONG_A" "$ST_AWS_LONG_B" "$ST_AWS_REVIEW" "$ST_AWS_DISC" "$ST_GH_TOKEN" "$ST_GH_EXAMPLE" "$ST_PASSWORD"
     "$ST_IP" "$ST_IP_ALLOWED" "$ST_HOST")
 }
 
@@ -1323,6 +1381,7 @@ st_recorder() {
   real="$(command -v git)"
   {
     printf '#!/bin/sh\n{ printf %%s git; for a in "$@"; do printf "\\037%%s" "$a"; done; printf "\\n"; } >>%s\n' "'$log'"
+    printf 'for a in "$@"; do [ -f %s/"$a" ] && exit 1; done\n' "'$ST_TMP/gitfail'"
     printf 'case " $* " in *" clone "*) for a in "$@"; do dest="$a"; done\n'
     printf '  exec env GIT_CONFIG_GLOBAL=/dev/null %s clone --mirror --quiet --template= "$(%s %s)" "$dest" ;;\nesac\n' \
       "'$real'" "'$(command -v cat)'" "'$ST_TMP/fixture-path'"
@@ -1489,7 +1548,10 @@ st_build_range() {
   printf 'dsn = "postgres://app:${DB_PASS}@db.%s.net/x"\nt = gh%s\ncidr = 10.0.0.0/8\nweb = https://user:%s@example.com/\n' \
     "$(st_rnd 5 'a-z')" "p_$(printf 'x%.0s' $(seq 1 36))" "$ST_PASSWORD" >placeholders.txt
   printf '\000\001\002binary\n' >blob.bin
-  printf '%*s\n' 5000 '' | tr ' ' 'a' >long.txt
+  printf '*.hid.txt -diff\n' >>.gitattributes
+  printf 'k = %s\n' "$ST_AWS_ATTR" >planted.hid.txt
+  { printf '%*s' 4089 '' | tr ' ' 'a'; printf 'k=%s\n' "$ST_AWS_LONG_A"; } >long-a.txt
+  { printf '%*s' 5000 '' | tr ' ' 'a'; printf ' k=%s\n' "$ST_AWS_LONG_B"; } >long-b.txt
   st_commit 'hostile and edge cases'
   ST_HEAD="$(git rev-parse HEAD)"
   ST_MERGE="$(git rev-parse HEAD~1)"
@@ -1535,7 +1597,13 @@ st_range_cases() {
   [[ "$ST_OUT" =~ skipped-placeholder:\ ([0-9]+) && "${BASH_REMATCH[1]}" -ge 3 ]] || st_res=1
   st_ok "$st_res" 'range: skipped placeholders are counted'
   st_check 'range: a binary blob is listed under not-verified' st_has 'binary blobs'
-  st_check 'range: a line over the cap is cut and counted under not-verified' st_has '1 lines cut at 4096 bytes'
+  st_check 'range: a value after byte 4096 of one line is reported' st_line $'credential\taws-access-key-id\tline' 'long-b.txt'
+  st_check 'range: a value across the 4096-byte window edge is reported once' st_line $'credential\taws-access-key-id\tline' 'long-a.txt' $'occurrences=1\t'
+  st_check_not 'range: no line is left partly unscanned' st_has 'lines cut'
+  st_check 'range: a .gitattributes the branch commits cannot hide an added line' st_line $'credential\taws-access-key-id\tline' 'planted.hid.txt'
+  st_res=0
+  [[ "$ST_ARGV" == *$'\037--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904\037'* && "$ST_ARGV" == *$'\037core.attributesFile=/dev/null\037'* ]] || st_res=1
+  st_ok "$st_res" 'range: git reads attributes from the empty tree, never from the work tree'
   st_res=0
   [[ "$ST_ARGV" != *$'\037clone\037'* && "$ST_ARGV" != *$'\037fetch\037'* && "$ST_ARGV" != *$'\037ls-remote'* && "$ST_ARGV" != *$'\n'gh* && "$ST_ARGV" != gh* && "$ST_ARGV" != *curl* ]] || st_res=1
   st_ok "$st_res" 'range: no clone, fetch, ls-remote, gh, or curl call'
@@ -1578,7 +1646,7 @@ st_range_cases() {
 
 st_text_cases() {
   local json="$ST_TMP/pr.json"
-  jq -n --arg body "key $ST_AWS_TEXT" --arg comment "see $ST_HOST" '{url: "https://github.com/o/r/pull/9", title: "Fix", body: $body,
+  jq -n --arg body "key $ST_AWS_TEXT" --arg comment "see $ST_HOST" '{kind: "pr", url: "https://github.com/o/r/pull/9", title: "Fix", body: $body,
     comments: [{url: "https://github.com/o/r/pull/9#issuecomment-1", body: $comment}], reviewComments: [], reviews: [], reviewCommentsComplete: true}' >"$json"
   st_scan text "$ST_TMP" "$json" text
   st_res=0
@@ -1590,6 +1658,21 @@ st_text_cases() {
   [[ "$ST_ARGV" != *$'\n'gh* && "$ST_ARGV" != gh* && "$ST_ARGV" != *curl* ]] || st_res=1
   st_ok "$st_res" 'text: no gh or curl call'
   st_no_leak text
+  st_text_refused "$ST_TMP" empty ''
+  st_text_refused "$ST_TMP" 'an empty object' '{}'
+  st_text_refused "$ST_TMP" null 'null'
+  st_text_refused "$ST_TMP" 'an issue' '{"kind":"issue","url":"https://github.com/o/r/issues/1","title":"x","body":"y"}'
+  st_text_refused "$ST_TMP" 'two objects' "$(<"$json")$(<"$json")"
+  st_text_refused "$ST_TMP" 'invalid JSON' '{"kind":'
+}
+
+# st_text_refused <dir> <label> <stdin text>: input that is not one pull-request object exits 3, never clean.
+st_text_refused() {
+  printf '%s' "$3" >"$1/refused.json"
+  st_scan text-refused "$1" "$1/refused.json" text
+  st_res=0
+  [[ $ST_RC == 3 && "$ST_OUT" == *'not-verified: pull-request texts'* && "$ST_OUT" == *'status=failed'* ]] || st_res=1
+  st_ok "$st_res" "text: $2 on standard input exits 3 and is never a clean lens"
 }
 
 st_full_fixtures() {
@@ -1617,14 +1700,63 @@ st_full_fixtures() {
   st_gh_fixture 'repos/o/r/issues?state=all&per_page=100' \
     "$(jq -cn --arg b "leaked $ST_AWS_ISSUE" '[{html_url: "https://github.com/o/r/issues/1", title: "Bug", body: $b}]')"
   st_gh_fixture 'repos/o/r/pulls?state=all&per_page=100' '[{"number":2}]'
-  st_gh_fixture 'repos/o/r/pulls/2/reviews?per_page=100' '[{"html_url":"https://github.com/o/r/pull/2#pullrequestreview-1","body":"fine"}]'
-  st_gh_fixture 'graphql' '{"data":{"repository":{"hasDiscussionsEnabled":true,"discussions":{"nodes":[]}}}}'
+  st_gh_fixture 'repos/o/r/pulls/2/reviews?per_page=100' \
+    "$(jq -cn --arg b "review $ST_AWS_REVIEW" '[{html_url: "https://github.com/o/r/pull/2#pullrequestreview-1", body: $b}]')"
+  st_gh_fixture 'graphql' "$(jq -cn --arg b "found $ST_AWS_DISC" '{data: {repository: {hasDiscussionsEnabled: true, discussions: {nodes:
+    [{url: "https://github.com/o/r/discussions/3", title: "Q", body: $b, comments: {nodes: []}}]}}}}')"
 }
 
 st_home() {
   local home="$1"
   mkdir -p "$home"
   (cd "$home" && git init -q && printf '.claude/run/\n' >.gitignore)
+}
+
+# st_full_failed <name> <expected not-verified text>...: the audit exits 3 and names every expected surface.
+st_full_failed() {
+  local name="$1" needle
+  shift
+  st_res=0
+  [[ $ST_RC == 3 ]] || st_res=1
+  for needle in "$@"; do [[ "$ST_OUT" == *"not-verified: $needle"* ]] || st_res=1; done
+  st_ok "$st_res" "full: $name exits 3 and names the surface under not-verified"
+}
+
+# One failing read per producer: the surface becomes not-verified and the exit code is 3, never a clean audit.
+st_full_failures() {
+  local home="$1" main="$2" clean="$3"
+  st_gh_fixture 'repos/o/clean/pulls?state=all&per_page=100' '[{"number":7}]'
+  st_scan full-review-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed review read' 'reviews of pull request 7'
+  st_gh_fixture 'repos/o/clean/pulls?state=all&per_page=100' '[]'
+  : >"$ST_TMP/gh/repos_o_clean_pulls_state_all_per_page_100.fail"
+  st_scan full-pulls-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed pull-request list read' 'reviews'
+  rm -f "$ST_TMP/gh/repos_o_clean_pulls_state_all_per_page_100.fail"
+  : >"$ST_TMP/gh/graphql.fail"
+  st_scan full-discussions-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed discussions read' 'discussions'
+  rm -f "$ST_TMP/gh/graphql.fail"
+
+  printf '%s' "$clean" >"$ST_TMP/fixture-path"
+  : >"$ST_TMP/gitfail/ls-tree"
+  st_scan full-lstree-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed tree listing' 'default-branch tree'
+  rm -f "$ST_TMP/gitfail/ls-tree"
+  : >"$ST_TMP/gitfail/diff-tree"
+  st_scan full-difftree-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed numstat read' 'default-branch tree'
+  rm -f "$ST_TMP/gitfail/diff-tree"
+  : >"$ST_TMP/gitfail/for-each-ref"
+  st_scan full-refs-failed "$home" /dev/null full --repo o/clean
+  st_full_failed 'a failed ref list' 'commit history' 'annotated tags' 'tag trees'
+  rm -f "$ST_TMP/gitfail/for-each-ref"
+  printf '%s' "$main" >"$ST_TMP/fixture-path"
+  : >"$ST_TMP/gitfail/cat-file"
+  st_scan full-catfile-failed "$home" /dev/null full --repo o/r
+  st_full_failed 'a failed object read' 'default-branch and tag trees' 'annotated tags'
+  rm -f "$ST_TMP/gitfail/cat-file"
+  printf '%s' "$clean" >"$ST_TMP/fixture-path"
 }
 
 st_full_cases() {
@@ -1669,6 +1801,9 @@ st_full_cases() {
   st_check 'full: a user-supplied term is found' st_line $'named-term\tuser-term\tmessage' "$ST_TERM"
   st_check 'full: a term that looks like a pattern matches only its literal text' st_line $'named-term\tuser-term\tline' 'a.*(b+)+$' 'occurrences=1'
   st_check 'full: a credential in an issue body is found' st_line $'credential\taws-access-key-id\tgithub' 'https://github.com/o/r/issues/1'
+  st_check 'full: a credential in a pull-request review is found' st_line $'credential\taws-access-key-id\tgithub' 'pull/2#pullrequestreview-1'
+  st_check 'full: a credential in a discussion is found' st_line $'credential\taws-access-key-id\tgithub' 'discussions/3'
+  st_check_not 'full: no unbound variable or other shell error reaches stderr' grep -q 'unbound\|line [0-9]*:' "$ST_TMP/err/full"
   st_check 'full: the secret-scanning and push-protection status is reported' st_has 'secret-scanning: enabled push-protection: disabled'
   st_check 'full: the surfaces the scan cannot read are listed under not-verified' st_has 'not-verified: edit history of edited GitHub texts'
   st_res=0
@@ -1698,6 +1833,7 @@ st_full_cases() {
   [[ -n "$fp1" && "$(st_field 6 $'github-token\tmessage')" != "$fp1" ]] || st_res=1
   st_ok "$st_res" 'full: two runs give one value two fingerprints'
 
+  st_gh_fixture 'graphql' '{"data":{"repository":{"hasDiscussionsEnabled":true,"discussions":{"nodes":[]}}}}'
   printf '%s' "$clean" >"$ST_TMP/fixture-path"
   st_scan full-clean "$home" /dev/null full --repo o/clean
   st_res=0
@@ -1714,6 +1850,8 @@ st_full_cases() {
   [[ $ST_RC == 3 && "$ST_OUT" == *'not-verified: releases'* ]] || st_res=1
   st_ok "$st_res" 'full: a failed GitHub surface is unread and exits 3'
   rm -f "$ST_TMP/gh/repos_o_clean_releases_per_page_100.fail"
+
+  st_full_failures "$home" "$main" "$clean"
 
   st_gh_fixture 'rate_limit' '{"resources":{"core":{"remaining":3,"reset":1700000000}}}'
   st_scan full-rate "$home" /dev/null full --repo o/clean
@@ -1777,7 +1915,7 @@ self_test() {
   ST_TMP="$(cd "$tmp" && pwd -P)"
   trap 'rm -rf "$ST_TMP"' EXIT
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-  mkdir -p "$ST_TMP/out" "$ST_TMP/err" "$ST_TMP/argv" "$ST_TMP/tmpdir" "$ST_TMP/gh"
+  mkdir -p "$ST_TMP/out" "$ST_TMP/err" "$ST_TMP/argv" "$ST_TMP/tmpdir" "$ST_TMP/gh" "$ST_TMP/gitfail"
   need_tools git jq awk od tr
   pick_hash
   st_values

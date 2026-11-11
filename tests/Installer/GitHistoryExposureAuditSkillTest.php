@@ -129,7 +129,8 @@ test('the scan states its exit codes, its redaction, and its fingerprint in its 
 
     expect($script)->toContain('#   Fingerprint: the first 12 hex digits of SHA-256 over `salt LF class LF value`, where the salt is');
     expect($script)->toContain('set +o xtrace +o verbose');
-    expect($script)->toContain("    git --no-pager --no-lazy-fetch --no-replace-objects \\\n");
+    expect($script)->toContain('git --no-pager --no-lazy-fetch --no-replace-objects ${attr[@]+"${attr[@]}"} \\' . "\n");
+    expect($script)->toContain('-c core.attributesFile=/dev/null');
     expect($script)->toContain('GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null');
     expect($script)->toContain('DIFF_OPTS=(--no-ext-diff --no-textconv --no-show-signature --ignore-submodules=all --no-renames');
     expect(substr_count(historyExposureSource('composer.json'), 'skills/git-history-exposure-audit/scripts/history-scan.sh'))->toBe(1);
