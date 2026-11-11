@@ -113,17 +113,21 @@ final class MemoryCommand
 
     /**
      * The source comes from the default branch, never from the working tree: a branch under review can edit that file,
-     * and every entry it adds would reach an agent as a lesson to apply.
+     * and every entry it adds would reach an agent as a lesson to apply. The ref comes from the one resolver the package
+     * shares with the manifest read, as a full ref name that a local branch or tag cannot shadow.
      */
     private static function defaultBranchFile(string $root, string $source): string
     {
-        $git = 'git -C ' . escapeshellarg($root);
-        $reference = self::defaultReference($git);
+        $resolver = escapeshellarg(__DIR__ . '/../skills/_shared/read-manifest.sh');
+        $reference = [];
         $lines = [];
         $code = 1;
 
-        if ($reference !== null) {
-            exec($git . ' show ' . escapeshellarg($reference . ':./' . $source) . ' 2>/dev/null', $lines, $code);
+        exec('cd ' . escapeshellarg($root) . ' && bash ' . $resolver . ' --default-ref 2>/dev/null', $reference, $code);
+
+        if ($code === 0) {
+            $argument = escapeshellarg(($reference[0] ?? '') . ':./' . $source);
+            exec('git -C ' . escapeshellarg($root) . ' show ' . $argument . ' 2>/dev/null', $lines, $code);
         }
 
         if ($code !== 0) {
@@ -131,25 +135,6 @@ final class MemoryCommand
         }
 
         return implode("\n", $lines);
-    }
-
-    private static function defaultReference(string $git): ?string
-    {
-        exec($git . ' symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null', $found, $code);
-
-        if ($code === 0 && isset($found[0])) {
-            return $found[0];
-        }
-
-        foreach (['origin/main', 'origin/master'] as $candidate) {
-            exec($git . ' rev-parse --verify --quiet ' . escapeshellarg($candidate . '^{commit}') . ' 2>/dev/null', result_code: $code);
-
-            if ($code === 0) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 
     private static function add(string $root, string $location, string $entryFile): int

@@ -84,7 +84,7 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         ->toContain('check \'a pattern that an existing rule covers reports that rule and writes no proposal\'');
 
     expect(promotionFile('skills/_shared/read-manifest.sh'))
-        ->toContain('expect_output \'--default-ref prints the ref the manifest is read from\' "$repo" \'origin/master\' 0 --default-ref');
+        ->toContain('expect_output \'--default-ref prints the ref the manifest is read from\' "$repo" \'refs/remotes/origin/master\' 0 --default-ref');
 });
 
 test('the self-test proves every item of the security plan', function (): void {
