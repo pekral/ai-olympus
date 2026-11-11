@@ -3020,13 +3020,18 @@ test('the gate worktree runs the pre-push tier only and is removed by the run or
     expect($rule)->toContain('runs the `pr` tier only, never *Finalization*');
     expect($rule)->toContain('every fix is made in the unit\'s own tree');
     expect($rule)->toContain('The run records the worktree path in its handoff and stops `Blocked` when `git worktree add` fails');
-    expect($rule)->toContain('`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* under the same clean check');
+    expect($rule)->toContain('unlocks it first because its lock reason names its own `$PPID`');
+    expect($rule)->toContain(
+        '`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* under the same clean check and the confirmed-dead probe',
+    );
+    expect($rule)->toContain('`@rules/git/general.md` *Clean up after the task — on every terminating path* owns the unlock gate');
     expect($rule)->toContain('- **The record is discarded with the worktree.**');
     expect($rule)->not->toContain('The record stays in the tree that ran.');
 
     expect(krangContractText())->toContain('any gate worktree (`.claude/worktrees/agent-gate-<source-slug>`)');
     expect($read('agents/donatello.md'))->toContain('record the path in your handoff, stop `Blocked` when `git worktree add` fails');
     expect($read('rules/git/general.md'))->toContain('and removes a gate worktree once it is clean');
+    expect($read('rules/git/general.md'))->toContain('removes the review, parallel-unit, and gate worktrees of an orchestrated run');
 });
 
 test('krang plans parallel batches with the deterministic planner and the single gate lock keeps the machine at one heavy job', function (): void {

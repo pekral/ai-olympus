@@ -20,7 +20,7 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
         ->and($git)->not->toContain('`git branch -d` when it matches its pushed upstream')
         ->and($git)->toContain('the patch-identity proof of `@skills/cleanup-local-branches/SKILL.md` step 5')
         ->and($git)->toContain('- **The owner removes, the others hand back.**')
-        ->and($git)->toContain('`krang` *Run cleanup* removes the review and parallel-unit worktrees of an orchestrated run')
+        ->and($git)->toContain('`krang` *Run cleanup* removes the review, parallel-unit, and gate worktrees of an orchestrated run')
         ->and($git)->toContain('is never removed with `--force` or `-D`')
         ->and($git)->not->toContain("paths:\n")
         ->and($git)->toContain('after the confirmed-dead probe of `krang` *Run cleanup*, `@skills/merge-github-pr/SKILL.md` *Post-merge*, and');
