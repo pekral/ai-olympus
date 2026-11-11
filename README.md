@@ -125,7 +125,7 @@ Every `krang` run classifies the task with `skills/_shared/classify-risk.sh`, a 
 
 ### Code-review memory
 
-Resolved Critical code-review findings are kept in a per-user, git-ignored SQLite database (`.claude/run/code-review-memory.sqlite`, or `.codex/run/` under Codex), which `krang` reads only when a review opens a Critical finding. The installer never creates or deletes it.
+Resolved Critical code-review findings are kept in a per-user, git-ignored SQLite database (`.claude/run/code-review-memory.sqlite`, or `.codex/run/` under Codex), which `krang` reads only when a review opens a Critical finding and alone writes after a human approved the entry. The installer never creates or deletes it.
 
 ```bash
 vendor/bin/ai-olympus memory migrate

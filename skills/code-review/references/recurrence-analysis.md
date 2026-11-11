@@ -14,7 +14,7 @@ analyze-recurrence.sh --self-test
 
 - `--store` is the JSON Lines record store that `extract-findings.sh` writes. The analysis only reads it.
 - Without `--state`, every record is processed and nothing is written.
-- `--patterns` prints the pattern report of the promotion lifecycle instead: every class with its maturity, its evidence, and the promotion thresholds (`learning-promotion.md` *Patterns and evidence*). It takes no window and no state file.
+- `--patterns` prints the pattern report of the promotion lifecycle instead: every class with its maturity, its evidence, and the promotion thresholds (`learning-promotion.md` *Patterns and evidence*). Only a resolved Critical record is evidence (`learning-promotion.md` *The severity gate*). It takes no window and no state file.
 - The script prints one JSON line, the report. Exit `0` is an analysis that ran, `1` a usage error, `2` a missing tool, `3` a missing or malformed store, or a state file that cannot be used or written.
 
 ## Collection
