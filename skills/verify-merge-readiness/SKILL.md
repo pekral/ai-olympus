@@ -312,6 +312,7 @@ request, on the linked issue, and on the JIRA issue is the cross-run history
 `cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence. A marked
 JIRA comment that cannot be told apart from a code-review report is ambiguous and stays. Also
 preserve the new `merge-readiness` comment.
+A `proposal-review` comment (`skills/_shared/orchestration/proposal-review.md` step 6) never enters the manifest.
 
 Delete each manifested top-level issue/PR comment only through:
 
