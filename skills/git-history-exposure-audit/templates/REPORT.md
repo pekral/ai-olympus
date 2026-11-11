@@ -62,6 +62,6 @@ The owner verifies every item **before** the rewrite. When one item fails, stop:
 
 ## Not verified
 
-List every `not-verified:` line the script printed, each with the step that settles it. The script always lists the surfaces it cannot read: the edit history of edited GitHub texts, deleted texts, commits no ref reaches, private forks, the wiki, gists, Actions logs and artifacts, packages, and the discussion comments past the first page. It adds every surface this run failed to read, the binary blobs it did not scan, and the lines it cut at the line cap.
+List every `not-verified:` line the script printed, each with the step that settles it. The script always lists the surfaces it cannot read: the edit history of edited GitHub texts, deleted texts, commits no ref reaches, private forks, the wiki, gists, Actions logs and artifacts, packages, and the discussion comments past the first page. It adds every surface this run failed to read, and the binary blobs it did not scan.
 
 - `<surface>` — `<reason>`; `<the step that settles it>`
