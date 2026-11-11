@@ -1,5 +1,5 @@
 ---
-description: Compound engineering — concurrency on a shared git working tree: the scope-conditioned write-lock, its stale-reclaim probe, the worktree stance, the one sanctioned parallel-unit path, the single machine-wide gate lock, and the processing of multiple sources.
+description: Compound engineering — concurrency on a shared git working tree: the scope-conditioned write-lock, its stale-reclaim probe, the worktree stance, the one sanctioned parallel-unit path, the single machine-wide gate lock, the processing of multiple sources, and the per-step decision against the runs already in progress.
 paths:
   - ".claude/run/**"
 ---
@@ -8,7 +8,9 @@ paths:
 
 This section is the normative contract. `agents/krang.md` is its one executor today and references it by name; nothing here is restated there.
 
-**Worktrees — the writing path stays on the shared tree; a parallel unit and a read-only review may isolate.** **By default the writing path does not use git worktrees.** Every writing run — yours and every concurrent `krang` — operates on the **single shared git working tree** of the project, and concurrent writers serialise on the write-lock below. **The one sanctioned exception is a parallel unit** (*Parallel units* below): a unit that `skills/_shared/plan-parallel.sh` placed in a batch of two runs `donatello` in its own worktree. Nothing else widens the exception — the orchestrator never creates a worktree for a single unit, for a serial batch, or because a run feels slow.
+**Worktrees — the writing path stays on the shared tree; a parallel unit and a read-only review may isolate.** **By default the writing path does not use git worktrees.** Every writing run — yours and every concurrent `krang` — operates on the **single shared git working tree** of the project, and concurrent writers serialise on the write-lock below. **Two sanctioned exceptions exist.** The first is a parallel unit (*Parallel units* below): a unit that `skills/_shared/plan-parallel.sh` placed in a batch of two runs `donatello` in its own worktree.
+The second is a gate worktree (*Parallel steps against the runs in progress* below): a gate that the planner's step decision sends to its own detached worktree.
+Nothing else widens the exception — the orchestrator never creates a worktree for a single unit, for a serial batch, or because a run feels slow.
 
 The **read-only code-review agent (`leonardo`) may use a git worktree** for its review when needed — this is the explicit-request opt-in of `@rules/git/general.md` *Worktrees / Workspaces*, which this workflow grants to the CR pass only. Because the CR agent never writes to the tree, an isolated read-only checkout lets it review a stable diff without contending with the writing path.
 A CR worktree is a throwaway review checkout: the agent reads in it and never edits / commits / pushes there, it records the worktree path in its handoff, and **`krang` removes it during its own *Run cleanup*** (`agents/krang.md` step 7, where that checklist is written down) so nothing orphaned survives the run — including when the run's own turn ends at the `Blocked` stop in step 6 instead of on convergence, which is the path that would otherwise strand the checkout.
@@ -44,6 +46,25 @@ A parallel unit is one `donatello` implementation run in a batch of two. It is i
 - **Removal.** `@skills/merge-github-pr/SKILL.md` *Post-merge* removes the worktree after the merge. A run that ends before a merge removes it in *Run cleanup* (`agents/krang.md` step 7) once it is clean and its `HEAD` is on the remote branch, so the work survives and no worktree is stranded. Never `--force`.
 - **The worktree is the unit's lock.** A unit takes no write-lock. `git worktree add` fails when the path or the branch already exists, so a second run of the same source cannot enter the worktree of the first: it stops with `Blocked: another run holds this unit's worktree`.
 - **At most two units, and no more heavy work than one.** Gate runs, dependency installs (`composer install`, `npm ci`), and full test suites are **never concurrent** between units, between worktrees, or between runs. They take the one machine-wide lock below. Diff-targeted test runs (the validation manifest) do not need it.
+
+## Parallel steps against the runs in progress
+
+`krang` decides every step against the work other runs are doing in the repository now, and against what the project memory recorded, not only against the units of its own request. The decision has one owner: `skills/_shared/plan-parallel.sh --step`. `krang` gathers the evidence and the script decides. `krang` never judges alone that a step may overlap another run.
+
+- **Which steps.** Every step that writes (the implementation, a review-and-fix round, *Finalization*) and every heavy step (a gate run, a dependency install, a full test suite). A read-only step goes through the same decision and starts beside a live writer, as *Concurrency & the working-tree write-lock* allows. A unit of a two-unit batch is a step too: when its decision is `wait`, the batch runs its units one after the other.
+- **Live runs.** `krang` writes one `live|<id>|<kind>|<tree>|<branch>|<files>` line per run in progress, never one for its own run. The sources are the briefs in `.claude/run/` whose `## PID` is not confirmed dead (the probe of `skills/_shared/orchestration/stale-run-recovery.md`; an unparseable `## PID` counts as live), the holder of the write-lock, the worktrees whose lock reason names a live `pid <N>`, and the holder of the gate lock.
+  - A brief gives the run id (its slug), the files of its `## Plan & work breakdown`, and the kind `write` for a full-delivery run.
+  - The write-lock holder gives the kind `write` in the tree `shared`.
+  - A locked worktree gives its path as the tree, its branch, and the kind of the agent in the lock reason: `write` for `donatello`, `read` for `leonardo`.
+  - The gate-lock holder gives the kind `heavy`. Its holder file records no tree, so the tree is `unknown`, which the planner counts as the shared tree.
+- **Project memory.** `krang` reads the entries through the read protocol of `@rules/compound-engineering/memory.md`, never from a path this rule names. An entry about concurrency, timing, or a shared resource that names a file every write run changes gives one `shared|<path>|<entry slug>` line, after `git ls-files` confirms the path. An entry that names no path gives no line. The memory adds a block and never lifts one.
+- **The decision.** `decision=parallel` means `krang` dispatches the step now. `decision=wait` means it does not dispatch, writes the `blocker` and the `reason` into the unit's `## Plan & work breakdown`, and decides again when the blocker is gone. It never overwrites, resets, or switches the tree or the branch of another run to get past a wait. The result is a snapshot: the write-lock, `git worktree add`, and the gate lock stay the enforcement, and `krang` gathers the evidence again before each decision.
+
+### A gate beside other runs
+
+- **A gate is a `heavy` step.** The planner answers `parallel` with `lock=gate` when no live run is heavy and no live writer holds the gate's tree. The gate then takes the machine lock when it starts, so two gates never run at the same time. A `heavy-job` wait names the holder of that lock.
+- **The gate worktree.** When the answer for the shared tree is a `tree-in-use` wait, `krang` decides again with the tree `.claude/worktrees/agent-gate-<source-slug>`. The run that executes the gate creates it with `git worktree add --detach <path> <head-sha>`, locks it with the reason `pid $PPID agent <role> slug <source-slug>`, installs the dependencies through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, and runs the gate inside it. A detached worktree holds no branch, so it never blocks the branch of the unit. It removes the worktree once it is clean, never with `--force`.
+- **The record stays in the tree that ran.** A gate record is kept in the evidence directory of the tree that ran the gate. The full-tier record the merge accepts stays the one `skills/_shared/verify-gate.sh` finds for the exact head commit being merged.
 
 ## One gate lock for the machine
 
