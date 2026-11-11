@@ -132,8 +132,8 @@ Then branch on how many pull requests the issue resolves to:
 - **Exactly one** — continue at step 2.
 - **Several** — stop. Never guess which pull request the issue means.
 - **None** — the issue is not implemented yet, so `krang` resolves it first. It runs its own
-  end-to-end delivery path (`agents/krang.md` *The end-to-end run*, steps 4 to 6: the optional
-  security-risk analysis, `donatello` for the implementation and its tests, then the
+  end-to-end delivery path (`agents/krang.md` *The end-to-end run*, steps 4 to 6: the proposal
+  review of `skills/_shared/orchestration/proposal-review.md`, `donatello` for the implementation and its tests, then the
   `donatello` ↔ `leonardo` review-and-fix loop to convergence). That path opens the Draft pull
   request this workflow prepares. Re-resolve the pull request from the `Impl done` handoff, record
   it in the brief, and continue at step 2. The converged review that path produced is the trusted

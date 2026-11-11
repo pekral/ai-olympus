@@ -20,8 +20,9 @@ question in the separate `Decisions before merge` section — on the source GitH
 pull request for a JIRA source, where the JIRA ticket shows only the Critical ones — so a human
 decides it. The merge requires an answer to every question.
 
-When the issue carries no pull request, `krang` resolves the task first — implementation and the
-review-and-fix loop to convergence — and then prepares the pull request that delivery opens.
+When the issue carries no pull request, `krang` resolves the task first — the proposal review of
+`skills/_shared/orchestration/proposal-review.md`, implementation, and the review-and-fix loop to
+convergence — and then prepares the pull request that delivery opens.
 
 For Codex, invoke `$verify-merge-readiness` with the same reference.
 The root session holds the `krang` role under the same section and spawns the registered specialists itself.

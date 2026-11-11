@@ -440,7 +440,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every code-review report is a new comment published with `--create`, and it carries no line over from an earlier comment.
         // Re-baselined: on JIRA every `cr-comment` publish passes `--create`, and a retry identifies the comment of this run by the IDs recorded before the call.
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
-        'rules/code-review/general.md' => '70d1ce8b57da56906599345aa8104955fbe1c4685c68254a97ec7cc9d0cb160f',
+        // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
+        'rules/code-review/general.md' => '76a82255f5fda181c41bf945f2bafa272dceb074542b53f7d9d21319748d0ac1',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
