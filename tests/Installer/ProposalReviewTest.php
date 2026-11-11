@@ -195,3 +195,8 @@ test('the merge-readiness cleanup manifest never deletes the proposal-review com
     expect(proposalReviewFile('skills/verify-merge-readiness/SKILL.md'))
         ->toContain('A `proposal-review` comment (`skills/_shared/orchestration/proposal-review.md` step 6) never enters the manifest.');
 });
+
+test('a general analysis-only request runs the audit-line step too, so its published comment is audited (round 2)', function (): void {
+    expect(proposalReviewFile('skills/_shared/orchestration/proposal-review.md'))
+        ->toContain('It runs as the whole answer: steps 1 to 6 and step 8 below, with the corrected proposal in the handoff as the deliverable.');
+});
