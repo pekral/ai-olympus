@@ -137,7 +137,7 @@ Check and prepare the local environment as *Local readiness* states, before the 
 5. Test layouts on desktop and at a representative narrow viewport when the diff changes layout. Use the interactive browser's viewport capability. Report width/height and do not claim real-device or touch emulation when only viewport size changed.
 6. Capture and actually inspect rendered screenshots for relevant states, especially failures. Check readability, wrapping, clipping, scrolling, control reachability, and correspondence between icons and actions. Restore temporary viewport overrides afterward.
 7. Read recent console errors through the browser tool. Reproduce suspicious behavior once with a stable, fully loaded page. Separate reproducible failures, transient observations, environment blockers, and unproven attribution to the diff.
-8. For side-effecting flows without authorization, or whose prerequisites *Missing test data* cannot create, stop before the effect and mark that portion `Blocked`; do not mark the entire action passed because its button rendered.
+8. For side-effecting flows without authorization, or whose prerequisites *Missing test data* cannot produce, stop before the effect and mark that portion `Blocked`; do not mark the entire action passed because its button rendered.
 
 ### 5. Check security and repair confirmed threats
 
