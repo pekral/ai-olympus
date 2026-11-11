@@ -1808,6 +1808,10 @@ st_full_old_git() {
 st_full_failures() {
   local home="$1" main="$2" clean="$3"
   st_full_old_git "$home"
+  : >"$ST_TMP/gitfail/clone"
+  st_scan full-clone-failed "$home" /dev/null full --repo o/clean
+  rm -f "$ST_TMP/gitfail/clone"
+  st_full_failed 'a failed mirror clone' 'git history'
   st_gh_fixture 'repos/o/clean/pulls?state=all&per_page=100' '[{"number":7}]'
   st_scan full-review-failed "$home" /dev/null full --repo o/clean
   st_full_failed 'a failed review read' 'reviews of pull request 7'
