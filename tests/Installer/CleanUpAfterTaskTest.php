@@ -22,7 +22,15 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
         ->and($git)->toContain('- **The owner removes, the others hand back.**')
         ->and($git)->toContain('`krang` *Run cleanup* removes the review and parallel-unit worktrees of an orchestrated run')
         ->and($git)->toContain('is never removed with `--force` or `-D`')
-        ->and($git)->not->toContain("paths:\n");
+        ->and($git)->not->toContain("paths:\n")
+        ->and($git)->toContain('after the confirmed-dead probe of `krang` *Run cleanup*, `@skills/merge-github-pr/SKILL.md` *Post-merge*, and');
+    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    expect($merge)->toContain(
+        'unlock it first with `git worktree unlock <path>` only when its lock reason names this run\'s own `$PPID`, '
+        . 'otherwise only after the confirmed-dead probe of `skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*; '
+        . 'a live, EPERM, or unparseable probe leaves it in place and the report names it',
+    )
+        ->and($merge)->not->toContain('is such a worktree: unlock it first with `git worktree unlock <path>`, and remove it');
     expect($orchestration)->toContain('- **Worktrees and local branches the run created** — removed only by the owner that `@rules/git/general.md`')
         ->and($orchestration)->toContain('every other agent hands the path or branch back in its handoff.');
 });
