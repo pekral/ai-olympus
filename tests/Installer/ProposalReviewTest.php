@@ -82,7 +82,7 @@ test('krang runs the proposal review before donatello in the merge-preparation d
 });
 
 test('a general analysis request is answered by krang and leonardo and never stops with Blocked', function (): void {
-    $krang = proposalReviewFile('agents/krang.md');
+    $krang = proposalReviewFile('skills/_shared/orchestration/analysis-only-routing.md');
 
     expect($krang)->toContain('The roster has no agent dedicated to it, so you and `leonardo` run it')
         ->and($krang)->not->toContain('stop with `Blocked: the roster has no agent for general analysis`');

@@ -1,0 +1,15 @@
+# Analysis-only routing (a request that asks for no implementation)
+
+Extracted from `agents/krang.md` step 2 so the orchestrator does not carry it on every run. **Loading trigger:** the gather phase classifies the request as *Analysis-only intent*: the user asked only to analyse, investigate, diagnose, scope, design, plan, or prepare an assignment for later, and asked for no implementation.
+
+Two variants have a specialist. **A page-redesign request** — the user wants a screen laid out better and asked for no code — routes to `michelangelo`: dispatch it through the Task tool with the resolved source and the shared brief path, return its `Redesign done` handoff (the proposal, the mockups, and the previews) to the user as the deliverable, then run *Run cleanup* and stop exactly as the security variant below does.
+
+**A cyber-security question** routes to `leonardo`: **dispatch `leonardo` through the Task tool** in its security analysis mode with the resolved source **and the shared brief path** (without a dispatch tool, hand over per case (b) of *Delegation model*), return its `Security analysis done` handoff (the published remediation-plan link) to the user as the deliverable, then **run *Run cleanup* (the checklist written down in step 7, invoked here) and stop**: read the audit total for your report's `Audit:` line first, then `rm -f "$BRIEF" "${BRIEF%.md}.dispatches" "${BRIEF%.md}.audit" "${BRIEF%.md}.routing"` — under *Run cleanup*'s `## PID` ownership gate, never unconditionally.
+
+That gate bites hardest on exactly this path: an analysis-only run is the one the write-lock deliberately lets overlap with a writing run, so a brief whose `## PID` is not this instance's `$PPID` belongs to a live peer and deleting it would tear away that peer's `.dispatches` idempotence guard.
+
+This path never acquired the working-tree write-lock and dispatched no CR pass, so neither the lock release nor a worktree removal has anything to act on — those four scratch files are the whole of what this stop owes, and leaving them behind is precisely how a finished run's brief outlives it.
+
+**An analysis-only request that is neither of those two is a general analysis request.** The roster has no agent dedicated to it, so you and `leonardo` run it: **load `skills/_shared/orchestration/proposal-review.md` and follow it** (the third exception of *Delegation model*), return the corrected proposal and the Critical-finding count of both agents to the user as the deliverable, then run *Run cleanup* exactly as above and stop. Never dispatch `donatello` on an analysis-only request and never implement anything yourself.
+
+**When several of the resolved sources are analysis-only and security-focused, dispatch their `leonardo` runs one after another — strictly sequentially, never in parallel** — per `@rules/compound-engineering/concurrency.md` *Sequential processing of multiple sources* — and return all their `Security analysis done` handoffs together once each has finished in turn. The same sequential rule holds for several general analysis requests.

@@ -2928,7 +2928,7 @@ test('krang labels the pull request ready to merge when it closes a FAST run (is
         ->toContain('| `krang` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
 });
 
-test('krang decides each step against the runs in progress and the project memory through the one planner', function (): void {
+test('krang decides each step against the runs in progress through the one planner', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
 
@@ -2940,9 +2940,11 @@ test('krang decides each step against the runs in progress and the project memor
     expect($rule)->toContain(
         'the holder of the write-lock, the worktrees whose lock reason names a live `pid <N>`, and the holder of the gate lock',
     );
-    expect($rule)->toContain(
-        '`krang` reads the entries through the read protocol of `@rules/compound-engineering/memory.md`, never from a path this rule names.',
-    );
+    expect($rule)->toContain('`krang` runs no memory read for a step decision.');
+    expect($rule)->toContain('When *Critical-finding memory read* (`agents/krang.md`) already ran in this run');
+    expect($rule)->toContain('each returned entry whose `paths` names a file every write run changes gives one `shared|<path>|<slug>` line');
+    expect($rule)->toContain('Without that read the input carries no `shared` line.');
+    expect($rule)->not->toContain('what the project memory recorded');
     expect($rule)->toContain('The memory adds a block and never lifts one.');
     expect($rule)->toContain(
         '`decision=wait` means it does not dispatch and writes the `blocker` and the `reason` into the unit\'s `## Plan & work breakdown`',
@@ -2958,8 +2960,10 @@ test('krang decides each step against the runs in progress and the project memor
     expect($krang)->toContain('**Decide each step against the runs in progress.**');
     expect($krang)->toContain('`skills/_shared/plan-parallel.sh --step`');
     expect($krang)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel steps against the runs in progress* owns the evidence');
-    expect($krang)->toContain('You never judge alone that a step may overlap another run.');
-    expect($krang)->toContain('never overwrite or switch the tree or the branch of another run');
+    expect($krang)->toContain('On `decision=wait` never dispatch the step.');
+    expect($krang)->not->toContain('over the live runs and the project memory');
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))->toContain('skills/_shared/orchestration/analysis-only-routing.md');
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/docs/agents.md'))->not->toContain('shared-resource entries of the project memory');
     expect($krang)->toContain('**Decide this step first**');
 
     expect($read('codex/agents/krang.toml'))->toContain('`plan-parallel.sh` in its batch mode and its `--step` mode');
@@ -2997,7 +3001,7 @@ test('krang treats unreadable evidence as a wait and gives every wait one end', 
     expect($rule)->not->toContain('decides again when the blocker is gone');
 
     $krang = krangContractText();
-    expect($krang)->toContain('decide again only as the rule\'s *A wait has one end* allows');
+    expect($krang)->toContain('owns the evidence, the input, the checks, the wait, and the gate worktree');
     expect($krang)->toContain('Before you dispatch a step, run `skills/_shared/plan-parallel.sh --step`');
     expect($krang)->not->toContain('a step that writes or runs a heavy job');
     expect($read('docs/agents.md'))->toContain('Before it dispatches a step, `krang` also decides');
@@ -3012,7 +3016,7 @@ test('the ledgers of a run are keyed to its slug and a ledger written beside ano
     expect((string) file_get_contents($packageDir . '/CHANGELOG.md'))->toContain('a file, a branch, a ledger, or a tree of a live run waits');
 });
 
-test('the gate worktree runs the pre-push tier only and is removed by the run or by Run cleanup', function (): void {
+test('the gate worktree runs the pre-push tier only and is removed by krang in Run cleanup', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
     $rule = $read('rules/compound-engineering/concurrency.md');
@@ -3020,16 +3024,22 @@ test('the gate worktree runs the pre-push tier only and is removed by the run or
     expect($rule)->toContain('runs the `pr` tier only, never *Finalization*');
     expect($rule)->toContain('every fix is made in the unit\'s own tree');
     expect($rule)->toContain('The run records the worktree path in its handoff and stops `Blocked` when `git worktree add` fails');
-    expect($rule)->toContain('unlocks it first because its lock reason names its own `$PPID`');
-    expect($rule)->toContain(
-        '`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* under the same clean check and the confirmed-dead probe',
-    );
-    expect($rule)->toContain('`@rules/git/general.md` *Clean up after the task — on every terminating path* owns the unlock gate');
+    expect($rule)->toContain('The run leaves the worktree in place and records its path in its handoff.');
+    expect($rule)->toContain('`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* (`agents/krang.md` step 7)');
+    expect($rule)->toContain('under the clean check and the confirmed-dead probe');
+    expect($rule)->toContain('A subagent hands the path back and removes nothing');
+    expect($rule)->not->toContain('The run removes the worktree once it is clean');
     expect($rule)->toContain('- **The record is discarded with the worktree.**');
     expect($rule)->not->toContain('The record stays in the tree that ran.');
 
     expect(krangContractText())->toContain('any gate worktree (`.claude/worktrees/agent-gate-<source-slug>`)');
-    expect($read('agents/donatello.md'))->toContain('record the path in your handoff, stop `Blocked` when `git worktree add` fails');
+    expect($read('agents/donatello.md'))->toContain(
+        'record the path in your handoff and leave the worktree in place, because `krang` removes it in *Run cleanup*',
+    );
+    expect($read('agents/donatello.md'))->not->toContain('remove it once it is clean');
+    expect($read('agents/donatello.md'))->toContain(
+        'run `git worktree add|lock` for a parallel unit\'s own worktree or the gate worktree a dispatch names;',
+    );
     expect($read('rules/git/general.md'))->toContain('and removes a gate worktree once it is clean');
     expect($read('rules/git/general.md'))->toContain('removes the review, parallel-unit, and gate worktrees of an orchestrated run');
 });
