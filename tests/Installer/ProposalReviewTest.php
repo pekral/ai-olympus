@@ -115,7 +115,6 @@ test('krang dispatches only the agents the request needs and proposes a missing 
         ->and(substr_count(proposalReviewFile('agents/krang.md'), 'The proposal names the role'))->toBe(0);
 });
 
-
 test('the Critical-only filter covers the proposal review and never the security remediation plan (round 1, M1)', function (): void {
     $owner = proposalReviewFile('skills/_shared/orchestration/proposal-review.md');
 
