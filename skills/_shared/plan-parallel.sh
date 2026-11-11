@@ -66,8 +66,8 @@
 #   <kind>   write: changes files, a branch, or a ledger. heavy: a gate run, a
 #            dependency install, or a full test suite. read: reads only.
 #   <tree>   `shared` for the shared working tree, or the relative path of a
-#            worktree. A live heavy run whose tree is not known uses `unknown`;
-#            that value is refused on the step.
+#            worktree. A live run whose tree is not known (a gate-lock holder,
+#            a brief) uses `unknown`; that value is refused on the step.
 #   <branch> the branch the run holds, or empty. Same spelling rules as git.
 #   shared   a path that the project memory records as changed by every write
 #            run. It is the memory evidence; a step needs no file list for it.
@@ -79,8 +79,8 @@
 #     2. heavy-job    a heavy step never runs beside a live heavy run, whatever
 #                     the tree: the machine runs one heavy job at a time.
 #     3. tree-in-use  a write or heavy step never runs in a tree that a live
-#                     write or heavy run uses; a live heavy run in an unknown
-#                     tree counts as using the shared tree.
+#                     write or heavy run uses; a live run in an unknown tree
+#                     counts as using the shared tree.
 #     4. branch-in-use a write or heavy step never takes the branch that a live
 #                     write or heavy run holds.
 #     5. a write step beside a live write run: shared-resource when the memory
@@ -300,7 +300,8 @@ check_kind() {
 }
 
 # A tree is the shared working tree or the relative path of a worktree. The value
-# `unknown` is the one honest spelling of a gate holder whose tree no file records.
+# `unknown` is the one honest spelling of a live run whose tree no file records
+# (a gate-lock holder, a brief).
 check_tree() {
   local owner="$1" tree="$2"
   case "$tree" in
@@ -612,6 +613,10 @@ self_test() {
   expect_step 'a gate holder in an unknown tree counts as using the shared tree' \
     $'step|a|write|shared|feat/a||src/A.php\nlive|g1|heavy|unknown||' \
     'step=a decision=wait blocker=g1 reason=tree-in-use:g1:unknown '
+
+  expect_step 'a brief in an unknown tree counts as using the shared tree' \
+    $'step|a|write|shared|feat/a||src/A.php\nlive|b|write|unknown|feat/b|src/B.php' \
+    'step=a decision=wait blocker=b reason=tree-in-use:b:unknown '
 
   expect_step 'a gate holder in an unknown tree does not block a write step in a worktree' \
     $'step|a|write|'"$wt_a"$'|feat/a||src/A.php\nlive|g1|heavy|unknown||' \
