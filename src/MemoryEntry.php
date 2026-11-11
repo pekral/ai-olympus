@@ -118,6 +118,10 @@ final readonly class MemoryEntry
             throw InstallerFailure::memoryEntryInvalid(sprintf('"%s" must be a non-empty string', $field));
         }
 
+        if (preg_match('//u', $value) !== 1) {
+            throw InstallerFailure::memoryEntryInvalid(sprintf('"%s" must be valid UTF-8', $field));
+        }
+
         return trim($value);
     }
 
