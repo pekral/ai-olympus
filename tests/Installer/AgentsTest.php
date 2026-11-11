@@ -223,9 +223,11 @@ test('the roster ships no general problem-analysis subagent and krang routes acc
 
     expect($survivors)->toBe([]);
 
-    // Only the security-focused analysis has a specialist (leonardo); a general analysis request stops.
-    expect($krang)->toContain('There is no general (non-security) analysis agent in the roster');
-    expect($krang)->toContain('Blocked: the roster has no agent for general analysis');
+    // A general analysis request no longer stops: krang and leonardo run it through the one owner
+    // of the proposal review (issue #368).
+    expect($krang)->toContain('**An analysis-only request that is neither of those two is a general analysis request.**');
+    expect($krang)->not->toContain('Blocked: the roster has no agent for general analysis');
+    expect($krang)->not->toContain('There is no general (non-security) analysis agent in the roster');
     // A subject too broad for one PR is decomposed by `krang` itself — inline, in its own
     // context, because the peer agent that used to own the backlog tier (`zeus`) is retired and
     // there is nobody left to dispatch it to (issue #26). The run still ends at the created
@@ -249,7 +251,7 @@ test('the roster ships no general problem-analysis subagent and krang routes acc
     // Gaining the backlog tier must not quietly re-acquire the analysis role along with it. The
     // sentence that guards this came from `agents/zeus.md` and now lives with the tier it bounds.
     $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
-    expect($backlog)->toContain('The roster carries **no general (non-security) analysis agent**, and the orchestrator is not one');
+    expect($backlog)->toContain('A backlog run never analyses, and gaining the backlog tier does not change that.');
 });
 
 test('agents directory ships the krang orchestrator subagent with required frontmatter', function (): void {
@@ -1018,7 +1020,7 @@ test('the zeus backlog subagent is retired and krang carries its tier inline (is
     // The architectural consequence the merge turns on: krang's "never work in your own
     // context" rule gains a SECOND named exception beside step 1, because the successor is the
     // orchestrator itself and has no peer left to dispatch this to.
-    expect($krang)->toContain('**Two named exceptions to that rule, and no others.**');
+    expect($krang)->toContain('**Three named exceptions to that rule, and no others.**');
     expect($krang)->toContain('which you run **inline, in your own context**');
 
     // A backlog run ends at the backlog: no dispatch, no PR, no write-lock.
