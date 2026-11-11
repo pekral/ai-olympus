@@ -63,9 +63,11 @@
 
      Review findings (review-only run, in place of `How to test`)
        The findings new in this review come first. `### Already reported in an
-       earlier review` renders only when that group has a finding. The groups and
-       the answer sentence are owned by `@skills/pr-summary/SKILL.md`
-       *Review-only run*.
+       earlier review` renders only when that group has a finding. The groups, the
+       answer sentence, and the rule that each finding is a TL;DR of its solution
+       backed by evidence are owned by `@skills/pr-summary/SKILL.md`
+       *Review-only run*. A point with no evidence renders under `### Not verified`
+       (`### Neověřeno` in a Czech assignment), with the step that settles it.
 
      Closing links line
        One line, the pull request and the source tracker item, separated by ` · `.

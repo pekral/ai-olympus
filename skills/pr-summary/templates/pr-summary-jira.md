@@ -10,12 +10,16 @@ h2. Acceptance criteria
 
 h2. Review findings
 
-* [One finding per bullet: what can go wrong for the user or the business, and what the fix would change. A point that blocks the merge comes first and says so in words.]
+* [One finding per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words.]
 * [Next finding. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the finding it belongs to.]
 
 h3. Already reported in an earlier review
 
 * [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
+
+h3. Not verified
+
+* [Only when a point has no evidence: what is unknown, and the step that settles it. No solution sentence. Omit the heading when there is no such point.]
 
 h2. What changed
 
@@ -111,8 +115,14 @@ Review findings
     changed, and Impact after deployment sit in one h2. group per pull
     request, below Acceptance criteria, and their headings drop to h3.
     (references/several-pull-requests.md).
-  - One bullet per finding: what can go wrong for the user or the business, and
-    what the fix would change. Plain prose only.
+  - One bullet per finding, as a TL;DR of its solution backed by evidence: what
+    is wrong, what the fix is, what the fix changes for the user or the
+    business, and the evidence in plain words (an observed value, a reproduced
+    behaviour, a failing or passing test, a query result). Plain prose only.
+  - A point with no evidence is never a problem or a solution. It renders under
+    "Not verified" (h3.), after the findings, with the step that settles it,
+    and is never dropped for length. The rule is owned by
+    @skills/pr-summary/SKILL.md (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
   - A finding outside the assignment — a pre-existing defect, or behaviour the
@@ -154,7 +164,7 @@ Impact after deployment
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
   Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
-  kódu", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
+  kódu", "h3. Neověřeno", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
   the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
