@@ -1145,7 +1145,8 @@ test('a missing login never ends the UI check of a user-visible change', functio
     expect($missingData)->toContain('Use no database client and no raw SQL statement that writes.');
     expect($missingData)->toContain('never set a status, a flag, or a computed value directly to force a pass');
     expect($missingData)->toContain('It never sets the result that the criterion checks.');
-    expect($missingData)->toContain('- **Access stays untouched.** Never change the credentials, role, permissions, membership, owner, tenant, verification, two-factor, session, or token state of an existing record.');
+    expect($missingData)->toContain('- **Access stays untouched.** Never change the credentials, role, permissions, membership,');
+    expect($missingData)->toContain('owner, tenant, verification, two-factor, session, or token state of an existing record.');
     expect($missingData)->toContain('Never delete or re-assign an existing record.');
     expect($missingData)->toContain('- **Restore every change.** Before the change, record the original value of each changed attribute.');
     expect($missingData)->toContain('Restore only an attribute that still holds the value this run set');
