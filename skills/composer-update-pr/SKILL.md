@@ -37,7 +37,7 @@ The step is done when `git rev-parse --abbrev-ref HEAD` prints the default branc
 ### 2. Run the update chain
 Run the steps in this order. Redirect the output of each step to its own file in the scratch directory, outside the repository. A step that exits non-zero stops the run (step 3).
 
-1. `git pull --ff-only origin "$DEFAULT_BRANCH"`. The fast-forward guard stops a diverged local default branch instead of creating a merge commit on it.
+1. `git pull --ff-only origin "$DEFAULT_BRANCH"`. The fast-forward guard stops a diverged local default branch instead of creating a merge commit on it. This deviates from a plain `git pull` on purpose: a merge commit on the default branch would enter the update pull request.
 2. `git fetch -p`
 3. Local-branch clean-up through `@skills/cleanup-local-branches/SKILL.md` steps 2 to 5, then 6 (preview) and 7 (delete). This run is narrower than the autonomous run of that step 6: delete only the candidates classified *integrated* in step 5, and keep every *not integrated* one. List each kept branch in the report with its reason. Skip step 1 of that skill, because `git fetch -p` already ran.
 4. `skills/_shared/run-gate.sh --exclusive --command "composer install"`
@@ -52,11 +52,11 @@ Name the step by its number and command, give its exit status, and print the las
 ### 4. No change, no pull request
 Run `git status --porcelain`.
 - Empty: report that nothing was updated, open no branch and no pull request, and stop.
-- A path other than `composer.json` or `composer.lock`: stop, name each path, and leave the tree untouched. A dependency update pull request carries nothing else.
+- A path other than `composer.json` or `composer.lock`: stop, name each path, and leave the tree untouched. A dependency update pull request carries nothing else. This stop replaces opening a pull request with the extra change: the owner decides whether such a change belongs in the pull request.
 
 ### 5. Branch and commit
 1. Compute the date with the manifest zone when `skills/_shared/read-manifest.sh` prints a `timezone`: `TZ=<zone> date +%F`; otherwise `date +%F`.
-2. Create `chore/composer-update-<date>` with `git checkout -b`. A local or remote branch with that name stops the run: report the name and let the user decide.
+2. Create `chore/composer-update-<date>` with `git checkout -b`. A local or remote branch with that name stops the run: report the name and let the user decide. The run neither reuses nor overwrites a branch it did not create in this run.
 3. Stage only the changed `composer.json` and `composer.lock`.
 4. Commit with the subject `chore(composer): update dependencies`. The commit carries no attribution trailer. The task has no tracker item, so the subject carries no reference.
 
@@ -64,7 +64,7 @@ The step is done when `git status --porcelain` prints nothing and `git log -1 --
 
 ### 6. Read the updates from the diff
 1. Write the previous lock to the scratch directory: `git show "origin/$DEFAULT_BRANCH:composer.lock" > <scratch>/old.lock`. A project that tracks no `composer.lock` has no package table; the description then lists only the `composer.json` changes and states that no lock file exists.
-2. Run `php <this skill's directory>/scripts/lock-diff.php <scratch>/old.lock composer.lock`. It prints one JSON entry per changed package: `name`, `type` (`updated`, `added`, `removed`), `dev`, `from`, `to`, and `level` (`major`, `minor`, `patch`, `other`).
+2. Run `php <this skill's directory>/scripts/lock-diff.php <scratch>/old.lock composer.lock`. It prints one JSON entry per changed package: `name`, `type` (`updated`, `downgraded`, `added`, `removed`), `dev`, `from`, `to`, and `level` (`major`, `minor`, `patch`, `other`). A `0.x` minor change is `major`. A version that goes down is `downgraded` with level `other`. A package with an unchanged version and a changed source reference is `updated` with level `other`, and `from` / `to` read `<version>@<short reference>`.
 3. Read the constraint changes of `composer bump` from `git diff "origin/$DEFAULT_BRANCH" -- composer.json`.
 
 The step is done when every package of the pull request description appears in the script output or in that diff.
@@ -79,7 +79,7 @@ The step is done when every package of the pull request description appears in t
 The body has these sections, in this order:
 - `## TL;DR` — the count of updated, added, and removed packages, the count of major updates, and the `composer.json` constraints that changed. Every number is counted from the script output.
 - `## Major updates` — one row per package with `level` `major`: name, `from` → `to`, and whether it is a `require` or a `require-dev` package. State under the table: *A major version may contain backward-incompatible changes (semver). Not verified: what breaks in this project; the package release notes and the CI result settle it.* Omit the section when no package has `level` `major`.
-- `## Other updates` — one row per remaining package: name, `from` → `to`, `type`, `level`, and whether it is a dev package.
+- `## Other updates` — one row per remaining package: name, `from` → `to`, `type` (a `downgraded` row names the downgrade), `level`, and whether it is a dev package.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
 - `## Testing` — the commands of step 2 and their result; the full test suite is the CI result of the pull request. State `no tests were added`, because the change carries none.
 - `## Merge danger` — the section of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies`.
