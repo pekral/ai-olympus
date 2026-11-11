@@ -103,6 +103,8 @@
 #   0  a plan or a decision was produced
 #   1  usage error or malformed input
 set -euo pipefail
+# A file entry is a word, never a pattern: no unquoted expansion may match a file of the working directory.
+set -f
 
 PROG="${0##*/}"
 MAX_CONCURRENT=2
@@ -484,6 +486,27 @@ expect_refusal() {
   fi
 }
 
+# Run the planner from a directory where a glob matches a file, so an unquoted
+# expansion would turn the pattern into a valid path. Exit 1 is the refusal.
+expect_glob_refusal() {
+  local label="$1" plan="$2" step="$3" dir script code=0
+  dir="$(mktemp -d)"
+  : >"$dir/A.php"
+  script="$(cd "$(dirname "$0")" && pwd)/${0##*/}"
+  if [[ -n "$step" ]]; then
+    (cd "$dir" && printf '%s\n' "$step" | "$script" --step >/dev/null 2>&1) || code=$?
+  else
+    (cd "$dir" && printf '%s\n' "$plan" | "$script" >/dev/null 2>&1) || code=$?
+  fi
+  rm -rf "$dir"
+  if [[ "$code" -eq 1 ]]; then
+    printf 'ok    %s\n' "$label"
+  else
+    printf 'FAIL  %s (exit %s)\n' "$label" "$code" >&2
+    SELF_TEST_FAILURES=$((SELF_TEST_FAILURES + 1))
+  fi
+}
+
 self_test() {
   local head='max_concurrent=2 '
 
@@ -643,20 +666,24 @@ self_test() {
     'step=g decision=wait lock=gate blocker=w1 reason=heavy-job:w1 '
 
   expect_step_refusal 'a step input without a step line is refused' 'live|w1|write|shared||src/A.php'
-  expect_step_refusal 'two step lines are refused' $'step|a|write|shared||src/A.php\nstep|b|write|shared||src/B.php'
-  expect_step_refusal 'a step that is also a live run is refused' $'step|a|write|shared||src/A.php\nlive|a|write|'"$wt_b"'|feat/a|src/B.php'
-  expect_step_refusal 'a step in an unknown tree is refused' 'step|a|write|unknown||src/A.php'
-  expect_step_refusal 'an unknown kind is refused' 'step|a|build|shared||src/A.php'
-  expect_step_refusal 'an absolute tree is refused' 'step|a|write|/tmp/x||src/A.php'
-  expect_step_refusal 'a tree with a trailing slash is refused' 'step|a|write|.claude/worktrees/run-a/||src/A.php'
+  expect_step_refusal 'two step lines are refused' $'step|a|write|shared|||src/A.php\nstep|b|write|shared|||src/B.php'
+  expect_step_refusal 'a step that is also a live run is refused' $'step|a|write|shared|||src/A.php\nlive|a|write|'"$wt_b"'|feat/a|src/B.php'
+  expect_step_refusal 'a step in an unknown tree is refused' 'step|a|write|unknown|||src/A.php'
+  expect_step_refusal 'an unknown kind is refused' 'step|a|build|shared|||src/A.php'
+  expect_step_refusal 'an absolute tree is refused' 'step|a|write|/tmp/x|||src/A.php'
+  expect_step_refusal 'a tree with a trailing slash is refused' 'step|a|write|.claude/worktrees/run-a/|||src/A.php'
   expect_step_refusal 'a branch that climbs out is refused' 'step|a|write|shared|feat/../x||src/A.php'
   expect_step_refusal 'a branch with a space is refused' $'step|a|write|shared|feat x||src/A.php'
   expect_step_refusal 'a step line with eight fields is refused' 'step|a|write|shared|feat/a||src/A.php|extra'
-  expect_step_refusal 'a live line with seven fields is refused' $'step|a|write|shared||src/A.php\nlive|w1|write|shared||src/B.php|extra'
-  expect_step_refusal 'an unknown line type is refused' $'step|a|write|shared||src/A.php\nnote|x'
-  expect_step_refusal 'a shared line with a bad slug is refused' $'step|a|write|shared||src/A.php\nshared|CHANGELOG.md|../x'
-  expect_step_refusal 'a shared line with an absolute path is refused' $'step|a|write|shared||src/A.php\nshared|/etc/passwd|slug'
+  expect_step_refusal 'a live line with seven fields is refused' $'step|a|write|shared|||src/A.php\nlive|w1|write|shared||src/B.php|extra'
+  expect_step_refusal 'an unknown line type is refused' $'step|a|write|shared|||src/A.php\nnote|x'
+  expect_step_refusal 'a shared line with a bad slug is refused' $'step|a|write|shared|||src/A.php\nshared|CHANGELOG.md|../x'
+  expect_step_refusal 'a shared line with an absolute path is refused' $'step|a|write|shared|||src/A.php\nshared|/etc/passwd|slug'
   expect_step_refusal 'empty step input is refused' ''
+
+  expect_glob_refusal 'a glob in a unit file list is refused, never expanded' 'a|STANDARD||*' ''
+  expect_glob_refusal 'a glob in a step file list is refused, never expanded' '' 'step|a|write|shared|||*'
+  expect_glob_refusal 'a glob in a live file list is refused, never expanded' '' $'step|a|write|shared|||src/A.php\nlive|w1|write|shared||*'
 
   if [[ "$SELF_TEST_FAILURES" -gt 0 ]]; then
     echo "plan-parallel self-test: $SELF_TEST_FAILURES failure(s)" >&2
