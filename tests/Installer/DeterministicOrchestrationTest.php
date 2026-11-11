@@ -357,3 +357,41 @@ test('the parallel planner pins the rule that lets two units overlap', function 
 
     expect($planner)->toContain('MAX_CONCURRENT=2');
 });
+
+test('the parallel planner decides one step against the live runs and the memory, and pins every blocker', function (): void {
+    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh');
+
+    foreach ([
+        'a step with no live run starts',
+        'a gate in its own worktree starts beside a writer on the shared tree and in another worktree',
+        'a gate never runs beside a live heavy run, whatever its tree',
+        'a gate never runs in a tree that a live writer uses',
+        'a write step never takes the tree of a live gate run',
+        'a write step on the shared tree never runs beside a live writer on it',
+        'a gate holder in an unknown tree counts as using the shared tree',
+        'a gate holder in an unknown tree does not block a write step in a worktree',
+        'a write step beside a live writer in another worktree with disjoint files starts',
+        'a write step never changes a file that a live writer changes',
+        'a write step never takes the branch of a live run',
+        'a step waits for the live run it depends on',
+        'a read step starts beside a live writer on the same tree',
+        'a live read run blocks no write step',
+        'a write step without file evidence never runs beside a live writer',
+        'a live writer without file evidence blocks a write step',
+        'a shared resource that the memory records serialises two write steps',
+        'a shared resource that the memory records does not block a gate in its own worktree',
+        'the first live run that blocks the step is the blocker',
+        'one run that holds a tree and the gate lock is two live lines',
+        'a step input without a step line is refused',
+        'two step lines are refused',
+        'a step that is also a live run is refused',
+        'a step in an unknown tree is refused',
+        'a branch that climbs out is refused',
+        'a shared line with a bad slug is refused',
+    ] as $label) {
+        expect(substr_count($planner, '\'' . $label . '\''))->toBe(1);
+    }
+
+    expect($planner)->toContain('plan-parallel.sh --step < evidence');
+    expect($planner)->toContain('reason=<why>               only when the decision is wait:');
+});

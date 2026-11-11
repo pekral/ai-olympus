@@ -919,7 +919,9 @@ test('krang keeps the default writing path on the shared tree, allows a worktree
     // Deliberate re-baseline: "the writing path never uses git worktrees" gave way to one exception.
     expect($concurrency)->not->toContain('The writing path never uses git worktrees');
     expect($concurrency)->toContain('By default the writing path does not use git worktrees.');
-    expect($concurrency)->toContain('The one sanctioned exception is a parallel unit');
+    // Issue #369 re-baselined it again: the detached gate worktree is the second exception.
+    expect($concurrency)->toContain('The first is a parallel unit');
+    expect($concurrency)->toContain('The second is a gate worktree');
     expect($concurrency)->toContain('single shared git working tree');
     expect($concurrency)->toContain('Nothing else widens the exception');
     expect($concurrency)->toContain('A parallel unit takes **no** shared-tree write-lock');
@@ -2924,6 +2926,46 @@ test('krang labels the pull request ready to merge when it closes a FAST run (is
     expect($krang)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready` and the `ready to merge` label on the pull request)');
     expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('| `krang` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
+});
+
+test('krang decides each step against the runs in progress and the project memory through the one planner', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    $rule = $read('rules/compound-engineering/concurrency.md');
+    expect($rule)->toContain('## Parallel steps against the runs in progress');
+    expect($rule)->toContain('The decision has one owner: `skills/_shared/plan-parallel.sh --step`.');
+    expect($rule)->toContain('`krang` never judges alone that a step may overlap another run.');
+    expect($rule)->toContain('one `live|<id>|<kind>|<tree>|<branch>|<files>` line per run in progress, never one for its own run');
+    expect($rule)->toContain(
+        'the holder of the write-lock, the worktrees whose lock reason names a live `pid <N>`, and the holder of the gate lock',
+    );
+    expect($rule)->toContain(
+        '`krang` reads the entries through the read protocol of `@rules/compound-engineering/memory.md`, never from a path this rule names.',
+    );
+    expect($rule)->toContain('The memory adds a block and never lifts one.');
+    expect($rule)->toContain(
+        '`decision=wait` means it does not dispatch, writes the `blocker` and the `reason` into the unit\'s `## Plan & work breakdown`',
+    );
+    expect($rule)->toContain('It never overwrites, resets, or switches the tree or the branch of another run to get past a wait.');
+    expect($rule)->toContain('The planner answers `parallel` with `lock=gate` when no live run is heavy and no live writer holds the gate\'s tree.');
+    expect($rule)->toContain('so two gates never run at the same time');
+    expect($rule)->toContain('`git worktree add --detach <path> <head-sha>`');
+    expect($rule)->toContain('Two sanctioned exceptions exist.');
+    expect($rule)->not->toContain('docs/memory/PROJECT_MEMORY.md');
+
+    $krang = krangContractText();
+    expect($krang)->toContain('**Decide each step against the runs in progress.**');
+    expect($krang)->toContain('`skills/_shared/plan-parallel.sh --step`');
+    expect($krang)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel steps against the runs in progress* owns the evidence');
+    expect($krang)->toContain('You never judge alone that a step may overlap another run.');
+    expect($krang)->toContain('never overwrite or switch the tree or the branch of another run');
+    expect($krang)->toContain('**Decide this step first**');
+
+    expect($read('codex/agents/krang.toml'))->toContain('`plan-parallel.sh` in its batch mode and its `--step` mode');
+    expect($read('agents/donatello.md'))->toContain('**A dispatch that names a gate worktree** runs the pre-push gate there');
+    expect($read('rules/git/general.md'))->toContain('*Parallel steps against the runs in progress*');
+    expect($read('CHANGELOG.md'))->toContain('(#369)');
 });
 
 test('krang plans parallel batches with the deterministic planner and the single gate lock keeps the machine at one heavy job', function (): void {
