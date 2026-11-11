@@ -11,10 +11,10 @@ function composerUpdateSource(string $relativePath): string
 }
 
 /**
- * @param list<array{name: string, version: string}> $oldPackages
- * @param list<array{name: string, version: string}> $newPackages
- * @param list<array{name: string, version: string}> $oldDevPackages
- * @param list<array{name: string, version: string}> $newDevPackages
+ * @param list<array<string, mixed>> $oldPackages
+ * @param list<array<string, mixed>> $newPackages
+ * @param list<array<string, mixed>> $oldDevPackages
+ * @param list<array<string, mixed>> $newDevPackages
  * @return array{exit: int|null, output: string, error: string}
  */
 function runLockDiff(array $oldPackages, array $newPackages, array $oldDevPackages = [], array $newDevPackages = []): array
@@ -146,4 +146,64 @@ test('lock-diff prints no change for identical locks and exits 1 for an unreadab
         ->and($missing->getErrorOutput())->toContain('cannot read a composer.lock')
         ->and($usage->getExitCode())->toBe(1)
         ->and($usage->getErrorOutput())->toContain('Usage: lock-diff.php');
+});
+
+test('lock-diff reports a package whose version stays but whose source reference changes', function (): void {
+    $result = runLockDiff(
+        [
+            ['name' => 'a/branch', 'version' => 'dev-main', 'source' => ['reference' => 'aaaaaaa1111111']],
+            ['name' => 'a/dist', 'version' => 'dev-main', 'dist' => ['reference' => 'bbbbbbb2222222']],
+            ['name' => 'a/same', 'version' => 'dev-main', 'source' => ['reference' => 'ccccccc3333333']],
+            ['name' => 'a/noref', 'version' => 'dev-main'],
+        ],
+        [
+            ['name' => 'a/branch', 'version' => 'dev-main', 'source' => ['reference' => 'ddddddd4444444']],
+            ['name' => 'a/dist', 'version' => 'dev-main', 'dist' => ['reference' => 'eeeeeee5555555']],
+            ['name' => 'a/same', 'version' => 'dev-main', 'source' => ['reference' => 'ccccccc3333333']],
+            ['name' => 'a/noref', 'version' => 'dev-main', 'source' => ['reference' => 'fffffff6666666']],
+        ],
+    );
+
+    /** @var array{changes: list<array<string, mixed>>} $decoded */
+    $decoded = json_decode($result['output'], associative: true, flags: JSON_THROW_ON_ERROR);
+
+    expect($decoded['changes'])->toBe([
+        ['name' => 'a/branch', 'type' => 'updated', 'dev' => false, 'from' => 'dev-main@aaaaaaa', 'to' => 'dev-main@ddddddd', 'level' => 'other'],
+        ['name' => 'a/dist', 'type' => 'updated', 'dev' => false, 'from' => 'dev-main@bbbbbbb', 'to' => 'dev-main@eeeeeee', 'level' => 'other'],
+    ]);
+});
+
+test('lock-diff treats a 0.x minor change as major, a downgrade as downgraded, and a pre-release to stable as an upgrade', function (): void {
+    $result = runLockDiff(
+        [
+            ['name' => 'a/zero-minor', 'version' => '0.4.2'],
+            ['name' => 'a/zero-patch', 'version' => '0.4.2'],
+            ['name' => 'a/down-major', 'version' => '2.0.0'],
+            ['name' => 'a/down-v', 'version' => 'v1.5.0'],
+            ['name' => 'a/beta', 'version' => '2.0.0-beta1'],
+            ['name' => 'a/back-to-beta', 'version' => '2.0.0'],
+            ['name' => 'a/beta-major', 'version' => '1.9.0'],
+        ],
+        [
+            ['name' => 'a/zero-minor', 'version' => '0.5.0'],
+            ['name' => 'a/zero-patch', 'version' => '0.4.3'],
+            ['name' => 'a/down-major', 'version' => '1.9.0'],
+            ['name' => 'a/down-v', 'version' => '1.4.9'],
+            ['name' => 'a/beta', 'version' => '2.0.0'],
+            ['name' => 'a/back-to-beta', 'version' => '2.0.0-beta1'],
+            ['name' => 'a/beta-major', 'version' => '2.0.0-beta1'],
+        ],
+    );
+
+    /** @var array{changes: list<array<string, mixed>>} $decoded */
+    $decoded = json_decode($result['output'], associative: true, flags: JSON_THROW_ON_ERROR);
+    $byName = array_column($decoded['changes'], column_key: null, index_key: 'name');
+
+    expect($byName['a/zero-minor'])->toMatchArray(['type' => 'updated', 'level' => 'major'])
+        ->and($byName['a/zero-patch'])->toMatchArray(['type' => 'updated', 'level' => 'patch'])
+        ->and($byName['a/down-major'])->toMatchArray(['type' => 'downgraded', 'level' => 'other', 'from' => '2.0.0', 'to' => '1.9.0'])
+        ->and($byName['a/down-v'])->toMatchArray(['type' => 'downgraded', 'level' => 'other'])
+        ->and($byName['a/beta'])->toMatchArray(['type' => 'updated', 'level' => 'other'])
+        ->and($byName['a/back-to-beta'])->toMatchArray(['type' => 'downgraded', 'level' => 'other'])
+        ->and($byName['a/beta-major'])->toMatchArray(['type' => 'updated', 'level' => 'major']);
 });
