@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 66 skills this package ships, grouped by what you reach for them for. Each description is the
+All 67 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -9,7 +9,7 @@ link to read the skill itself.
 
 | Group | Skills |
 |---|---|
-| [Issue → PR workflow](#issue--pr-workflow) | 10 |
+| [Issue → PR workflow](#issue--pr-workflow) | 11 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 6 |
 | [Testing](#testing) | 10 |
@@ -35,6 +35,7 @@ link to read the skill itself.
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
 | [`github-issue-triage`](../skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type, the open backlog swept (merged issues closed, epics kept flat, issues re-parented), a new issue checked against the code (already implemented, reproducible, or missing detail), or the issues labelled `analyze` analysed |
 | [`github-release-roadmap`](../skills/github-release-roadmap/) | Planning a GitHub release roadmap for one repository |
+| [`composer-update-pr`](../skills/composer-update-pr/) | Updating the Composer dependencies of a project and opening a Draft pull request with a TL;DR of the updates |
 
 ## Code review
 
