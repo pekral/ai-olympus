@@ -91,7 +91,7 @@ metadata:
 - Dispatch `raphael` with the matrix, the input map, and the instruction to run a base-branch comparison. It follows `@skills/interactive-testing/SKILL.md` and the project's own testing guidelines.
 - `raphael` serves the branch under test from the main checkout. It exercises every matrix row through the real interface — the API with a real HTTP client, the UI in a browser — and records the exact request and response.
 - It sends the same request set to the base branch. The results may differ only where the assignment changes behaviour. Every other difference is a finding.
-- It checks the application log for new errors. It creates test data only through the application, removes that data afterwards, and lists what it could not remove.
+- It checks the application log for new errors. It prepares test data as `@skills/interactive-testing/SKILL.md` *Missing test data* states, removes or restores that data afterwards, and lists what it could not.
 - A row it cannot exercise is `Blocked`, with the reason and with what would unblock it.
 
 ### 7. Finish by mode

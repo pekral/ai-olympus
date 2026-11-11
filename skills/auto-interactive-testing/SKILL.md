@@ -72,7 +72,7 @@ Run `@skills/interactive-testing/SKILL.md` for the issue on the default branch:
 
 - **UI scenarios** run in the agent's own interactive browser. Check desktop 1280 × 720 and mobile 390 × 844 when the issue asks for them. Reset the viewport afterwards.
 - **Tooling scenarios** run in the terminal. Work on a throwaway branch from the default branch, never push it, and delete it at the end. Revert every temporary edit and confirm a clean `git status`.
-- **Test data** comes from the application's own code (factories, actions, services). Never write a raw SQL row. Mark every record as QA data and use a reserved test domain for every address. Record the identifier of every record you create.
+- **Test data** is created, changed, and restored as `@skills/interactive-testing/SKILL.md` *Missing test data* states. Record the identifier of every record you create or change.
 - **A background or AI run** that a scenario needs is switched on only for one call, in the way the project documents. Stop the queue workers during that call when they could process real incoming data.
 - **An environment limitation**, for example a websocket server without TLS or an artifact of a log mailer, is reported as such. It is not a defect of the change under test.
 
@@ -89,7 +89,7 @@ A non-security defect that the change under test did not cause is never fixed in
 
 ### 7. Clean up
 
-1. Delete every record that this run created. Use the application's own delete path. When no such path exists, delete only the records this run created, through their model and storage, and check for orphaned stored files.
+1. Restore every record that this run changed, as `@skills/interactive-testing/SKILL.md` *Missing test data* states. Delete every record that this run created. Use the application's own delete path. When no such path exists, delete only the records this run created, through their model and storage, and check for orphaned stored files.
 2. Restore every setting you changed, then read it back.
 3. Stop the processes this run started, and close its terminal tabs.
 4. Delete the throwaway branches after you confirm that no remote copy exists.

@@ -13,7 +13,7 @@ metadata:
 - Shell-driven Playwright, headless scripts, HTTP requests, unit tests, source inspection, and generated screenshots never replace this walkthrough. They may supply supplementary evidence only. If no interactive browser tool is available, return `Blocked` and name the remediation, for example *connect the Claude in Chrome extension*.
 - Use the project URL supplied by the user or recorded in the consuming project's instructions or memory. If neither identifies the target, ask for it. Do not silently switch hosts, environments, or checkouts.
 - Sign in as *Sign-in and test accounts* below states. A missing login never ends the UI check, and it never makes you wait for the user.
-- Test the running application without changing its implementation, configuration, permissions, credentials, or database directly. The exceptions are the local preparation that *Local readiness* allows, a local test account that *Sign-in and test accounts* allows, local test data that *Missing test data* allows, and confirmed security fixes through *Check security and repair confirmed threats*. Other fixes, publishing to a tracker, deploying, or merging require a separate assignment.
+- Test the running application without changing its implementation, configuration, permissions, credentials, or database directly. The exceptions are the local preparation that *Local readiness* allows, a local test account that *Sign-in and test accounts* allows, a local data change that *Missing test data* allows, and confirmed security fixes through *Check security and repair confirmed threats*. Other fixes, publishing to a tracker, deploying, or merging require a separate assignment.
 - Respect the browser tool's confirmation rules. Use reversible, clearly identified test data within the authorized workspace. Do not trigger AI processing, recurring jobs, external imports, emails, tracker comments, or destructive actions unless that specific effect is authorized for the scenario. Opening a menu is not evidence that its actions work.
 
 ## Use when
@@ -81,7 +81,7 @@ When no source signs in, the scenario is `Blocked`. State the reason and the exa
 
 This section owns how a testing agent gets the data a scenario needs. Other skills and agents reference it and do not restate it.
 
-A missing record, relation, or record state never ends the walkthrough, and it never makes you wait for the user. Create the data yourself and finish the scenario.
+A missing record, relation, or record state never ends the walkthrough, and it never makes you wait for the user. Create the data yourself, or temporarily change it, and finish the scenario.
 
 Try these sources in order. Stop at the first one that produces the data:
 
@@ -89,15 +89,20 @@ Try these sources in order. Stop at the first one that produces the data:
 2. **The application's UI.** Create the record through the same screens a user would use, when those screens exist and work.
 3. **The project's seed mechanism.** Run the project's documented seed command, seeder, or a console command the project ships for creating the data.
 4. **The application's own code.** Use the application's factories, actions, or services through `tinker` (or the framework's equivalent console), so the record carries the related records and derived values the application itself would produce.
+5. **A temporary change of an existing record.** Use this source only when sources 1 to 4 cannot produce the state, for example the creation date of an account that must be younger than a limit. Prefer a record the project documents as test data, or the test account in use, before any other record. Change the record through the application's own code, as source 4 states.
 
-Creating test data is allowed only inside these limits:
+Creating, changing, or restoring test data is allowed only inside these limits:
 
-- **Local target only.** The same rule as *Sign-in and test accounts*: never create data on a production, staging, or other shared remote environment.
-- **A state the application can produce.** Reach a record state through a factory state or an application action. Never write a raw SQL row, and never set a status, a flag, or a computed value directly to force a pass.
+- **Local target only.** The same rule as *Sign-in and test accounts*: never create or change data on a production, staging, or other shared remote environment.
+- **The database is shown to be a development or test database.** Before an existing record changes, show this as `@rules/security/general.md` *Production is never touched* requires: take the evidence from the dispatch, the project's documented development setup, or a database this run started. A local URL alone is not that evidence. Never read a `.env*` file or an environment value to get it (`@rules/security/general.md` *Environment values are never read*). When the database cannot be shown, no existing record changes, and the scenario that needs the change is `Blocked`.
+- **Only through the application's code.** Only the databases of the project under test change, and only through that project's own code. Use no database client and no raw SQL statement that writes.
+- **A state the application can produce.** Reach a record state through a factory state or an application action. Never write a raw SQL row, and never set a status, a flag, or a computed value directly to force a pass. A change prepares a precondition that the criterion reads. It never sets the result that the criterion checks.
+- **Access stays untouched.** Never change the credentials, role, permissions, membership, owner, tenant, verification, two-factor, session, or token state of an existing record. Accounts stay as *Sign-in and test accounts* states. Never delete or re-assign an existing record.
+- **Restore every change.** Before the change, record the original value of each changed attribute. Restore it when the scenario that needed it ends, and at the latest at the end of the run. Restore only an attribute that still holds the value this run set; otherwise leave it and list it as remaining. Read the restored value back through the application's code, and in the UI when the value is visible there.
+- **A change prepares the state only.** The scenario still runs as *Constraints* states, in the application and repository under test. A data change never replaces the walkthrough, and it never moves the test to another application, another repository, or an external service.
 - **Identifiable.** Mark every created record so it is recognisable as test data, for example a `QA` prefix in its name and a reserved test domain (RFC 2606) in any e-mail address.
-- **Existing data stays untouched.** Never modify, re-assign, or delete a record this run did not create.
-- **No unauthorized side effects.** The *Constraints* above still apply: creating data never sends e-mails, calls external services, or starts imports or jobs that the scenario does not authorize. Use a factory or a console flag that suppresses such effects when the project provides one.
-- **Traceable.** Report every record you created under **Cleanup**: its type, its identifier, and the mechanism. Delete the records at the end of the run unless the user needs them to reproduce a failure; then list them as remaining.
+- **No unauthorized side effects.** The *Constraints* above still apply: creating, changing, or restoring data never sends e-mails, calls external services, or starts imports or jobs that the scenario does not authorize. Use a factory or a console flag that suppresses such effects when the project provides one.
+- **Traceable.** Report every record you created or changed under **Cleanup**: its type, its identifier, and the mechanism. For a changed record, also report the attribute names and the restore result. Never report the value of a personal-data or secret attribute. Delete the created records at the end of the run unless the user needs them to reproduce a failure; then list them as remaining.
 
 When no source can produce the data inside these limits, the scenario is `Blocked`. State the reason and the exact step that unblocks it. Continue the other scenarios.
 
@@ -120,7 +125,7 @@ Check and prepare the local environment as *Local readiness* states, before the 
 1. Read the browser tool documentation and open the project using its supported interactive browser API. Sign in as *Sign-in and test accounts* states.
 2. Observe the rendered page before interacting. Verify the signed-in identity, selected workspace, record state, and relevant permissions from visible UI.
 3. Check data readiness from the record's visible state, never from its name or from admin access. A record named "draft" can carry another status, and an action can depend on a prerequisite the page does not show.
-4. When the scenario's workspace, record, or record state is missing, create it as *Missing test data* states. Ask for the correct workspace or account only when that section leaves the scenario `Blocked`. Never invent membership on an existing workspace, and never change status or indexing flags of existing records to force a pass.
+4. When the scenario's workspace, record, or record state is missing, create it as *Missing test data* states. Ask for the correct workspace or account only when that section leaves the scenario `Blocked`. Never invent membership on an existing workspace. Change an existing record only as that section states.
 5. Record a time boundary for browser console evidence so old errors are not attributed to the current scenario.
 
 ### 4. Exercise the actual user flow
@@ -148,7 +153,7 @@ The goal is to protect the application against compromise. Run this check on eve
 
 ### 6. Restore test data and report evidence
 
-1. Restore only values changed by this run and verify the restoration in the UI. Delete the test data this run created, per *Missing test data*. Stop the processes and restore the checkout, per *Local readiness*. Do not overwrite unrelated concurrent edits or delete existing user data. Report any remaining test records or side effects.
+1. Restore only values changed by this run. Restore every changed record and delete the test data this run created, as *Missing test data* states, with the read-back it requires. Stop the processes and restore the checkout, per *Local readiness*. Do not overwrite unrelated concurrent edits or delete existing user data. Report any remaining test records or side effects.
 2. Produce a verdict for every scenario: `Passed`, `Failed`, `Partial`, or `Blocked`. An unexecuted scenario is never `Passed`.
 3. For each failure, include exact URL, viewport, account role/record state, minimal steps, expected versus observed behavior, and a screenshot or concrete visible evidence. Redact secrets and avoid embedding unrelated user data.
 4. Report which scenarios were not exercised and the exact prerequisite needed to unblock each one.
