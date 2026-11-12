@@ -73,7 +73,7 @@ The shape is an illustration of the call chain. Confirm each method against `ven
 
    | Tool | Command |
    |---|---|
-   | Pest architecture testing | `vendor/bin/pest --group=arch` |
+   | Pest architecture testing | `skills/_shared/run-gate.sh --exclusive --command "vendor/bin/pest --group=arch"` |
    | deptrac | `vendor/bin/deptrac analyse` |
    | PHPArkitect | `vendor/bin/phparkitect check` |
 

@@ -18,10 +18,12 @@
 # The state of the lock (`status`, and the `state` field of `repair`)
 #   free      there is no lock
 #   held      a live holder that shows progress
-#   dead      the holder PID is confirmed dead or was recycled: a waiter reclaims it as well
+#   dead      the holder PID is confirmed dead or was recycled (a waiter reclaims it as well), or the lock
+#             has had no readable holder for more than a minute (only repair removes it)
 #   stuck     the holder is alive, a wrapper of this package started it, and its heartbeat records
 #             no progress for longer than AI_OLYMPUS_GATE_STUCK_AFTER seconds (default 1800)
-#   unproven  a lock directory with no readable holder; it counts as live and is never touched
+#   unproven  a lock directory with no readable holder for less than a minute; it counts as live and
+#             is never touched
 #
 # Heartbeat and progress
 #   The holder runs `heartbeat` beside the command, every AI_OLYMPUS_GATE_HEARTBEAT_INTERVAL
@@ -50,14 +52,15 @@
 #             stuck_after_seconds, wrapper_verified}
 #   repair:  {action, state, reason, pid, project, command, stopped, released, audit}
 #   action is one of none (free), none-live (a live holder shows progress), released-dead,
-#   stopped-and-released, refused.
+#   stopped-and-released, refused (exit 3 or 4), release-failed (exit 4: the lock directory is still
+#   there after the reclaim; the audit ledger gets a `note` line).
 #
 # Exit codes
 #   0   status: free, held, or unproven. repair: nothing to repair, or repaired.
 #   1   usage error, or repair without a usable audit ledger
 #   2   a required tool is missing
 #   3   repair refused: the stuck holder is not a wrapper this package started; nothing was stopped
-#   4   repair could not stop every process of the tree
+#   4   repair could not stop every process of the tree, or could not remove the lock directory
 #   10  status: the holder is dead
 #   11  status: the holder is stuck
 set -euo pipefail
@@ -85,7 +88,7 @@ cmd_heartbeat() {
   interval="$(gate_heartbeat_interval)"
   trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
   progress="$(date +%s)"
-  while kill -0 "$parent" 2>/dev/null && [[ "$(gate_file_field "$dir/holder" PID)" == "$parent" ]]; do
+  while gate_pid_running "$parent" && [[ "$(gate_file_field "$dir/holder" PID)" == "$parent" ]]; do
     sample="$(gate_progress_sample "$parent" "$$")"
     now="$(date +%s)"
     if [[ "$sample" != "$last" ]]; then
@@ -106,16 +109,19 @@ cmd_heartbeat() {
 # The holder is a process a wrapper of this package started: the holder file names the wrapper,
 # the live process at the recorded PID runs it, and the process start equals the recorded one.
 gate_holder_verified() {
-  local dir="${1:-$GATE_LOCK}" pid wrapper recorded command actual
+  local dir="${1:-$GATE_LOCK}" pid wrapper recorded command actual first second
   pid="$(gate_file_field "$dir/holder" PID)"
   wrapper="$(gate_file_field "$dir/holder" WRAPPER)"
   recorded="$(gate_file_field "$dir/holder" PROCESS_START)"
   [[ "$pid" =~ ^[0-9]{1,7}$ && "$recorded" =~ ^[0-9]{9,12}$ ]] || return 1
   [[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh ]] || return 1
   command="$(ps -o command= -p "$pid" 2>/dev/null || true)"
-  [[ "$command" == *"$wrapper"* ]] || return 1
+  # The wrapper is the script the interpreter runs (`bash <path>/run-gate.sh ...`) or the program
+  # itself: its name is the first or second word, never a substring of another word.
+  read -r first second _ <<<"$command"
+  [[ "${first##*/}" == "$wrapper" || "${second##*/}" == "$wrapper" ]] || return 1
   actual="$(gate_process_start "$pid")" || return 1
-  [[ $((actual - recorded)) -le 5 && $((recorded - actual)) -le 5 ]]
+  gate_same_start "$actual" "$recorded"
 }
 
 emit_status() {
@@ -169,17 +175,11 @@ emit_repair() {
   return "$code"
 }
 
-# A process counts as running until it is gone. A zombie waits only for its parent to reap it and
-# holds nothing, so it counts as gone.
-proc_alive() {
-  kill -0 "$1" 2>/dev/null && [[ "$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')" != Z* ]]
-}
-
 # True when every pid of the list is gone.
 all_gone() {
   local pid
   for pid in "$@"; do
-    ! proc_alive "$pid" || return 1
+    ! gate_pid_running "$pid" || return 1
   done
 }
 
@@ -206,17 +206,17 @@ stop_holder_tree() {
   local index
   for index in "${!pids[@]}"; do
     pid="${pids[$index]}"
-    proc_alive "$pid" || continue
+    gate_pid_running "$pid" || continue
     start="$(gate_process_start "$pid" 2>/dev/null || true)"
     # The same process, not a new one that took the PID: its start time equals the recorded one.
-    if [[ -n "$start" && -n "${starts[$index]}" && $((start - starts[index])) -le 2 && $((starts[index] - start)) -le 2 ]]; then
+    if [[ "$start" =~ ^[0-9]+$ && "${starts[$index]}" =~ ^[0-9]+$ ]] && gate_same_start "$start" "${starts[$index]}"; then
       kill -KILL "$pid" 2>/dev/null || true
     fi
   done
   sleep 1
   for index in "${!pids[@]}"; do
     pid="${pids[$index]}"
-    if proc_alive "$pid"; then
+    if gate_pid_running "$pid"; then
       survivors=$((survivors + 1))
     else
       live+=("$pid")
@@ -226,8 +226,27 @@ stop_holder_tree() {
   [[ "$survivors" -eq 0 ]]
 }
 
+# Remove the lock of the holder repair proved dead or stopped. Returns 1 when the lock is still
+# there with that holder (a directory it could not remove), 0 when it is gone or another run took it.
+release_lock() {
+  local pid="$1" tries=0
+  while [[ -d "$GATE_LOCK" && "$(gate_file_field "$GATE_LOCK/holder" PID)" == "$pid" && "$tries" -lt 3 ]]; do
+    gate_lock_reclaim_stale headless || true
+    tries=$((tries + 1))
+    [[ ! -d "$GATE_LOCK" ]] || sleep 1
+  done
+  [[ ! -d "$GATE_LOCK" || "$(gate_file_field "$GATE_LOCK/holder" PID)" != "$pid" ]]
+}
+
+# The result when the lock is still there after the reclaim: a note in the ledger and a non-zero exit.
+lock_not_released() {
+  local pid="$1" wrapper="$2" project="$3" command="$4" stopped="$5"
+  audit_line note "release of the machine lock of holder pid ${pid:-unknown} failed" "the lock directory is still there after the reclaim; pids stopped: $stopped; wrapper ${wrapper:-unknown}; project $project; command: $command"
+  emit_repair release-failed "$(gate_lock_state "$GATE_LOCK")" 'the holder is gone or stopped, but the lock directory could not be removed; it is still there' 4 "$pid" "$project" "$command" "$stopped" false
+}
+
 cmd_repair() {
-  local state pid project command wrapper age probe recorded_cpu recorded_sig exclude s1 s2 stopped='[]' tries
+  local state pid project command wrapper age probe recorded_cpu recorded_sig exclude s1 s2 stopped='[]'
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --audit) [[ $# -ge 2 ]] || { usage; return 1; }; AUDIT_FILE="$2"; shift 2 ;;
@@ -258,12 +277,10 @@ cmd_repair() {
     return
     ;;
   dead)
-    tries=0
-    while [[ -d "$GATE_LOCK" && "$tries" -lt 5 ]] && gate_lock_is_stale "$GATE_LOCK"; do
-      gate_lock_reclaim_stale || true
-      tries=$((tries + 1))
-      [[ ! -d "$GATE_LOCK" ]] || sleep 1
-    done
+    if ! release_lock "$pid"; then
+      lock_not_released "$pid" "$wrapper" "$project" "$command" '[]'
+      return
+    fi
     audit_line external-write "release machine lock of dead holder pid $pid ($wrapper, project $project)" "removed the lock; the holder was confirmed dead; command: $command"
     emit_repair released-dead dead 'the holder is dead; the lock was removed and no process was stopped' 0 "$pid" "$project" "$command" '[]' true
     return
@@ -304,12 +321,10 @@ cmd_repair() {
     emit_repair refused stuck 'a process of the holder tree survived SIGKILL; the lock was kept' 4 "$pid" "$project" "$command" "$stopped" false
     return
   fi
-  tries=0
-  while [[ -d "$GATE_LOCK" && "$(gate_file_field "$GATE_LOCK/holder" PID)" == "$pid" && "$tries" -lt 5 ]]; do
-    gate_lock_reclaim_stale || true
-    tries=$((tries + 1))
-    [[ ! -d "$GATE_LOCK" ]] || sleep 1
-  done
+  if ! release_lock "$pid"; then
+    lock_not_released "$pid" "$wrapper" "$project" "$command" "$stopped"
+    return
+  fi
   audit_line external-write "stop process tree of stuck machine-lock holder pid $pid ($wrapper, project $project)" "stopped pids $stopped after ${age:-unknown}s without progress (limit $(gate_stuck_after)s) and released the lock; command: $command"
   emit_repair stopped-and-released stuck "the holder showed no progress for ${age:-unknown}s; its process tree was stopped and the lock was released" 0 "$pid" "$project" "$command" "$stopped" true
 }
@@ -422,7 +437,7 @@ self_test() {
   : >"$tmp/waiter.err"
   code=0; (cd "$other" && "$script" --exclusive --command 'vendor/bin/gate-ok' 2>"$tmp/waiter.err" >"$tmp/waiter.json") || code=$?
   check 'a run of another project waits, names the holder, and exits 6 without running' \
-    "$([[ "$code" -eq 6 && "$(calls_in gate-ok)" -eq 0 && "$(jq -r .reason "$tmp/waiter.json")" == *"PID $wrapper_pid, project "*"/project, command "*"vendor/bin/gate-hang"*"no progress"* && "$(cat "$tmp/waiter.err")" == *"waiting for the machine lock"*"PID $wrapper_pid"* ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 && "$(jq -r .reason "$tmp/waiter.json")" == *"PID $wrapper_pid, project "*"/project, command "*"vendor/bin/gate-hang"*"no progress"* && "$(cat "$tmp/waiter.err")" == *"waiting for the machine lock"*"PID $wrapper_pid"* ]] && echo pass)"
 
   code=0; "$self" repair >/dev/null 2>&1 || code=$?
   check 'repair without an audit ledger refuses and stops nothing' \
@@ -434,7 +449,7 @@ self_test() {
   check 'repair records the stop in the audit ledger' \
     "$([[ "$(wc -l <"$audit" | tr -d ' ')" -eq 1 && "$(cat "$audit")" == krang\|20*\|external-write\|*"stuck machine-lock holder pid $wrapper_pid"*"released the lock"* ]] && echo pass)"
   code=0; (cd "$other" && "$script" --exclusive --command 'vendor/bin/gate-ok' >/dev/null 2>&1) || code=$?
-  check 'the next run takes the released lock' "$([[ "$code" -eq 0 && "$(calls_in gate-ok)" -eq 1 ]] && echo pass)"
+  check 'the next run takes the released lock' "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 1 ]] && echo pass)"
 
   # --- A dead holder ----------------------------------------------------------------
   local dead
@@ -465,7 +480,7 @@ self_test() {
   rm -rf "$lock"
 
   # --- A process the wrapper did not start is never stopped -------------------------
-  local stranger now_epoch start
+  local stranger stranger2 now_epoch start
   sleep 300 &
   stranger=$!
   SELF_TEST_PIDS+=("$stranger")
@@ -491,6 +506,18 @@ self_test() {
   check 'a recorded start time that differs from the live process is refused' \
     "$([[ "$code" -eq 3 ]] && kill -0 "$stranger" 2>/dev/null && echo pass)"
 
+  # The wrapper name must be the script the interpreter runs, not a substring of another word.
+  bash -c 'sleep 300' xrun-gate.sh.old &
+  stranger2=$!
+  SELF_TEST_PIDS+=("$stranger2")
+  sleep 0.3
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nPROCESS_START=%s\nWRAPPER=run-gate.sh\nPROJECT=%s\nCOMMAND=%s\n' \
+    "$stranger2" "$(gate_now)" "$now_epoch" "$(gate_process_start "$stranger2")" "$project" 'vendor/bin/gate-hang' >"$lock/holder"
+  code=0; "$self" repair --audit "$audit" >/dev/null 2>&1 || code=$?
+  check 'a command line that holds the wrapper name only as a substring is refused' \
+    "$([[ "$code" -eq 3 ]] && gate_pid_running "$stranger2" && echo pass)"
+  { kill "$stranger2" && wait "$stranger2"; } 2>/dev/null || true
+
   # A holder file of an older format carries no heartbeat and is never stuck.
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$stranger" "$(gate_now)" "$now_epoch" >"$lock/holder"
   rm -f "$lock/heartbeat"
@@ -501,13 +528,57 @@ self_test() {
   rm -rf "$lock"
   { kill "$stranger" && wait "$stranger"; } 2>/dev/null || true
 
+  # --- A lock with no holder file: a run killed between its mkdir and its holder file ------
+  mkdir -p "$lock"
+  code=0; status_of || code=$?
+  check 'a fresh lock without a holder file is unproven and repair leaves it' \
+    "$([[ "$code" -eq 0 && "$(jq -r .state <<<"$OUT")" == unproven ]] && "$self" repair --audit "$audit" >/dev/null 2>&1 && [[ -d "$lock" ]] && echo pass)"
+  touch -t 200001010000 "$lock"
+  code=0; status_of || code=$?
+  check 'a lock without a holder file for over a minute is dead and status exits 10' \
+    "$([[ "$code" -eq 10 && "$(jq -r .state <<<"$OUT")" == dead ]] && echo pass)"
+  : >"$audit"
+  code=0; OUT="$("$self" repair --audit "$audit" 2>/dev/null)" || code=$?
+  check 'repair removes a lock that has had no holder file for over a minute' \
+    "$([[ "$code" -eq 0 && "$(jq -r .action <<<"$OUT")" == released-dead && ! -e "$lock" ]] && echo pass)"
+
+  # A waiter keeps the old behaviour: it never reclaims a lock without a holder file.
+  mkdir -p "$lock"
+  touch -t 200001010000 "$lock"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; (cd "$project" && "$script" --exclusive --command 'vendor/bin/gate-ok' >/dev/null 2>&1) || code=$?
+  check 'a waiter does not reclaim a lock without a holder file' "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 ]] && echo pass)"
+  rm -rf "$lock"
+
+  # The holder file lands whole: no temporary file stays beside it.
+  ( cd "$project" && exec "$script" --exclusive --command 'vendor/bin/gate-hang' >/dev/null 2>&1 ) &
+  wrapper_pid=$!
+  SELF_TEST_PIDS+=("$wrapper_pid")
+  wait_for_file "$lock/heartbeat" || true
+  check 'the holder file is written through a temporary file and a rename' \
+    "$([[ -f "$lock/holder" && -z "$(find "$lock" -maxdepth 1 -name '.holder.*')" ]] && echo pass)"
+  # shellcheck disable=SC2046
+  { kill $(gate_descendants "$wrapper_pid" | awk '{ print $1 }') "$wrapper_pid" && wait "$wrapper_pid"; } 2>/dev/null || true
+  rm -rf "$lock"
+
+  # --- A lock the repair cannot remove ---------------------------------------------------
+  mkdir -p "$lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nWRAPPER=run-gate.sh\nPROJECT=%s\nCOMMAND=x\n' "$dead" "$(gate_now)" "$(date +%s)" "$project" >"$lock/holder"
+  : >"$audit"
+  chmod 555 "$AI_OLYMPUS_LOCK_DIR"
+  code=0; OUT="$("$self" repair --audit "$audit" 2>/dev/null)" || code=$?
+  chmod 755 "$AI_OLYMPUS_LOCK_DIR"
+  check 'a lock that repair cannot remove is reported as release-failed with exit 4 and a note' \
+    "$([[ "$code" -eq 4 && "$(jq -r .action <<<"$OUT")" == release-failed && "$(jq -r .released <<<"$OUT")" == false && -d "$lock" && "$(cat "$audit")" == *\|note\|*"failed"* ]] && echo pass)"
+  rm -rf "$lock"
+
   # --- A command that a holder started runs under its lock ---------------------------
   mkdir -p "$lock"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$lock/holder"
   : >"$GATE_SELFTEST_CALLS"
   code=0; (cd "$project" && AI_OLYMPUS_LOCK_HELD_BY="$$" "$script" --exclusive --command 'vendor/bin/gate-ok' >/dev/null 2>&1) || code=$?
   check 'a heavy command started by the holder runs under its lock and does not wait for it' \
-    "$([[ "$code" -eq 0 && "$(calls_in gate-ok)" -eq 1 && -d "$lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 1 && -d "$lock" ]] && echo pass)"
   code=0; (cd "$project" && AI_OLYMPUS_LOCK_HELD_BY=1 "$script" --exclusive --command 'vendor/bin/gate-ok' >/dev/null 2>&1) || code=$?
   check 'a held-by claim that names another process still waits for the lock' "$([[ "$code" -eq 6 ]] && echo pass)"
   rm -rf "$lock"
@@ -522,11 +593,6 @@ self_test() {
   fi
   echo 'gate-lock self-test: PASS'
   return 0
-}
-
-# Count the stub calls that start with $1.
-calls_in() {
-  if [[ -f "$GATE_SELFTEST_CALLS" ]]; then grep -c "^$1" "$GATE_SELFTEST_CALLS" || true; else printf '0'; fi
 }
 
 for tool in git jq; do

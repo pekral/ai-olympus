@@ -60,7 +60,7 @@ Usually low-signal or out of scope unless the program says otherwise:
 ### Triage loop example
 ```bash
 # optional — any one of these, treat output as leads only
-vendor/bin/phpstan analyse --no-progress   # Larastan runs as a PHPStan extension
+skills/_shared/run-gate.sh --exclusive --command "vendor/bin/phpstan analyse --no-progress"   # Larastan runs as a PHPStan extension
 # or: semgrep --config=auto --severity=ERROR --json
 ```
 Then manually filter: drop tests/demos/fixtures/vendored code and any non-reachable path; keep only findings with a clear network or user-controlled route to a meaningful sink.
