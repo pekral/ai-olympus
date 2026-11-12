@@ -18,7 +18,9 @@ test('one rule section owns the real-problem, minimal-API, and proving-test prin
             1,
         )
         ->and(substr_count($owner, 'Keep a new member private or internal until a caller needs it.'))->toBe(1)
-        ->and(substr_count($owner, '**Behaviour proven by a test.** A test fails without the change and passes with it.'))->toBe(1);
+        ->and(substr_count($owner, '**Behaviour proven by a test.** A behaviour the change adds or fixes is proven by a test'))->toBe(1)
+        ->and(substr_count($owner, 'is proven by the existing tests staying green (`@rules/refactoring/general.md`)'))->toBe(1)
+        ->and(substr_count($owner, '`@rules/code-testing/general.md` *Test Value* owns the value of each test'))->toBe(1);
 });
 
 test('the principle is stated in the owner only and the existing rules are referenced', function (): void {
@@ -53,7 +55,10 @@ test('the review entry makes an unused public member Moderate and gates it again
     expect(substr_count($owner, '- **A public member that no caller uses**'))->toBe(1)
         ->and(substr_count($owner, 'no current non-test caller uses and no acceptance criterion names — is a **Moderate** finding'))->toBe(1)
         ->and(substr_count($owner, '  - **Gating — one finding per line:** a speculative parameter and a speculative project interface'))->toBe(1)
+        ->and(substr_count($owner, 'an abstraction, flag, option, config key, or extension point belongs to'))->toBe(1)
+        ->and(substr_count($owner, '*Method visibility wider than its callers need*, and a member widened for a test'))->toBe(1)
         ->and(substr_count($owner, 'This entry owns the remaining members only.'))->toBe(1)
+        ->and(substr_count($owner, 'a test that passes without the change is the test-value lens finding'))->toBe(1)
         ->and(substr_count($owner, '- **A behaviour with no proving test, or a change with no real problem**'))->toBe(1)
         ->and(substr_count($owner, 'this section raises no second one'))->toBe(1)
         ->and(substr_count($owner, '*Acceptance-criteria use-case coverage* finding (Critical)'))->toBe(1)
