@@ -28,7 +28,7 @@
 #               candidate changes (skills/code-review/references/learning-promotion.md).
 #   --min-pull-requests
 #               the distinct pull requests a class must rest on. 2 by default, 1 for a promotion candidate of
-#               a resolved Critical finding (skills/_shared/promote-learning.sh).
+#               the memory target (skills/_shared/promote-learning.sh).
 #   --out       the file that receives the proposal. It starts with a `# <title>` line and ends with the
 #               dedupe marker line. It is written only when the status is `ready`.
 #   --find      look up the proposal that already exists for a class. It reads no network.
@@ -256,7 +256,8 @@ $rec[0] as $r
 | ($m.level) as $level
 | (($m.skipped // []) | sort_by(.level)) as $skipped
 | "\($r.repo):\($r.category):\($r.cause_key)" as $key
-| "Prevent the defect class \($r.cause_key) (\($r.category)) in \($r.repo)" as $title
+| (if ($occ | map(.pr) | unique | length) >= 2 then "Prevent the recurring defect class" else "Prevent the defect class" end) as $head
+| "\($head) \($r.cause_key) (\($r.category)) in \($r.repo)" as $title
 | [
     "# \($title)",
     (if ($occ | map(.pr) | unique | length) >= 2 then "This is a prevention proposal for a defect class that recurs across independent pull requests."
@@ -601,8 +602,8 @@ JSON
       .status == "ready" and .level == 2 and .occurrences == 2
       and .key == "acme/shop:rules/code-review/core-analysis:n-plus-one-queries"
       and .marker == "<!-- prevention-proposal:key=acme/shop:rules/code-review/core-analysis:n-plus-one-queries -->"
-      and .title == "Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  check 'the proposal starts with its title, which the issue creation reads as the title' "$([[ "$(head -n 1 "$tmp/body.md")" == '# Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop' ]] && echo 0 || echo 1)"
+      and .title == "Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'the proposal starts with its title, which the issue creation reads as the title' "$([[ "$(head -n 1 "$tmp/body.md")" == '# Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop' ]] && echo 0 || echo 1)"
   check 'the proposal links both independent occurrences' "$(grep -q '(https://github.com/acme/shop/pull/7)' "$tmp/body.md" && grep -q '(https://github.com/acme/shop/pull/9)' "$tmp/body.md" && echo 0 || echo 1)"
   check 'the proposal carries every mandatory field' "$(
     ok=0
@@ -645,15 +646,25 @@ JSON
   "$HERE/analyze-recurrence.sh" --store "$tmp/samepr.jsonl" >"$tmp/reportsame.json"
   run_case 'two findings of one pull request are proposed' 0 -- --report "$tmp/reportsame.json" --store "$tmp/samepr.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/none.md"
   check 'two findings of one pull request give no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
+  # The memory target reads the memory view of the pattern report, which promote-learning.sh puts under `recurrences`.
   rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"' >"$tmp/first.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns >"$tmp/reportfirst.json"
+  "$HERE/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportfirst.json"
   rm -f "$tmp/first.md"
   run_case 'a resolved Critical finding is proposed at a minimum of one pull request' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 1
-  check 'a single resolved Critical finding gives a proposal that does not claim a recurrence' "$(jq -e '.status == "ready" and .occurrences == 1' "$tmp/out" >/dev/null && grep -q 'the defect class of one resolved Critical code-review finding' "$tmp/first.md" && ! grep -q 'recurs across' "$tmp/first.md" && echo 0 || echo 1)"
+  check 'a single resolved Critical finding gives a proposal that does not claim a recurrence' "$(jq -e '.status == "ready" and .occurrences == 1 and .title == "Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && grep -q 'the defect class of one resolved Critical code-review finding' "$tmp/first.md" && ! grep -q 'recurs across' "$tmp/first.md" && echo 0 || echo 1)"
   rm -f "$tmp/first.md"
   run_case 'the same report is proposed at the default minimum' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md"
   check 'the default minimum of two pull requests still gives no proposal for one' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/first.md" ]] && echo 0 || echo 1)"
   run_case 'a minimum of three pull requests is a usage error' 1 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 3
+  { rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved" | .severity = "moderate"'; rec 9 2026-09-25T10:00:00Z | jq -c '.status = "resolved" | .severity = "moderate"'; } >"$tmp/moderate.jsonl"
+  "$HERE/analyze-recurrence.sh" --store "$tmp/moderate.jsonl" --patterns --min-occurrences 2 >"$tmp/reportmod.json"
+  rm -f "$tmp/mod.md"
+  run_case 'a recurring Moderate class is proposed for a target other than the memory' 0 -- --report "$tmp/reportmod.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/mod.md"
+  check 'a recurring Moderate class still gives a proposal that names the recurring defect class' "$(jq -e '.status == "ready" and .occurrences == 2 and .title == "Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && grep -q 'recurs across independent pull requests' "$tmp/mod.md" && echo 0 || echo 1)"
+  jq -c '.recurrences = .memory_recurrences' "$tmp/reportmod.json" >"$tmp/reportmodmem.json"
+  rm -f "$tmp/mod.md"
+  run_case 'a recurring Moderate class is proposed for the memory target' 0 -- --report "$tmp/reportmodmem.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/mod.md" --min-pull-requests 1
+  check 'a Moderate class gives no proposal for the memory target and writes no file' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
   analysis '.class.cause_key = "missing-authorization"'
   propose 'another class than the reported one is proposed' 0
   check 'a class that the report does not list gives no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring" and .key == "acme/shop:rules/code-review/core-analysis:missing-authorization"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
