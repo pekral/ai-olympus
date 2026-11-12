@@ -115,6 +115,6 @@ test('agent migration never removes the splinter security agent, old or new, bec
         installerRemoveDirectory($root);
     }
 })->with([
+    'the security agent definition of this package' => fn (): string => (string) file_get_contents(__DIR__ . '/../agents/splinter.md'),
     'the unmodified 0.3.1 orchestrator definition' => fn (): string => (string) file_get_contents(__DIR__ . '/Fixtures/legacy-agents/splinter.md'),
-    'the security agent definition of this package' => fn (): string => (string) file_get_contents(dirname(__DIR__) . '/agents/splinter.md'),
 ]);
