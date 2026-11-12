@@ -257,6 +257,53 @@ function codeTestingTestBlocks(string $source): array
 }
 
 /**
+ * An empty audit ledger in its own temporary directory, with the environment that points a package
+ * wrapper at it (`skills/_shared/audit-trail.sh`).
+ *
+ * @return array{directory: string, env: array<string, string>, file: string}
+ */
+function auditLedgerCreate(string $role = 'donatello'): array
+{
+    $directory = sys_get_temp_dir() . '/ai-olympus-audit-' . bin2hex(random_bytes(6));
+    installerEnsureDirectory($directory);
+    $file = $directory . '/run.audit';
+    file_put_contents($file, '');
+
+    return [
+        'directory' => $directory,
+        'env' => ['AUDIT_TRAIL_FILE' => $file, 'AUDIT_TRAIL_ROLE' => $role],
+        'file' => $file,
+    ];
+}
+
+/**
+ * Every ledger line split into its five fields: role, time, class, target, result.
+ *
+ * @param array{directory: string, env: array<string, string>, file: string} $ledger
+ * @return list<list<string>>
+ */
+function auditLedgerRows(array $ledger): array
+{
+    $rows = [];
+
+    $lines = file($ledger['file'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    foreach ($lines === false ? [] : $lines as $line) {
+        $rows[] = explode('|', $line);
+    }
+
+    return $rows;
+}
+
+/**
+ * @param array{directory: string, env: array<string, string>, file: string} $ledger
+ */
+function auditLedgerRemove(array $ledger): void
+{
+    installerRemoveDirectory($ledger['directory']);
+}
+
+/**
  * Returns the body of a Markdown section, from its `## Heading` to the next same-level
  * heading or the end of the document, so a section that closes the file still slices.
  */

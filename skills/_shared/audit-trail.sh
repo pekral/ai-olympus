@@ -20,7 +20,7 @@
 #       and exit status pass through unchanged. Allowed commands: `git push`,
 #       `gh pr create|ready|edit|close|merge|update-branch|reopen|comment|review`,
 #       `gh issue create|edit|close|reopen|comment`, `gh label create|edit|delete`.
-#   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--remote R]
+#   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
 #       Check the file's line shape and compare the writes it can observe with the ledger.
 #   audit-trail.sh --self-test
 #
@@ -36,7 +36,9 @@
 #   - every line has exactly five fields, a role first, an ISO-8601 time second, and a class third;
 #     a malformed line that a later `note` line names (`line <N>` or the line's own text) is resolved;
 #   - with --branch, the remote head of the branch appears in an `external-write` line;
-#   - with --pr, the pull request's URL appears in an `external-write` line.
+#   - with --pr, the pull request's URL appears in an `external-write` line;
+#   - with --pr or --issue, every comment the current GitHub account made on the item since the first
+#     ledger line, and every label it added or removed, has an `external-write` line.
 #   A check that needs the network and cannot run prints `not verified: …` and never fails verify.
 #
 # Output (stdout of verify): `problem: …` and `not verified: …` lines, or `audit trail ok: …`.
@@ -59,7 +61,7 @@ usage() {
 Usage: audit-trail.sh append --class <class> --target <text> --result <text> [--role R] [--file F]
        audit-trail.sh record --target <text> --status <n> [--detail <text>] [--role R] [--file F]
        audit-trail.sh run [--target <text>] [--role R] [--file F] -- <write command...>
-       audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--remote R]
+       audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
        audit-trail.sh --self-test
 
 AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE supply --file and --role when they are not given.
@@ -115,7 +117,7 @@ resolve_ledger() {
     return 1
   fi
   if [[ "$FILE" != *.audit || ! -d "$(dirname "$FILE")" ]]; then
-    echo "$PROG: the audit file must be an existing directory's *.audit file: $(clean_field "$FILE")" >&2
+    echo "$PROG: the audit file (--file or AUDIT_TRAIL_FILE) must be an *.audit file in an existing directory" >&2
     return 1
   fi
   return 0
@@ -163,8 +165,75 @@ cmd_record() {
   if [[ "$status" -eq 0 ]]; then
     append_line "$FILE" "$ROLE" external-write "$target" "${detail:-ok} (exit 0)"
   else
-    append_line "$FILE" "$ROLE" note "no action performed" "$target failed (exit $status)${detail:+; $detail}"
+    append_line "$FILE" "$ROLE" note "no action performed" "$target: write failed (exit $status)${detail:+; $detail}"
   fi
+}
+
+# The positional arguments of `git push <args>` (the remote, then the refspecs), one per line.
+push_positionals() {
+  local skip=0 end=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      -o | --push-option | --repo) skip=1; continue ;;
+      -*) continue ;;
+      esac
+    fi
+    printf '%s\n' "$arg"
+  done
+}
+
+# The abbreviated commit a `git push <args>` publishes; empty when it cannot be resolved.
+pushed_head() {
+  local -a rev=(git) args=("${@:2}") pos=()
+  local arg src
+  if [[ "${args[0]:-}" == "-C" ]]; then
+    rev+=(-C "${args[1]:-.}")
+    args=("${args[@]:2}")
+  fi
+  args=("${args[@]:1}")
+  for arg in ${args[@]+"${args[@]}"}; do
+    # Pushes that name no single source commit: nothing to resolve.
+    case "$arg" in --all | --mirror | --tags | --delete | -d) return 0 ;; esac
+  done
+  while IFS= read -r arg; do pos+=("$arg"); done < <(push_positionals ${args[@]+"${args[@]}"})
+  src="HEAD"
+  if [[ "${#pos[@]}" -ge 2 ]]; then
+    src="${pos[1]#+}"
+    src="${src%%:*}"
+  fi
+  [[ -n "$src" && "$src" != -* ]] || return 0
+  "${rev[@]}" rev-parse --short=12 --verify --quiet "${src}^{commit}" 2>/dev/null || true
+}
+
+# The label changes of a `gh pr|issue edit` command as " +label <name>" / " -label <name>", so the
+# ledger line names them and `verify` can match a labeled / unlabeled event to it.
+label_changes() {
+  local out="" prev="" arg value label
+  for arg in "$@"; do
+    value=""
+    case "$arg" in
+    --add-label=*) value="+${arg#--add-label=}" ;;
+    --remove-label=*) value="-${arg#--remove-label=}" ;;
+    *)
+      case "$prev" in
+      --add-label) value="+$arg" ;;
+      --remove-label) value="-$arg" ;;
+      esac
+      ;;
+    esac
+    prev="$arg"
+    [[ -n "$value" ]] || continue
+    while IFS= read -r label; do
+      [[ -z "$label" ]] || out="$out ${value:0:1}label $label"
+    done < <(tr ',' '\n' <<<"${value:1}")
+  done
+  printf '%s' "$out"
 }
 
 # Describe an allowed write command in a bounded, secret-free target; return 1 when it is not allowed.
@@ -178,25 +247,36 @@ describe_command() {
   sub2="${argv[2]:-}"
   case "$tool $sub1" in
   "git push")
-    local out="git push" count=0
+    local out="git push" count=0 name
     for arg in "${argv[@]:2}"; do
-      [[ "$arg" == -* || ! "$arg" =~ ^[A-Za-z0-9._/:@+-]+$ || "$count" -ge 2 ]] && continue
+      if [[ "$arg" == --* ]]; then
+        name="${arg%%=*}"
+        # An option that makes git run a program is no write: refuse it, and every abbreviation git accepts.
+        if [[ "${#name}" -gt 2 && ("--receive-pack" == "$name"* || "--exec" == "$name"* || "--upload-pack" == "$name"*) ]]; then
+          return 1
+        fi
+      fi
+      # A `ext::<command>` remote runs a program too.
+      [[ "$arg" == *::* ]] && return 1
+    done
+    while IFS= read -r arg; do
+      [[ "$arg" =~ ^[A-Za-z0-9._/:@+-]+$ && "$count" -lt 2 ]] || continue
       out="$out $arg"
       count=$((count + 1))
-    done
+    done < <(push_positionals "${argv[@]:2}")
     printf '%s' "$out"
     ;;
   "gh pr")
     [[ " create ready edit close merge update-branch reopen comment review " == *" $sub2 "* ]] || return 1
     arg="${argv[3]:-}"
     [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
-    printf 'gh pr %s%s' "$sub2" "${arg:+ $arg}"
+    printf 'gh pr %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
     [[ " create edit close reopen comment " == *" $sub2 "* ]] || return 1
     arg="${argv[3]:-}"
     [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
-    printf 'gh issue %s%s' "$sub2" "${arg:+ $arg}"
+    printf 'gh issue %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh label")
     [[ " create edit delete " == *" $sub2 "* ]] || return 1
@@ -235,11 +315,7 @@ cmd_run() {
   url="$(awk 'match($0, /https:\/\/[^ \t]+/) { print substr($0, RSTART, RLENGTH); exit }' "$out")"
   rm -f "$out"
   if [[ "$rc" -eq 0 && "$described" == "git push"* ]]; then
-    if [[ "$1" == git && "${2:-}" == "-C" ]]; then
-      head="$(git -C "$3" rev-parse --short=12 HEAD 2>/dev/null || true)"
-    else
-      head="$(git rev-parse --short=12 HEAD 2>/dev/null || true)"
-    fi
+    head="$(pushed_head "$@")"
     [[ -z "$head" ]] || detail="head $head"
   fi
   [[ -z "$target" ]] && target="$described${url:+ -> $url}"
@@ -248,11 +324,51 @@ cmd_run() {
   return "$rc"
 }
 
+# The comments and the label changes the current GitHub account made on one pull request or issue
+# since <since>, each one a line "kind<TAB>id-or-label<TAB>detail". Return 1 when a read fails.
+observe_item_writes() {
+  local base="$1" login="$2" since="$3" out
+  out="$(gh api "$base/comments" --paginate --jq '.[] | [.user.login, .created_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
+  awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "comment\t%s\t%s\n", $3, $2 }' <<<"$out"
+  out="$(gh api "$base/timeline" --paginate --jq '.[] | select(.event == "labeled" or .event == "unlabeled") | [.actor.login, .created_at, .event, .label.name] | @tsv' 2>/dev/null)" || return 1
+  awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
+}
+
+# Compare those writes with the ledger: a comment or a label change with no ledger line is a problem.
+# Reads and writes the caller's `problems`, `notes`, `writes`, `since`, and `login` variables.
+observe_item() {
+  local item="$1" base kind id when observed
+  if [[ "$item" =~ ^https://[^/]+/([^/]+)/([^/]+)/(pull|issues)/([0-9]+) ]]; then
+    base="repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/issues/${BASH_REMATCH[4]}"
+  elif [[ "$item" =~ ^[0-9]+$ ]]; then
+    base="repos/{owner}/{repo}/issues/$item"
+  else
+    notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
+    return 0
+  fi
+  if ! observed="$(observe_item_writes "$base" "$login" "$since")"; then
+    notes+=("the comments or the timeline of $(clean_field "$item") could not be read; run 'gh api $base/comments' and 'gh api $base/timeline' and compare them with the ledger")
+    return 0
+  fi
+  while IFS=$'\t' read -r kind id when; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+    comment)
+      grep -Fq -- "issuecomment-$id" <<<"$writes" || problems+=("comment $id of $login on $(clean_field "$item") (created $when) has no external-write line; append it, or publish through the package's upsert-comment.sh")
+      ;;
+    *)
+      grep -Fq -- "$id" <<<"$writes" || problems+=("label '$(clean_field "$id")' $kind by $login on $(clean_field "$item") (at $when) has no external-write line; append it, or run the write through audit-trail.sh run")
+      ;;
+    esac
+  done <<<"$observed"
+}
+
 cmd_verify() {
-  local file="" branch="" pr="" remote="origin"
+  local file="" branch="" pr="" issue="" remote="origin"
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --file) [[ $# -ge 2 ]] || { usage; return 1; }; file="$2"; shift 2 ;;
+    --issue) [[ $# -ge 2 ]] || { usage; return 1; }; issue="$2"; shift 2 ;;
     --branch) [[ $# -ge 2 ]] || { usage; return 1; }; branch="$2"; shift 2 ;;
     --pr) [[ $# -ge 2 ]] || { usage; return 1; }; pr="$2"; shift 2 ;;
     --remote) [[ $# -ge 2 ]] || { usage; return 1; }; remote="$2"; shift 2 ;;
@@ -262,7 +378,7 @@ cmd_verify() {
   file="${file:-${AUDIT_TRAIL_FILE:-}}"
   [[ -n "$file" ]] || { usage; return 1; }
   if [[ ! -r "$file" ]]; then
-    echo "problem: the audit file is not readable: $(clean_field "$file")"
+    echo "problem: the audit file (--file or AUDIT_TRAIL_FILE) is not readable"
     return 3
   fi
 
@@ -331,6 +447,18 @@ cmd_verify() {
       notes+=("the pull request $(clean_field "$pr") could not be read; run 'gh pr view' and compare its URL with the ledger")
     elif ! grep -Fq -- "/pull/${BASH_REMATCH[1]}" <<<"$writes"; then
       problems+=("pull request $pr_url has no external-write line; append it, or run the write through audit-trail.sh run")
+    fi
+  fi
+
+  if [[ -n "$pr" || -n "$issue" ]]; then
+    local since login
+    since="$(awk -F'|' 'NF == 5 && $2 ~ /Z$/ { print $2; exit }' "$file")"
+    login="$(gh api user --jq .login 2>/dev/null || true)"
+    if [[ -z "$since" || -z "$login" ]]; then
+      notes+=("the comments and the label changes of the account could not be compared with the ledger (no ledger time, or the account login could not be read)")
+    else
+      [[ -z "$pr" ]] || observe_item "$pr"
+      [[ -z "$issue" ]] || observe_item "$issue"
     fi
   fi
 
@@ -408,7 +536,7 @@ echo "https://example.test/o/r/pull/9"
 exit "${FAKE_GH_EXIT:-0}"
 EOF
   chmod +x "$tmp/bin/gh"
-  local before out
+  local before out option
   before="$(line_count)"
   out="$(PATH="$tmp/bin:$PATH" "$script" run -- gh pr create --title x)"
   expect_eq 'run passes the command stdout through' "$out" 'https://example.test/o/r/pull/9'
@@ -417,12 +545,16 @@ EOF
   expect_eq 'run records a successful write as external-write' "$(field 3 "$l")" external-write
   if [[ "$(field 4 "$l")" == 'gh pr create -> https://example.test/o/r/pull/9' ]]; then ok 'run names the created pull request URL'; else bad "run target: $(field 4 "$l")"; fi
 
+  PATH="$tmp/bin:$PATH" "$script" run -- gh pr edit 9 --add-label 'ready to merge' --remove-label=stale >/dev/null
+  l="$(last_line)"
+  expect_eq 'run names the label changes of an edit' "$(field 4 "$l")" 'gh pr edit 9 +label ready to merge -label stale -> https://example.test/o/r/pull/9'
+
   rc=0
   PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=5 "$script" run -- gh pr ready 9 >/dev/null 2>&1 || rc=$?
   expect_eq 'run exits with the write command status, not a pipe status' "$rc" 5
   l="$(last_line)"
   expect_eq 'run records a failed write as a note line' "$(field 3 "$l")" note
-  if [[ "$(field 5 "$l")" == *'gh pr ready 9'*'failed (exit 5)'* ]]; then ok 'the failed write names its own exit status'; else bad "failed note: $(field 5 "$l")"; fi
+  if [[ "$(field 5 "$l")" == *'gh pr ready 9'*'write failed (exit 5)'* ]]; then ok 'the failed write names its own exit status'; else bad "failed note: $(field 5 "$l")"; fi
 
   before="$(line_count)"
   rc=0
@@ -452,6 +584,52 @@ EOF
   head="$(git -C "$work" rev-parse HEAD)"
   if [[ "$(field 5 "$l")" == *"head ${head:0:12}"* ]]; then ok 'a push line names the pushed head commit'; else bad "push line: $l"; fi
   expect_eq 'a push line names the push, never a branch-less target' "$(field 4 "$l")" 'git push origin feature'
+
+  # --- run: a push that names a commit other than HEAD, and a push with no commit ----------------
+  (
+    cd "$work"
+    git commit -q --allow-empty -m two
+    "$script" run -- git push -q origin HEAD~1:refs/heads/older
+  )
+  l="$(last_line)"
+  local older
+  older="$(git -C "$work" rev-parse HEAD~1)"
+  if [[ "$(field 5 "$l")" == *"head ${older:0:12}"* ]]; then ok 'a push line names the commit of the refspec source, not HEAD'; else bad "refspec push line: $l"; fi
+  (
+    cd "$work"
+    "$script" run -- git push -q origin :refs/heads/older
+  )
+  l="$(last_line)"
+  if [[ "$(field 5 "$l")" != *head* ]]; then ok 'a branch deletion names no head commit'; else bad "deletion push line: $l"; fi
+  (
+    cd "$work"
+    git reset -q --hard HEAD~1
+  )
+
+  # --- run: an option that makes git run a program is refused ------------------------------------
+  local pwn="$tmp/pwned"
+  for option in "--receive-pack=touch $pwn" "--exec=touch $pwn" "--upload-pack=touch $pwn" "--receive=touch $pwn" '--rec'; do
+    before="$(line_count)"
+    rc=0
+    (cd "$work" && "$script" run -- git push "$option" origin feature >/dev/null 2>&1) || rc=$?
+    expect_eq "run refuses git push $option with exit 64" "$rc" 64
+    expect_eq "a refused git push $option writes no line" "$(line_count)" "$before"
+  done
+  rc=0
+  (cd "$work" && "$script" run -- git push "ext::touch $pwn" feature >/dev/null 2>&1) || rc=$?
+  expect_eq 'run refuses an ext:: remote with exit 64' "$rc" 64
+  if [[ ! -e "$pwn" ]]; then ok 'no refused push ran its program'; else bad 'a refused push ran its program'; fi
+
+  # --- an environment value never reaches an output ----------------------------------------------
+  local marker="${tmp}/MARKER-must-not-print"
+  rc=0
+  AUDIT_TRAIL_FILE="$marker" "$script" record --target t --status 0 >"$tmp/leak.out" 2>"$tmp/leak.err" || rc=$?
+  expect_eq 'a bad AUDIT_TRAIL_FILE makes record exit 1' "$rc" 1
+  AUDIT_TRAIL_FILE="$marker" "$script" verify >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  AUDIT_TRAIL_FILE="${marker}.audit" "$script" append --class note --target t --result r >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  AUDIT_TRAIL_FILE="${marker}.audit" "$script" verify >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  if ! grep -q 'MARKER-must-not-print' "$tmp/leak.out" "$tmp/leak.err"; then ok 'no message prints the value of AUDIT_TRAIL_FILE'; else bad 'a message printed the value of AUDIT_TRAIL_FILE'; fi
+  if grep -q 'must be an \*.audit file' "$tmp/leak.err"; then ok 'the bad-file message is fixed text'; else bad 'the bad-file message is missing'; fi
 
   # --- verify -----------------------------------------------------------------------------
   rc=0
@@ -501,6 +679,49 @@ EOF
   rc=0
   "$script" verify --file "$tmp/missing.audit" >/dev/null || rc=$?
   expect_eq 'verify reports an unreadable file' "$rc" 3
+
+  # --- verify: the comments and the label changes of the account --------------------------------
+  local obs="$tmp/obs.audit"
+  cat >"$obs" <<'OBS'
+donatello|2026-11-11T10:00:00Z|external-write|gh pr create -> https://example.test/o/r/pull/5|ok (exit 0)
+donatello|2026-11-11T10:30:00Z|external-write|https://example.test/o/r/issues/5#issuecomment-101|created (exit 0)
+donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge|ok (exit 0)
+OBS
+  mkdir -p "$tmp/obsbin"
+  cat >"$tmp/obsbin/gh" <<'OBSGH'
+#!/usr/bin/env bash
+if [[ "${FAKE_GH_FAIL:-0}" == 1 && "$*" == *"issues/5/"* ]]; then exit 1; fi
+case "$*" in
+"api user --jq .login") echo bot ;;
+*"issues/5/comments"*)
+  printf 'bot\t2026-11-11T11:00:00Z\t101\n'
+  printf 'bot\t2026-11-11T11:00:00Z\t102\n'
+  printf 'other\t2026-11-11T11:00:00Z\t103\n'
+  printf 'bot\t2000-01-01T00:00:00Z\t104\n'
+  ;;
+*"issues/5/timeline"*)
+  printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tready to merge\n'
+  printf 'bot\t2026-11-11T11:00:00Z\tunlabeled\tsurprise\n'
+  printf 'other\t2026-11-11T11:00:00Z\tlabeled\tother-label\n'
+  ;;
+*"pr view"*) echo https://example.test/o/r/pull/5 ;;
+esac
+OBSGH
+  chmod +x "$tmp/obsbin/gh"
+  rc=0
+  PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+  expect_eq 'verify reports a comment or a label change with no ledger line' "$rc" 3
+  if grep -q 'comment 102 ' "$tmp/obs.out"; then ok 'verify names a comment of the account that has no line'; else bad 'verify missed the unrecorded comment'; fi
+  if grep -q "label 'surprise' unlabeled" "$tmp/obs.out"; then ok 'verify names a label change that has no line'; else bad 'verify missed the unrecorded label change'; fi
+  if ! grep -q 'comment 101 \|comment 103 \|comment 104 \|ready to merge\|other-label' "$tmp/obs.out"; then
+    ok 'verify skips a recorded write, another actor, and a write before the run'
+  else
+    bad "verify named a write it should skip: $(cat "$tmp/obs.out")"
+  fi
+  rc=0
+  PATH="$tmp/obsbin:$PATH" FAKE_GH_FAIL=1 "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+  expect_eq 'a failed read is no problem' "$rc" 0
+  if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
 
   # --- a package wrapper records its own write: the GitHub comment publisher --------------------
   if command -v php >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
