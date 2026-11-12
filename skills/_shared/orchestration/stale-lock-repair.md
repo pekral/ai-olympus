@@ -5,6 +5,7 @@ Extracted from `agents/krang.md` step 2 so the orchestrator does not carry it on
 1. The run starts, once the brief and its `.audit` ledger exist (step 2, gather phase).
 2. A dispatch returns `Blocked: gate lock wait exceeded`, or a `run-gate.sh` call in its handoff exited `6`.
 3. `skills/_shared/run-validation.sh` reports the verdict `locked` (exit `6`).
+4. A `run-gate.sh` or `run-validation.sh` call that the harness stopped while it waited printed no JSON result and still has not finished after the bounded repeats of `@skills/resolve-issue/references/quality-gates.md` *Waiting for the gate lock — the harness call timeout* (`Blocked: gate lock wait exceeded`).
 
 The machine lock, its heartbeat, and the repair are defined in `@rules/compound-engineering/concurrency.md` *One gate lock for the machine* and `@skills/resolve-issue/references/quality-gates.md` *A stuck lock — heartbeat and repair*. This file states only what `krang` does.
 

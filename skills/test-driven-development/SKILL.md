@@ -53,7 +53,7 @@ Write one minimal test for the next behavior, at its strongest owner boundary (`
 - Do not generate `covers()`
 
 ### 2. VERIFY RED
-Run the test and confirm:
+Run the test through `skills/_shared/run-gate.sh --exclusive --command "<command>"` and confirm:
 - it fails
 - it fails for the expected reason
 - it is not failing because of syntax, setup, or typo issues
@@ -69,7 +69,7 @@ Write the smallest production change needed to make the test pass.
 - Do not refactor unrelated code yet
 
 ### 4. VERIFY GREEN
-Run the relevant tests and confirm:
+Run the relevant tests through `skills/_shared/run-gate.sh --exclusive --command "<command>"` and confirm:
 - the new test passes
 - affected existing behavior still passes
 

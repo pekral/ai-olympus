@@ -130,7 +130,7 @@ Change nothing outside the assignment (`@rules/compound-engineering/general.md` 
 Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every bug fix. The Iron Law (`NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST`) applies without exception:
 
 8. Write or update a test that reproduces the bug (the failing test). Follow the RED step in `@skills/test-driven-development/SKILL.md`.
-9. **Verify RED** — run the test and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not proceed to the fix until the test is observed failing.** This step is mandatory and blocking.
+9. **Verify RED** — run the test (`run-gate.sh --exclusive`) and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not proceed to the fix until the test is observed failing.** This step is mandatory and blocking.
 10. Apply the fix (GREEN step) — write the smallest production change that makes the test pass, then verify all relevant tests pass. Then repair the records the defect already wrote — after this fix, never before (`references/data-repair.md`).
 
 ### If feature
@@ -140,8 +140,8 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 11. Implement the solution for all **in-scope** items identified in step 7.
 12. Ensure no sensitive data is exposed in error/validation messages. Apply `@rules/security/backend.md` *Safe Validation & Error Messages* (and `@rules/security/frontend.md` / `@rules/security/mobile.md` for the equivalent client surfaces) to every user-facing string the change touches, **including every locale shipped by the project** — auth, password-reset, sign-up, and account-lookup flows must return one generic message with one response shape so the wording cannot be used for identity enumeration, authorization-denied responses must not confirm the resource exists, and no stack traces / file paths / framework versions / DB or queue / cache identifiers / verbatim attacker input reach the response body.
     Apply `@rules/security/backend.md` *Malicious Code & Supply-Chain Indicators* (issue #549) to every line the change adds in application code, shell / deploy / CI scripts, and installer hooks — never introduce a silent `curl -s … | sh`, disabled TLS validation (`curl -k`, `CURLOPT_SSL_VERIFYPEER => false`, `NODE_TLS_REJECT_UNAUTHORIZED=0`), suppressed error output on a security-relevant command, or a hidden `/tmp` file paired with a detached background process; route downloads through allow-listed checksum-verified HTTPS and background work through the project's queue / scheduler.
-13. If the implementation introduced new database migrations, run them (`php artisan migrate` for Laravel projects, or the project-specific equivalent) before executing the affected tests or creating the pull request. Use `run-gate.sh --exclusive`.
-14. Run tests for affected areas and confirm correctness.
+13. If the implementation introduced new database migrations, run them (`php artisan migrate` for Laravel projects, or the project-specific equivalent) before executing the affected tests or creating the pull request.
+14. Run affected-area tests (`run-gate.sh --exclusive`) and confirm correctness.
 15. Add or update tests to cover the new or fixed behavior.
 16. Run `@skills/test-audit/SKILL.md` with `MODE=diff` over the current diff: it deletes tests proving no assignment logic and verifies 100% coverage of the changed lines.
 

@@ -4,7 +4,7 @@ A comment asks a question when it requests information instead of a change, for 
 
 ## In the review loop
 
-1. Open the code the question targets on the current head, and run the test or command that settles the question.
+1. Open the code the question targets on the current head, and run the test or command that settles the question, a test through `skills/_shared/run-gate.sh --exclusive --command "<command>"`.
 2. Find how the project already solves the same problem, and base the recommendation on that part.
 3. Write the answer in the rule's four-part shape and keep it in the loop state. Nothing is published during the loop.
 4. When the answer shows a defect, fix the defect like any other finding in this loop, and let the answer point to that fix.
