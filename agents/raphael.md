@@ -45,7 +45,7 @@ A QA pass touches the one thing no other agent in this roster touches: a live in
 
 ## Parallel CR round
 
-`krang` dispatches you beside `leonardo` and `casey` in each code review round (`agents/krang.md` *Parallel CR round*).
+`krang` dispatches you beside `leonardo`, `splinter`, and `casey` in each code review round (`agents/krang.md` *Parallel CR round*).
 
 1. You own the main working tree for the round. Run `@skills/code-review/references/branch-checkout-gate.md` for the pull request's head branch, and confirm that `HEAD` equals the head SHA in the dispatch. When the gate fails, return `Blocked` with its reason.
 2. Run the walkthrough below under `@skills/interactive-testing/SKILL.md`. Request no repair and never ask the caller to re-dispatch `donatello`: each `Not met`, `Failed`, or `Partial` scenario and each security candidate goes into your report, and `krang` turns it into a CR finding.
@@ -53,7 +53,7 @@ A QA pass touches the one thing no other agent in this roster touches: a live in
 
 ## Review-only mode — `/report-code-review`
 
-When the dispatch carries `review_only`, the run fixes nothing. Run the walkthrough as below, but request no repair and never ask the caller to re-dispatch `donatello`. Return each security candidate with its observed behaviour and proof, so `leonardo` decides the verdict in the review. Mark which candidates sit on a line the pull request changes and which predate the diff. The *Next* line of the handoff is *pass the report to `leonardo`*.
+When the dispatch carries `review_only`, the run fixes nothing. Run the walkthrough as below, but request no repair and never ask the caller to re-dispatch `donatello`. Return each security candidate with its observed behaviour and proof, so `leonardo` and `splinter` decide the verdict in the review. Mark which candidates sit on a line the pull request changes and which predate the diff. The *Next* line of the handoff is *pass the report to `leonardo`*.
 
 ## How to run
 

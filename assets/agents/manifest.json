@@ -41,6 +41,15 @@
       "thumbnail": "thumbnails/leonardo.png"
     },
     {
+      "id": "splinter",
+      "displayName": "Splinter",
+      "role": "Independent security review",
+      "accent": "#2dd4bf",
+      "summary": "Reads every change for security on its own and never sees the other reviewer's findings first.",
+      "portrait": "splinter.png",
+      "thumbnail": "thumbnails/splinter.png"
+    },
+    {
       "id": "raphael",
       "displayName": "Raphael",
       "role": "Acceptance testing",

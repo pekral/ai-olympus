@@ -18,6 +18,7 @@ test('every canonical agent has a project-scoped Codex adapter', function (): vo
         'michelangelo' => ['gpt-6-astra', 'high'],
         'raphael' => ['gpt-6-luna', 'medium'],
         'krang' => ['gpt-6.1-sol', 'high'],
+        'splinter' => ['gpt-6.1-sol', 'high'],
     ];
 
     expect($agentFiles)->not->toBeFalse();

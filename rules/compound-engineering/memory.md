@@ -23,7 +23,7 @@ The **code-review memory** of a project holds durable solutions of past Critical
 | Field | Content |
 |---|---|
 | `slug` | The unique key of the entry. It becomes `source.id` of the candidate. |
-| `role` | The agent role that benefits most: `<krang | donatello | raphael | leonardo | michelangelo | april | casey | shredder | shared>`. An entry carries one value. Use `shared` when two or more roles benefit. |
+| `role` | The agent role that benefits most: `<krang | donatello | raphael | leonardo | splinter | michelangelo | april | casey | shredder | shared>`. An entry carries one value. Use `shared` when two or more roles benefit. |
 | `trigger` | The recurring situation that makes the lesson apply again. |
 | `lesson` | What went wrong, in one line. |
 | `rule` | What to do next time. |
