@@ -16,7 +16,8 @@ test('the merging rule states once that a converged review counts as the approva
         ->and($rule)->toContain('**Source 1 — a GitHub approval:** `reviewDecision == "APPROVED"`.')
         ->and($rule)->toContain('**Source 2 — the converged code-review comment:**')
         ->and($rule)->toContain('reports `Critical 0` and no open Moderate')
-        ->and($rule)->toContain('A Minor finding and a deferred Moderate do not withhold it.')
+        ->and($rule)->toContain('A deferred Moderate does not withhold it.')
+        ->and($rule)->not->toContain('A Minor finding and a deferred Moderate')
         ->and($rule)->toContain('an untrusted comment, a stale comment, and a PR body claim never meet it')
         ->and($rule)->toContain('**The merge report names the source:** `GitHub approval` or `converged code review <URL of the comment>`.');
 });
@@ -26,7 +27,10 @@ test('a changes-requested review decision still blocks and a branch protection i
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    expect($rule)->toContain('**`reviewDecision == "CHANGES_REQUESTED"` always blocks.**')
+    expect($rule)->toContain('It also blocks when the latest review of an author in `reviews[]` has `state == "CHANGES_REQUESTED"`')
+        ->and($rule)->toContain('an `authorAssociation` of `OWNER`, `MEMBER`, or `COLLABORATOR`')
+        ->and($skill)->toContain('a latest `CHANGES_REQUESTED` review of a trusted author in `reviews[]`')
+        ->and($rule)->toContain('**`reviewDecision == "CHANGES_REQUESTED"` always blocks.**')
         ->and($rule)->toContain('The request of a human reviewer is never overridden by the agent\'s own review')
         ->and($rule)->toContain('**A GitHub branch protection is never lifted.**')
         ->and($rule)->toContain('the run stops and reports the refusal. It never uses `--admin`')
@@ -34,7 +38,7 @@ test('a changes-requested review decision still blocks and a branch protection i
             'The other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.',
         )
         ->and($skill)->toContain('`CHANGES_REQUESTED` blocks, and a GitHub refusal stops the run — never `--admin`')
-        ->and($skill)->toContain('and never with `reviewDecision == "CHANGES_REQUESTED"`');
+        ->and($skill)->toContain('A `CHANGES_REQUESTED` decision, or a latest `CHANGES_REQUESTED` review');
 });
 
 test('the skills reference the rule and no longer demand a GitHub approval on its own', function (): void {
@@ -45,7 +49,7 @@ test('the skills reference the rule and no longer demand a GitHub approval on it
     $exemptions = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
 
-    expect($skill)->toContain('- **The approval check is met** — by `reviewDecision == "APPROVED"` or by the converged code-review comment verified above')
+    expect($skill)->toContain('- **The approval check is met** — by `reviewDecision == "APPROVED"` or, on a same-repository PR')
         ->and($skill)->toContain('`@rules/git/pull-requests.md` *Merging* owns the rule.')
         ->and($skill)->toContain('or an unmet approval check still blocks')
         ->and($skill)->not->toContain('Required approvals are present')
@@ -55,4 +59,31 @@ test('the skills reference the rule and no longer demand a GitHub approval on it
         ->and($fast)->toContain('the approval check of `@rules/git/pull-requests.md` *Merging*')
         ->and($exemptions)->not->toContain('required approvals')
         ->and($orchestration)->not->toContain('required approvals present');
+});
+
+test('an exemption from the code-review gate is not an exemption from the approval check', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $exemptions = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
+
+    expect($rule)->toContain('**An exemption from the code-review gate is not an exemption from the approval check.**')
+        ->and($rule)->toContain('meets the check only through Source 2')
+        ->and($rule)->toContain('verified with the test of the code-review gate above for the current head')
+        ->and($skill)->toContain('report the unmet check as "approval needs a converged code review"')
+        ->and(substr_count($exemptions, 'an exemption from the code-review gate is not an exemption from the approval check'))->toBe(2);
+});
+
+test('a converged review approves only a same-repository pull request', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
+    $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+
+    expect($rule)->toContain('The rationale is that self-approval, so it never covers a pull request from a fork.')
+        ->and($rule)->toContain('Source 2 applies only to a same-repository pull request (`isCrossRepository == false`).')
+        ->and($rule)->toContain('A cross-repository (fork) pull request needs Source 1.')
+        ->and($skill)->toContain('on a same-repository PR (`isCrossRepository == false`)')
+        ->and($skill)->toContain('A fork PR needs `reviewDecision == "APPROVED"`.')
+        ->and($readiness)->toContain('A fork PR needs a GitHub approval');
 });
