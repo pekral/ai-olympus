@@ -28,7 +28,7 @@
 #               candidate changes (skills/code-review/references/learning-promotion.md).
 #   --min-pull-requests
 #               the distinct pull requests a class must rest on. 2 by default, 1 for a promotion candidate of
-#               the memory target (skills/_shared/promote-learning.sh).
+#               the memory target only (skills/_shared/promote-learning.sh). 1 with another target is refused.
 #   --out       the file that receives the proposal. It starts with a `# <title>` line and ends with the
 #               dedupe marker line. It is written only when the status is `ready`.
 #   --find      look up the proposal that already exists for a class. It reads no network.
@@ -230,6 +230,7 @@ def occurrence_errors:
   | (([$ana[0].target | objects | .type] | first) == "memory") as $memory
   | . as $r
   | [ (if ($r.occurrences | type) == "array" and ($r.occurrences | length) >= $minprs then empty else "the recurrence in the report is malformed" end),
+      (if $minprs < 2 and ($memory | not) then "--min-pull-requests 1 applies to a memory target only" else empty end),
       ($r.occurrences | if type == "array" then .[] else empty end
         | if type != "object" or (.finding | type) != "string" or $byid[.finding] == null then "an occurrence of the report is not in the record store"
           else . as $o | $byid[.finding] as $f
@@ -651,12 +652,15 @@ JSON
   run_case 'two findings of one pull request are proposed' 0 -- --report "$tmp/reportsame.json" --store "$tmp/samepr.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/none.md"
   check 'two findings of one pull request give no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
   # The memory target reads the memory view of the pattern report, which promote-learning.sh puts under `recurrences`.
+  jq -c --arg path ".cl""aude/run/code-review-memory.sqlite" '.target = {type: "memory", path: $path, change: "Add the lesson.", knowledge: [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]}' "$tmp/analysis.json" >"$tmp/amem.json"
   rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"' >"$tmp/first.jsonl"
   "$HERE/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportfirst.json"
   rm -f "$tmp/first.md"
-  run_case 'a resolved Critical finding is proposed at a minimum of one pull request' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 1
+  run_case 'a resolved Critical finding is proposed at a minimum of one pull request' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/amem.json" --out "$tmp/first.md" --min-pull-requests 1
   check 'a single resolved Critical finding gives a proposal that does not claim a recurrence' "$(jq -e '.status == "ready" and .occurrences == 1 and .title == "Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && grep -q 'the defect class of one resolved Critical code-review finding' "$tmp/first.md" && ! grep -q 'recurs across' "$tmp/first.md" && echo 0 || echo 1)"
   rm -f "$tmp/first.md"
+  run_case 'the same report is proposed at a minimum of one pull request without a memory target' 3 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 1
+  check 'a minimum of one pull request is refused for a target other than the memory and writes no file' "$(grep -q -- '--min-pull-requests 1 applies to a memory target only' "$tmp/err" && [[ ! -e "$tmp/first.md" ]] && echo 0 || echo 1)"
   run_case 'the same report is proposed at the default minimum' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md"
   check 'the default minimum of two pull requests still gives no proposal for one' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/first.md" ]] && echo 0 || echo 1)"
   run_case 'a minimum of three pull requests is a usage error' 1 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 3
@@ -670,7 +674,6 @@ JSON
   run_case 'a recurring Moderate class is proposed for the memory target' 0 -- --report "$tmp/reportmodmem.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/mod.md" --min-pull-requests 1
   check 'a Moderate class gives no proposal for the memory target and writes no file' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
   # A direct call with the unrewritten report must not turn a Moderate or an open class into a memory proposal.
-  jq -c --arg path ".cl""aude/run/code-review-memory.sqlite" '.target = {type: "memory", path: $path, change: "Add the lesson.", knowledge: [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]}' "$tmp/analysis.json" >"$tmp/amem.json"
   rm -f "$tmp/mod.md"
   run_case 'a Moderate class is proposed for the memory target with the unrewritten report' 3 -- --report "$tmp/reportmod.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/amem.json" --out "$tmp/mod.md"
   check 'a memory target refuses a Moderate record and writes no file' "$(grep -q 'a memory target accepts only resolved Critical findings' "$tmp/err" && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
