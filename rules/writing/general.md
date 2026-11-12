@@ -1,10 +1,12 @@
 ---
-description: Simplified technical writing — every agent response and published report follows the ASD-STE100 style principles, in whatever language the assignment is written in.
+description: Simplified technical writing — handoffs, commit messages, pull request texts, and machine-parsed text follow the ASD-STE100 style principles, in whatever language the assignment is written in. The prose a human reads follows the voice of the agent-voice skill.
 ---
 
 ## Simplified Technical Writing (ASD-STE100)
 
-Every response an agent produces — a reply to the user, a handoff, a pull request description, a commit body, a code-review finding, a tracker comment — **is written in simplified technical style**, modelled on **ASD-STE100 (Simplified Technical English)**. The reader of an agent's output is deciding something: whether to merge, whether the bug is understood, what to do next. Prose that hides the decision behind long sentences, passive constructions, or synonym variation costs the reader a re-read, and a re-read is the failure this rule prevents.
+This rule owns the style of the output that a machine, a git history, or another agent reads — a handoff, a commit message, a pull request title and description, a branch name, and any text a script parses. It is also the `technical` voice of `@skills/agent-voice/SKILL.md`. That skill owns the prose a human reads: a chat reply, the final report to the user, and a comment published to an issue tracker for people to read. It selects the voice (`relaxed` by default, or `technical`), and the user's own instruction in the session overrides the project manifest. A required structure of a tracker comment (markers, headings, fields, finding identifiers, severity labels, links) stays as `@rules/reports/general.md` defines it, in every voice.
+
+The style is **simplified technical**, modelled on **ASD-STE100 (Simplified Technical English)**. The reader of such an output is deciding something: whether to merge, whether the bug is understood, what to do next. Prose that hides the decision behind long sentences, passive constructions, or synonym variation costs the reader a re-read, and a re-read is the failure this rule prevents.
 
 ### The rules
 
@@ -30,4 +32,4 @@ Code identifiers, file paths, command names, and label strings stay **verbatim**
 
 **A run that publishes a report to a tracker — a GitHub issue or pull-request comment, a JIRA comment, or a Bugsnag comment — reads and applies `@rules/reports/general.md` first.** That rule loads on demand, so it is not in context until the run reads it.
 
-> **Scope boundary — style, not language choice.** This rule owns **how** a sentence is written. `@rules/reports/general.md` owns **which language** a tracker-published report is written in (the assignment's language, never mixed) and the narrow English exception for technical CR findings on a GitHub PR. The two never overlap and never override each other: a report first takes its language from `@rules/reports/general.md`, then obeys this rule inside that language. Raise one finding per violation — a Czech report written in bloated prose is a violation of this rule only, and an English report dropped into a Czech tracker comment is a violation of `@rules/reports/general.md` only.
+> **Scope boundary — style, not language choice.** This rule owns **how** a sentence is written in the outputs listed above and in the `technical` voice. `@rules/reports/general.md` owns **which language** a tracker-published report is written in (the assignment's language, never mixed) and the narrow English exception for technical CR findings on a GitHub PR. The two never overlap and never override each other: a report first takes its language from `@rules/reports/general.md`, then obeys this rule inside that language. Raise one finding per violation — a Czech report written in bloated prose is a violation of this rule only, and an English report dropped into a Czech tracker comment is a violation of `@rules/reports/general.md` only.

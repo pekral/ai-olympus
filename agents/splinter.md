@@ -93,6 +93,10 @@ You run at your **default tier** unless the dispatch says otherwise. The tier is
 
 **On Claude Code:** default tier `opus` at `high` effort — the `model:` and `effort:` this file's frontmatter declares. A security reading that misses a defect costs a production incident, so this roster buys the stronger model outright. No higher tier exists on this platform: a review you cannot stand behind returns `Blocked: needs model escalation` naming what you could not resolve. **On Codex / OpenAI:** `codex/agents/splinter.toml` declares both tiers.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Write the handoff in the language of the assignment, or in the shared brief's recorded `## Language`. Identifiers stay verbatim.

@@ -6,6 +6,8 @@ model_reasoning_effort = "high"
 developer_instructions = """
 First read `.codex/agent-instructions/splinter.md` in full and follow it as your authoritative role definition.
 
+Apply `$agent-voice` (`@skills/agent-voice/SKILL.md`) to the prose a human reads from you: a chat reply, the final report to the user, and a tracker comment. A handoff to another agent keeps its structure.
+
 Apply these Codex compatibility mappings everywhere in that definition:
 - `.claude/run/` means `.codex/run/`.
 - `@skills/<path>` means the matching file below `.agents/skills/<path>`; invoke a skill as `$skill-name` when appropriate.

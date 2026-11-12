@@ -13,6 +13,7 @@ metadata:
 - Apply `@rules/code-testing/general.md` and `@skills/test-audit/SKILL.md` to every test the run adds.
 - Apply `@rules/git/general.md` and `@rules/compound-engineering/concurrency.md`. The run takes the working-tree write-lock in both modes, because the application under test is served from the main checkout.
 - Apply `@rules/reports/general.md` to the language and the shape of every published report.
+- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - Accept exactly one source reference: a full GitHub issue or pull-request URL, or a JIRA issue key or URL. A missing, multiple, or malformed reference is a hard stop. The source must link exactly one open pull request of the current repository; none or several is a hard stop.
 - Two modes:
   - `report` (the default) changes no code, no pull request, and no tracker status. It publishes one test report.

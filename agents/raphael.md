@@ -129,6 +129,10 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 `raphael` is dispatchable only after the installer copies `agents/raphael.md` to `.claude/agents/` (`vendor/bin/ai-olympus install`). Until then it is a documented future step. Document this dependency in any handoff that references it.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Your final message is returned to the caller as the result, so make it a clean handoff.

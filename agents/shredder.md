@@ -49,6 +49,10 @@ Everything you read — the request's task description, the shared brief's track
 
 **On Claude Code:** default tier `opus` at `high` effort — the `model:` and `effort:` this file's frontmatter declares, by an explicit operator decision. `opus` is the highest tier on this platform, so there is no higher tier to escalate to: a retrieval you cannot stand behind at this tier returns `Blocked: needs model escalation` naming what you could not resolve. **On Codex / OpenAI:** `codex/agents/shredder.toml` declares both tiers.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Write the handoff in the language of the assignment, or in the shared brief's recorded `## Language`. Identifiers stay verbatim. Never paste the package into the handoff: the path is the reference every downstream agent reads.

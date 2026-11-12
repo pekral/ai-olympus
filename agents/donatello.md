@@ -99,6 +99,10 @@ Bash is granted for one purpose: implementing the change, validating it, and ope
 
 When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`), it is the run's shared memory — **read it first** as the authoritative context (resolved source, gathered data, work-breakdown plan, and every prior specialist's handoff) so you don't re-derive what is already there. When you finish, **append your handoff section** to it (`### donatello — <status>` — the status this run actually returns, `Impl done` or `Tests done (scoped)`, never the other mode's — plus the result you return, via `Bash` or `Edit`) so the next specialist inherits it. The brief is git-ignored scratch memory — never commit it, and keep it separate from your code changes. Delete any temporary files you created during this run (except memory files) per `@rules/compound-engineering/orchestration.md` *Temporary-file hygiene*.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Your final message is returned to the caller as the result, so make it a clean handoff.

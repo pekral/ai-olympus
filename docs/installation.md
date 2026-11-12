@@ -102,6 +102,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `promotion.min-distinct-tasks` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Distinct pull requests those records must come from, for every target type except `memory`. At least 2. Absent: 2. The `memory` target takes no threshold. |
 | `promotion.min-confidence` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Share of those records that a fix resolved, in percent, for every target type except `memory`. 0 to 100. Absent: 0. |
 | `language.github` | reports, pull requests, commits | Language of everything published to GitHub. Trackers outside GitHub keep the assignment's language. |
+| `voice` | every agent and every publishing skill | Voice of the prose a human reads, owned by the `agent-voice` skill: `relaxed` (default) or `technical`. An absent, non-string, or unknown value means `relaxed`. The user's own instruction in the session overrides it. |
 | `timezone` | PHP standards | The zone the code computes and stores in; every date call passes it explicitly. |
 | `tenancy` | authorization review, Laravel architecture | `database` when each tenant has its own database, so the tenant connection is the tenant boundary. |
 | `product-docs` | code review | URL of the customer-facing product documentation checked for user-facing behaviour. |
@@ -192,7 +193,7 @@ Claude Code reads `skills/` and `agents/` out of a plugin directory. It reads **
 
 | | Loaded by the plugin |
 |---|---|
-| 67 skills (`skills/*/SKILL.md`) | ✅ automatically |
+| 68 skills (`skills/*/SKILL.md`) | ✅ automatically |
 | 9 agents (`agents/*.md`) | ✅ automatically |
 | `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` (`commands/*.md`) | ✅ automatically |
 | Rules (`rules/**`) | ❌ Composer only |
