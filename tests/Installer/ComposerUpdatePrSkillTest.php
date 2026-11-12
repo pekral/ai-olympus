@@ -127,9 +127,9 @@ test('the skill scans the commits of the branch with history-scan before the pus
 });
 
 test('the package lists the skill in the README, the skill catalog, and the code-review exclusion groups', function (): void {
-    expect(composerUpdateSource('README.md'))->toContain('67 reusable skills')
+    expect(composerUpdateSource('README.md'))->toContain('66 reusable skills')
         ->and(composerUpdateSource('docs/skills.md'))->toContain('| [`composer-update-pr`](../skills/composer-update-pr/) |')
-        ->and(composerUpdateSource('docs/skills.md'))->toContain('All 67 skills this package ships')
+        ->and(composerUpdateSource('docs/skills.md'))->toContain('All 66 skills this package ships')
         ->and(composerUpdateSource('skills/code-review/references/specialized-reviews.md'))->toContain('- `composer-update-pr` —');
 });
 
