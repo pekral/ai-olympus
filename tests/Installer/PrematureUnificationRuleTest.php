@@ -62,5 +62,6 @@ test('Reuse Existing Logic leaves different rules that only look alike to the un
     expect(substr_count($dry, '- **Different rules that only look alike are not a duplicate.**'))->toBe(1)
         ->and($dry)->toContain('DRY applies to the same rule implemented twice.')
         ->and($dry)->toContain('`@rules/php/core-standards.md` CR Severity Rules (*Unify code only when it changes for the same reason*)')
-        ->and($dry)->toContain('this rule raises nothing on that code');
+        ->and($dry)->toContain('this rule raises nothing on that code')
+        ->and($dry)->toContain('*Not a duplicate — reason to change not established* and raises nothing');
 });
