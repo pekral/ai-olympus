@@ -64,16 +64,20 @@ Read `statusCheckRollup[]` of the loaded payload and decide with the first row t
 2. Run `skills/_shared/verify-gate.sh --tier full <gated head>` and `skills/_shared/run-gate.sh --tier full` exactly as `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* step 3.1 and step 3.3 direct, including the exits `5` (discovered gate command through `run-gate.sh --exclusive --command`), `3`, and the lock wait.
 3. Only a green result meets the gate. A failure, a fixer rewrite of a tracked file, a refusal, or a gate that cannot run stops the run. This skill never commits the rewrite.
 
-### 4. Promote a Draft
+### 4. Read the merge strategy
+Read the allowed strategies before the pull request leaves Draft: `gh repo view <nameWithOwner> --json rebaseMergeAllowed,squashMergeAllowed,mergeCommitAllowed`. Use `--rebase` when it is allowed (`@rules/git/pull-requests.md` *Merging*); otherwise the one other allowed strategy. A failed read or no allowed strategy stops the run, with the pull request still in its original Draft state.
+
+### 5. Promote a Draft
 When `isDraft` is `true`, run `gh pr ready <URL>` and record that this run promoted the pull request. A missing code review and a missing approval do not block. Draft state is the one thing this step changes.
 
-### 5. Merge
-1. Read the allowed strategies: `gh repo view <nameWithOwner> --json rebaseMergeAllowed,squashMergeAllowed,mergeCommitAllowed`. Use `--rebase` when it is allowed (`@rules/git/pull-requests.md` *Merging*); otherwise the one other allowed strategy. No allowed strategy stops the run.
-2. Run `gh pr merge <URL> <strategy> --match-head-commit <gated head>`. Add no `--admin`.
-3. When GitHub refuses the merge (branch protection, a ruleset, a required review, a conflict, `BEHIND` under strict protection, a moved head), stop. Report the refusal text and that nothing was merged. Never retry with `--admin`. When this run promoted the pull request in step 4, run `gh pr ready --undo <URL>` so the refused pull request is a Draft again, and report that it was returned to Draft.
-4. Load the pull request again and confirm `state == "MERGED"`. Read the merge commit from the payload.
+**Every stop after this step that merged nothing returns the pull request to Draft.** When this run promoted it, run `gh pr ready --undo <URL>` and report that it was returned to Draft. This covers a GitHub refusal, a failed merge command that is not a refusal, and a pull request still not `MERGED` after the command.
 
-### 6. Post-merge
+### 6. Merge
+1. Run `gh pr merge <URL> <strategy> --match-head-commit <gated head>`. Add no `--admin`.
+2. When GitHub refuses the merge (branch protection, a ruleset, a required review, a conflict, `BEHIND` under strict protection, a moved head), stop. Report the refusal text and that nothing was merged. Never retry with `--admin`. Return a promoted pull request to Draft as step 5 directs.
+3. Load the pull request again and confirm `state == "MERGED"`. Read the merge commit from the payload.
+
+### 7. Post-merge
 Apply `@skills/merge-github-pr/SKILL.md` section 5, with these steps and no others, in this order:
 1. Delete the remote branch `headRefName` only when both hold: `isCrossRepository` is `false`, and `git ls-remote origin refs/heads/<headRefName>` prints the gated head. A fork branch, a branch that is gone, a branch at another commit, and a branch named like the default branch are skipped, and the report says which. Delete with `git push origin --delete <headRefName>`.
 2. Remove the worktree this work unit created, under the guards of that section 5. Skip it when none was created.
