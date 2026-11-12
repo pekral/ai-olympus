@@ -168,7 +168,7 @@ Both CR severities block convergence, so a `Critical` versus `Moderate` split ne
 - **A duplicate becomes one finding.** When both views report the same defect, the merged review carries it once, at the stricter severity (*Severity divergence between parallel reviewers* above).
 - **`Raised by` names the origin of every finding.** Its values are `splinter` (only the `splinter` view raised it), `leonardo` (only the `leonardo` view raised it, security or not), and `both`. Render it on every finding of a comment whose round carries a `splinter` report, and on no finding of a comment whose round does not.
 - **A missing view is stated, never assumed clean.** When the brief holds no `splinter` report for the head SHA, or the report has no `Clean` field, the independent view did not run. A full run returns `not converged` and publishes nothing. A review-only run renders the header line `Independent security view not run — dispatch splinter` and no `Raised by` field.
-- **`Clean: no` is a view that ran.** Merge its findings by the rules above. It never renders the not-run header line.
+- **`Clean: no` is a view that ran.** Merge its findings by the rules above. On a full run they leave the round not converged: return `not converged` and publish nothing (`agents/krang.md` *Parallel CR round* step 3). It never renders the not-run header line.
 - **A finding of the previous round counts only while the head still shows it.** Record a `splinter` finding of an earlier round as open only when its cited `file:line` still shows the defect on the current head. Name each one found fixed in the handoff.
 
 ## Output Rules — Truthful reporting (issue #74)
