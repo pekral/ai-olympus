@@ -476,7 +476,7 @@ gate_reclaim_is_stale() {
     gate_lock_is_stale "$dir"
     return
   fi
-  [[ -n "$(find "$dir" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]
+  gate_lock_headless_aged "$dir"
 }
 
 # The directory of the machine-wide lock: outside every repository, so every project and every
