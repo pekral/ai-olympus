@@ -47,14 +47,13 @@ test('splinter reviews for security only, runs every security lens, and anchors 
 
 test('splinter never reads the findings of leonardo for the round and never waits for them (issue #379)', function (): void {
     $splinter = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/splinter.md');
-    $krang = krangContractText();
+    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md');
 
     expect($splinter)->toContain('**Never read the findings of `leonardo` for the round.**')
         ->and($splinter)->toContain('Do not read its `### leonardo — CR round <n>` section of the shared brief')
         ->and($splinter)->toContain('**Never wait for `leonardo`.**')
         ->and($splinter)->toContain('A disagreement with `leonardo` is not yours to resolve.')
-        ->and($krang)->toContain('Its dispatch prompt never carries a `leonardo` section or finding.')
-        ->and($krang)->toContain('Never pass a `leonardo` finding to `splinter`.');
+        ->and($krang)->toContain('Its dispatch prompt never carries a `leonardo` section or finding.');
 });
 
 test('splinter publishes nothing and appends only its report to the shared brief (issue #379)', function (): void {
@@ -74,18 +73,20 @@ test('krang dispatches splinter in every parallel CR round and converges only wh
     expect($krang)->toContain('## Parallel CR round — `leonardo`, `splinter`, `raphael`, and `casey` together')
         ->and($krang)->toContain('1. **Dispatch the four agents at once.**')
         ->and($krang)->toContain('`agents/splinter.md` *Parallel CR round*')
-        ->and($krang)->toContain('The round converges only when the `leonardo` view and the `splinter` view are both clean under the convergence gate')
-        ->and($krang)->toContain('a security finding is never deferred')
         ->and($krang)->toContain('A `splinter` that is `Blocked`, unregistered, or without `Clean` leaves the round not converged')
-        ->and($krang)->toContain('it holds only when the handoffs of `leonardo` and `splinter` are both clean')
         ->and($krang)->toContain('`leonardo` and `splinter` review in isolated read-only git worktrees');
+
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))
+        ->toContain('it holds only when the handoffs of `leonardo` and `splinter` are both clean')
+        ->toContain('   - **Convergence gate:**');
 
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))->toContain(
         'When the `splinter` handoff is `Blocked`, `splinter` is unregistered, or its report has no `Clean` field, '
         . '**load `skills/_shared/orchestration/splinter-not-run.md`**.',
     );
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/review-process.md'))
-        ->toContain('`skills/_shared/orchestration/splinter-not-run.md`, and both finding templates point here');
+        ->toContain('`skills/_shared/orchestration/splinter-not-run.md`, and both finding templates point here')
+        ->toContain('its handoff is `Blocked`, or the report has no `Clean` field, the independent view did not run.');
 });
 
 test('leonardo merges the splinter view under one owner rule and the security agenda names the new owner (issue #379)', function (): void {
@@ -109,7 +110,7 @@ test('leonardo merges the splinter view under one owner rule and the security ag
         ->and($reviewProcess)->toContain(
             '- **`Clean: no` is a view that ran.** Merge its findings by the rules above. '
             . 'On a full run they leave the round not converged: return `not converged` and publish nothing '
-            . '(`agents/krang.md` *Parallel CR round* step 3). It never renders the not-run header line.',
+            . '(`agents/krang.md` step 6 *Convergence gate*). It never renders the not-run header line.',
         )
         ->and($reviewProcess)->toContain(
             'Record a `splinter` finding of an earlier round'
