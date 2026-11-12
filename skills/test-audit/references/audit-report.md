@@ -22,7 +22,7 @@ Record every field before you recommend changing a test:
 
 - **A missing critical field blocks `DELETE`.** When the protected contract, the detectable failure, the stronger overlapping test, or the history is unknown, the recommendation is `KEEP` or `NEEDS INVESTIGATION`.
 - **`Non-test callers` decides a seam.** A production method whose only callers are tests is removable together with the test; one real caller keeps it.
-- **`Focused validation command`** runs the owner test and its siblings, e.g. `vendor/bin/pest tests/Feature/Billing --filter=Invoice`, never the whole suite.
+- **`Focused validation command`** runs the owner test and its siblings, e.g. `vendor/bin/pest tests/Feature/Billing --filter=Invoice`, never the whole suite. An agent runs it through `skills/_shared/run-gate.sh --exclusive --command "<command>"`.
 
 ## Report
 

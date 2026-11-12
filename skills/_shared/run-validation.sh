@@ -16,23 +16,13 @@
 #   mechanism for running four commands.
 #
 # Usage
-#   run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run] [--exclusive]
+#   run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run]
 #   run-validation.sh --self-test
 #
 #   --manifest  the validation manifest, JSON (`-` reads stdin)
 #   --logs      directory for per-category logs (default: alongside the manifest
 #               in `logs/`); each category writes `<logs>/<category>.log`
 #   --dry-run   validate the manifest and print the plan without executing it
-#   --exclusive hold the machine-wide gate lock (the lock of run-gate.sh, shared
-#               by every worktree of the repository) while the commands run. The
-#               lock is taken only after every command has been validated, so a
-#               refused manifest never waits for it. A live holder that keeps the
-#               lock past AI_OLYMPUS_GATE_LOCK_TIMEOUT seconds (default 3600)
-#               ends the run with status `locked` and exit 6; nothing ran.
-#               The manifest stays the only input: a batch of units that run in
-#               parallel worktrees uses this flag instead of typing a manifest
-#               command into `run-gate.sh --exclusive --command`, because a shell
-#               expands a typed command before any validation sees it.
 #
 # Manifest
 #   {
@@ -49,7 +39,7 @@
 #
 # Output (stdout, JSON)
 #   {
-#     "status": "passed" | "failed" | "invalid" | "locked",
+#     "status": "passed" | "failed" | "invalid",
 #     "head_sha": "abc123",
 #     "checks": { "tests": "passed", "static_analysis": "passed", "lint": "skipped" },
 #     "failures": [ { "category": "tests", "command": "…", "exit_code": 1, "log": "logs/tests.log" } ],
@@ -99,20 +89,22 @@
 #   2  missing required tool (jq)
 #   3  the manifest is invalid or refused, or the logs directory could not be created — escalate, do not treat as a pass
 #   4  a check failed — escalate for interpretation
-#   6  --exclusive only: a live run holds the gate lock past the timeout; nothing ran
+#   6  the machine lock stayed held by a live run past AI_OLYMPUS_GATE_LOCK_TIMEOUT: nothing ran, the
+#      status is `locked`, and `escalate` is false. The checks are heavy commands, so they take the
+#      machine-wide lock of run-gate.sh (`ai-olympus-gate.lock`) and wait for it, as a gate does. The
+#      caller checks the lock with gate-lock.sh and runs the manifest again.
 set -euo pipefail
 
 PROG="${0##*/}"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run] [--exclusive]
+Usage: run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run]
        run-validation.sh --self-test
 
 Runs a validation manifest and prints a JSON result. Exit 0 pass, 3 invalid,
-4 failed, 6 the gate lock was not available (--exclusive). Commands are executed
-without a shell and must name an allow-listed project-local tool. --exclusive
-holds the machine-wide gate lock of run-gate.sh while the commands run.
+4 failed. Commands are executed without a shell and must name an allow-listed
+project-local tool.
 EOF
 }
 
@@ -127,7 +119,8 @@ CATEGORIES=(lint static_analysis tests)
 # shellcheck source=project-commands.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project-commands.sh"
 
-# gate-record.sh adds the one machine-wide gate lock that `--exclusive` takes (gate_lock_acquire).
+# The machine-wide heavy-command lock the checks below run under. It sources
+# project-commands.sh again, which only resets the lists the manifest extends later.
 # shellcheck source=gate-record.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-record.sh"
 
@@ -179,7 +172,7 @@ refuse() {
 }
 
 run_manifest() {
-  local manifest_arg="" logs_dir="" dry_run=0 exclusive=0
+  local manifest_arg="" logs_dir="" dry_run=0
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -195,10 +188,6 @@ run_manifest() {
       ;;
     --dry-run)
       dry_run=1
-      shift
-      ;;
-    --exclusive)
-      exclusive=1
       shift
       ;;
     *)
@@ -279,25 +268,26 @@ run_manifest() {
 
   mkdir -p -- "$logs_dir" || refuse "cannot create the logs directory: $(safe_display "$logs_dir")"
 
-  # The lock comes after the validation: a refused manifest never waits for it. gate_cleanup
-  # releases it on every way out of this script, including an interrupt.
-  if [[ "$exclusive" -eq 1 ]]; then
-    local timeout lock_status=0
-    timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}"
-    [[ "$timeout" =~ ^[0-9]{1,6}$ ]] || { echo "$PROG: AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds" >&2; return 1; }
-    trap gate_cleanup EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    gate_lock_acquire "$timeout" || lock_status=$?
-    case "$lock_status" in
-    0) ;;
-    6)
-      emit locked true "$GATE_REASON"
-      return 6
-      ;;
-    *) refuse "$GATE_REASON" ;;
-    esac
-  fi
+  # --- The machine lock ---------------------------------------------------------
+  #
+  # A check is a heavy command: Pest, Rector, and PHPStan each start worker processes. The
+  # run waits for any gate, install, or other check on the machine, and holds the lock until the
+  # last command ends. A run that a heavy command of a holder started shares that holder's lock.
+  local lock_timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}" lock_status=0
+  [[ "$lock_timeout" =~ ^[0-9]{1,6}$ ]] || refuse 'AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds'
+  trap gate_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  GATE_HOLDER_COMMAND="validation of ${HEAD_SHA:0:12}: ${#plan[@]} command(s)"
+  gate_lock_acquire "$lock_timeout" || lock_status=$?
+  case "$lock_status" in
+  0) ;;
+  6)
+    emit locked false "$GATE_REASON"
+    return 6
+    ;;
+  *) refuse "$GATE_REASON" ;;
+  esac
 
   # --- Execute ---------------------------------------------------------------
   local failed=0 item log status
@@ -346,6 +336,11 @@ self_test() {
   SELF_TEST_TMP="$(mktemp -d)"
   trap cleanup_self_test EXIT
   local tmp="$SELF_TEST_TMP"
+  # The checks take the machine lock. The self-test gets its own, so it never waits for a real
+  # gate, and a self-test that a gate started never waits for the gate's lock.
+  export AI_OLYMPUS_LOCK_DIR="$tmp/machine"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  unset AI_OLYMPUS_LOCK_HELD_BY
 
   # A fake project tree: `vendor/bin/pest` is a stub whose exit code the test
   # controls, so the runner's contract is exercised without a real suite.
@@ -377,7 +372,7 @@ STUB
 
     local out actual status escalate reason
     set +e
-    out="$(cd "${VERDICT_PROJECT:-$tmp/project}" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" ${VERDICT_FLAGS:+$VERDICT_FLAGS} 2>/dev/null)"
+    out="$(cd "${VERDICT_PROJECT:-$tmp/project}" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" 2>/dev/null)"
     actual=$?
     set -e
     status="$(printf '%s' "$out" | jq -r '.status // "none"' 2>/dev/null || printf 'unparseable')"
@@ -408,6 +403,22 @@ STUB
   verdict 'a passing manifest passes' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"], "lint": ["vendor/bin/pint --test"] }' \
     0 passed false
+
+  # --- The machine lock ------------------------------------------------------
+  #
+  # A live holder keeps the lock, so the run reports `locked` without running a command and
+  # without escalating: a session cannot release a lock, and the caller checks it with gate-lock.sh.
+  mkdir -p "$tmp/machine/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date +%s)" >"$tmp/machine/ai-olympus-gate.lock/holder"
+  VERDICT_LOGS="$tmp/locked-logs" verdict 'a live lock holder makes the run wait, then report locked' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --fail"] }' 6 locked false 'the machine lock is held by PID '
+  [[ ! -e "$tmp/locked-logs/tests.log" ]] || { echo 'FAIL  a locked run executed a command' >&2; failures=$((failures + 1)); }
+  AI_OLYMPUS_LOCK_HELD_BY="$$" verdict 'a run that the holder started shares its lock' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  rm -rf "$tmp/machine/ai-olympus-gate.lock"
+  verdict 'the lock is released after a run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  [[ ! -e "$tmp/machine/ai-olympus-gate.lock" ]] || { echo 'FAIL  the lock stayed after the run' >&2; failures=$((failures + 1)); }
 
   # --- Failure ---------------------------------------------------------------
   verdict 'a failing command fails and escalates' \
@@ -540,56 +551,6 @@ STUB
   VERDICT_PROJECT="$tmp/value-env"
   verdict 'a manifest env value with a space refuses the run' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest"] }' 3 invalid true
-  VERDICT_PROJECT=""
-
-  # --- --exclusive: the manifest file is the only input, and the lock is the gate lock ---
-  #
-  # The project is a git checkout because the lock directory lives in the git common directory.
-  # The `marker` file shows whether a command substitution ran.
-  mkdir -p "$tmp/excl/vendor/bin"
-  cp "$tmp/project/vendor/bin/pest" "$tmp/excl/vendor/bin/pest"
-  git -C "$tmp/excl" init -q
-  local lock_dir="$tmp/excl/.git/ai-olympus-gate.lock"
-  VERDICT_PROJECT="$tmp/excl"
-  VERDICT_FLAGS='--exclusive'
-  verdict '--exclusive runs a valid manifest and passes' \
-    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
-  if [[ -e "$lock_dir" ]]; then
-    printf 'FAIL  %-54s the lock stayed after the run\n' '--exclusive releases the lock' >&2
-    failures=$((failures + 1))
-  else
-    printf 'ok    %-54s lock released\n' '--exclusive releases the lock'
-  fi
-  verdict '--exclusive still reports a failing command' \
-    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --fail"] }' 4 failed true
-
-  # The payload must reach the runner as literal text, so single quotes are the point.
-  # shellcheck disable=SC2016
-  verdict '--exclusive refuses command substitution as invalid' \
-    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --filter=$(touch marker)"] }' 3 invalid true
-  if [[ -e "$tmp/excl/marker" || -e "$lock_dir" ]]; then
-    printf 'FAIL  %-54s the substitution ran or the lock was taken\n' '--exclusive never runs a refused command' >&2
-    failures=$((failures + 1))
-  else
-    printf 'ok    %-54s nothing ran, no lock taken\n' '--exclusive never runs a refused command'
-  fi
-
-  # A live holder keeps the lock: the run waits for the timeout, exits 6, and runs nothing.
-  mkdir -p "$lock_dir"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date +%s)" >"$lock_dir/holder"
-  rm -rf "$tmp/locked-logs"
-  VERDICT_LOGS="$tmp/locked-logs"
-  AI_OLYMPUS_GATE_LOCK_TIMEOUT=1 verdict '--exclusive exits 6 when a live holder keeps the lock' \
-    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 6 locked true
-  VERDICT_LOGS=""
-  if [[ -e "$tmp/locked-logs/tests.log" ]]; then
-    printf 'FAIL  %-54s a command ran without the lock\n' '--exclusive runs nothing without the lock' >&2
-    failures=$((failures + 1))
-  else
-    printf 'ok    %-54s nothing executed\n' '--exclusive runs nothing without the lock'
-  fi
-  rm -rf "$lock_dir"
-  VERDICT_FLAGS=""
   VERDICT_PROJECT=""
 
   # --- Usage -----------------------------------------------------------------
