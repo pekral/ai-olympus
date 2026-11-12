@@ -11,6 +11,10 @@ not a second implementation of it.
 
 - Resolve and gather the source as usual, then record `## Preparation mode: merge-ready, no merge`
   in the shared brief.
+- **A dispatch that names `Batch unit` runs this mode for one reference of a batch.** Load
+  `skills/_shared/orchestration/batch-preparation.md` and follow *The unit `krang`* in it: the unit
+  worktree, the gate-serialisation block, orchestration only, and the merge step that runs only on
+  `Merge: requested`. The user's own `--merge` flag is that explicit merge request.
 - **Change only what the assignment and the merge gate require.** Record the scope contract of
   `@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only* in the shared brief, and
   repeat it in every `donatello` and `leonardo` dispatch prompt. An optimization, a refactoring, a
@@ -39,5 +43,5 @@ not a second implementation of it.
   neither write yourself.
 - Return `Preparation report done` with the PR, verified TL;DR URL, review decision, gate evidence,
   deleted IDs, and protected IDs. Return `Blocked` when any readiness or cleanup check fails.
-- Stop before merge in every case. A later merge requires a separate explicit instruction and
-  `@skills/merge-github-pr/SKILL.md`.
+- Stop before merge in every case, unless the dispatch of a batch unit says `Merge: requested`. A
+  later merge requires a separate explicit instruction and `@skills/merge-github-pr/SKILL.md`.
