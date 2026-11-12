@@ -91,7 +91,9 @@ test('report-code-review adds the interactive-testing result to the review repor
 
     expect((string) file_get_contents($packageDir . '/agents/krang.md'))
         ->toContain('Then run one *Parallel CR round* with `review_only` in all four dispatch prompts.')
-        ->toContain('publishes the one review report, with the `splinter` view merged in and the `interactive-testing` result and the database report in it');
+        ->toContain(
+            'publishes the one review report, with the `splinter` view merged in and the `interactive-testing` result and the database report in it',
+        );
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('pass the `raphael` walkthrough report from the brief to the wrapper');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
