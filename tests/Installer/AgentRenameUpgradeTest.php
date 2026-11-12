@@ -180,6 +180,38 @@ test('a plain install replaces an unmodified 0.3.1 splinter in every target dire
     }
 });
 
+test('a plain install replaces an unmodified 0.3 and 0.2 splinter orchestrator', function (): void {
+    $root = installerCreateProjectRoot();
+    $originalCwd = (string) getcwd();
+    $package = dirname(__DIR__, 2);
+    $sources = [
+        '.claude/agents/splinter.md' => ['agents/splinter.md', 'splinter-0.3.md'],
+        '.codex/agent-instructions/splinter.md' => ['agents/splinter.md', 'splinter-0.3.md'],
+        '.codex/agents/splinter.toml' => ['codex/agents/splinter.toml', 'splinter-0.2.toml'],
+    ];
+
+    foreach ($sources as $target => [, $fixture]) {
+        installerWriteFile($root . '/' . $target, (string) file_get_contents($package . '/tests/Fixtures/legacy-agents/' . $fixture));
+    }
+
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['ai-olympus', 'install']);
+        $output = (string) ob_get_clean();
+
+        expect($exitCode)->toBe(0);
+        expect($output)->not->toContain('Kept ');
+
+        foreach ($sources as $target => [$source]) {
+            expect((string) file_get_contents($root . '/' . $target))->toBe((string) file_get_contents($package . '/' . $source));
+        }
+    } finally {
+        chdir($originalCwd);
+        installerRemoveDirectory($root);
+    }
+});
+
 test('a plain install keeps a modified old splinter and names the flag that replaces it', function (): void {
     $root = installerCreateProjectRoot();
     $originalCwd = (string) getcwd();

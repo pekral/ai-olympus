@@ -23,10 +23,24 @@ final class InstallerAgentMigration
     ];
 
     /**
-     * Names that a renamed agent definition reuses for a different agent. The 0.3.1 copy of such a
-     * name is the old orchestrator, so it must be replaced even without `--force`.
+     * Digests of every released copy of a definition whose name a current agent reuses for a different agent.
+     * `splinter` was the orchestrator from 0.1.3 to 0.3.1, so each of those copies must be replaced even without `--force`.
      */
-    private const array REUSED = ['splinter'];
+    private const array SUPERSEDED_DIGESTS = [
+        'splinter.md' => [
+            '26de45cf6452c93dd1d6c3409bf03042dfba56c7b23a5fb70a666e4c0d700abe',
+            'f33d1a9cc60f5247346575ab9ad359f492efc11a4f7ca7573f9a68848ea98544',
+            '097f44b0ae0b3e5667d1c938de9da6940aae8069b6c876a496ebe80eafc959d5',
+            '1160e1f4d01ddc15011fbd361889aa84f612aa8413de52551bf224387eb962d5',
+            '54e06017b94077799683dcbfed35f63d714bf3417cea1552976b9b59cfd3f5ce',
+            'fa629261c902dee2f652baf90ee516eb82e3c086d1bf0f4115bca958e306dde0',
+        ],
+        'splinter.toml' => [
+            'a86ae35b5cd8995d48600b8b19d932333a98b4de8585472f552ea3ffa4c5f659',
+            'a8e1cfdd1174399845ca6415d4e1fa2a9852701317fb47f92162d56c45dc4cf5',
+            '4c20df3a50d6f0091ba90338dce299d6c9cd19db41445b602da6a179841c4cdf',
+        ],
+    ];
 
     private const array ORIGINAL_DIGESTS = [
         'apollo.md' => '13658fa9f6fe5291ff34a8ac7bc5bd5ff4a5716173b4beaa4c09938c063f1230',
@@ -83,14 +97,16 @@ final class InstallerAgentMigration
             return false;
         }
 
-        return !is_link($target) && is_file($target) && self::matchesDigest($target, self::ORIGINAL_DIGESTS[basename($relativePath)]);
+        if (is_link($target) || !is_file($target)) {
+            return false;
+        }
+
+        return in_array(self::digest($target), self::SUPERSEDED_DIGESTS[basename($relativePath)], strict: true);
     }
 
     public static function isReusedName(string $relativePath): bool
     {
-        $filename = basename($relativePath);
-
-        return in_array(pathinfo($filename, PATHINFO_FILENAME), self::REUSED, strict: true) && isset(self::ORIGINAL_DIGESTS[$filename]);
+        return isset(self::SUPERSEDED_DIGESTS[basename($relativePath)]);
     }
 
     private static function isRemovableCopy(string $source, string $target, string $filename, string $replacement): bool
@@ -117,7 +133,12 @@ final class InstallerAgentMigration
 
     private static function matchesDigest(string $target, string $digest): bool
     {
-        return hash('sha256', str_replace("\r\n", "\n", (string) file_get_contents($target))) === $digest;
+        return self::digest($target) === $digest;
+    }
+
+    private static function digest(string $target): string
+    {
+        return hash('sha256', str_replace("\r\n", "\n", (string) file_get_contents($target)));
     }
 
 }
