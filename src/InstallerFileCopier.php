@@ -66,13 +66,28 @@ final class InstallerFileCopier
 
         InstallerPath::ensureDirectory($dirName);
 
-        $effectiveForce = $force || self::isSecurityRule($relativePath);
+        $effectiveForce = $force || self::isSecurityRule($relativePath) || InstallerAgentMigration::isSupersededCopy($relativePath, $dst);
 
         if (file_exists($dst) && !$effectiveForce) {
+            self::warnAboutKeptReusedName($relativePath, $src, $dst);
+
             return false;
         }
 
         return self::installFile($src, $dst, $symlink);
+    }
+
+    private static function warnAboutKeptReusedName(string $relativePath, string $src, string $dst): void
+    {
+        if (!InstallerAgentMigration::isReusedName($relativePath) || is_file($dst) && file_get_contents($dst) === file_get_contents($src)) {
+            return;
+        }
+
+        echo sprintf(
+            'Kept %s: it differs from the shipped definition, and before 0.4 this name was the orchestrator. Re-run install --force to replace it.%s',
+            $dst,
+            PHP_EOL,
+        );
     }
 
     private static function isSecurityRule(string $relativePath): bool
