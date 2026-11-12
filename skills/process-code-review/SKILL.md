@@ -136,6 +136,8 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
    > The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred** — every Moderate is either fixed in the loop or, at the cap round only, filed as a tracker sub-issue under step 6. A Moderate that meets the **S1–S3** security carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* is **never** deferrable and blocks until it is fixed.
 
+   In a *Parallel CR round* (`agents/krang.md`) the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount` exactly like the findings of the review, and none of them is deferrable.
+
    The condition is compound, not simply `criticalCount == 0`. Before the cap round its third part means `moderateCount == 0`, because nothing is deferrable yet. When the gate holds → **converged**, exit the loop.
 5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
 6. **The cap round — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again; `review-state.sh` refuses another round. Triage each one exactly once against `references/round-three-deferral.md`, which owns the resolution table, the per-tracker filing mechanics, and the reporting contract:
