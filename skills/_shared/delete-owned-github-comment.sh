@@ -2,6 +2,11 @@
 # Delete one top-level GitHub issue/PR comment after proving that it belongs to
 # the current actor and exact target. Protected IDs make publication-before-
 # deletion and preservation of current merge evidence enforceable.
+#
+# The delete appends its own line to the run's `.audit` file at the moment it
+# happens, through audit-trail.sh in this directory: an `external-write` line,
+# or a `note` line for a failed attempt, with the acting role and the real exit
+# status of the delete request (`AUDIT_TRAIL_FILE`, `AUDIT_TRAIL_ROLE`).
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -106,7 +111,11 @@ if [[ "$(printf '%s' "$COMMENT_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" != "$(p
   exit 4
 fi
 
-gh api --method DELETE "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID" >/dev/null
+DELETE_RC=0
+gh api --method DELETE "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID" >/dev/null || DELETE_RC=$?
+# The audit line is written at the moment of the delete, with the real exit status of the request.
+bash "$SCRIPT_DIR/audit-trail.sh" record --target "delete comment $COMMENT_ID on $TARGET_URL" --status "$DELETE_RC" || true
+[[ "$DELETE_RC" -eq 0 ]] || exit "$DELETE_RC"
 
 VERIFY_OUTPUT=""
 if VERIFY_OUTPUT="$(gh api --include "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID" 2>&1)"; then

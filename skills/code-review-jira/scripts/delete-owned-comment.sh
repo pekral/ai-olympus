@@ -51,6 +51,14 @@
 # protected comments and no longer lists the target — a read that lists neither
 # proves nothing.
 #
+# Audit trail:
+#   The write appends its own line to the run's `.audit` file at the moment it
+#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   line, or a `note` line for a failed attempt, both with the acting role and
+#   the real exit status of the write. The ledger comes from AUDIT_TRAIL_FILE
+#   and AUDIT_TRAIL_ROLE; a missing ledger prints a hint on stderr and never
+#   changes the output or the exit codes.
+#
 # Exit codes:
 #   1  usage / argument error
 #   2  missing required tool (acli, jq, php)
@@ -188,7 +196,11 @@ require_owned "$FINAL_TLDR_ID" "protected comment" ""
 require_owned "$CURRENT_CR_ID" "protected comment" ""
 require_owned "$COMMENT_ID" "comment" "$MARKER"
 
-if ! acli jira workitem comment delete --key "$KEY" --id "$COMMENT_ID" >/dev/null 2>&1; then
+# The audit line is written at the moment of the delete, with the real exit status of `acli`.
+DELETE_RC=0
+acli jira workitem comment delete --key "$KEY" --id "$COMMENT_ID" >/dev/null 2>&1 || DELETE_RC=$?
+bash "$SCRIPT_DIR/../../_shared/audit-trail.sh" record --target "jira comment $COMMENT_ID delete on $KEY" --status "$DELETE_RC" || true
+if [[ "$DELETE_RC" -ne 0 ]]; then
   printf '%s\n' "$PROG: acli comment delete failed on $KEY comment $COMMENT_ID" >&2
   exit 3
 fi
