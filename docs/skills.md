@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 67 skills this package ships, grouped by what you reach for them for. Each description is the
+All 66 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
