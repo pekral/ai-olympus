@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 67 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 68 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ The installer writes, for Claude Code and Codex:
 - `.claude/rules` and `.codex/rules` — the rule library
 - `.claude/skills` and `.agents/skills` — the skills, in the project only
 - `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the nine agents and their Codex adapters
-- `.claude/commands` — the four slash commands
+- `.claude/commands` — the five slash commands
 - `AGENTS.md` in the project root, unless one already exists
 
 `--global` additionally writes the skills to `~/.claude/skills` and `~/.agents/skills`. Every other switch, the installer flow, and the distribution contents are in [`docs/installation.md`](docs/installation.md).
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 67 skills, the nine agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 68 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -118,7 +118,7 @@ The roster is named after Teenage Mutant Ninja Turtles characters. Each agent st
 | <img src="assets/agents/thumbnails/shredder.png" alt="Shredder avatar" width="40"> | `shredder` | context retrieval, read-only | `opus` · high | `gpt-6.1-sol` · high |
 | <img src="assets/agents/thumbnails/april.png" alt="April O’Neil avatar" width="40"> | `april` | final tracker report and announcements | `haiku` · medium (not applied to Haiku) | `gpt-6-luna` · medium |
 
-Role boundaries, the handoff contract, and the avatar assets are in [`docs/agents.md`](docs/agents.md). Running a single specialist, the four command workflows, and how agents hand work over are in [`docs/workflows.md`](docs/workflows.md).
+Role boundaries, the handoff contract, and the avatar assets are in [`docs/agents.md`](docs/agents.md). Running a single specialist, the five command workflows, and how agents hand work over are in [`docs/workflows.md`](docs/workflows.md).
 
 ### Adaptive routing — how much pipeline a task gets
 
@@ -139,7 +139,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
-- [`docs/skills.md`](docs/skills.md) — the catalog of all 67 skills
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 68 skills
 - [`docs/rules.md`](docs/rules.md) — the 33 rule files, grouped by scope
 
 ## Testing

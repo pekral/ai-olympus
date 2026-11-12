@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# plan-parallel.sh — group the units of one request into batches, so that two units
+# plan-parallel.sh — group the units of one request into batches, so that several units
 # run at the same time only when nothing can make them collide.
 #
 # Why this exists
 #   `krang` used to process several sources strictly one after another. That is
-#   always safe, and it leaves the machine idle between slow steps. Running two
-#   units at once is safe only when their work cannot touch the same files, one
+#   always safe, and it leaves the machine idle between slow steps. Running units
+#   at once is safe only when their work cannot touch the same files, one
 #   does not wait for the other, and neither is a risky change. Those are three
 #   facts, so a script decides them. The orchestrator reads the batches and does
 #   not judge by itself which units may overlap.
@@ -31,9 +31,17 @@
 #
 # Rule
 #   A unit joins the current batch only when all of these hold; otherwise it starts
-#   the next batch. Batches run one after another, and a batch of two units runs
-#   its two units at the same time.
-#     1. The batch holds fewer than 2 units (the fixed concurrency limit).
+#   the next batch. Batches run one after another, and a batch of several units
+#   runs its units at the same time.
+#     1. The batch holds fewer units than the concurrency limit. The limit is the
+#        `parallel.max-units` key of the project manifest, an integer from 1 to 10,
+#        read through `read-manifest.sh` from the default branch (@rules/general/
+#        general.md *Project manifest*). An absent key gives 2. A value outside the
+#        range, or one that is not an integer, gives 2 and is named on stderr.
+#        Run the script from the project root, like `read-manifest.sh`. A limit of 1
+#        runs every unit alone. No argument, report, or environment variable changes
+#        the limit. The machine-wide gate lock is not affected: heavy jobs stay one
+#        at a time.
 #     2. Neither the unit nor any unit in the batch is CRITICAL.
 #     3. The unit and every unit in the batch list files, and the two file sets
 #        are disjoint. A unit without file evidence never runs beside another.
@@ -41,10 +49,10 @@
 #   A unit never moves ahead of an earlier unit, so the dependency order holds.
 #
 # Output (stdout, key=value)
-#   max_concurrent=2
+#   max_concurrent=<limit>       the effective limit (2 without a manifest key)
 #   batches=<n>
-#   batch.<k>=<id>[,<id>]        the units of batch k
-#   mode.<k>=parallel|sequential parallel when batch k holds two units
+#   batch.<k>=<id>[,<id>...]     the units of batch k
+#   mode.<k>=parallel|sequential parallel when batch k holds two or more units
 #   reason.<id>=<why>            only for a unit that started a new batch because
 #                                it could not join the previous one:
 #                                critical:<id> | no-file-evidence:<id> |
@@ -107,7 +115,10 @@ set -euo pipefail
 set -f
 
 PROG="${0##*/}"
-MAX_CONCURRENT=2
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_MAX_UNITS=2
+MAX_UNITS_CAP=10
+MAX_CONCURRENT="$DEFAULT_MAX_UNITS"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -120,6 +131,24 @@ USAGE
 die() {
   echo "$PROG: $1" >&2
   exit 1
+}
+
+# limit_from_manifest — set MAX_CONCURRENT from `parallel.max-units` of the default-branch manifest. A missing
+# manifest, a missing key, or a missing jq keeps the default. A value that is not an integer from 1 to
+# MAX_UNITS_CAP keeps the default and is named on stderr, so a bad manifest never widens the fan-out.
+limit_from_manifest() {
+  local manifest raw
+  MAX_CONCURRENT="$DEFAULT_MAX_UNITS"
+  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || return 0
+  raw="$(printf '%s' "$manifest" | jq -r '
+    if (.parallel | type) == "object" and (.parallel | has("max-units")) then (.parallel["max-units"] | tojson) else "unset" end
+  ' 2>/dev/null)" || return 0
+  [[ "$raw" != unset && -n "$raw" ]] || return 0
+  if [[ "$raw" =~ ^[0-9]+$ ]] && ((raw >= 1 && raw <= MAX_UNITS_CAP)); then
+    MAX_CONCURRENT="$raw"
+    return 0
+  fi
+  echo "$PROG: refused: parallel.max-units must be an integer from 1 to $MAX_UNITS_CAP; using $DEFAULT_MAX_UNITS" >&2
 }
 
 IDS=()
@@ -442,10 +471,13 @@ decide_step() {
 }
 
 SELF_TEST_FAILURES=0
+SELF_SCRIPT="$HERE/$PROG"
+SELF_TEST_TMP=''
+SELF_TEST_REPOS=0
 
 expect_plan() {
   local label="$1" input="$2" expected="$3" actual
-  actual="$(printf '%s\n' "$input" | "$0" 2>&1 | tr '\n' ' ')" || true
+  actual="$(printf '%s\n' "$input" | "$SELF_SCRIPT" 2>&1 | tr '\n' ' ')" || true
   if [[ "$actual" == "$expected" ]]; then
     printf 'ok    %s\n' "$label"
   else
@@ -456,7 +488,7 @@ expect_plan() {
 
 expect_step() {
   local label="$1" input="$2" expected="$3" actual
-  actual="$(printf '%s\n' "$input" | "$0" --step 2>&1 | tr '\n' ' ')" || true
+  actual="$(printf '%s\n' "$input" | "$SELF_SCRIPT" --step 2>&1 | tr '\n' ' ')" || true
   if [[ "$actual" == "$expected" ]]; then
     printf 'ok    %s\n' "$label"
   else
@@ -467,7 +499,7 @@ expect_step() {
 
 expect_step_refusal() {
   local label="$1" input="$2" code=0
-  printf '%s\n' "$input" | "$0" --step >/dev/null 2>&1 || code=$?
+  printf '%s\n' "$input" | "$SELF_SCRIPT" --step >/dev/null 2>&1 || code=$?
   if [[ "$code" -eq 1 ]]; then
     printf 'ok    %s\n' "$label"
   else
@@ -478,7 +510,7 @@ expect_step_refusal() {
 
 expect_refusal() {
   local label="$1" input="$2" code=0
-  printf '%s\n' "$input" | "$0" >/dev/null 2>&1 || code=$?
+  printf '%s\n' "$input" | "$SELF_SCRIPT" >/dev/null 2>&1 || code=$?
   if [[ "$code" -eq 1 ]]; then
     printf 'ok    %s\n' "$label"
   else
@@ -493,7 +525,7 @@ expect_glob_refusal() {
   local label="$1" plan="$2" step="$3" dir script code=0
   dir="$(mktemp -d)"
   : >"$dir/A.php"
-  script="$(cd "$(dirname "$0")" && pwd)/${0##*/}"
+  script="$SELF_SCRIPT"
   if [[ -n "$step" ]]; then
     (cd "$dir" && printf '%s\n' "$step" | "$script" --step >/dev/null 2>&1) || code=$?
   else
@@ -508,8 +540,62 @@ expect_glob_refusal() {
   fi
 }
 
+# make_manifest_repo <dir> <composer.json text> — a throwaway repository whose default branch carries the manifest,
+# so the planner reads the limit the way it does in a project.
+make_manifest_repo() {
+  local dir="$1" json="$2"
+  mkdir -p "$dir"
+  git -C "$dir" init -q
+  printf '%s\n' "$json" >"$dir/composer.json"
+  git -C "$dir" add composer.json
+  git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m manifest
+  git -C "$dir" update-ref refs/remotes/origin/master HEAD
+}
+
+# expect_limit <label> <raw JSON value of parallel.max-units> <units> <expected stdout> [expected part of stderr]
+# An empty stderr part means the planner must write nothing to stderr.
+expect_limit() {
+  local label="$1" value="$2" input="$3" expected="$4" note="${5:-}" dir actual err
+  SELF_TEST_REPOS=$((SELF_TEST_REPOS + 1))
+  dir="$SELF_TEST_TMP/repo-$SELF_TEST_REPOS"
+  make_manifest_repo "$dir" "{ \"extra\": { \"ai-olympus\": { \"parallel\": { \"max-units\": $value } } } }"
+  actual="$(cd "$dir" && printf '%s\n' "$input" | "$SELF_SCRIPT" 2>"$SELF_TEST_TMP/stderr" | tr '\n' ' ')" || true
+  err="$(cat "$SELF_TEST_TMP/stderr")"
+  if [[ "$actual" == "$expected" && ( ( -z "$note" && -z "$err" ) || ( -n "$note" && "$err" == *"$note"* ) ) ]]; then
+    printf 'ok    %s\n' "$label"
+  else
+    printf 'FAIL  %s\n        expected: %s | %s\n        actual:   %s | %s\n' "$label" "$expected" "$note" "$actual" "$err" >&2
+    SELF_TEST_FAILURES=$((SELF_TEST_FAILURES + 1))
+  fi
+}
+
+# expect_plan_in <dir> <label> <units> <expected> — run the planner from <dir>.
+expect_plan_in() {
+  local dir="$1" label="$2" input="$3" expected="$4" actual
+  actual="$(cd "$dir" && printf '%s\n' "$input" | "$SELF_SCRIPT" 2>&1 | tr '\n' ' ')" || true
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'ok    %s\n' "$label"
+  else
+    printf 'FAIL  %s\n        expected: %s\n        actual:   %s\n' "$label" "$expected" "$actual" >&2
+    SELF_TEST_FAILURES=$((SELF_TEST_FAILURES + 1))
+  fi
+}
+
+# Reached only through `trap cleanup_self_test EXIT`; ShellCheck does not credit a trap as an invocation.
+# shellcheck disable=SC2317,SC2329
+cleanup_self_test() {
+  [[ -z "$SELF_TEST_TMP" ]] || rm -rf "$SELF_TEST_TMP"
+  return 0
+}
+
 self_test() {
   local head='max_concurrent=2 '
+  # Every case without a manifest runs from a directory with no repository, so the limit of the project that
+  # runs the test never changes a result.
+  SELF_TEST_TMP="$(mktemp -d)"
+  trap cleanup_self_test EXIT
+  mkdir -p "$SELF_TEST_TMP/plain"
+  cd "$SELF_TEST_TMP/plain"
 
   expect_plan 'one unit is one sequential batch' \
     'a|STANDARD||src/A.php' \
@@ -559,7 +645,7 @@ self_test() {
     $'a|STANDARD||src/A.php\nb|STANDARD||' \
     "${head}batches=2 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=no-file-evidence:b "
 
-  expect_plan 'at most two units run at the same time' \
+  expect_plan 'without a manifest key at most two units run at the same time' \
     $'a|FAST||a.md\nb|FAST||b.md\nc|FAST||c.md\nd|FAST||d.md\ne|FAST||e.md' \
     "${head}batches=3 batch.1=a,b mode.1=parallel batch.2=c,d mode.2=parallel reason.c=batch-full batch.3=e mode.3=sequential reason.e=batch-full "
 
@@ -570,6 +656,45 @@ self_test() {
   expect_plan 'comments and blank lines are skipped' \
     $'# a comment\n\na|FAST||a.md\nb|FAST||b.md' \
     "${head}batches=1 batch.1=a,b mode.1=parallel "
+
+
+  local five=$'a|FAST||a.md\nb|FAST||b.md\nc|FAST||c.md\nd|FAST||d.md\ne|FAST||e.md'
+  local three=$'a|FAST||a.md\nb|FAST||b.md\nc|FAST||c.md'
+  expect_limit 'a limit of 1 runs every unit alone' '1' "$five" \
+    'max_concurrent=1 batches=5 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=batch-full batch.3=c mode.3=sequential reason.c=batch-full batch.4=d mode.4=sequential reason.d=batch-full batch.5=e mode.5=sequential reason.e=batch-full '
+  expect_limit 'a limit of 2 keeps the default fan-out' '2' "$five" \
+    "${head}batches=3 batch.1=a,b mode.1=parallel batch.2=c,d mode.2=parallel reason.c=batch-full batch.3=e mode.3=sequential reason.e=batch-full "
+  expect_limit 'a limit of 3 puts three units in one batch' '3' "$five" \
+    'max_concurrent=3 batches=2 batch.1=a,b,c mode.1=parallel batch.2=d,e mode.2=parallel reason.d=batch-full '
+  expect_limit 'a limit of 5 puts five free units in one batch' '5' "$five" \
+    'max_concurrent=5 batches=1 batch.1=a,b,c,d,e mode.1=parallel '
+  expect_limit 'a limit of 10 is accepted' '10' "$five" \
+    'max_concurrent=10 batches=1 batch.1=a,b,c,d,e mode.1=parallel '
+  expect_limit 'a wide limit never joins units whose files overlap' '4' \
+    $'a|FAST||src/A.php\nb|FAST||src/A.php\nc|FAST||c.md' \
+    'max_concurrent=4 batches=2 batch.1=a mode.1=sequential batch.2=b,c mode.2=parallel reason.b=files-overlap:a:src/A.php '
+  expect_limit 'a wide limit never joins a unit to the unit it depends on' '4' \
+    $'a|FAST||a.md\nb|FAST|a|b.md\nc|FAST||c.md' \
+    'max_concurrent=4 batches=2 batch.1=a mode.1=sequential batch.2=b,c mode.2=parallel reason.b=depends-on:a '
+  expect_limit 'a wide limit never joins a CRITICAL unit to another unit' '4' \
+    $'a|FAST||a.md\nb|CRITICAL||b.md\nc|FAST||c.md' \
+    'max_concurrent=4 batches=3 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=critical:b batch.3=c mode.3=sequential reason.c=critical:b '
+  local bad
+  for bad in 0 11 -1 2.5 '"3"' true null '[3]'; do
+    expect_limit "a limit of $bad is refused and the default 2 is kept" "$bad" "$three" \
+      "${head}batches=2 batch.1=a,b mode.1=parallel batch.2=c mode.2=sequential reason.c=batch-full " \
+      'refused: parallel.max-units must be an integer from 1 to 10; using 2'
+  done
+  local keyless_repo="$SELF_TEST_TMP/keyless"
+  make_manifest_repo "$keyless_repo" '{ "extra": { "ai-olympus": { "gate": ["make check"] } } }'
+  expect_plan_in "$keyless_repo" 'a manifest without the key keeps the limit 2' "$three" \
+    "${head}batches=2 batch.1=a,b mode.1=parallel batch.2=c mode.2=sequential reason.c=batch-full "
+  # A branch under review proposes a manifest; the default branch governs.
+  printf '%s\n' '{ "extra": { "ai-olympus": { "parallel": { "max-units": 9 } } } }' >"$keyless_repo/composer.json"
+  expect_plan_in "$keyless_repo" 'a working-tree manifest never changes the limit' "$three" \
+    "${head}batches=2 batch.1=a,b mode.1=parallel batch.2=c mode.2=sequential reason.c=batch-full "
+  PARALLEL_MAX_UNITS=9 expect_limit 'an environment variable never changes the limit' '1' $'a|FAST||a.md\nb|FAST||b.md' \
+    'max_concurrent=1 batches=2 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=batch-full '
 
   expect_refusal 'an unknown tier is refused' 'a|HUGE||a.md'
   expect_refusal 'an id with a path separator is refused' '../a|FAST||a.md'
@@ -713,5 +838,6 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
+limit_from_manifest
 read_units
 plan
