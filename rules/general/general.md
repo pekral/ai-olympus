@@ -50,6 +50,7 @@ The host project declares machine-readable settings in its `composer.json` under
 | `coverage` | string | The project's coverage command. |
 | `env` | object | Environment variables exported to every project tool command an agent runs, e.g. `{"CLAUDECODE": "1"}`. Export only what `skills/_shared/read-manifest.sh --env` prints; it refuses a name that changes which program runs. |
 | `validation.executables` | string[] | Extra project-local executables (`vendor/bin/<name>` only) that `skills/_shared/run-validation.sh` may run. |
+| `parallel.max-units` | int | The most units that run at the same time in one batch of `skills/_shared/plan-parallel.sh`. 1 to 10; any other value falls back to 2. Absent: 2. A limit of 1 runs every unit alone. The machine-wide gate lock stays one heavy job at a time. |
 | `risk.critical-paths` | string[] | ERE regexes. A changed path that matches one forces the CRITICAL tier in `skills/_shared/classify-risk.sh`. |
 | `recurrence.threshold` | int | The pull requests in which one defect class must appear to count as a recurrence in `skills/_shared/analyze-recurrence.sh`. At least 2. Absent: 2. |
 | `recurrence.window-days` | int | The span in days in which those occurrences must fall. At least 1. Absent: 90. |

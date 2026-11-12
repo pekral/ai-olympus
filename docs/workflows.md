@@ -64,6 +64,18 @@ $test-assignment https://your-company.atlassian.net/browse/PROJ-123
 
 `krang` maps every input that reaches the changed behaviour and builds a test matrix of real data. `donatello` runs the whole test suite and the gate on the final head, and `raphael` exercises the running application and compares it with the base branch. In `report` mode (the default) the workflow changes nothing, and `april` publishes the technical report on the pull request and a plain-language summary on the source issue. In `fix` mode `donatello` adds the missing tests and fixes, and the workflow continues as `/prepare-issue-for-merge`. It never merges.
 
+To turn free-form instructions into a prioritised work queue and execute it, use the queue workflow:
+
+```text
+# Claude Code
+/do-it add the CSV export of orders, then a date filter for it, and fix the typo on the login page
+
+# Codex
+$run-work-queue add the CSV export of orders, then a date filter for it, and fix the typo on the login page
+```
+
+The invoking session holds the `krang` role. It splits the instructions into independently deliverable items. An item that already has an open issue reuses it, and the reuse and its evidence go into the queue brief. Every other item gets one new GitHub issue. `skills/_shared/order-work-queue.sh` orders the queue by priority, then difficulty, then duration, and never puts an item before one it depends on. `skills/_shared/plan-parallel.sh` plans the batches. Its limit is the manifest key `parallel.max-units` (default 2), and the gate lock still runs one heavy job at a time. Each item then runs the standard pipeline to a converged Draft pull request, in its own worktree when its batch runs in parallel and worktrees are allowed. The final report lists every item with its pull request, status, and blocker. The workflow never merges.
+
 ## How agents hand work over
 
 Agents never share a conversation. Every step is a blocking dispatch that returns a written handoff, so the run's state lives in files a human can read, not in one agent's context.

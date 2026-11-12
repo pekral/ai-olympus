@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 67 skills this package ships, grouped by what you reach for them for. Each description is the
+All 68 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -9,7 +9,7 @@ link to read the skill itself.
 
 | Group | Skills |
 |---|---|
-| [Issue → PR workflow](#issue--pr-workflow) | 12 |
+| [Issue → PR workflow](#issue--pr-workflow) | 13 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 6 |
 | [Testing](#testing) | 10 |
@@ -28,6 +28,7 @@ link to read the skill itself.
 | [`resolve-issue`](../skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
 | [`prepare-issue-context`](../skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
 | [`verify-merge-readiness`](../skills/verify-merge-readiness/) | A GitHub issue, a GitHub pull request, or a JIRA issue must have its pull request brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
+| [`run-work-queue`](../skills/run-work-queue/) | Free-form instructions with several tasks must become a prioritised queue of issues and be executed to converged pull requests: an existing issue is reused, the order comes from priority, difficulty, and duration, and the parallel batches come from `plan-parallel.sh` |
 | [`process-code-review`](../skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](../skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`merge-github-pr-fast`](../skills/merge-github-pr-fast/) | Land a hotfix pull request now, only on the user's explicit `/merge-github-pr-fast`: one security-only check of the diff, then green CI or a passing gate on the head commit |
