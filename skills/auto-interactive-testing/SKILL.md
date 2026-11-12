@@ -89,9 +89,9 @@ A non-security defect that the change under test did not cause is never fixed in
 
 ### 7. Clean up
 
-1. Restore every record that this run changed, as `@skills/interactive-testing/SKILL.md` *Missing test data* states. Delete every record that this run created. Use the application's own delete path. When no such path exists, delete only the records this run created, through their model and storage, and check for orphaned stored files.
+1. Restore every record that this run changed, as `@skills/interactive-testing/SKILL.md` *Missing test data* states. Delete every record that this run created. Run this cleanup through `@skills/interactive-testing/SKILL.md` *Scripted cleanup*. When the browser fallback runs, use the application's own delete path. When no such path exists, delete only the records this run created, through their model and storage, and check for orphaned stored files.
 2. Restore every setting you changed, then read it back.
-3. Stop the processes this run started, and close its terminal tabs.
+3. Stop the processes this run started, and close its terminal tabs. Close every browser tab this run opened, as `@skills/interactive-testing/SKILL.md` *Browser tabs* states.
 4. Delete the throwaway branches after you confirm that no remote copy exists.
 5. List every item that stays, with the reason.
 
