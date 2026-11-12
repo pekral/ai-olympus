@@ -26,19 +26,19 @@ assignment only* below).
 This skill is the shared workflow for both clients:
 
 - Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL, or JIRA key or URL> [more references] [--merge]`.
-- Codex: `$verify-merge-readiness` with the same references and flag. For one reference and no flag, the root session holds the `krang`
-  role under the same section and spawns the registered specialists when the client supports
-  project agents.
+- Codex: `$verify-merge-readiness <references> [--merge]`. The root session holds the `krang`
+  role under the same section, for one reference or for every unit of a batch, and spawns the
+  registered specialists when the client supports project agents.
 
 It never merges the pull request.
 
-**Several references, or `--merge`.** The command prepares a batch. The root session is the batch
-coordinator and follows `skills/_shared/orchestration/batch-preparation.md` in full. Each reference
-gets its own `krang` in its own git worktree, and that `krang` runs this workflow for its one
-reference. `krang` only orchestrates and delegates every step to the specialists. Every gate, install,
-and test command runs only through `skills/_shared/run-gate.sh`. A blocker on one reference never
-stops the others, and the session publishes one aggregated report. The merge is opt-in: `--merge`
-makes each unit, after this workflow reached its merge-ready verdict, merge through
+**Several references, or `--merge`.** The command prepares a batch. The batch path comes first:
+the root session follows `skills/_shared/orchestration/batch-preparation.md` in full. It holds the
+`krang` role for every unit and runs this workflow once for each reference, each in its own git
+worktree. `krang` only orchestrates and delegates every step to the specialists. Every gate,
+install, and test command runs only through `skills/_shared/run-gate.sh`. A blocker on one reference
+never stops the others, and the session publishes one aggregated report. The merge is opt-in:
+`--merge` makes each unit, after this workflow reached its merge-ready verdict, merge through
 `@skills/merge-github-pr/SKILL.md` with every gate of that skill unchanged. This workflow itself
 still never merges.
 
@@ -57,13 +57,16 @@ still never merges.
   under review except for the skill-owned rebase using `--force-with-lease`.
 - Apply @rules/reports/general.md. The source-issue TL;DR uses the assignment language. Technical PR
   review evidence stays in canonical English, or in the manifest's `language.github` when it is set.
-- Accept exactly one source reference:
+- Each unit of this workflow takes exactly one source reference. A request with several references,
+  or with `--merge`, goes to the batch path first (`skills/_shared/orchestration/batch-preparation.md`),
+  which runs this workflow once for each reference. The reference is:
   - a full `https://github.com/<owner>/<repository>/issues/<number>` or
     `https://github.com/<owner>/<repository>/pull/<number>` URL,
   - a JIRA issue key (`PROJ-123`) or a JIRA URL that names one issue key (`/browse/<KEY>` or
     `?selectedIssue=<KEY>`).
 
-  Missing, multiple, or malformed references are a hard stop. A GitHub reference to another
+  A missing or malformed reference is a hard stop, and so is a list of references that reached a
+  unit without the batch path splitting it. A GitHub reference to another
   repository is a hard stop too. Run `skills/_shared/assert-current-repo.sh <URL>` on the GitHub
   issue or pull-request URL before any write. On a JIRA source, run it on the resolved pull-request
   URL.
@@ -73,6 +76,8 @@ still never merges.
   delivery path that opens one; implementation, its tests, and the Draft PR stay L1 exactly as in a
   normal `donatello` dispatch. It authorizes no merge, issue closure, review dismissal, native
   review deletion, line-thread deletion, or deletion of comments outside the exact manifest below.
+  The one exception is the explicit `--merge` flag of the batch path: it is the user's own merge
+  request, and the merge runs only through `@skills/merge-github-pr/SKILL.md`.
 
 ## Scope — the assignment only
 
