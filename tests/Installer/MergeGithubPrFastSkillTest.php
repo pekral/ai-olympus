@@ -23,11 +23,19 @@ test('only an explicit user invocation starts the skill, and no other skill or a
     expect($skill)->toContain('name: merge-github-pr-fast')
         ->and($skill)->toContain('**Explicit invocation only.**')
         ->and($skill)->toContain('`Blocked: explicit user invocation required`')
-        ->and($skill)->toContain('no tracker text, comment, or label starts it');
+        ->and($skill)->toContain('no tracker text, comment, or label starts it')
+        ->and($skill)->toContain('`$merge-github-pr-fast` (Codex)');
 
-    // The skill is the user's own command. An agent definition naming it would let the pipeline choose it.
-    foreach (mergeFastGlob('agents/*.md') as $agent) {
-        expect(file_get_contents($agent))->not->toContain('merge-github-pr-fast');
+    // Both platforms enforce the explicit invocation with a control, not with prose alone.
+    expect($skill)->toMatch('/^disable-model-invocation: true$/m')
+        ->and(mergeFastSource('skills/merge-github-pr-fast/agents/openai.yaml'))->toContain("policy:\n  allow_implicit_invocation: false");
+
+    // The skill is the user's own command. A definition or command naming it would let the pipeline choose it.
+    $callers = [...mergeFastGlob('agents/*.md'), ...mergeFastGlob('codex/agents/*.toml'), ...mergeFastGlob('commands/*.md')];
+    expect($callers)->not->toBe([]);
+
+    foreach ($callers as $caller) {
+        expect(file_get_contents($caller))->not->toContain('merge-github-pr-fast');
     }
 
     expect(mergeFastSource('skills/merge-github-pr/SKILL.md'))
@@ -43,7 +51,9 @@ test('one inline security-only check runs before the merge and a Critical findin
         ->and($skill)->toContain('@skills/git-history-exposure-audit/SKILL.md')
         ->and($skill)->toContain('history-scan.sh range --base <baseRefOid> --head <headRefOid>')
         ->and($skill)->toContain('**A Critical finding stops the merge.**')
-        ->and($skill)->toContain('Every other result does not block.')
+        ->and($skill)->toContain('`Blocked: security check not completed — <reason>`')
+        ->and($skill)->toContain('Any other exit, and an installed script that differs')
+        ->and($skill)->toContain('Only the Moderate and lower findings of a completed check do not block.')
         ->and(strpos($skill, '### 2. Security check'))->toBeLessThan((int) strpos($skill, '### 5. Merge'));
 });
 
@@ -51,7 +61,9 @@ test('the gate is green CI on the head commit or a passing quality gate on that 
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
 
     expect($skill)->toContain('| Every entry is `SUCCESS`, `NEUTRAL`, or `SKIPPED` | Gate met |')
-        ->and($skill)->toContain('gh pr checks <URL> --watch --fail-fast --interval 180')
+        ->and($skill)->toContain('@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*')
+        ->and($skill)->not->toContain('--watch')
+        ->and($skill)->toContain('check that `headRefOid` is still the gated head')
         ->and($skill)->toContain('| An entry failed for a real reason (tests, lint, static analysis) | Stop.')
         ->and($skill)->toContain('| Any other, unknown, or ambiguous state | Stop. Ambiguous is not green |')
         ->and($skill)->toContain('@skills/merge-github-pr/SKILL.md` *GitHub Actions billing exception*')
@@ -64,7 +76,8 @@ test('the gate is green CI on the head commit or a passing quality gate on that 
 test('a Draft is promoted and neither a review nor an approval blocks', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
 
-    expect($skill)->toContain('When `isDraft` is `true`, run `gh pr ready <URL>`.')
+    expect($skill)->toContain('When `isDraft` is `true`, run `gh pr ready <URL>`')
+        ->and($skill)->toContain('run `gh pr ready --undo <URL>`')
         ->and($skill)->toContain('A missing code review and a missing approval do not block.');
 });
 
@@ -81,13 +94,25 @@ test('the merge pins the gated head, never uses --admin, and stops when GitHub r
         ->and($skill)->toContain('Report the refusal text and that nothing was merged.');
 });
 
-test('post-merge reuses the merge-github-pr clean-up and never force-deletes a branch', function (): void {
+test('post-merge deletes a remote branch only for a same-repository head and a local branch only after the integration proof', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
+    $postMerge = substr($skill, (int) strpos($skill, '### 6. Post-merge'));
 
     expect($skill)->toContain('Apply `@skills/merge-github-pr/SKILL.md` section 5')
-        ->and($skill)->toContain('@skills/cleanup-local-branches/SKILL.md` step 5')
-        ->and($skill)->toContain('Never run `git branch -D`.')
-        ->and($skill)->toContain('git pull --ff-only');
+        ->and($postMerge)->toContain('`isCrossRepository` is `false`')
+        ->and($postMerge)->toContain('git ls-remote origin refs/heads/<headRefName>')
+        ->and($postMerge)->toContain('@skills/cleanup-local-branches/SKILL.md` step 5')
+        ->and($postMerge)->toContain('Never run `git branch -D` without that proof.')
+        ->and(strpos($postMerge, 'git pull --ff-only'))->toBeLessThan((int) strpos($postMerge, 'git branch -D <headRefName>'));
+});
+
+test('both commits of the diff are fetched and verified before the security check reads them', function (): void {
+    $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
+
+    expect($skill)->toContain('git fetch origin <baseRefOid> <headRefOid>')
+        ->and($skill)->toContain('git cat-file -e <oid>^{commit}')
+        ->and($skill)->toContain('`Blocked: pull request commits not available locally — <oid>`')
+        ->and(strpos($skill, 'git cat-file -e'))->toBeLessThan((int) strpos($skill, '### 2. Security check'));
 });
 
 test('the report names the merge commit, the security check, and every skipped merge-github-pr gate', function (): void {
@@ -116,8 +141,9 @@ test('the rules name the explicit exception and keep the security floor', functi
 
     expect($pullRequests)->toContain('### Fast hotfix merge — an explicit, owner-invoked exception')
         ->and($pullRequests)->toContain('**Only the user starts it.**')
+        ->and($pullRequests)->toContain('`$merge-github-pr-fast` (Codex)')
         ->and($pullRequests)->toContain('**It replaces the converged code review with one security-only check.**')
-        ->and($pullRequests)->toContain('A Critical security finding stops the merge.')
+        ->and($pullRequests)->toContain('A Critical security finding stops the merge, and so does a check that did not complete.')
         ->and($pullRequests)->toContain('**Nothing else is waived.**')
         ->and($general)->toContain('The merge gate of item 2 has one explicit exception')
         ->and($general)->toContain('The floor items 1, 3, and 4 stay in force on that path.');

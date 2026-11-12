@@ -103,6 +103,7 @@ function githubLoaderPullRequestJson(): string
         'headRefOid' => 'd4e5f6',
         // The loader special-cases this field: `$p.isDraft // null` would collapse `false` to
         // `null`, which the merge gate reads as "draft state unknown".
+        'isCrossRepository' => false,
         'isDraft' => false,
         'number' => 123,
         'state' => 'OPEN',
@@ -255,6 +256,8 @@ test('a pull request URL is loaded through gh pr view and keeps a non-draft PR r
     // Not `toBeFalsy()`: the whole point of the loader's special case is that `false` survives as
     // `false` instead of collapsing to `null`, and the merge gate distinguishes the two.
     expect(decodedJsonField($output, 'isDraft'))->toBeFalse();
+    // A same-repository PR reports `false`; the fast merge deletes the remote branch only on that value.
+    expect(decodedJsonField($output, 'isCrossRepository'))->toBeFalse();
     expect(decodedJsonField($output, 'headRefOid'))->toBe('d4e5f6');
     expect(decodedJsonField($output, 'closingIssues.0.number'))->toBe(445);
 });
