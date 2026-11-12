@@ -162,7 +162,7 @@ Both CR severities block convergence, so a `Critical` versus `Moderate` split ne
 
 ## Merging the `splinter` view into the one CR comment (issue #379)
 
-`leonardo` publishes the one CR comment and merges the report of `splinter` for the same head SHA into it (`agents/leonardo.md` *Parallel CR round*). This section is the one owner of the merge rules. `agents/leonardo.md`, `agents/krang.md`, and both finding templates point here and restate none of them.
+`leonardo` publishes the one CR comment and merges the report of `splinter` for the same head SHA into it (`agents/leonardo.md` *Parallel CR round*). This section is the one owner of the merge rules. `agents/leonardo.md`, `skills/_shared/orchestration/splinter-not-run.md`, and both finding templates point here and restate none of them.
 
 - **A finding that one view raises stays.** The merged review carries it at the severity of the view that raised it. The other view not raising it is never a reason to drop it, and a security finding is never deferred.
 - **A duplicate becomes one finding.** When both views report the same defect, the merged review carries it once, at the stricter severity (*Severity divergence between parallel reviewers* above).
