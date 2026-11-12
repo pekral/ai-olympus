@@ -1,40 +1,73 @@
-<div align="center">
-  <img src="assets/logo.webp" alt="AI Olympus — eight AI agents for Laravel and PHP, available in Claude Code and Codex" width="960" height="480">
+<div align="left">
+    <img alt="AI Olympus — eight AI agents for Laravel and PHP, available in Claude Code and Codex" src="assets/logo.webp" width="960" height="480">
 
-<h1>AI Olympus — An AI Development Team for Laravel</h1>
+<h1>AI Olympus</h1>
 
-  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/v/pekral/ai-olympus" alt="Packagist Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square" alt="MIT Licensed"></a>
-  <a href="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml"><img src="https://github.com/pekral/ai-olympus/actions/workflows/pr.yml/badge.svg" alt="Quality Checks"></a>
-  <a href="https://packagist.org/packages/pekral/ai-olympus"><img src="https://img.shields.io/packagist/dt/pekral/ai-olympus" alt="Total Downloads"></a>
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/pekral/ai-olympus.svg?style=flat-square)](https://packagist.org/packages/pekral/ai-olympus)
+[![MIT Licensed](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+![Pull Request Quality Checks](https://github.com/pekral/ai-olympus/workflows/Pull%20Request%20Quality%20Checks/badge.svg)
+[![Total Downloads](https://img.shields.io/packagist/dt/pekral/ai-olympus.svg?style=flat-square)](https://packagist.org/packages/pekral/ai-olympus)
+
 </div>
 
-**AI Olympus** gives Laravel/PHP teams shared coding standards, 67 reusable skills, and eight specialist agents for Claude Code and Codex. The workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 67 reusable skills, and eight specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
-PHP 8.4 or newer (PHP 8.x) and Composer 2 for the installer; Claude Code or Codex for the workflows. GitHub workflows also need an authenticated `gh` CLI. The [Claude plugin](#via-the-plugin-marketplace-no-composer) does not require Composer.
+- PHP 8.4 or newer and Composer 2, for the Composer installer
+- Claude Code or Codex, to run the workflows; GitHub workflows also need an authenticated `gh` CLI
+- Optional: the `pdo_sqlite` extension with FTS5, for the code-review memory; without it the agents continue without memory
+
+CI installs the package into a clean Composer project on PHP 8.4, 8.5, and 8.6 and checks that the Claude Code and Codex files are written. It does not run the agents inside Claude Code or Codex, so agent availability and permissions still depend on your agent host. The Claude Code plugin channel needs no PHP; CI checks its manifests but does not install it into Claude Code.
 
 ## Installation
 
-Run the two commands in [Quickstart](#quickstart) from your Composer project root. Composer installs the package; the second command installs its Claude Code and Codex integration.
-
-## Configuration
-
-The installer never generates a `CLAUDE.md`, and it preserves an existing `CLAUDE.md` and `AGENTS.md`. Without a `CLAUDE.md`, Claude Code 2.1.277+ uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). For an existing `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) after installation. Review [overwrite behaviour and settings](#via-composer) before using `--force`. Automatic installation is off by default; [opt-in configuration](docs/installation.md#automatic-installation-via-composer-plugin) enables forced refreshes on Composer install/update when the plugin is allowed.
-
-The same `extra.ai-olympus` key in `composer.json` is the [project manifest](docs/installation.md#project-manifest): it tells the workflows how your project runs its quality gate and coverage, which extra tools validation may run, which paths are critical, and which language, timezone, and tenancy model apply. Your own instructions — `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest — take precedence over the packaged rules; only the security floor stays fixed.
-
-## Quickstart
+From your Composer project root:
 
 ```bash
 composer require pekral/ai-olympus:0.4 --dev
 vendor/bin/ai-olympus install --force
 ```
 
-The commands above pin version `0.4`, which contains the Ninja Turtles team shown below. Commit your project's `composer.lock` to keep installations reproducible. See [versions and upgrades](docs/installation.md#versions-and-upgrades) for update constraints and refresh instructions.
+> [!IMPORTANT]
+> `install` normally copies only missing files; security rule files are refreshed even without `--force`. `--force` also replaces the other installed rules, skills, and agents, so save local customizations first. Neither root instruction file (`CLAUDE.md`, `AGENTS.md`) is overwritten.
+>
+> During the agent rename, the installer removes verified, unchanged copies of the old definitions once their replacements are installed. Edited old definitions and custom agents are preserved. See the [old-to-new name mapping](docs/agents.md#renamed-agents). Use `--prune` only after reviewing orphaned files: it also removes custom files absent from the package.
 
-Restart the agent session after installation. In Claude Code, start the session as `krang`, so the session itself orchestrates and dispatches the specialists:
+The constraint pins release `0.4`; commit your project's `composer.lock` to keep installations reproducible. Composer may ask whether you trust the package as a plugin; see the [plugin trust model](SECURITY.md#plugin-trust-model).
+
+The installer writes, for Claude Code and Codex:
+
+- `.claude/rules` and `.codex/rules` — the rule library
+- `.claude/skills` and `.agents/skills` — the skills, in the project only
+- `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the eight agents and their Codex adapters
+- `.claude/commands` — the four slash commands
+- `AGENTS.md` in the project root, unless one already exists
+
+`--global` additionally writes the skills to `~/.claude/skills` and `~/.agents/skills`. Every other switch, the installer flow, and the distribution contents are in [`docs/installation.md`](docs/installation.md).
+
+### Claude Code plugin marketplace (no Composer)
+
+```text
+/plugin marketplace add pekral/ai-olympus
+/plugin install ai-olympus@ai-olympus
+```
+
+This loads all 67 skills, the eight agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+
+## Configuration
+
+Nothing has to be configured before the first run; restart the agent session after installation.
+
+The installer never generates a `CLAUDE.md`, and it keeps an existing `CLAUDE.md` and `AGENTS.md`. Without a `CLAUDE.md`, Claude Code 2.1.277+ uses `AGENTS.md` as its project instructions (except on Bedrock, Vertex, and Foundry). If your project already had an `AGENTS.md`, merge the [Codex integration section](AGENTS.md#codex-integration) into it.
+
+Automatic installation on `composer install` and `composer update` is off by default; [`extra.ai-olympus.auto-install`](docs/installation.md#automatic-installation-via-composer-plugin) turns it on, and then every install and update runs `install --force`. The same `extra.ai-olympus` object is the [project manifest](docs/installation.md#project-manifest), which tells the workflows how your project runs its quality gate and coverage; every key is optional, and an absent key keeps the built-in behaviour. Your own `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest take precedence over the packaged rules; only the security floor stays fixed.
+
+Installation leaves global Claude settings unchanged by default. The opt-in switches, such as `--disable-co-author-attribution`, `--allow-subagent-writes`, and `--deny-network-bash`, configure Claude Code only and grant Codex no permissions; see the [trust model](SECURITY.md).
+
+## Quick start
+
+In Claude Code, start the session as `krang`, so the session itself orchestrates and dispatches the specialists:
 
 ```text
 claude --agent krang "resolve https://github.com/owner/repo/issues/123"
@@ -54,389 +87,63 @@ Follow .codex/agent-instructions/krang.md as krang and resolve https://github.co
 
 [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md) *Starting the orchestrator — the top-level role and the nested hand-over* explains why `krang` is not started as a subagent.
 
-`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Codex adapters reuse the same role instructions; agent availability and permissions still depend on your Codex environment.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Merging stays a separate, explicit step.
 
-## What You Get
+## What it does
 
-| Layer      | What it is                                                            | Installed into   |
-|------------|-----------------------------------------------------------------------|------------------|
-| **Rules**  | Project standards; Codex reads the library through `AGENTS.md`        | `.claude/rules`, `.codex/rules` |
-| **Skills** | Reusable workflows, from `resolve-issue` to `security-review`         | `.claude/skills`, `.agents/skills` |
-| **Agents** | Shared role definitions with Codex TOML adapters                     | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
-| **Commands** | `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment`, the slash commands the package ships | `.claude/commands` |
-
-The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**. The root `AGENTS.md` tells Codex to read rules whose `paths` match the task, plus every rule without `paths`.
-
-Codex exposes no user-defined slash command, so `.claude/commands` has no Codex counterpart. The same workflow reaches Codex as the skill each command delegates to — mention `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, or the tracker's code-review wrapper (`$code-review-github`, `$code-review-jira`, `$code-review-bugsnag`) and Codex loads it from `.agents/skills`.
-
-## Why This Package
-
-- **Issue-to-PR workflow** — separate roles implement, review, test, and report
-- **Adaptive routing** — a deterministic classifier picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline per task, so a typo fix does not pay for an authorization rewrite's review
-- **Cheapest model that works** — each agent starts on its [default model tier](#default-model-tiers) and escalates only on a recorded reason. The implementer starts on Sonnet. The reviewer and the orchestrator start on Opus, because their mistakes cost every later stage. The same contract binds to the model controls of Codex / OpenAI
-- **Agent-friendly tool output** — when your project installs `laravel/pao`, the rules read the compact JSON it gives agents from Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code as the green signal
-- **Explicit review gates** — workflows require zero Critical findings and no undeferred Moderate findings before merge
-- **Coverage requirements** — implementation skills require tests for the changed behaviour
-- **One standard across every repository** — the same PHP/Laravel rules travel with the package instead of being copy-pasted per project
-- **67 comprehensive Agent skills** you can invoke directly when you want the workflow without the agent
-
-## Installation Details
-
-Use Composer for the dual Claude Code/Codex installation and CLI. The plugin marketplace is a separate **Claude Code-only** distribution channel.
-
-| | Composer | Plugin marketplace |
+| Layer | What it is | Installed into |
 |---|---|---|
-| Requires | PHP + Composer | Claude Code only |
-| Skills, agents | Both Claude Code and Codex locations | Claude Code plugin only |
-| Project instructions | Rules, `AGENTS.md` | None |
-| `--deny-network-bash` and the other opt-in switches | ✅ | ❌ Composer only |
-
-### Via the plugin marketplace (no Composer)
-
-```text
-/plugin marketplace add pekral/ai-olympus
-/plugin install ai-olympus@ai-olympus
-```
-
-That loads all 67 skills, the eight agents, and the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` commands. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory, and this channel carries no command to copy them across. Use Composer when you want the rules in the project.
-
-The opt-in security switches stay bound to the Composer installer. A plugin install writes nothing to `.claude/settings.local.json`.
-
-### Via Composer
-
-The [Quickstart](#quickstart) above carries the two commands. This is what they put in your project for **Claude Code and Codex**:
-
-- `.claude/rules` and `.claude/skills` in the project
-- `.claude/agents` (the eight subagents)
-- `.codex/rules` (the same rule library), `.agents/skills` (Codex's native skill location), and `.codex/agents` (the eight custom-agent adapters)
-- `.codex/agent-instructions` (the canonical role definitions shared with Claude Code)
-- `.claude/commands` (the `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, and `/test-assignment` slash commands; Codex reaches the same workflows as `$verify-merge-readiness`, `$deliver-page-redesign`, `$test-assignment`, and the tracker's code-review wrapper)
-- `AGENTS.md` in the project root
-
-Skills install into the project only. Claude Code uses `.claude/skills`; Codex discovers the same skills from `.agents/skills`. `--global` additionally writes both user locations (`~/.claude/skills` and `~/.agents/skills`), and `--prune-global` clears this package's copies from both. See [Where skills are installed](docs/installation.md#where-skills-are-installed).
-
-> [!IMPORTANT]
-> `install` normally copies only missing files; security rule files are refreshed even without `--force`. The Quickstart's `--force` also replaces other installed rules, skills, and agents, so save local customizations first. Neither root instruction file is overwritten.
->
-> During the agent rename, the installer removes verified, unchanged copies of the old definitions once their replacements are installed. Edited old definitions and custom agents are preserved. See the [old-to-new name mapping](docs/agents.md#renamed-agents). Use `--prune` only after reviewing orphaned files: it also removes custom files absent from the package.
-
-Installation leaves global Claude settings unchanged by default. Pass `--disable-co-author-attribution` to set `includeCoAuthoredBy: false` in `~/.claude/settings.json` when absent; existing values are preserved. The installer still removes this package's obsolete `bash-guard` hook from project settings. This cleanup and the opt-in settings switches configure Claude Code only, including when you intend to use Codex; they do not grant Codex permissions. See the [trust model](SECURITY.md).
-
-Everything beyond those two commands — enabling auto-install on `composer install`, the full command list, the installer flow, and every CLI switch — lives in [`docs/installation.md`](docs/installation.md).
-
----
-
-## Claude Code and Codex Subagents
-
-Agents are a thin orchestration layer over the existing skills — they don't replace them and they don't duplicate their prompts. The roster uses **Teenage Mutant Ninja Turtles** characters matched to each role (see [`docs/agents.md`](docs/agents.md)).
-
-```text
-Rules  = long-lived project standards
-Skills = reusable workflows
-Agents = specialised orchestration roles over multiple skills
-```
-
-The eight specialists keep their existing responsibilities and permissions under the new names. Full role definitions live in [`docs/agents.md`](docs/agents.md).
-
-<table>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/krang.png"><img src="assets/agents/thumbnails/krang.png" alt="Krang avatar" width="80"></a></td>
-<td valign="top">
-
-**Krang (`krang`) — engineering-workflow orchestrator** · the front door
-
-Routes a free-form request to the specialists: `donatello` for implementation, `leonardo` for review, `michelangelo` for a page redesign, `raphael` for acceptance testing when needed, `casey` for the advisory database report, `shredder` for the project context a task needs, and `april` for the final report. It can request a security analysis or a redesign specification before implementation or prepare an existing PR for merge without merging it. It does not implement or review code itself. Backlog triage and splitting a broad request into deliverable issues run inline.
-
-**Orchestrates:** `donatello`, `leonardo`, `michelangelo`, `raphael`, `casey`, `shredder`, `april` (dispatched) · `github-issue-triage`, `create-issues-from-text`, `create-issue` (inline)
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/donatello.png"><img src="assets/agents/thumbnails/donatello.png" alt="Donatello avatar" width="80"></a></td>
-<td valign="top">
-
-**Donatello (`donatello`) — code-writing implementer**
-
-Implements an issue from context or a tracker link, authors its test coverage, runs the relevant tests, then opens a draft PR. It also handles scoped validation after a landing step. The implementation run stops at the PR; authoritative review belongs to `leonardo`, and final tracker reporting belongs to `april`. An explicitly requested merge must use the separate `merge-github-pr` skill.
-
-**Orchestrates:** `resolve-issue`, `create-test`, `create-missing-tests-in-pr`, `e2e-testing`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/leonardo.png"><img src="assets/agents/thumbnails/leonardo.png" alt="Leonardo avatar" width="80"></a></td>
-<td valign="top">
-
-**Leonardo (`leonardo`) — the code-review sentinel** · read-only
-
-The roster's **only** CR agent. Two modes: the authoritative code review after `donatello` — code quality, architecture, optimisation **and** security in one pass, driven to convergence and published as a single pull-request comment carrying a TL;DR of what changed — and an on-demand pre-implementation security analysis that feeds a remediation plan to `donatello`. Applies every security rule and labels each finding Critical / Moderate.
-
-**Orchestrates:** `code-review-github`, `code-review-jira`, `code-review-bugsnag`, `process-code-review`, `security-review`, `laravel-authorization-review`, `laravel-security`, `security-bounty-hunter`, `security-threat-analysis`, `analyze-problem`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/raphael.png"><img src="assets/agents/thumbnails/raphael.png" alt="Raphael avatar" width="80"></a></td>
-<td valign="top">
-
-**Raphael (`raphael`) — acceptance tester** · read-only
-
-Exercises changed behaviour on a local running application: APIs over HTTP and UI scenarios in a real browser. Uses the project's `interactive-testing` skill when available. Returns a per-criterion Met / Not met / Blocked verdict with observed evidence; an untested criterion is never Met. Pure refactors and documentation changes do not need this pass. It never edits code, authors tests, merges, or publishes.
-
-**Orchestrates:** `tester-cookbook`, `e2e-testing`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/michelangelo.png"><img src="assets/agents/thumbnails/michelangelo.png" alt="Michelangelo avatar" width="80"></a></td>
-<td valign="top">
-
-**Michelangelo (`michelangelo`) — page redesigner** · writes only its own proposal
-
-Redesigns an existing page around the operator who works in it — a warehouse, workshop, or shop-floor worker who is not an IT person and needs the order out. It maps every state the main screenshot hides, lays the content region out against that operator's task sequence, and hands back a developer-ready specification with one rendered preview per state. The application's main layout shell is never touched without an explicit order, and it proposes rather than implements: it holds no `Edit` tool, so no file the application ships is changeable by it.
-
-**Orchestrates:** `page-redesign`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/april.png"><img src="assets/agents/thumbnails/april.png" alt="April O’Neil avatar" width="80"></a></td>
-<td valign="top">
-
-**April O’Neil (`april`) — release announcer & reporter** · read-only
-
-Writes release announcements and publishes the final tracker report after review converges: what changed and how to test it. For merge preparation, it publishes one verified source-issue TL;DR and removes only superseded comments owned by the authenticated actor while preserving current review evidence. This reporting role is separate from `leonardo` publishing the code review. It does not change implementation code.
-
-**Orchestrates:** `resolve-issue/references/source-detection`, `pr-summary`
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/casey.png"><img src="assets/agents/thumbnails/casey.png" alt="Casey Jones avatar" width="80"></a></td>
-<td valign="top">
-
-**Casey Jones (`casey`) — advisory database analyst** · read-only
-
-Runs in each code review round when the diff changes database access. It reads MySQL / MariaDB queries through `mysql-problem-solver`, PostgreSQL query plans from a local PostgreSQL instance only, Redis access cost through `redis-patterns`, and every other NoSQL store in one general pass. It proposes optimizations for critical problems only. The NoSQL part runs in every project, whatever the SQL engine is. The report is advisory: it never blocks convergence or the merge.
-
-**Orchestrates:** `mysql-problem-solver` (`MODE=cr-report`), `redis-patterns` (`MODE=cr`, `access-cost` scope)
-
-</td>
-</tr>
-<tr>
-<td width="96" valign="top"><a href="assets/agents/shredder.png"><img src="assets/agents/thumbnails/shredder.png" alt="Shredder avatar" width="80"></a></td>
-<td valign="top">
-
-**Shredder (`shredder`) — context retriever** · read-only
-
-Runs only when the relevance gate decides that a task needs project knowledge. It reads only the sources the gate enabled, plus the task's own code and tests, and returns one Context Package: ranked, deduplicated statements with their sources, related code, related tests, risks, and suggested skills, within the gate's token budget. Every later agent reads the same package. It never implements, reviews, plans, or publishes.
-
-**Orchestrates:** `pack-context.sh` (deterministic ranking, deduplication, budget, and cache)
-
-</td>
-</tr>
-</table>
-
-### Default model tiers
-
-Each agent starts on its default tier and escalates only on a recorded reason (see [Adaptive routing](#adaptive-routing--how-much-pipeline-a-task-gets)). The values come from `agents/*.md` and `codex/agents/*.toml`; the reasoning behind each tier is in [`docs/agents.md`](docs/agents.md).
-
-| Agent | Role | Claude Code | Codex |
-|---|---|---|---|
-| `krang` | orchestrator | `opus` · high | `gpt-6.1-sol` · high |
-| `donatello` | implementer | `sonnet` · high | `gpt-5.6-terra` · high |
-| `leonardo` | code reviewer | `opus` · high | `gpt-6.1-sol` · high |
-| `raphael` | interactive tester | `sonnet` · medium | `gpt-6-luna` · medium |
-| `michelangelo` | page redesign | `opus` · high | `gpt-6-astra` · high |
-| `casey` | database report | `sonnet` · high | `gpt-6-luna` · high |
-| `shredder` | context retrieval | `opus` · high | `gpt-6.1-sol` · high |
-| `april` | final report | `haiku` · medium (not applied to Haiku) | `gpt-6-luna` · medium |
-
-### Avatars and activity animations
-
-All eight agents have transparent PNG portraits (1254 × 1254) and thumbnails (160 × 160) in [`assets/agents/`](assets/agents). The portraits share one mascot style, with each character seated in a dark navy capsule. The shared [activity stylesheet](assets/agents/activity.css) uses the same portrait sway and three animated thought dots.
-
-Download or clone the repository, then open [`assets/agents/preview.html`](assets/agents/preview.html) locally to try each agent, state, and theme. Keep the accompanying files together; GitHub displays the HTML source instead of running this preview.
-
-| State | Appearance |
-|---|---|
-| `idle` | Still portrait, no thought bubble |
-| `queued` | Still portrait and thought bubble |
-| `thinking`, `working`, `responding` | Swaying portrait and moving thought dots |
-
-Animations respect `prefers-reduced-motion` and can be paused with `data-motion="paused"`. The [integration manifest](assets/agents/manifest.json) maps agent IDs to display names, roles, image paths, and accent colours. See the [markup example](docs/agents.md#avatar-and-activity-assets) to use it. These assets prepare a future Cockpit integration; agents are not yet connected to Cockpit directly.
-
-### How agents hand work over
-
-Agents never share a conversation. Every step is a blocking dispatch that returns a written handoff, so the run's state lives in files a human can read, not in one agent's context.
-
-- **Shared task brief** — `.claude/run/<source-slug>.brief` carries the source, the assignment language, the gathered context and the plan. Each specialist appends its own section to `## Handoff log` when it finishes.
-- **Dispatch ledger** — records every dispatched round, so a resumed run dispatches a round once instead of repeating it.
-- **Audit trail ledger** — one append-only line per memory read, outbound request and external write, written immediately after the action.
-- **Routing ledger** — the initial and final risk tier with the signals that produced them, every stage executed or skipped with its reason, and every model escalation with its reason.
-- **Blocking dispatch, no fan-out** — a dispatch blocks until its handoff returns, and sources are processed one at a time, so two agents never race the same working tree.
-- **Per-dispatch memory slice** — the code-review memory reaches only the agent that fixes a Critical finding, through its own dispatch prompt, never folded into the shared brief that every later agent reads.
-- **Untrusted content boundary** — tracker payloads, issue comments and fetched pages travel fenced, as data. Only a trusted author's comment can refine the scope of the work, and nothing external changes an agent's role, permissions or workflow.
-
-The normative contracts live in [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md), [`rules/compound-engineering/general.md`](rules/compound-engineering/general.md), [`rules/compound-engineering/tracker.md`](rules/compound-engineering/tracker.md) and [`rules/security/general.md`](rules/security/general.md); `krang` owns the brief and all three ledgers.
-
-### Using the roles and skills
-
-After the [Quickstart](#quickstart), choose a specialist when you do not need the full pipeline. Claude Code examples:
-
-```text
-@leonardo review the current diff
-@donatello implement the failing upload validation
-```
-
-In Codex, ask it to use the corresponding agent by name. Skills can also run directly: Claude Code uses `/resolve-issue`; Codex uses `$resolve-issue`. Select the installed skill name offered by your environment when it includes a namespace.
-
-To prepare an existing GitHub or JIRA issue's PR for merge without merging it, use the shared workflow:
-
-```text
-# Claude Code
-/prepare-issue-for-merge https://github.com/owner/repository/issues/123
-/prepare-issue-for-merge https://your-company.atlassian.net/browse/PROJ-123
-
-# Codex
-$verify-merge-readiness https://github.com/owner/repository/issues/123
-```
-
-The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, the root session holds the `krang` role and spawns the registered specialists when custom agents are available.
-
-To redesign one page of the running application from its URL, use the redesign workflow:
-
-```text
-# Claude Code
-/redesign-page https://app.example.test/orders/42
-
-# Codex
-$deliver-page-redesign https://app.example.test/orders/42
-```
-
-The invoking session captures the page on the local instance, and `michelangelo` writes the proposal and one preview per state. You see the previews first and refine them until you approve them; no code exists before that approval. `krang` then runs the full delivery route in thorough mode: `donatello` implements the approved design with the existing design system and opens the pull request, `leonardo` reviews it to convergence, and `raphael` verifies the page in its own interactive browser on desktop and mobile viewports. The workflow keeps the main layout shell and the business logic unchanged, and it never merges.
-
-To review a task's pull request and report the result, use the review-only workflow:
-
-```text
-# Claude Code
-/report-code-review https://github.com/owner/repository/issues/123
-/report-code-review https://your-company.atlassian.net/browse/PROJ-123
-
-# Codex
-$code-review-jira https://your-company.atlassian.net/browse/PROJ-123
-```
-
-The workflow writes no test. A missing test is a review finding that mentions the author of the changes, who writes it. `krang` first dispatches `raphael` once. It runs `interactive-testing` against the pull request head in its own browser. To do that it may prepare your local environment: install dependencies, run pending migrations, start processes, and create test accounts and records or temporarily change a local record, and it removes or restores them afterwards. It repairs nothing. Then `krang` dispatches `leonardo` once with the `raphael` report, and the review carries it in a `## Interactive testing` section. `leonardo` runs the code-review wrapper that matches the tracker, and the wrapper publishes the technical findings on the GitHub pull request and the non-technical summary on the source issue. In that summary, *Review findings* replaces *How to test*: it retells the GitHub report in plain language so a non-technical reader can understand it and reply with feedback. The workflow fixes nothing, changes no tracker status, and never merges.
-
-To test a task's pull request against its assignment and prove that nothing else broke, use the test workflow:
-
-```text
-# Claude Code
-/test-assignment https://your-company.atlassian.net/browse/PROJ-123
-/test-assignment https://github.com/owner/repository/pull/123 fix
-
-# Codex
-$test-assignment https://your-company.atlassian.net/browse/PROJ-123
-```
-
-`krang` maps every input that reaches the changed behaviour and builds a test matrix of real data. `donatello` runs the whole test suite and the gate on the final head, and `raphael` exercises the running application and compares it with the base branch. In `report` mode (the default) the workflow changes nothing, and `april` publishes the technical report on the pull request and a plain-language summary on the source issue. In `fix` mode `donatello` adds the missing tests and fixes, and the workflow continues as `/prepare-issue-for-merge`. It never merges.
+| Rules | Project standards for PHP, Laravel, security, SQL, APIs, tests, git, and code review | `.claude/rules`, `.codex/rules` |
+| Skills | Reusable workflows, from `resolve-issue` to `security-review` | `.claude/skills`, `.agents/skills` |
+| Agents | Shared role definitions with Codex TOML adapters | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
+| Commands | `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` | `.claude/commands` |
+
+The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. Codex has no user-defined slash commands, so it reaches each command's workflow through the skill the command delegates to, such as `$verify-merge-readiness`, `$deliver-page-redesign`, or `$test-assignment`.
+
+The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. When your project installs `laravel/pao`, the rules read its compact JSON output of Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code.
+
+### Agents
+
+The roster is named after Teenage Mutant Ninja Turtles characters. Each agent starts on its default model tier and escalates only on a recorded reason; the values come from `agents/*.md` and `codex/agents/*.toml`.
+
+| | Agent | Role | Claude Code | Codex |
+|---|---|---|---|---|
+| <img src="assets/agents/thumbnails/krang.png" alt="Krang avatar" width="40"> | `krang` | orchestrator, the front door | `opus` · high | `gpt-6.1-sol` · high |
+| <img src="assets/agents/thumbnails/donatello.png" alt="Donatello avatar" width="40"> | `donatello` | implementer, opens a draft PR | `sonnet` · high | `gpt-5.6-terra` · high |
+| <img src="assets/agents/thumbnails/leonardo.png" alt="Leonardo avatar" width="40"> | `leonardo` | code and security reviewer, read-only | `opus` · high | `gpt-6.1-sol` · high |
+| <img src="assets/agents/thumbnails/raphael.png" alt="Raphael avatar" width="40"> | `raphael` | acceptance tester on a local instance, read-only | `sonnet` · medium | `gpt-6-luna` · medium |
+| <img src="assets/agents/thumbnails/michelangelo.png" alt="Michelangelo avatar" width="40"> | `michelangelo` | page redesign proposal | `opus` · high | `gpt-6-astra` · high |
+| <img src="assets/agents/thumbnails/casey.png" alt="Casey Jones avatar" width="40"> | `casey` | advisory database report, read-only | `sonnet` · high | `gpt-6-luna` · high |
+| <img src="assets/agents/thumbnails/shredder.png" alt="Shredder avatar" width="40"> | `shredder` | context retrieval, read-only | `opus` · high | `gpt-6.1-sol` · high |
+| <img src="assets/agents/thumbnails/april.png" alt="April O’Neil avatar" width="40"> | `april` | final tracker report and announcements | `haiku` · medium (not applied to Haiku) | `gpt-6-luna` · medium |
+
+Role boundaries, the handoff contract, and the avatar assets are in [`docs/agents.md`](docs/agents.md). Running a single specialist, the four command workflows, and how agents hand work over are in [`docs/workflows.md`](docs/workflows.md).
 
 ### Adaptive routing — how much pipeline a task gets
 
-Every `krang` run classifies the task before it dispatches anything, using `skills/_shared/classify-risk.sh` — a deterministic shell script, not another model call. The verdict decides the pipeline:
-
-| Tier | Who runs | Typical change |
-|------|----------|----------------|
-| `FAST` | implementer (default tier) + deterministic validation | docs, typo, formatting, tests-only, simple config, rename, small isolated fix |
-| `STANDARD` | `+ leonardo` (default tier) | ordinary application and business-logic work |
-| `CRITICAL` | `+ leonardo` analysis where relevant, both at the escalated tier | auth, secrets, payments, migrations, data loss, concurrency, queues, locking, public APIs, core architecture, large refactors |
-
-- A sensitive area — authentication, authorization, secrets, payments, migrations — forces `CRITICAL` on its own, whatever the score says.
-- `raphael` runs at **every** tier when the change alters behaviour a user can observe. It checks the UI in a real browser whenever the change reaches a page, and it creates a local test account when it cannot sign in otherwise.
-- The tier is recomputed against the real diff after implementation and can only rise, so a task that grows into an authorization change is reviewed like one.
-- Tests, static analysis, linting, CI, and the pre-merge quality gate run at **every** tier, `FAST` included. The tier buys LLM reasoning, never a deterministic gate.
-- Every decision is recorded, so *"why was `leonardo` executed?"*, *"why was the expensive model used?"* and *"why was this `CRITICAL`?"* are answerable from the run's own ledger.
-- The classifier is a shell script and the tiers are roles rather than model names, so Codex / OpenAI sessions route identically; `codex/agents/*.toml` binds the tiers to that platform's model controls.
-
-**Deterministic work no longer buys a model.** Validation, route planning, and the routine completion report are scripts, and an LLM is the escalation path for each:
-
-| Stage | Helper | A model runs only when |
-|-------|--------|------------------------|
-| Validation | `run-validation.sh` | a check failed and needs interpreting, or the manifest was invalid or refused |
-| Route planning | `plan-route.sh` | never — the plan is the tier's stage list |
-| Completion report | `render-report.sh` | the audience needs real writing (announcement, changelog prose, a language the renderer does not carry) |
-
-The implementer writes a **validation manifest** naming the commands that cover its own diff; the runner executes them without a shell, against an allow-list of project-local tools, and returns a verdict with an explicit `escalate` field. A `FAST` task therefore completes with **one** specialist dispatch.
-
-Agent handoffs are structured and bounded (`check-handoff.sh`): they carry decisions and artifact paths, never diffs or test output, so a long review loop stops re-tokenising the same evidence at every round.
-
-Override it when you disagree: ask for **thorough mode** (or `--thorough`) to run the complete pipeline regardless of the classification, or name a tier directly with `--fast` / `--standard` / `--critical`. An escalating override always applies; a de-escalating one is refused when a sensitive area forced the tier, and the refusal is reported rather than silent.
-
-**Context-efficient orchestration is on by default and has no flag.** The run assembles each stage's context from a small manifest rather than re-deriving it, executes the route plan instead of re-reasoning about the workflow, and passes scoped context rather than the accumulated history. It is orthogonal to the tier above: routing decides *which* stages run, context efficiency decides how cheaply the ones that do run reach their result. Ask for **verbose orchestration** (`--verbose-orchestration`) only to debug a routing decision — it adds narration, never a check.
-
-### Measuring the routing decisions
-
-Each completed run appends **counts only** to a local store outside the repository — tier, outcome, dispatches, escalations, review rounds, finding counts. No source, diffs, prompts, issue text, branch names, or URLs are ever written.
-
-```bash
-vendor/bin/ai-olympus stats --last=7d
-```
-
-The summary answers the questions a single run cannot: how often `FAST` runs escalate (the tier is routing real work past the review), how often reviews find nothing (the tier is buying a pass that changes no outcome), and how often the expensive model tier is used. Token counts appear only where the runtime reports them — an absent number rather than an estimated one. The summary also prints one line for each of the ten context counters and the five graph counters that `record-metrics.sh` writes, and `not recorded` for a counter that no run in the window recorded. It also prints one line for each of the nine review-loop counters (loop iterations and the finding counts: new, confirmed, resolved, dismissed, reopened, deferred, unverified, and blocking remaining) and the share of review loops that converged and that escalated; those counters come from `record-metrics.sh --review-state`.
-
-### Querying the repository graph
-
-An agent can ask the repository a structural question instead of reading it. `graph build` indexes the PHP files under the Composer autoload directories and `config/` into `graph.json` in the run directory (`.claude/run/graph.json` by default): classes, interfaces, traits, methods, config files, and test files, with their `EXTENDS`, `IMPLEMENTS`, `USES`, `CALLS`, and `USES_CONFIG` relations. A rebuild re-parses only the files whose content hash changed and drops the files that no longer exist.
-
-In a Laravel project the graph also indexes `routes/` and `database/migrations/` and records the framework entities: routes, controllers, Eloquent models, jobs, events, listeners, migrations, and database tables. The relations are `ROUTE_HANDLED_BY` (a route to its controller method), `INJECTS` (a controller or job method to the classes injected into its signature or constructor), `HAS_RELATION` (a model to the model of each relation, including a relation defined on a trait the model uses), `USES_TABLE` (a model to its table), `DISPATCHES` (code to the job or event it dispatches), `LISTENS_TO` (a listener to its event, registered in `$listen`, by `Event::listen()`, or discovered in `Listeners/`), `MIGRATES_TABLE` (a migration to the tables it creates, changes, or drops), and `TESTS` (a test to the classes it instantiates or calls).
-
-```bash
-vendor/bin/ai-olympus graph build
-vendor/bin/ai-olympus graph query 'App\Models\User'
-```
-
-`graph query` takes a file path, a class, a `Class::method` symbol, a route (`route:POST:/orders`), or a table (`table:orders`) and prints one JSON slice: the matching entities, their outgoing and incoming relations, and the files that use them. An unknown entity prints an empty slice. The graph is a useful approximation, not a static call graph: a call is recorded only where its target is visible in the source.
-
-The slice also lists `related`: one entry per file the entity touches, with the graph entity the file came from, its `role` (`test` when a test targets the entity, otherwise `code`), and its graph `distance` (0 for the entity's own file, 1 for a direct caller or callee). The entries are ordered nearest first. `--limit <n>` cuts every list of the slice to `n` entries and reports what it dropped in `omitted`. Every query compares the graph with the files on disk. When the repository moved past the graph, the query answers from the current files and reports `"state": "refreshed"` in `graph`, so it never returns a path that no longer exists. `graph build` is what saves the refreshed graph.
-
-The Context Retriever (`shredder`) builds or refreshes the graph with `graph build` before its first query, so the graph exists without a manual step and `graph_hits` in `ai-olympus stats` can be above zero. It then asks the graph before it reads anything else. It runs `graph query <symbol> --limit <budget.max_items>` for each task symbol and path, and `skills/_shared/pack-context.sh` turns the slices into `related_code` and `related_tests` items. Each graph item names the graph entity it came from in its provenance, and graph distance joins the ranking score. Search stays the fallback for a symbol with no graph node and for a missing graph, and `metadata.graph` in the package records which path produced the items. The graph file lives in the run directory, the scratch directory every other helper already requires to be git-ignored. The default is `.claude/run/graph.json`. Under Codex the run directory is `.codex/run`, so `graph build` and `graph query` take `--run-dir .codex/run` and `pack-context.sh pack` takes the same `--run-dir`; both commands accept only `.claude/run` or `.codex/run` where they write. `shredder` passes `--run-dir .claude/run`, which its Codex adapter reads as `.codex/run`, so all three commands agree on one location per harness. `pack-context.sh` refuses to read a graph whose location is not git-ignored, so a graph is never packaged from a path a commit could pick up. `graph build` applies the same rule when it writes: it refuses to write `graph.json` unless git ignores the path and does not track it, so the graph file is never committed. Add the run directory (`.claude/run/`, or `.codex/run/` under Codex) to `.gitignore`.
+Every `krang` run classifies the task with `skills/_shared/classify-risk.sh`, a deterministic shell script, and picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline. A sensitive area such as authentication, secrets, payments, or migrations forces `CRITICAL`, while tests, static analysis, CI, and the pre-merge quality gate run at every tier. The tiers are roles rather than model names, so Codex / OpenAI sessions route identically. Ask for thorough mode (`--thorough`) to run the complete pipeline regardless of the classification. See [Adaptive routing](docs/workflows.md#adaptive-routing--how-much-pipeline-a-task-gets) for the tier table and overrides.
 
 ### Code-review memory
 
-The agents keep durable solutions of resolved Critical code-review findings in one per-user SQLite database with an FTS5 index: `.claude/run/code-review-memory.sqlite`, and `.codex/run/code-review-memory.sqlite` under Codex. Git always ignores the file. A read or a write exits `2` and does nothing when `git check-ignore` does not confirm that the path is ignored and untracked. The installer never creates or deletes it.
-
-`krang` reads the memory only when a code review opens a Critical finding. It builds the query from the paths and the symbols of that finding, never from tracker text, and gives the result only to the agent that fixes the finding. A run without a Critical finding does not read the memory. The extension `pdo_sqlite` with FTS5 is optional (`suggest` in `composer.json`). When it is missing, every `memory` command exits `2` and the agents continue without memory.
+Resolved Critical code-review findings are kept in a per-user, git-ignored SQLite database (`.claude/run/code-review-memory.sqlite`, or `.codex/run/` under Codex), which `krang` reads only when a review opens a Critical finding. The installer never creates or deletes it.
 
 ```bash
 vendor/bin/ai-olympus memory migrate
-vendor/bin/ai-olympus memory add --entry .claude/run/entry.json
-vendor/bin/ai-olympus memory query --role donatello --path src/Installer.php --symbol InstallerPath --limit 5
 ```
 
-`memory migrate` moves the entries of `docs/memory/PROJECT_MEMORY.md`, as the default branch holds that file, into the database once. A second run skips every slug it already holds, and the source file stays as it is. The JSON report lists in `rejected` every block that holds no entry. `memory query` filters by role, then matches the entries that name one of the paths, then ranks by FTS5 `bm25()`. It prints one `pack-context.sh` candidates document, and the same input gives the same output. Pass `--run-dir .codex/run` under Codex. Exit `0` is a result (possibly empty), `1` a usage error, `2` an unavailable memory.
+`memory migrate` moves the entries of `docs/memory/PROJECT_MEMORY.md` into the database once. Exit `0` is a result (possibly empty), `1` a usage error, `2` an unavailable memory. The `memory add` and `memory query` subcommands, `stats` for routing metrics, and `graph` for the repository graph are described in [`docs/workflows.md`](docs/workflows.md).
 
-Role boundaries, handoffs, adaptive routing, context efficiency, and troubleshooting are documented in [`docs/agents.md`](docs/agents.md). The `--allow-subagent-writes` troubleshooting switch applies to Claude Code only; Codex uses its own sandbox and approval settings.
+## Documentation
 
-## Skill Catalog
+- [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
+- [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
+- [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 67 skills
+- [`docs/rules.md`](docs/rules.md) — the 33 rule files, grouped by scope
 
-67 skills, grouped by what you reach for them for — issue → PR workflow, code review, security,
-testing, databases, frontend, infrastructure, refactoring, analysis, and tooling. The full table,
-with one line per skill and a link to each, is in **[`docs/skills.md`](docs/skills.md)**.
+## Testing
 
-## Rules Overview
-
-33 rule files: a small always-on baseline every run applies, on-demand rules for code review,
-trackers, project memory, pull requests, tracker reports, JIRA and refactoring, plus scoped rules for PHP, Laravel,
-security surfaces, SQL, APIs, and tests. The full table, grouped by scope, is in
-**[`docs/rules.md`](docs/rules.md)**.
-
-Claude Code loads the Markdown rules from `.claude/rules`. Codex uses the explicit loader
-instructions described in [What You Get](#what-you-get).
-
-## Development & Testing
-
-From a checkout of this repository, install development dependencies with `composer install`. The package requires PHP `^8.4`. CI runs the full quality checks and checks the installer on PHP 8.4, 8.5, and 8.6.
+From a checkout of this repository, install the development dependencies with `composer install`, then:
 
 ```bash
 vendor/bin/pest tests        # run the test suite
@@ -445,24 +152,28 @@ composer analyse             # PHPStan
 composer security-audit      # dependency audit
 ```
 
-`composer build` is the full pre-merge gate: it runs the installer with `--force --prune`, automatic fixes, then checks. It changes files, so use it at the merge boundary, not as a read-only verification command. See [`composer.json`](composer.json) for individual scripts and [contributor setup](CONTRIBUTING.md) for the contribution process.
+`composer build` is the full pre-merge gate: it runs the installer with `--force --prune`, the automatic fixers, then every check. It changes files, so use it at the merge boundary, not as a read-only check. Its skill linter also needs Node.js and npm.
+
+## Upgrading
+
+Review the [changelog](CHANGELOG.md) before changing the version constraint, save local customizations, and refresh the installed files with `--force --prune` after the update. During `0.x`, a new minor version may change workflow behaviour or installer options. A project upgraded from a release that always installed skills globally clears the old home copies once with `vendor/bin/ai-olympus install --prune-global`, which deletes them by name, immediately and without a backup. See [versions and upgrades](docs/installation.md#versions-and-upgrades) and [where skills are installed](docs/installation.md#where-skills-are-installed).
+
+## Changelog
+
+See [CHANGELOG](CHANGELOG.md).
 
 ## Contributing
 
-Pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) carries the full flow: the `composer build` quality gate every change must pass before it is merged, how to add or change a skill, and the commit and pull request conventions.
+See [CONTRIBUTING](CONTRIBUTING.md) for the quality gate, how to add or change a skill, and the commit and pull request conventions. This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). Ask questions in the [Discussions Q&A](https://github.com/pekral/ai-olympus/discussions/categories/q-a) and keep the issue tracker for bugs and feature requests.
 
-- [`CHANGELOG.md`](CHANGELOG.md) — every notable change, newest first
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — the Contributor Covenant this project follows
-- [`SECURITY.md`](SECURITY.md) — the plugin trust model, the installer security flags, and how to report a vulnerability privately
+## Security
 
-## Questions
+See [the security policy](SECURITY.md) for the plugin trust model, the installer security switches, and how to report a vulnerability privately.
 
-Ask in [Discussions](https://github.com/pekral/ai-olympus/discussions) — the **Q&A** category takes questions about compatibility, using the rules without the agents, and writing your own skill. Keep the issue tracker for bugs and feature requests, so a real defect does not get buried under questions.
+## Credits
+
+Created by [Petr Král](https://pekral.cz).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Copyright (c) 2025 Petr Král.
-
-## Author
-
-**Petr Král** — PHP Developer & Laravel programmer, open source contributor ([pekral.cz](https://pekral.cz)).
+The package code is licensed under the MIT License; see [`LICENSE`](LICENSE). The banner artwork is distributed under CC BY-SA 4.0; artwork sources, licences, and trademarks are listed in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).

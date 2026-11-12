@@ -5,7 +5,7 @@ suggestion an agent may weigh, and not documentation. Every run applies the alwa
 scoped rules apply to the files they name, and on-demand rules apply to the activity that names them.
 
 **How they load.** Claude Code reads the Markdown rules from `.claude/rules`. Codex uses the
-explicit loader instructions described in [What You Get](../README.md#what-you-get). A rule's
+explicit loader instructions described in [What it does](../README.md#what-it-does). A rule's
 `paths` key declares its scope — a rule without that key is part of the always-applicable
 baseline.
 
