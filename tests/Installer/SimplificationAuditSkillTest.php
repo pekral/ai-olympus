@@ -7,14 +7,14 @@ test('simplification-audit fires only on an explicit user request and never as a
 
     // Issue #9 states the trigger as the load-bearing half of the assignment: an audit
     // that starts on its own turns every unrelated run into a whole-repository sweep.
-    expect($skill)->toContain('**Runs only on an explicit user request**');
-    expect($skill)->toContain('Never start as a side effect of another skill or agent.');
-    expect($skill)->toContain('**Never runs when:** no such explicit request was made.');
+    expect($skill)->toContain('**The audit mode runs only on an explicit user request**');
+    expect($skill)->toContain('Never start the audit mode as a side effect of another skill or agent.');
+    expect($skill)->toContain('**Never runs when:** no such explicit request was made and no code review runs.');
     expect($skill)->toContain('The user explicitly asks for an audit of the codebase');
     expect($skill)->toContain('The user explicitly decides to refactor a part of the codebase');
 });
 
-test('no other skill or agent wires simplification-audit as a step of its own pipeline', function (): void {
+test('no skill or agent but the code review wires simplification-audit as a step of its own pipeline', function (): void {
     $needle = '@skills/simplification-audit/SKILL.md';
     $callers = [];
     $skillOwnReferences = [];
@@ -43,7 +43,8 @@ test('no other skill or agent wires simplification-audit as a step of its own pi
     // Guard against a vacuous pass: without this the assertion below would also hold on a
     // tree that carries no such skill at all, so a deletion would read as compliance.
     expect($skillOwnReferences)->not->toBe([]);
-    expect($callers)->toBe([]);
+    // Diff mode runs in every code review: the reviewer and the lens list name it, and no other caller does.
+    expect($callers)->toBe(['agents/leonardo.md', 'skills/code-review/references/specialized-reviews.md']);
 });
 
 test('simplification-audit forbids every write, run, and publish an audit could reach for', function (): void {
