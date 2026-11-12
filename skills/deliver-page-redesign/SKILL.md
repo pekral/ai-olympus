@@ -38,8 +38,8 @@ never merges the pull request.
   the agent that owns it. When a stage is blocked, the run stops and reports the blocker.
 - Apply @rules/git/general.md and @rules/git/pull-requests.md. The run delivers through a pull
   request and never pushes to the default branch.
-- Apply @rules/writing/general.md to the proposal, to the approval request, and to the final
-  report.
+- Apply @rules/writing/general.md to the proposal. Apply `@skills/agent-voice/SKILL.md` to the
+  approval request and to the final report the user reads.
 - **No code before approval.** Until the user explicitly approves the previews, the run creates no
   branch, edits no application file, and dispatches neither `krang` nor `donatello`.
 - Accept exactly one absolute `http://` or `https://` URL of a page in the application this

@@ -24,7 +24,7 @@ The style is **simplified technical**, modelled on **ASD-STE100 (Simplified Tech
 
 ### Language neutrality (this rule never forces English)
 
-ASD-STE100 is written for English, but everything above is a **structural** property of the sentence, not a property of English. The **principles apply to whatever language the output is in** — a Czech report follows the same one-idea-per-sentence, active-voice, one-term-per-concept discipline.
+ASD-STE100 is written for English, but everything above is a **structural** property of the sentence, not a property of English. The **principles apply to whatever language the output is in** — a Czech handoff follows the same one-idea-per-sentence, active-voice, one-term-per-concept discipline.
 
 Two parts of the published standard are explicitly **not** imported: its **approved-word dictionary** and its **English-only word forms**. An agent writing in Czech does not restrict itself to an English vocabulary list, and does not calque English syntax to imitate the standard. It writes plain, correct Czech that obeys the structural rules above.
 
@@ -32,4 +32,6 @@ Code identifiers, file paths, command names, and label strings stay **verbatim**
 
 **A run that publishes a report to a tracker — a GitHub issue or pull-request comment, a JIRA comment, or a Bugsnag comment — reads and applies `@rules/reports/general.md` first.** That rule loads on demand, so it is not in context until the run reads it.
 
-> **Scope boundary — style, not language choice.** This rule owns **how** a sentence is written in the outputs listed above and in the `technical` voice. `@rules/reports/general.md` owns **which language** a tracker-published report is written in (the assignment's language, never mixed) and the narrow English exception for technical CR findings on a GitHub PR. The two never overlap and never override each other: a report first takes its language from `@rules/reports/general.md`, then obeys this rule inside that language. Raise one finding per violation — a Czech report written in bloated prose is a violation of this rule only, and an English report dropped into a Czech tracker comment is a violation of `@rules/reports/general.md` only.
+> **Scope boundary — style, not language choice.** This rule owns **how** a sentence is written in the outputs listed above and in the `technical` voice. `@rules/reports/general.md` owns **which language** a tracker-published report is written in (the assignment's language, never mixed) and the narrow English exception for technical CR findings on a GitHub PR. The two never overlap and never override each other: an output first takes its language from `@rules/reports/general.md`, then, when this rule owns it, obeys this rule inside that language. The prose of a tracker comment takes its sentence style from `@skills/agent-voice/SKILL.md` instead.
+>
+> Raise one finding per violation — a Czech handoff written in bloated prose is a violation of this rule only, and an English report dropped into a Czech tracker comment is a violation of `@rules/reports/general.md` only.

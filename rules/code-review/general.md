@@ -378,7 +378,7 @@ A review raises questions from two sources. A reviewer asks one on the pull requ
 3. **Recommendation** — what to change, in which existing layer, and why it fits the application. Add a code snippet only when the snippet is the recommendation itself.
 4. **Not verified** — every open point, with the step that settles it.
 
-Apply `@rules/writing/general.md` inside this shape. Never add severity labels, round numbers, diff fingerprints, or the names of review passes to an answer. The asker wanted an answer, not a report about the review.
+Apply `@skills/agent-voice/SKILL.md` to the prose inside this shape. Never add severity labels, round numbers, diff fingerprints, or the names of review passes to an answer. The asker wanted an answer, not a report about the review.
 
 **The questions the review settles itself.** The review answers its own question by verification before it publishes, and never publishes the question instead. Only a question that the code, the tests, and the named documentation cannot settle reaches a person. That is typically a question about business intent. It goes out as a *Clarifying questions* entry on the tracker, and it carries the verified part plus the option this section recommends.
 Before it goes out, the review reads every comment on the tracker item and on the pull request. A question that somebody already answered there is never asked again (`@skills/code-review-jira/references/clarifying-questions.md` *Already-answered walk*). The tracker comment carries only questions that still hold on the current head and fall within the ticket's scope (`@skills/code-review-jira/references/clarifying-questions.md` *Scope gate*).

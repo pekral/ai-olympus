@@ -39,7 +39,7 @@ Walk the open non-epic issues one at a time, in number order. Skip every epic: a
    - a comment records that the issue stays open on purpose — a source document for its stages, an umbrella whose parts are still open;
    - it has open sub-issues;
    - the remaining criteria wait on another issue or on infrastructure that does not exist yet.
-4. **Close it** only when every criterion is delivered. Post the evidence first, then close:
+4. **Close it** only when every criterion is delivered. Post the evidence first, in the voice of `@skills/agent-voice/SKILL.md`, then close:
 
    ```bash
    skills/code-review-github/scripts/upsert-comment.sh <URL> <comment-file> agent-note

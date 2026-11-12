@@ -445,7 +445,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a second, independent security view (`splinter`) runs in every round and merges into the one review (issue #379).
         // Re-baselined: the merge rules of the two views live in `rules/code-review/review-process.md`, and the rule points there (issue #379).
         // Re-baselined: the DRY check records an unestablished reason to change as *Not a duplicate* and raises nothing (issue #426).
-        'rules/code-review/general.md' => '331391be27650aa1fee081fcc63414ed49b10e7738f117dcdc7dea4d12cb70fb',
+        // Re-baselined: the answer to a reviewer's question takes its prose from `@skills/agent-voice/SKILL.md` instead of the writing rule (issue #432).
+        'rules/code-review/general.md' => '6d5373add58ac1c09c60b93cd030fa2fc84b46322be755ad7462605150b4189c',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -551,7 +552,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // instead of stating an assumption (`rules/general/general.md` *Verified statements only*).
         // Re-baselined: the prose of a report takes the voice of `@skills/agent-voice/SKILL.md` (issue #432);
         // every marker, heading, field, finding identifier, severity label, and link this rule requires stays.
-        'rules/reports/general.md' => 'e93af7483957ec8b50dca124782362a70550d1deb07d732257d80a20937561d7',
+        // Re-baselined: the scope clarification hands the sentence shape of a report to the voice, and the
+        // length limits stay with this rule (issue #432, review round 1).
+        'rules/reports/general.md' => '63bd6c2dbee76505e733d424c3b07e42aad6ffe0719f0226aeeafc9b4b49a98c',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

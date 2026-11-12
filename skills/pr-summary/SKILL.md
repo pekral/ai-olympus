@@ -31,8 +31,7 @@ Each line states what the rule actually decides here, so its relevance is clear 
 
 - Apply @rules/php/core-standards.md — the package-wide prose and code standards every skill is held to.
 - Apply @rules/git/general.md — how the base branch is resolved and what the commit history this skill reads is expected to look like.
-- Apply @rules/writing/general.md — the sentence shape of every line this skill authors, and the rule that decides how long the report is: one idea per sentence, active voice, one term per concept, no marketing register.
-- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
+- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes, which is the sentence shape of every line this skill authors for a human to read. The length of the report follows *Length follows the facts* below and `@rules/reports/general.md`. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - Apply @rules/jira/general.md when the target is a JIRA issue. The template uses a constrained Wiki Markup source format. The canonical helper converts that source to ADF and publishes it through `--body-adf`.
 - Apply @rules/reports/general.md — the published comment is written in the language of the source assignment (Czech assignment → Czech comment; English assignment → English comment). Code identifiers stay verbatim per the rule's *Scope clarifications*.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md` — they tell the summary what a change to an Action, a Livewire component, or a Filament resource means in business terms.
@@ -162,7 +161,7 @@ The comment ends with one line linking the pull request and the source tracker i
 
 ### Length follows the facts
 
-On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule. The report is as long as the facts it carries, and no longer. `@rules/writing/general.md` decides the shape of every sentence in it.
+On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule. The report is as long as the facts it carries, and no longer. `@skills/agent-voice/SKILL.md` decides the shape of every sentence in it.
 
 - **Never pad.** Do not restate the process, do not narrate what the run did, do not add a closing summary of what was already said.
 - **Never truncate a fact** to hit a length. A dropped number, boundary, or must-hold outcome costs the reader the decision the report exists to support. On GitHub and Bugsnag there is no length to hit, so nothing ever forces the choice; on JIRA the cap below is met by carrying fewer facts, never by cutting one in half.
