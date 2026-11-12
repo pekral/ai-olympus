@@ -1,6 +1,6 @@
 # Installation
 
-Operational reference for the `ai-olympus` installer. The two commands you need to get started are in the [Quickstart](../README.md#quickstart) — this page covers everything beyond them: how the installer finds your project, what it writes, how to automate it, and every CLI switch.
+Operational reference for the `ai-olympus` installer. The two commands you need to get started are in the [README installation](../README.md#installation) — this page covers everything beyond them: how the installer finds your project, what it writes, how to automate it, and every CLI switch.
 
 Everything on this page describes the **Composer** path. A project without Composer installs through the [plugin marketplace](#installing-without-composer-plugin-marketplace) instead, which is deliberately narrower.
 

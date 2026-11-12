@@ -162,7 +162,15 @@ Retired identifiers `zeus`, `argos`, and `apollon` are never reused. The identif
 
 Open the [avatar preview](../assets/agents/preview.html) to compare the six portraits it shows and the activity states. The [manifest](../assets/agents/manifest.json) records stable identifiers, display names, roles, previous identifiers, portrait and thumbnail paths, accent colours, and animation states. Its paths are relative to `assets/agents/`. These assets ship with the package for future Cockpit integration; this change does not connect or run agents inside Cockpit.
 
-Portraits and 160-pixel thumbnails are transparent PNGs. Use the [shared stylesheet](../assets/agents/activity.css) for the same gentle portrait tilt and three-dot animation as Krang. `thinking`, `working`, and `responding` animate; `queued` is static; `idle` hides the bubble. Reduced-motion preferences and `data-motion="paused"` stop animation.
+Portraits (1254 × 1254) and 160-pixel thumbnails are transparent PNGs; each character sits in a dark navy capsule. Use the [shared stylesheet](../assets/agents/activity.css) for the same gentle portrait tilt and three-dot animation as Krang. `thinking`, `working`, and `responding` animate; `queued` is static; `idle` hides the bubble. Reduced-motion preferences and `data-motion="paused"` stop animation.
+
+| State | Appearance |
+|---|---|
+| `idle` | Still portrait, no thought bubble |
+| `queued` | Still portrait and thought bubble |
+| `thinking`, `working`, `responding` | Swaying portrait and moving thought dots |
+
+GitHub displays the HTML source of the preview instead of running it: download or clone the repository and open it locally, keeping the accompanying files together.
 
 ```html
 <link rel="stylesheet" href="assets/agents/activity.css">
@@ -410,6 +418,6 @@ The installer copies the canonical `agents/*.md` definitions to `.claude/agents/
 
 1. Pick a Ninja Turtles character whose personality matches the job; use a stable lowercase identifier.
 2. Create `agents/<name>.md` with the frontmatter + an orchestration-only system prompt that delegates to skills and returns a handoff.
-3. Add it to the README *Claude Code and Codex Subagents* roster (an avatar + role card).
+3. Add it to the README *Agents* table (thumbnail, role, and default model tiers).
 4. Add a test asserting the file ships with its required frontmatter (mirror the `leonardo` test in `tests/Installer/AgentsTest.php`).
 5. Run `vendor/bin/pest tests/Installer` — the installer file-count tests pick up the new agent automatically. The full build runs once at the merge boundary, not here.
