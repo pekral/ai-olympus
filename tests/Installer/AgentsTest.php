@@ -3149,3 +3149,70 @@ test('the startup sweep names the implementation worktrees of a parallel unit as
     expect($sweep)->toContain('`agent-impl-*` included');
     expect($sweep)->not->toContain('a peer\'s CR pass');
 });
+
+test('the interactive-testing skill closes its own browser tabs and cleans up test data through a script', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
+    $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
+    $auto = (string) file_get_contents($packageDir . '/skills/auto-interactive-testing/SKILL.md');
+    $assignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
+
+    $tabsStart = (int) strpos($skill, '## Browser tabs');
+    $tabs = substr($skill, $tabsStart, (int) strpos($skill, '## Scripted cleanup') - $tabsStart);
+    $cleanupStart = (int) strpos($skill, '## Scripted cleanup');
+    $cleanup = substr($skill, $cleanupStart, (int) strpos($skill, '## Execution') - $cleanupStart);
+
+    // Tabs: the run closes only the tabs it opened, on every terminating path, through the browser tool.
+    expect($tabs)->toContain('- **Open a tab of your own.**')
+        ->toContain('Never navigate, reload, or reuse a tab this run did not open.')
+        ->toContain('- **Close every tab you opened when testing ends.**')
+        ->toContain('`Passed`, `Failed`, `Partial`, `Blocked`, and an aborted run')
+        ->toContain('A failure or a blocked sign-in never keeps the tab open.')
+        ->toContain('`tabs_close_mcp` of Claude in Chrome')
+        ->toContain('documented tab-close API of the `cua_repl` browser tools')
+        ->toContain('Never close the window, never end the browser process, and never use a shell command for this.')
+        ->toContain('- **Never close a tab you did not open.**')
+        ->toContain('close only an identifier in your record')
+        ->toContain('- **A tab that will not close is reported.**');
+    expect($skill)->not->toContain('Keep the tab open so the user can sign in there.');
+    expect($skill)->not->toContain('Keep the relevant browser tab open when handing a failure');
+    expect($skill)->toContain('6. Close every browser tab this run opened, as *Browser tabs* states, on every terminating path.');
+
+    // Cleanup: the project mechanism first, then one scratch script, then the browser, inside the data limits.
+    expect($cleanup)->toContain('**Keep a record as you work.**')
+        ->toContain('Cleanup acts on this record only.')
+        ->toContain('1. **The project\'s own cleanup mechanism.**')
+        ->toContain('A mechanism that wipes, resets, or truncates the database is never used.')
+        ->toContain('2. **One scratch script.**')
+        ->toContain('in one pass, through the application\'s own code')
+        ->toContain('3. **The browser.**')
+        ->toContain('The report states that the browser fallback ran and why.')
+        ->toContain('It uses no database client and no raw SQL statement that writes.')
+        ->toContain('It never changes an access attribute, and it never deletes or re-assigns an existing record.')
+        ->toContain('It restores an attribute only when the attribute still holds the value this run set')
+        ->toContain('Never widen the script after it is generated.')
+        ->toContain('never inside the repository. Run it once. Delete it afterwards, also when it failed.')
+        ->toContain('read the deleted records and the restored values back')
+        ->toContain('Report each deleted record and each restored attribute under **Cleanup**');
+    expect($skill)->toContain('Keep the record that *Scripted cleanup* requires as you work.')
+        ->toContain('Every browser tab this run opened is closed, and no other tab was closed.');
+
+    // The Cleanup report names the mechanism and the tabs.
+    expect($skill)->toContain(
+        'the cleanup mechanism that ran (project mechanism, scratch script, or browser fallback with its reason), the browser tabs this run closed',
+    );
+
+    // Every file that uses the skill references the owner sections and never restates them.
+    expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Browser tabs*')
+        ->toContain('`@skills/interactive-testing/SKILL.md` *Scripted cleanup*');
+    expect($auto)->toContain('`@skills/interactive-testing/SKILL.md` *Scripted cleanup*')
+        ->toContain('`@skills/interactive-testing/SKILL.md` *Browser tabs*');
+    expect($assignment)->toContain('`@skills/interactive-testing/SKILL.md` *Scripted cleanup*')
+        ->toContain('`@skills/interactive-testing/SKILL.md` *Browser tabs*');
+
+    // The tab tools the skill names are the tools raphael holds in Claude Code.
+    expect($raphael)->toMatch(
+        '/^tools: .*mcp__claude-in-chrome__tabs_context_mcp.*mcp__claude-in-chrome__tabs_create_mcp.*mcp__claude-in-chrome__tabs_close_mcp/m',
+    );
+    expect($tabs)->toContain('`tabs_create_mcp`')->toContain('`tabs_context_mcp`');
+});
