@@ -40,9 +40,9 @@
     "composer-plugin-api": "^2.0"
   },
   "require-dev": {
-    "composer/composer": "^2.11.1",
-    "ergebnis/composer-normalize": "^2.56.0",
-    "laravel/pint": "^1.32.1",
+    "composer/composer": "^2.11.2",
+    "ergebnis/composer-normalize": "^2.56.1",
+    "laravel/pint": "^1.32.3",
     "pekral/phpcs-rules": "dev-master",
     "pekral/phpstan-rules": "dev-master",
     "pekral/rector-rules": "^0.7",
@@ -53,7 +53,7 @@
     "phpstan/phpstan": "^2.3.5",
     "phpstan/phpstan-deprecation-rules": "^2.0.5",
     "phpstan/phpstan-mockery": "^2.0",
-    "phpstan/phpstan-phpunit": "^2.1.1",
+    "phpstan/phpstan-phpunit": "^2.1.2",
     "rector/rector": "^2.8.4",
     "roave/security-advisories": "dev-latest",
     "squizlabs/php_codesniffer": "^4.0.4"
