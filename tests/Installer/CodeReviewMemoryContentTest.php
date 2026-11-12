@@ -138,19 +138,35 @@ test(
         $safeguard = codeReviewMemoryFile('skills/resolve-issue/references/safeguard-implementation.md');
     
         expect($loop)->toContain(
-            'plus every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true and `awaiting: "analysis"`',
+            'plus every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true, '
+            . '`eligible` false, and `awaiting: "analysis"`',
         )
             ->and($loop)->toContain('Stop when both lists are empty: that files nothing.')
             ->and($loop)->toContain('and always for a class of the status list,')
+            ->and($loop)->toContain('A class that recurs is in the first list only: `leonardo` analyses it once')
+            ->and($loop)->toContain(
+                'For each candidate whose `target.type` is `memory` and whose `awaiting` is `approval` or `re-approval`, '
+                . 'run `skills/_shared/feedback-loop.sh lookup --key <key>`.',
+            )
+            ->and($loop)->toContain('`promote-learning.sh decide --dir <dir> --key <key> --decision approve --fact tracker --issue-url <url>`')
+            ->and($loop)->toContain(
+                '`krang` never approves a candidate on its own judgment, never applies the label, and never reads a comment as an approval.',
+            )
             ->and($loop)->toContain('For each `approved` candidate whose `awaiting` is `memory-write`, `krang` reads the proposal')
             ->and($loop)->toContain('writes `${BRIEF%.md}.memory-entry.json` from the `Change:` block')
             ->and($loop)->toContain('runs `ai-olympus memory add --entry ${BRIEF%.md}.memory-entry.json`')
-            ->and($loop)->toContain(
-                '**A refusal for an existing slug** means that an earlier run wrote the entry: report it as written and write nothing.',
-            )
+            ->and($loop)->toContain('run `promote-learning.sh written --dir <dir> --key <key> --digest <the digest of status> --slug <the slug>`')
+            ->and($loop)->toContain('A refusal for an existing slug means that an earlier run wrote this approved text and did not record it')
+            ->and($loop)->toContain('then `-`, then the first 8 characters of the approved digest')
             ->and($loop)->toContain('Never run `promote` for this candidate.')
             ->and($loop)->toContain('`change` is the TL;DR entry, one line per field')
-            ->and($promotion)->toContain('The history has no event for the write.')
+            ->and($promotion)->toContain('| `written` | `digest`, `slug` |')
+            ->and($promotion)->toContain('until `krang` runs `promote-learning.sh written --dir <dir> --key <key> --digest <digest> --slug <slug>`')
+            ->and($promotion)->toContain(
+                'records the approval of a `memory` candidate in step 5 (the label on the open proposal issue, '
+                . 'or the user\'s instruction that names the issue, and never a judgment of `krang`)',
+            )
+            ->and($promotion)->not->toContain('The history has no event for the write.')
             ->and($promotion)->toContain('`donatello` stops on it (`safeguard-implementation.md` *Approval first*), and no pull request carries it.')
             ->and($loop)->toContain('`donatello` stops on it with `Blocked: memory candidate — krang writes it`')
             ->and($safeguard)->toContain('stop `Blocked: memory candidate — krang writes it`, release the claim, and write nothing.');
