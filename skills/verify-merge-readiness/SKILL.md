@@ -173,7 +173,9 @@ Record in the shared brief:
 ### 2. Rebase and decide whether review work exists
 
 Dispatch `leonardo` to run the pull-policy and preparation path in
-`@skills/process-code-review/SKILL.md`. Before any new CR round, resolve the default branch and
+`@skills/process-code-review/SKILL.md`. In a batch, `leonardo` runs only the fingerprint decision
+below, because it never pushes. `skills/_shared/orchestration/batch-preparation.md` *The merge step*
+assigns the rebase and the push to `donatello` and never force-pushes. Before any new CR round, resolve the default branch and
 compute the current fingerprint from the first field of:
 
 ```bash
