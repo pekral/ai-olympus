@@ -89,6 +89,10 @@
 #   2  missing required tool (jq)
 #   3  the manifest is invalid or refused, or the logs directory could not be created — escalate, do not treat as a pass
 #   4  a check failed — escalate for interpretation
+#   6  the machine lock stayed held by a live run past AI_OLYMPUS_GATE_LOCK_TIMEOUT: nothing ran, the
+#      status is `locked`, and `escalate` is false. The checks are heavy commands, so they take the
+#      machine-wide lock of run-gate.sh (`ai-olympus-gate.lock`) and wait for it, as a gate does. The
+#      caller checks the lock with gate-lock.sh and runs the manifest again.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -114,6 +118,11 @@ CATEGORIES=(lint static_analysis tests)
 # and load_project_manifest.
 # shellcheck source=project-commands.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project-commands.sh"
+
+# The machine-wide heavy-command lock the checks below run under. It sources
+# project-commands.sh again, which only resets the lists the manifest extends later.
+# shellcheck source=gate-record.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-record.sh"
 
 # json_string comes from the one shared definition. It needs no jq, because it runs on
 # refusal paths where jq already declined to read the value.
@@ -259,6 +268,27 @@ run_manifest() {
 
   mkdir -p -- "$logs_dir" || refuse "cannot create the logs directory: $(safe_display "$logs_dir")"
 
+  # --- The machine lock ---------------------------------------------------------
+  #
+  # A check is a heavy command: Pest, Rector, and PHPStan each start worker processes. The
+  # run waits for any gate, install, or other check on the machine, and holds the lock until the
+  # last command ends. A run that a heavy command of a holder started shares that holder's lock.
+  local lock_timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}" lock_status=0
+  [[ "$lock_timeout" =~ ^[0-9]{1,6}$ ]] || refuse 'AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds'
+  trap gate_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  GATE_HOLDER_COMMAND="validation of ${HEAD_SHA:0:12}: ${#plan[@]} command(s)"
+  gate_lock_acquire "$lock_timeout" || lock_status=$?
+  case "$lock_status" in
+  0) ;;
+  6)
+    emit locked false "$GATE_REASON"
+    return 6
+    ;;
+  *) refuse "$GATE_REASON" ;;
+  esac
+
   # --- Execute ---------------------------------------------------------------
   local failed=0 item log status
   for category in "${CATEGORIES[@]}"; do
@@ -306,6 +336,11 @@ self_test() {
   SELF_TEST_TMP="$(mktemp -d)"
   trap cleanup_self_test EXIT
   local tmp="$SELF_TEST_TMP"
+  # The checks take the machine lock. The self-test gets its own, so it never waits for a real
+  # gate, and a self-test that a gate started never waits for the gate's lock.
+  export AI_OLYMPUS_LOCK_DIR="$tmp/machine"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  unset AI_OLYMPUS_LOCK_HELD_BY
 
   # A fake project tree: `vendor/bin/pest` is a stub whose exit code the test
   # controls, so the runner's contract is exercised without a real suite.
@@ -368,6 +403,22 @@ STUB
   verdict 'a passing manifest passes' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"], "lint": ["vendor/bin/pint --test"] }' \
     0 passed false
+
+  # --- The machine lock ------------------------------------------------------
+  #
+  # A live holder keeps the lock, so the run reports `locked` without running a command and
+  # without escalating: a session cannot release a lock, and the caller checks it with gate-lock.sh.
+  mkdir -p "$tmp/machine/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date +%s)" >"$tmp/machine/ai-olympus-gate.lock/holder"
+  VERDICT_LOGS="$tmp/locked-logs" verdict 'a live lock holder makes the run wait, then report locked' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --fail"] }' 6 locked false 'the machine lock is held by PID '
+  [[ ! -e "$tmp/locked-logs/tests.log" ]] || { echo 'FAIL  a locked run executed a command' >&2; failures=$((failures + 1)); }
+  AI_OLYMPUS_LOCK_HELD_BY="$$" verdict 'a run that the holder started shares its lock' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  rm -rf "$tmp/machine/ai-olympus-gate.lock"
+  verdict 'the lock is released after a run' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  [[ ! -e "$tmp/machine/ai-olympus-gate.lock" ]] || { echo 'FAIL  the lock stayed after the run' >&2; failures=$((failures + 1)); }
 
   # --- Failure ---------------------------------------------------------------
   verdict 'a failing command fails and escalates' \
