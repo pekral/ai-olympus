@@ -100,3 +100,21 @@ test('agent migration ignores sources other than the package agent directories',
         installerRemoveDirectory($root);
     }
 });
+
+test('agent migration never removes the splinter security agent, old or new, because the package ships it again', function (string $content): void {
+    $root = installerCreateProjectRoot();
+    installerWriteFile($root . '/agents/krang.md', 'replacement');
+    installerWriteFile($root . '/agents/splinter.md', $content);
+
+    try {
+        $removed = InstallerAgentMigration::removeKnownCopies((string) InstallerPath::resolveAgentsSource(), $root . '/agents');
+
+        expect($removed)->toBe(0);
+        expect(is_file($root . '/agents/splinter.md'))->toBeTrue();
+    } finally {
+        installerRemoveDirectory($root);
+    }
+})->with([
+    'the unmodified 0.3.1 orchestrator definition' => fn (): string => (string) file_get_contents(__DIR__ . '/Fixtures/legacy-agents/splinter.md'),
+    'the security agent definition of this package' => fn (): string => (string) file_get_contents(dirname(__DIR__) . '/agents/splinter.md'),
+]);

@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 67 reusable skills, and eight specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 67 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -40,7 +40,7 @@ The installer writes, for Claude Code and Codex:
 
 - `.claude/rules` and `.codex/rules` — the rule library
 - `.claude/skills` and `.agents/skills` — the skills, in the project only
-- `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the eight agents and their Codex adapters
+- `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the nine agents and their Codex adapters
 - `.claude/commands` — the four slash commands
 - `AGENTS.md` in the project root, unless one already exists
 
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 67 skills, the eight agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 67 skills, the nine agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -87,7 +87,7 @@ Follow .codex/agent-instructions/krang.md as krang and resolve https://github.co
 
 [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md) *Starting the orchestrator — the top-level role and the nested hand-over* explains why `krang` is not started as a subagent.
 
-`krang` routes implementation to `donatello`, each code review round to `leonardo`, `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Merging stays a separate, explicit step.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `splinter` (an independent security view), `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Merging stays a separate, explicit step.
 
 ## What it does
 
@@ -111,6 +111,7 @@ The roster is named after Teenage Mutant Ninja Turtles characters. Each agent st
 | <img src="assets/agents/thumbnails/krang.png" alt="Krang avatar" width="40"> | `krang` | orchestrator, the front door | `opus` · high | `gpt-6.1-sol` · high |
 | <img src="assets/agents/thumbnails/donatello.png" alt="Donatello avatar" width="40"> | `donatello` | implementer, opens a draft PR | `sonnet` · high | `gpt-5.6-terra` · high |
 | <img src="assets/agents/thumbnails/leonardo.png" alt="Leonardo avatar" width="40"> | `leonardo` | code and security reviewer, read-only | `opus` · high | `gpt-6.1-sol` · high |
+| <img src="assets/agents/thumbnails/splinter.png" alt="Splinter avatar" width="40"> | `splinter` | independent security reviewer, read-only | `opus` · high | `gpt-6.1-sol` · high |
 | <img src="assets/agents/thumbnails/raphael.png" alt="Raphael avatar" width="40"> | `raphael` | acceptance tester on a local instance, read-only | `sonnet` · medium | `gpt-6-luna` · medium |
 | <img src="assets/agents/thumbnails/michelangelo.png" alt="Michelangelo avatar" width="40"> | `michelangelo` | page redesign proposal | `opus` · high | `gpt-6-astra` · high |
 | <img src="assets/agents/thumbnails/casey.png" alt="Casey Jones avatar" width="40"> | `casey` | advisory database report, read-only | `sonnet` · high | `gpt-6-luna` · high |

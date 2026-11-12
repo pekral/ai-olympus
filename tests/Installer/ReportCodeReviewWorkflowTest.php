@@ -90,8 +90,8 @@ test('report-code-review adds the interactive-testing result to the review repor
     $packageDir = dirname(__DIR__, 2);
 
     expect((string) file_get_contents($packageDir . '/agents/krang.md'))
-        ->toContain('Then run one *Parallel CR round* with `review_only` in all three dispatch prompts.')
-        ->toContain('publishes the one review report, with the `interactive-testing` result and the database report in it');
+        ->toContain('Then run one *Parallel CR round* with `review_only` in all four dispatch prompts.')
+        ->toContain('publishes the one review report, with the `splinter` view merged in and the `interactive-testing` result and the database report in it');
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))
         ->toContain('pass the `raphael` walkthrough report from the brief to the wrapper');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
@@ -101,12 +101,12 @@ test('report-code-review adds the interactive-testing result to the review repor
         ->toContain('4. Repair nothing on your own initiative.');
 });
 
-test('report-code-review runs leonardo, raphael, and casey in one parallel round', function (): void {
+test('report-code-review runs leonardo, splinter, raphael, and casey in one parallel round', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
 
     expect($krang)
-        ->toContain('`leonardo ∥ raphael ∥ casey (review-only) → leonardo (publish)`')
+        ->toContain('`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → leonardo (publish)`')
         ->toContain('Hold the barrier, then dispatch `leonardo` with `publish: now` and `review_only`');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
         ->toContain('`agents/krang.md` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
