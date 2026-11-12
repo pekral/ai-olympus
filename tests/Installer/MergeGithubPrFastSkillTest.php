@@ -136,7 +136,7 @@ test('the report names the merge commit, the security check, and every skipped m
         'converged code review on the final diff',
         'delegated security coverage verification',
         'not a Draft',
-        '`reviewDecision == "APPROVED"`',
+        'the approval check of `@rules/git/pull-requests.md` *Merging*',
         'branch up to date',
         'open merge decisions',
         'the pre-merge quality gate on the head',

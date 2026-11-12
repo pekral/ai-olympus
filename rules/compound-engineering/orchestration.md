@@ -388,7 +388,7 @@ A run is a HOTFIX only when **both** hold:
 
 - **The build.** The project's fixers, checkers, static analysis, and test suite run on the exact head commit being merged, exactly as on any other merge. Only the coverage threshold is lifted. A failing test blocks a hotfix, because a hotfix that breaks the default branch is a second outage.
 - **Security.** Every security lens runs, every rule in `@rules/security/**` applies, and a finding meeting the **S1–S3** carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* blocks at any severity. A sensitive-area force from `skills/_shared/classify-risk.sh` still forces `CRITICAL`: HOTFIX narrows what a reviewer reports, never what the classifier decides.
-- **What a merge already requires.** No conflicts, not a Draft, required approvals present, branch up to date, the tracker link written. HOTFIX is not a merge-anytime request, and it never relaxes a gate the caller did not ask about.
+- **What a merge already requires.** No conflicts, not a Draft, the approval check met (`@rules/git/pull-requests.md` *Merging*), branch up to date, the tracker link written. HOTFIX is not a merge-anytime request, and it never relaxes a gate the caller did not ask about.
 - **The truth of the record.** The pull request, the review comment, and the final report each state that the run was a HOTFIX, who declared it, and that coverage was waived.
 
 ### What the review still checks
