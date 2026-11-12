@@ -54,7 +54,7 @@ Follow this order:
 - An uncovered changed line is resolved per `@skills/test-audit/SKILL.md` *Coverage* — a behavioural test, a report that the line is removable code, or an explicit conflict report
 
 ### 4. Validate
-- Run relevant tests after each change and confirm they pass
+- Run relevant tests after each change, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, and confirm they pass
 - Ensure deterministic behavior
 - Remove flakiness
 
