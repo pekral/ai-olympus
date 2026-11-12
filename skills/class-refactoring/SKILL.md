@@ -172,7 +172,7 @@ every rendered branch of the touched view (initial render, `wire:loading`, `@emp
 > Skip this entire section in `MODE=cr` — a read-only lens pushes nothing.
 
 - **Do not run fixers or checkers here.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), executed by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*, which commits the fixes it produces as their own commit.
-- **Do run the tests covering the refactored surface** after each step — a refactor is behaviour-preserving by definition, so the tests are the proof of that and are not a style gate.
+- **Do run the tests covering the refactored surface** after each step, through `skills/_shared/run-gate.sh --exclusive --command "<command>"` — a refactor is behaviour-preserving by definition, so the tests are the proof of that and are not a style gate.
 - When the gate later reports a static-analysis error on refactored code, it is resolved **in the code** — a refactor that ends with a `phpcs:ignore`, `@phpstan-ignore`, or any other suppression annotation in the diff has not resolved anything, and `@rules/php/core-standards.md` PHP Practices admits no exception. When restructuring cannot satisfy the analyser and no scoped tool-configuration entry fits, stop and report it rather than silencing the tool.
 
 ## After Completion

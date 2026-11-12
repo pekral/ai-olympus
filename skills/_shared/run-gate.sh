@@ -23,12 +23,15 @@
 #      command from the working tree; --exclusive runs the caller's commands under
 #      the same validation. Every command is validated before anything runs, and
 #      runs as an argv without a shell (project-commands.sh).
-#   2. Takes the one gate lock of the repository, `ai-olympus-gate.lock` in the
-#      common git directory (atomic `mkdir`; `flock` is absent on macOS). Every
-#      worktree of the repository and both tiers share it, so one gate runs on
-#      the machine at a time. A caller waits for a live holder up to
-#      AI_OLYMPUS_GATE_LOCK_TIMEOUT seconds (default 3600, long enough for a
-#      full gate to finish ahead of it) and never fails fast.
+#   2. Takes the machine-wide heavy-command lock, `ai-olympus-gate.lock` in
+#      `$AI_OLYMPUS_LOCK_DIR`, else `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus`
+#      (atomic `mkdir`; `flock` is absent on macOS). Every project, every
+#      worktree, both tiers, `--exclusive`, and run-validation.sh share it, so
+#      one heavy command runs on the machine at a time. A caller waits for a live
+#      holder up to AI_OLYMPUS_GATE_LOCK_TIMEOUT seconds (default 3600, long enough for a
+#      full gate to finish ahead of it) and never fails fast. It says which holder it
+#      waits for (PID, project, command, start). The holder writes a heartbeat, and
+#      `gate-lock.sh` repairs a holder that is stuck.
 #   3. Refuses a tree with any uncommitted or untracked change, on both tiers.
 #   4. When a valid record for this tree and tier already exists — a run that
 #      finished while this one waited — takes its result over through the same
@@ -43,7 +46,8 @@
 #   A project whose manifest sets no gate gets exit 5 from `--tier`, and its
 #   agents run the discovered gate command themselves. `--exclusive` holds the
 #   same machine lock around exactly those commands, so they never run beside
-#   another gate, `composer install`, or full test suite. It writes no record,
+#   another gate, `composer install`, full test suite, or targeted check (Pest,
+#   Rector, PHPStan on a path list). It writes no record,
 #   needs no clean tree, and runs the commands in order, stopping at the first
 #   failure. Each command passes the same validation as a manifest command.
 #   The validation checks the form of a command, not where its text came from.
@@ -82,8 +86,8 @@ Usage: run-gate.sh --tier full|pr [--actor <name>]
        run-gate.sh --exclusive --command "<command>" [--command "<command>"]...
        run-gate.sh --self-test
 
-Runs the manifest gate of the tier once per git tree, under the repository-wide
-gate lock, and writes a record that verify-gate.sh accepts. Exit 0 passed,
+Runs the manifest gate of the tier once per git tree, under the machine-wide
+heavy-command lock, and writes a record that verify-gate.sh accepts. Exit 0 passed,
 4 failed, 5 not configured. --exclusive runs the given commands under the same
 lock and writes no record.
 EOF
@@ -101,6 +105,15 @@ emit() {
     --arg fresh_log "$GATE_FRESH_LOG" --argjson fresh "$GATE_FRESH_RESULTS" --argjson code "$code" \
     '{status: $status, exit_code: $code, tier: $tier, tree: $tree, record: $record, log: $log, reason: $reason, fresh: $fresh, fresh_log: $fresh_log}'
   return "$code"
+}
+
+# The commands of a run as one line for the holder file.
+join_commands() {
+  local out='' command
+  for command in "$@"; do
+    out="${out:+$out, }$command"
+  done
+  printf '%s' "$out"
 }
 
 # Run the given commands one after another under the machine lock, stopping at
@@ -121,6 +134,7 @@ run_exclusive() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
 
+  GATE_HOLDER_COMMAND="$(join_commands "$@")"
   gate_lock_acquire "$timeout" || status=$?
   case "$status" in
   0) ;;
@@ -215,6 +229,7 @@ run_gate() {
   trap 'exit 143' TERM
 
   status=0
+  GATE_HOLDER_COMMAND="tier $TIER: $(join_commands "${GATE_TIER_COMMANDS[@]}")"
   gate_lock_acquire "$timeout" || status=$?
   case "$status" in
   0) ;;
@@ -329,8 +344,13 @@ self_test() {
   local tmp="$SELF_TEST_TMP"
   export GATE_SELFTEST_CALLS="$tmp/calls"
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  # The machine lock lives outside every repository; the self-test gets its own, so it never waits
+  # for a real gate and never blocks one.
+  export AI_OLYMPUS_LOCK_DIR="$tmp/machine"
+  unset AI_OLYMPUS_LOCK_HELD_BY
+  local MLOCK="$AI_OLYMPUS_LOCK_DIR/ai-olympus-gate.lock"
 
-  local base='"validation": { "executables": ["vendor/bin/gate-ok", "vendor/bin/gate-fail", "vendor/bin/gate-dirty", "vendor/bin/gate-kill", "vendor/bin/gate-span", "vendor/bin/fresh-ok", "vendor/bin/fresh-fail", "vendor/bin/pwn"] }'
+  local base='"validation": { "executables": ["vendor/bin/gate-ok", "vendor/bin/gate-fail", "vendor/bin/gate-dirty", "vendor/bin/gate-kill", "vendor/bin/gate-span", "vendor/bin/gate-hang", "vendor/bin/gate-busy", "vendor/bin/fresh-ok", "vendor/bin/fresh-fail", "vendor/bin/pwn"] }'
   # Any one of pr-gate, gate-fresh, gate-evidence opts a project into the record.
   local optin='"gate-evidence": ".claude/run/gates"'
 
@@ -379,7 +399,7 @@ self_test() {
     "$([[ "$(gate_selftest_mode "$project/.claude/run/gates")" == 700 && "$(gate_selftest_mode "$record")" == 600 && "$(gate_selftest_mode "${record%.json}.log")" == 600 ]] && echo pass)"
   check 'gate-fresh runs after a passing gate and never enters the record' \
     "$([[ "$(calls fresh-ok)" -eq 1 ]] && ! grep -q fresh "$record" && echo pass)"
-  check 'the lock is released after the run' "$([[ ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+  check 'the lock is released after the run' "$([[ ! -e "$MLOCK" ]] && echo pass)"
 
   # --- The record carries no environment value outside the fingerprint ---------
   local secret_record
@@ -422,20 +442,20 @@ self_test() {
   # --- The lock -----------------------------------------------------------------
   rm -f "$record"
   : >"$GATE_SELFTEST_CALLS"
-  mkdir -p "$project/.git/ai-olympus-gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a live lock holder times out without running the gate' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$MLOCK" ]] && echo pass)"
 
   local dead
   sh -c 'exit 0' &
   dead=$!
   wait "$dead" || true
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a lock left by a dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$MLOCK" ]] && echo pass)"
 
   # The probe reads a holder silently: a holder that cannot be read is inconclusive, and the probe prints nothing.
   local probe_dir="$tmp/probe-unread" probe_err probe_code
@@ -453,13 +473,13 @@ self_test() {
   git -C "$project" worktree add -q --detach "$worktree"
   gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-span\"] } } }"
 
-  mkdir -p "$project/.git/ai-olympus-gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$worktree" --tier full || code=$?
   check 'a live holder in one worktree blocks the gate of another worktree' \
     "$([[ "$code" -eq 6 && "$(calls span-start)" -eq 0 ]] && echo pass)"
-  rm -rf "$project/.git/ai-olympus-gate.lock"
+  rm -rf "$MLOCK"
 
   : >"$GATE_SELFTEST_CALLS"
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
@@ -476,13 +496,13 @@ self_test() {
   check 'two worktrees of one repository never run the gate at the same time' \
     "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' ]] && echo pass)"
 
-  mkdir -p "$project/.git/ai-olympus-gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$project/.git/ai-olympus-gate.lock/holder"
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   : >"$GATE_SELFTEST_CALLS"
   rm -rf "$worktree/.claude/run/gates"
   code=0; run_in "$worktree" --tier full || code=$?
   check 'a lock left by a dead holder in another worktree is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls span-start)" -eq 1 && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(calls span-start)" -eq 1 && ! -e "$MLOCK" ]] && echo pass)"
 
   # --- --exclusive serialises a command the manifest does not name ---------------
   local plain="$tmp/plain" plain_worktree="$tmp/plain-worktree"
@@ -494,7 +514,7 @@ self_test() {
 
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok one' --command 'vendor/bin/gate-ok two' || code=$?
   check '--exclusive runs every command in order and releases the lock' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$MLOCK" ]] && echo pass)"
 
   : >"$GATE_SELFTEST_CALLS"
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
@@ -517,8 +537,8 @@ self_test() {
   # waiter reads the dead holder and then stalls one second before it removes the lock. The
   # fast waiter starts half a second later, reads the same dead holder, reclaims the lock, and
   # takes it. Without a guard the slow waiter then removes the fast waiter's live lock.
-  mkdir -p "$plain/.git/ai-olympus-gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   : >"$GATE_SELFTEST_CALLS"
   cat >"$tmp/reclaimer.sh" <<'RECLAIMER'
 #!/usr/bin/env bash
@@ -541,9 +561,9 @@ sleep 2
 echo 'held-end' >>"$GATE_SELFTEST_CALLS"
 gate_cleanup
 RECLAIMER
-  bash "$tmp/reclaimer.sh" "$plain" slow "$(dirname "$script")/gate-record.sh" &
+  bash "$tmp/reclaimer.sh" "$plain" slow "$(dirname "$script")/gate-record.sh" 2>/dev/null &
   first=$!
-  bash "$tmp/reclaimer.sh" "$plain_worktree" fast "$(dirname "$script")/gate-record.sh" &
+  bash "$tmp/reclaimer.sh" "$plain_worktree" fast "$(dirname "$script")/gate-record.sh" 2>/dev/null &
   second=$!
   wait "$first" || true
   wait "$second" || true
@@ -551,12 +571,12 @@ RECLAIMER
   check 'two waiters after a dead holder never hold the gate lock at once' \
     "$([[ "$spans" == 'held-start held-end held-start held-end ' ]] && echo pass)"
   check 'the reclaim sub-lock is gone after the waiters finish' \
-    "$([[ ! -e "$plain/.git/ai-olympus-gate.lock.reclaim" && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ ! -e "$MLOCK.reclaim" && ! -e "$MLOCK" ]] && echo pass)"
 
   # A waiter killed inside the reclaim must not block every later reclaim. Its reclaim
   # directory is cleared because its holder is dead, and the directory is brand new: the
   # clear-out is a death check, not an age check.
-  local reclaim="$plain/.git/ai-olympus-gate.lock.reclaim" main_lock="$plain/.git/ai-olympus-gate.lock"
+  local reclaim="$MLOCK.reclaim" main_lock="$MLOCK"
   mkdir -p "$main_lock" "$reclaim"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$main_lock/holder"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$reclaim/holder"
@@ -592,23 +612,66 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-fail' --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive stops at the first failing command with exit 4' \
-    "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 && ! -e "$plain/.git/ai-olympus-gate.lock" ]] && echo pass)"
+    "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 && ! -e "$MLOCK" ]] && echo pass)"
 
   code=0; run_in "$plain" --exclusive --command 'composer build; touch pwned' || code=$?
   check '--exclusive refuses a chained command and never runs it' "$([[ "$code" -eq 3 && ! -e "$plain/pwned" ]] && echo pass)"
 
-  mkdir -p "$plain/.git/ai-olympus-gate.lock"
-  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$plain/.git/ai-olympus-gate.lock/holder"
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain_worktree" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive waits for a live holder and exits 6 past the timeout without running' \
     "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 ]] && echo pass)"
-  rm -rf "$plain/.git/ai-olympus-gate.lock"
+  rm -rf "$MLOCK"
 
   code=0; run_in "$plain" --exclusive || code=$?
   check '--exclusive without a command is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
   code=0; run_in "$plain" --exclusive --tier full --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive together with --tier is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
+
+  # --- One lock for the whole machine: two projects, and the targeted checks ------------
+  : >"$GATE_SELFTEST_CALLS"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
+  first_code=0; second_code=0
+  (cd "$plain" && GATE_SELFTEST_SLEEP=2 "$script" --exclusive --command 'vendor/bin/gate-span' >/dev/null 2>&1) &
+  first=$!
+  sleep 0.5
+  (cd "$project" && GATE_SELFTEST_SLEEP=2 "$script" --exclusive --command 'vendor/bin/gate-span' >/dev/null 2>&1) &
+  second=$!
+  wait "$first" || first_code=$?
+  wait "$second" || second_code=$?
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  spans="$(grep '^span' "$GATE_SELFTEST_CALLS" | tr '\n' ' ')"
+  check 'two different projects share one lock and never overlap' \
+    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' && ! -e "$plain/.git/ai-olympus-gate.lock" && ! -e "$project/.git/ai-olympus-gate.lock" ]] && echo pass)"
+
+  # A targeted check is a heavy command too: run-validation.sh waits for a running gate.
+  local validator manifest_file="$tmp/targeted.json"
+  validator="$(dirname "$script")/run-validation.sh"
+  printf '{"head_sha":"%s","tests":["vendor/bin/gate-span"]}\n' "$(git -C "$project" rev-parse HEAD)" >"$manifest_file"
+  : >"$GATE_SELFTEST_CALLS"
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
+  first_code=0; second_code=0
+  (cd "$plain" && GATE_SELFTEST_SLEEP=2 "$script" --exclusive --command 'vendor/bin/gate-span' >/dev/null 2>&1) &
+  first=$!
+  sleep 0.5
+  (cd "$project" && GATE_SELFTEST_SLEEP=2 "$validator" --manifest "$manifest_file" --logs "$tmp/targeted-logs" >/dev/null 2>&1) &
+  second=$!
+  wait "$first" || first_code=$?
+  wait "$second" || second_code=$?
+  export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
+  spans="$(grep '^span' "$GATE_SELFTEST_CALLS" | tr '\n' ' ')"
+  check 'a targeted check waits for a running gate of another project' \
+    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$spans" == 'span-start span-end span-start span-end ' ]] && echo pass)"
+
+  mkdir -p "$MLOCK"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
+  : >"$GATE_SELFTEST_CALLS"
+  code=0; (cd "$project" && "$validator" --manifest "$manifest_file" --logs "$tmp/targeted-logs" >"$tmp/targeted.out" 2>/dev/null) || code=$?
+  check 'a targeted check behind a live holder exits 6 as locked and runs nothing' \
+    "$([[ "$code" -eq 6 && "$(calls span-start)" -eq 0 && "$(jq -r .status "$tmp/targeted.out")" == locked ]] && echo pass)"
+  rm -rf "$MLOCK"
 
   # --- Failures never record a pass -----------------------------------------------
   local failing="$tmp/failing"
