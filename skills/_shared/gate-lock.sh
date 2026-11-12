@@ -44,23 +44,28 @@
 #   to a process whose start time still equals the one it recorded. It stops no other process.
 #   A holder it cannot prove (an older holder file, another program at that PID) is left running
 #   and reported as refused.
-#   Repair needs an audit ledger (--audit, or AUDIT_TRAIL_FILE) and writes one line there through
-#   audit-trail.sh: an `external-write` line for a lock it released, a `note` line for a refusal.
+#   Repair needs an audit ledger (--audit, or AUDIT_TRAIL_FILE) that it can append to, and refuses
+#   before it reads the lock when it cannot. It writes one line there through audit-trail.sh: an
+#   `external-write` line for a lock it released, a `note` line for a refusal. The line names the
+#   holder PID, its wrapper, and whether the holder ran for this repository or another project; it
+#   never carries another project's path or command, because a PR body transcribes the ledger.
 #
 # Output (stdout): one JSON document.
 #   status:  {state, lock, pid, project, command, wrapper, started, heartbeat_age_seconds,
 #             stuck_after_seconds, wrapper_verified}
-#   repair:  {action, state, reason, pid, project, command, stopped, released, audit}
+#   repair:  {action, state, reason, lock, pid, project, command, stopped, released, audit}
 #   action is one of none (free), none-live (a live holder shows progress), released-dead,
 #   stopped-and-released, refused (exit 3 or 4), release-failed (exit 4: the lock directory is still
 #   there after the reclaim; the audit ledger gets a `note` line).
+#   audit is none (no line was due), written, or not written (the append failed).
 #
 # Exit codes
 #   0   status: free, held, or unproven. repair: nothing to repair, or repaired.
-#   1   usage error, or repair without a usable audit ledger
+#   1   usage error, or repair without an audit ledger it can append to; nothing was changed
 #   2   a required tool is missing
 #   3   repair refused: the stuck holder is not a wrapper this package started; nothing was stopped
 #   4   repair could not stop every process of the tree, or could not remove the lock directory
+#   5   repair released the lock, but its audit line was not written
 #   10  status: the holder is dead
 #   11  status: the holder is stuck
 set -euo pipefail
@@ -153,25 +158,48 @@ cmd_status() {
 
 AUDIT_FILE=''
 AUDIT_ROLE='krang'
-AUDIT_RESULT='not written'
+AUDIT_RESULT='none'
 
 # One audit line through the one owner of the line shape. A failed write is reported in the
-# result document and never changes what the repair already did.
+# result document (audit "not written") and turns a successful repair into exit 5.
 audit_line() {
   local class="$1" target="$2" result="$3"
   if "$GATE_LIB_DIR/audit-trail.sh" append --class "$class" --target "$target" --result "$result" \
     --role "$AUDIT_ROLE" --file "$AUDIT_FILE" >/dev/null 2>&1; then
     AUDIT_RESULT='written'
+  else
+    AUDIT_RESULT='not written'
   fi
+}
+
+# The ledger takes a line: the append lock is a directory beside it, and the file is either
+# missing or a regular, writable file.
+audit_ledger_writable() {
+  local dir
+  dir="$(dirname "$AUDIT_FILE")"
+  [[ -d "$dir" && -w "$dir" ]] || return 1
+  [[ ! -e "$AUDIT_FILE" && ! -L "$AUDIT_FILE" ]] && return 0
+  [[ -f "$AUDIT_FILE" && ! -L "$AUDIT_FILE" && -w "$AUDIT_FILE" ]]
+}
+
+# The holder as the audit line names it: its wrapper when it is one of this package, and whether
+# it ran for this repository or another project. Another project's path and command stay out of
+# the ledger, which a public PR body transcribes.
+holder_scope() {
+  local wrapper="$1" project="$2" name='an unknown wrapper' where='another project'
+  [[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh ]] || name="$wrapper"
+  [[ -z "$project" || "$project" != "$(gate_project_path)" ]] || where='this repository'
+  printf '%s, %s' "$name" "$where"
 }
 
 emit_repair() {
   local action="$1" state="$2" reason="$3" code="$4" pid="$5" project="$6" command="$7" stopped="$8" released="$9"
-  jq -n --arg action "$action" --arg state "$state" --arg reason "$reason" --arg pid "$pid" \
+  jq -n --arg action "$action" --arg state "$state" --arg reason "$reason" --arg lock "$GATE_LOCK" --arg pid "$pid" \
     --arg project "$project" --arg command "$command" --argjson stopped "$stopped" \
     --argjson released "$released" --arg audit "$AUDIT_RESULT" \
-    '{action: $action, state: $state, reason: $reason, pid: $pid, project: $project, command: $command,
+    '{action: $action, state: $state, reason: $reason, lock: $lock, pid: $pid, project: $project, command: $command,
       stopped: $stopped, released: $released, audit: $audit}'
+  [[ "$code" -ne 0 || "$AUDIT_RESULT" != 'not written' ]] || code=5
   return "$code"
 }
 
@@ -241,7 +269,7 @@ release_lock() {
 # The result when the lock is still there after the reclaim: a note in the ledger and a non-zero exit.
 lock_not_released() {
   local pid="$1" wrapper="$2" project="$3" command="$4" stopped="$5"
-  audit_line note "release of the machine lock of holder pid ${pid:-unknown} failed" "the lock directory is still there after the reclaim; pids stopped: $stopped; wrapper ${wrapper:-unknown}; project $project; command: $command"
+  audit_line note "release of the machine lock of holder pid ${pid:-unknown} failed ($(holder_scope "$wrapper" "$project"))" "the lock directory is still there after the reclaim; pids stopped: $stopped"
   emit_repair release-failed "$(gate_lock_state "$GATE_LOCK")" 'the holder is gone or stopped, but the lock directory could not be removed; it is still there' 4 "$pid" "$project" "$command" "$stopped" false
 }
 
@@ -257,6 +285,10 @@ cmd_repair() {
   AUDIT_FILE="${AUDIT_FILE:-${AUDIT_TRAIL_FILE:-}}"
   if [[ "$AUDIT_FILE" != /*.audit || ! -d "$(dirname "$AUDIT_FILE")" || ! "$AUDIT_ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
     echo "$PROG: repair needs an audit ledger: --audit <abs .audit path> (or AUDIT_TRAIL_FILE) and a role" >&2
+    return 1
+  fi
+  if ! audit_ledger_writable; then
+    echo "$PROG: repair cannot append to the audit ledger; nothing was changed" >&2
     return 1
   fi
 
@@ -281,7 +313,7 @@ cmd_repair() {
       lock_not_released "$pid" "$wrapper" "$project" "$command" '[]'
       return
     fi
-    audit_line external-write "release machine lock of dead holder pid $pid ($wrapper, project $project)" "removed the lock; the holder was confirmed dead; command: $command"
+    audit_line external-write "release machine lock of dead holder pid $pid ($(holder_scope "$wrapper" "$project"))" "removed the lock; the holder was confirmed dead"
     emit_repair released-dead dead 'the holder is dead; the lock was removed and no process was stopped' 0 "$pid" "$project" "$command" '[]' true
     return
     ;;
@@ -290,7 +322,7 @@ cmd_repair() {
   # stuck
   age="$(gate_heartbeat_age "$GATE_LOCK" 2>/dev/null || true)"
   if ! gate_holder_verified "$GATE_LOCK"; then
-    audit_line note "refused to stop pid $pid, holder of the machine lock" "the wrapper did not start it, so nothing was stopped; project $project; command: $command"
+    audit_line note "refused to stop pid $pid, holder of the machine lock ($(holder_scope "$wrapper" "$project"))" "the wrapper did not start it, so nothing was stopped"
     emit_repair refused stuck 'the holder is not a process a wrapper of this package started (command line or start time differs); nothing was stopped' 3 "$pid" "$project" "$command" '[]' false
     return
   fi
@@ -317,7 +349,7 @@ cmd_repair() {
     return
   }
   if ! stopped="$(stop_holder_tree "$pid")"; then
-    audit_line note "stop of stuck holder pid $pid of the machine lock failed" "a process of the tree survived SIGKILL: $stopped stopped; project $project; command: $command"
+    audit_line note "stop of stuck holder pid $pid of the machine lock failed ($(holder_scope "$wrapper" "$project"))" "a process of the tree survived SIGKILL: $stopped stopped"
     emit_repair refused stuck 'a process of the holder tree survived SIGKILL; the lock was kept' 4 "$pid" "$project" "$command" "$stopped" false
     return
   fi
@@ -325,7 +357,7 @@ cmd_repair() {
     lock_not_released "$pid" "$wrapper" "$project" "$command" "$stopped"
     return
   fi
-  audit_line external-write "stop process tree of stuck machine-lock holder pid $pid ($wrapper, project $project)" "stopped pids $stopped after ${age:-unknown}s without progress (limit $(gate_stuck_after)s) and released the lock; command: $command"
+  audit_line external-write "stop process tree of stuck machine-lock holder pid $pid ($(holder_scope "$wrapper" "$project"))" "stopped pids $stopped after ${age:-unknown}s without progress (limit $(gate_stuck_after)s) and released the lock"
   emit_repair stopped-and-released stuck "the holder showed no progress for ${age:-unknown}s; its process tree was stopped and the lock was released" 0 "$pid" "$project" "$command" "$stopped" true
 }
 
@@ -463,7 +495,31 @@ self_test() {
   : >"$audit"
   code=0; OUT="$("$self" repair --audit "$audit" 2>/dev/null)" || code=$?
   check 'a dead holder is reclaimed, nothing is stopped, and the ledger names it' \
-    "$([[ "$code" -eq 0 && "$(jq -r .action <<<"$OUT")" == released-dead && "$(jq -r .stopped <<<"$OUT")" == '[]' && ! -e "$lock" && "$(cat "$audit")" == *"dead holder pid $dead"* ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(jq -r .action <<<"$OUT")" == released-dead && "$(jq -r .stopped <<<"$OUT")" == '[]' && ! -e "$lock" && "$(cat "$audit")" == *"dead holder pid $dead"* && "$(jq -r .audit <<<"$OUT")" == written ]] && echo pass)"
+
+  # The ledger goes into a public PR body: it names another project, never its path or command.
+  mkdir -p "$lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nWRAPPER=run-gate.sh\nPROJECT=%s\nCOMMAND=%s\n' "$dead" "$(gate_now)" "$(date +%s)" "$other" 'vendor/bin/pest tests/PrivateClientTest.php' >"$lock/holder"
+  : >"$audit"
+  code=0; "$self" repair --audit "$audit" >/dev/null 2>&1 || code=$?
+  check 'the ledger line names another project without its path or its command' \
+    "$([[ "$code" -eq 0 && "$(cat "$audit")" == *"(run-gate.sh, another project)"* && "$(cat "$audit")" != *"$other"* && "$(cat "$audit")" != *PrivateClientTest* ]] && echo pass)"
+
+  # Repair refuses before it changes anything when its audit line could not be written.
+  mkdir -p "$lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nWRAPPER=run-gate.sh\nPROJECT=%s\nCOMMAND=x\n' "$dead" "$(gate_now)" "$(date +%s)" "$project" >"$lock/holder"
+  : >"$audit"
+  chmod 444 "$audit"
+  code=0; "$self" repair --audit "$audit" >/dev/null 2>&1 || code=$?
+  chmod 644 "$audit"
+  check 'repair with a read-only ledger exits 1 and leaves the lock in place' "$([[ "$code" -eq 1 && -d "$lock" && ! -s "$audit" ]] && echo pass)"
+  mkdir -p "$tmp/sealed"
+  chmod 555 "$tmp/sealed"
+  code=0; "$self" repair --audit "$tmp/sealed/run.audit" >/dev/null 2>&1 || code=$?
+  chmod 755 "$tmp/sealed"
+  check 'repair with a ledger in a directory it cannot write exits 1 and leaves the lock in place' \
+    "$([[ "$code" -eq 1 && -d "$lock" && ! -e "$tmp/sealed/run.audit" ]] && echo pass)"
+  rm -rf "$lock"
 
   # A holder that exited and was never reaped by its parent is a zombie: it holds nothing.
   local zombie
@@ -569,7 +625,7 @@ self_test() {
   code=0; OUT="$("$self" repair --audit "$audit" 2>/dev/null)" || code=$?
   chmod 755 "$AI_OLYMPUS_LOCK_DIR"
   check 'a lock that repair cannot remove is reported as release-failed with exit 4 and a note' \
-    "$([[ "$code" -eq 4 && "$(jq -r .action <<<"$OUT")" == release-failed && "$(jq -r .released <<<"$OUT")" == false && -d "$lock" && "$(cat "$audit")" == *\|note\|*"failed"* ]] && echo pass)"
+    "$([[ "$code" -eq 4 && "$(jq -r .action <<<"$OUT")" == release-failed && "$(jq -r .lock <<<"$OUT")" == */machine/ai-olympus-gate.lock && "$(jq -r .released <<<"$OUT")" == false && -d "$lock" && "$(cat "$audit")" == *\|note\|*"failed"* ]] && echo pass)"
   rm -rf "$lock"
 
   # --- A command that a holder started runs under its lock ---------------------------
@@ -582,6 +638,16 @@ self_test() {
   code=0; (cd "$project" && AI_OLYMPUS_LOCK_HELD_BY=1 "$script" --exclusive --command 'vendor/bin/gate-ok' >/dev/null 2>&1) || code=$?
   check 'a held-by claim that names another process still waits for the lock' "$([[ "$code" -eq 6 ]] && echo pass)"
   rm -rf "$lock"
+
+  # --- The machine directory: owned by the caller, never a symlink, closed to other accounts ----
+  mkdir -p "$tmp/wide"
+  chmod 777 "$tmp/wide"
+  code=0; AI_OLYMPUS_LOCK_DIR="$tmp/wide" "$self" status >/dev/null 2>&1 || code=$?
+  check 'a group- and other-writable machine directory loses those permissions' \
+    "$([[ "$code" -eq 0 && "$(gate_selftest_mode "$tmp/wide")" == 700 ]] && echo pass)"
+  ln -s "$tmp/wide" "$tmp/linked"
+  code=0; AI_OLYMPUS_LOCK_DIR="$tmp/linked" "$self" status >/dev/null 2>&1 || code=$?
+  check 'a symlinked machine directory is refused' "$([[ "$code" -eq 1 ]] && echo pass)"
 
   # --- Usage --------------------------------------------------------------------------
   code=0; "$self" nonsense >/dev/null 2>&1 || code=$?

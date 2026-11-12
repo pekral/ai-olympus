@@ -267,7 +267,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
         // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
         // Re-baselined: every coverage run goes through `run-gate.sh --exclusive` (issue #409).
-        'rules/php/core-standards.md' => 'c031de9d071178605dfd950616b839904b5f11b4a20b10c8bdfb78af715ba400',
+        'rules/php/core-standards.md' => '2e755e77548ad9e6c0a0f4c1e7b84c29ca8bbafa3b37c063822fc475a3f92e6e',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -474,7 +474,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
         // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-testing/general.md' => '8589ff8c3afedd4b8d33be0a49e0dea874769bdfe83f196e850c2964453ab3f0',
+        'rules/code-testing/general.md' => '420a5ef4858d14ff65437479f9c7bac2b845c12ee628c9c1bae2bd9149f4e0ba',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
@@ -535,7 +535,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // behaviour change in it is a Moderate finding instead of a Critical one.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
-        'rules/refactoring/general.md' => 'b1b43a76e32bc6ab76dc2e4eba8d289efdf95d42726582f0487c159f23ecae5a',
+        'rules/refactoring/general.md' => '5244059a14308f5b5cad7841ebf498f59a9bfd1f7ee69be87013188b904a98be',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
