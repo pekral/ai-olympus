@@ -79,6 +79,13 @@ test('krang dispatches splinter in every parallel CR round and converges only wh
         ->and($krang)->toContain('A `splinter` that is `Blocked`, unregistered, or without `Clean` leaves the round not converged')
         ->and($krang)->toContain('it holds only when the handoffs of `leonardo` and `splinter` are both clean')
         ->and($krang)->toContain('`leonardo` and `splinter` review in isolated read-only git worktrees');
+
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))->toContain(
+        'When the `splinter` handoff is `Blocked`, `splinter` is unregistered, or its report has no `Clean` field, '
+        . '**load `skills/_shared/orchestration/splinter-not-run.md`**.',
+    );
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/review-process.md'))
+        ->toContain('`skills/_shared/orchestration/splinter-not-run.md`, and both finding templates point here');
 });
 
 test('leonardo merges the splinter view under one owner rule and the security agenda names the new owner (issue #379)', function (): void {

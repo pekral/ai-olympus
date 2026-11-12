@@ -29,7 +29,7 @@ This sets `includeCoAuthoredBy: false` only when the key is absent and preserves
 
 ## How the Installer Works
 
-The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It mirrors the same source artifacts into both supported harnesses: rules into `.claude/rules` and `.codex/rules`, skills into `.claude/skills` and Codex's native `.agents/skills`, and the eight roles into each harness's agent format. Files are copied by default or symlinked when you pass `--symlink` and the operating system permits it.
+The installer discovers the project root by walking up from the current directory until it finds a `composer.json`. It mirrors the same source artifacts into both supported harnesses: rules into `.claude/rules` and `.codex/rules`, skills into `.claude/skills` and Codex's native `.agents/skills`, and the nine roles into each harness's agent format. Files are copied by default or symlinked when you pass `--symlink` and the operating system permits it.
 
 When the package is required via Composer, sources are read from `vendor/pekral/ai-olympus/rules` and `vendor/pekral/ai-olympus/skills`. The installer never generates a `CLAUDE.md`; this repository's root `CLAUDE.md` holds maintenance instructions for this repository only. [Claude Code 2.1.277+ reads `AGENTS.md` when `CLAUDE.md` is absent](https://code.claude.com/docs/en/changelog#2-1-277), except on Bedrock, Vertex, and Foundry.
 
