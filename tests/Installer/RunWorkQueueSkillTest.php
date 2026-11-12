@@ -239,3 +239,50 @@ test('the command hands the instructions to the skill, holds the krang role, and
         ->and($command)->toContain('Do not merge.')
         ->and(workQueueSource('skills/run-work-queue/SKILL.md'))->toContain('name: run-work-queue');
 });
+
+test('on Claude Code the run schedules the recurring report at its start and cancels it on every terminating path', function (): void {
+    $skill = workQueueSource('skills/run-work-queue/SKILL.md');
+    $report = workQueueSource('skills/run-work-queue/references/progress-report.md');
+
+    expect($skill)->toContain('create the recurring job with `CronCreate` (every 5 minutes unless the instructions name another interval)')
+        ->and($skill)->toContain('cancel the `CronCreate` job with `CronDelete` on Claude Code')
+        ->and($report)->toContain('create the job with `CronCreate`. The schedule is `*/<minutes> * * * *`.')
+        ->and($report)->toContain('Cancel the job with `CronDelete` on every terminating path')
+        ->and($report)->toContain('the final report, a `Blocked` stop of the whole run, and an abort')
+        ->and($report)->toContain('When `CronDelete` fails, record its message and name the job id in the final report')
+        ->and($report)->toContain('When `CronCreate` is not available or refuses the schedule, record `scheduler: unavailable`');
+});
+
+test('on Codex the same report is emitted at every queue state change because there is no scheduler', function (): void {
+    $report = workQueueSource('skills/run-work-queue/references/progress-report.md');
+    $skill = workQueueSource('skills/run-work-queue/SKILL.md');
+
+    expect($report)->toContain('Codex has no session scheduler. The session emits the same report at every queue state change:')
+        ->and($report)->toContain('A unit becomes `Blocked`, or a question for the operator appears.')
+        ->and($report)->toContain('Record `scheduler: none (state-change reports)`')
+        ->and($report)->toContain('The content of the report is the same on both platforms. Only the trigger differs.')
+        ->and($skill)->toContain('On Codex, record that the report is emitted at every queue state change.');
+});
+
+test('every report lists done, in progress, and parked items with pull request, CI, and the open questions', function (): void {
+    $report = workQueueSource('skills/run-work-queue/references/progress-report.md');
+
+    expect($report)->toContain('The number of items that are done, in progress, and parked.')
+        ->and($report)->toContain('the id, the title, the state, the pull request link, the CI state, and the reason when the item is parked')
+        ->and($report)->toContain('Every question that waits for the operator, with its item and its source. `none` when no question waits.')
+        ->and($report)->toContain('`gh pr checks <number>`, run for this report.')
+        ->and($report)->toContain('Copy the text and name the source.')
+        ->and($report)->toContain('A question is copied from its source. The root session never invents one.')
+        ->and($report)->toContain('A report is read-only. It dispatches nobody and writes nothing to the tracker.');
+});
+
+test('a report states verified values only and the interval defaults to 5 minutes within 1 to 59', function (): void {
+    $report = workQueueSource('skills/run-work-queue/references/progress-report.md');
+
+    expect($report)->toContain('Only verified state goes into a report')
+        ->and($report)->toContain('A value that cannot be read is written `not verified`, with the step that settles it.')
+        ->and($report)->toContain('The report contains no estimate, no time to finish, and no guess about a cause.')
+        ->and($report)->toContain('The default is every 5 minutes.')
+        ->and($report)->toContain('The interval is a whole number of minutes from 1 to 59. Any other value keeps 5, and the first report says so.')
+        ->and(workQueueSource('skills/run-work-queue/references/queue-brief.md'))->toContain('| `## Progress report` |');
+});
