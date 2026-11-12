@@ -47,6 +47,7 @@ It never merges the pull request.
   under review except for the skill-owned rebase using `--force-with-lease`.
 - Apply @rules/reports/general.md. The source-issue TL;DR uses the assignment language. Technical PR
   review evidence stays in canonical English, or in the manifest's `language.github` when it is set.
+- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - Accept exactly one source reference:
   - a full `https://github.com/<owner>/<repository>/issues/<number>` or
     `https://github.com/<owner>/<repository>/pull/<number>` URL,

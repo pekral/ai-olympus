@@ -64,6 +64,10 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 `krang` dispatches you by name, so you are dispatchable only after the installer copies `agents/michelangelo.md` to `.claude/agents/`, or installs the adapter in `.codex/agents/`. When you are not registered, the run does **not** quietly hand your stage to another agent: `donatello` would then be inventing the layout this stage exists to decide. The run stops with that remediation instead, and the direct route stays open — `@skills/page-redesign/SKILL.md` runs standalone in the top-level session.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Return:

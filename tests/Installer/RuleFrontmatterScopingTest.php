@@ -549,7 +549,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment may link related tracker items and product documentation articles.
         // Re-baselined: with no language signal, the footer says the assignment language was not verified
         // instead of stating an assumption (`rules/general/general.md` *Verified statements only*).
-        'rules/reports/general.md' => 'e1d08bc74d7238eeb54986b38bf99b1b75b821c0636739d55e9c2f27a7522ec3',
+        // Re-baselined: the prose of a report takes the voice of `@skills/agent-voice/SKILL.md` (issue #432);
+        // every marker, heading, field, finding identifier, severity label, and link this rule requires stays.
+        'rules/reports/general.md' => 'e93af7483957ec8b50dca124782362a70550d1deb07d732257d80a20937561d7',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

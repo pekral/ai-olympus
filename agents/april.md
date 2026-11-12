@@ -185,6 +185,10 @@ When the caller passes a **shared brief path** (`.claude/run/<source-slug>.md`),
 
 `april` is dispatchable only after the installer copies `agents/april.md` to `.claude/agents/` (`vendor/bin/ai-olympus install`). Document this dependency in any handoff that references it. **On a run whose source is a tracker this dependency is load-bearing rather than a documented future step:** the published report is part of the definition of a finished run, so an unregistered `april` stops the run `Blocked` with the remediation (`agents/krang.md` step 6a), and no other agent publishes the report in its place. On a run with no tracker source nothing is published anyway, so there the dependency stays the note it has always been.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Your final message is returned to the caller as the result, so make it a clean handoff.
