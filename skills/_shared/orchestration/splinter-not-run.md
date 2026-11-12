@@ -7,3 +7,5 @@ The merge section is `@rules/code-review/review-process.md` *Merging the `splint
 The round converges only when the `leonardo` view and the `splinter` view are both clean under the convergence gate. Each Critical and Moderate `splinter` finding is a round finding, and a security finding is never deferred.
 
 A `splinter` that is `Blocked`, unregistered, or without `Clean` leaves the round not converged: outside a review-only run stop `Blocked` with the blocker and the remediation `vendor/bin/ai-olympus install` (`--force` for a kept modified old `splinter` copy). A review-only run states the not-run line of that merge section.
+
+Never pass a `leonardo` finding to `splinter`.
