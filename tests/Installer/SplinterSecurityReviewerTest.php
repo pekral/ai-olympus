@@ -91,14 +91,16 @@ test('leonardo merges the splinter view under one owner rule and the security ag
         ->and($leonardo)->not->toContain('Single-reviewer dispatch model')
         ->and($leonardo)->toContain('`splinter` runs the independent second security view in parallel (`agents/splinter.md`)')
         ->and($leonardo)->toContain('3. **Merge the `splinter` view into your review body.** Apply ' . $owner)
-        ->and($leonardo)->toContain('A report with `Clean: no` is a view that ran: merge its findings.')
-        ->and($leonardo)->toContain('Record a `splinter` finding as open only when its cited `file:line` still shows the defect on the current head')
+        ->and($leonardo)->not->toContain('is a view that ran')
+        ->and($leonardo)->not->toContain('as open only when its cited')
+        ->and($leonardo)->toContain('Record the `splinter` findings of the previous round under ' . $owner)
         ->and($reviewProcess)->toContain('## Merging the `splinter` view into the one CR comment (issue #379)')
         ->and($reviewProcess)->toContain('- **A finding that one view raises stays.**')
         ->and($reviewProcess)->toContain('- **A duplicate becomes one finding.**')
         ->and($reviewProcess)->toContain('Its values are `splinter` (only the `splinter` view raised it), `leonardo`')
         ->and($reviewProcess)->toContain('`Independent security view not run — dispatch splinter`')
-        ->and($reviewProcess)->toContain('- **`Clean: no` is a view that ran.**')
+        ->and($reviewProcess)->toContain('- **`Clean: no` is a view that ran.** Merge its findings by the rules above. On a full run they leave the round not converged: return `not converged` and publish nothing (`agents/krang.md` *Parallel CR round* step 3). It never renders the not-run header line.')
+        ->and($reviewProcess)->toContain('Record a `splinter` finding of an earlier round as open only when its cited `file:line` still shows the defect on the current head')
         ->and((string) file_get_contents($packageDir . '/agents/krang.md'))->toContain($owner);
 
     foreach (['skills/code-review/templates/review-output.md', 'skills/code-review-github/templates/pr-comment-output.md'] as $template) {
