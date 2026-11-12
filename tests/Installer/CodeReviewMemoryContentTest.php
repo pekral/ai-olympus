@@ -138,15 +138,17 @@ test(
         $safeguard = codeReviewMemoryFile('skills/resolve-issue/references/safeguard-implementation.md');
     
         expect($loop)->toContain(
-            'plus every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true '
+            'The second list** is every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true '
             . 'and `awaiting: "analysis"`, unless its key',
         )
             ->and($loop)->not->toContain('`eligible` false')
             ->and($loop)->toContain('Stop when both lists are empty: that files nothing.')
             ->and($loop)->toContain('and always for a class of the status list,')
             ->and($loop)->not->toContain('A class that recurs is in the first list only')
-            ->and($loop)->toContain('The `eligible` flag of the status never picks the second list')
-            ->and($loop)->toContain('A class of the `recurrences` list is in the first list only, whatever its `eligible` flag: `leonardo` analyses it once')
+            ->and($loop)->toContain('**The `eligible` flag never picks the second list.**')
+            ->and($loop)->toContain(
+                '**A class of the first list is analysed once**, whatever its `eligible` flag: `leonardo` uses the whole hierarchy',
+            )
             ->and($loop)->toContain(
                 'For each candidate whose `target.type` is `memory` and whose `awaiting` is `approval` or `re-approval`, '
                 . 'run `skills/_shared/feedback-loop.sh lookup --key <key>`.',
@@ -166,8 +168,7 @@ test(
             ->and($loop)->toContain('`skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
             ->and($loop)->toContain('`gh issue close <number> --reason completed`')
             ->and($loop)->toContain('Append one `external-write` line for the comment and one for the close to `${BRIEF%.md}.audit`')
-            ->and($loop)->toContain('The only issue that `krang` closes is the proposal of a `memory` candidate after its write (step 5).')
-            ->and($loop)->not->toContain('Never reopen or close an issue, and never edit its body.')
+            ->and($loop)->and($loop)->toContain('The one exception is the close of the proposal of a written `memory` candidate in step 5.')
             ->and($loop)->toContain('is **L1** for `krang`. The human approval of *Approval* is the ask')
             ->and($loop)->toContain('`change` is the TL;DR entry, one line per field')
             ->and($promotion)->toContain('| `written` | `digest`, `slug` |')
@@ -227,7 +228,9 @@ test(
                 '| `krang` | Close the proposal issue of a `memory` candidate as completed, after `promote-learning.sh written` recorded its write',
             )
             ->and($orchestration)->toContain('It closes no other issue, never as not planned')
-            ->and(codeReviewMemoryFile('CHANGELOG.md'))->toContain('After `written`, `krang` closes the proposal issue of the written candidate as completed')
+            ->and(codeReviewMemoryFile('CHANGELOG.md'))->toContain(
+                'After `written`, `krang` closes the proposal issue of the written candidate as completed',
+            )
             ->and(substr_count($script, 'def memory_slug('))->toBe(1)
             ->and(substr_count($script, 'memory_slug('))->toBe(2)
             ->and($script)->not->toContain('${cause:0:90}');
