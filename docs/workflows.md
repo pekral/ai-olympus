@@ -26,7 +26,7 @@ $verify-merge-readiness https://github.com/owner/repository/issues/123
 
 The workflow verifies acceptance criteria, review freshness, the exact-head quality gate, CI, and mergeability. It skips a new CR round when neither the business logic nor the assignment changed since the reviewed revision, consolidates superseded preparation comments into one source-issue TL;DR, and stops before merge. In Codex, the root session holds the `krang` role and spawns the registered specialists when custom agents are available.
 
-To prepare a batch, pass several references. The root session holds the `krang` role for every issue and runs one pipeline for each, each in its own git worktree, at most 3 at a time. A blocker on one issue never stops the others. The optional `--merge` flag merges each prepared pull request through `merge-github-pr` after it rebases onto the latest default branch. Every gate, install, and test command runs through `skills/_shared/run-gate.sh`, so two worktrees never run a heavy job at the same time. The session publishes one aggregated report.
+To prepare a batch, pass several references. The root session holds the `krang` role for every issue and runs one pipeline for each, each in its own git worktree, at most 3 at a time. A blocker on one issue never stops the others. The optional `--merge` flag merges each prepared pull request through `merge-github-pr` after it rebases onto the latest default branch. Every gate, install, and test command runs through `skills/_shared/run-gate.sh` (a validation manifest through `skills/_shared/run-validation.sh --exclusive`), so two worktrees never run a heavy job at the same time. The session publishes one aggregated report.
 
 ```text
 # Claude Code
