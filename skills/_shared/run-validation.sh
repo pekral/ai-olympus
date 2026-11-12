@@ -273,13 +273,10 @@ run_manifest() {
   # A check is a heavy command: Pest, Rector, and PHPStan each start worker processes. The
   # run waits for any gate, install, or other check on the machine, and holds the lock until the
   # last command ends. A run that a heavy command of a holder started shares that holder's lock.
-  local lock_timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}" lock_status=0
-  [[ "$lock_timeout" =~ ^[0-9]{1,6}$ ]] || refuse 'AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds'
-  trap gate_cleanup EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
+  local lock_status=0
+  gate_lock_timeout || refuse "$GATE_REASON"
   GATE_HOLDER_COMMAND="validation of ${HEAD_SHA:0:12}: ${#plan[@]} command(s)"
-  gate_lock_acquire "$lock_timeout" || lock_status=$?
+  gate_lock_enter "$GATE_LOCK_TIMEOUT" || lock_status=$?
   case "$lock_status" in
   0) ;;
   6)
