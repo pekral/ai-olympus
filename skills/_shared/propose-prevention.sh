@@ -223,16 +223,20 @@ def analysis_errors:
 
 # The report only names the occurrences. The store holds the validated records, so each occurrence must be a record
 # of the same class and the same pull request, and the body is rendered from the record, never from the report.
+# A memory target accepts only resolved Critical records, whichever script calls this one (learning-promotion.md *The severity gate*).
 def occurrence_errors:
   ($st[0] | map({key: .id, value: .}) | from_entries) as $byid
   | $ana[0].class as $c
+  | (([$ana[0].target | objects | .type] | first) == "memory") as $memory
   | . as $r
   | [ (if ($r.occurrences | type) == "array" and ($r.occurrences | length) >= $minprs then empty else "the recurrence in the report is malformed" end),
       ($r.occurrences | if type == "array" then .[] else empty end
         | if type != "object" or (.finding | type) != "string" or $byid[.finding] == null then "an occurrence of the report is not in the record store"
           else . as $o | $byid[.finding] as $f
             | if $f.repo != $c.repo or $f.category != $c.category or $f.cause_key != $c.cause_key or $f.pr != $o.pr or $o.repo != $f.repo
-              then "an occurrence of the report does not match its record in the store" else empty end
+              then "an occurrence of the report does not match its record in the store"
+            elif $memory and ($f.severity != "critical" or $f.status != "resolved") then "a memory target accepts only resolved Critical findings"
+            else empty end
           end) ] | unique;
 EOF
 
@@ -665,6 +669,14 @@ JSON
   rm -f "$tmp/mod.md"
   run_case 'a recurring Moderate class is proposed for the memory target' 0 -- --report "$tmp/reportmodmem.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/mod.md" --min-pull-requests 1
   check 'a Moderate class gives no proposal for the memory target and writes no file' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
+  # A direct call with the unrewritten report must not turn a Moderate or an open class into a memory proposal.
+  jq -c --arg path ".cl""aude/run/code-review-memory.sqlite" '.target = {type: "memory", path: $path, change: "Add the lesson.", knowledge: [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]}' "$tmp/analysis.json" >"$tmp/amem.json"
+  rm -f "$tmp/mod.md"
+  run_case 'a Moderate class is proposed for the memory target with the unrewritten report' 3 -- --report "$tmp/reportmod.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/amem.json" --out "$tmp/mod.md"
+  check 'a memory target refuses a Moderate record and writes no file' "$(grep -q 'a memory target accepts only resolved Critical findings' "$tmp/err" && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
+  rm -f "$tmp/mod.md"
+  run_case 'an open Critical class is proposed for the memory target' 3 -- --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/amem.json" --out "$tmp/mod.md"
+  check 'a memory target refuses an open Critical record and writes no file' "$(grep -q 'a memory target accepts only resolved Critical findings' "$tmp/err" && [[ ! -e "$tmp/mod.md" ]] && echo 0 || echo 1)"
   analysis '.class.cause_key = "missing-authorization"'
   propose 'another class than the reported one is proposed' 0
   check 'a class that the report does not list gives no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring" and .key == "acme/shop:rules/code-review/core-analysis:missing-authorization"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
@@ -839,12 +851,19 @@ JSON
   propose 'a candidate with a promotion target is proposed' 0
   check 'the proposal names the target type, path, change, and the existing knowledge checked' "$(jq -e '.status == "ready"' "$tmp/out" >/dev/null && grep -q '^## Promotion target$' "$tmp/body.md" && grep -q '^- Type: Rule$' "$tmp/body.md" && grep -q '^- Path: ` rules/php/concurrency.md `$' "$tmp/body.md" && grep -q '^Add a section that requires a lock' "$tmp/body.md" && grep -q '^- ` rules/php/concurrency.md `, coverage of this pattern: partial. ` It names the race but not the lock. `$' "$tmp/body.md" && grep -q '^An approval holds only for this exact text. A changed proposal needs a new approval.$' "$tmp/body.md" && echo 0 || echo 1)"
   local mem_claude=".cl""aude/run/code-review-memory.sqlite" mem_codex=".co""dex/run/code-review-memory.sqlite"
+  # A memory target accepts resolved Critical records only, so its candidates read a resolved store.
+  { rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"'; rec 9 2026-09-25T10:00:00Z | jq -c '.status = "resolved"'; } >"$tmp/storeres.jsonl"
+  "$HERE/analyze-recurrence.sh" --store "$tmp/storeres.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportres.json"
   for kind in skill:skills/code-review/references/locks.md checklist:skills/code-review/references/checklist.md documentation:README.md "memory:$mem_claude" "memory:$mem_codex" agent-instruction:agents/leonardo.md agent-instruction:codex/agents/leonardo.toml architecture-guideline:.ai/guidelines/locks.md; do
     analysis "$TARGET"' | .target.type = "'"${kind%%:*}"'" | .target.path = "'"${kind#*:}"'" | .target.knowledge[1].path = "'"${kind#*:}"'"'
     rm -f "$tmp/body.md"
     rc=0
     set +e
-    "$script" --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/body.md" >"$tmp/out" 2>"$tmp/err"
+    if [[ "${kind%%:*}" == memory ]]; then
+      "$script" --report "$tmp/reportres.json" --store "$tmp/storeres.jsonl" --analysis "$tmp/a.json" --out "$tmp/body.md" >"$tmp/out" 2>"$tmp/err"
+    else
+      "$script" --report "$tmp/report.json" --store "$tmp/store.jsonl" --analysis "$tmp/a.json" --out "$tmp/body.md" >"$tmp/out" 2>"$tmp/err"
+    fi
     rc=$?
     set -e
     check "a candidate can be promoted into the target type ${kind%%:*}" "$([[ "$rc" == 0 ]] && grep -q "^- Path: \` ${kind#*:} \`\$" "$tmp/body.md" && echo 0 || echo 1)"

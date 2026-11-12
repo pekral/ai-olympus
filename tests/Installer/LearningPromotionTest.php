@@ -196,7 +196,10 @@ test('the contract is written once and names the states, the facts, the history,
     expect(promotionFile('skills/code-review/references/learning-promotion.md'))
         ->toStartWith('# Learning promotion — from a repeated learning to permanent knowledge, with a human in between')
         ->toContain('`skills/_shared/promote-learning.sh` is the only implementation.')
-        ->toContain('| `observation` | The class rests on one task. |')
+        ->toContain(
+            '| `observation` | The class rests on one task. `awaiting: "analysis"` marks a class with a resolved Critical record '
+            . 'and no `memory` candidate yet. |',
+        )
         ->toContain('| `superseded` | A later, broader candidate was promoted and covers this one. It stays in the history. |')
         ->toContain('A state is derived from the history in order. No record field states it, and no text sets it.')
         ->toContain('| Occurrences | `promotion.min-occurrences` | 3 | at least 2 |')

@@ -32,7 +32,7 @@ The **code-review memory** of a project holds durable solutions of past Critical
 | `example` | Optional. A concrete pointer. A query adds it only to the most relevant entries. |
 | `source`, `added` | The pull request or issue link, and the date `YYYY-MM-DD`. |
 
-`memory add` enforces the TL;DR shape. `trigger`, `lesson`, and `evidence` are one line of at most 120 characters, `rule` is one line of at most 200 characters, `example` is one line of at most 120 characters, and `paths` lists at most 10 files. A longer entry is refused with exit `1` and nothing is written.
+`memory add` enforces the TL;DR shape. `trigger` is one line of at most 80 characters, `lesson` at most 100, `rule` at most 160, `evidence` at most 120, `example` at most 120, and `paths` lists at most 10 files. A longer entry is refused with exit `1` and nothing is written.
 
 The database holds the same fields in a table plus an FTS5 index over `trigger`, `lesson`, `rule`, `evidence`, `paths`, and `example`. A text field never carries a secret or personal data.
 

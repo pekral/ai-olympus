@@ -352,13 +352,13 @@ test('add refuses an entry that is not valid', function (string $content, string
         'paths that are not a list of paths' => [['paths' => ['a b']], '"paths" must be a list of file paths'],
         'paths that are not a list' => [['paths' => 'src/A.php'], '"paths" must be a list of file paths'],
         'an example that is not text' => [['example' => 5], '"example" must be a non-empty string'],
-        'a lesson over its limit' => [['lesson' => str_repeat('l', 121)], '"lesson" must be one line of at most 120 characters'],
-        'a rule over its limit' => [['rule' => str_repeat('r', 201)], '"rule" must be one line of at most 200 characters'],
-        'a trigger over its limit' => [['trigger' => str_repeat('t', 121)], '"trigger" must be one line of at most 120 characters'],
+        'a lesson over its limit' => [['lesson' => str_repeat('l', 101)], '"lesson" must be one line of at most 100 characters'],
+        'a rule over its limit' => [['rule' => str_repeat('r', 161)], '"rule" must be one line of at most 160 characters'],
+        'a trigger over its limit' => [['trigger' => str_repeat('t', 81)], '"trigger" must be one line of at most 80 characters'],
         'an evidence over its limit' => [['evidence' => str_repeat('e', 121)], '"evidence" must be one line of at most 120 characters'],
         'an example over its limit' => [['example' => str_repeat('x', 121)], '"example" must be one line of at most 120 characters'],
-        'a rule on two lines' => [['rule' => "first\nsecond"], '"rule" must be one line of at most 200 characters'],
-        'a lesson with a line separator' => [['lesson' => "first\u{2028}second"], '"lesson" must be one line of at most 120 characters'],
+        'a rule on two lines' => [['rule' => "first\nsecond"], '"rule" must be one line of at most 160 characters'],
+        'a lesson with a line separator' => [['lesson' => "first\u{2028}second"], '"lesson" must be one line of at most 100 characters'],
         'more than ten paths' => [
             ['paths' => array_map(
                 static fn (int $n): string => 'src/File' . $n . '.php',
@@ -852,13 +852,14 @@ test('an entry at every limit is accepted, and a legacy entry keeps text over th
         ...memoryValidEntry(),
         'evidence' => str_repeat('e', 120),
         'example' => str_repeat('x', 120),
-        'lesson' => str_repeat('l', 120),
+        'lesson' => str_repeat('l', 100),
         'paths' => array_map(static fn (int $n): string => 'src/File' . $n . '.php', range(1, 10)),
-        'rule' => str_repeat('r', 200),
-        'trigger' => str_repeat('t', 120),
+        'rule' => str_repeat('r', 160),
+        'trigger' => str_repeat('t', 80),
     ]);
     $legacy = MemoryEntry::fromArray([...memoryValidEntry(), 'rule' => str_repeat('r', 900) . "\nmore"], legacy: true);
 
-    expect(mb_strlen($atLimit->rule))->toBe(200)->and($atLimit->paths)->toHaveCount(10);
+    expect(mb_strlen($atLimit->rule))->toBe(160)->and($atLimit->paths)->toHaveCount(10);
+    expect(MemoryCandidate::fromEntry($atLimit, withExample: false)->text)->toContain('Evidence: ' . str_repeat('e', 120));
     expect(mb_strlen($legacy->rule))->toBe(905);
 });

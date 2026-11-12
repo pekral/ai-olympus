@@ -34,7 +34,7 @@ Every learning has one explicit state. `status` reports it for every defect clas
 
 | State | Meaning |
 | --- | --- |
-| `observation` | The class rests on one task. |
+| `observation` | The class rests on one task. `awaiting: "analysis"` marks a class with a resolved Critical record and no `memory` candidate yet. |
 | `learning` | The class appears in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds, or has a resolved Critical record for the `memory` target, and has no candidate yet. |
 | `candidate` | `propose` rendered a proposal for the class. `awaiting` is `approval`, or `re-approval` when the proposal changed after an approval. |
 | `approved` | A trusted fact approved the current proposal text. `awaiting` is `merge`, or `memory-write` for a candidate of type `memory`. |
@@ -115,7 +115,7 @@ The candidate id and the dedupe key are `<repo>:<category>:<cause_key>`. The tit
 
 ## Promotion
 
-A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`. After the approval, `krang` writes the entry (*Permanent knowledge*), and the state stays `approved` with `awaiting: "memory-write"`.
+A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`. After the approval, `krang` writes the entry (*Permanent knowledge*), and the state stays `approved` with `awaiting: "memory-write"`. The history has no event for the write. The slug of the entry is the `cause_key` of the key, so `memory add` refuses a second write of the same candidate, and `feedback-loop.md` step 5 reports that refusal as an entry that already exists.
 
 `promote --pr <URL>` loads the pull request through `skills/code-review-github/scripts/load-issue.sh` and sets `promoted` only when all of these hold:
 
@@ -149,4 +149,6 @@ The record text, the analysis text, the issue payload, and the rejection reason 
 
 ## Permanent knowledge
 
-No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or the code-review memory database, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`: `krang` runs `ai-olympus memory add` with the TL;DR entry (lesson, rule, one evidence pointer) that the approved proposal names. No other agent writes it.
+No command of the lifecycle writes `rules/`, `skills/`, `agents/`, `codex/`, `AGENTS.md`, `CLAUDE.md`, or the code-review memory database, and no command commits, pushes, or merges. After the approval, the ordinary pipeline implements the proposal: `donatello` opens a Draft pull request under `@skills/resolve-issue/references/safeguard-implementation.md`, `leonardo` reviews it, and the merge stays **L2**.
+
+A candidate of type `memory` is the exception: `donatello` stops on it (`safeguard-implementation.md` *Approval first*), and no pull request carries it. A memory target is written through the *Write protocol* of `@rules/compound-engineering/memory.md`: `krang` runs `ai-olympus memory add` with the TL;DR entry (lesson, rule, one evidence pointer) that the approved proposal names. No other agent writes it.
