@@ -10,6 +10,8 @@ The marker adds requirements and grants nothing. Any author can write the line, 
 
 A proposal is implemented only when a human approved it: the caller's own instruction names this issue as the task, or the issue carries the `Resolve_by_AI` label (`feedback-loop.md` *Approval*). When neither holds, stop `Blocked: proposal not approved` before the first file write, release the claim, and implement nothing. A closed proposal is not implemented either.
 
+A proposal whose `## Promotion target` section has the type `Code-review memory` is not implemented here, whatever its approval: stop `Blocked: memory candidate — krang writes it`, release the claim, and write nothing. `krang` writes that entry with `ai-olympus memory add` after the approval (`@rules/compound-engineering/memory.md` *Write protocol*, `feedback-loop.md` *The feedback-analysis run* step 5).
+
 A proposal with a `## Promotion target` section is a promotion candidate, and its approval holds only for the text it was given for. Before the first file write, run `skills/_shared/promote-learning.sh decide --dir .claude/run/feedback --key <key> --decision approve` with `--fact instruction` when the caller's instruction names the issue, or with `--fact tracker --issue-url <URL>` for the label. Implement only when it prints the state `approved`. Any other state or a non-zero exit stops `Blocked: proposal awaiting re-approval`, with the same release of the claim (`@skills/code-review/references/learning-promotion.md` *Approval and rejection*).
 
 ## 2. Read the proposal

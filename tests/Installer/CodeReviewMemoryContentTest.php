@@ -104,7 +104,7 @@ test('only a resolved Critical code-review finding becomes a TL;DR entry that kr
 
     expect($memory)->toContain('only a resolved Critical code-review finding, from its first resolved occurrence on')
         ->and($memory)->toContain(
-            '`trigger`, `lesson`, and `evidence` are one line of at most 120 characters, `rule` is one line of at most 200 characters',
+            '`trigger` is one line of at most 80 characters, `lesson` at most 100, `rule` at most 160, `evidence` at most 120',
         )
         ->and($memory)->toContain('`paths` lists at most 10 files')
         ->and($memory)->toContain('the TL;DR limits of *Entry fields* apply to `add` only')
@@ -129,3 +129,60 @@ test('the compaction skill of the Markdown memory file is retired, and no file p
         ->and(codeReviewMemoryFile('skills/code-review/references/specialized-reviews.md'))->not->toContain('compact-project-memory')
         ->and(codeReviewMemoryFile('rules/compound-engineering/memory.md'))->not->toContain('compact-project-memory');
 });
+
+test(
+    'the feedback-analysis run proposes a memory candidate at its first resolved Critical occurrence and krang writes the approved one (issue #372)',
+    function (): void {
+        $loop = codeReviewMemoryFile('skills/code-review/references/feedback-loop.md');
+        $promotion = codeReviewMemoryFile('skills/code-review/references/learning-promotion.md');
+        $safeguard = codeReviewMemoryFile('skills/resolve-issue/references/safeguard-implementation.md');
+    
+        expect($loop)->toContain(
+            'plus every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true and `awaiting: "analysis"`',
+        )
+            ->and($loop)->toContain('Stop when both lists are empty: that files nothing.')
+            ->and($loop)->toContain('and always for a class of the status list,')
+            ->and($loop)->toContain('For each `approved` candidate whose `awaiting` is `memory-write`, `krang` reads the proposal')
+            ->and($loop)->toContain('writes `${BRIEF%.md}.memory-entry.json` from the `Change:` block')
+            ->and($loop)->toContain('runs `ai-olympus memory add --entry ${BRIEF%.md}.memory-entry.json`')
+            ->and($loop)->toContain(
+                '**A refusal for an existing slug** means that an earlier run wrote the entry: report it as written and write nothing.',
+            )
+            ->and($loop)->toContain('Never run `promote` for this candidate.')
+            ->and($loop)->toContain('`change` is the TL;DR entry, one line per field')
+            ->and($promotion)->toContain('The history has no event for the write.')
+            ->and($promotion)->toContain('`donatello` stops on it (`safeguard-implementation.md` *Approval first*), and no pull request carries it.')
+            ->and($loop)->toContain('`donatello` stops on it with `Blocked: memory candidate — krang writes it`')
+            ->and($safeguard)->toContain('stop `Blocked: memory candidate — krang writes it`, release the claim, and write nothing.');
+    },
+);
+
+test(
+    'the state table puts a first-occurrence memory candidate under observation, and the published skill count matches the tree (issue #372)',
+    function (): void {
+        $count = count(skillFrontMatterDescriptions());
+    
+        expect(codeReviewMemoryFile('skills/code-review/references/learning-promotion.md'))
+            ->toContain(
+                '| `observation` | The class rests on one task. `awaiting: "analysis"` marks a class with a resolved Critical record '
+                . 'and no `memory` candidate yet. |',
+            )
+            ->and(codeReviewMemoryFile('docs/skills.md'))->toContain(sprintf('All %d skills this package ships', $count))
+            ->and(codeReviewMemoryFile('README.md'))->toContain(sprintf('%d reusable skills', $count))
+            ->and(codeReviewMemoryFile('README.md'))->toContain(sprintf('loads all %d skills', $count))
+            ->and(codeReviewMemoryFile('docs/installation.md'))->toContain(sprintf('| %d skills (`skills/*/SKILL.md`)', $count));
+    },
+);
+
+test(
+    'the changelog says that the prune deletes the installed skill copy and lists the changed files in a separate sentence (issue #372)',
+    function (): void {
+        $changelog = codeReviewMemoryFile('CHANGELOG.md');
+    
+        expect($changelog)->toContain(
+            'Run `install --prune` to delete the installed `skills/compact-project-memory/` copy in a consuming project. '
+            . 'The change touches `rules/compound-engineering/memory.md`',
+        )
+            ->and($changelog)->not->toContain('delete the installed copy (');
+    },
+);

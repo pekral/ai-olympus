@@ -11,7 +11,7 @@ final readonly class MemoryEntry
 
     private const int MAX_PATHS = 10;
 
-    private const array LINE_LIMITS = ['trigger' => 120, 'lesson' => 120, 'rule' => 200, 'evidence' => 120, 'example' => 120];
+    private const array LINE_LIMITS = ['trigger' => 80, 'lesson' => 100, 'rule' => 160, 'evidence' => 120, 'example' => 120];
 
     /**
      * @param list<string> $paths
