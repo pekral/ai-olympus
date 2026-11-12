@@ -80,6 +80,14 @@
 #   stderr also carries `carried_lines=<n>` and one `carried: <line>` per carried
 #   operator line; the calling skill states every carried line in its report.
 #
+# Audit trail:
+#   The write appends its own line to the run's `.audit` file at the moment it
+#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   line with the comment URL, or a `note` line for a failed attempt, both with
+#   the acting role and the real exit status of the write request. The ledger
+#   comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE. A missing ledger prints a
+#   hint on stderr and never changes the output or the exit code of this script.
+#
 # Exit codes:
 #   1  usage / argument error
 #   2  missing required tool (gh, jq)
@@ -119,6 +127,8 @@ if [[ ! "$MARKER_KEY" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "upsert-comment.sh: MARKER_KEY must match [a-z][a-z0-9-]* — got: $MARKER_KEY" >&2
   exit 1
 fi
+
+AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
 
 for bin in gh jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -266,20 +276,21 @@ fi
 # `gh api` body payloads are built via jq and fed through `--input -` so the
 # body stays a string regardless of its content (a body that happens to be
 # `true` or an integer would otherwise be coerced by `-F` type inference).
+# The status of the write request is kept for the audit line: the script's own
+# exit code stays 3 for any failed write.
+WRITE_RC=0
 if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
   ACTION="updated"
   RESPONSE="$(jq -n --arg body "$BODY" '{body:$body}' | gh api \
     "repos/${NWO}/issues/comments/${EXISTING_ID}" \
     -X PATCH \
-    --input - \
-    || true)"
+    --input -)" || WRITE_RC=$?
 else
   ACTION="created"
   RESPONSE="$(jq -n --arg body "$BODY" '{body:$body}' | gh api \
     "repos/${NWO}/issues/${NUMBER}/comments" \
     -X POST \
-    --input - \
-    || true)"
+    --input -)" || WRITE_RC=$?
 fi
 
 # A failed request is not always an empty response: `gh api` prints the API's own
@@ -288,9 +299,12 @@ fi
 # write landed, so it is what the success check reads.
 NEW_URL="$(printf '%s' "$RESPONSE" | jq -r '.html_url // empty' 2>/dev/null || true)"
 if [[ -z "$NEW_URL" ]]; then
+  [[ "$WRITE_RC" -ne 0 ]] || WRITE_RC=1
+  bash "$AUDIT_TRAIL" record --target "comment ${ACTION} on ${NWO}#${NUMBER}" --status "$WRITE_RC" || true
   echo "upsert-comment.sh: ${ACTION} request failed on ${NWO}#${NUMBER}: $(printf '%s' "$RESPONSE" | jq -r '.message // "unknown error"' 2>/dev/null || echo 'unknown error')" >&2
   exit 3
 fi
+bash "$AUDIT_TRAIL" record --target "$NEW_URL" --status 0 --detail "$ACTION" || true
 printf '%s\n' "$NEW_URL"
 NEW_ID="$(printf '%s' "$RESPONSE" | jq -r '.id')"
 echo "action=${ACTION} id=${NEW_ID}" >&2

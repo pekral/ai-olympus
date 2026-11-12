@@ -50,6 +50,14 @@
 #   The created sub-issue URL (or, under DRY_RUN, the resolved parent) on
 #   stdout. `action=created|dry-run` plus the parent on stderr.
 #
+# Audit trail:
+#   Each tracker write appends its own line to the run's `.audit` file at the
+#   moment it happens, through `skills/_shared/audit-trail.sh record`: the
+#   sub-issue creation, the GitHub parent link, each with the real exit status.
+#   A failed attempt leaves a `note` line. The ledger comes from AUDIT_TRAIL_FILE
+#   and AUDIT_TRAIL_ROLE; a missing ledger prints a hint on stderr and never
+#   changes the output or the exit codes.
+#
 # Exit codes:
 #   1  usage / argument error, or an unsupported tracker (Bugsnag)
 #   2  missing required tool (gh / acli / jq / php)
@@ -94,6 +102,8 @@ if [[ -z "${BODY//[[:space:]]/}" ]]; then
   echo "file-deferred-moderate.sh: refused — the sub-issue body is empty. A deferred finding is filed verbatim, never as a title alone." >&2
   exit 1
 fi
+
+AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -177,9 +187,11 @@ GRAPHQL
   CREATE_ARGS=(issue create --repo "$OWNER/$REPO" --title "$TITLE" --body-file -)
   [[ -n "$LABEL" ]] && CREATE_ARGS+=(--label "$LABEL")
   CHILD_URL="$(printf '%s' "$BODY" | gh "${CREATE_ARGS[@]}")" || {
+    bash "$AUDIT_TRAIL" record --target "gh issue create on $OWNER/$REPO" --status "$?" || true
     echo "file-deferred-moderate.sh: gh issue create failed for $OWNER/$REPO" >&2
     exit 3
   }
+  bash "$AUDIT_TRAIL" record --target "$CHILD_URL" --status 0 --detail "sub-issue created under $PARENT" || true
   CHILD_NUMBER="$(printf '%s' "$CHILD_URL" | sed -nE 's#.*/issues/([0-9]+).*#\1#p')"
 
   # The child issue already exists at this point, so every failure below must still name its URL
@@ -198,9 +210,12 @@ GRAPHQL
 
   ADD_OUT="$(gh api graphql -f query="$ADD_SUBISSUE_MUTATION" \
     -f parent="$PARENT_ID" -f child="$CHILD_ID" 2>&1)" || {
+    bash "$AUDIT_TRAIL" record --target "addSubIssue $CHILD_URL under $PARENT" --status "$?" || true
     echo "file-deferred-moderate.sh: created $CHILD_URL but addSubIssue failed against $PARENT: $ADD_OUT" >&2
     exit 4
   }
+
+  bash "$AUDIT_TRAIL" record --target "addSubIssue $CHILD_URL under $PARENT" --status 0 || true
 
   # An external write can be silently blocked in auto-mode, so a zero exit is
   # not evidence: re-read the parent and confirm the child is actually attached.
@@ -259,10 +274,13 @@ CREATE_ARGS=(jira workitem create --project "$PROJECT" --parent "$KEY" --type "$
 [[ -n "$LABEL" ]] && CREATE_ARGS+=(--label "$LABEL")
 
 CREATED="$(acli "${CREATE_ARGS[@]}" 2>&1)" || {
+  bash "$AUDIT_TRAIL" record --target "acli jira workitem create under $KEY" --status "$?" || true
   echo "file-deferred-moderate.sh: acli workitem create failed for parent $KEY: $CREATED" >&2
   echo "file-deferred-moderate.sh: when the project names its subtask type differently, re-run with JIRA_SUBTASK_TYPE=<name>." >&2
   exit 3
 }
+
+bash "$AUDIT_TRAIL" record --target "acli jira workitem create under $KEY" --status 0 --detail "subtask created" || true
 
 CHILD_KEY="$(printf '%s' "$CREATED" | jq -r '.key // .issueKey // empty' 2>/dev/null || true)"
 if [[ -z "$CHILD_KEY" ]]; then

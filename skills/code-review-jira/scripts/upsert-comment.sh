@@ -125,6 +125,14 @@
 #   comment was updated) or `action=created id=<id>` (a new one was created) on
 #   stderr, for the calling skill to log in its summary line.
 #
+# Audit trail:
+#   Each write appends its own line to the run's `.audit` file at the moment it
+#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   line with the comment URL, or a `note` line for a failed attempt, both with
+#   the acting role and the real exit status of the `acli` call. The ledger
+#   comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE; a missing ledger prints a
+#   hint on stderr and never changes the output or the exit code.
+#
 # Exit codes:
 #   1  usage / argument error
 #   2  missing required tool (acli, jq, php)
@@ -210,6 +218,7 @@ fi
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
 
@@ -373,7 +382,10 @@ if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
   TARGET_ID="$EXISTING_ID"
   ACTION="updated"
 else
-  if ! CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")"; then
+  CREATE_RC=0
+  CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")" || CREATE_RC=$?
+  if [[ "$CREATE_RC" -ne 0 ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment create on $KEY" --status "$CREATE_RC" || true
     echo "upsert-comment.sh: acli comment create failed on $KEY: $(<"$CREATE_STDERR")" >&2
     exit 3
   fi
@@ -416,6 +428,7 @@ else
   fi
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment create on $KEY" --status 0 --detail "created, ID not resolved, ADF update aborted" || true
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
     if [[ -s "$LIST_STDERR" ]]; then
       echo "upsert-comment.sh: the last of 3 re-reads failed: $(<"$LIST_STDERR")" >&2
@@ -428,8 +441,12 @@ else
   ACTION="created"
 fi
 
-if ! acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR"; then
+UPDATE_RC=0
+acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || UPDATE_RC=$?
+if [[ "$UPDATE_RC" -ne 0 ]]; then
+  bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID ADF update on $KEY" --status "$UPDATE_RC" || true
   if [[ "$ACTION" == "created" ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, then removed after the ADF update failed" || true
     # The comment this run just created may render as Wiki Markup. Remove it rather than leave an
     # unformatted comment behind for a reader to find, then fail loudly. A comment an earlier run
     # published is never deleted here — a failed update leaves the previous body in place.
@@ -443,5 +460,6 @@ if ! acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf
   exit 3
 fi
 
+bash "$AUDIT_TRAIL" record --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "$ACTION" || true
 echo "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}"
 echo "action=${ACTION} id=${TARGET_ID}" >&2
