@@ -81,22 +81,58 @@ test('krang dispatches splinter in every parallel CR round and converges only wh
         ->and($krang)->toContain('`leonardo` and `splinter` review in isolated read-only git worktrees');
 });
 
-test('leonardo merges the splinter view into its one comment and the security agenda names the new owner (issue #379)', function (): void {
+test('leonardo merges the splinter view under one owner rule and the security agenda names the new owner (issue #379)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    $divergence = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
+    $reviewProcess = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
+    $owner = '`@rules/code-review/review-process.md` *Merging the `splinter` view into the one CR comment*';
 
     expect($leonardo)->not->toContain('there is no separate security agent')
+        ->and($leonardo)->not->toContain('Single-reviewer dispatch model')
         ->and($leonardo)->toContain('`splinter` runs the independent second security view in parallel (`agents/splinter.md`)')
-        ->and($leonardo)->toContain('3. **Merge the `splinter` view into your review body.**')
-        ->and($leonardo)->toContain('a disagreement on a security point resolves toward the stricter verdict')
-        ->and($leonardo)->toContain('`Raised by` field (`splinter`, `leonardo`, or `both`)')
-        ->and($leonardo)->toContain('`Independent security view not run — dispatch splinter`')
-        ->and($divergence)->toContain('A security finding of the `splinter` view carries the `Raised by` field of the finding template');
+        ->and($leonardo)->toContain('3. **Merge the `splinter` view into your review body.** Apply ' . $owner)
+        ->and($leonardo)->toContain('A report with `Clean: no` is a view that ran: merge its findings.')
+        ->and($leonardo)->toContain('Record a `splinter` finding as open only when its cited `file:line` still shows the defect on the current head')
+        ->and($reviewProcess)->toContain('## Merging the `splinter` view into the one CR comment (issue #379)')
+        ->and($reviewProcess)->toContain('- **A finding that one view raises stays.**')
+        ->and($reviewProcess)->toContain('- **A duplicate becomes one finding.**')
+        ->and($reviewProcess)->toContain('Its values are `splinter` (only the `splinter` view raised it), `leonardo`')
+        ->and($reviewProcess)->toContain('`Independent security view not run — dispatch splinter`')
+        ->and($reviewProcess)->toContain('- **`Clean: no` is a view that ran.**')
+        ->and((string) file_get_contents($packageDir . '/agents/krang.md'))->toContain($owner);
 
     foreach (['skills/code-review/templates/review-output.md', 'skills/code-review-github/templates/pr-comment-output.md'] as $template) {
-        expect((string) file_get_contents($packageDir . '/' . $template))->toContain('- **Raised by:** `splinter` | `leonardo` | `both`');
+        expect((string) file_get_contents($packageDir . '/' . $template))
+            ->toContain('- **Raised by:** `splinter` | `leonardo` | `both`')
+            ->toContain('Independent security view not run — dispatch splinter')
+            ->toContain($owner);
     }
+});
+
+test('the Codex orchestrator lists every specialist of the roster by name (issue #379)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $krang = (string) file_get_contents($packageDir . '/codex/agents/krang.toml');
+    $specialists = array_map(
+        static fn (string|false $file): string => basename((string) $file, '.md'),
+        (array) glob($packageDir . '/agents/*.md'),
+    );
+
+    foreach (array_diff($specialists, ['krang']) as $specialist) {
+        expect($krang)->toContain('`' . $specialist . '`');
+    }
+});
+
+test('splinter limits its Bash boundary to its own worktree and an independent audit base run (issue #379)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $splinter = (string) file_get_contents($packageDir . '/agents/splinter.md');
+
+    expect($splinter)->toContain('`range` and `text` modes only')
+        ->and($splinter)->toContain('never its `full` mode')
+        ->and($splinter)->toContain('checkout --detach <head-sha>')
+        ->and($splinter)->toContain('only under `.claude/run/security-audit/<run-id>/` inside your own review worktree')
+        ->and($splinter)->toContain('never a base run of `leonardo` or of any other agent')
+        ->and((string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md'))
+        ->toContain('The read-only security reviewer `splinter` holds the same grant for its own review worktree.');
 });
 
 test('the convergence gate counts the splinter findings and never defers a security finding (issue #379)', function (): void {
