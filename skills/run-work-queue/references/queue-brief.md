@@ -1,6 +1,6 @@
 # Queue brief — sections, helper input, communication plan
 
-Contents: *Sections*, *Input of the helpers*, *Communication plan*, *The unit marker*.
+Contents: *Sections*, *Input of the helpers*, *Communication plan*, *The unit marker*. The progress report has its own file, `progress-report.md`.
 
 ## Sections
 
@@ -17,6 +17,7 @@ The queue brief is a git-ignored file under `.claude/run/` (`.codex/run/` on Cod
 | `## Ordering keys` | Per item: priority with its source, difficulty with the `signal=` lines of `classify-risk.sh`, duration with its method, dependencies, files. |
 | `## Queue order` | The output of `order-work-queue.sh`, verbatim, and the output of its second run when step 5.4 ran it. |
 | `## Batches` | The output of `plan-parallel.sh`, verbatim. |
+| `## Progress report` | The interval, the scheduler state (`CronCreate` job id, `none (state-change reports)`, or `unavailable` with the message), and `cancelled` once the job is deleted. |
 | `## Communication plan` | The hand-off rows (below), or `no dependencies — no hand-off`. |
 | `## Unit status` | Per unit: the pull request, the convergence verdict, and the blocker. |
 

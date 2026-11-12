@@ -25,6 +25,7 @@ The skill builds the queue and executes it in one run. No approval stop sits bet
 - Order and batch only through `skills/_shared/order-work-queue.sh` and `skills/_shared/plan-parallel.sh`. Never order or overlap items by your own judgement.
 - Publish no number that this run did not derive by a stated method. The duration key is a count with its method named. It is never a time.
 - Run every gate, dependency install, and full test suite through `skills/_shared/run-gate.sh`. The machine keeps one heavy job at a time, whatever the concurrency limit is (`@rules/compound-engineering/concurrency.md` *One gate lock for the machine*).
+- Report the progress of the queue while it runs, as `references/progress-report.md` states. A report lists verified state only and never replaces the final report.
 - Never merge. A merge stays a separate, explicit request through `@skills/merge-github-pr/SKILL.md`.
 
 ## Use when
@@ -45,7 +46,9 @@ The brief of the run is `.claude/run/queue-<UTC timestamp>.md` (`.codex/run/` on
    - Run `skills/_shared/gate-context.sh` on the instructions. When the verdict is `context_required: true`, request one Context Package from `shredder` (`agents/krang.md` *Context retrieval*) and record its path under `## Retrieved context`.
    - Read the code-review memory only when a review round opens a Critical finding, inside the pipeline of the item that owns the round (`@rules/compound-engineering/memory.md` *Read protocol*). The queue run reads no memory at its start.
 
-Done when the brief exists with the source, the language, and the context path or the recorded `context_required: false` verdict.
+5. Start the progress report, as `references/progress-report.md` states. On Claude Code, create the recurring job with `CronCreate` (every 5 minutes unless the instructions name another interval) and record its id under `## Progress report`. On Codex, record that the report is emitted at every queue state change.
+
+Done when the brief exists with the source, the language, and the context path or the recorded `context_required: false` verdict, and `## Progress report` names the schedule or the state-change trigger.
 
 ### 2. Split the instructions into items
 
@@ -95,6 +98,8 @@ Done when `create=` of the last helper run is `none` or lists only items whose i
 2. Run `skills/_shared/plan-parallel.sh`. It reads `parallel.max-units` from the default-branch manifest. An absent key gives 2. Record the output under `## Batches`.
 3. Check that worktrees are allowed. They are allowed when `git worktree list` exits `0` and no project instruction of the default branch (`CLAUDE.md`, `AGENTS.md`) forbids them. The command of the user is the explicit request that `@rules/git/general.md` *Worktrees / Workspaces* requires. When worktrees are not allowed, run every batch one unit at a time and record `worktrees: not allowed` with the evidence under `## Concurrency`.
 
+4. Emit the first progress report.
+
 Done when every item sits in exactly one batch.
 
 ### 7. Write the communication plan
@@ -111,13 +116,14 @@ Run the batches in order. Finish a batch before the next one starts.
 2. A batch with `mode.<k>=parallel` and allowed worktrees runs as `agents/krang.md` step 1 *Plan parallel batches* and `@rules/compound-engineering/concurrency.md` *Parallel units* state: one `donatello` per unit in its own worktree, dispatched as blocking calls in one message. Every other batch runs one unit at a time on the shared tree.
 3. Before the dispatch of a unit that depends on an item, copy the hand-off row of the communication plan into the brief of the unit (`## Handoff log`). The dispatch of the unit names the dependency, its pull request, and `Base branch` when the dependency pull request is not merged.
 4. After each unit ends, append its status to `## Unit status`: the pull request, the convergence verdict, and the blocker. A blocker on one unit never stops another unit. A unit that depends on a `Blocked` unit is `Blocked` too and names it.
-5. Run `agents/krang.md` *Run cleanup* for every unit, and remove the files of the queue run at the end.
+5. Emit a progress report at every state change on Codex, and when the scheduled job fires on Claude Code. Every report lists each item as done, in progress, or parked, with its pull request, its CI state, and the open questions that wait for the operator.
+6. Run `agents/krang.md` *Run cleanup* for every unit, and remove the files of the queue run at the end.
 
 Done when every unit has a terminal status: a converged Draft pull request linked to its issue, or `Blocked` with its remediation.
 
 ### 9. Report
 
-Write one report as the final reply, in the language of the user. Identifiers stay verbatim. It states facts from the brief and the handoffs, and it names the source of each one.
+End the progress report first, on every terminating path: cancel the `CronCreate` job with `CronDelete` on Claude Code, and emit the last state-change report on Codex (`references/progress-report.md` *Ending the report*). Then write one report as the final reply, in the language of the user. Identifiers stay verbatim. It states facts from the brief and the handoffs, and it names the source of each one.
 
 | Field | Content |
 | --- | --- |
@@ -136,5 +142,6 @@ After the table, list what is not verified, with the step that settles each poin
 - Every item has one issue, either reused with evidence or created once.
 - `skills/_shared/order-work-queue.sh` produced the order, and `skills/_shared/plan-parallel.sh` produced the batches.
 - The communication plan exists when items depend on each other.
+- The progress report ran during the queue and ended: the Claude Code job is cancelled, or the Codex state-change reports stopped.
 - Every item ends as a converged Draft pull request linked to its issue, or as `Blocked`, and the report lists every item.
 - The run merged nothing.
