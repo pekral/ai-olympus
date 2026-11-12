@@ -104,7 +104,11 @@ test('installing the security agent over an unmodified 0.3.1 splinter keeps the 
     $root = installerCreateProjectRoot();
     $originalCwd = (string) getcwd();
     $package = dirname(__DIR__, 2);
-    $sources = ['.claude/agents' => 'agents/splinter.md', '.codex/agent-instructions' => 'agents/splinter.md', '.codex/agents' => 'codex/agents/splinter.toml'];
+    $sources = [
+        '.claude/agents' => 'agents/splinter.md',
+        '.codex/agent-instructions' => 'agents/splinter.md',
+        '.codex/agents' => 'codex/agents/splinter.toml',
+    ];
 
     foreach ($sources as $directory => $source) {
         $extension = pathinfo($source, PATHINFO_EXTENSION);
@@ -127,7 +131,9 @@ test('installing the security agent over an unmodified 0.3.1 splinter keeps the 
             $installed = (string) file_get_contents($root . '/' . $directory . '/splinter.' . pathinfo($source, PATHINFO_EXTENSION));
 
             expect($installed)->toBe((string) file_get_contents($package . '/' . $source));
-            expect($installed)->not->toBe((string) file_get_contents($package . '/tests/Fixtures/legacy-agents/splinter.' . pathinfo($source, PATHINFO_EXTENSION)));
+            expect($installed)->not->toBe(
+                (string) file_get_contents($package . '/tests/Fixtures/legacy-agents/splinter.' . pathinfo($source, PATHINFO_EXTENSION)),
+            );
         }
     } finally {
         chdir($originalCwd);

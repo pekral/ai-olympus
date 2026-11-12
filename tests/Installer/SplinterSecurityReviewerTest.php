@@ -114,7 +114,9 @@ test('splinter has consent and Bash boundary rows that allow no publish (issue #
 
     expect($rule)->toContain('| `splinter` | Publish any comment, label, status, or pull-request update | forbidden — no level |')
         ->and($rule)->toContain('| `splinter` | Read the pull-request head, its diff, and its tracker payload for the independent security view')
-        ->and($rule)->toContain('| `splinter` | Outbound `WebFetch` / `WebSearch` to public vendor documentation and advisories for the security lenses | L1 |')
+        ->and($rule)->toContain(
+            '| `splinter` | Outbound `WebFetch` / `WebSearch` to public vendor documentation and advisories for the security lenses | L1 |',
+        )
         ->and($rule)->toContain('`.claude/worktrees/agent-cr-*-splinter`');
 });
 
