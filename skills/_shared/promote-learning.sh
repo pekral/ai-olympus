@@ -156,6 +156,9 @@ EOF
 # The state of one key is derived from its history, in order. A record never states it.
 JQ_STATE=''
 IFS= read -r -d '' JQ_STATE <<'EOF' || true
+# The slug of a memory entry is written once, here: the cause_key of the key, cut to 90 characters, then - and the first
+# 8 characters of the approved digest. `status` prints it and `written` compares it. The cause_key is [a-z0-9-]+ (KEY_PATTERN).
+def memory_slug($key; $digest): (($key | split(":") | last)[0:90] + "-" + $digest[0:8]);
 def state_of($events):
   ($events | map(select(.event == "candidate")) | last) as $c
   | ($events | map(select(.event == "approved" or .event == "rejected")) | last) as $d
@@ -168,7 +171,7 @@ def state_of($events):
       (if $d.suppression == $c.suppression then {state: "rejected", awaiting: null} else {state: "candidate", awaiting: "approval"} end)
     elif $d.digest == $c.digest then {state: "approved", awaiting: (if $c.target_type == "memory" then "memory-write" else "merge" end)}
     else {state: "candidate", awaiting: "re-approval"} end
-  | if . == null then null else . + {candidate: $c} end;
+  | if . == null then null else . + {candidate: $c, slug: (if $c.target_type == "memory" then memory_slug($c.key; $c.digest) else null end)} end;
 def history_for($key): $history | map(select(.key == $key));
 EOF
 
@@ -281,7 +284,7 @@ cmd_status() {
               approval: ($events | map(select(.event == "approved")) | last | if . then {fact, approver, issue, digest, time} else null end),
               rejection: ($events | map(select(.event == "rejected")) | last | if . then {fact, approver, issue, reason, time} else null end),
               promotion: ($events | map(select(.event == "promoted")) | last | if . then {commit, time} else null end),
-              slug: (if $s and $s.candidate.target_type == "memory" then (($key | split(":") | last)[0:90] + "-" + $s.candidate.digest[0:8]) else null end),
+              slug: $s.slug,
               written: ($events | map(select(.event == "written")) | last | if . then {digest, slug, time} else null end),
               superseded_by: ($events | map(select(.event == "superseded")) | last | if . then .by else null end)
             } ]
@@ -533,13 +536,12 @@ cmd_written() {
   new_tmp
   load_history "$TMP"
 
-  local state cause
+  local state
   state="$(key_state "$TMP" "$key")"
   jq -e '. != null and .state == "approved" and .awaiting == "memory-write"' <<<"$state" >/dev/null \
     || fail 4 'only an approved memory candidate that awaits its write is recorded as written'
   jq -e --arg d "$digest" '.candidate.digest == $d' <<<"$state" >/dev/null || fail 4 'the digest is not the digest of the approved proposal'
-  cause="${key##*:}"
-  [[ "$slug" == "${cause:0:90}-${digest:0:8}" ]] || fail 4 'the slug is not the cause_key of the key, cut to 90 characters, then - and the first 8 characters of the digest'
+  jq -e --arg s "$slug" '.slug == $s' <<<"$state" >/dev/null || fail 4 'the slug is not the cause_key of the key, cut to 90 characters, then - and the first 8 characters of the digest'
   append_event "$TMP" "$(jq -c -n --arg key "$key" --arg time "$(gate_now)" --arg d "$digest" --arg s "$slug" \
     '{schema: 1, event: "written", key: $key, time: $time, digest: $d, slug: $s}')"
   key_state "$TMP" "$key" | jq -c '{schema: 1, key: .candidate.key, state, awaiting, digest: .candidate.digest}'
@@ -942,7 +944,19 @@ EOF
   { rec crit-race 7 2026-09-01T10:00:00Z resolved; rec crit-race 9 2026-09-05T10:00:00Z resolved; rec crit-race 11 2026-09-09T10:00:00Z resolved;
     rec solo-crit 13 2026-09-10T10:00:00Z resolved; } >"$proj/$D3/merged.jsonl"
   run 'the status of a recurring and a single resolved Critical class runs' 0 status --dir "$D3"
-  check 'a recurring Critical class is no class of the status list, so the recurrences list selects it once, and a single one is' "$(jq -e '([.patterns[] | select(.memory.eligible and (.eligible | not) and .awaiting == "analysis") | .key] == ["acme/shop:rules/php/concurrency:solo-crit"]) and ([.patterns[] | select(.key == "acme/shop:rules/php/concurrency:crit-race")][0] | .eligible and .memory.eligible)' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  # second_list — the second list of feedback-loop.md step 3: a status class with a resolved Critical record, awaiting analysis,
+  # whose key is not in the `recurrences` list of the report, which the analysis of step 4 handles once.
+  second_list() {
+    (cd "$proj" && "$script" status --dir "$D3") >"$tmp/status.json"
+    (cd "$proj" && "$tmp/skills/_shared/analyze-recurrence.sh" --store "$D3/merged.jsonl") >"$tmp/report.json"
+    jq -c --slurpfile r "$tmp/report.json" '[.patterns[] | select(.memory.eligible and .awaiting == "analysis")
+      | select(.key as $k | $r[0].recurrences | any("\(.repo):\(.category):\(.cause_key)" == $k) | not) | .key]' "$tmp/status.json"
+  }
+  check 'a recurring Critical class is in the recurrences list only, and a single one is in the second list only' "$([[ "$(second_list)" == '["acme/shop:rules/php/concurrency:solo-crit"]' ]] && jq -e '[.recurrences[].cause_key] == ["crit-race"]' "$tmp/report.json" >/dev/null && echo 0 || echo 1)"
+  { rec near-race 7 2026-09-01T10:00:00Z resolved; rec near-race 9 2026-09-05T10:00:00Z resolved; } >"$proj/$D3/merged.jsonl"
+  check 'two resolved Critical pull requests four days apart are in the recurrences list and below the eligible thresholds, so the second list leaves them out' "$([[ "$(second_list)" == '[]' ]] && jq -e '[.recurrences[].cause_key] == ["near-race"] and (.recurrences | length) == 1' "$tmp/report.json" >/dev/null && jq -e '.patterns[0] | .memory.eligible and (.eligible | not) and .awaiting == "analysis"' "$tmp/status.json" >/dev/null && echo 0 || echo 1)"
+  { rec slow-race 7 2026-01-01T10:00:00Z resolved; rec slow-race 9 2026-05-01T10:00:00Z resolved; rec slow-race 11 2026-09-01T10:00:00Z resolved; } >"$proj/$D3/merged.jsonl"
+  check 'three resolved Critical pull requests over nine months are in no recurrences list and are the second list, whatever the eligible flag says' "$([[ "$(second_list)" == '["acme/shop:rules/php/concurrency:slow-race"]' ]] && jq -e '.recurrences == []' "$tmp/report.json" >/dev/null && jq -e '.patterns[0].eligible and .patterns[0].memory.eligible' "$tmp/status.json" >/dev/null && echo 0 || echo 1)"
   rec mem-lesson 41 2026-09-27T10:00:00Z open >"$proj/$D3/merged.jsonl"
   analysis mem-lesson '.target.type = "memory" | .target.path = ".claude/run/code-review-memory.sqlite"'
   run 'an unresolved Critical finding is proposed for the memory' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/mem.md"
@@ -1013,6 +1027,25 @@ EOF
   check 'the written record of an earlier text does not cover the changed proposal' "$(grep -q 'not the digest of the approved proposal' "$tmp/err" && echo 0 || echo 1)"
   run 'the changed memory text is recorded as written' 0 written --dir "$D3" --key "$KMEM" --digest "$(printf '9%063d' 0)" --slug "mem-lesson-90000000"
   check 'the changed text gets its own slug and is promoted after its own write' "$(jq -e '.state == "promoted" and .awaiting == null' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  # The slug has one owner, the jq definition `memory_slug`: `status` prints it and `written` compares to it, so a cause_key
+  # over 90 characters is cut the same way in both. A cause_key is [a-z0-9-]+, so a multibyte key is refused before any slug.
+  local KLONG LONGCAUSE LONGDIGEST LONGSLUG
+  LONGCAUSE="$(printf 'long-%.0s' {1..30})lesson"
+  KLONG="acme/shop:rules/php/concurrency:$LONGCAUSE"
+  rm -f "$proj/$D3/promotion.jsonl" "$tmp/long.md"
+  rec "$LONGCAUSE" 41 2026-09-27T10:00:00Z resolved >"$proj/$D3/merged.jsonl"
+  analysis "$LONGCAUSE" '.target.type = "memory" | .target.path = ".claude/run/code-review-memory.sqlite" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}]'
+  run 'a memory candidate with a cause_key over 90 characters is proposed' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/long.md"
+  run 'that candidate is approved by the instruction' 0 decide --dir "$D3" --key "$KLONG" --decision approve --fact instruction
+  LONGDIGEST="$(gate_sha256 "$tmp/long.md")"
+  LONGSLUG="${LONGCAUSE:0:90}-${LONGDIGEST:0:8}"
+  run 'the status of the long candidate runs' 0 status --dir "$D3"
+  check 'status cuts the cause_key to 90 characters before the digest' "$(jq -e --arg k "$KLONG" --arg s "$LONGSLUG" '.patterns[] | select(.key == $k) | .slug == $s and (.slug | length) == 99' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run 'a write with the uncut cause_key is recorded' 4 written --dir "$D3" --key "$KLONG" --digest "$LONGDIGEST" --slug "$LONGCAUSE-${LONGDIGEST:0:8}"
+  check 'a slug that does not cut the cause_key to 90 characters is refused' "$(grep -q 'the slug is not the cause_key' "$tmp/err" && echo 0 || echo 1)"
+  run 'a write with the slug that status prints is recorded' 0 written --dir "$D3" --key "$KLONG" --digest "$LONGDIGEST" --slug "$(jq -r --arg k "$KLONG" '.patterns[] | select(.key == $k) | .slug' <(cd "$proj" && "$script" status --dir "$D3"))"
+  check 'the long entry is written under the slug of status' "$(jq -e '.state == "promoted"' "$tmp/out" >/dev/null && jq -e --arg s "$LONGSLUG" 'select(.event == "written") | .slug == $s' "$proj/$D3/promotion.jsonl" >/dev/null && echo 0 || echo 1)"
+  run 'a write for a key with a multibyte cause_key is a usage error' 1 written --dir "$D3" --key "acme/shop:rules/php/concurrency:žluťoučký-kůň" --digest "$LONGDIGEST" --slug "zlutoucky-kun-${LONGDIGEST:0:8}"
   cp "$tmp/h.good" "$proj/$D3/promotion.jsonl"
   # The store directory is the git-ignored run directory, nothing else.
   mkdir -p "$proj/tracked-dir"

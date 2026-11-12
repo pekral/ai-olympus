@@ -66,6 +66,13 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         // Thresholds.
         ->toContain('check \'two occurrences with a threshold of three produce no candidate\'')
         ->toContain('check \'three records of one pull request count as one distinct task and give no candidate\'')
+        // The second list of the feedback run never overlaps the recurrences list and never misses a class outside it.
+        ->toContain('check \'a recurring Critical class is in the recurrences list only, and a single one is in the second list only\'')
+        ->toContain('check \'two resolved Critical pull requests four days apart are in the recurrences list and below the eligible thresholds')
+        ->toContain('check \'three resolved Critical pull requests over nine months are in no recurrences list and are the second list')
+        // The slug has one owner.
+        ->toContain('check \'status cuts the cause_key to 90 characters before the digest\'')
+        ->toContain('run \'a write for a key with a multibyte cause_key is a usage error\' 1')
         // Regression: the hand-curated memory and the knowledge files are untouched.
         ->toContain('check \'no promotion command writes rules, skills, agents, codex, AGENTS.md, CLAUDE.md, or the project memory\'')
         ->toContain('check \'no promotion command creates a commit, a push, or a merge: HEAD is unchanged\'');
