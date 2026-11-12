@@ -22,6 +22,7 @@ promote-learning.sh status  --dir <dir>
 promote-learning.sh propose --dir <dir> --analysis <file> --out <file>
 promote-learning.sh decide  --dir <dir> --key <key> --decision approve|reject --fact instruction|tracker [--issue-url <URL>] [--reason <text>]
 promote-learning.sh promote --dir <dir> --key <key> --pr <URL>
+promote-learning.sh written --dir <dir> --key <key> --digest <sha256> --slug <slug>
 promote-learning.sh --self-test
 ```
 
@@ -38,7 +39,7 @@ Every learning has one explicit state. `status` reports it for every defect clas
 | `learning` | The class appears in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds, or has a resolved Critical record for the `memory` target, and has no candidate yet. |
 | `candidate` | `propose` rendered a proposal for the class. `awaiting` is `approval`, or `re-approval` when the proposal changed after an approval. |
 | `approved` | A trusted fact approved the current proposal text. `awaiting` is `merge`, or `memory-write` for a candidate of type `memory`. |
-| `promoted` | The approved change is on the default branch. |
+| `promoted` | The approved change is on the default branch. For a candidate of type `memory`, `krang` wrote the entry for the approved text and recorded it with `written`. |
 | `rejected` | A trusted fact rejected the candidate. The same evidence does not create it again. |
 | `superseded` | A later, broader candidate was promoted and covers this one. It stays in the history. |
 
@@ -111,11 +112,13 @@ The candidate id and the dedupe key are `<repo>:<category>:<cause_key>`. The tit
 - **A rejection carries its reason** and the suppression key of its evidence. The same evidence never brings the candidate back. After a rejection by the user's instruction, new evidence, such as a new pull request, makes a new suppression key, so the candidate can come back.
 - **A proposal closed as not planned keeps the key suppressed until a human reopens the proposal issue.** While the issue stays closed, the feedback-analysis run rejects every new candidate of the key again (`feedback-loop.md` *A closed promotion proposal is not refreshed*). After the reopen, the issue is no longer a rejection fact, so new evidence brings the candidate back.
 - **Agents never write the facts.** No command of the lifecycle applies `Resolve_by_AI`, closes an issue, or writes any other approval marker.
-- **Named runs record the decisions.** The feedback-analysis run of `feedback-loop.md` records the label before it refreshes a proposal, and records the rejection of a proposal that is closed as not planned. The same run records a rejection by the user's instruction when the user's request for the run names the rejected proposal and the reason. The implementation run of `@skills/resolve-issue/references/safeguard-implementation.md` records an approval by the instruction or the label before its first file write.
+- **Named runs record the decisions.** The feedback-analysis run of `feedback-loop.md` records the label before it refreshes a proposal, records the approval of a `memory` candidate in step 5 (the label on the open proposal issue, or the user's instruction that names the issue, and never a judgment of `krang`), and records the rejection of a proposal that is closed as not planned. The same run records a rejection by the user's instruction when the user's request for the run names the rejected proposal and the reason. The implementation run of `@skills/resolve-issue/references/safeguard-implementation.md` records an approval by the instruction or the label before its first file write.
 
 ## Promotion
 
-A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`. After the approval, `krang` writes the entry (*Permanent knowledge*), and the state stays `approved` with `awaiting: "memory-write"`. The history has no event for the write. The slug of the entry is the `cause_key` of the key, so `memory add` refuses a second write of the same candidate, and `feedback-loop.md` step 5 reports that refusal as an entry that already exists.
+A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`. After the approval, `krang` writes the entry (*Permanent knowledge*), and the state stays `approved` with `awaiting: "memory-write"` until `krang` runs `promote-learning.sh written --dir <dir> --key <key> --digest <digest> --slug <slug>`. That command appends a `written` record and moves the state to `promoted`. It refuses a digest that is not the approved one, and a slug that is not the `cause_key` of the key, cut to 90 characters, then `-` and the first 8 characters of the approved digest. `status` reports that slug for the candidate.
+
+A refusal of `memory add` for an existing slug means that an earlier run wrote this approved text and did not record it, so `krang` records it and reports the entry as found already written (`feedback-loop.md` step 5). A changed proposal has another digest, so it needs its own approval and has its own slug. After the `written` record `propose` renders no new proposal for the key, as for any promoted key.
 
 `promote --pr <URL>` loads the pull request through `skills/code-review-github/scripts/load-issue.sh` and sets `promoted` only when all of these hold:
 
@@ -136,9 +139,10 @@ The history is `<dir>/promotion.jsonl`, one JSON object per line, appended and r
 | `approved` | `digest`, `fact`, `approver`, `issue` |
 | `rejected` | `suppression`, `fact`, `approver`, `issue`, `reason` |
 | `promoted` | `digest`, `commit` |
+| `written` | `digest`, `slug` |
 | `superseded` | `by` |
 
-Each command validates the whole file before it reads a state. A record that breaks the schema, an approval of a digest that no candidate rendered, a rejection of evidence that no candidate carried, a promotion without an approval, and a supersession without a promotion each make the history unusable: the command exits `3` and reports no state.
+Each command validates the whole file before it reads a state. A record that breaks the schema, an approval of a digest that no candidate rendered, a rejection of evidence that no candidate carried, a promotion without an approval, a `written` record of a proposal that no approval covers or of a candidate that is not of type `memory`, and a supersession without a promotion each make the history unusable: the command exits `3` and reports no state.
 
 - **The history is never read from a branch.** The store directory must be git-ignored and hold no tracked file. A branch that commits a history into it makes every command exit `3`, so the branch changes no verdict.
 - **Delete the file to start over.** The history is local, like every file of the store. A deleted history loses the decisions, and a lost decision only means that a human decides again.
