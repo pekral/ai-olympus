@@ -63,6 +63,7 @@ GATE_FRESH_RESULTS='[]'
 GATE_FRESH_LOG=''
 GATE_LOCK=''
 GATE_LOCK_HELD=0
+GATE_LOCK_TIMEOUT=3600
 GATE_HEARTBEAT_PID=''
 
 gate_tier_key() {
@@ -410,13 +411,19 @@ gate_holder_command() {
   safe_display "${GATE_HOLDER_COMMAND:-$PROG}"
 }
 
+# The project a run belongs to, as the holder file records it: the toplevel of the git checkout,
+# else the directory.
+gate_project_path() {
+  safe_display "$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+}
+
 # The holder file of a lock directory: this script's own PID and start time, the process
 # start that lets a repair prove the PID is still this wrapper, the wrapper's name, the
 # project it runs for, and the command it runs. Every value is one printable line.
 gate_holder_text() {
   local start project
   start="$(gate_process_start "$$" 2>/dev/null || true)"
-  project="$(safe_display "$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)")"
+  project="$(gate_project_path)"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)"
   [[ -z "$start" ]] || printf 'PROCESS_START=%s\n' "$start"
   printf 'WRAPPER=%s\nPROJECT=%s\nCOMMAND=%s\n' "$(safe_display "$PROG")" "$project" "$(gate_holder_command)"
@@ -482,7 +489,9 @@ gate_reclaim_is_stale() {
 # The directory of the machine-wide lock: outside every repository, so every project and every
 # worktree of the account contends on the one lock. `AI_OLYMPUS_LOCK_DIR` (an absolute path) moves
 # it, which is how a self-test keeps its fixtures off the real lock. The directory is created
-# 0700, must be owned by the caller, and is never a symlink.
+# 0700, must be owned by the caller, and is never a symlink. An existing directory loses every
+# group and other permission: the holder file in it decides which process a repair stops, so no
+# other account may write there. The owner bits stay as they are.
 #   returns 1 when no usable directory exists
 gate_machine_dir() {
   local base
@@ -499,6 +508,8 @@ gate_machine_dir() {
   (umask 077 && mkdir -p -- "$base") 2>/dev/null || return 1
   base="$(cd "$base" 2>/dev/null && pwd -P)" || return 1
   [[ -O "$base" ]] || return 1
+  # $base is absolute, so BSD chmod never reads it as an option.
+  chmod go-rwx "$base" 2>/dev/null || return 1
   printf '%s' "$base"
 }
 
@@ -707,6 +718,26 @@ gate_lock_acquire() {
   export AI_OLYMPUS_LOCK_HELD_BY="$$"
   gate_heartbeat_start
   return 0
+}
+
+# The wait limit of every caller of the machine lock: AI_OLYMPUS_GATE_LOCK_TIMEOUT, default 3600,
+# in GATE_LOCK_TIMEOUT.
+#   returns 1 with GATE_REASON when the value is not whole seconds
+gate_lock_timeout() {
+  GATE_LOCK_TIMEOUT="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}"
+  [[ "$GATE_LOCK_TIMEOUT" =~ ^[0-9]{1,6}$ ]] && return 0
+  GATE_REASON='AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds'
+  return 1
+}
+
+# The one entry into the machine lock of run-gate.sh and run-validation.sh: the cleanup traps
+# that release the lock however the script ends, then the wait for the lock.
+#   returns what gate_lock_acquire returns
+gate_lock_enter() {
+  trap gate_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  gate_lock_acquire "$1"
 }
 
 # Start the progress reporter of the holder. It stays silent, holds none of the caller's
