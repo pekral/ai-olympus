@@ -38,8 +38,9 @@ test('the helper takes the exit status from the write command itself, never from
         ->toContain('return "$rc"');
     expect($source)->not->toContain('| tail');
     expect($source)
-        ->toContain('append_line "$FILE" "$ROLE" note "no action performed"')
-        ->toContain('failed (exit $status)');
+        ->toContain('append_line "$FILE" "$ROLE" note "$target" "write failed (exit $status)')
+        ->toContain('the remote state was not verified');
+    expect($source)->not->toContain('"no action performed"');
 });
 
 test('run accepts exactly the write commands the rule names and refuses every other command', function (): void {
@@ -48,8 +49,8 @@ test('run accepts exactly the write commands the rule names and refuses every ot
     $section = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
 
     foreach ([
-        '" create ready edit close merge update-branch reopen comment review "',
-        '" create edit close reopen comment "',
+        '" create ready edit close merge update-branch reopen "',
+        '" create edit close reopen "',
         '" create edit delete "',
         '"git push")',
     ] as $allowed) {
@@ -58,8 +59,8 @@ test('run accepts exactly the write commands the rule names and refuses every ot
 
     foreach ([
         '`git push`',
-        '`gh pr create|ready|edit|close|merge|update-branch|reopen|comment|review`',
-        '`gh issue create|edit|close|reopen|comment`',
+        '`gh pr create|ready|edit|close|merge|update-branch|reopen`',
+        '`gh issue create|edit|close|reopen`',
         '`gh label create|edit|delete`',
     ] as $named) {
         expect($section)->toContain($named);
@@ -79,7 +80,7 @@ test('the rule makes the package write the line at the moment of the write and n
         ->toContain('`AUDIT_TRAIL_ROLE`')
         ->toContain('Every Bash call is a new shell')
         ->toContain('`AUDIT_TRAIL_FILE=<absolute path> AUDIT_TRAIL_ROLE=<role> <wrapper or audit-trail.sh run -- command>`')
-        ->toContain('`<target>: write failed (exit N)`')
+        ->toContain('`write failed (exit N); the remote state was not verified`')
         ->toContain('`--receive-pack`, `--exec`, `--upload-pack`')
         ->toContain('audit-trail.sh run -- <command>')
         ->toContain('The acting role as the **first** field')
@@ -197,4 +198,58 @@ test('leonardo runs gh pr ready and the label writes through the helper and appe
 
 test('krang.md stays under the size limit with the per-call ledger form', function (): void {
     expect(strlen(auditTrailSource('agents/krang.md')))->toBeLessThanOrEqual(135_000);
+});
+
+test('run refuses a comment path and verify reads only the comments that carry an agent marker', function (): void {
+    $source = auditTrailSource('skills/_shared/audit-trail.sh');
+    $rule = auditTrailSource('rules/compound-engineering/orchestration.md');
+    $section = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
+
+    expect($source)->not->toContain('reopen comment review');
+    expect($source)->not->toContain('close reopen comment');
+    expect($source)
+        ->toContain('test("<!-- [a-z][a-z0-9-]*:actor=")')
+        ->toContain('label_recorded "$sign" "$name" || note_names "label $name"')
+        ->toContain('note_names "comment $id"');
+    expect($section)
+        ->toContain('`run` refuses `gh pr comment`, `gh pr review`, and `gh issue comment` with exit 64')
+        ->toContain('only a comment that carries an agent marker')
+        ->toContain('A label event carries no marker: an unrecorded one is `not verified:`')
+        ->toContain('An agent **never appends an `external-write` line for a write it did not perform**')
+        ->toContain('a `note` line whose target is exactly `comment <id>` or `label <name>`');
+});
+
+test('donatello never forges an external-write line and publishes a comment only through upsert-comment.sh', function (): void {
+    $donatello = auditTrailSource('agents/donatello.md');
+
+    expect($donatello)->not->toContain('append the line for each `problem:` it reports');
+    expect($donatello)
+        ->toContain('Never append an `external-write` line for a write you did not perform.')
+        ->toContain('a `note` line whose target is `comment <id>` or `label <name>`')
+        ->toContain('A comment goes only through `upsert-comment.sh`, never `gh pr comment`, `gh pr review`, or `gh issue comment`');
+});
+
+test('no agent or skill appends by hand a line the package already writes', function (): void {
+    $krang = auditTrailSource('agents/krang.md');
+    $april = auditTrailSource('agents/april.md');
+    $proposal = auditTrailSource('skills/_shared/orchestration/proposal-review.md');
+    $leonardo = auditTrailSource('agents/leonardo.md');
+    $leonardoStep4 = substr($leonardo, (int) strpos($leonardo, '4. **Publish the plan artifact as a GitHub issue**'));
+    $leonardoStep4 = substr($leonardoStep4, 0, (int) strpos($leonardoStep4, "\n", 1));
+    $leonardoStep12 = substr($leonardo, (int) strpos($leonardo, '12. **Append your own audit-trail lines.**'));
+    $leonardoStep12 = substr($leonardoStep12, 0, (int) strpos($leonardoStep12, "\n", 1));
+
+    expect($krang)->not->toContain('each write of *Closing a `FAST` run* step 3');
+    expect($krang)
+        ->toContain('never a write `run` already records, so each write has one line')
+        ->toContain('Run both commands through `skills/_shared/audit-trail.sh run --`, which records their lines.');
+    expect($proposal)->not->toContain('`external-write` line of the comment, when one was published');
+    expect($proposal)->toContain('Append no line for the comment: `upsert-comment.sh` writes its');
+    expect($april)->not->toContain('and an authorized publish or deletion. You never run');
+    expect($april)->toContain('writes its own `external-write` line, so you append none for it');
+    expect($leonardoStep4)
+        ->toContain('`skills/_shared/audit-trail.sh run -- gh issue create`')
+        ->toContain('`run` appends the `external-write` line of this issue itself');
+    expect($leonardoStep12)->not->toContain('(or, in analysis mode, the plan-artifact issue from step 4)');
+    expect($leonardoStep12)->toContain('In analysis mode, `run -- gh issue create` appends the line for the plan-artifact issue from step 4.');
 });

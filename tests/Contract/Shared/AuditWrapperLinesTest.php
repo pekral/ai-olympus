@@ -87,7 +87,7 @@ function auditWrapperFakeBin(string $directory, array $files): string
 
 dataset('bugsnag publish outcomes', [
     'created' => ['201', 0, 'external-write', 'bugsnag comment c9 on o/p/abc123', 'created (exit 0)'],
-    'rejected with HTTP 500' => ['500', 3, 'note', 'no action performed', 'bugsnag comment on o/p/abc123: write failed (exit 3); HTTP 500'],
+    'rejected with HTTP 500' => ['500', 3, 'note', 'bugsnag comment on o/p/abc123', 'write failed (exit 3); HTTP 500; the remote state was not verified'],
 ]);
 
 test(
@@ -127,7 +127,13 @@ test(
 
 dataset('github delete outcomes', [
     'deleted' => ['0', 0, 'external-write', 'delete comment 123 on https://github.com/o/r/issues/5', 'ok (exit 0)'],
-    'delete request fails' => ['9', 9, 'note', 'no action performed', 'delete comment 123 on https://github.com/o/r/issues/5: write failed (exit 9)'],
+    'delete request fails' => [
+        '9',
+        9,
+        'note',
+        'delete comment 123 on https://github.com/o/r/issues/5',
+        'write failed (exit 9); the remote state was not verified',
+    ],
 ]);
 
 test(
@@ -176,8 +182,14 @@ const AUDIT_WRAPPER_RELATION = 'addSubIssue ' . AUDIT_WRAPPER_CHILD . ' under ht
 
 dataset('deferred moderate outcomes', [
     'issue and relation written' => ['0', '0', ['external-write', 'external-write'], AUDIT_WRAPPER_CHILD, AUDIT_WRAPPER_RELATION],
-    'issue create fails' => ['5', '0', ['note'], 'no action performed', 'gh issue create on o/r: write failed (exit 5)'],
-    'relation write fails' => ['0', '6', ['external-write', 'note'], AUDIT_WRAPPER_CHILD, AUDIT_WRAPPER_RELATION . ': write failed (exit 6)'],
+    'issue create fails' => ['5', '0', ['note'], 'gh issue create on o/r', 'write failed (exit 5); the remote state was not verified'],
+    'relation write fails' => [
+        '0',
+        '6',
+        ['external-write', 'note'],
+        AUDIT_WRAPPER_CHILD,
+        AUDIT_WRAPPER_RELATION . ' write failed (exit 6); the remote state was not verified',
+    ],
 ]);
 
 test(

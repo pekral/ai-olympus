@@ -14,12 +14,15 @@
 #       Append one raw line. <class> is memory-read, outbound-request, external-write, or note.
 #   audit-trail.sh record --target <text> --status <exit status> [--detail <text>] [--role R] [--file F]
 #       Append the line for one write attempt: status 0 is an `external-write` line, any other
-#       status is a `note` line that names the failed attempt and its exit status.
+#       status is a `note` line whose target is the attempt and whose result carries the exit status
+#       and says the remote state was not verified (a failed write may have changed the remote).
 #   audit-trail.sh run [--target <text>] [--role R] [--file F] -- <write command...>
 #       Run one write command, then `record` its own exit status. The command's stdout, stderr,
 #       and exit status pass through unchanged. Allowed commands: `git push`,
-#       `gh pr create|ready|edit|close|merge|update-branch|reopen|comment|review`,
-#       `gh issue create|edit|close|reopen|comment`, `gh label create|edit|delete`.
+#       `gh pr create|ready|edit|close|merge|update-branch|reopen`,
+#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. A comment goes through
+#       `upsert-comment.sh` only: it adds the agent marker, and a comment without one reads as the
+#       operator's own.
 #   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
 #       Check the file's line shape and compare the writes it can observe with the ledger.
 #   audit-trail.sh --self-test
@@ -37,8 +40,13 @@
 #     a malformed line that a later `note` line names (`line <N>` or the line's own text) is resolved;
 #   - with --branch, the remote head of the branch appears in an `external-write` line;
 #   - with --pr, the pull request's URL appears in an `external-write` line;
-#   - with --pr or --issue, every comment the current GitHub account made on the item since the first
-#     ledger line, and every label it added or removed, has an `external-write` line.
+#   - with --pr or --issue, every comment of the current GitHub account that carries an agent marker
+#     (`<!-- <namespace>:actor=`) and was made since the first ledger line has an `external-write` line.
+#     A comment without a marker is the operator's own and is skipped;
+#   - with --pr or --issue, every label the account added (`+label <name>`) or removed (`-label <name>`)
+#     since the first ledger line is named by an `external-write` line. A label event carries no
+#     marker, so an unrecorded one is `not verified:`, never a problem;
+#   - a later `note` line whose target is `comment <id>` or `label <name>` resolves that comment or label.
 #   A check that needs the network and cannot run prints `not verified: …` and never fails verify.
 #
 # Output (stdout of verify): `problem: …` and `not verified: …` lines, or `audit trail ok: …`.
@@ -165,7 +173,7 @@ cmd_record() {
   if [[ "$status" -eq 0 ]]; then
     append_line "$FILE" "$ROLE" external-write "$target" "${detail:-ok} (exit 0)"
   else
-    append_line "$FILE" "$ROLE" note "no action performed" "$target: write failed (exit $status)${detail:+; $detail}"
+    append_line "$FILE" "$ROLE" note "$target" "write failed (exit $status)${detail:+; $detail}; the remote state was not verified"
   fi
 }
 
@@ -267,13 +275,13 @@ describe_command() {
     printf '%s' "$out"
     ;;
   "gh pr")
-    [[ " create ready edit close merge update-branch reopen comment review " == *" $sub2 "* ]] || return 1
+    [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
     arg="${argv[3]:-}"
     [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
     printf 'gh pr %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
-    [[ " create edit close reopen comment " == *" $sub2 "* ]] || return 1
+    [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
     arg="${argv[3]:-}"
     [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
     printf 'gh issue %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
@@ -324,20 +332,51 @@ cmd_run() {
   return "$rc"
 }
 
-# The comments and the label changes the current GitHub account made on one pull request or issue
-# since <since>, each one a line "kind<TAB>id-or-label<TAB>detail". Return 1 when a read fails.
+# The agent comments and the label changes the current GitHub account made on one pull request or
+# issue since <since>, each one a line "kind<TAB>id-or-label<TAB>time". A comment counts only when its
+# body carries an agent marker (`<!-- <namespace>:actor=`): the account is shared with the operator,
+# and a comment without a marker is the operator's own (`rules/code-review/general.md` *Authorship
+# trust*). Return 1 when a read fails.
 observe_item_writes() {
   local base="$1" login="$2" since="$3" out
-  out="$(gh api "$base/comments" --paginate --jq '.[] | [.user.login, .created_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
+  out="$(gh api "$base/comments" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .created_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "comment\t%s\t%s\n", $3, $2 }' <<<"$out"
   out="$(gh api "$base/timeline" --paginate --jq '.[] | select(.event == "labeled" or .event == "unlabeled") | [.actor.login, .created_at, .event, .label.name] | @tsv' 2>/dev/null)" || return 1
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
 }
 
-# Compare those writes with the ledger: a comment or a label change with no ledger line is a problem.
-# Reads and writes the caller's `problems`, `notes`, `writes`, `since`, and `login` variables.
+# 0 when an `external-write` line of `$writes` names that label change: "+label <name>" for labeled and
+# "-label <name>" for unlabeled, as a whole token (followed by " +label", " -label", " ->", or the field end).
+label_recorded() {
+  LABEL_SIGN="$1" LABEL_NAME="$2" awk -F'|' '
+    BEGIN { needle = " " ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"] }
+    {
+      target = " " $4
+      offset = 0
+      while ((at = index(substr(target, offset + 1), needle)) > 0) {
+        offset += at
+        rest = substr(target, offset + length(needle))
+        if (rest == "" || rest ~ /^ [+-]label / || rest ~ /^ ->/) { found = 1 }
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' <<<"$writes"
+}
+
+# 0 when a later `note` line names that write: its target is exactly the text given (`comment <id>`, `label <name>`).
+note_names() {
+  local named
+  for named in ${note_target[@]+"${note_target[@]}"}; do
+    [[ "$named" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Compare those writes with the ledger: an agent comment with no ledger line is a problem; a label
+# change with none is not verified, because a label event cannot be told from the operator's own.
+# Reads and writes the caller's `problems`, `notes`, `writes`, `note_target`, `since`, and `login` variables.
 observe_item() {
-  local item="$1" base kind id when observed
+  local item="$1" base kind id when observed sign name
   if [[ "$item" =~ ^https://[^/]+/([^/]+)/([^/]+)/(pull|issues)/([0-9]+) ]]; then
     base="repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/issues/${BASH_REMATCH[4]}"
   elif [[ "$item" =~ ^[0-9]+$ ]]; then
@@ -354,10 +393,13 @@ observe_item() {
     [[ -n "$kind" ]] || continue
     case "$kind" in
     comment)
-      grep -Fq -- "issuecomment-$id" <<<"$writes" || problems+=("comment $id of $login on $(clean_field "$item") (created $when) has no external-write line; append it, or publish through the package's upsert-comment.sh")
+      grep -Fq -- "issuecomment-$id" <<<"$writes" || note_names "comment $id" || problems+=("comment $id of $login on $(clean_field "$item") (created $when) carries an agent marker and has no external-write line; append the line when this run wrote it, or a note line with the target 'comment $id' when it did not")
       ;;
     *)
-      grep -Fq -- "$id" <<<"$writes" || problems+=("label '$(clean_field "$id")' $kind by $login on $(clean_field "$item") (at $when) has no external-write line; append it, or run the write through audit-trail.sh run")
+      sign="+"
+      [[ "$kind" == unlabeled ]] && sign="-"
+      name="$(clean_field "$id")"
+      label_recorded "$sign" "$name" || note_names "label $name" || notes+=("label '$name' $kind by $login on $(clean_field "$item") (at $when) has no external-write line, and a label event carries no agent marker, so it cannot be told from the operator's own; when this run made it, run the write through audit-trail.sh run, otherwise append a note line with the target 'label $name'")
       ;;
     esac
   done <<<"$observed"
@@ -519,8 +561,9 @@ self_test() {
   "$script" record --target 'gh pr update-branch 7' --status 1 --detail 'merge conflict'
   l="$(last_line)"
   expect_eq 'record with a failed status is a note line' "$(field 3 "$l")" note
-  expect_eq 'the failed note says no action was performed' "$(field 4 "$l")" 'no action performed'
-  if [[ "$(field 5 "$l")" == *'(exit 1)'* ]]; then ok 'the failed note carries the exit status'; else bad 'the failed note lacks the exit status'; fi
+  expect_eq 'the failed note names the attempt as its target' "$(field 4 "$l")" 'gh pr update-branch 7'
+  if [[ "$(field 5 "$l")" == *'(exit 1)'*'merge conflict'* ]]; then ok 'the failed note carries the exit status and the detail'; else bad 'the failed note lacks the exit status'; fi
+  if [[ "$(field 5 "$l")" == *'the remote state was not verified' && "$l" != *'no action performed'* ]]; then ok 'the failed note never claims that nothing happened'; else bad "the failed note claims or omits: $l"; fi
 
   # --- unset ledger: hint, no file, no block --------------------------------------------------
   rc=0
@@ -554,13 +597,22 @@ EOF
   expect_eq 'run exits with the write command status, not a pipe status' "$rc" 5
   l="$(last_line)"
   expect_eq 'run records a failed write as a note line' "$(field 3 "$l")" note
-  if [[ "$(field 5 "$l")" == *'gh pr ready 9'*'write failed (exit 5)'* ]]; then ok 'the failed write names its own exit status'; else bad "failed note: $(field 5 "$l")"; fi
+  expect_eq 'the failed write names its own target' "$(field 4 "$l")" 'gh pr ready 9 -> https://example.test/o/r/pull/9'
+  if [[ "$(field 5 "$l")" == 'write failed (exit 5);'* ]]; then ok 'the failed write names its own exit status'; else bad "failed note: $(field 5 "$l")"; fi
 
   before="$(line_count)"
   rc=0
   "$script" run -- curl https://example.test >/dev/null 2>&1 || rc=$?
   expect_eq 'run refuses a command that is not an allowed write' "$rc" 64
   expect_eq 'a refused command writes no line' "$(line_count)" "$before"
+  local refused
+  for refused in 'gh pr comment 5 --body x' 'gh pr review 5 --approve' 'gh issue comment 5 --body x'; do
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run refuses '$refused' with exit 64: a comment goes through upsert-comment.sh" "$rc" 64
+    expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
+  done
 
   rc=0
   (unset AUDIT_TRAIL_FILE; PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=3 "$script" run -- gh pr merge 9 >/dev/null 2>&1) || rc=$?
@@ -605,6 +657,36 @@ EOF
     cd "$work"
     git reset -q --hard HEAD~1
   )
+
+  # --- run: a push that fails after it updated one ref never claims that nothing happened ---------
+  local work2="$tmp/work2"
+  git init -q "$work2"
+  (
+    cd "$work2"
+    git config user.email t@example.test
+    git config user.name t
+    git checkout -q -b base
+    git commit -q --allow-empty -m base
+    git remote add origin "$remote"
+    git push -q origin base:refs/heads/rej
+    git checkout -q --orphan other
+    git commit -q --allow-empty -m other
+    git checkout -q -b okpart base
+    git commit -q --allow-empty -m okpart
+    rc=0
+    "$script" run -- git push -q origin other:refs/heads/rej okpart:refs/heads/okpart >/dev/null 2>&1 || rc=$?
+    exit "$rc"
+  ) && rc=0 || rc=$?
+  expect_eq 'a partial push keeps the exit status of git' "$rc" 1
+  l="$(last_line)"
+  expect_eq 'a partial push leaves a note line' "$(field 3 "$l")" note
+  expect_eq 'a partial push names the push as its target' "$(field 4 "$l")" 'git push origin other:refs/heads/rej'
+  if [[ "$l" != *'no action performed'* && "$(field 5 "$l")" == 'write failed (exit 1); the remote state was not verified' ]]; then
+    ok 'a partial push does not claim that no action was performed'
+  else
+    bad "partial push line: $l"
+  fi
+  if [[ -n "$(git -C "$work2" ls-remote origin refs/heads/okpart)" ]]; then ok 'the partial push really updated a ref'; else bad 'the partial push updated no ref'; fi
 
   # --- run: an option that makes git run a program is refused ------------------------------------
   local pwn="$tmp/pwned"
@@ -680,48 +762,94 @@ EOF
   "$script" verify --file "$tmp/missing.audit" >/dev/null || rc=$?
   expect_eq 'verify reports an unreadable file' "$rc" 3
 
-  # --- verify: the comments and the label changes of the account --------------------------------
-  local obs="$tmp/obs.audit"
-  cat >"$obs" <<'OBS'
+  # --- verify: the agent comments and the label changes of the account --------------------------
+  if command -v jq >/dev/null 2>&1; then
+    local obs="$tmp/obs.audit"
+    cat >"$obs" <<'OBS'
 donatello|2026-11-11T10:00:00Z|external-write|gh pr create -> https://example.test/o/r/pull/5|ok (exit 0)
 donatello|2026-11-11T10:30:00Z|external-write|https://example.test/o/r/issues/5#issuecomment-101|created (exit 0)
-donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge|ok (exit 0)
+donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge +label other-tag|ok (exit 0)
 OBS
-  mkdir -p "$tmp/obsbin"
-  cat >"$tmp/obsbin/gh" <<'OBSGH'
+    mkdir -p "$tmp/obsbin"
+    cat >"$tmp/obsbin/gh" <<'OBSGH'
 #!/usr/bin/env bash
 if [[ "${FAKE_GH_FAIL:-0}" == 1 && "$*" == *"issues/5/"* ]]; then exit 1; fi
+expr=""
+prev=""
+for arg in "$@"; do
+  [[ "$prev" == --jq ]] && expr="$arg"
+  prev="$arg"
+done
 case "$*" in
 "api user --jq .login") echo bot ;;
 *"issues/5/comments"*)
-  printf 'bot\t2026-11-11T11:00:00Z\t101\n'
-  printf 'bot\t2026-11-11T11:00:00Z\t102\n'
-  printf 'other\t2026-11-11T11:00:00Z\t103\n'
-  printf 'bot\t2000-01-01T00:00:00Z\t104\n'
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":101,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":102,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"other"},"created_at":"2026-11-11T11:00:00Z","id":103,"body":"report\n<!-- cr-comment:actor=other -->"},
+  {"user":{"login":"bot"},"created_at":"2000-01-01T00:00:00Z","id":104,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":555,"body":"the operator wrote this by hand"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":556,"body":null},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":557,"body":"agent report\n<!-- analysis-plan:actor=bot -->"}
+]
+JSON
   ;;
 *"issues/5/timeline"*)
-  printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tready to merge\n'
-  printf 'bot\t2026-11-11T11:00:00Z\tunlabeled\tsurprise\n'
-  printf 'other\t2026-11-11T11:00:00Z\tlabeled\tother-label\n'
+  jq -r "$expr" <<'JSON'
+[
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"ready to merge"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"unlabeled","label":{"name":"ready to merge"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"tag"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"other-tag"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"surprise"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"debug"}},
+  {"actor":{"login":"other"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"other-label"}},
+  {"actor":{"login":"bot"},"created_at":"2000-01-01T00:00:00Z","event":"labeled","label":{"name":"old-label"}}
+]
+JSON
   ;;
 *"pr view"*) echo https://example.test/o/r/pull/5 ;;
 esac
 OBSGH
-  chmod +x "$tmp/obsbin/gh"
-  rc=0
-  PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
-  expect_eq 'verify reports a comment or a label change with no ledger line' "$rc" 3
-  if grep -q 'comment 102 ' "$tmp/obs.out"; then ok 'verify names a comment of the account that has no line'; else bad 'verify missed the unrecorded comment'; fi
-  if grep -q "label 'surprise' unlabeled" "$tmp/obs.out"; then ok 'verify names a label change that has no line'; else bad 'verify missed the unrecorded label change'; fi
-  if ! grep -q 'comment 101 \|comment 103 \|comment 104 \|ready to merge\|other-label' "$tmp/obs.out"; then
-    ok 'verify skips a recorded write, another actor, and a write before the run'
+    chmod +x "$tmp/obsbin/gh"
+    rc=0
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'verify reports an agent comment with no ledger line' "$rc" 3
+    if grep -q '^problem: comment 102 ' "$tmp/obs.out" && grep -q '^problem: comment 557 ' "$tmp/obs.out"; then ok 'verify names an agent comment of the account that has no line'; else bad "verify missed an unrecorded agent comment: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q 'comment 555\|comment 556' "$tmp/obs.out"; then ok 'verify skips a comment of the account that carries no agent marker'; else bad "verify named an operator comment: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q 'comment 101 \|comment 103 \|comment 104 \|other-label\|old-label' "$tmp/obs.out"; then
+      ok 'verify skips a recorded comment, another actor, and a write before the run'
+    else
+      bad "verify named a write it should skip: $(cat "$tmp/obs.out")"
+    fi
+    if grep -q "^not verified: label 'ready to merge' unlabeled " "$tmp/obs.out"; then ok 'an unrecorded removal is not verified although the label was added by a line'; else bad "verify matched unlabeled to a +label line: $(cat "$tmp/obs.out")"; fi
+    if grep -q "^not verified: label 'tag' labeled " "$tmp/obs.out"; then ok 'a label that is only a substring of a recorded label is not verified'; else bad "verify matched a label by substring: $(cat "$tmp/obs.out")"; fi
+    if grep -q "^not verified: label 'surprise' labeled " "$tmp/obs.out"; then ok 'verify names a label change that has no line'; else bad "verify missed the unrecorded label change: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q "label 'ready to merge' labeled\|label 'other-tag' labeled\|^problem: label" "$tmp/obs.out"; then ok 'a recorded label is skipped and a label event is never a problem'; else bad "verify named a recorded label: $(cat "$tmp/obs.out")"; fi
+    printf 'branch-name|2026-11-11T10:50:00Z|external-write|git push origin fix/debug-output|ok (exit 0)\n' >>"$obs"
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || true
+    if grep -q "^not verified: label 'debug' labeled " "$tmp/obs.out"; then ok 'a label that is a substring of another write line is not verified'; else bad 'verify matched a label inside a push line'; fi
+
+    cat >>"$obs" <<'OBS'
+donatello|2026-11-11T12:00:00Z|note|comment 102|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|comment 557|written by another agent, not by this run
+donatello|2026-11-11T12:00:02Z|note|label surprise|set by the operator, not by an agent
+donatello|2026-11-11T12:00:03Z|note|label tag|set by the operator, not by an agent
+donatello|2026-11-11T12:00:04Z|note|label ready to merge|removed by the operator, not by an agent
+OBS
+    rc=0
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'a later note that names the comment resolves the problem' "$rc" 0
+    if ! grep -q "comment 102\|comment 557\|label 'surprise'\|label 'tag'\|label 'ready to merge'" "$tmp/obs.out"; then ok 'a later note that names the label resolves it'; else bad "a note did not resolve: $(cat "$tmp/obs.out")"; fi
+
+    rc=0
+    PATH="$tmp/obsbin:$PATH" FAKE_GH_FAIL=1 "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'a failed read is no problem' "$rc" 0
+    if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
   else
-    bad "verify named a write it should skip: $(cat "$tmp/obs.out")"
+    ok 'skipped the comment and label checks of verify: jq is not installed'
   fi
-  rc=0
-  PATH="$tmp/obsbin:$PATH" FAKE_GH_FAIL=1 "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
-  expect_eq 'a failed read is no problem' "$rc" 0
-  if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
 
   # --- a package wrapper records its own write: the GitHub comment publisher --------------------
   if command -v php >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then

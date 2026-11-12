@@ -264,7 +264,8 @@ test('the JIRA comment delete helper leaves a note line with the exit status of 
         expect($result['process']->getExitCode())->toBe(3)
             ->and($rows)->toHaveCount(1)
             ->and($rows[0][2])->toBe('note')
-            ->and($rows[0][4])->toBe('jira comment 123 delete on ACME-1234: write failed (exit 6)');
+            ->and($rows[0][3])->toBe('jira comment 123 delete on ACME-1234')
+            ->and($rows[0][4])->toBe('write failed (exit 6); the remote state was not verified');
     } finally {
         auditLedgerRemove($ledger);
     }
