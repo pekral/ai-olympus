@@ -25,12 +25,22 @@ assignment only* below).
 
 This skill is the shared workflow for both clients:
 
-- Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL, or JIRA key or URL>`.
-- Codex: `$verify-merge-readiness` with the same reference. The root session holds the `krang`
+- Claude Code: `/prepare-issue-for-merge <GitHub issue or PR URL, or JIRA key or URL> [more references] [--merge]`.
+- Codex: `$verify-merge-readiness` with the same references and flag. For one reference and no flag, the root session holds the `krang`
   role under the same section and spawns the registered specialists when the client supports
   project agents.
 
 It never merges the pull request.
+
+**Several references, or `--merge`.** The command prepares a batch. The root session is the batch
+coordinator and follows `skills/_shared/orchestration/batch-preparation.md` in full. Each reference
+gets its own `krang` in its own git worktree, and that `krang` runs this workflow for its one
+reference. `krang` only orchestrates and delegates every step to the specialists. Every gate, install,
+and test command runs only through `skills/_shared/run-gate.sh`. A blocker on one reference never
+stops the others, and the session publishes one aggregated report. The merge is opt-in: `--merge`
+makes each unit, after this workflow reached its merge-ready verdict, merge through
+`@skills/merge-github-pr/SKILL.md` with every gate of that skill unchanged. This workflow itself
+still never merges.
 
 ## Constraints
 
