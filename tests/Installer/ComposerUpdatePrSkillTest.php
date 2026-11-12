@@ -97,18 +97,21 @@ test('the skill commits other changed paths, lists them in the pull request, and
         ->and($skill)->not->toContain('This stop replaces opening a pull request');
 });
 
-test('the skill reads every changed file as a NUL-separated path and stops on an env file at any depth, an outside symlink, or an ignored path', function (): void {
-    $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
-
-    expect($skill)->toContain('`git status --porcelain=v1 -z --untracked-files=all`')
-        ->and($skill)->toContain('NUL-separated')
-        ->and($skill)->toContain('basename')
-        ->and($skill)->toContain('at any depth')
-        ->and($skill)->toContain('`git rev-parse --show-toplevel`')
-        ->and($skill)->toContain('symbolic link whose target resolves outside')
-        ->and($skill)->toContain('`git check-ignore -q -- <path>`')
-        ->and($skill)->toContain('one `git add -- <path>` per path');
-});
+test(
+    'the skill reads every changed file as a NUL-separated path and stops on an env file at any depth, an outside symlink, or an ignored path',
+    function (): void {
+        $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
+    
+        expect($skill)->toContain('`git status --porcelain=v1 -z --untracked-files=all`')
+            ->and($skill)->toContain('NUL-separated')
+            ->and($skill)->toContain('basename')
+            ->and($skill)->toContain('at any depth')
+            ->and($skill)->toContain('`git rev-parse --show-toplevel`')
+            ->and($skill)->toContain('symbolic link whose target resolves outside')
+            ->and($skill)->toContain('`git check-ignore -q -- <path>`')
+            ->and($skill)->toContain('one `git add -- <path>` per path');
+    },
+);
 
 test('the skill scans the commits of the branch with history-scan before the push and stops on a credential or sensitive-file finding', function (): void {
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
@@ -118,7 +121,9 @@ test('the skill scans the commits of the branch with history-scan before the pus
         ->and($skill)->toContain('class `credential` or `sensitive-file`')
         ->and($skill)->toContain('exit `3`')
         ->and(strpos($skill, 'history-scan.sh range'))->toBeLessThan((int) strpos($skill, '`git push -u origin <branch>`'))
-        ->and(composerUpdateSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))->toContain('--base and --head must be full commit object ids');
+        ->and(composerUpdateSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))->toContain(
+            '--base and --head must be full commit object ids',
+        );
 });
 
 test('the package lists the skill in the README, the skill catalog, and the code-review exclusion groups', function (): void {
