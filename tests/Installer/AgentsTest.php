@@ -544,6 +544,7 @@ test('every agent definition declares the model its role calls for', function ()
         'michelangelo' => 'opus',
         'raphael' => 'sonnet',
         'shredder' => 'opus',
+        'splinter' => 'opus',
     ];
     $actual = [];
 
@@ -617,6 +618,7 @@ test(
             'michelangelo' => 'high',
             'raphael' => 'medium',
             'shredder' => 'high',
+            'splinter' => 'high',
         ];
 
         $globResult = glob($packageDir . '/agents/*.md');
@@ -1355,14 +1357,14 @@ test('parallel agents share their split output through the brief under an append
     $packageDir = dirname(__DIR__, 2);
     $krang = krangContractText();
 
-    // Every CR round dispatches leonardo, raphael, and casey at once, so the mechanism is active.
+    // Every CR round dispatches leonardo, splinter, raphael, and casey at once, so the mechanism is active.
     expect($krang)->toContain('Parallel handoff sharing (active in every CR round)');
     // Concurrency-safe append: a per-brief append lock guards every `cat >>` so parallel writes never interleave.
     expect($krang)->toContain('Concurrency-safe append');
     expect($krang)->toContain('$BRIEF.lock');
     // The round holds a barrier until every handoff is in the brief, then one leonardo publishes.
     expect($krang)->toContain('Hold the barrier of a parallel round.');
-    expect($krang)->toContain('## Parallel CR round — `leonardo`, `raphael`, and `casey` together');
+    expect($krang)->toContain('## Parallel CR round — `leonardo`, `splinter`, `raphael`, and `casey` together');
 
     // The CR agent still takes the append lock unconditionally, so a future parallel step needs no retrofit.
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
@@ -2138,9 +2140,9 @@ test('krang dispatches every step blocking so a turn never ends mid-flight (issu
     // all of them combined -- only more than the largest single pass (428 897).
     expect($content)->toContain('more than any individual reviewer pass (the largest was 429 k), though less than the four of them combined (1.36 M)');
     expect($content)->not->toContain('more than every reviewer pass combined');
-    // The CR round dispatches three blocking calls in one message, so the turn holds until all three return.
+    // The CR round dispatches four blocking calls in one message, so the turn holds until all four return.
     expect($content)->not->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
-    expect($content)->toContain('Step 6 dispatches `leonardo`, `raphael`, and `casey` in one message, each blocking');
+    expect($content)->toContain('Step 6 dispatches `leonardo`, `splinter`, `raphael`, and `casey` in one message, each blocking');
 });
 
 test('krang keeps a dispatch ledger keyed by role, head sha and round (issue #172)', function (): void {
@@ -2282,7 +2284,7 @@ test('krang anchors run cleanup to every terminal path instead of the step-7 num
 
     // Step 6's non-convergence hard stop cleans up too, CR worktree included.
     expect($content)->toContain('Run *Run cleanup* before escalating');
-    expect($content)->toContain('any CR worktree `leonardo` recorded in its handoff');
+    expect($content)->toContain('any CR worktree `leonardo` or `splinter` recorded in its handoff');
 
     // No remaining cross-reference binds cleanup to the step number as its only anchor.
     expect($content)->not->toContain('removes it during cleanup (step 7)');
@@ -2396,7 +2398,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     expect($rule)->toContain('Bash is granted for a named, closed purpose per agent');
     expect($rule)->toContain('No outbound network request of any kind');
     expect($rule)->toContain(
-        'Read-only agents (`leonardo`, `april`, `krang`, `casey`, `shredder`) never create, modify, or delete a tracked file through Bash',
+        'Read-only agents (`leonardo`, `splinter`, `april`, `krang`, `casey`, `shredder`) never create, modify, or delete a tracked file through Bash',
     );
     expect($rule)->toContain('**Residual risk — stated plainly, never assumed away.**');
     expect($rule)->toContain('not expressible');
@@ -2434,6 +2436,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
         'krang' => 'Write, Edit',
         'casey' => 'Write, Edit',
         'shredder' => 'Write, Edit',
+        'splinter' => 'Write, Edit',
         'donatello' => 'WebSearch, WebFetch',
     ];
 
