@@ -50,17 +50,19 @@ The step is done when all six exit `0`.
 Name the step by its number and command, give its exit status, and print the last 40 lines of its output file. Run no later step, create no branch, and leave the working tree as it is. `run-gate.sh` exit `3`, `6`, or `7` is a failed step too; `jq` missing is exit `2`.
 
 ### 4. No change, no pull request
-Run `git status --porcelain`.
+Run `git status --porcelain=v1 -z --untracked-files=all`. The output is a list of NUL-separated entries. Each entry is a two-character status, a space, and a literal path relative to the project root, never quoted, so a path with a space stays one path. A rename or copy entry (`R` or `C`) is followed by one more NUL-separated field, the original path; read it as a path too. `--untracked-files=all` lists every untracked file instead of its directory, so a new directory never hides a file.
 - Empty: report that nothing was updated, open no branch and no pull request, and stop.
 - A path other than `composer.json` or `composer.lock` (for example an asset a post-update script published): the run does not stop. Record each such path for steps 5 and 7. The owner decided that these paths enter the pull request, and the description lists them.
-- Safeguards that hold for every path:
-  1. Never commit a file that `git check-ignore` ignores.
-  2. Never commit a `.env*` file or a path outside the project tree. A changed `.env*` path, or a path that resolves outside the project tree, stops the run: name each such path and leave the tree untouched.
+- Safeguards that hold for every path of the list, each one checked on the path itself and never on a directory above it:
+  1. Never commit a file that `git check-ignore -q -- <path>` ignores (exit `0`): drop that path from the record.
+  2. Never commit a `.env*` file. A path whose basename starts with `.env` stops the run, at any depth. Do not exempt `.env.example`.
+  3. Never commit a path outside the project tree. For a path that `test -L` reports as a symbolic link, resolve its target with `realpath -- <path>` and compare it to `git rev-parse --show-toplevel`. A symbolic link whose target resolves outside that directory, or whose target does not resolve, stops the run.
+  4. A stop names each offending path and the safeguard it broke, and leaves the working tree untouched.
 
 ### 5. Branch and commit
 1. Compute the date with the manifest zone when `skills/_shared/read-manifest.sh` prints a `timezone`: `TZ=<zone> date +%F`; otherwise `date +%F`.
 2. Create `chore/composer-update-<date>` with `git checkout -b`. A local or remote branch with that name stops the run: report the name and let the user decide. The run neither reuses nor overwrites a branch it did not create in this run.
-3. Stage `composer.json`, `composer.lock`, and every other changed path of step 4, one `git add -- <path>` per path. Run `git check-ignore -q -- <path>` first: exit `0` means the path is ignored and the run does not stage it.
+3. Stage `composer.json`, `composer.lock`, and every other changed path of step 4, one `git add -- <path>` per path. Pass each path as one argument exactly as step 4 read it, never a directory and never the quoted text of `git status` without `-z`. Run `git check-ignore -q -- <path>` first: exit `0` means the path is ignored and the run does not stage it.
 4. Commit with the subject `chore(composer): update dependencies`. The commit carries no attribution trailer. The task has no tracker item, so the subject carries no reference.
 
 The step is done when `git status --porcelain` prints nothing and `git log -1 --format=%s` prints the subject.
@@ -73,11 +75,16 @@ The step is done when `git status --porcelain` prints nothing and `git log -1 --
 The step is done when every package of the pull request description appears in the script output or in that diff.
 
 ### 7. Push and open the Draft pull request
-1. Before the push apply `@skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*. On a private repository, run `skills/_shared/run-gate.sh --tier pr --actor composer-update-pr` when the manifest sets `pr-gate`, and handle its exit codes as that file states.
-2. `git push -u origin <branch>`
-3. `gh pr create --draft --title "chore(composer): update dependencies" --body-file <file>`. The title is English. The body follows the language rule of `@rules/git/pull-requests.md` *Pull Requests*. The skill never promotes the Draft: `@rules/git/pull-requests.md` *Draft pull requests* owns that.
-4. Re-read the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm it exists and `isDraft` is `true`.
-5. On a public repository, wait for CI per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes* and report the result.
+1. Scan the commits of the branch before anything leaves the machine: `skills/git-history-exposure-audit/scripts/history-scan.sh range --base "$(git rev-parse "origin/$DEFAULT_BRANCH")" --head "$(git rev-parse HEAD)"`. The script takes full commit object ids only. Do not re-implement its rules.
+   - Exit `0`: continue.
+   - Exit `5` with a finding of class `credential` or `sensitive-file`: stop. Push nothing, open no pull request, report each such finding line as the script printed it (the script never prints a found value), and leave the branch as it is for the user.
+   - Exit `5` with findings of other classes only: continue and list those finding lines in the report.
+   - Exit `3` or any other non-zero exit: stop and report the exit status and the script output. A failed scan is never a pass.
+2. Before the push apply `@skills/resolve-issue/references/quality-gates.md` *A public repository waits for CI instead of a local pre-push gate*. On a private repository, run `skills/_shared/run-gate.sh --tier pr --actor composer-update-pr` when the manifest sets `pr-gate`, and handle its exit codes as that file states.
+3. `git push -u origin <branch>`
+4. `gh pr create --draft --title "chore(composer): update dependencies" --body-file <file>`. The title is English. The body follows the language rule of `@rules/git/pull-requests.md` *Pull Requests*. The skill never promotes the Draft: `@rules/git/pull-requests.md` *Draft pull requests* owns that.
+5. Re-read the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm it exists and `isDraft` is `true`.
+6. On a public repository, wait for CI per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes* and report the result.
 
 The body has these sections, in this order:
 - `## TL;DR` — the count of updated, added, and removed packages, the count of major updates, and the `composer.json` constraints that changed. Every number is counted from the script output.
@@ -110,4 +117,5 @@ Delete the scratch files of this run. Leave the working tree on the new branch.
 - A failed step stopped the run and the report names it with its output
 - No change produced no branch and no pull request
 - Otherwise a Draft pull request exists whose description holds only values read from the diff
+- A `.env*` path, a symbolic link that leaves the project tree, or a `credential` or `sensitive-file` finding of `history-scan.sh` stopped the run before the push
 - No branch was deleted without the integration proof of `@skills/cleanup-local-branches/SKILL.md` step 5
