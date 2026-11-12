@@ -64,17 +64,17 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         ->toContain('check \'a reopened proposal lets new evidence bring the candidate back\'')
         ->toContain('check \'a promoted candidate that a broader one covers is marked superseded, not deleted\'')
         // Thresholds.
-        ->toContain('check \'a project can raise the minimum so that one occurrence is not enough\'')
-        ->toContain('check \'three records of one pull request count as one distinct task and give no candidate when two tasks are required\'')
+        ->toContain('check \'two occurrences with a threshold of three produce no candidate\'')
+        ->toContain('check \'three records of one pull request count as one distinct task and give no candidate\'')
         // Regression: the hand-curated memory and the knowledge files are untouched.
         ->toContain('check \'no promotion command writes rules, skills, agents, codex, AGENTS.md, CLAUDE.md, or the project memory\'')
         ->toContain('check \'no promotion command creates a commit, a push, or a merge: HEAD is unchanged\'');
 
     expect(promotionFile('skills/_shared/analyze-recurrence.sh'))
-        ->toContain('check \'three resolved Critical records of one class are one eligible pattern whose evidence names all three\'')
-        ->toContain('check \'a project that raises the minimum keeps a single occurrence from being eligible\'')
-        ->toContain('check \'three records of one pull request are one distinct task and no eligible pattern when two tasks are required\'')
-        ->toContain('check \'the confidence is the share of resolved Critical records and gates the pattern\'')
+        ->toContain('check \'three learnings of one class are one eligible pattern whose evidence names all three\'')
+        ->toContain('check \'two occurrences with a threshold of three give no eligible pattern\'')
+        ->toContain('check \'three records of one pull request are one distinct task and no eligible pattern\'')
+        ->toContain('check \'the confidence is the share of resolved records and gates the pattern\'')
         ->toContain('check \'rewording the text of a learning changes neither its key nor its evidence\'');
 
     expect(promotionFile('skills/_shared/propose-prevention.sh'))
@@ -123,7 +123,7 @@ test('the self-test proves every item of the security plan', function (): void {
 
     expect(promotionFile('skills/_shared/analyze-recurrence.sh'))
         ->toContain('check \'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern\'')
-        ->toContain('check \'a promotion threshold below 1 is ignored and the script says so\'');
+        ->toContain('check \'a promotion threshold below 2 is ignored and the script says so\'');
 
     expect(promotionFile('skills/_shared/propose-prevention.sh'))
         ->toContain('check "a target path outside the knowledge root of its type is refused: ${bad#*:}"')
@@ -178,7 +178,7 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
         ->toContain('gate_scratch_path --dir "$1" "$1/promotion.jsonl" "$1/merged.jsonl"')
         ->toContain('"$HERE/analyze-recurrence.sh" --store "$store" --patterns')
         ->toContain(
-            '"$HERE/propose-prevention.sh" --report "$TMP/patterns.json" --store "$dir/merged.jsonl" --analysis "$TMP/effective.json" --out "$out"',
+            '"$HERE/propose-prevention.sh" --report "$TMP/report.json" --store "$dir/merged.jsonl" --analysis "$TMP/effective.json" --out "$out"',
         )
         ->toContain('"$HERE/read-manifest.sh" --default-ref')
         ->toContain('. "$HERE/proposal-identity.sh"')
@@ -196,11 +196,11 @@ test('the contract is written once and names the states, the facts, the history,
     expect(promotionFile('skills/code-review/references/learning-promotion.md'))
         ->toStartWith('# Learning promotion — from a repeated learning to permanent knowledge, with a human in between')
         ->toContain('`skills/_shared/promote-learning.sh` is the only implementation.')
-        ->toContain('| `observation` | The class rests on one task, or has no resolved Critical record. |')
+        ->toContain('| `observation` | The class rests on one task. |')
         ->toContain('| `superseded` | A later, broader candidate was promoted and covers this one. It stays in the history. |')
         ->toContain('A state is derived from the history in order. No record field states it, and no text sets it.')
-        ->toContain('| Occurrences | `promotion.min-occurrences` | 1 | at least 1 |')
-        ->toContain('| Distinct tasks | `promotion.min-distinct-tasks` | 1 | at least 1 |')
+        ->toContain('| Occurrences | `promotion.min-occurrences` | 3 | at least 2 |')
+        ->toContain('| Distinct tasks | `promotion.min-distinct-tasks` | 2 | at least 2 |')
         ->toContain('| Resolved share in percent | `promotion.min-confidence` | 0 | 0 to 100 |')
         ->toContain('| `documentation` | `README.md` |')
         ->toContain('| `memory` | `.claude/run/code-review-memory.sqlite`, `.codex/run/code-review-memory.sqlite` |')
@@ -267,38 +267,47 @@ test('filing a promotion proposal reuses the consent row of the feedback run, an
 });
 
 test(
-    'only a resolved Critical code-review finding becomes a candidate, from its first occurrence, and a memory candidate ends at krang',
+    'only a resolved Critical finding becomes a memory candidate, from its first occurrence, and every other target keeps its thresholds',
     function (): void {
         $contract = promotionFile('skills/code-review/references/learning-promotion.md');
-    
+
         expect($contract)
             ->toContain('## The severity gate')
+            ->toContain('The gate applies to the `memory` target only.')
+            ->toContain('a below-Critical defect class that recurs still becomes a candidate for a rule, a skill, a checklist')
             ->toContain('- **Only a Critical finding of a code review counts.**')
             ->toContain('A finding of a proposal review, a standalone security audit, or an acceptance test is never a record.')
-            ->toContain('A Moderate finding is a record, and it is never evidence of a candidate, whatever its recurrence count.')
+            ->toContain('it is never evidence of a `memory` candidate, whatever its recurrence count.')
             ->toContain('- **Only a resolved finding counts.**')
             ->toContain('- **The first resolved occurrence is enough.**')
-            ->toContain('`propose` prints `{"status":"none","reason":"below-critical"}` for a class with no Critical record, `"unresolved"`')
+            ->toContain('`propose` with a `memory` target prints `{"status":"none","reason":"below-critical"}`')
             ->toContain('A candidate of type `memory` is never promoted by a pull request: `promote` exits `4` and names `ai-olympus memory add`.')
+            ->toContain('| Occurrences | `promotion.min-occurrences` | 3 | at least 2 |')
+            ->toContain('| Distinct tasks | `promotion.min-distinct-tasks` | 2 | at least 2 |')
             ->toContain('| `memory` | `.claude/run/code-review-memory.sqlite`, `.codex/run/code-review-memory.sqlite` |');
         expect($contract)->not->toContain('docs/memory/PROJECT_MEMORY.md `');
-    
-        $selfTests = promotionFile('skills/_shared/promote-learning.sh') . promotionFile('skills/_shared/analyze-recurrence.sh');
-    
+
+        $selfTests = promotionFile('skills/_shared/promote-learning.sh')
+            . promotionFile('skills/_shared/analyze-recurrence.sh')
+            . promotionFile('skills/_shared/propose-prevention.sh');
+
         foreach ([
-            'a Moderate class is refused as below Critical, whatever its recurrence, and nothing is written',
-            'a Critical finding that is not resolved is refused and nothing is written',
-            'one resolved Critical record gives a candidate at its first occurrence',
-            'a project can raise the minimum so that one occurrence is not enough',
+            'a recurring Moderate class still becomes a candidate of the rule target, as before the severity gate',
+            'a Moderate class is refused for the memory target, whatever its recurrence, and nothing is written',
+            'a Critical finding that is not resolved is refused for the memory target and nothing is written',
+            'a single resolved Critical finding gives a memory candidate at its first occurrence, with the SQLite store as target',
+            'a single resolved Critical finding is no candidate of another target than the memory',
             'an approved memory candidate awaits the memory write, not a merge',
             'a pull request never promotes a memory candidate and the refusal names krang',
             'the Markdown memory file is no write target of the lifecycle',
-            'a Moderate class is no candidate whatever its recurrence, and says why',
-            'only the resolved Critical record is evidence of a mixed class',
+            'a recurring Moderate class stays eligible for the other targets and is refused for the memory target',
+            'one resolved Critical record is a memory candidate at its first occurrence and no candidate for the other targets',
+            'a recurring Moderate class still gives a proposal that names the recurring defect class',
+            'a Moderate class gives no proposal for the memory target and writes no file',
         ] as $name) {
             expect($selfTests)->toContain($name);
         }
-    
+
         expect(promotionFile('rules/compound-engineering/memory.md'))
             ->toContain('`@skills/code-review/references/learning-promotion.md` *The severity gate* owns which finding becomes an entry');
     },
