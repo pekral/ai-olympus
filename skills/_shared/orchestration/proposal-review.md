@@ -101,8 +101,9 @@ The roster has no agent dedicated to the analysis of an issue, so two agents sha
 7. **Hand the proposal on.** The `donatello` dispatch prompt names `## Proposed solution` as the
    plan to implement. In a merge preparation it repeats the scope contract of
    `@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only*.
-8. **Write the audit lines.** Append the `outbound-request` line of each `gh` / `acli` read and the
-   `external-write` line of the comment, when one was published, to `${BRIEF%.md}.audit`.
+8. **Write the audit lines.** Append the `outbound-request` line of each `gh` / `acli` read to
+   `${BRIEF%.md}.audit`. Append no line for the comment: `upsert-comment.sh` writes its
+   `external-write` line itself.
 
 The handoff of the run names the number of Critical findings per agent, the URL of the published
 comment or `none`, and the withheld finding, when one exists.

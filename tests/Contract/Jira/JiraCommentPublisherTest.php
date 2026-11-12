@@ -1409,7 +1409,8 @@ test('the JIRA publisher records the create as created, then the delete with its
         ->and($result['rows'][0][3])->toBe('jira comment 10003 on TEAM-42')
         ->and($result['rows'][0][4])->toContain('created')
         ->and($result['rows'][1][2])->toBe('note')
-        ->and($result['rows'][1][4])->toContain('ADF update on TEAM-42: write failed (exit 1)')
+        ->and($result['rows'][1][3])->toBe('jira comment 10003 ADF update on TEAM-42')
+        ->and($result['rows'][1][4])->toContain('write failed (exit 1)')
         ->and($result['rows'][2][2])->toBe('external-write')
         ->and($result['rows'][2][3])->toBe('jira comment 10003 delete on TEAM-42')
         ->and($result['rows'][2][4])->toContain('(exit 0)')
@@ -1422,7 +1423,8 @@ test('the JIRA publisher names a failed delete as a note and never says the comm
     expect($result['process']->getExitCode())->toBe(3)
         ->and($result['rows'])->toHaveCount(3)
         ->and($result['rows'][2][2])->toBe('note')
-        ->and($result['rows'][2][4])->toContain('jira comment 10003 delete on TEAM-42: write failed (exit 7)')
+        ->and($result['rows'][2][3])->toBe('jira comment 10003 delete on TEAM-42')
+        ->and($result['rows'][2][4])->toContain('write failed (exit 7)')
         ->and($result['process']->getErrorOutput())->toContain('could not be removed (acli exit 7)')
         ->and($result['process']->getErrorOutput())->not->toContain('the created comment was removed');
 });
@@ -1446,5 +1448,6 @@ test('the JIRA publisher leaves a note line when the comment create fails', func
     expect($result['process']->getExitCode())->toBe(3)
         ->and($result['rows'])->toHaveCount(1)
         ->and($result['rows'][0][2])->toBe('note')
-        ->and($result['rows'][0][4])->toContain('jira comment create on TEAM-42: write failed (exit 9)');
+        ->and($result['rows'][0][3])->toBe('jira comment create on TEAM-42')
+        ->and($result['rows'][0][4])->toContain('write failed (exit 9)');
 });

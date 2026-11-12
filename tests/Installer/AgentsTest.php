@@ -2923,7 +2923,7 @@ test('krang labels the pull request ready to merge when it closes a FAST run (is
     expect($krang)->toContain('3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"`');
     expect($krang)->toContain('those commands are this agent\'s sanctioned `gh` writes outside the three backlog skills');
     expect($rule)->toContain('owns that promotion and the `ready to merge` label on the pull request');
-    expect($krang)->toContain('and each write of *Closing a `FAST` run* step 3: `gh pr ready` and the `ready to merge` label on the pull request)');
+    expect($krang)->toContain('Run both commands through `skills/_shared/audit-trail.sh run --`, which records their lines.');
     expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('| `krang` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
 });

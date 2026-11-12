@@ -556,7 +556,8 @@ test('a failed JIRA transition leaves a note line with the exit status and no ex
 
         expect($process->getExitCode())->not->toBe(0)
             ->and($notes)->toHaveCount(1)
-            ->and($notes[0][4])->toBe('jira transition TEAM-42 to In Progress: write failed (exit 4)');
+            ->and($notes[0][3])->toBe('jira transition TEAM-42 to In Progress')
+            ->and($notes[0][4])->toBe('write failed (exit 4); the remote state was not verified');
     } finally {
         removeJiraClaimFixture($fixture);
         auditLedgerRemove($ledger);
@@ -564,7 +565,7 @@ test('a failed JIRA transition leaves a note line with the exit status and no ex
 });
 
 dataset('code review transition outcomes', [
-    'transition fails' => ['4', 'note', 'no action performed', 'jira transition TEAM-42 to Code Review: write failed (exit 4)'],
+    'transition fails' => ['4', 'note', 'jira transition TEAM-42 to Code Review', 'write failed (exit 4); the remote state was not verified'],
     'transition succeeds' => ['0', 'external-write', 'jira transition TEAM-42 to Code Review', 'ok (exit 0)'],
 ]);
 
