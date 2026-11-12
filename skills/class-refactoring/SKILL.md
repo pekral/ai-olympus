@@ -58,7 +58,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
 
 ### Test Coverage Gate (mandatory pre-flight)
 
-> **`MODE=cr`:** do not write tests or commits. Run the coverage check read-only and report any target lines below 100% coverage as a refactoring finding (a refactor cannot land safely without them) — then continue the analysis. The steps below that author tests / commits apply to `MODE=apply` only.
+> **`MODE=cr`:** do not write tests or commits. Run the coverage check read-only, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, and report any target lines below 100% coverage as a refactoring finding (a refactor cannot land safely without them) — then continue the analysis. The steps below that author tests / commits apply to `MODE=apply` only.
 
 **The gate is blocking.** Refactoring may not edit a single line of production code until tests for the target lines reach 100% coverage. Satisfy the **Test Coverage Contract** defined in `@rules/refactoring/general.md`:
 
@@ -80,7 +80,7 @@ Only after Read, Map, and Verify are complete may the Test Coverage Gate and the
   - extract responsibilities where needed
 - **Test assertion logic must not change during the refactor.** The pre-refactor coverage commit fixed the contract; the refactor commit changes structure only. Pre-existing assertions, expected return values, expected exceptions, expected persisted state, and expected emitted events stay byte-for-byte the same — they are the proof that behavior is preserved. The only allowed test edits in the refactor commit are mechanical renames forced by the refactor itself (e.g. namespace move, constructor argument order forced by an extracted DTO), and they must be flagged in the commit body.
 If an assertion would have to change to make the refactor green, treat that as a signal that you are no longer refactoring and split the behavior change into its own commit instead. New tests that cover newly introduced code paths belong in a separate `test(scope): …` commit *after* the refactor.
-- **After the refactor — re-verify coverage stayed 100%.** Once the refactor commit is in place, run the coverage tooling again scoped to the refactored files and confirm every changed line, branch, and condition is still exercised and the pre-existing assertions still pass unchanged. Coverage must **remain** 100% — a refactored line that is no longer covered means the refactor introduced an untested path; fix the path (it is usually dead code or a new branch), never restore the number by editing the pre-refactor tests. This is the apply-mode enforcement of step 4 of the **Test Coverage Contract** in `@rules/refactoring/general.md`.
+- **After the refactor — re-verify coverage stayed 100%.** Once the refactor commit is in place, run the coverage tooling again scoped to the refactored files, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, and confirm every changed line, branch, and condition is still exercised and the pre-existing assertions still pass unchanged. Coverage must **remain** 100% — a refactored line that is no longer covered means the refactor introduced an untested path; fix the path (it is usually dead code or a new branch), never restore the number by editing the pre-refactor tests. This is the apply-mode enforcement of step 4 of the **Test Coverage Contract** in `@rules/refactoring/general.md`.
 - Avoid unnecessary changes outside the scope.
 - Prefer small, safe transformations over large rewrites.
 

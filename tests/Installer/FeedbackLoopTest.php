@@ -272,7 +272,8 @@ test('an approved proposal is implemented by the ordinary pipeline under four pr
         )
         ->toContain('It reads the regression result from the gate entry\'s run over the whole configured scope,')
         ->toContain('taken from CI on the head commit or from the pre-merge gate, never from the pull request body.')
-        ->toContain('It runs only the project\'s own test and coverage command, discovered from the default branch per `references/quality-gates.md`.');
+        ->toContain('It runs only the project\'s own test and coverage command, discovered from the default branch per')
+        ->toContain('`references/quality-gates.md`, through `skills/_shared/run-gate.sh --exclusive`.');
     expect($reference)->not->toContain('it runs the commands of the proofs');
     expect($reference)->not->toContain('applies this section when the pull request body carries a `## Safeguard` section (');
     expect($reference)->not->toContain('The review checks the four proofs from the diff:');
