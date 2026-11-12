@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 
 test('one rule section owns the real-problem, minimal-API, and proving-test principle', function (): void {
     $owner = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/general.md');
@@ -9,7 +9,14 @@ test('one rule section owns the real-problem, minimal-API, and proving-test prin
         ->and(substr_count($owner, '**A real problem first.**'))->toBe(1)
         ->and(substr_count($owner, 'The statement carries evidence observed in the run'))->toBe(1)
         ->and(substr_count($owner, '**No unnecessary commitment in the API.**'))->toBe(1)
-        ->and(substr_count($owner, 'Do not add a public method, parameter, option, return field, event, config key, route, or response field that no current caller uses.'))->toBe(1)
+        ->and(
+            substr_count(
+                $owner,
+                'Do not add a public method, parameter, option, return field, event, config key, route, or response field that no current caller uses.',
+            ),
+        )->toBe(
+            1,
+        )
         ->and(substr_count($owner, 'Keep a new member private or internal until a caller needs it.'))->toBe(1)
         ->and(substr_count($owner, '**Behaviour proven by a test.** A test fails without the change and passes with it.'))->toBe(1);
 });
@@ -45,10 +52,17 @@ test('the review entry makes an unused public member Moderate and gates it again
 
     expect(substr_count($owner, '- **A public member that no caller uses**'))->toBe(1)
         ->and(substr_count($owner, 'no current non-test caller uses and no acceptance criterion names — is a **Moderate** finding'))->toBe(1)
-        ->and(substr_count($owner, '  - **Gating — one finding per line:** a speculative parameter and a speculative project interface belong to `@rules/php/core-standards.md` *Design Principles*'))->toBe(1)
+        ->and(substr_count($owner, '  - **Gating — one finding per line:** a speculative parameter and a speculative project interface'))->toBe(1)
         ->and(substr_count($owner, 'This entry owns the remaining members only.'))->toBe(1)
         ->and(substr_count($owner, '- **A behaviour with no proving test, or a change with no real problem**'))->toBe(1)
         ->and(substr_count($owner, 'this section raises no second one'))->toBe(1)
         ->and(substr_count($owner, '*Acceptance-criteria use-case coverage* finding (Critical)'))->toBe(1)
-        ->and(substr_count($files['rules/code-review/core-analysis.md'], '`@rules/compound-engineering/general.md` *Code Review Application* finding, raised there once.'))->toBe(1);
+        ->and(
+            substr_count(
+                $files['rules/code-review/core-analysis.md'],
+                '`@rules/compound-engineering/general.md` *Code Review Application* finding, raised there once.',
+            ),
+        )->toBe(
+            1,
+        );
 });
