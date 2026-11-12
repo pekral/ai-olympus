@@ -54,7 +54,7 @@ test('one inline security-only check runs before the merge and a Critical findin
         ->and($skill)->toContain('`Blocked: security check not completed — <reason>`')
         ->and($skill)->toContain('Any other exit, and an installed script that differs')
         ->and($skill)->toContain('Only the Moderate and lower findings of a completed check do not block.')
-        ->and(strpos($skill, '### 2. Security check'))->toBeLessThan((int) strpos($skill, '### 5. Merge'));
+        ->and(strpos($skill, '### 2. Security check'))->toBeLessThan((int) strpos($skill, '### 6. Merge'));
 });
 
 test('the gate is green CI on the head commit or a passing quality gate on that exact commit', function (): void {
@@ -77,8 +77,18 @@ test('a Draft is promoted and neither a review nor an approval blocks', function
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
 
     expect($skill)->toContain('When `isDraft` is `true`, run `gh pr ready <URL>`')
-        ->and($skill)->toContain('run `gh pr ready --undo <URL>`')
+        ->and($skill)->toContain('**Every stop after this step that merged nothing returns the pull request to Draft.**')
+        ->and($skill)->toContain('run `gh pr ready --undo <URL>` and report that it was returned to Draft')
         ->and($skill)->toContain('A missing code review and a missing approval do not block.');
+});
+
+test('the merge strategy is read before the Draft is promoted', function (): void {
+    $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
+
+    expect($skill)->toContain('### 4. Read the merge strategy')
+        ->and($skill)->toContain('A failed read or no allowed strategy stops the run, with the pull request still in its original Draft state.')
+        ->and(strpos($skill, 'rebaseMergeAllowed,squashMergeAllowed,mergeCommitAllowed'))->toBeLessThan((int) strpos($skill, '### 5. Promote a Draft'))
+        ->and(strpos($skill, '### 5. Promote a Draft'))->toBeLessThan((int) strpos($skill, '### 6. Merge'));
 });
 
 test('the merge pins the gated head, never uses --admin, and stops when GitHub refuses', function (): void {
@@ -96,7 +106,7 @@ test('the merge pins the gated head, never uses --admin, and stops when GitHub r
 
 test('post-merge deletes a remote branch only for a same-repository head and a local branch only after the integration proof', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
-    $postMerge = substr($skill, (int) strpos($skill, '### 6. Post-merge'));
+    $postMerge = substr($skill, (int) strpos($skill, '### 7. Post-merge'));
 
     expect($skill)->toContain('Apply `@skills/merge-github-pr/SKILL.md` section 5')
         ->and($postMerge)->toContain('`isCrossRepository` is `false`')
@@ -146,6 +156,7 @@ test('the rules name the explicit exception and keep the security floor', functi
         ->and($pullRequests)->toContain('A Critical security finding stops the merge, and so does a check that did not complete.')
         ->and($pullRequests)->toContain('**Nothing else is waived.**')
         ->and($general)->toContain('The merge gate of item 2 has one explicit exception')
+        ->and($general)->toContain('`/merge-github-pr-fast` (Claude Code) or `$merge-github-pr-fast` (Codex)')
         ->and($general)->toContain('The floor items 1, 3, and 4 stay in force on that path.');
 });
 
