@@ -3070,7 +3070,7 @@ test('krang plans parallel batches with the deterministic planner and the single
         expect($read($path))->toContain('run-gate.sh --exclusive --command');
     }
 
-    expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('`ai-olympus-gate.lock` in the common git directory');
+    expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('`ai-olympus-gate.lock` in `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus`');
     expect($read('rules/compound-engineering/backlog.md'))->toContain('**State what can run in parallel.**');
 });
 
