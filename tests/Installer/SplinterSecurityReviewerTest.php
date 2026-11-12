@@ -99,8 +99,15 @@ test('leonardo merges the splinter view under one owner rule and the security ag
         ->and($reviewProcess)->toContain('- **A duplicate becomes one finding.**')
         ->and($reviewProcess)->toContain('Its values are `splinter` (only the `splinter` view raised it), `leonardo`')
         ->and($reviewProcess)->toContain('`Independent security view not run — dispatch splinter`')
-        ->and($reviewProcess)->toContain('- **`Clean: no` is a view that ran.** Merge its findings by the rules above. On a full run they leave the round not converged: return `not converged` and publish nothing (`agents/krang.md` *Parallel CR round* step 3). It never renders the not-run header line.')
-        ->and($reviewProcess)->toContain('Record a `splinter` finding of an earlier round as open only when its cited `file:line` still shows the defect on the current head')
+        ->and($reviewProcess)->toContain(
+            '- **`Clean: no` is a view that ran.** Merge its findings by the rules above. '
+            . 'On a full run they leave the round not converged: return `not converged` and publish nothing '
+            . '(`agents/krang.md` *Parallel CR round* step 3). It never renders the not-run header line.',
+        )
+        ->and($reviewProcess)->toContain(
+            'Record a `splinter` finding of an earlier round'
+            . ' as open only when its cited `file:line` still shows the defect on the current head',
+        )
         ->and(krangContractText())->toContain($owner);
 
     foreach (['skills/code-review/templates/review-output.md', 'skills/code-review-github/templates/pr-comment-output.md'] as $template) {
