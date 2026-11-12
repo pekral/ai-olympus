@@ -130,12 +130,8 @@ run_exclusive() {
     fi
   done
 
-  trap gate_cleanup EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-
   GATE_HOLDER_COMMAND="$(join_commands "$@")"
-  gate_lock_acquire "$timeout" || status=$?
+  gate_lock_enter "$timeout" || status=$?
   case "$status" in
   0) ;;
   6) emit locked 6; return ;;
@@ -202,8 +198,8 @@ run_gate() {
     gate_tier_key "$TIER" >/dev/null || { usage; return 1; }
   fi
   [[ "$actor" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || actor='unknown'
-  timeout="${AI_OLYMPUS_GATE_LOCK_TIMEOUT:-3600}"
-  [[ "$timeout" =~ ^[0-9]{1,6}$ ]] || { echo "$PROG: AI_OLYMPUS_GATE_LOCK_TIMEOUT must be whole seconds" >&2; return 1; }
+  gate_lock_timeout || { echo "$PROG: $GATE_REASON" >&2; return 1; }
+  timeout="$GATE_LOCK_TIMEOUT"
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "$PROG: not a git checkout" >&2
@@ -224,13 +220,9 @@ run_gate() {
   esac
   gate_evidence_dir write || { emit refused 3; return; }
 
-  trap gate_cleanup EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-
   status=0
   GATE_HOLDER_COMMAND="tier $TIER: $(join_commands "${GATE_TIER_COMMANDS[@]}")"
-  gate_lock_acquire "$timeout" || status=$?
+  gate_lock_enter "$timeout" || status=$?
   case "$status" in
   0) ;;
   6) emit locked 6; return ;;

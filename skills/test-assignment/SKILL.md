@@ -76,7 +76,7 @@ metadata:
 
 ### 5. Prove that nothing else broke — `donatello`
 
-- Dispatch `donatello` on the final head for the whole test suite and the project gate (`@skills/resolve-issue/references/quality-gates.md`). Nothing else may use the test databases or the local services during the run.
+- Dispatch `donatello` on the final head for the whole test suite and the project gate (`@skills/resolve-issue/references/quality-gates.md`). Every suite run, the re-run of step 5 included, goes through `skills/_shared/run-gate.sh`. Nothing else may use the test databases or the local services during the run.
   - `fix` mode runs the full gate.
   - `report` mode runs the checkers and the whole suite without the fixers, and leaves the working tree unchanged.
 - Classify every failure once:
