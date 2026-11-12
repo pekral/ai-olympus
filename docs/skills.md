@@ -118,7 +118,7 @@ link to read the skill itself.
 
 | Skill | What it is for |
 |-------|----------------|
-| [`simplification-audit`](../skills/simplification-audit/) | The user explicitly asks for an audit of the codebase or to refactor a part of the codebase |
+| [`simplification-audit`](../skills/simplification-audit/) | The user explicitly asks for an audit of the codebase or to refactor a part of the codebase, and `MODE=cr` over the current diff of every code review |
 | [`class-refactoring`](../skills/class-refactoring/) | Refactor PHP classes to improve structure, readability, and maintainability while preserving behavior |
 | [`refactor-entry-point-to-action`](../skills/refactor-entry-point-to-action/) | Refactoring controller, job, command, listener, or Livewire entry-point logic into a dedicated Action class while preserving behavior and response contracts |
 | [`git-workflow`](../skills/git-workflow/) | Choosing a Git branching strategy or handling merge vs rebase, conflicts, stashing, undoing mistakes, and release tagging |

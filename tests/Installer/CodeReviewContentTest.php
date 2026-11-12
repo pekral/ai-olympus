@@ -4265,7 +4265,7 @@ test('every shipped skill is either in the CR set or classified as deliberately 
     $doubleCovered = array_values(array_intersect($crSet, $classified));
     sort($doubleCovered);
 
-    expect($doubleCovered)->toBe(['create-issue', 'pr-summary', 'process-code-review', 'resolve-issue']);
+    expect($doubleCovered)->toBe(['create-issue', 'pr-summary', 'process-code-review', 'resolve-issue', 'simplification-audit']);
     // One skill, one group - two groups would make the rule below ambiguous for that skill.
     expect(array_diff_assoc($classified, array_unique($classified)))->toBe([]);
 });
