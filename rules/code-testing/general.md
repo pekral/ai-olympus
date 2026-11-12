@@ -115,7 +115,7 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Focus tests on behavior, not implementation details.
 
 ## Execution
-- Run tests in parallel whenever possible (e.g. `php artisan test --parallel` or `pest --parallel`).
+- Run tests in parallel whenever possible (e.g. `php artisan test --parallel` or `pest --parallel`), always through `skills/_shared/run-gate.sh --exclusive --command "<command>"`: the wrapper holds the machine lock, so only one heavy run starts workers at a time.
 
 ## Quality
 - Prefer simple, readable tests over complex setups.

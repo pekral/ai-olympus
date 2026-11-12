@@ -81,7 +81,7 @@ Use these to write a failing test **before** applying the fix, unless the Test H
 
 1. Drop the Faulty Example into a new test case at the layer named in the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.
-3. Apply the Suggested Fix snippet (or the Fix narrative when Suggested Fix is `n/a`); rerun the test until it passes.
+3. Apply the Suggested Fix snippet (or the Fix narrative when Suggested Fix is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
 
 If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing. Suggested Fix may legitimately be `n/a` per the CR rules.
 
@@ -116,7 +116,7 @@ In the single CR comment posted during **PR update**, list every pre-existing se
 - If tests are required or missing:
   - Run @skills/create-missing-tests-in-pr/SKILL.md
 - Ensure current changes have 100% coverage **for the changed files only**, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`). Do not gate on the full-suite coverage percentage during a CR / review loop iteration.
-- Run only relevant tests for changed files
+- Run only relevant tests for changed files, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`
 - If migrations were added, run `php artisan migrate`
 
 ---

@@ -378,10 +378,6 @@ self_test() {
     fi
   }
 
-  calls() {
-    if [[ -f "$GATE_SELFTEST_CALLS" ]]; then grep -c "^$1" "$GATE_SELFTEST_CALLS" || true; else printf '0'; fi
-  }
-
   local project="$tmp/project" code tree record
   gate_selftest_project "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"], \"gate-fresh\": [\"vendor/bin/fresh-ok\"] } } }"
   tree="$(git -C "$project" rev-parse 'HEAD^{tree}')"
@@ -398,7 +394,7 @@ self_test() {
   check 'the evidence directory is 0700 and its files are 0600' \
     "$([[ "$(gate_selftest_mode "$project/.claude/run/gates")" == 700 && "$(gate_selftest_mode "$record")" == 600 && "$(gate_selftest_mode "${record%.json}.log")" == 600 ]] && echo pass)"
   check 'gate-fresh runs after a passing gate and never enters the record' \
-    "$([[ "$(calls fresh-ok)" -eq 1 ]] && ! grep -q fresh "$record" && echo pass)"
+    "$([[ "$(gate_selftest_calls fresh-ok)" -eq 1 ]] && ! grep -q fresh "$record" && echo pass)"
   check 'the lock is released after the run' "$([[ ! -e "$MLOCK" ]] && echo pass)"
 
   # --- The record carries no environment value outside the fingerprint ---------
@@ -415,13 +411,13 @@ self_test() {
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$project" --tier full || code=$?
   check 'a second run on the same tree takes the result over' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 0 && "$(printf "%s" "$OUT" | jq -r .status)" == taken-over && "$(calls fresh-ok)" -eq 1 ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 0 && "$(printf "%s" "$OUT" | jq -r .status)" == taken-over && "$(gate_selftest_calls fresh-ok)" -eq 1 ]] && echo pass)"
 
   gate_selftest_manifest "$project" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\", \"vendor/bin/gate-ok again\"], \"gate-fresh\": [\"vendor/bin/fresh-ok\"] } } }"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$project" --tier full || code=$?
   check 'a record of other commands is not taken over' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && "$(printf "%s" "$OUT" | jq -r .status)" == passed ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 2 && "$(printf "%s" "$OUT" | jq -r .status)" == passed ]] && echo pass)"
 
   # --- Concurrency: one tree, one gate run --------------------------------------
   rm -f "$record"
@@ -437,7 +433,7 @@ self_test() {
   wait "$second" || second_code=$?
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
   check 'concurrent runs on one tree run the gate once' \
-    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$(calls "gate-ok again")" -eq 1 && "$(jq -r .status "$tmp/second.json")" == taken-over ]] && echo pass)"
+    "$([[ "$first_code" -eq 0 && "$second_code" -eq 0 && "$(gate_selftest_calls "gate-ok again")" -eq 1 && "$(jq -r .status "$tmp/second.json")" == taken-over ]] && echo pass)"
 
   # --- The lock -----------------------------------------------------------------
   rm -f "$record"
@@ -446,7 +442,7 @@ self_test() {
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a live lock holder times out without running the gate' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$MLOCK" ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 && -d "$MLOCK" ]] && echo pass)"
 
   local dead
   sh -c 'exit 0' &
@@ -455,7 +451,7 @@ self_test() {
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$dead" "$(gate_now)" "$(date +%s)" >"$MLOCK/holder"
   code=0; run_in "$project" --tier full || code=$?
   check 'a lock left by a dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && ! -e "$MLOCK" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 2 && ! -e "$MLOCK" ]] && echo pass)"
 
   # The probe reads a holder silently: a holder that cannot be read is inconclusive, and the probe prints nothing.
   local probe_dir="$tmp/probe-unread" probe_err probe_code
@@ -478,7 +474,7 @@ self_test() {
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$worktree" --tier full || code=$?
   check 'a live holder in one worktree blocks the gate of another worktree' \
-    "$([[ "$code" -eq 6 && "$(calls span-start)" -eq 0 ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls span-start)" -eq 0 ]] && echo pass)"
   rm -rf "$MLOCK"
 
   : >"$GATE_SELFTEST_CALLS"
@@ -502,7 +498,7 @@ self_test() {
   rm -rf "$worktree/.claude/run/gates"
   code=0; run_in "$worktree" --tier full || code=$?
   check 'a lock left by a dead holder in another worktree is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls span-start)" -eq 1 && ! -e "$MLOCK" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls span-start)" -eq 1 && ! -e "$MLOCK" ]] && echo pass)"
 
   # --- --exclusive serialises a command the manifest does not name ---------------
   local plain="$tmp/plain" plain_worktree="$tmp/plain-worktree"
@@ -514,7 +510,7 @@ self_test() {
 
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok one' --command 'vendor/bin/gate-ok two' || code=$?
   check '--exclusive runs every command in order and releases the lock' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$MLOCK" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$MLOCK" ]] && echo pass)"
 
   : >"$GATE_SELFTEST_CALLS"
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=30
@@ -583,7 +579,7 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check 'a reclaim lock left by a killed waiter is cleared and the dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$reclaim" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 1 && ! -e "$reclaim" ]] && echo pass)"
 
   # A waiter that is stopped, not dead, keeps its reclaim lock however old the directory is.
   mkdir -p "$main_lock" "$reclaim"
@@ -593,7 +589,7 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check 'a reclaim lock with a live holder survives however old it is and the gate times out' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -f "$reclaim/holder" && -d "$main_lock" ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 && -f "$reclaim/holder" && -d "$main_lock" ]] && echo pass)"
   rm -rf "$reclaim"
 
   # The window between the mkdir and the holder file: a fresh empty directory is live.
@@ -601,18 +597,18 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check 'a fresh reclaim directory without a holder file is live and the gate times out' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 && -d "$reclaim" ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 && -d "$reclaim" ]] && echo pass)"
 
   # The same directory past the grace belongs to a waiter killed in that window.
   touch -t 200001010000 "$reclaim"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check 'a reclaim directory without a holder file past the grace is cleared and the dead holder is reclaimed' \
-    "$([[ "$code" -eq 0 && "$(calls gate-ok)" -eq 1 && ! -e "$reclaim" && ! -e "$main_lock" ]] && echo pass)"
+    "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 1 && ! -e "$reclaim" && ! -e "$main_lock" ]] && echo pass)"
 
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-fail' --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive stops at the first failing command with exit 4' \
-    "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 && ! -e "$MLOCK" ]] && echo pass)"
+    "$([[ "$code" -eq 4 && "$(gate_selftest_calls gate-ok)" -eq 0 && ! -e "$MLOCK" ]] && echo pass)"
 
   code=0; run_in "$plain" --exclusive --command 'composer build; touch pwned' || code=$?
   check '--exclusive refuses a chained command and never runs it' "$([[ "$code" -eq 3 && ! -e "$plain/pwned" ]] && echo pass)"
@@ -622,7 +618,7 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$plain_worktree" --exclusive --command 'vendor/bin/gate-ok' || code=$?
   check '--exclusive waits for a live holder and exits 6 past the timeout without running' \
-    "$([[ "$code" -eq 6 && "$(calls gate-ok)" -eq 0 ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls gate-ok)" -eq 0 ]] && echo pass)"
   rm -rf "$MLOCK"
 
   code=0; run_in "$plain" --exclusive || code=$?
@@ -670,7 +666,7 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; (cd "$project" && "$validator" --manifest "$manifest_file" --logs "$tmp/targeted-logs" >"$tmp/targeted.out" 2>/dev/null) || code=$?
   check 'a targeted check behind a live holder exits 6 as locked and runs nothing' \
-    "$([[ "$code" -eq 6 && "$(calls span-start)" -eq 0 && "$(jq -r .status "$tmp/targeted.out")" == locked ]] && echo pass)"
+    "$([[ "$code" -eq 6 && "$(gate_selftest_calls span-start)" -eq 0 && "$(jq -r .status "$tmp/targeted.out")" == locked ]] && echo pass)"
   rm -rf "$MLOCK"
 
   # --- Failures never record a pass -----------------------------------------------
@@ -680,7 +676,7 @@ RECLAIMER
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$failing" --tier full || code=$?
   check 'a failing command fails the gate and records the failure' \
-    "$([[ "$code" -eq 4 && "$(calls gate-ok)" -eq 0 ]] && jq -e ".exit_code == 3 and .commands[0].exit_code == 3" "$failing/.claude/run/gates/$tree.full.json" >/dev/null && echo pass)"
+    "$([[ "$code" -eq 4 && "$(gate_selftest_calls gate-ok)" -eq 0 ]] && jq -e ".exit_code == 3 and .commands[0].exit_code == 3" "$failing/.claude/run/gates/$tree.full.json" >/dev/null && echo pass)"
 
   local dirty="$tmp/dirty"
   gate_selftest_project "$dirty" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-dirty\"] } } }"
@@ -697,7 +693,7 @@ RECLAIMER
   run_in "$unclean" --tier full || full_code=$?
   run_in "$unclean" --tier pr || pr_code=$?
   check 'a dirty tree at the start refuses both tiers and writes nothing' \
-    "$([[ "$full_code" -eq 7 && "$pr_code" -eq 7 && "$(calls gate-ok)" -eq 0 && -z "$(ls -A "$unclean/.claude/run/gates" 2>/dev/null)" ]] && echo pass)"
+    "$([[ "$full_code" -eq 7 && "$pr_code" -eq 7 && "$(gate_selftest_calls gate-ok)" -eq 0 && -z "$(ls -A "$unclean/.claude/run/gates" 2>/dev/null)" ]] && echo pass)"
 
   local interrupted="$tmp/interrupted"
   gate_selftest_project "$interrupted" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-kill\"] } } }"
@@ -712,14 +708,14 @@ RECLAIMER
   gate_selftest_project "$bare" '{ "require": {} }'
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$bare" --tier full || code=$?
-  check 'a missing gate runs nothing' "$([[ "$code" -eq 5 && "$(calls gate-ok)" -eq 0 && ! -e "$bare/.claude/run/gates" ]] && echo pass)"
+  check 'a missing gate runs nothing' "$([[ "$code" -eq 5 && "$(gate_selftest_calls gate-ok)" -eq 0 && ! -e "$bare/.claude/run/gates" ]] && echo pass)"
 
   local legacy="$tmp/legacy"
   gate_selftest_project "$legacy" "{ \"extra\": { \"ai-olympus\": { $base, \"gate\": [\"vendor/bin/gate-ok\"] } } }"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$legacy" --tier full || code=$?
   check 'a manifest with gate alone keeps the built-in path' \
-    "$([[ "$code" -eq 5 && "$(calls gate-ok)" -eq 0 && ! -e "$legacy/.claude/run/gates" ]] && echo pass)"
+    "$([[ "$code" -eq 5 && "$(gate_selftest_calls gate-ok)" -eq 0 && ! -e "$legacy/.claude/run/gates" ]] && echo pass)"
 
   local chained="$tmp/chained"
   gate_selftest_project "$chained" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"composer build; touch pwned\"] } } }"
@@ -738,7 +734,7 @@ RECLAIMER
   gate_selftest_project "$preload" "{ \"extra\": { \"ai-olympus\": { $base, $optin, \"gate\": [\"vendor/bin/gate-ok\"], \"env\": { \"LD_PRELOAD\": \"evil.so\" } } } }"
   : >"$GATE_SELFTEST_CALLS"
   code=0; run_in "$preload" --tier full || code=$?
-  check 'a manifest env that preloads a library runs nothing' "$([[ "$code" -eq 3 && "$(calls gate-ok)" -eq 0 ]] && echo pass)"
+  check 'a manifest env that preloads a library runs nothing' "$([[ "$code" -eq 3 && "$(gate_selftest_calls gate-ok)" -eq 0 ]] && echo pass)"
 
   local evidence value
   # The tilde is a literal payload, never a home directory to expand.

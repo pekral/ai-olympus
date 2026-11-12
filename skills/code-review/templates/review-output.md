@@ -187,8 +187,8 @@ History exposure: not run — the repository is private.  *(render this one body
 
 > Render this section **only** when the coverage gate produced something to report — uncovered changed lines (Critical findings) or unavailable / non-runnable coverage tooling (Critical finding). When every changed line is at 100% coverage and the tool ran successfully, omit the entire `## Coverage` section, the `Coverage:` header line, and the `coverage …` slot in the summary line — the Counts line is the clean signal.
 
-- **Tool:** {the project's coverage command used to verify the changed files, discovered per `@skills/resolve-issue/references/quality-gates.md` (a direct `vendor/bin/pest --coverage-clover` / PHPUnit `--coverage-clover` run only when no source defines one) — or "coverage tooling unavailable — <reason>". Assess the changed files only; do not gate on a project-wide coverage percentage.}
-- **Command:** `<exact command run — e.g. `vendor/bin/pest --coverage-clover=coverage.xml`>`
+- **Tool:** {the project's coverage command used to verify the changed files, discovered per `@skills/resolve-issue/references/quality-gates.md` (a direct `vendor/bin/pest --coverage-clover` / PHPUnit `--coverage-clover` run only when no source defines one, always through `skills/_shared/run-gate.sh --exclusive --command "<command>"`) — or "coverage tooling unavailable — <reason>". Assess the changed files only; do not gate on a project-wide coverage percentage.}
+- **Command:** `<exact command run — e.g. `skills/_shared/run-gate.sh --exclusive --command "vendor/bin/pest --coverage-clover=coverage.xml"`>`
 - **Result:** {list of uncovered added/changed lines — which must also appear as Critical findings — or "coverage tooling unavailable — <reason>"}
 
 ---

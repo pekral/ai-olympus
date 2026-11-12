@@ -39,7 +39,7 @@
 #
 # Output (stdout, JSON)
 #   {
-#     "status": "passed" | "failed" | "invalid",
+#     "status": "passed" | "failed" | "invalid" | "locked",
 #     "head_sha": "abc123",
 #     "checks": { "tests": "passed", "static_analysis": "passed", "lint": "skipped" },
 #     "failures": [ { "category": "tests", "command": "…", "exit_code": 1, "log": "logs/tests.log" } ],

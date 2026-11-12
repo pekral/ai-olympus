@@ -443,7 +443,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
         // Re-baselined: the history exposure lens runs on every review of a public repository and joins the S1 source-lens test (issue #336).
         // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
-        'rules/code-review/general.md' => '6b155e81ba85a74a1d3610f2476394ff3946f1fef02f8d18ef7b69b46ea261e8',
+        // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
+        'rules/code-review/general.md' => '5a8cbd8f3b6986ef36c2fc763a1320733953f0a8f8e56cf29ee7d6ec6b7ae021',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -471,7 +472,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
         // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-testing/general.md' => 'f90abc4ff85b0d985cd6d0b9a5a705c5af5973f187ac155f54747904c8a77c48',
+        'rules/code-testing/general.md' => '8589ff8c3afedd4b8d33be0a49e0dea874769bdfe83f196e850c2964453ab3f0',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
