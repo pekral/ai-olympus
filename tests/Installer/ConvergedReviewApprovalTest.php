@@ -70,7 +70,11 @@ test('an exemption from the code-review gate is not an exemption from the approv
     expect($rule)->toContain('**An exemption from the code-review gate is not an exemption from the approval check.**')
         ->and($rule)->toContain('meets the check only through Source 2')
         ->and($rule)->toContain('verified with the test of the code-review gate above for the current head')
+        ->and($rule)->toContain('A same-repository `FAST`-tier or dependency-only pull request without')
+        ->and($rule)->toContain('A fork exempt pull request needs Source 1.')
+        ->and($skill)->toContain('On a same-repository exempt PR without a GitHub approval')
         ->and($skill)->toContain('report the unmet check as "approval needs a converged code review"')
+        ->and($skill)->toContain('report "approval needs a GitHub approval (fork PR)"')
         ->and(substr_count($exemptions, 'an exemption from the code-review gate is not an exemption from the approval check'))->toBe(2);
 });
 
@@ -80,10 +84,17 @@ test('a converged review approves only a same-repository pull request', function
     $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
 
-    expect($rule)->toContain('The rationale is that self-approval, so it never covers a pull request from a fork.')
+    expect($rule)->toContain(
+        'A head branch in the repository needs push access, which a fork pull request does not have, so the rule never covers a pull request from a fork.',
+    )
+        ->and($rule)->not->toContain('The rationale is that self-approval')
+        ->and($rule)->toContain('counts as the approval of a same-repository pull request when it has no blocking finding')
+        ->and($rule)->toContain('A missing or `null` `isCrossRepository` counts as a cross-repository pull request (fail closed).')
+        ->and($skill)->toContain('A missing or `null` `isCrossRepository` counts as a fork PR (fail closed)')
+        ->and($skill)->toContain('Read `isDraft`, `isCrossRepository`, `mergeable`, `mergeStateStatus`, `reviewDecision`, `reviews[]`')
         ->and($rule)->toContain('Source 2 applies only to a same-repository pull request (`isCrossRepository == false`).')
         ->and($rule)->toContain('A cross-repository (fork) pull request needs Source 1.')
         ->and($skill)->toContain('on a same-repository PR (`isCrossRepository == false`)')
-        ->and($skill)->toContain('A fork PR needs `reviewDecision == "APPROVED"`.')
+        ->and($skill)->toContain('A fork PR needs `reviewDecision == "APPROVED"`.**')
         ->and($readiness)->toContain('A fork PR needs a GitHub approval');
 });
