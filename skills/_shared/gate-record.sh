@@ -31,11 +31,17 @@
 # Where a record lives
 #   <evidence>/<tree>.<tier>.json   the record
 #   <evidence>/<tree>.<tier>.log    the full gate output
-#   <git-common-dir>/ai-olympus-gate.lock/
-#                                   the run lock (an atomic `mkdir`, never flock).
-#                                   It sits in the common git directory, so every
-#                                   worktree of one repository shares it and only
-#                                   one gate runs on the machine at a time.
+#   <machine dir>/ai-olympus-gate.lock/
+#                                   the heavy-command lock (an atomic `mkdir`, never
+#                                   flock). <machine dir> is `$AI_OLYMPUS_LOCK_DIR`, else
+#                                   `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus`. It sits
+#                                   outside every repository, so every project and every
+#                                   worktree of the account shares it and one heavy
+#                                   command runs on the machine at a time. The holder
+#                                   file names the PID, the process start, the wrapper,
+#                                   the project, and the command; `heartbeat` records the
+#                                   last progress of the holder. `gate-lock.sh` reads and
+#                                   repairs it.
 #   <evidence> is the manifest `gate-evidence`, default `.claude/run/gates`. It
 #   must be relative, git-ignored, free of tracked files, and free of symlinks.
 #   A file name is built only from the tree `git rev-parse` returned and the
@@ -57,6 +63,7 @@ GATE_FRESH_RESULTS='[]'
 GATE_FRESH_LOG=''
 GATE_LOCK=''
 GATE_LOCK_HELD=0
+GATE_HEARTBEAT_PID=''
 
 gate_tier_key() {
   case "$1" in
@@ -353,6 +360,11 @@ gate_cleanup() {
   for file in ${GATE_TEMP_FILES[@]+"${GATE_TEMP_FILES[@]}"}; do
     rm -f -- "$file"
   done
+  if [[ -n "$GATE_HEARTBEAT_PID" ]]; then
+    kill "$GATE_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$GATE_HEARTBEAT_PID" 2>/dev/null || true
+    GATE_HEARTBEAT_PID=''
+  fi
   if [[ "$GATE_LOCK_HELD" -eq 1 && -n "$GATE_LOCK" ]]; then
     rm -rf -- "$GATE_LOCK"
     GATE_LOCK_HELD=0
@@ -367,9 +379,39 @@ gate_etime_seconds() {
   printf '%s' $((10#${BASH_REMATCH[2]:-0} * 86400 + 10#${BASH_REMATCH[4]:-0} * 3600 + 10#${BASH_REMATCH[5]} * 60 + 10#${BASH_REMATCH[6]}))
 }
 
-# The holder file of a lock directory: this script's own PID and start time.
+# The start of a process as an epoch, from `ps -o etime=`, which macOS and Linux both print.
+#   returns 1 when ps cannot read the process
+gate_process_start() {
+  local etime elapsed
+  etime="$(ps -o etime= -p "$1" 2>/dev/null || true)"
+  elapsed="$(gate_etime_seconds "$etime")" || return 1
+  printf '%s' $(($(date +%s) - elapsed))
+}
+
+# What the holder file says about the command: the wrapper sets GATE_HOLDER_COMMAND, and a
+# library caller that sets none is named by its program.
+gate_holder_command() {
+  safe_display "${GATE_HOLDER_COMMAND:-$PROG}"
+}
+
+# The holder file of a lock directory: this script's own PID and start time, the process
+# start that lets a repair prove the PID is still this wrapper, the wrapper's name, the
+# project it runs for, and the command it runs. Every value is one printable line.
 gate_holder_text() {
+  local start project
+  start="$(gate_process_start "$$" 2>/dev/null || true)"
+  project="$(safe_display "$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)")"
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(gate_now)" "$(date +%s)"
+  [[ -z "$start" ]] || printf 'PROCESS_START=%s\n' "$start"
+  printf 'WRAPPER=%s\nPROJECT=%s\nCOMMAND=%s\n' "$(safe_display "$PROG")" "$project" "$(gate_holder_command)"
+}
+
+# One field of a holder or heartbeat file, read once and silently. Prints nothing when the file
+# or the field is missing, so a caller treats the value as unknown.
+gate_file_field() {
+  local file="$1" key="$2"
+  [[ -f "$file" && ! -L "$file" ]] || return 0
+  sed -n "/^$key=/{s/^$key=//p;q;}" "$file" 2>/dev/null || true
 }
 
 # The holder of a lock directory (the gate lock unless the caller names another)
@@ -392,6 +434,9 @@ gate_lock_is_stale() {
     [[ "$probe" == *'not permitted'* ]] && return 1
     return 0
   fi
+
+  # A zombie waits only for its parent to reap it; it holds no lock and runs no gate.
+  [[ "$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')" != Z* ]] || return 0
 
   [[ -n "$started" ]] || return 1
   etime="$(ps -o etime= -p "$pid" 2>/dev/null || true)"
@@ -420,58 +465,197 @@ gate_reclaim_is_stale() {
   [[ -n "$(find "$dir" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]
 }
 
-# The one gate lock of the repository: a directory in the common git directory,
-# which a primary checkout and all its worktrees share. Resolved physically, so
-# the path never depends on the directory the caller stands in.
-#   returns 1 when the directory is not a git checkout
-gate_lock_path() {
-  local common
-  common="$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || return 1
-  printf '%s/ai-olympus-gate.lock' "$common"
+# The directory of the machine-wide lock: outside every repository, so every project and every
+# worktree of the account contends on the one lock. `AI_OLYMPUS_LOCK_DIR` (an absolute path) moves
+# it, which is how a self-test keeps its fixtures off the real lock. The directory is created
+# 0700, must be owned by the caller, and is never a symlink.
+#   returns 1 when no usable directory exists
+gate_machine_dir() {
+  local base
+  if [[ -n "${AI_OLYMPUS_LOCK_DIR:-}" ]]; then
+    base="$AI_OLYMPUS_LOCK_DIR"
+  elif [[ -n "${XDG_CACHE_HOME:-}" && "$XDG_CACHE_HOME" == /* ]]; then
+    base="$XDG_CACHE_HOME/ai-olympus"
+  elif [[ -n "${HOME:-}" && "$HOME" == /* ]]; then
+    base="$HOME/.cache/ai-olympus"
+  else
+    return 1
+  fi
+  [[ "$base" == /* && ! -L "$base" ]] || return 1
+  (umask 077 && mkdir -p -- "$base") 2>/dev/null || return 1
+  base="$(cd "$base" 2>/dev/null && pwd -P)" || return 1
+  [[ -O "$base" ]] || return 1
+  printf '%s' "$base"
 }
 
-# Take the gate lock: an atomic `mkdir`, a holder file, and a stale reclaim on
-# confirmed death only (@rules/compound-engineering/concurrency.md). `flock(1)`
-# does not exist on macOS, so it is not used. The lock is shared by every
-# worktree of the repository and by both tiers, and a caller waits for a live
-# holder up to <timeout> seconds.
+# The one heavy-command lock of the machine: `ai-olympus-gate.lock` in the machine directory.
+#   returns 1 when the machine directory is not usable
+gate_lock_path() {
+  local base
+  base="$(gate_machine_dir)" || return 1
+  printf '%s/ai-olympus-gate.lock' "$base"
+}
+
+# Whole seconds from a named environment value; the default when it is unset or malformed.
+gate_seconds_setting() {
+  local value="${!1:-}"
+  if [[ "$value" =~ ^[0-9]{1,6}$ && "$((10#$value))" -ge 1 ]]; then
+    printf '%s' "$((10#$value))"
+  else
+    printf '%s' "$2"
+  fi
+}
+
+# How long a holder may show no progress before it counts as stuck, and how often it reports.
+gate_stuck_after() { gate_seconds_setting AI_OLYMPUS_GATE_STUCK_AFTER 1800; }
+gate_heartbeat_interval() { gate_seconds_setting AI_OLYMPUS_GATE_HEARTBEAT_INTERVAL 30; }
+
+# The descendants of a process, one `<pid> <cpu centiseconds>` line each. The process itself and
+# the subtree of <exclude> are left out, so the heartbeat never counts its own work as progress.
+# `ps -A -o pid=,ppid=,time=` prints the same columns on macOS and Linux; `time` is
+# [[dd-]hh:]mm:ss[.cc].
+gate_descendants() {
+  ps -A -o pid=,ppid=,time= 2>/dev/null | awk -v root="$1" -v ex="${2:-0}" '
+    function centis(t,   d, n, a, i, v, p) {
+      d = 0
+      if (index(t, "-")) { split(t, p, "-"); d = p[1]; t = p[2] }
+      n = split(t, a, ":"); v = 0
+      for (i = 1; i <= n; i++) v = v * 60 + a[i]
+      return (d * 86400 + v) * 100
+    }
+    { pid[NR] = $1; par[NR] = $2; cpu[NR] = centis($3); n = NR }
+    END {
+      inset[root] = 1
+      if (ex > 0) excluded[ex] = 1
+      do {
+        changed = 0
+        for (i = 1; i <= n; i++) {
+          if ((par[i] in excluded) && !(pid[i] in excluded)) { excluded[pid[i]] = 1; changed = 1 }
+          if ((par[i] in inset) && !(pid[i] in inset) && !(pid[i] in excluded)) { inset[pid[i]] = 1; changed = 1 }
+        }
+      } while (changed)
+      for (i = 1; i <= n; i++) if ((pid[i] in inset) && pid[i] != root) printf "%s %.0f\n", pid[i], cpu[i]
+    }'
+}
+
+# What "making progress" means for a holder: the CPU its process tree has used, and the set of
+# processes in the tree. A hung test, or a process waiting on input, changes neither.
+# Prints `<cpu> <signature>`.
+gate_progress_sample() {
+  local tree cpu sig
+  tree="$(gate_descendants "$1" "${2:-0}")"
+  cpu="$(printf '%s\n' "$tree" | awk 'NF { s += $2 } END { printf "%.0f", s + 0 }')"
+  sig="$(printf '%s\n' "$tree" | awk 'NF { print $1 }' | sort -n | cksum | cut -d' ' -f1)"
+  printf '%s %s' "$cpu" "$sig"
+}
+
+# Seconds since the holder last made progress; the heartbeat file records it, and a holder that
+# has not reported yet counts from its own start. Returns 1 when neither is readable.
+gate_heartbeat_age() {
+  local dir="${1:-$GATE_LOCK}" beat
+  beat="$(gate_file_field "$dir/heartbeat" HEARTBEAT_EPOCH)"
+  [[ "$beat" =~ ^[0-9]{1,12}$ ]] || beat="$(gate_file_field "$dir/holder" STARTED_EPOCH)"
+  [[ "$beat" =~ ^[0-9]{1,12}$ ]] || return 1
+  printf '%s' $(($(date +%s) - beat))
+}
+
+# The state of a lock directory:
+#   free      there is no lock
+#   dead      the holder is confirmed dead or its PID was recycled (gate_lock_is_stale)
+#   stuck     the holder is alive, started by a wrapper of this package, and has shown no progress
+#             for longer than gate_stuck_after
+#   held      a live holder; a holder file of an older format has no heartbeat and never counts as stuck
+#   unproven  a lock directory without a readable holder: a run is between its mkdir and its holder
+#             file, or the lock is unreadable. It counts as live.
+gate_lock_state() {
+  local dir="${1:-$GATE_LOCK}" age
+  [[ -d "$dir" ]] || { printf 'free'; return 0; }
+  [[ -f "$dir/holder" && ! -L "$dir/holder" ]] && [[ "$(gate_file_field "$dir/holder" PID)" =~ ^[0-9]{1,7}$ ]] || { printf 'unproven'; return 0; }
+  if gate_lock_is_stale "$dir"; then
+    printf 'dead'
+    return 0
+  fi
+  if [[ "$(gate_file_field "$dir/holder" PROCESS_START)" =~ ^[0-9]{9,12}$ ]] && age="$(gate_heartbeat_age "$dir")" && [[ "$age" -gt "$(gate_stuck_after)" ]]; then
+    printf 'stuck'
+    return 0
+  fi
+  printf 'held'
+}
+
+# One line naming the holder of a lock directory, for the run that waits for it.
+gate_lock_describe() {
+  local dir="${1:-$GATE_LOCK}" holder_file age=''
+  holder_file="$dir/holder"
+  age="$(gate_heartbeat_age "$dir" 2>/dev/null || true)"
+  printf 'PID %s, project %s, command %s, started %s' \
+    "$(gate_file_field "$holder_file" PID)" "$(gate_file_field "$holder_file" PROJECT)" \
+    "$(gate_file_field "$holder_file" COMMAND)" "$(gate_file_field "$holder_file" STARTED)"
+  [[ -z "$age" ]] || printf ', last progress %ss ago' "$age"
+}
+
+# Remove a stale lock directory when this call may. Only one waiter reclaims, and it checks again
+# under the reclaim lock: a waiter that read the dead holder earlier then does not remove the live
+# lock that another waiter has taken in the meantime. The reclaim lock carries its own holder file
+# and is cleared only when that holder is confirmed dead (gate_reclaim_is_stale).
+# One race stays open: mkdir has no compare-and-delete and flock(1) does not exist
+# on macOS. A waiter that probed a dead reclaim directory and stalls before it
+# removes it can remove a newer waiter's live one. Two gates then run at once only
+# when that newer waiter also stalls between its second probe and its removal of
+# the gate lock: the race needs a dead gate holder, a dead reclaimer, and two
+# stalled waiters.
+#   returns 0 when this call took the reclaim lock (the lock may now be gone), 1 otherwise
+gate_lock_reclaim_stale() {
+  if gate_reclaim_is_stale; then
+    rm -rf -- "$GATE_LOCK.reclaim"
+  fi
+  if gate_lock_is_stale && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
+    # No-clobber: when a stall let another waiter clear this directory and take
+    # its own, only the first holder file stands and the other waiter backs off.
+    if (set -C && gate_holder_text >"$GATE_LOCK.reclaim/holder") 2>/dev/null; then
+      if gate_lock_is_stale; then
+        rm -rf -- "$GATE_LOCK"
+      fi
+      rm -rf -- "$GATE_LOCK.reclaim"
+    fi
+    return 0
+  fi
+  return 1
+}
+
+# Take the machine lock: an atomic `mkdir`, a holder file, a heartbeat, and a stale reclaim on
+# confirmed death only (@rules/compound-engineering/concurrency.md). `flock(1)` does not exist on
+# macOS, so it is not used. The lock is shared by every project and worktree of the account and by
+# every heavy command, and a caller waits for a live holder up to <timeout> seconds. While it
+# waits, it says so and names the holder. A holder that shows no progress is reported and never
+# reclaimed here: its process is alive, so only `gate-lock.sh repair` may stop it.
+# A command that a holder started inherits AI_OLYMPUS_LOCK_HELD_BY and runs under that lock
+# instead of waiting for it, so a heavy command that starts another never deadlocks.
 #   returns 6 when a live holder keeps the lock past the timeout
 gate_lock_acquire() {
-  local timeout="$1" waited=0
-  GATE_LOCK="$(gate_lock_path)" || { GATE_REASON='refused: no common git directory to hold the gate lock'; return 3; }
+  local timeout="$1" waited=0 held_by
+  GATE_LOCK="$(gate_lock_path)" || { GATE_REASON='refused: no usable machine lock directory (AI_OLYMPUS_LOCK_DIR, XDG_CACHE_HOME, or HOME)'; return 3; }
   if [[ -L "$GATE_LOCK" ]]; then
     GATE_REASON="refused: $(safe_display "$GATE_LOCK") is a symlink"
     return 3
   fi
 
+  held_by="${AI_OLYMPUS_LOCK_HELD_BY:-}"
+  if [[ "$held_by" =~ ^[0-9]{1,7}$ && "$(gate_file_field "$GATE_LOCK/holder" PID)" == "$held_by" ]] && kill -0 "$held_by" 2>/dev/null; then
+    return 0
+  fi
+
+  GATE_HOLDER_COMMAND="${GATE_HOLDER_COMMAND:-$PROG}"
   until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do
-    # Only one waiter reclaims, and it checks again under the reclaim lock: a waiter
-    # that read the dead holder earlier then does not remove the live lock that another
-    # waiter has taken in the meantime. The reclaim lock carries its own holder file
-    # and is cleared only when that holder is confirmed dead (gate_reclaim_is_stale).
-    # One race stays open: mkdir has no compare-and-delete and flock(1) does not exist
-    # on macOS. A waiter that probed a dead reclaim directory and stalls before it
-    # removes it can remove a newer waiter's live one. Two gates then run at once only
-    # when that newer waiter also stalls between its second probe and its removal of
-    # the gate lock: the race needs a dead gate holder, a dead reclaimer, and two
-    # stalled waiters.
-    if gate_reclaim_is_stale; then
-      rm -rf -- "$GATE_LOCK.reclaim"
-    fi
-    if gate_lock_is_stale && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
-      # No-clobber: when a stall let another waiter clear this directory and take
-      # its own, only the first holder file stands and the other waiter backs off.
-      if (set -C && gate_holder_text >"$GATE_LOCK.reclaim/holder") 2>/dev/null; then
-        if gate_lock_is_stale; then
-          rm -rf -- "$GATE_LOCK"
-        fi
-        rm -rf -- "$GATE_LOCK.reclaim"
-      fi
+    if gate_lock_reclaim_stale; then
       continue
     fi
     if [[ "$waited" -ge "$timeout" ]]; then
-      GATE_REASON="locked: another gate run holds $(safe_display "$GATE_LOCK") — it was not reclaimed because its holder is alive or unproven dead"
+      GATE_REASON="locked: the machine lock is held by $(gate_lock_describe "$GATE_LOCK") — it was not reclaimed because its holder is alive or unproven dead"
+      [[ "$(gate_lock_state "$GATE_LOCK")" != stuck ]] || GATE_REASON="$GATE_REASON; the holder shows no progress — krang repairs it with gate-lock.sh repair"
       return 6
+    fi
+    if [[ $((waited % 60)) -eq 0 ]]; then
+      echo "$PROG: waiting for the machine lock, held by $(gate_lock_describe "$GATE_LOCK")" >&2
     fi
     sleep 1
     waited=$((waited + 1))
@@ -481,7 +665,16 @@ gate_lock_acquire() {
   # This script's own PID: the script, not a per-call subshell, holds the lock
   # for exactly as long as the run lasts.
   gate_holder_text >"$GATE_LOCK/holder"
+  export AI_OLYMPUS_LOCK_HELD_BY="$$"
+  gate_heartbeat_start
   return 0
+}
+
+# Start the progress reporter of the holder. It stays silent, holds none of the caller's
+# descriptors, and ends when the holder does.
+gate_heartbeat_start() {
+  bash "$GATE_LIB_DIR/gate-lock.sh" heartbeat "$$" "$GATE_LOCK" </dev/null >/dev/null 2>&1 &
+  GATE_HEARTBEAT_PID=$!
 }
 
 gate_tree_of() {
@@ -511,6 +704,17 @@ STUB
 echo "span-start" >>"$GATE_SELFTEST_CALLS"
 sleep "${GATE_SELFTEST_SLEEP:-1}"
 echo "span-end" >>"$GATE_SELFTEST_CALLS"
+STUB
+  cat >"$dir/vendor/bin/gate-hang" <<'STUB'
+#!/usr/bin/env bash
+echo "gate-hang" >>"$GATE_SELFTEST_CALLS"
+sleep 300
+STUB
+  cat >"$dir/vendor/bin/gate-busy" <<'STUB'
+#!/usr/bin/env bash
+echo "gate-busy" >>"$GATE_SELFTEST_CALLS"
+end=$((SECONDS + ${GATE_SELFTEST_SLEEP:-5}))
+while [[ "$SECONDS" -lt "$end" ]]; do :; done
 STUB
   cat >"$dir/vendor/bin/gate-fail" <<'STUB'
 #!/usr/bin/env bash
