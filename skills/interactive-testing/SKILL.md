@@ -125,15 +125,15 @@ This section owns how a testing agent removes the test data of a run. Other skil
 Try these mechanisms in order. Stop at the first one that works:
 
 1. **The project's own cleanup mechanism.** Use a seeder, a console command, or a factory teardown that the project documents for test data. Use it only when it removes or restores no more than the record lists. A mechanism that wipes, resets, or truncates the database is never used.
-2. **One scratch script.** Generate one script from the record. It deletes every record the run created and restores every attribute the run changed, in one pass, through the application's own code, run in its console (for example `tinker`).
-3. **The browser.** Delete and restore through the application's UI. Use this only when no script path exists, for example when the console is unavailable or the database cannot be shown to be a development or test database. The report states that the browser fallback ran and why.
+2. **One scratch script.** Generate one script and one JSON file from the record. The script deletes every record the run created and restores every attribute the run changed, in one pass, through the application's own code, run in its console (for example `tinker`).
+3. **The browser.** Delete and restore through the application's UI. Use this when no script path exists or when the script failed, for example when the console is unavailable or the database cannot be shown to be a development or test database. The report states that the browser fallback ran and why.
 
 A scratch script stays inside these limits:
 
-- **Same limits as the data change.** It runs only against a local development or test database that *Missing test data* shows. It uses no database client and no raw SQL statement that writes. It never changes an access attribute, and it never deletes or re-assigns an existing record.
-- **The record decides the scope.** The script names the identifiers from the record and nothing else. It restores an attribute only when the attribute still holds the value this run set, and it reports the others as remaining. Never widen the script after it is generated. A script that fails leaves the rest to the browser fallback.
-- **No side effect.** The script sends no e-mail, calls no external service, and starts no job that the scenario did not authorize.
-- **Outside tracked files.** Write the script to the session's scratch directory or the operating system's temporary directory, never inside the repository. Run it once. Delete it afterwards, also when it failed.
+- **Same limits as the data change.** The script obeys these limits of *Missing test data*: *Local target only*, *The database is shown to be a development or test database*, *Only through the application's code*, *Access stays untouched*, *Restore every change*, and *No unauthorized side effects*.
+- **Values are data, never code.** The script reads the record from the JSON file with `json_decode(file_get_contents(...), true)`. It never writes a value from the record into its own source. Create both files owner-only (for example under `umask 077`) and delete both afterwards, also when the script failed.
+- **The record decides the scope.** The script acts on the identifiers in the record and nothing else. It restores an attribute only when the attribute still holds the value this run set, and it reports the others as remaining. Never widen the script after it is generated. A script that fails leaves the rest to the browser fallback.
+- **Outside tracked files.** Write the script and the JSON file to the session's scratch directory or the operating system's temporary directory, never inside the repository. Run the script once.
 - **Read back.** Read the result of the run. Then read the deleted records and the restored values back through the application's code, and in the UI where they are visible.
 - **Traceable.** Report each deleted record and each restored attribute under **Cleanup**, with the mechanism that ran (project mechanism, scratch script, or browser) and the read-back result.
 

@@ -3157,10 +3157,10 @@ test('the interactive-testing skill closes its own browser tabs and cleans up te
     $auto = (string) file_get_contents($packageDir . '/skills/auto-interactive-testing/SKILL.md');
     $assignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
 
-    $tabsStart = (int) strpos($skill, '## Browser tabs');
-    $tabs = substr($skill, $tabsStart, (int) strpos($skill, '## Scripted cleanup') - $tabsStart);
-    $cleanupStart = (int) strpos($skill, '## Scripted cleanup');
-    $cleanup = substr($skill, $cleanupStart, (int) strpos($skill, '## Execution') - $cleanupStart);
+    $tabs = installerDocsSection($skill, '## Browser tabs');
+    $cleanup = installerDocsSection($skill, '## Scripted cleanup');
+    $missingData = installerDocsSection($skill, '## Missing test data');
+    $raphaelBash = installerDocsSection($raphael, '## Bash boundary');
 
     // Tabs: the run closes only the tabs it opened, on every terminating path, through the browser tool.
     expect($tabs)->toContain('- **Open a tab of your own.**')
@@ -3187,13 +3187,20 @@ test('the interactive-testing skill closes its own browser tabs and cleans up te
         ->toContain('in one pass, through the application\'s own code')
         ->toContain('3. **The browser.**')
         ->toContain('The report states that the browser fallback ran and why.')
-        ->toContain('It uses no database client and no raw SQL statement that writes.')
-        ->toContain('It never changes an access attribute, and it never deletes or re-assigns an existing record.')
+        ->toContain('*Local target only*, *The database is shown to be a development or test database*,')
+        ->toContain('*Only through the application\'s code*, *Access stays untouched*, *Restore every change*,')
+        ->toContain('and *No unauthorized side effects*')
+        ->toContain('- **Values are data, never code.**')
+        ->toContain('`json_decode(file_get_contents(...), true)`')
+        ->toContain('It never writes a value from the record into its own source.')
+        ->toContain('Create both files owner-only (for example under `umask 077`) and delete both afterwards, also when the script failed.')
+        ->toContain('Use this when no script path exists or when the script failed')
         ->toContain('It restores an attribute only when the attribute still holds the value this run set')
         ->toContain('Never widen the script after it is generated.')
-        ->toContain('never inside the repository. Run it once. Delete it afterwards, also when it failed.')
+        ->toContain('never inside the repository. Run the script once.')
         ->toContain('read the deleted records and the restored values back')
         ->toContain('Report each deleted record and each restored attribute under **Cleanup**');
+    expect($cleanup)->not->toContain('Use this only when no script path exists');
     expect($skill)->toContain('Keep the record that *Scripted cleanup* requires as you work.')
         ->toContain('Every browser tab this run opened is closed, and no other tab was closed.');
 
@@ -3201,6 +3208,27 @@ test('the interactive-testing skill closes its own browser tabs and cleans up te
     expect($skill)->toContain(
         'the cleanup mechanism that ran (project mechanism, scratch script, or browser fallback with its reason), the browser tabs this run closed',
     );
+
+    // The limits the script obeys are named in the data-change section and never restated in the script section.
+    $limits = [
+        'Local target only',
+        'The database is shown to be a development or test database',
+        'Only through the application\'s code',
+        'Access stays untouched',
+        'Restore every change',
+        'No unauthorized side effects',
+    ];
+
+    foreach ($limits as $limit) {
+        expect($missingData)->toContain('- **' . $limit . '.**');
+    }
+
+    expect($cleanup)->not->toContain('It uses no database client');
+
+    // The scratch script stays inside the scratch or temporary directory, never in an existing file or a repository.
+    expect($raphaelBash)->toContain('a new file in the session\'s scratch directory or the operating system\'s temporary directory,')
+        ->toContain('never to an existing file and never inside a repository');
+    expect($raphaelBash)->not->toContain('to a path outside the repository');
 
     // Every file that uses the skill references the owner sections and never restates them.
     expect($raphael)->toContain('`@skills/interactive-testing/SKILL.md` *Browser tabs*')
