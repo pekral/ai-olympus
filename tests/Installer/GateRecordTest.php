@@ -27,7 +27,7 @@ function gateExecutableCode(string $name): string
 }
 
 test('the gate scripts run every command as argv, never through a shell, and never flock', function (): void {
-    foreach (['run-gate.sh', 'verify-gate.sh', 'gate-record.sh', 'project-commands.sh'] as $name) {
+    foreach (['run-gate.sh', 'verify-gate.sh', 'gate-record.sh', 'gate-lock.sh', 'project-commands.sh'] as $name) {
         $code = gateExecutableCode($name);
 
         expect($code)->not->toContain('eval ');
@@ -50,10 +50,13 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     expect($record)->toContain('mkdir -- "$GATE_LOCK.reclaim"');
     expect($record)->toContain('ps -o etime= -p "$pid"');
 
-    // One gate on the whole machine: the lock sits in the common git directory, which a primary
-    // checkout and every worktree of it share, never inside a per-worktree evidence directory.
-    expect($record)->toContain('git rev-parse --git-common-dir');
+    // One heavy command on the whole machine: the lock sits in a machine directory outside every
+    // repository, which every project and worktree of the account share, never in a git directory or
+    // a per-worktree evidence directory.
+    expect($record)->toContain('base="$HOME/.cache/ai-olympus"');
+    expect($record)->toContain('AI_OLYMPUS_LOCK_DIR');
     expect($record)->toContain('printf \'%s/ai-olympus-gate.lock\'');
+    expect($record)->not->toContain('git rev-parse --git-common-dir');
     expect($record)->not->toContain('GATE_LOCK="$GATE_EVIDENCE/gate.lock"');
     expect(gateExecutableCode('run-gate.sh'))->toContain('run_command "$command" /dev/stderr');
     expect(gateScript('run-gate.sh'))->toContain('AI_OLYMPUS_GATE_LOCK_TIMEOUT');
@@ -92,6 +95,9 @@ test('run-gate self-test covers the record, the lock, concurrency, and every ref
         '--exclusive waits for a live holder and exits 6 past the timeout without running',
         '--exclusive without a command is a usage error',
         '--exclusive together with --tier is a usage error',
+        'two different projects share one lock and never overlap',
+        'a targeted check waits for a running gate of another project',
+        'a targeted check behind a live holder exits 6 as locked and runs nothing',
         'a failing command fails the gate and records the failure',
         'a gate that changes the tree during the run never records a pass',
         'a dirty tree at the start refuses both tiers and writes nothing',
@@ -335,4 +341,105 @@ test('the commands of an exclusive run come only from trusted sources and the he
     expect(gateScript('run-gate.sh'))->toContain('#   Provenance: every --command comes only from the gate discovery order');
     expect(gateScript('run-gate.sh'))->not->toContain('It never derives a command from the working tree. Every command');
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/skills/resolve-issue/references/quality-gates.md'))->toContain($provenance);
+});
+
+test('gate-lock self-test covers the heartbeat, the stuck holder, and the processes it may stop', function (): void {
+    $lock = gateScript('gate-lock.sh');
+
+    foreach ([
+        'status reports no lock as free',
+        'status names the holder: PID, project, command, start',
+        'a holder that keeps using CPU stays held past the stuck limit',
+        'repair leaves a holder that makes progress running',
+        'a holder with a stale heartbeat is stuck and status exits 11',
+        'a run of another project waits, names the holder, and exits 6 without running',
+        'repair without an audit ledger refuses and stops nothing',
+        'repair stops the process tree of a stuck holder and releases the lock',
+        'repair records the stop in the audit ledger',
+        'status reports a dead holder and exits 10',
+        'a dead holder is reclaimed, nothing is stopped, and the ledger names it',
+        'a holder that exited and was never reaped reads as dead',
+        'repair refuses to stop a process the wrapper did not start and keeps the lock',
+        'a recorded start time that differs from the live process is refused',
+        'a holder file without a process start is held and never stuck',
+        'repair leaves a holder of an older format alone',
+        'a heavy command started by the holder runs under its lock and does not wait for it',
+        'a held-by claim that names another process still waits for the lock',
+    ] as $label) {
+        expect(substr_count($lock, '\'' . $label . '\''))->toBe(1);
+    }
+
+    // The proof that a process is a wrapper this package started, before anything is stopped.
+    expect($lock)->toContain('[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh ]] || return 1');
+    expect($lock)->toContain('command="$(ps -o command= -p "$pid" 2>/dev/null || true)"');
+    expect($lock)->toContain('actual="$(gate_process_start "$pid")" || return 1');
+    // SIGKILL reaches only a process whose start time still equals the recorded one.
+    expect($lock)->toContain('kill -KILL "$pid"');
+    expect($lock)->not->toContain('pkill');
+    expect($lock)->not->toContain('killall');
+    expect(gateScript('gate-record.sh'))->toContain('bash "$GATE_LIB_DIR/gate-lock.sh" heartbeat "$$" "$GATE_LOCK"');
+});
+
+test('every heavy command runs under the machine lock and the rules name the wrapper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+    $wrapper = 'skills/_shared/run-gate.sh --exclusive --command "<command>"';
+
+    // run-validation.sh takes the lock itself, and run-gate.sh --exclusive covers the rest.
+    expect($read('skills/_shared/run-validation.sh'))
+        ->toContain('gate_lock_acquire "$lock_timeout"')
+        ->toContain('emit locked false "$GATE_REASON"');
+    expect($read('skills/_shared/gate-record.sh'))->toContain('AI_OLYMPUS_LOCK_HELD_BY');
+
+    $qualityGates = $read('skills/resolve-issue/references/quality-gates.md');
+    expect($qualityGates)
+        ->toContain('### Targeted checks take the machine lock too')
+        ->toContain('### A stuck lock — heartbeat and repair')
+        ->toContain('`${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus`');
+
+    foreach ([
+        'agents/donatello.md',
+        'rules/code-testing/general.md',
+        'rules/php/core-standards.md',
+        'rules/code-review/review-process.md',
+        'skills/resolve-issue/references/pre-pr-self-check.md',
+        'skills/git-workflow/SKILL.md',
+        'skills/class-refactoring/SKILL.md',
+        'skills/refactor-entry-point-to-action/SKILL.md',
+        'skills/test-audit/SKILL.md',
+        'skills/test-audit/references/audit-report.md',
+    ] as $path) {
+        expect($read($path))->toContain('run-gate.sh --exclusive --command');
+    }
+    expect($read('skills/resolve-issue/SKILL.md'))->toContain('Use `run-gate.sh --exclusive`.');
+    expect($read('agents/donatello.md'))->not->toContain('does not need it');
+    expect($read('rules/compound-engineering/concurrency.md'))->not->toContain('do not need it');
+    expect($wrapper)->toContain('--exclusive');
+});
+
+test('krang checks the machine lock and repairs it only through gate-lock.sh', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+    $krang = $read('agents/krang.md');
+    $reference = $read('skills/_shared/orchestration/stale-lock-repair.md');
+
+    expect($krang)
+        ->toContain('load `skills/_shared/orchestration/stale-lock-repair.md` and check the machine lock')
+        ->toContain('run `skills/_shared/gate-lock.sh status|repair`');
+    expect($reference)
+        ->toContain('skills/_shared/gate-lock.sh status')
+        ->toContain('skills/_shared/gate-lock.sh repair --audit')
+        ->toContain('never run `kill` or `pkill`')
+        ->toContain('Blocked: the machine lock is held by a process this package did not start')
+        ->toContain('never a pipe stage');
+
+    $concurrency = $read('rules/compound-engineering/concurrency.md');
+    expect($concurrency)
+        ->toContain('It never stops a process the wrapper did not start.')
+        ->toContain('`krang` first checks it and repairs a dead or stuck holder');
+
+    // Both platforms get the helper: the Codex agents list it beside the other orchestration helpers.
+    foreach (glob($packageDir . '/codex/agents/*.toml') ?: [] as $toml) {
+        expect((string) file_get_contents($toml))->toContain('`verify-gate.sh`, `gate-lock.sh`, `gate-context.sh`');
+    }
 });
