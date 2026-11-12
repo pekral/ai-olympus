@@ -17,12 +17,19 @@
 #
 # Usage
 #   check-handoff.sh --file <path|-> --role <implementation|review|validation|acceptance|reporting>
-#                    [--budget <words>]
+#                    [--budget <words>] [--audit-file <path> [--audit-branch <branch>] [--audit-pr <N|URL>]]
 #   check-handoff.sh --self-test
 #
 #   --budget  soft budget in prose-equivalent words (default 600, roughly
 #             800 tokens). Exceeding it is an error, because a budget nothing
 #             enforces is a comment.
+#   --audit-file  the run's audit trail (`.claude/run/<source-slug>.audit`). The
+#             hand-off is then also checked against the ledger through
+#             `audit-trail.sh verify`: a malformed line, a remote head of
+#             --audit-branch that no `external-write` line names, or a pull
+#             request (--audit-pr) with no line is a problem. The agent sees it
+#             before the code review does. Without --audit-file the ledger is not
+#             checked.
 #
 # Schemas (required keys per role)
 #   implementation  status, sha, changed_files, validation, next
@@ -49,6 +56,7 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: check-handoff.sh --file <path|-> --role <role> [--budget <words>]
+                        [--audit-file <path> [--audit-branch <branch>] [--audit-pr <N|URL>]]
        check-handoff.sh --self-test
 
 Roles: implementation, review, validation, acceptance, reporting.
@@ -80,7 +88,7 @@ required_keys_for() {
 }
 
 check() {
-  local file_arg="" role="" budget="$DEFAULT_BUDGET"
+  local file_arg="" role="" budget="$DEFAULT_BUDGET" audit_file="" audit_branch="" audit_pr=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -97,6 +105,21 @@ check() {
     --budget)
       [[ $# -ge 2 ]] || { usage; return 1; }
       budget="$2"
+      shift 2
+      ;;
+    --audit-file)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      audit_file="$2"
+      shift 2
+      ;;
+    --audit-branch)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      audit_branch="$2"
+      shift 2
+      ;;
+    --audit-pr)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      audit_pr="$2"
       shift 2
       ;;
     *)
@@ -168,6 +191,20 @@ check() {
   words="$(printf '%s' "$body" | jq -r '[ .. | strings ] | join(" ")' 2>/dev/null | wc -w | tr -d ' ')"
   if [[ "$words" -gt "$budget" ]]; then
     problems+=("handoff carries $words prose words, over the budget of $budget — move evidence to an artifact and reference it")
+  fi
+
+  # --- Audit trail -----------------------------------------------------------
+  if [[ -n "$audit_file" ]]; then
+    local -a audit_args=(verify --file "$audit_file")
+    [[ -z "$audit_branch" ]] || audit_args+=(--branch "$audit_branch")
+    [[ -z "$audit_pr" ]] || audit_args+=(--pr "$audit_pr")
+    local audit_out audit_line
+    audit_out="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/audit-trail.sh" "${audit_args[@]}" 2>&1 || true)"
+    while IFS= read -r audit_line; do
+      case "$audit_line" in
+      'problem: '*) problems+=("audit trail: ${audit_line#problem: }") ;;
+      esac
+    done <<<"$audit_out"
   fi
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
@@ -287,6 +324,33 @@ self_test() {
     printf 'ok    %-54s exit 3\n' 'an inlined diff larger than a pipe is rejected'
   else
     printf 'FAIL  %-54s expected exit 3, got %s\n' 'an inlined diff larger than a pipe is rejected' "$large" >&2
+    failures=$((failures + 1))
+  fi
+
+  # The audit trail is checked before the code review sees it: a malformed ledger line is a
+  # problem of the hand-off, and a well-formed ledger is not.
+  printf 'donatello|2026-11-11T10:00:00Z|external-write|git push origin feature|ok\n' >"$tmp/good.audit"
+  printf '2026-11-11T10:00:00Z|donatello|external-write|git push origin feature|ok\n' >"$tmp/bad.audit"
+  printf '%s' "$IMPL" >"$tmp/impl.json"
+  local audit_rc
+  set +e
+  "$script" --file "$tmp/impl.json" --role implementation --audit-file "$tmp/good.audit" >/dev/null 2>&1
+  audit_rc=$?
+  set -e
+  if [[ "$audit_rc" -eq 0 ]]; then
+    printf 'ok    %-54s exit 0\n' 'a well-formed audit trail is accepted'
+  else
+    printf 'FAIL  %-54s expected exit 0, got %s\n' 'a well-formed audit trail is accepted' "$audit_rc" >&2
+    failures=$((failures + 1))
+  fi
+  set +e
+  "$script" --file "$tmp/impl.json" --role implementation --audit-file "$tmp/bad.audit" >"$tmp/audit.out" 2>&1
+  audit_rc=$?
+  set -e
+  if [[ "$audit_rc" -eq 3 ]] && grep -q 'audit trail: line 1 starts with a time' "$tmp/audit.out"; then
+    printf 'ok    %-54s exit 3\n' 'a malformed audit trail line is a handoff problem'
+  else
+    printf 'FAIL  %-54s expected exit 3 naming line 1, got %s\n' 'a malformed audit trail line is a handoff problem' "$audit_rc" >&2
     failures=$((failures + 1))
   fi
 
