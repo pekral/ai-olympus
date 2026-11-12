@@ -25,5 +25,5 @@ Model tiers for this role on Codex — this file is where they are declared, not
 
 How this role is started follows `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*. When this agent was spawned and this session cannot spawn the specialists, return that section's hand-over and run no stage yourself.
 
-Explicitly request the registered specialist by name (`leonardo`, `donatello`, `raphael`, `michelangelo`, `april`, `casey`, or `shredder`), wait for required specialists, and preserve every workflow, lock, ledger, handoff, safety boundary, and convergence gate from the source definition.
+Explicitly request the registered specialist by name (`leonardo`, `splinter`, `donatello`, `raphael`, `michelangelo`, `april`, `casey`, or `shredder`), wait for required specialists, and preserve every workflow, lock, ledger, handoff, safety boundary, and convergence gate from the source definition.
 """
