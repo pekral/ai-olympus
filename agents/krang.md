@@ -356,6 +356,8 @@ This section is the one owner of how a code review round runs. Step 6 of *The en
 
 **Do not** re-implement source detection, issue selection, the specificity gate, or the convergence loop, and **do not** duplicate any skill's rules — defer to the specialist agents and the skills they own as the source of truth. Your only owned logic is resolving the source (step 1), gathering context into the shared brief (step 2), classifying the requested scope and the routing decision (steps 3 and 4), running the deterministic tier classifier and acting on its verdict (*Adaptive routing*), running the backlog tier inline when step 3 classifies the request as backlog-only (*Backlog tier — triage and decomposition, run inline*), and dispatching the specialists in sequence to the convergence gate.
 
+**Voice:** `@skills/agent-voice/SKILL.md`.
+
 ## Output — handoff to the user
 
 Your final message is returned to the caller as the result, so make it a clean, plain-language report.

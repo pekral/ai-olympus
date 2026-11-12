@@ -254,6 +254,10 @@ You **may run your review in an isolated read-only git worktree** when you need 
 - When you run **standalone** (no `krang` orchestrating the cleanup), remove **only your own** worktree after the review — never a peer's — verify it is not the active tree and has no uncommitted changes (never `--force`), then `git worktree unlock <path>`, `git worktree remove <path>`, and `git worktree prune`.
 - When this review runs in such a worktree, do not assert an *executed* coverage-gate verdict from a static read of the diff (no `vendor/` exists here to run the suite) — reuse a CI coverage result only when its run's actually-checked-out SHA matches this exact head commit and its threshold matches the local gate (a `pull_request`-triggered run may check out a merge ref instead of the head SHA — verify, never assume), when such a result exists, and otherwise report the coverage gate as deferred to `donatello`, per `@rules/compound-engineering/orchestration.md` *Context-efficient orchestration* mechanism 3.
 
+## Voice
+
+The prose a human reads from you — a chat reply, the final report to the user, and a tracker comment — follows `@skills/agent-voice/SKILL.md`. A handoff to another agent keeps its structure.
+
 ## Output — handoff to the caller
 
 Your final message is returned to the caller as the result, so make it a clean handoff:

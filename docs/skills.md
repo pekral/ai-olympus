@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 67 skills this package ships, grouped by what you reach for them for. Each description is the
+All 68 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -15,7 +15,7 @@ link to read the skill itself.
 | [Testing](#testing) | 10 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
-| [Content & writing](#content--writing) | 1 |
+| [Content & writing](#content--writing) | 2 |
 | [Infrastructure & performance](#infrastructure--performance) | 3 |
 | [Refactoring & code quality](#refactoring--code-quality) | 6 |
 | [Analysis & planning](#analysis--planning) | 5 |
@@ -105,6 +105,7 @@ link to read the skill itself.
 
 | Skill | What it is for |
 |-------|----------------|
+| [`agent-voice`](../skills/agent-voice/) | Writing prose a human reads — a chat reply, the final report, or a tracker comment — in the selected voice (`relaxed` by default, or `technical`) |
 | [`web-article-writer`](../skills/web-article-writer/) | Writing, rewriting, or adapting a publication-ready article for a website or blog |
 
 ## Infrastructure & performance
