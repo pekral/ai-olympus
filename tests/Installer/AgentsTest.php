@@ -3201,8 +3201,8 @@ test('the interactive-testing skill closes its own browser tabs and cleans up te
         ->toContain('read the deleted records back through the application\'s code, and in the UI where they are visible.')
         ->toContain('Report each deleted record and each restored attribute under **Cleanup**');
     expect($cleanup)->not->toContain('Use this only when no script path exists');
-    expect($cleanup)->not->toContain('It restores an attribute only when the attribute still holds the value this run set')
-        ->not->toContain('and the restored values back');
+    expect($cleanup)->not->toContain('It restores an attribute only when the attribute still holds the value this run set');
+    expect($cleanup)->not->toContain('and the restored values back');
     expect($skill)->toContain('Keep the record that *Scripted cleanup* requires as you work.')
         ->toContain('Every browser tab this run opened is closed, and no other tab was closed.');
 
