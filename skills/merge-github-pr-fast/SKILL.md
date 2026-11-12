@@ -100,7 +100,7 @@ Write the report in the language of the user's request. Identifiers stay verbati
    - converged code review on the final diff (0 Critical, no undeferred Moderate), replaced by the security check in step 2;
    - delegated security coverage verification, replaced by the same check;
    - not a Draft;
-   - `reviewDecision == "APPROVED"`;
+   - the approval check of `@rules/git/pull-requests.md` *Merging*;
    - branch up to date (`mergeStateStatus != "BEHIND"`);
    - open merge decisions;
    - the pre-merge quality gate on the head, replaced by the gate of step 3;

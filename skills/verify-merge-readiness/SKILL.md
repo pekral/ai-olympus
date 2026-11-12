@@ -205,7 +205,8 @@ The PR is merge-ready only when all of these hold at the same head:
 - the newest applicable review is converged and matches the effective diff fingerprint;
 - the exact-head project quality gate is green;
 - required CI checks are green or explicitly absent;
-- the PR is non-Draft, mergeable, and neither `BEHIND` nor `DIRTY`.
+- the PR is non-Draft, mergeable, and neither `BEHIND` nor `DIRTY`;
+- `reviewDecision` is not `CHANGES_REQUESTED`. A GitHub approval is not required: the converged review meets the approval check (`@rules/git/pull-requests.md` *Merging*).
 
 Promote the PR out of Draft and label it `ready to merge` only through
 `@skills/process-code-review/SKILL.md`. Never change the status of the source tracker item. Stop here with `Blocked` when any item fails. Never weaken a
