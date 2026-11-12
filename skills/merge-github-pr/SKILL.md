@@ -12,6 +12,7 @@ metadata:
 - Never merge PRs with conflicts
 - Never merge PRs with failing CI — the only sanctioned relaxation is the *GitHub Actions billing exception* below; no other explicit instruction, including "merge anytime", overrides a real CI failure
 - Never bypass required approvals or protections
+- This skill never hands a merge to `@skills/merge-github-pr-fast/SKILL.md`. That skill is the user's own explicit `/merge-github-pr-fast` command (`@rules/git/pull-requests.md` *Fast hotfix merge — an explicit, owner-invoked exception*), and no caller of this skill chooses it
 - Every merge holds a **passing** full quality-gate run on the exact head commit being merged (*Pre-merge quality gate*) — accepted from the run recorded by `@skills/process-code-review/SKILL.md` *Finalization* for those exact bytes, carried forward from an earlier head after a rebase that only moved the base (`@skills/resolve-issue/references/quality-gates.md` *Rebase that moves the head — analyse the incoming changes first*, with CI green on the merged head), or executed here; a merge never proceeds without one
 - The only tolerated CI failure is a **GitHub Actions billing / account-limit error**, and only because that same gate run stands in for the missing CI signal. An explicit "merge anytime" request waives waiting for **CI**, never the gate (see *GitHub Actions billing exception* below). Any other failure — real test failure, lint, static analysis — still blocks.
 

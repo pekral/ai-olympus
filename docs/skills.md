@@ -9,7 +9,7 @@ link to read the skill itself.
 
 | Group | Skills |
 |---|---|
-| [Issue → PR workflow](#issue--pr-workflow) | 11 |
+| [Issue → PR workflow](#issue--pr-workflow) | 12 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 6 |
 | [Testing](#testing) | 10 |
@@ -30,6 +30,7 @@ link to read the skill itself.
 | [`verify-merge-readiness`](../skills/verify-merge-readiness/) | A GitHub issue, a GitHub pull request, or a JIRA issue must have its pull request brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
 | [`process-code-review`](../skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](../skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
+| [`merge-github-pr-fast`](../skills/merge-github-pr-fast/) | Land a hotfix pull request now, only on the user's explicit `/merge-github-pr-fast`: one security-only check of the diff, then green CI or a passing gate on the head commit |
 | [`pr-summary`](../skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`create-issue`](../skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
