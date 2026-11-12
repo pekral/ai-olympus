@@ -6,7 +6,7 @@ Every sentence this skill authors into the rendered comment — the `What change
 
 - **Drop** filler words (just / really / basically / actually / simply and their assignment-language equivalents), pleasantries, hedging, and self-congratulation.
 - **Keep** all technical substance — only fluff goes. Prefer short synonyms ("fix", not "implement a solution for").
-- **Sentence shape is `@rules/writing/general.md`'s, not this section's.** Terseness removes ideas per sentence and removes filler; it never removes a word the sentence needs. Keep articles, prepositions, and relative pronouns — telegraphic fragments are not terse, only shorter.
+- **Sentence shape is `@skills/agent-voice/SKILL.md`'s, not this section's.** Terseness removes ideas per sentence and removes filler; it never removes a word the sentence needs. Keep articles, prepositions, and relative pronouns — telegraphic fragments are not terse, only shorter.
 - **Abbreviations:** standard well-known acronyms are fine (DB, API, HTTP); never invent new abbreviations (cfg / impl / req) — they save nothing and cost clarity.
 - **No decoration:** no decorative tables, no decorative emoji, no causal arrows (→) in authored prose.
 - **Verbatim always:** technical terms, code identifiers, toggle names, values, URLs, and commands.

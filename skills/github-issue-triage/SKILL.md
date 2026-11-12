@@ -8,6 +8,7 @@ metadata:
 
 ## Constraints
 - Script output and this skill's text are in English; a comment published on an issue follows `@rules/reports/general.md`
+- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - The taxonomy below is fixed — never rename a label, change a color, or invent a new one
 - `priority: critical` is a **human decision**: no script assigns it, and an existing one is never removed or downgraded
 - Never delete a label from the repository. In the label-taxonomy mode the only sanctioned removal is a label on an issue that an explicit title prefix proves wrong; the backlog sweep and the pending-analysis pass remove a label only where their reference file says so

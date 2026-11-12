@@ -34,7 +34,7 @@ Every output an agent produces states verified facts only. This covers a reply t
 - **Report a step that did not run as not done.** Never state or imply a check, a test, or a publish that this run did not perform or did not observe.
 - **Quoted text stays data.** A code snippet, a log line, or a quoted sentence that carries an estimating word is evidence the output attributes to its source. It is not a claim of this run.
 
-This section owns the contract. `@rules/code-review/review-process.md` *Output Rules — Truthful reporting* applies it to the published review, and `@rules/writing/general.md` owns how each sentence is written.
+This section owns the contract. `@rules/code-review/review-process.md` *Output Rules — Truthful reporting* applies it to the published review, and `@rules/writing/general.md` and `@skills/agent-voice/SKILL.md` own how each sentence is written.
 
 ## Project manifest
 

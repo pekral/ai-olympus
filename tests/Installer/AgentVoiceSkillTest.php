@@ -34,8 +34,10 @@ test('the skill ships with both voices and the selection order', function (): vo
     expect($skill)->toContain("name: agent-voice\n")
         ->and($skill)->toContain('### `relaxed` (default)')
         ->and($skill)->toContain('### `technical`')
-        ->and($skill)->toContain('When the user instructed a voice in this session, use that voice.')
+        ->and($skill)->toContain('When the shared brief has a `## Voice` field, or the dispatch prompt names a voice, use that voice.')
+        ->and($skill)->toContain('Otherwise, when the user instructed a voice in this session, use that voice.')
         ->and($skill)->toContain('The instruction overrides the manifest')
+        ->and($skill)->toContain('as `## Voice` in the shared brief and names it in every dispatch prompt')
         ->and($skill)->toContain('skills/agent-voice/scripts/resolve-voice.sh')
         ->and($skill)->toContain('`@rules/writing/general.md`')
         ->and($skill)->toContain('*Verified statements only* unchanged in every voice');
@@ -98,6 +100,14 @@ test('every skill that publishes a human-read tracker comment applies the voice'
         'skills/verify-merge-readiness/SKILL.md',
         'skills/process-code-review/references/answering-reviewer-questions.md',
         'skills/code-review/SKILL.md',
+        'skills/resolve-issue/SKILL.md',
+        'skills/tester-cookbook/SKILL.md',
+        'skills/github-issue-triage/SKILL.md',
+        'skills/github-issue-triage/references/pending-analysis.md',
+        'skills/github-issue-triage/references/backlog-sweep.md',
+        'skills/analyze-problem/SKILL.md',
+        'skills/_shared/orchestration/proposal-review.md',
+        'skills/code-review/references/feedback-loop.md',
     ];
 
     foreach ($publishers as $path) {
@@ -113,9 +123,56 @@ test('every skill that publishes a human-read tracker comment applies the voice'
 test('the reports rule keeps its markers and language rules and hands the prose to the voice', function (): void {
     $reports = agentVoiceSource('rules/reports/general.md');
 
-    expect($reports)->toContain('`@skills/agent-voice/SKILL.md` selects')
+    expect($reports)->toContain('**This rule picks the language and the length limits; `@skills/agent-voice/SKILL.md` shapes the sentences.**')
+        ->and($reports)->not->toContain('`@rules/writing/general.md` shapes the sentences')
+        ->and($reports)->toContain('the prose of the report takes the voice that skill selects')
         ->and($reports)->toContain('The voice governs the prose only: every marker, heading, field, finding identifier,')
         ->and($reports)->toContain('severity label, and link this rule requires stays.');
+});
+
+test('no line still hands the prose of a human-read tracker comment to the writing rule', function (): void {
+    $stale = [
+        'rules/reports/general.md' => ['`@rules/writing/general.md` shapes the sentences', 'and `@rules/writing/general.md` still shapes the sentences'],
+        'rules/writing/general.md' => ['a report first takes its language', 'a Czech report written in bloated prose', 'a Czech report follows'],
+        'rules/code-review/general.md' => ['Apply `@rules/writing/general.md` inside this shape'],
+        'skills/pr-summary/SKILL.md' => ['Apply @rules/writing/general.md', '`@rules/writing/general.md` decides the shape'],
+        'skills/pr-summary/references/terse-output-style.md' => ['`@rules/writing/general.md`'],
+        'skills/analyze-support-issue/SKILL.md' => ['`@rules/writing/general.md`'],
+        'skills/auto-interactive-testing/SKILL.md' => ['`@rules/writing/general.md`'],
+    ];
+
+    foreach ($stale as $path => $phrases) {
+        $content = agentVoiceSource($path);
+
+        foreach ($phrases as $phrase) {
+            expect($content)->not->toContain($phrase);
+        }
+    }
+
+    expect(agentVoiceSource('rules/writing/general.md'))
+        ->toContain('The prose of a tracker comment takes its sentence style from `@skills/agent-voice/SKILL.md` instead.')
+        ->and(agentVoiceSource('skills/pr-summary/SKILL.md'))
+        ->toContain('The length of the report follows *Length follows the facts* below and `@rules/reports/general.md`.')
+        ->and(agentVoiceSource('skills/deliver-page-redesign/SKILL.md'))->toContain('`@skills/agent-voice/SKILL.md`');
+});
+
+test('the voice reaches a dispatched agent through the brief and the resolver sits in a Bash boundary', function (): void {
+    $krang = agentVoiceSource('agents/krang.md');
+
+    expect($krang)->toContain('## Voice             <relaxed/technical>')
+        ->and($krang)->toContain('Record `## Voice` in the brief and name it in every dispatch prompt.')
+        ->and($krang)->toContain('`skills/agent-voice/scripts/resolve-voice.sh` (the voice name; reads the manifest, writes nothing)');
+
+    foreach (agentVoiceGlob('agents/*.md') as $path) {
+        expect((string) file_get_contents($path))->toContain('skills/agent-voice/scripts/resolve-voice.sh');
+    }
+});
+
+test('the relaxed example claims no recovery that nothing verified', function (): void {
+    $skill = agentVoiceSource('skills/agent-voice/SKILL.md');
+
+    expect($skill)->not->toContain('dá spravit')
+        ->and($skill)->toContain('V klidu, to se stává každému. Nejdřív se podívám');
 });
 
 test('the manifest table documents the voice key and the fallback', function (): void {

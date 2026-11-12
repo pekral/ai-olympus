@@ -11,6 +11,7 @@ metadata:
 - Apply `@rules/git/general.md`
 - Apply `@rules/jira/general.md` — compose with the supported intermediate source and publish real ADF through the canonical helper
 - Apply `@rules/reports/general.md` — the cookbook JIRA comment must be written in the language of the JIRA task description (e.g. `ACME-*` tasks → Czech). Do not mix languages within a single comment; UI-visible labels stay verbatim as they appear in the admin screen.
+- Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - Read-only relative to the codebase. The skill never modifies code; it only publishes a JIRA comment.
 - Never change the JIRA task status — per `@rules/jira/general.md`, status transitions are handled by humans only.
 - The audience is an internal QA tester who is not a programmer. Everything in the report must be verifiable by clicking in the application, opening a report screen, reading a delivered email/SMS, or checking the account balance. Anything that cannot be verified that way belongs in the dev-team report as a flag for the development team, not as a tester action.

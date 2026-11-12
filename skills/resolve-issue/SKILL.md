@@ -203,7 +203,7 @@ Post the technical report as a comment on the GitHub PR, since that is where the
 
 ### Non-technical report → original task tracker
 
-Post the non-technical report on the issue tracker where the task with the assignment was created (the original tracker, regardless of where the PR lives):
+Post the non-technical report, in the voice of `@skills/agent-voice/SKILL.md`, on the issue tracker where the assignment was created (the original tracker, regardless of where the PR lives):
 
 - **GitHub** (task filed as a GitHub issue): post as a comment on the original issue
 - **JIRA** (task filed in JIRA): publish through the canonical JIRA helper with `--create`, which converts the template source to ADF and applies it through `--body-adf` per `@rules/jira/general.md`; use the JIRA shape per `references/tracker-follow-up.md`

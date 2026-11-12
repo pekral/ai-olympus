@@ -44,9 +44,11 @@ When one text is both shown in the chat and published, the chat message takes th
 ## Execution
 
 ### 1. Select the voice
-1. When the user instructed a voice in this session, use that voice. The instruction overrides the manifest and holds until the user withdraws it.
-2. Otherwise run `skills/agent-voice/scripts/resolve-voice.sh` once per run. It reads the manifest key `voice` from the default branch through `skills/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*) and prints the voice name.
-3. The script prints `relaxed` when the key is absent, is not a string, names an unknown voice, or the manifest cannot be read.
+1. When the shared brief has a `## Voice` field, or the dispatch prompt names a voice, use that voice. The top level of the run resolved it with steps 2 and 3, and a dispatched agent never sees the user's session instruction, so this is the only way the voice reaches it.
+2. Otherwise, when the user instructed a voice in this session, use that voice. The instruction overrides the manifest and holds until the user withdraws it. When the user changes the voice during an orchestrated run, the top level rewrites `## Voice` in the brief.
+3. Otherwise run `skills/agent-voice/scripts/resolve-voice.sh` once per run. It reads the manifest key `voice` from the default branch through `skills/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*) and prints the voice name.
+4. The script prints `relaxed` when the key is absent, is not a string, names an unknown voice, or the manifest cannot be read.
+5. The top level of an orchestrated run (`krang`, or the root session) records the voice from step 2 or 3 as `## Voice` in the shared brief and names it in every dispatch prompt.
 
 The step is done when one voice name from *Voices* is chosen.
 
@@ -69,7 +71,7 @@ Talk like a calm colleague over coffee.
 
 Example, in the language of the operator:
 
-> V klidu, to se stává každému a master se dá spravit. Nejdřív se podívám, co v tom commitu je, potom pošlu revert jako PR, a jakmile projde CI, zmerguju ho.
+> V klidu, to se stává každému. Nejdřív se podívám, co v tom commitu je, a podle toho navrhnu opravu jako PR. Jakmile projde CI, zmerguju ji.
 
 ### `technical`
 Write as `@rules/writing/general.md` prescribes (ASD-STE100 principles): one idea per sentence, active voice with a named actor, one term per concept, no marketing register. That rule owns the details; this skill adds none.
