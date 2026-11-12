@@ -48,7 +48,7 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     expect($record)->toContain('until (umask 077 && mkdir -- "$GATE_LOCK") 2>/dev/null; do');
     expect($record)->toContain('LC_ALL=C kill -0 "$pid"');
     expect($record)->toContain('mkdir -- "$GATE_LOCK.reclaim"');
-    expect($record)->toContain('ps -o etime= -p "$pid"');
+    expect($record)->toContain('ps -o etime= -p "$1"');
 
     // One heavy command on the whole machine: the lock sits in a machine directory outside every
     // repository, which every project and worktree of the account share, never in a git directory or
@@ -365,6 +365,13 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
         'repair leaves a holder of an older format alone',
         'a heavy command started by the holder runs under its lock and does not wait for it',
         'a held-by claim that names another process still waits for the lock',
+        'a command line that holds the wrapper name only as a substring is refused',
+        'a fresh lock without a holder file is unproven and repair leaves it',
+        'a lock without a holder file for over a minute is dead and status exits 10',
+        'repair removes a lock that has had no holder file for over a minute',
+        'a waiter does not reclaim a lock without a holder file',
+        'the holder file is written through a temporary file and a rename',
+        'a lock that repair cannot remove is reported as release-failed with exit 4 and a note',
     ] as $label) {
         expect(substr_count($lock, '\'' . $label . '\''))->toBe(1);
     }
@@ -373,6 +380,12 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
     expect($lock)->toContain('[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh ]] || return 1');
     expect($lock)->toContain('command="$(ps -o command= -p "$pid" 2>/dev/null || true)"');
     expect($lock)->toContain('actual="$(gate_process_start "$pid")" || return 1');
+    // One copy of the process helpers, in the library every script sources.
+    expect($lock)->not->toContain('ps -o stat=');
+    expect($lock)->not->toContain('ps -o etime=');
+    expect($lock)->not->toContain('grep -c "^$1"');
+    expect(gateScript('run-gate.sh'))->not->toContain('grep -c "^$1"');
+    expect(gateScript('gate-record.sh'))->toContain('gate_pid_running()')->toContain('gate_same_start()')->toContain('gate_selftest_calls()');
     // SIGKILL reaches only a process whose start time still equals the recorded one.
     expect($lock)->toContain('kill -KILL "$pid"');
     expect($lock)->not->toContain('pkill');
@@ -412,7 +425,6 @@ test('every heavy command runs under the machine lock and the rules name the wra
         expect($read($path))->toContain('run-gate.sh --exclusive --command');
     }
 
-    expect($read('skills/resolve-issue/SKILL.md'))->toContain('Use `run-gate.sh --exclusive`.');
     expect($read('agents/donatello.md'))->not->toContain('does not need it');
     expect($read('rules/compound-engineering/concurrency.md'))->not->toContain('do not need it');
     expect($wrapper)->toContain('--exclusive');
@@ -425,14 +437,19 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
     $reference = $read('skills/_shared/orchestration/stale-lock-repair.md');
 
     expect($krang)
-        ->toContain('load `skills/_shared/orchestration/stale-lock-repair.md` and check the machine lock')
+        ->toContain('Check the machine lock once the brief and its `.audit` ledger exist')
+        ->toContain('load `skills/_shared/orchestration/stale-lock-repair.md`**')
         ->toContain('run `skills/_shared/gate-lock.sh status|repair`');
     expect($reference)
         ->toContain('skills/_shared/gate-lock.sh status')
         ->toContain('skills/_shared/gate-lock.sh repair --audit')
         ->toContain('never run `kill` or `pkill`')
         ->toContain('Blocked: the machine lock is held by a process this package did not start')
-        ->toContain('never a pipe stage');
+        ->toContain('never a pipe stage')
+        ->toContain('the harness stopped while it waited printed no JSON result');
+    expect(strlen($krang))->toBeLessThanOrEqual(134_900);
+    expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('every `run-validation.sh` call in a way');
+    expect($read('skills/_shared/run-validation.sh'))->toContain('"invalid" | "locked"');
 
     $concurrency = $read('rules/compound-engineering/concurrency.md');
     expect($concurrency)
@@ -444,5 +461,130 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
 
     foreach ($tomls === false ? [] : $tomls as $toml) {
         expect((string) file_get_contents($toml))->toContain('`verify-gate.sh`, `gate-lock.sh`, `gate-context.sh`');
+    }
+});
+
+/**
+ * The markdown files under rules/, skills/, and agents/, as absolute paths.
+ *
+ * @return list<string>
+ */
+function gateGuardMarkdownFiles(string $packageDir): array
+{
+    $files = [];
+
+    foreach (['rules', 'skills', 'agents'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageDir . '/' . $directory, FilesystemIterator::SKIP_DOTS));
+
+        foreach ($iterator as $file) {
+            if ($file instanceof SplFileInfo && $file->getExtension() === 'md') {
+                $files[] = $file->getPathname();
+            }
+        }
+    }
+
+    sort($files);
+
+    return $files;
+}
+
+/**
+ * A line and the continuation lines of its list item, the lines that follow it indented by two spaces or more.
+ *
+ * @param list<string> $lines
+ */
+function gateGuardBlock(array $lines, int $index): string
+{
+    $block = $lines[$index];
+
+    for ($next = $index + 1; isset($lines[$next]) && preg_match('/^\s{2,}\S/', $lines[$next]) === 1; $next++) {
+        $block .= "\n" . $lines[$next];
+    }
+
+    return $block;
+}
+
+/**
+ * Whether the line is one of the named exceptions of its file.
+ *
+ * @param array<string, list<string>> $allowed
+ */
+function gateGuardAllowed(array $allowed, string $relative, string $line): bool
+{
+    foreach ($allowed[$relative] ?? [] as $needle) {
+        if (str_contains($line, $needle)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHPStan outside the wrapper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // A line that carries one of these tools must name the wrapper (or the validation runner, which
+    // holds the lock itself) on the same line or on the continuation lines of its list item.
+    $tool = '/vendor\/bin\/(pest|rector|phpstan|phpunit)|\bpest --|artisan test/i';
+    $locked = '/run-gate\.sh|run-validation\.sh/';
+    // The two named exceptions: a validation manifest is data that run-validation.sh runs under the
+    // lock, and `git bisect run` cannot go through a wrapper that refuses `git`.
+    $allowed = [
+        'agents/donatello.md' => ['"tests": ["vendor/bin/pest', '"static_analysis": ["vendor/bin/phpstan'],
+        'skills/resolve-issue/references/bug-diagnosis.md' => ['`git bisect run vendor/bin/pest'],
+    ];
+    $violations = [];
+
+    foreach (gateGuardMarkdownFiles($packageDir) as $path) {
+        $relative = substr($path, strlen($packageDir) + 1);
+        $lines = explode("\n", (string) file_get_contents($path));
+
+        foreach ($lines as $index => $line) {
+            $unwrapped = preg_match($tool, $line) === 1
+                && preg_match($locked, gateGuardBlock($lines, $index)) !== 1
+                && !gateGuardAllowed($allowed, $relative, $line);
+
+            if ($unwrapped) {
+                $violations[] = $relative . ':' . ($index + 1);
+            }
+        }
+    }
+
+    expect($violations)->toBe([]);
+
+    // The bisect exception is written out where it applies.
+    expect((string) file_get_contents($packageDir . '/skills/resolve-issue/references/bug-diagnosis.md'))
+        ->toContain('the wrapper refuses `git`')
+        ->toContain('exit `6` (lock timeout)');
+});
+
+test('every instruction that runs the tests of a change names the wrapper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    foreach ([
+        'skills/resolve-issue/SKILL.md' => [
+            'run the test (`run-gate.sh --exclusive`) and confirm it fails',
+            'Run affected-area tests (`run-gate.sh --exclusive`) and confirm correctness',
+        ],
+        'skills/test-driven-development/SKILL.md' => [
+            'Run the test through `skills/_shared/run-gate.sh --exclusive',
+            'Run the relevant tests through `skills/_shared/run-gate.sh --exclusive',
+        ],
+        'skills/create-test/SKILL.md' => ['through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/process-code-review/SKILL.md' => [
+            'rerun the test, through `skills/_shared/run-gate.sh --exclusive',
+            'Run only relevant tests for changed files, through `skills/_shared/run-gate.sh --exclusive',
+        ],
+        'skills/process-code-review/references/answering-reviewer-questions.md' => ['a test through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/laravel-architecture-guard/SKILL.md' => ['run-gate.sh --exclusive --command "vendor/bin/pest --group=arch"'],
+        'skills/resolve-issue/references/security-remediation-checklist.md' => ['through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/security-bounty-hunter/SKILL.md' => ['run-gate.sh --exclusive --command "vendor/bin/phpstan analyse --no-progress"'],
+        'rules/code-review/general.md' => ['run that test, through `skills/_shared/run-gate.sh --exclusive'],
+        'rules/code-testing/general.md' => ['always through `skills/_shared/run-gate.sh --exclusive'],
+    ] as $path => $needles) {
+        foreach ($needles as $needle) {
+            expect($read($path))->toContain($needle);
+        }
     }
 });
