@@ -27,7 +27,9 @@
 #             hand-off is then also checked against the ledger through
 #             `audit-trail.sh verify`: a malformed line, a remote head of
 #             --audit-branch that no `external-write` line names, or a pull
-#             request (--audit-pr) with no line is a problem. The agent sees it
+#             request (--audit-pr) with no line is a problem, and so is a check
+#             that could not run (a `not verified:` line, or an exit of the
+#             verify other than 0 and 3). The agent sees it
 #             before the code review does. Without --audit-file the ledger is not
 #             checked.
 #
@@ -198,13 +200,18 @@ check() {
     local -a audit_args=(verify --file "$audit_file")
     [[ -z "$audit_branch" ]] || audit_args+=(--branch "$audit_branch")
     [[ -z "$audit_pr" ]] || audit_args+=(--pr "$audit_pr")
-    local audit_out audit_line
-    audit_out="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/audit-trail.sh" "${audit_args[@]}" 2>&1 || true)"
+    local audit_out audit_line audit_rc=0
+    audit_out="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/audit-trail.sh" "${audit_args[@]}" 2>&1)" || audit_rc=$?
     while IFS= read -r audit_line; do
       case "$audit_line" in
       'problem: '*) problems+=("audit trail: ${audit_line#problem: }") ;;
+      'not verified: '*) problems+=("audit trail not verified: ${audit_line#not verified: }") ;;
       esac
     done <<<"$audit_out"
+    case "$audit_rc" in
+    0 | 3) ;;
+    *) problems+=("audit trail: audit-trail.sh verify exited $audit_rc, so the ledger was not checked") ;;
+    esac
   fi
 
   if [[ "${#problems[@]}" -gt 0 ]]; then
@@ -351,6 +358,20 @@ self_test() {
     printf 'ok    %-54s exit 3\n' 'a malformed audit trail line is a handoff problem'
   else
     printf 'FAIL  %-54s expected exit 3 naming line 1, got %s\n' 'a malformed audit trail line is a handoff problem' "$audit_rc" >&2
+    failures=$((failures + 1))
+  fi
+
+  mkdir "$tmp/failbin"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$tmp/failbin/gh"
+  chmod +x "$tmp/failbin/gh"
+  set +e
+  PATH="$tmp/failbin:$PATH" "$script" --file "$tmp/impl.json" --role implementation --audit-file "$tmp/good.audit" --audit-pr 5 >"$tmp/audit.out" 2>&1
+  audit_rc=$?
+  set -e
+  if [[ "$audit_rc" -eq 3 ]] && grep -q 'audit trail not verified:' "$tmp/audit.out"; then
+    printf 'ok    %-54s exit 3\n' 'a check that could not run is a handoff problem'
+  else
+    printf 'FAIL  %-54s expected exit 3 naming not verified, got %s\n' 'a check that could not run is a handoff problem' "$audit_rc" >&2
     failures=$((failures + 1))
   fi
 

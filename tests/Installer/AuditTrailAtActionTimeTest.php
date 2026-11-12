@@ -72,10 +72,15 @@ test('the rule makes the package write the line at the moment of the write and n
     $rule = auditTrailSource('rules/compound-engineering/orchestration.md');
     $section = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
 
+    expect($section)->not->toContain('exports both once');
     expect($section)
         ->toContain('Record the line at the moment of the write')
         ->toContain('`AUDIT_TRAIL_FILE`')
         ->toContain('`AUDIT_TRAIL_ROLE`')
+        ->toContain('Every Bash call is a new shell')
+        ->toContain('`AUDIT_TRAIL_FILE=<absolute path> AUDIT_TRAIL_ROLE=<role> <wrapper or audit-trail.sh run -- command>`')
+        ->toContain('`<target>: write failed (exit N)`')
+        ->toContain('`--receive-pack`, `--exec`, `--upload-pack`')
         ->toContain('audit-trail.sh run -- <command>')
         ->toContain('The acting role as the **first** field')
         ->toContain('the **real exit status of the write command**')
@@ -139,7 +144,9 @@ test('check-handoff checks the ledger through the helper before the code review 
         ->toContain('--audit-pr)')
         ->toContain('audit-trail.sh" "${audit_args[@]}"')
         ->toContain('\'problem: \'*) problems+=("audit trail: ${audit_line#problem: }")')
-        ->toContain('a malformed audit trail line is a handoff problem');
+        ->toContain('a malformed audit trail line is a handoff problem')
+        ->toContain('\'not verified: \'*) problems+=("audit trail not verified: ${audit_line#not verified: }")')
+        ->toContain('0 | 3) ;;');
 });
 
 test('donatello and krang name the helper in their Bash boundary and run the check before the hand-off', function (): void {
@@ -148,13 +155,14 @@ test('donatello and krang name the helper in their Bash boundary and run the che
 
     expect($donatello)
         ->toContain('`skills/_shared/audit-trail.sh run -- <write command>`')
-        ->toContain('`AUDIT_TRAIL_ROLE=donatello`')
         ->toContain('Before the hand-off run `skills/_shared/audit-trail.sh verify --file')
-        ->toContain('*Record the line at the moment of the write*');
+        ->toContain('*Record the line at the moment of the write*')
+        ->toContain('`AUDIT_TRAIL_FILE=<absolute path of the .audit file> AUDIT_TRAIL_ROLE=donatello`');
+    expect($donatello)->not->toContain('exported: it appends');
 
     expect($krang)
         ->toContain('`skills/_shared/audit-trail.sh run -- <write command>`')
-        ->toContain('`AUDIT_TRAIL_ROLE=krang`')
+        ->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang`')
         ->toContain('run `skills/_shared/audit-trail.sh` (`run` only for the `gh` writes above');
 });
 
@@ -165,4 +173,28 @@ test('the changelog records the audit line written at the moment of the write', 
 
     expect($unreleased)->toContain('(#376)')
         ->and($unreleased)->toContain('audit-trail.sh');
+});
+
+test('leonardo runs gh pr ready and the label writes through the helper and appends no hand-written line for them', function (): void {
+    $leonardo = auditTrailSource('agents/leonardo.md');
+    $skill = auditTrailSource('skills/process-code-review/SKILL.md');
+    $signal = auditTrailSource('skills/process-code-review/references/ready-to-merge-signal.md');
+    $step = substr($leonardo, (int) strpos($leonardo, '12. **Append your own audit-trail lines.**'));
+    $step = substr($step, 0, (int) strpos($step, "\n", 1));
+
+    expect($leonardo)
+        ->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR>`')
+        ->toContain('each only as `skills/_shared/audit-trail.sh run -- <command>`');
+    expect($step)
+        ->toContain('Each external write leaves exactly one line, written at the moment of the write by the package and never by hand')
+        ->toContain('Append by hand');
+    expect($step)->not->toContain('append one line per action you actually performed');
+    expect($skill)->toContain(
+        '`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>`',
+    );
+    expect($signal)->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- <command>`');
+});
+
+test('krang.md stays under the size limit with the per-call ledger form', function (): void {
+    expect(strlen(auditTrailSource('agents/krang.md')))->toBeLessThanOrEqual(135_000);
 });

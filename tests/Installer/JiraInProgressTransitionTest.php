@@ -20,6 +20,9 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "list
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "transition" ]]; then
+  if [[ "${FAKE_ACLI_TRANSITION_RC:-0}" -ne 0 ]]; then
+    exit "$FAKE_ACLI_TRANSITION_RC"
+  fi
   printf '%s' "$7" > "$FAKE_ACLI_STATE"
   exit 0
 fi
@@ -495,3 +498,109 @@ test('a finished JIRA issue is never returned to In Progress (issue #154)', func
     'Testování',
     'testovani',
 ]);
+
+test('the JIRA In Progress claim leaves one well-formed external-write line for the assignment and one for the transition', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    $ledger = auditLedgerCreate();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        ...$ledger['env'],
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraClaimSystemPath(),
+    ]);
+
+    try {
+        $process->run();
+        $rows = auditLedgerRows($ledger);
+        $targets = array_column($rows, 3);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($rows)->toHaveCount(2)
+            ->and(array_column($rows, 2))->toBe(['external-write', 'external-write'])
+            ->and(array_column($rows, 0))->toBe(['donatello', 'donatello'])
+            ->and($targets)->toContain('jira assign TEAM-42 to the current acli user')
+            ->and($targets)->toContain('jira transition TEAM-42 to In Progress')
+            ->and(array_column($rows, 4))->toBe(['ok (exit 0)', 'ok (exit 0)']);
+    } finally {
+        removeJiraClaimFixture($fixture);
+        auditLedgerRemove($ledger);
+    }
+});
+
+test('a failed JIRA transition leaves a note line with the exit status and no external-write line for it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $fixture = createJiraClaimFixture();
+    $ledger = auditLedgerCreate();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/transition-to-in-progress.sh',
+        'TEAM-42',
+    ], $packageDir, [
+        ...$ledger['env'],
+        'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+        'FAKE_ACLI_STATE' => $fixture['state'],
+        'FAKE_ACLI_TRANSITION_RC' => '4',
+        'FAKE_ACLI_VERIFY' => '1',
+        'JIRA_SITE' => 'example.atlassian.net',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraClaimSystemPath(),
+    ]);
+
+    try {
+        $process->run();
+        $notes = array_values(array_filter(auditLedgerRows($ledger), static fn (array $row): bool => $row[2] === 'note'));
+
+        expect($process->getExitCode())->not->toBe(0)
+            ->and($notes)->toHaveCount(1)
+            ->and($notes[0][4])->toBe('jira transition TEAM-42 to In Progress: write failed (exit 4)');
+    } finally {
+        removeJiraClaimFixture($fixture);
+        auditLedgerRemove($ledger);
+    }
+});
+
+dataset('code review transition outcomes', [
+    'transition fails' => ['4', 'note', 'no action performed', 'jira transition TEAM-42 to Code Review: write failed (exit 4)'],
+    'transition succeeds' => ['0', 'external-write', 'jira transition TEAM-42 to Code Review', 'ok (exit 0)'],
+]);
+
+test(
+    'the JIRA Code Review transition leaves one well-formed line for each outcome',
+    function (string $transitionRc, string $class, string $target, string $result): void {
+        $packageDir = dirname(__DIR__, 2);
+        $fixture = createJiraClaimFixture();
+        file_put_contents($fixture['state'], 'In Progress');
+        $ledger = auditLedgerCreate();
+        $process = new Process([
+            $packageDir . '/skills/code-review-jira/scripts/transition-to-code-review.sh',
+            'TEAM-42',
+        ], $packageDir, [
+            ...$ledger['env'],
+            'FAKE_ACLI_ASSIGNED' => $fixture['assigned'],
+            'FAKE_ACLI_STATE' => $fixture['state'],
+            'FAKE_ACLI_TRANSITION_RC' => $transitionRc,
+            'FAKE_ACLI_VERIFY' => '1',
+            'JIRA_SITE' => 'example.atlassian.net',
+            'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraClaimSystemPath(),
+        ]);
+    
+        try {
+            $process->run();
+            $rows = auditLedgerRows($ledger);
+    
+            expect($rows)->toHaveCount(1)
+                ->and($rows[0])->toHaveCount(5)
+                ->and($rows[0][0])->toBe('donatello')
+                ->and($rows[0][2])->toBe($class)
+                ->and($rows[0][3])->toBe($target)
+                ->and($rows[0][4])->toBe($result);
+        } finally {
+            removeJiraClaimFixture($fixture);
+            auditLedgerRemove($ledger);
+        }
+    },
+)->with('code review transition outcomes');
