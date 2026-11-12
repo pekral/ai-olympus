@@ -172,7 +172,7 @@ test('review mode is an always-run security lens on a public repository wherever
     expect(historyExposureSource('rules/compound-engineering/orchestration.md'))
         ->toContain(
             '`security-audit` in its *Diff mode*, `git-history-exposure-audit` in its *Review mode* on a public repository, '
-            . '`api-review`, `assignment-compliance-check`',
+            . '`api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`',
         )
         ->toContain('The one named exception is the full audit of `@skills/git-history-exposure-audit/SKILL.md`')
         ->toContain('| top-level session | Run the full audit of `@skills/git-history-exposure-audit/SKILL.md`');

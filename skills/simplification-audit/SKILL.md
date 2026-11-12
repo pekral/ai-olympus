@@ -112,12 +112,22 @@ Then rank the accepted recommendations by concrete impact, open points, implemen
 
 `@agents/leonardo.md` runs this skill with `MODE=cr` over the current diff of the pull request on every review (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*). This section is the one owner of the diff-mode contract; the reviewer and the lens list reference it and never restate it. In this mode:
 
-1. **Scope.** Findings anchor only to lines the pull request adds or modifies, plus the code those lines directly call or replace. Code outside that set is never reported, however much it would simplify.
+1. **Scope.** The mode reads the changed lines, and the code they directly call or replace, only to judge the changed lines. Every finding anchors to a changed line. A simplification only in called or replaced code goes to the reviewer's out-of-scope observations, never into the published comment.
 2. **Dimensions and bar.** Apply the same five dimensions as *Scope* above, the same signals in `references/worker-brief.md`, and the same bar: a finding names a concrete smaller result that is materially useful. *Never force an abstraction* in *Constraints* applies unchanged.
 3. **Passes.** The reviewer runs every pass itself, in sequence, in its own context. It builds no inventory, ranks no hot spots, dispatches no worker, and writes no report. Each finding carries the eight fields of `references/worker-brief.md`, and a `skip` verdict returns no finding.
 4. **Validation.** Step 3 *Validate and synthesize* applies to every finding before it is returned, including the re-run search behind a deletion-test or single-implementation finding.
 5. **Read-only.** The mode modifies no file, runs no test, fixer, static analyser, or build, and stages, commits, and pushes nothing.
-6. **Publishes nothing.** The findings return to the reviewer as markdown. A finding carries no severity. The reviewer classifies each finding by the code review severity rules in `@rules/code-review/general.md`, and publishes it in its one review comment. When no changed line meets the bar, the mode returns one line saying so.
+6. **Publishes nothing, and severity.** The findings return to the reviewer as markdown, and the mode itself carries no severity. The reviewer assigns it:
+    - A finding that rests on a rule with its own severity takes that severity, and that rule's bullet raises it.
+    - Every other finding is **Moderate**, never Critical.
+    - A finding that maps to neither Critical nor Moderate is not reported (`@rules/code-review/general.md` *Minor findings are not detected*).
+    - The reviewer publishes each finding in its one review comment under `## Findings`, with the usual reproducer fields.
+    - When no changed line meets the bar, the mode returns one line saying so, and the review reports nothing for this lens.
+7. **Gating — one finding per violation, never two.** The mode divides the *dimensions* of a change, never its lines. It owns whether the structure the changed lines introduce is the smallest one that fits the assignment, and it proposes only a representation: a state model, a typed shape, a branching map, a collection or index, or an ownership boundary. These owners raise their own findings, and the mode does not raise a line again when one of them does:
+    - `@rules/code-review/core-analysis.md` *Speculative interfaces* and *Simplicity First* own a new abstraction, a new class for simple logic, and a speculative interface.
+    - `@rules/code-review/general.md` *Reuse Existing Logic* owns duplicated and already-existing logic, and *Bulk Data & Batch Processing* owns per-row work.
+    - The architecture rules own which layer holds the logic.
+    - `@skills/test-audit/SKILL.md` with `MODE=cr` owns the value of a test.
 
 ---
 
