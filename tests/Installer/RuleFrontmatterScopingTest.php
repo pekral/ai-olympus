@@ -445,6 +445,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
         // Re-baselined: a second, independent security view (`splinter`) runs in every round and merges into the one review (issue #379).
         // Re-baselined: the merge rules of the two views live in `rules/code-review/review-process.md`, and the rule points there (issue #379).
+        // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
         'rules/code-review/general.md' => 'ef04a8d6583357f207b68cb1fc6aba952a3316d1840a1db0b4c1f1cf2ce90ca5',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
@@ -473,7 +474,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
         // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-testing/general.md' => 'f90abc4ff85b0d985cd6d0b9a5a705c5af5973f187ac155f54747904c8a77c48',
+        'rules/code-testing/general.md' => '8589ff8c3afedd4b8d33be0a49e0dea874769bdfe83f196e850c2964453ab3f0',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
