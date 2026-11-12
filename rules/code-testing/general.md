@@ -140,7 +140,7 @@ A change is delivered only when three things hold together: every acceptance cri
 - **A declared HOTFIX is the only waiver.** It follows `@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path* and the review-side waiver in `@rules/code-review/review-process.md`. No other caller instruction lifts this section.
 
 ## Coverage
-- Every test change must be verified to be functional — run affected tests after each modification.
+- Every test change must be verified to be functional — run affected tests after each modification, through `skills/_shared/run-gate.sh --exclusive --command "<command>"` (`@skills/resolve-issue/references/quality-gates.md` *Targeted checks take the machine lock too*).
 - Require 100% code coverage for every changed or added code path — applies equally to code modifications and code review.
 - Before running coverage, discover the project's coverage command per `@skills/resolve-issue/references/quality-gates.md`. Do not assume a default command.
 - **Coverage reporting is short by default.** Run the coverage check on every change, but report the result on the published CR / tracker comment **only** when there is something the reader must act on:
