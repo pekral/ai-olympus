@@ -253,3 +253,41 @@ test('no agent or skill appends by hand a line the package already writes', func
     expect($leonardoStep12)->not->toContain('(or, in analysis mode, the plan-artifact issue from step 4)');
     expect($leonardoStep12)->toContain('In analysis mode, `run -- gh issue create` appends the line for the plan-artifact issue from step 4.');
 });
+
+test('no agent or skill hand-appends the external-write line of a write a wrapper or run already records', function (): void {
+    $casey = auditTrailSource('agents/casey.md');
+    $caseyStep5 = substr($casey, (int) strpos($casey, '5. **Publish the report.**'));
+    $caseyStep5 = substr($caseyStep5, 0, (int) strpos($caseyStep5, "\n", 1));
+    $caseyBoundary = substr($casey, (int) strpos($casey, 'Bash is granted to load the context'));
+    $caseyBoundary = substr($caseyBoundary, 0, (int) strpos($caseyBoundary, "\n", 1));
+
+    expect($caseyStep5)->toContain(
+        'Put `AUDIT_TRAIL_FILE=<absolute path of .claude/run/<source-slug>.audit> AUDIT_TRAIL_ROLE=casey` in front of that call',
+    );
+    expect($caseyBoundary)->toContain('`cat >>` your own memory-read and outbound-request lines');
+    expect($caseyBoundary)->toContain(
+        '`upsert-comment.sh` writes the `external-write` line of the published `mysql-report` comment; append none for it',
+    );
+    expect($caseyBoundary)->not->toContain('memory-read, outbound-request, and external-write lines');
+    expect($caseyBoundary)->not->toContain('is one external-write line');
+
+    $april = auditTrailSource('agents/april.md');
+    $aprilBoundary = substr($april, (int) strpos($april, 'Bash is granted for one purpose: loading the source read-only'));
+    $aprilBoundary = substr($aprilBoundary, 0, (int) strpos($aprilBoundary, "\n", 1));
+
+    expect($aprilBoundary)->toContain('`cat >>` to append your own memory-read, outbound-request, and note lines');
+    expect($aprilBoundary)->toContain('`AUDIT_TRAIL_FILE=<absolute path of the .audit file> AUDIT_TRAIL_ROLE=april`');
+    expect($aprilBoundary)->not->toContain('external-write, deletion, and note lines');
+
+    $raphael = auditTrailSource('agents/raphael.md');
+
+    expect($raphael)->toContain('`cat >>` to append your own memory-read and outbound-request lines');
+    expect($raphael)->not->toContain('memory-read, outbound-request and external-write lines');
+
+    $followUp = auditTrailSource('skills/merge-github-pr/references/interactive-testing-follow-up.md');
+
+    expect($followUp)->toContain(
+        '`skills/_shared/audit-trail.sh run --`, which appends the `external-write` line of the issue itself; append none by hand',
+    );
+    expect($followUp)->not->toContain('and record an `external-write` line in the run\'s audit ledger');
+});
