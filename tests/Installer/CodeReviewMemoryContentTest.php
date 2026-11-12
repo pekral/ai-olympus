@@ -165,9 +165,15 @@ test(
             ->and($loop)->toContain('then `-`, then the first 8 characters of the approved digest')
             ->and($loop)->toContain('Never run `promote` for this candidate.')
             ->and($loop)->toContain('So `krang` closes the issue at the `url` of the lookup as completed')
-            ->and($loop)->toContain('`skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
-            ->and($loop)->toContain('`gh issue close <number> --reason completed`')
-            ->and($loop)->toContain('Append one `external-write` line for the comment and one for the close to `${BRIEF%.md}.audit`')
+            ->and($loop)->toContain('skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
+            ->and($loop)->toContain('gh issue close <number> --reason completed`')
+            ->and($loop)->toContain(
+                '`AUDIT_TRAIL_FILE=${BRIEF%.md}.audit AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh issue close <number> --reason completed`',
+            )
+            ->and($loop)->toContain('The wrapper appends the `external-write` line of the comment itself.')
+            ->and($loop)->toContain('Run the write that creates the issue through `skills/_shared/audit-trail.sh run --`.')
+            ->and($loop)->toContain('Append no audit line by hand for the comment or for the close')
+            ->and($loop)->not->toContain('No audit helper script exists yet')
             ->and($loop)->and($loop)->toContain('The one exception is the close of the proposal of a written `memory` candidate in step 5.')
             ->and($loop)->toContain('is **L1** for `krang`. The human approval of *Approval* is the ask')
             ->and($loop)->toContain('`change` is the TL;DR entry, one line per field')
