@@ -168,7 +168,8 @@ test(
             ->and($loop)->toContain('skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
             ->and($loop)->toContain('gh issue close <number> --reason completed`')
             ->and($loop)->toContain(
-                '`AUDIT_TRAIL_FILE=${BRIEF%.md}.audit AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh issue close <number> --reason completed`',
+                '`AUDIT_TRAIL_FILE=${BRIEF%.md}.audit AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- '
+                . 'gh issue close <number> --reason completed`',
             )
             ->and($loop)->toContain('The wrapper appends the `external-write` line of the comment itself.')
             ->and($loop)->toContain('Run the write that creates the issue through `skills/_shared/audit-trail.sh run --`.')
