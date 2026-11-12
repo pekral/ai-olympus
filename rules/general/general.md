@@ -53,9 +53,9 @@ The host project declares machine-readable settings in its `composer.json` under
 | `risk.critical-paths` | string[] | ERE regexes. A changed path that matches one forces the CRITICAL tier in `skills/_shared/classify-risk.sh`. |
 | `recurrence.threshold` | int | The pull requests in which one defect class must appear to count as a recurrence in `skills/_shared/analyze-recurrence.sh`. At least 2. Absent: 2. |
 | `recurrence.window-days` | int | The span in days in which those occurrences must fall. At least 1. Absent: 90. |
-| `promotion.min-occurrences` | int | The resolved Critical records one pattern needs before it becomes a promotion candidate in `skills/_shared/promote-learning.sh`. At least 1. Absent: 1. |
-| `promotion.min-distinct-tasks` | int | The distinct pull requests those records must come from. At least 1. Absent: 1. |
-| `promotion.min-confidence` | int | The share of the pattern's Critical records that a fix resolved, in percent. 0 to 100. Absent: 0. |
+| `promotion.min-occurrences` | int | The validated records one pattern needs before it becomes a promotion candidate in `skills/_shared/promote-learning.sh`, for every target type except `memory`. At least 2. Absent: 3. The `memory` target takes no threshold: one resolved Critical record is enough. |
+| `promotion.min-distinct-tasks` | int | The distinct pull requests those records must come from, for every target type except `memory`. At least 2. Absent: 2. The `memory` target takes no threshold. |
+| `promotion.min-confidence` | int | The share of those records that a fix resolved, in percent, for every target type except `memory`. 0 to 100. Absent: 0. |
 | `review.max-iterations` | int | The round cap of the review-and-fix loop in `skills/_shared/review-state.sh`. 1 to 10; any other value falls back to 3. Absent: 3. |
 | `review.blocking-threshold` | string | The lowest severity (`critical`, `high`, `medium`, `low`) that is never deferred at the cap round. It only tightens the convergence gate: every finding with evidence blocks at every severity, and a security finding is never deferred. Absent or unknown: `critical`. |
 | `history-exposure.allow` | object[] | `{rule, path}` pairs, each a rule id and a literal path as the scan prints it, that suppress a review-mode finding of `@skills/git-history-exposure-audit/SKILL.md`. Each suppression is counted in the scan output. Absent: nothing is suppressed. |
