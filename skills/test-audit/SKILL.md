@@ -110,7 +110,7 @@ The shared checklist for every mode: the authoring gate rejects a new test that 
    - A pre-existing test the diff **modifies** keeps the *Retention bar*. Delete it only with complete removal evidence (`references/audit-report.md` *Removal evidence*); otherwise report it as a candidate and keep it.
    - A test-only production seam goes together with its test.
 4. **Verify 100% coverage** of every changed production line with the project's coverage tooling, after the deletions. Resolve each uncovered line per *Coverage* above: a behavioural test, a removed line, or a reported conflict — never a coverage-only test.
-5. **Run the affected tests** and confirm they pass.
+5. **Run the affected tests** through `skills/_shared/run-gate.sh --exclusive --command "<command>"` and confirm they pass.
 6. **Record the result** in the implementer's handoff: each test kept (with the criterion it proves), each test deleted or merged (with the reason), and the coverage result.
 
 ## Audit mode
