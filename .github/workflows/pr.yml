@@ -115,7 +115,7 @@ jobs:
           test ! -e CLAUDE.md
           test -f vendor/pekral/ai-olympus/assets/agents/manifest.json
           test -f vendor/pekral/ai-olympus/assets/agents/activity.css
-          for agent in krang donatello leonardo raphael michelangelo april casey shredder; do
+          for agent in krang donatello leonardo splinter raphael michelangelo april casey shredder; do
             test -f "vendor/pekral/ai-olympus/assets/agents/$agent.png"
             test -f "vendor/pekral/ai-olympus/assets/agents/thumbnails/$agent.png"
           done

@@ -5,6 +5,9 @@ declare(strict_types = 1);
 use Pekral\AiOlympus\Installer;
 
 /**
+ * The renamed identifiers whose old definition the installer removes. `splinter` is absent on purpose: the
+ * package ships a new `splinter` (the independent security agent) again, so there is nothing to remove.
+ *
  * @return array<string, string>
  */
 function renamedAgentIdentifiers(): array
@@ -17,7 +20,6 @@ function renamedAgentIdentifiers(): array
         'hephaestus' => 'donatello',
         'hermes' => 'april',
         'metalhead' => 'shredder',
-        'splinter' => 'krang',
     ];
 }
 
@@ -51,7 +53,7 @@ test('a normal upgrade removes known old agents and installs the new identities 
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('24 pruned');
+        expect($output)->toContain('21 pruned');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
             expect(file_get_contents($root . '/' . $directory . '/custom.' . $extension))->toBe('user-owned agent');
@@ -84,13 +86,48 @@ test('a normal upgrade preserves customized old agent definitions and reports th
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('24 file(s) across the target directories no longer exist in source');
+        expect($output)->toContain('21 file(s) across the target directories no longer exist in source');
 
         foreach (renamedAgentTargets() as $directory => $extension) {
             foreach (renamedAgentIdentifiers() as $old => $new) {
                 expect(file_get_contents($root . '/' . $directory . '/' . $old . '.' . $extension))->toBe('customized ' . $old);
                 expect(is_file($root . '/' . $directory . '/' . $new . '.' . $extension))->toBeTrue();
             }
+        }
+    } finally {
+        chdir($originalCwd);
+        installerRemoveDirectory($root);
+    }
+});
+
+test('installing the security agent over an unmodified 0.3.1 splinter keeps the new definition', function (): void {
+    $root = installerCreateProjectRoot();
+    $originalCwd = (string) getcwd();
+    $package = dirname(__DIR__, 2);
+    $sources = ['.claude/agents' => 'agents/splinter.md', '.codex/agent-instructions' => 'agents/splinter.md', '.codex/agents' => 'codex/agents/splinter.toml'];
+
+    foreach ($sources as $directory => $source) {
+        $extension = pathinfo($source, PATHINFO_EXTENSION);
+        installerWriteFile($root . '/' . $directory . '/krang.' . $extension, 'orchestrator replacement');
+        installerWriteFile(
+            $root . '/' . $directory . '/splinter.' . $extension,
+            (string) file_get_contents($package . '/tests/Fixtures/legacy-agents/splinter.' . $extension),
+        );
+    }
+
+    try {
+        chdir($root);
+        ob_start();
+        $exitCode = Installer::run(['ai-olympus', 'install', '--force']);
+        ob_end_clean();
+
+        expect($exitCode)->toBe(0);
+
+        foreach ($sources as $directory => $source) {
+            $installed = (string) file_get_contents($root . '/' . $directory . '/splinter.' . pathinfo($source, PATHINFO_EXTENSION));
+
+            expect($installed)->toBe((string) file_get_contents($package . '/' . $source));
+            expect($installed)->not->toBe((string) file_get_contents($package . '/tests/Fixtures/legacy-agents/splinter.' . pathinfo($source, PATHINFO_EXTENSION)));
         }
     } finally {
         chdir($originalCwd);

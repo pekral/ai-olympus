@@ -442,7 +442,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Safety* and the header block name the settle step and the conditional `Settled points:` line (issue #330).
         // Re-baselined: the history exposure lens runs on every review of a public repository and joins the S1 source-lens test (issue #336).
         // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
-        'rules/code-review/general.md' => '6b155e81ba85a74a1d3610f2476394ff3946f1fef02f8d18ef7b69b46ea261e8',
+        // Re-baselined: a second, independent security view (`splinter`) runs in every round and merges into the one review (issue #379).
+        'rules/code-review/general.md' => '0bc6672b3c575524f30cb4e1cfca16806e0896ca4397afff7bf9aa1cb34c4a4a',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
