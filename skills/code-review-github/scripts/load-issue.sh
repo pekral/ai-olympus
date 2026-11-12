@@ -41,7 +41,7 @@
 #
 #     # pr-only (null / [] when kind == "issue")
 #     "baseRefName", "headRefName", "baseRefOid", "headRefOid",
-#     "isDraft", "mergeable", "mergeStateStatus",
+#     "isDraft", "isCrossRepository", "mergeable", "mergeStateStatus",
 #     "mergedAt", "mergedBy", "mergeCommit",
 #     "additions", "deletions", "changedFiles",
 #     "files":             [ { "path", "additions", "deletions" } ],
@@ -164,7 +164,7 @@ fi
 NWO="${OWNER}/${REPO}"
 
 ISSUE_FIELDS="assignees,author,body,closed,closedAt,closedByPullRequestsReferences,comments,createdAt,labels,milestone,number,reactionGroups,state,stateReason,title,updatedAt,url"
-PR_FIELDS="additions,assignees,author,baseRefName,baseRefOid,body,changedFiles,closed,closedAt,closingIssuesReferences,comments,commits,createdAt,deletions,files,headRefName,headRefOid,isDraft,labels,latestReviews,maintainerCanModify,mergeCommit,mergeStateStatus,mergeable,mergedAt,mergedBy,milestone,number,reactionGroups,reviewDecision,reviewRequests,reviews,state,statusCheckRollup,title,updatedAt,url"
+PR_FIELDS="additions,assignees,author,baseRefName,baseRefOid,body,changedFiles,closed,closedAt,closingIssuesReferences,comments,commits,createdAt,deletions,files,headRefName,headRefOid,isCrossRepository,isDraft,labels,latestReviews,maintainerCanModify,mergeCommit,mergeStateStatus,mergeable,mergedAt,mergedBy,milestone,number,reactionGroups,reviewDecision,reviewRequests,reviews,state,statusCheckRollup,title,updatedAt,url"
 
 ISSUE_JSON='null'
 PR_JSON='null'
@@ -353,6 +353,8 @@ $payload as $p
     # No `// null` here: the jq alternative operator treats `false` as empty,
     # so `$p.isDraft // null` would collapse a non-draft PR `false` to `null`.
     isDraft:     (if $kind == "pr" then $p.isDraft else null end),
+    # Same reason: a same-repository PR carries `false`, which `// null` would collapse.
+    isCrossRepository: (if $kind == "pr" then $p.isCrossRepository else null end),
     mergeable:   (if $kind == "pr" then ($p.mergeable   // null) else null end),
     mergeStateStatus: (if $kind == "pr" then ($p.mergeStateStatus // null) else null end),
     mergedAt:    (if $kind == "pr" then ($p.mergedAt    // null) else null end),

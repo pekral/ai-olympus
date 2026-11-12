@@ -127,9 +127,11 @@ test('the skill scans the commits of the branch with history-scan before the pus
 });
 
 test('the package lists the skill in the README, the skill catalog, and the code-review exclusion groups', function (): void {
-    expect(composerUpdateSource('README.md'))->toContain('66 reusable skills')
+    $count = count(glob(dirname(__DIR__, 2) . '/skills/*/SKILL.md') ?: []);
+
+    expect(composerUpdateSource('README.md'))->toContain($count . ' reusable skills')
         ->and(composerUpdateSource('docs/skills.md'))->toContain('| [`composer-update-pr`](../skills/composer-update-pr/) |')
-        ->and(composerUpdateSource('docs/skills.md'))->toContain('All 66 skills this package ships')
+        ->and(composerUpdateSource('docs/skills.md'))->toContain('All ' . $count . ' skills this package ships')
         ->and(composerUpdateSource('skills/code-review/references/specialized-reviews.md'))->toContain('- `composer-update-pr` —');
 });
 
