@@ -2956,7 +2956,7 @@ test('krang decides each step against the runs in progress through the one plann
     expect($rule)->toContain('The planner answers `parallel` with `lock=gate` when no live run is heavy and no live writer holds the gate\'s tree.');
     expect($rule)->toContain('so two gates never run at the same time');
     expect($rule)->toContain('`git worktree add --detach <path> <head-sha>`');
-    expect($rule)->toContain('Two sanctioned exceptions exist.');
+    expect($rule)->toContain('Three sanctioned exceptions exist.');
     expect($rule)->not->toContain('docs/memory/PROJECT_MEMORY.md');
 
     $krang = krangContractText();

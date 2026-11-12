@@ -177,6 +177,8 @@ When the next action is to dispatch a subagent for a step the orchestrator has a
 
 Every agent that dispatches other agents through the Task tool (today: `krang`) references this section from its own definition and applies it to every step of its run.
 
+**One exception: the operator batch.** A session that holds the `krang` role for several units (`skills/_shared/orchestration/batch-preparation.md`) may end a turn while every unit waits for a running background dispatch. That wait is a valid stopping point only in that state, because each running dispatch is recorded in the ledger of its unit and its handoff wakes the session. The rule applies unchanged in every other state.
+
 
 ## Starting the orchestrator — the top-level role and the nested hand-over
 
@@ -196,6 +198,7 @@ The session that holds the role carries every limit of `krang`:
 - It never performs a stage that the route plan assigns to a specialist. A stage it cannot dispatch ends the run with a `Blocked` stop (`@rules/compound-engineering/general.md` *Blocked delegation is a hard stop*).
 - It publishes only through the publishing agents and through the tracker writes that `agents/krang.md` *Bash boundary* sanctions.
 - It applies `agents/krang.md` *Bash boundary* and *Dispatch blocking*, the turn rule above, the shared brief, the write-lock, and the dispatch, audit, and routing ledgers unchanged. Each of them keeps its one owner on this path.
+- **One exception: the operator batch.** A session that runs `/prepare-issue-for-merge` with several references, or with `--merge`, holds the role for every unit at once. A blocking dispatch would run the units one after another, so that session starts its dispatches in the background and advances a unit on the handoff of its own dispatch. It ends its turn without a result only while every unit waits for a running dispatch. `skills/_shared/orchestration/batch-preparation.md` *The root session multiplexes the pipelines* owns the exception and the wait.
 
 **The tracked-file limit is advisory on this path.** A top-level session keeps the tools its harness gave it, so nothing removes `Write` or `Edit` from it. `claude --agent krang` starts a session whose main thread takes on the tool restrictions and the model of `krang` (code.claude.com/docs/en/sub-agents, *Invoke subagents explicitly*). On that start the harness enforces `disallowedTools: Write, Edit`. Use it on Claude Code when the session exists only to run `krang`.
 
