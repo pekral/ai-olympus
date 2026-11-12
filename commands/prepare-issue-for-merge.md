@@ -21,8 +21,9 @@ it for every reference at once and starts no `krang` as a subagent. Load
 each reference, each in its own git worktree, and it advances each pipeline when the handoff of its
 last dispatch arrives. `krang` only orchestrates and delegates every step to the specialists
 (`donatello`, `leonardo`, `splinter`, `casey`, `raphael`, `april`). Every gate, install, and test
-command of every unit runs only through `skills/_shared/run-gate.sh`, so two worktrees never run a
-heavy job at the same time. The session publishes one aggregated report for the batch, and a blocker
+command of every unit runs only through `skills/_shared/run-gate.sh`, and a validation manifest runs
+only through `skills/_shared/run-validation.sh --exclusive`, so two worktrees never run a heavy job
+at the same time. The session publishes one aggregated report for the batch, and a blocker
 on one issue never stops the others.
 
 The flag `--merge` is optional. Without it the command stops before merge, as it does for one
