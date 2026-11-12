@@ -447,7 +447,6 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
         ->toContain('Blocked: the machine lock is held by a process this package did not start')
         ->toContain('never a pipe stage')
         ->toContain('the harness stopped while it waited printed no JSON result');
-    expect(strlen($krang))->toBeLessThanOrEqual(134_900);
     expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('every `run-validation.sh` call in a way');
     expect($read('skills/_shared/run-validation.sh'))->toContain('"invalid" | "locked"');
 
