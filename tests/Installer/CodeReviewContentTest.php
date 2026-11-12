@@ -4401,7 +4401,9 @@ test('the reviewer comment gate delegates a comment addressed to another account
 
     // process-code-review would otherwise pick the comment up from its unresolved review thread.
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    expect($process)->toContain(
+    // The delegated-entry text is conditional, so it lives in a reference that the skill loads on its trigger.
+    expect($process)->toContain('load `references/delegated-entries.md` and follow it in full');
+    expect((string) file_get_contents($packageDir . '/skills/process-code-review/references/delegated-entries.md'))->toContain(
         'Do **not** add such a comment to the checklist, even though its review thread is still unresolved',
     );
     expect($process)->toContain(
