@@ -132,9 +132,9 @@ A scratch script stays inside these limits:
 
 - **Same limits as the data change.** The script obeys these limits of *Missing test data*: *Local target only*, *The database is shown to be a development or test database*, *Only through the application's code*, *Access stays untouched*, *Restore every change*, and *No unauthorized side effects*.
 - **Values are data, never code.** The script reads the record from the JSON file with `json_decode(file_get_contents(...), true)`. It never writes a value from the record into its own source. Create both files owner-only (for example under `umask 077`) and delete both afterwards, also when the script failed.
-- **The record decides the scope.** The script acts on the identifiers in the record and nothing else. It restores an attribute only when the attribute still holds the value this run set, and it reports the others as remaining. Never widen the script after it is generated. A script that fails leaves the rest to the browser fallback.
-- **Outside tracked files.** Write the script and the JSON file to the session's scratch directory or the operating system's temporary directory, never inside the repository. Run the script once.
-- **Read back.** Read the result of the run. Then read the deleted records and the restored values back through the application's code, and in the UI where they are visible.
+- **The record decides the scope.** The script acts on the identifiers in the record and nothing else. Never widen the script after it is generated. A script that fails leaves the rest to the browser fallback.
+- **Outside tracked files.** Write the script and the JSON file as new files with unique names in the session's scratch directory or the operating system's temporary directory, never over an existing file and never inside the repository. Run the script once.
+- **Read back.** Read the result of the run. Then read the deleted records back through the application's code, and in the UI where they are visible.
 - **Traceable.** Report each deleted record and each restored attribute under **Cleanup**, with the mechanism that ran (project mechanism, scratch script, or browser) and the read-back result.
 
 ## Execution
