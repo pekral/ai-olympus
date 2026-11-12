@@ -266,7 +266,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
         // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
-        'rules/php/core-standards.md' => '918520bc8ed1320fcc2e6f43387e769808f6857452bbd2d8ee03bcad4618bdc2',
+        // Re-baselined: every coverage run goes through `run-gate.sh --exclusive` (issue #409).
+        'rules/php/core-standards.md' => 'c031de9d071178605dfd950616b839904b5f11b4a20b10c8bdfb78af715ba400',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -471,7 +472,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
-        'rules/code-testing/general.md' => '4f16ff17e3cf1fee27991919ce6243c4b0fa95ae6dcc9e1e2e44cae2a87d0e28',
+        // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
+        'rules/code-testing/general.md' => 'f90abc4ff85b0d985cd6d0b9a5a705c5af5973f187ac155f54747904c8a77c48',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
