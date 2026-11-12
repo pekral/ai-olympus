@@ -36,10 +36,11 @@
 #   --min-occurrences, --min-distinct-tasks, --min-confidence
 #                  the promotion thresholds. They resolve like the settings above, from `extra.ai-olympus`
 #                  `promotion` `min-occurrences` / `min-distinct-tasks` / `min-confidence`, then the built-in
-#                  1, 1, and 0. The first two are at least 1; the confidence is a percentage from 0 to 100.
-#                  Only a Critical record with the status `resolved` is evidence of a pattern, so one such record
-#                  makes a candidate. A class with no such record is reported with its `reason`: `below-critical`
-#                  or `unresolved`.
+#                  3, 2, and 0. The first two are at least 2; the confidence is a percentage from 0 to 100.
+#                  They govern the targets other than `memory`. The `memory` target takes no threshold: each pattern
+#                  carries a `memory` view that counts only the resolved Critical records, and `memory_recurrences`
+#                  lists the classes with at least one such record (skills/code-review/references/learning-promotion.md
+#                  *The severity gate*). A class with none carries the `reason` `below-critical` or `unresolved`.
 #
 # The record text fields are untrusted content (rules/security/general.md). The report never carries
 # one: it holds only values the record schema restricts to a fixed pattern, and links.
@@ -65,8 +66,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DEFAULT_THRESHOLD=2
 DEFAULT_WINDOW_DAYS=90
-DEFAULT_MIN_OCCURRENCES=1
-DEFAULT_MIN_DISTINCT_TASKS=1
+DEFAULT_MIN_OCCURRENCES=3
+DEFAULT_MIN_DISTINCT_TASKS=2
 DEFAULT_MIN_CONFIDENCE=0
 
 usage() {
@@ -160,13 +161,15 @@ JQ_PATTERNS=''
 IFS= read -r -d '' JQ_PATTERNS <<'EOF' || true
 (classes
  | map(
-     map(select(.severity == "critical")) as $critical
+     .[0] as $head
+     | length as $count
+     | (map(.pr) | unique | length) as $tasks
+     | ((map(select(.status == "resolved")) | length) * 100 / $count | floor) as $confidence
+     | (per_pr | sort_by([.time, .pr])) as $occ
+     # The memory target accepts only a resolved Critical record as evidence, from its first occurrence on, with no threshold.
+     | (map(select(.severity == "critical"))) as $critical
      | ($critical | map(select(.status == "resolved"))) as $resolved
-     | .[0] as $head
-     | ($resolved | length) as $count
-     | ($resolved | map(.pr) | unique | length) as $tasks
-     | (if ($critical | length) == 0 then 0 else ($count * 100 / ($critical | length) | floor) end) as $confidence
-     | ($resolved | per_pr | sort_by([.time, .pr])) as $occ
+     | ($resolved | per_pr | sort_by([.time, .pr])) as $mocc
      | {
          key: "\($head.repo):\($head.category):\($head.cause_key)",
          repo: $head.repo,
@@ -174,15 +177,25 @@ IFS= read -r -d '' JQ_PATTERNS <<'EOF' || true
          cause_key: $head.cause_key,
          maturity: (if $tasks < 2 then "observation" else "learning" end),
          eligible: ($count >= $mo and $tasks >= $mt and $confidence >= $mc),
-         reason: (if ($critical | length) == 0 then "below-critical" elif $count == 0 then "unresolved" else null end),
-         critical: ($critical | length),
          occurrences: $count,
          tasks: $tasks,
          confidence: $confidence,
-         findings: ($resolved | map(.id) | sort),
+         findings: (map(.id) | sort),
          first: $occ[0].time,
          last: $occ[-1].time,
-         _occ: ($occ | map(occurrence))
+         memory: {
+           eligible: (($resolved | length) > 0),
+           reason: (if ($critical | length) == 0 then "below-critical" elif ($resolved | length) == 0 then "unresolved" else null end),
+           critical: ($critical | length),
+           occurrences: ($resolved | length),
+           tasks: ($resolved | map(.pr) | unique | length),
+           confidence: (if ($critical | length) == 0 then 0 else (($resolved | length) * 100 / ($critical | length) | floor) end),
+           findings: ($resolved | map(.id) | sort),
+           first: $mocc[0].time,
+           last: $mocc[-1].time
+         },
+         _occ: ($occ | map(occurrence)),
+         _mocc: ($mocc | map(occurrence))
        })
  | sort_by(.key)) as $patterns
 | {
@@ -192,8 +205,9 @@ IFS= read -r -d '' JQ_PATTERNS <<'EOF' || true
     min_occurrences: $mo,
     min_distinct_tasks: $mt,
     min_confidence: $mc,
-    patterns: ($patterns | map(del(._occ))),
-    recurrences: ($patterns | map(select(.eligible) | {repo, category, cause_key, prs: .tasks, first, last, occurrences: ._occ}))
+    patterns: ($patterns | map(del(._occ, ._mocc))),
+    recurrences: ($patterns | map(select(.eligible) | {repo, category, cause_key, prs: .tasks, first, last, occurrences: ._occ})),
+    memory_recurrences: ($patterns | map(select(.memory.eligible) | {repo, category, cause_key, prs: .memory.tasks, first: .memory.first, last: .memory.last, occurrences: ._mocc}))
   }
 EOF
 
@@ -254,11 +268,11 @@ cmd_analyze() {
   local threshold='' window='' mo='' mt='' mc='' empty
   if [[ "$patterns" == 1 ]]; then
     [[ -z "$state$flag_threshold$flag_window" ]] || die_usage '--patterns takes no --threshold, --window-days, or --state'
-    mo="$(resolve_setting min-occurrences "$flag_mo" promotion.min-occurrences 1 "$DEFAULT_MIN_OCCURRENCES")"
-    mt="$(resolve_setting min-distinct-tasks "$flag_mt" promotion.min-distinct-tasks 1 "$DEFAULT_MIN_DISTINCT_TASKS")"
+    mo="$(resolve_setting min-occurrences "$flag_mo" promotion.min-occurrences 2 "$DEFAULT_MIN_OCCURRENCES")"
+    mt="$(resolve_setting min-distinct-tasks "$flag_mt" promotion.min-distinct-tasks 2 "$DEFAULT_MIN_DISTINCT_TASKS")"
     mc="$(resolve_setting min-confidence "$flag_mc" promotion.min-confidence 0 "$DEFAULT_MIN_CONFIDENCE" 100)"
     empty="$(jq -n -c --argjson mo "$mo" --argjson mt "$mt" --argjson mc "$mc" \
-      '{schema: 1, valid: false, records: 0, min_occurrences: $mo, min_distinct_tasks: $mt, min_confidence: $mc, patterns: [], recurrences: []}')"
+      '{schema: 1, valid: false, records: 0, min_occurrences: $mo, min_distinct_tasks: $mt, min_confidence: $mc, patterns: [], recurrences: [], memory_recurrences: []}')"
   else
     [[ -z "$flag_mo$flag_mt$flag_mc" ]] || die_usage 'the promotion thresholds need --patterns'
     threshold="$(resolve_setting threshold "$flag_threshold" recurrence.threshold 2 "$DEFAULT_THRESHOLD")"
@@ -607,44 +621,56 @@ self_test() {
   run_case 'a refused store leaves the state file alone' 3 -- --store "$tmp/corrupt.jsonl" --state "$tmp/refused.state"
   check 'a refused store writes no state file' "$([[ ! -e "$tmp/refused.state" ]] && echo 0 || echo 1)"
 
-  # The pattern report of the promotion lifecycle: only resolved Critical records are evidence, from the first occurrence on.
+  # The pattern report of the promotion lifecycle: every class with its maturity, its evidence, and the thresholds.
   local FP_D=dddddddddddddddd
-  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z resolved; rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z resolved; } >"$tmp/learn3.jsonl"
-  run_case 'three resolved Critical records in three pull requests give a pattern report' 0 -- --store "$tmp/learn3.jsonl" --patterns
-  check 'three resolved Critical records of one class are one eligible pattern whose evidence names all three' "$(jq -e '
-      .valid == true and .min_occurrences == 1 and .min_distinct_tasks == 1 and .min_confidence == 0
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z; rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z; } >"$tmp/learn3.jsonl"
+  run_case 'three learnings in three pull requests give a pattern report' 0 -- --store "$tmp/learn3.jsonl" --patterns
+  check 'three learnings of one class are one eligible pattern whose evidence names all three' "$(jq -e '
+      .valid == true and .min_occurrences == 3 and .min_distinct_tasks == 2 and .min_confidence == 0
       and (.patterns | length) == 1 and .patterns[0].key == "acme/shop:rules/code-review/core-analysis:n-plus-one-queries"
-      and .patterns[0].maturity == "learning" and .patterns[0].eligible == true and .patterns[0].reason == null
-      and .patterns[0].critical == 3 and .patterns[0].occurrences == 3 and .patterns[0].tasks == 3 and (.patterns[0].findings | length) == 3
+      and .patterns[0].maturity == "learning" and .patterns[0].eligible == true
+      and .patterns[0].occurrences == 3 and .patterns[0].tasks == 3 and (.patterns[0].findings | length) == 3
       and (.recurrences | length) == 1 and .recurrences[0].prs == 3
       and (.recurrences[0].occurrences | map(.url)) == ["https://github.com/acme/shop/pull/7", "https://github.com/acme/shop/pull/9", "https://github.com/acme/shop/pull/11"]' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved >"$tmp/first.jsonl"
-  run_case 'one resolved Critical record gives a pattern report' 0 -- --store "$tmp/first.jsonl" --patterns
-  check 'one resolved Critical record is an eligible candidate at its first occurrence' "$(jq -e '.patterns[0].eligible == true and .patterns[0].maturity == "observation" and .patterns[0].occurrences == 1 and .patterns[0].tasks == 1 and .patterns[0].confidence == 100 and (.recurrences | length) == 1 and .recurrences[0].prs == 1' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  run_case 'a minimum of two occurrences still gates a single record' 0 -- --store "$tmp/first.jsonl" --patterns --min-occurrences 2
-  check 'a project that raises the minimum keeps a single occurrence from being eligible' "$(jq -e '.patterns[0].eligible == false and .min_occurrences == 2 and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z open >"$tmp/open.jsonl"
-  run_case 'an unresolved Critical record gives a pattern report' 0 -- --store "$tmp/open.jsonl" --patterns
-  check 'an unresolved Critical record is no candidate and says why' "$(jq -e '.patterns[0].eligible == false and .patterns[0].reason == "unresolved" and .patterns[0].critical == 1 and .patterns[0].occurrences == 0 and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate;
-    rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate;
-    rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate; } >"$tmp/moderate3.jsonl"
-  run_case 'three resolved Moderate records give a pattern report' 0 -- --store "$tmp/moderate3.jsonl" --patterns
-  check 'a Moderate class is no candidate whatever its recurrence, and says why' "$(jq -e '.patterns[0].eligible == false and .patterns[0].reason == "below-critical" and .patterns[0].critical == 0 and .patterns[0].occurrences == 0 and .patterns[0].tasks == 0 and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z resolved; } >"$tmp/mixed.jsonl"
-  run_case 'a Moderate and a Critical record of one class give a pattern report' 0 -- --store "$tmp/mixed.jsonl" --patterns
-  check 'only the resolved Critical record is evidence of a mixed class' "$(jq -e '.patterns[0].eligible == true and .patterns[0].occurrences == 1 and .patterns[0].critical == 1 and (.patterns[0].findings | length) == 1 and (.recurrences[0].occurrences | map(.pr)) == [9]' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved; rec acme/shop 7 $FP_C 2026-09-01T11:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/http;
-    rec acme/shop 7 $FP_D 2026-09-01T12:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/models; } >"$tmp/onepr3.jsonl"
-  run_case 'three records of one pull request give a pattern report' 0 -- --store "$tmp/onepr3.jsonl" --patterns --min-distinct-tasks 2
-  check 'three records of one pull request are one distinct task and no eligible pattern when two tasks are required' "$(jq -e '.patterns[0].occurrences == 3 and .patterns[0].tasks == 1 and .patterns[0].maturity == "observation" and .patterns[0].eligible == false and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run_case 'two learnings with a threshold of three give a pattern report' 0 -- --store "$tmp/two.jsonl" --patterns
+  check 'two occurrences with a threshold of three give no eligible pattern' "$(jq -e '(.patterns | length) == 1 and .patterns[0].eligible == false and .patterns[0].maturity == "learning" and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z; rec acme/shop 7 $FP_C 2026-09-01T11:00:00Z open confirmed 1111111111111111111111111111111111111111 app/http;
+    rec acme/shop 7 $FP_D 2026-09-01T12:00:00Z open confirmed 1111111111111111111111111111111111111111 app/models; } >"$tmp/onepr3.jsonl"
+  run_case 'three records of one pull request give a pattern report' 0 -- --store "$tmp/onepr3.jsonl" --patterns --min-distinct-tasks 2 --min-occurrences 2
+  check 'three records of one pull request are one distinct task and no eligible pattern' "$(jq -e '.patterns[0].occurrences == 3 and .patterns[0].tasks == 1 and .patterns[0].maturity == "observation" and .patterns[0].eligible == false and (.recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z; rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z; } >"$tmp/conf.jsonl"
   run_case 'a confidence below the threshold gives a pattern report' 0 -- --store "$tmp/conf.jsonl" --patterns --min-confidence 50
-  check 'the confidence is the share of resolved Critical records and gates the pattern' "$(jq -e '.patterns[0].confidence == 33 and .patterns[0].eligible == false and .min_confidence == 50' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'the confidence is the share of resolved records and gates the pattern' "$(jq -e '.patterns[0].confidence == 33 and .patterns[0].eligible == false and .min_confidence == 50' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run_case 'a confidence at the threshold gives a pattern report' 0 -- --store "$tmp/conf.jsonl" --patterns --min-confidence 33
   check 'a confidence at the threshold makes the pattern eligible' "$(jq -e '.patterns[0].eligible == true' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run_case 'unclassified records give a pattern report' 0 -- --store "$tmp/unclassified.jsonl" --patterns
   check 'a record with no identified cause forms no pattern' "$(jq -e '(.patterns | length) == 0 and .records == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+
+  # The memory target: only a resolved Critical record is evidence, from the first occurrence on, whatever the thresholds of the other targets.
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate;
+    rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate;
+    rec acme/shop 11 $FP_A 2026-09-09T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate; } >"$tmp/moderate3.jsonl"
+  run_case 'three resolved Moderate records give a pattern report' 0 -- --store "$tmp/moderate3.jsonl" --patterns
+  check 'a recurring Moderate class stays eligible for the other targets and is refused for the memory target' "$(jq -e '
+      .patterns[0].eligible == true and .patterns[0].occurrences == 3 and (.recurrences | length) == 1
+      and .patterns[0].memory.eligible == false and .patterns[0].memory.reason == "below-critical" and .patterns[0].memory.critical == 0
+      and .patterns[0].memory.occurrences == 0 and (.memory_recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved >"$tmp/first.jsonl"
+  run_case 'one resolved Critical record gives a pattern report' 0 -- --store "$tmp/first.jsonl" --patterns
+  check 'one resolved Critical record is a memory candidate at its first occurrence and no candidate for the other targets' "$(jq -e '
+      .patterns[0].eligible == false and (.recurrences | length) == 0 and .min_occurrences == 3
+      and .patterns[0].memory.eligible == true and .patterns[0].memory.reason == null and .patterns[0].memory.critical == 1
+      and .patterns[0].memory.occurrences == 1 and .patterns[0].memory.tasks == 1 and .patterns[0].memory.confidence == 100
+      and (.patterns[0].memory.findings | length) == 1
+      and (.memory_recurrences | length) == 1 and .memory_recurrences[0].prs == 1' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z open >"$tmp/open.jsonl"
+  run_case 'an unresolved Critical record gives a pattern report' 0 -- --store "$tmp/open.jsonl" --patterns
+  check 'an unresolved Critical record is no memory candidate and says why' "$(jq -e '.patterns[0].memory.eligible == false and .patterns[0].memory.reason == "unresolved" and .patterns[0].memory.critical == 1 and .patterns[0].memory.occurrences == 0 and (.memory_recurrences | length) == 0' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  { rec acme/shop 7 $FP_A 2026-09-01T10:00:00Z resolved confirmed 1111111111111111111111111111111111111111 app/actions moderate; rec acme/shop 9 $FP_A 2026-09-05T10:00:00Z resolved; } >"$tmp/mixed.jsonl"
+  run_case 'a Moderate and a Critical record of one class give a pattern report' 0 -- --store "$tmp/mixed.jsonl" --patterns
+  check 'only the resolved Critical record is evidence of the memory candidate of a mixed class' "$(jq -e '.patterns[0].memory.eligible == true and .patterns[0].memory.occurrences == 1 and (.patterns[0].memory.findings | length) == 1 and (.memory_recurrences[0].occurrences | map(.pr)) == [9] and .patterns[0].occurrences == 2' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run_case 'raised thresholds give a pattern report of one resolved Critical record' 0 -- --store "$tmp/first.jsonl" --patterns --min-occurrences 5 --min-distinct-tasks 4 --min-confidence 100
+  check 'a raised threshold does not govern the memory candidate' "$(jq -e '.patterns[0].eligible == false and .patterns[0].memory.eligible == true' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   jq -c '.cause_hypothesis = "A reworded impact." | .reproducer = "Another example."' "$tmp/learn3.jsonl" >"$tmp/reworded.jsonl"
   "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/p1.json"
   "$script" --store "$tmp/reworded.jsonl" --patterns >"$tmp/p2.json"
@@ -660,14 +686,14 @@ self_test() {
   printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 2, "min-distinct-tasks": 2, "min-confidence": 0 } } } }' >"$prepo/composer.json"
   (cd "$prepo" && "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/out" 2>"$tmp/err")
   check 'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern' "$(jq -e '.min_occurrences == 4 and .min_distinct_tasks == 3 and .min_confidence == 10 and .patterns[0].eligible == false' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 0, "min-distinct-tasks": 0, "min-confidence": 101 } } } }' >"$prepo/composer.json"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 1, "min-distinct-tasks": 1, "min-confidence": 101 } } } }' >"$prepo/composer.json"
   git -C "$prepo" add composer.json
   git -C "$prepo" -c user.name=t -c user.email=t@t commit -q -m low
   git -C "$prepo" update-ref refs/remotes/origin/master HEAD
   (cd "$prepo" && "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/out" 2>"$tmp/err")
-  check 'a promotion threshold below 1 is ignored and the script says so' "$(jq -e '.min_occurrences == 1 and .min_distinct_tasks == 1 and .min_confidence == 0' "$tmp/out" >/dev/null && grep -q 'promotion.min-occurrences is not a whole number at least 1' "$tmp/err" && grep -q 'promotion.min-distinct-tasks is not a whole number at least 1' "$tmp/err" && grep -q 'promotion.min-confidence is not a whole number from 0 to 100' "$tmp/err" && echo 0 || echo 1)"
-  run_case 'a minimum of zero occurrences is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-occurrences 0
-  run_case 'a minimum of zero distinct tasks is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-distinct-tasks 0
+  check 'a promotion threshold below 2 is ignored and the script says so' "$(jq -e '.min_occurrences == 3 and .min_distinct_tasks == 2 and .min_confidence == 0' "$tmp/out" >/dev/null && grep -q 'promotion.min-occurrences is not a whole number at least 2' "$tmp/err" && grep -q 'promotion.min-distinct-tasks is not a whole number at least 2' "$tmp/err" && grep -q 'promotion.min-confidence is not a whole number from 0 to 100' "$tmp/err" && echo 0 || echo 1)"
+  run_case 'a minimum of one occurrence is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-occurrences 1
+  run_case 'a minimum of one distinct task is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-distinct-tasks 1
   run_case 'a confidence over 100 is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --min-confidence 101
   run_case 'a pattern report with a state file is a usage error' 1 -- --store "$tmp/learn3.jsonl" --patterns --state "$tmp/state.json"
   run_case 'a promotion threshold without --patterns is a usage error' 1 -- --store "$tmp/learn3.jsonl" --min-occurrences 3

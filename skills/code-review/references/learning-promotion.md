@@ -1,17 +1,17 @@
 # Learning promotion — from a repeated learning to permanent knowledge, with a human in between
 
-This file is the one contract for the promotion lifecycle of issue #137 (part of #131). A lesson of a resolved Critical code-review finding becomes a candidate for permanent knowledge: a rule, a skill, a checklist, documentation, an agent instruction, an architecture guideline, or an entry of the code-review memory. The lifecycle never changes that knowledge itself. It produces a proposal, and a human approves the exact text of the proposal before the ordinary pipeline implements it.
+This file is the one contract for the promotion lifecycle of issue #137 (part of #131). A lesson that review finds again and again becomes a candidate for permanent knowledge: a rule, a skill, a checklist, documentation, an agent instruction, or an architecture guideline. A resolved Critical code-review finding also becomes a candidate for an entry of the code-review memory, from its first occurrence on. The lifecycle never changes that knowledge itself. It produces a proposal, and a human approves the exact text of the proposal before the ordinary pipeline implements it.
 
 The lifecycle builds on the feedback loop of epic #185 and adds no second memory system. It reads the finding records of `finding-records.md`, groups them with `recurrence-analysis.md`, renders the proposal with `prevention-proposal.md`, and keeps its own history in the store of `feedback-loop.md` *The store*. The code-review memory (`@rules/compound-engineering/memory.md`) is a per-user SQLite database that `krang` alone writes. It is the write target of a candidate of type `memory`.
 
 ## The severity gate
 
-This section is the one owner of what may become a candidate. `@rules/compound-engineering/memory.md` *Write protocol* references it.
+This section is the one owner of what may become a candidate of the `memory` target. `@rules/compound-engineering/memory.md` *Write protocol* references it. The gate applies to the `memory` target only. Every other target type keeps the recurrence thresholds of *Thresholds*, so a below-Critical defect class that recurs still becomes a candidate for a rule, a skill, a checklist, documentation, an agent instruction, or an architecture guideline.
 
-- **Only a Critical finding of a code review counts.** The records come from the published code-review report (`finding-records.md`). A finding of a proposal review, a standalone security audit, or an acceptance test is never a record. A Moderate finding is a record, and it is never evidence of a candidate, whatever its recurrence count.
-- **Only a resolved finding counts.** A Critical record with the status `open` is not evidence yet.
-- **The first resolved occurrence is enough.** A Critical lesson is a candidate after one resolved record, so the mistake does not have to repeat before it is recorded. The human approval below stays.
-- **A refused candidate states its reason.** `propose` prints `{"status":"none","reason":"below-critical"}` for a class with no Critical record, `"unresolved"` for a class whose Critical records are all open, and `"not-eligible"` when a stricter threshold of the project settings below is not reached. It writes nothing.
+- **Only a Critical finding of a code review counts.** The records come from the published code-review report (`finding-records.md`). A finding of a proposal review, a standalone security audit, or an acceptance test is never a record. A Moderate finding is a record, and it is never evidence of a `memory` candidate, whatever its recurrence count.
+- **Only a resolved finding counts.** A Critical record with the status `open` is not evidence of a `memory` candidate yet.
+- **The first resolved occurrence is enough.** A Critical lesson is a `memory` candidate after one resolved record, so the mistake does not have to repeat before it is recorded. The thresholds of *Thresholds* do not apply to the `memory` target. The human approval below stays.
+- **A refused `memory` candidate states its reason.** `propose` with a `memory` target prints `{"status":"none","reason":"below-critical"}` for a class with no Critical record and `"unresolved"` for a class whose Critical records are all open. It writes nothing.
 
 ## Command
 
@@ -34,8 +34,8 @@ Every learning has one explicit state. `status` reports it for every defect clas
 
 | State | Meaning |
 | --- | --- |
-| `observation` | The class rests on one task, or has no resolved Critical record. |
-| `learning` | The class has resolved Critical records in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds and has no candidate yet. |
+| `observation` | The class rests on one task. |
+| `learning` | The class appears in two or more tasks. `awaiting: "analysis"` marks a class that reaches the thresholds, or has a resolved Critical record for the `memory` target, and has no candidate yet. |
 | `candidate` | `propose` rendered a proposal for the class. `awaiting` is `approval`, or `re-approval` when the proposal changed after an approval. |
 | `approved` | A trusted fact approved the current proposal text. `awaiting` is `merge`, or `memory-write` for a candidate of type `memory`. |
 | `promoted` | The approved change is on the default branch. |
@@ -48,33 +48,33 @@ A state is derived from the history in order. No record field states it, and no 
 
 A pattern is one defect class of `recurrence-analysis.md` *What counts as a recurrence*: its `repo`, `category`, and `cause_key`. `analyze-recurrence.sh --patterns` reports each pattern with its evidence. Grouping uses only these schema fields. No similarity search and no model takes part.
 
-- **Occurrences** are the validated records of the pattern that are Critical and resolved (*The severity gate*). The store check of `extract-findings.sh --validate` runs first, so text that is not a record never counts.
+- **Occurrences** are the validated records of the pattern. The store check of `extract-findings.sh --validate` runs first, so text that is not a record never counts. The `memory` target counts only the Critical resolved records among them (*The severity gate*).
 - **Distinct tasks** are distinct pull requests of the canonical repository. Several records from one pull request are one task.
-- **The resolved share** is the share of the pattern's Critical records that a fix resolved, in percent. It is measured, never estimated, and the `promotion.min-confidence` threshold compares it.
+- **The resolved share** is the share of the pattern's records that a fix resolved, in percent. It is measured, never estimated, and the `promotion.min-confidence` threshold compares it.
 - **Evidence** is the sorted list of the finding ids, and the proposal links every pull request.
 
-A pattern is eligible when it reaches all three thresholds below.
+A pattern is eligible for a target other than `memory` when it reaches all three thresholds below. The `memory` target takes no threshold (*The severity gate*).
 
 ## Settings
 
 | Setting | Manifest key | Default | Range |
 | --- | --- | --- | --- |
-| Occurrences | `promotion.min-occurrences` | 1 | at least 1 |
-| Distinct tasks | `promotion.min-distinct-tasks` | 1 | at least 1 |
+| Occurrences | `promotion.min-occurrences` | 3 | at least 2 |
+| Distinct tasks | `promotion.min-distinct-tasks` | 2 | at least 2 |
 | Resolved share in percent | `promotion.min-confidence` | 0 | 0 to 100 |
 
-A setting resolves in this order: the flag of `analyze-recurrence.sh`, then the manifest key of the default branch (`@rules/general/general.md` *Project manifest*), then the default. The manifest is read only through `read-manifest.sh`, never from the working tree. A manifest value outside its range is ignored, and the script says so on standard error. A project can raise a threshold to demand more evidence. The defaults let one resolved Critical record become a candidate.
+A setting resolves in this order: the flag of `analyze-recurrence.sh`, then the manifest key of the default branch (`@rules/general/general.md` *Project manifest*), then the default. The manifest is read only through `read-manifest.sh`, never from the working tree. A manifest value outside its range is ignored, and the script says so on standard error. A single occurrence therefore never becomes a candidate of a target other than `memory`.
 
 ## The candidate
 
 `propose` takes the analysis file of `prevention-proposal.md` *The analysis file* with a `target`. It runs these checks in order and stops at the first that applies:
 
-1. **Not eligible.** A class with no Critical record gives `"reason":"below-critical"`, a class with no resolved Critical record gives `"unresolved"`, and a pattern below a threshold gives `"not-eligible"`. Each result is `{"status":"none","reason":<reason>}`, and nothing is written.
+1. **Not eligible.** A pattern below a threshold gives `{"status":"none","reason":"not-eligible"}` and writes nothing. With a `memory` target, a class with no Critical record gives `"reason":"below-critical"` and a class with no resolved Critical record gives `"unresolved"`, by the same shape.
 2. **Already promoted.** A promoted or superseded key gives `{"status":"none","reason":"promoted"}` or `"superseded"`.
 3. **Suppressed.** A key whose last decision is a rejection of the same evidence gives `{"status":"none","reason":"rejected"}`.
 4. **Supersedes.** Each key in `target.supersedes` must be a promoted candidate. Anything else exits `4`.
 5. **Existing knowledge.** Each file in `target.knowledge` is checked with `git cat-file` on the default branch that `read-manifest.sh --default-ref` names. A file that only the working tree holds covers nothing: its coverage becomes `none`, and the script says so. A file that covers the pattern in full gives `{"status":"none","reason":"covered","covered_by":<path>}`. A file that covers it in part must be the target, so the existing file is extended.
-6. **Render.** `propose-prevention.sh` renders the proposal with its sanitizer, with `--min-pull-requests 1` so that one pull request is enough. The script stores the SHA-256 digest of the rendered file in a `candidate` record.
+6. **Render.** `propose-prevention.sh` renders the proposal with its sanitizer. A `memory` target passes `--min-pull-requests 1` so that one pull request is enough. The script stores the SHA-256 digest of the rendered file in a `candidate` record.
 
 The same pattern with the same proposal text adds no second record. A changed text adds a new `candidate` record for the same key.
 
