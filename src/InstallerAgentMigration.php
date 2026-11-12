@@ -22,6 +22,12 @@ final class InstallerAgentMigration
         'splinter' => 'krang',
     ];
 
+    /**
+     * Names that a renamed agent definition reuses for a different agent. The 0.3.1 copy of such a
+     * name is the old orchestrator, so it must be replaced even without `--force`.
+     */
+    private const array REUSED = ['splinter'];
+
     private const array ORIGINAL_DIGESTS = [
         'apollo.md' => '13658fa9f6fe5291ff34a8ac7bc5bd5ff4a5716173b4beaa4c09938c063f1230',
         'apollo.toml' => '709f2eaeb7b38b23cbc3e3fe8079d29233b32d8ceb5e7e31fb6550e44db72a7f',
@@ -67,6 +73,26 @@ final class InstallerAgentMigration
         return $removed;
     }
 
+    /**
+     * True when `$target` is an unmodified copy of a superseded definition whose name a current agent reuses.
+     * A symlink or a user-edited file is never superseded, so it stays.
+     */
+    public static function isSupersededCopy(string $relativePath, string $target): bool
+    {
+        if (!self::isReusedName($relativePath)) {
+            return false;
+        }
+
+        return !is_link($target) && is_file($target) && self::matchesDigest($target, self::ORIGINAL_DIGESTS[basename($relativePath)]);
+    }
+
+    public static function isReusedName(string $relativePath): bool
+    {
+        $filename = basename($relativePath);
+
+        return in_array(pathinfo($filename, PATHINFO_FILENAME), self::REUSED, strict: true) && isset(self::ORIGINAL_DIGESTS[$filename]);
+    }
+
     private static function isRemovableCopy(string $source, string $target, string $filename, string $replacement): bool
     {
         if (!is_file($target . '/' . $replacement) || is_file($source . '/' . $filename)) {
@@ -86,6 +112,11 @@ final class InstallerAgentMigration
             return false;
         }
 
+        return self::matchesDigest($target, $digest);
+    }
+
+    private static function matchesDigest(string $target, string $digest): bool
+    {
         return hash('sha256', str_replace("\r\n", "\n", (string) file_get_contents($target))) === $digest;
     }
 
