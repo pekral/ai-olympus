@@ -388,6 +388,22 @@ gate_process_start() {
   printf '%s' $(($(date +%s) - elapsed))
 }
 
+# One tolerance for "this process started when the holder file says": `ps -o etime=` counts whole
+# seconds, so two reads of one process can differ by a second or two.
+gate_same_start() {
+  [[ $(($1 - $2)) -le 5 && $(($2 - $1)) -le 5 ]]
+}
+
+# A zombie waits only for its parent to reap it; it holds no lock and runs no gate.
+gate_pid_zombie() {
+  [[ "$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')" == Z* ]]
+}
+
+# The process exists and is not a zombie.
+gate_pid_running() {
+  kill -0 "$1" 2>/dev/null && ! gate_pid_zombie "$1"
+}
+
 # What the holder file says about the command: the wrapper sets GATE_HOLDER_COMMAND, and a
 # library caller that sets none is named by its program.
 gate_holder_command() {
@@ -422,7 +438,7 @@ gate_file_field() {
 # holder that its run removed after the -f test, or that cannot be read, is
 # inconclusive, and the probe writes nothing to the caller's output.
 gate_lock_is_stale() {
-  local dir="${1:-$GATE_LOCK}" holder text pid started probe etime elapsed now
+  local dir="${1:-$GATE_LOCK}" holder text pid started probe start
   holder="$dir/holder"
   [[ -f "$holder" && ! -L "$holder" ]] || return 1
   text="$(cat -- "$holder" 2>/dev/null)" || return 1
@@ -435,15 +451,13 @@ gate_lock_is_stale() {
     return 0
   fi
 
-  # A zombie waits only for its parent to reap it; it holds no lock and runs no gate.
-  [[ "$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')" != Z* ]] || return 0
+  # A zombie holds no lock and runs no gate.
+  ! gate_pid_zombie "$pid" || return 0
 
   [[ -n "$started" ]] || return 1
-  etime="$(ps -o etime= -p "$pid" 2>/dev/null || true)"
-  elapsed="$(gate_etime_seconds "$etime")" || return 1
-  now="$(date +%s)"
+  start="$(gate_process_start "$pid")" || return 1
   # A process cannot have written a timestamp before it existed; 60 s absorbs skew.
-  [[ $((now - elapsed)) -gt $((started + 60)) ]]
+  [[ "$start" -gt $((started + 60)) ]]
 }
 
 # The reclaim directory of a waiter is stale when its holder is confirmed dead,
@@ -559,18 +573,33 @@ gate_heartbeat_age() {
   printf '%s' $(($(date +%s) - beat))
 }
 
+# A lock directory with no readable holder for more than one minute: its run was killed between
+# the `mkdir` and the holder file. The one-minute rule is the one gate_reclaim_is_stale applies to
+# a reclaim directory. A waiter never acts on it (the main lock stays live for a waiter, as before);
+# only `gate-lock.sh repair` does.
+gate_lock_headless_aged() {
+  local dir="${1:-$GATE_LOCK}"
+  [[ -d "$dir" && ! -L "$dir" ]] || return 1
+  [[ ! "$(gate_file_field "$dir/holder" PID)" =~ ^[0-9]{1,7}$ ]] || return 1
+  [[ -n "$(find "$dir" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]]
+}
+
 # The state of a lock directory:
 #   free      there is no lock
-#   dead      the holder is confirmed dead or its PID was recycled (gate_lock_is_stale)
+#   dead      the holder is confirmed dead or its PID was recycled (gate_lock_is_stale), or the lock
+#             has had no readable holder for more than a minute (gate_lock_headless_aged)
 #   stuck     the holder is alive, started by a wrapper of this package, and has shown no progress
 #             for longer than gate_stuck_after
 #   held      a live holder; a holder file of an older format has no heartbeat and never counts as stuck
-#   unproven  a lock directory without a readable holder: a run is between its mkdir and its holder
-#             file, or the lock is unreadable. It counts as live.
+#   unproven  a lock directory without a readable holder for less than a minute: a run is between
+#             its mkdir and its holder file, or the lock is unreadable. It counts as live.
 gate_lock_state() {
   local dir="${1:-$GATE_LOCK}" age
   [[ -d "$dir" ]] || { printf 'free'; return 0; }
-  [[ -f "$dir/holder" && ! -L "$dir/holder" ]] && [[ "$(gate_file_field "$dir/holder" PID)" =~ ^[0-9]{1,7}$ ]] || { printf 'unproven'; return 0; }
+  if [[ ! -f "$dir/holder" || -L "$dir/holder" || ! "$(gate_file_field "$dir/holder" PID)" =~ ^[0-9]{1,7}$ ]]; then
+    if gate_lock_headless_aged "$dir"; then printf 'dead'; else printf 'unproven'; fi
+    return 0
+  fi
   if gate_lock_is_stale "$dir"; then
     printf 'dead'
     return 0
@@ -593,6 +622,10 @@ gate_lock_describe() {
   [[ -z "$age" ]] || printf ', last progress %ss ago' "$age"
 }
 
+gate_lock_reclaimable() {
+  gate_lock_is_stale || { [[ "${1:-}" == headless ]] && gate_lock_headless_aged; }
+}
+
 # Remove a stale lock directory when this call may. Only one waiter reclaims, and it checks again
 # under the reclaim lock: a waiter that read the dead holder earlier then does not remove the live
 # lock that another waiter has taken in the meantime. The reclaim lock carries its own holder file
@@ -603,16 +636,19 @@ gate_lock_describe() {
 # when that newer waiter also stalls between its second probe and its removal of
 # the gate lock: the race needs a dead gate holder, a dead reclaimer, and two
 # stalled waiters.
+# `headless` as the first argument also reclaims a lock with no holder for over a minute; repair
+# passes it, a waiter never does.
 #   returns 0 when this call took the reclaim lock (the lock may now be gone), 1 otherwise
 gate_lock_reclaim_stale() {
+  local scope="${1:-}"
   if gate_reclaim_is_stale; then
     rm -rf -- "$GATE_LOCK.reclaim"
   fi
-  if gate_lock_is_stale && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
+  if gate_lock_reclaimable "$scope" && mkdir -- "$GATE_LOCK.reclaim" 2>/dev/null; then
     # No-clobber: when a stall let another waiter clear this directory and take
     # its own, only the first holder file stands and the other waiter backs off.
     if (set -C && gate_holder_text >"$GATE_LOCK.reclaim/holder") 2>/dev/null; then
-      if gate_lock_is_stale; then
+      if gate_lock_reclaimable "$scope"; then
         rm -rf -- "$GATE_LOCK"
       fi
       rm -rf -- "$GATE_LOCK.reclaim"
@@ -664,7 +700,10 @@ gate_lock_acquire() {
   GATE_LOCK_HELD=1
   # This script's own PID: the script, not a per-call subshell, holds the lock
   # for exactly as long as the run lasts.
-  gate_holder_text >"$GATE_LOCK/holder"
+  # A temporary file and a rename: a reader sees the whole holder file or none, so a lock without
+  # a holder past a minute means the run died between the `mkdir` and this line.
+  gate_holder_text >"$GATE_LOCK/.holder.$$"
+  mv -f -- "$GATE_LOCK/.holder.$$" "$GATE_LOCK/holder"
   export AI_OLYMPUS_LOCK_HELD_BY="$$"
   gate_heartbeat_start
   return 0
@@ -752,6 +791,11 @@ STUB
   git -C "$dir" add -A
   git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m init
   git -C "$dir" update-ref refs/remotes/origin/master HEAD
+}
+
+# How many stub calls in $GATE_SELFTEST_CALLS start with $1; 0 when no stub ran.
+gate_selftest_calls() {
+  if [[ -f "$GATE_SELFTEST_CALLS" ]]; then grep -c "^$1" "$GATE_SELFTEST_CALLS" || true; else printf '0'; fi
 }
 
 # Replace the default-branch manifest without touching the working tree.

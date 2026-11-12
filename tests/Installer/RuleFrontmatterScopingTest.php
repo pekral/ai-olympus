@@ -446,7 +446,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a second, independent security view (`splinter`) runs in every round and merges into the one review (issue #379).
         // Re-baselined: the merge rules of the two views live in `rules/code-review/review-process.md`, and the rule points there (issue #379).
         // Re-baselined: the DRY check records an unestablished reason to change as *Not a duplicate* and raises nothing (issue #426).
-        'rules/code-review/general.md' => '331391be27650aa1fee081fcc63414ed49b10e7738f117dcdc7dea4d12cb70fb',
+        // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
+        'rules/code-review/general.md' => '97636742715e5eb0a1bda77fedb7f13463a930bbcece440b35c9b972f7040151',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -474,7 +475,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
         // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-testing/general.md' => 'f90abc4ff85b0d985cd6d0b9a5a705c5af5973f187ac155f54747904c8a77c48',
+        'rules/code-testing/general.md' => '8589ff8c3afedd4b8d33be0a49e0dea874769bdfe83f196e850c2964453ab3f0',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
