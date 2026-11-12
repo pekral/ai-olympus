@@ -67,7 +67,10 @@ test('the coordinator and every unit krang only orchestrate and delegate to the 
 test('every brief carries the gate-serialisation block and names only the run-gate wrapper', function (): void {
     $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
 
-    expect($batch)->toContain('The coordinator puts this block into the dispatch of every `krang`. Every `krang` puts it, verbatim, into the dispatch of every specialist it starts.')
+    expect($batch)->toContain(
+        'The coordinator puts this block into the dispatch of every `krang`. '
+        . 'Every `krang` puts it, verbatim, into the dispatch of every specialist it starts.',
+    )
         ->and($batch)->toContain('`Too many connections`, `Deadlock`, `Table doesn\'t exist`')
         ->and($batch)->toContain('`skills/_shared/run-gate.sh --tier pr --actor <your role>`')
         ->and($batch)->toContain('`skills/_shared/run-gate.sh --tier full`')
