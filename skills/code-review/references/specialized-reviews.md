@@ -215,6 +215,7 @@ Criterion: the skill produces or advances the very artifact under review, rather
 - `test-assignment` — tests one task's pull request against its assignment and publishes the test report, or in `fix` mode continues through `verify-merge-readiness`. It also writes tests through `donatello` and needs a running application through `raphael`, but question 1 is asked before questions 2 and 3, so it lands here.
 - `pr-summary` — publishes the run's non-technical tracker summary.
 - `merge-github-pr` — merges the pull request after the review converges.
+- `merge-github-pr-fast` — merges a hotfix pull request on the user's explicit `/merge-github-pr-fast` command, with one security-only check of the diff in place of the converged review. No review run starts it.
 - `auto-interactive-testing` — works through the open `interactive-testing` issues: it merges the fix for every defect it meets through `krang` and `merge-github-pr`, then publishes each issue's verdicts and closes the issue. It also writes code through `krang` and needs a running application through `interactive-testing`, but question 1 is asked before questions 2 and 3, so it lands here.
 
 ### Adding a `MODE=cr` lens — what moves a skill out of groups 1–3

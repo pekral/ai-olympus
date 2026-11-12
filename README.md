@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 67 reusable skills, and eight specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 68 reusable skills, and eight specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 67 skills, the eight agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 68 skills, the eight agents, and the four commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -138,7 +138,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
-- [`docs/skills.md`](docs/skills.md) — the catalog of all 67 skills
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 68 skills
 - [`docs/rules.md`](docs/rules.md) — the 33 rule files, grouped by scope
 
 ## Testing
