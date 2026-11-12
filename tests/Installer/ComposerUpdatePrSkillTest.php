@@ -127,7 +127,8 @@ test('the skill scans the commits of the branch with history-scan before the pus
 });
 
 test('the package lists the skill in the README, the skill catalog, and the code-review exclusion groups', function (): void {
-    $count = count(glob(dirname(__DIR__, 2) . '/skills/*/SKILL.md') ?: []);
+    $skills = glob(dirname(__DIR__, 2) . '/skills/*/SKILL.md');
+    $count = is_array($skills) ? count($skills) : 0;
 
     expect(composerUpdateSource('README.md'))->toContain($count . ' reusable skills')
         ->and(composerUpdateSource('docs/skills.md'))->toContain('| [`composer-update-pr`](../skills/composer-update-pr/) |')
