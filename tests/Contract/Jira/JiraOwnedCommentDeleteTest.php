@@ -28,6 +28,9 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "delete" ]]; then
+  if [[ "${FAKE_ACLI_DELETE_RC:-0}" -ne 0 ]]; then
+    exit "$FAKE_ACLI_DELETE_RC"
+  fi
   : > "$FAKE_ACLI_DELETED"
   exit 0
 fi
@@ -76,9 +79,10 @@ function jiraDeleteViewJson(array $comments): string
  * @param list<string> $arguments
  * @param list<array<string, mixed>> $before
  * @param list<array<string, mixed>> $after
+ * @param array<string, string> $extraEnv
  * @return array{process: \Symfony\Component\Process\Process, calls: string, deleted: bool}
  */
-function runJiraDeleteHelper(array $arguments, array $before, array $after): array
+function runJiraDeleteHelper(array $arguments, array $before, array $after, array $extraEnv = []): array
 {
     $packageDir = dirname(__DIR__, 3);
     $root = installerCreateProjectRoot();
@@ -96,6 +100,7 @@ function runJiraDeleteHelper(array $arguments, array $before, array $after): arr
             $packageDir . '/skills/code-review-jira/scripts/delete-owned-comment.sh',
             ...$arguments,
         ], $packageDir, [
+            ...$extraEnv,
             'FAKE_ACLI_CALLS' => $calls,
             'FAKE_ACLI_DELETED' => $deleted,
             'FAKE_ACLI_EMAIL' => JIRA_DELETE_EMAIL,
@@ -221,5 +226,46 @@ test('the JIRA publisher and the delete helper derive the actor digest from one 
 
         expect($content)->toContain('source "$SCRIPT_DIR/jira-actor.sh"');
         expect($content)->toContain('jira_actor_digest "$EMAIL"');
+    }
+});
+
+test('the JIRA comment delete helper leaves one well-formed external-write line for a delete', function (): void {
+    $ledger = auditLedgerCreate();
+    $after = [jiraDeleteComment('900', 'acc-agent', 'Final TL;DR ' . jiraDeleteMarker())];
+
+    try {
+        $result = runJiraDeleteHelper(['ACME-1234', '123', '900', '900'], jiraDeleteOwnedComments(), $after, $ledger['env']);
+        $rows = auditLedgerRows($ledger);
+
+        expect($result['process']->getExitCode())->toBe(0)
+            ->and($rows)->toHaveCount(1)
+            ->and($rows[0])->toHaveCount(5)
+            ->and($rows[0][0])->toBe('donatello')
+            ->and($rows[0][2])->toBe('external-write')
+            ->and($rows[0][3])->toBe('jira comment 123 delete on ACME-1234')
+            ->and($rows[0][4])->toBe('ok (exit 0)');
+    } finally {
+        auditLedgerRemove($ledger);
+    }
+});
+
+test('the JIRA comment delete helper leaves a note line with the exit status of a failed delete', function (): void {
+    $ledger = auditLedgerCreate();
+
+    try {
+        $result = runJiraDeleteHelper(
+            ['ACME-1234', '123', '900', '900'],
+            jiraDeleteOwnedComments(),
+            [],
+            [...$ledger['env'], 'FAKE_ACLI_DELETE_RC' => '6'],
+        );
+        $rows = auditLedgerRows($ledger);
+
+        expect($result['process']->getExitCode())->toBe(3)
+            ->and($rows)->toHaveCount(1)
+            ->and($rows[0][2])->toBe('note')
+            ->and($rows[0][4])->toBe('jira comment 123 delete on ACME-1234: write failed (exit 6)');
+    } finally {
+        auditLedgerRemove($ledger);
     }
 });

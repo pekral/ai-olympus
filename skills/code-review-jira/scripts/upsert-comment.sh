@@ -444,15 +444,24 @@ fi
 UPDATE_RC=0
 acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || UPDATE_RC=$?
 if [[ "$UPDATE_RC" -ne 0 ]]; then
+  if [[ "$ACTION" == "created" ]]; then
+    # The create happened before the update: record it first, as the write it was.
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, its ADF update failed next" || true
+  fi
   bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID ADF update on $KEY" --status "$UPDATE_RC" || true
   if [[ "$ACTION" == "created" ]]; then
-    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, then removed after the ADF update failed" || true
     # The comment this run just created may render as Wiki Markup. Remove it rather than leave an
     # unformatted comment behind for a reader to find, then fail loudly. A comment an earlier run
     # published is never deleted here — a failed update leaves the previous body in place.
-    acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || true
+    DELETE_RC=0
+    acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || DELETE_RC=$?
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID delete on $KEY" --status "$DELETE_RC" --detail "removed after the ADF update failed" || true
     echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
-    echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    if [[ "$DELETE_RC" -eq 0 ]]; then
+      echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    else
+      echo "upsert-comment.sh: the created comment $TARGET_ID could not be removed (acli exit $DELETE_RC); remove it by hand, and do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    fi
   else
     echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
     echo "upsert-comment.sh: the existing comment was left unchanged; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2

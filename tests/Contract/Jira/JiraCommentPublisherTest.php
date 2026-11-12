@@ -58,7 +58,7 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "crea
   done
 
   printf '%s\n' "$FAKE_ACLI_CREATE_JSON"
-  exit 0
+  exit "${FAKE_ACLI_CREATE_RC:-0}"
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "update" ]]; then
@@ -73,6 +73,10 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "upda
     fi
     shift
   done
+fi
+
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "delete" ]]; then
+  exit "${FAKE_ACLI_DELETE_RC:-0}"
 fi
 
 exit 1
@@ -1358,4 +1362,89 @@ test('--create creates a new cr-comment beside this actor\'s marked comment and 
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
+});
+
+/**
+ * @return array{process: \Symfony\Component\Process\Process, rows: list<list<string>>}
+ */
+function runJiraPublisherWithLedger(string $deleteRc, string $updateOk, string $createRc = '0'): array
+{
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $ledger = auditLedgerCreate();
+    $process = new Process([
+        $packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh',
+        'TEAM-42',
+        '-',
+    ], $packageDir, [
+        ...$ledger['env'],
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10003"}',
+        'FAKE_ACLI_CREATE_RC' => $createRc,
+        'FAKE_ACLI_DELETE_RC' => $deleteRc,
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => '{"comments":[]}',
+        'FAKE_ACLI_UPDATE_OK' => $updateOk,
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], 'h2. Must render');
+
+    try {
+        $process->run();
+
+        return ['process' => $process, 'rows' => auditLedgerRows($ledger)];
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+        auditLedgerRemove($ledger);
+    }
+}
+
+test('the JIRA publisher records the create as created, then the delete with its own exit status', function (): void {
+    $result = runJiraPublisherWithLedger('0', '0');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['rows'])->toHaveCount(3)
+        ->and($result['rows'][0][2])->toBe('external-write')
+        ->and($result['rows'][0][3])->toBe('jira comment 10003 on TEAM-42')
+        ->and($result['rows'][0][4])->toContain('created')
+        ->and($result['rows'][1][2])->toBe('note')
+        ->and($result['rows'][1][4])->toContain('ADF update on TEAM-42: write failed (exit 1)')
+        ->and($result['rows'][2][2])->toBe('external-write')
+        ->and($result['rows'][2][3])->toBe('jira comment 10003 delete on TEAM-42')
+        ->and($result['rows'][2][4])->toContain('(exit 0)')
+        ->and($result['process']->getErrorOutput())->toContain('the created comment was removed');
+});
+
+test('the JIRA publisher names a failed delete as a note and never says the comment was removed', function (): void {
+    $result = runJiraPublisherWithLedger('7', '0');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['rows'])->toHaveCount(3)
+        ->and($result['rows'][2][2])->toBe('note')
+        ->and($result['rows'][2][4])->toContain('jira comment 10003 delete on TEAM-42: write failed (exit 7)')
+        ->and($result['process']->getErrorOutput())->toContain('could not be removed (acli exit 7)')
+        ->and($result['process']->getErrorOutput())->not->toContain('the created comment was removed');
+});
+
+test('the JIRA publisher leaves one well-formed external-write line for a created comment', function (): void {
+    $result = runJiraPublisherWithLedger('0', '1');
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and($result['rows'])->toHaveCount(1)
+        ->and($result['rows'][0])->toHaveCount(5)
+        ->and($result['rows'][0][0])->toBe('donatello')
+        ->and($result['rows'][0][1])->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/')
+        ->and($result['rows'][0][2])->toBe('external-write')
+        ->and($result['rows'][0][3])->toBe('https://example.atlassian.net/browse/TEAM-42?focusedCommentId=10003')
+        ->and($result['rows'][0][4])->toBe('created (exit 0)');
+});
+
+test('the JIRA publisher leaves a note line when the comment create fails', function (): void {
+    $result = runJiraPublisherWithLedger('0', '1', '9');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['rows'])->toHaveCount(1)
+        ->and($result['rows'][0][2])->toBe('note')
+        ->and($result['rows'][0][4])->toContain('jira comment create on TEAM-42: write failed (exit 9)');
 });
