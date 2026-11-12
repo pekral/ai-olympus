@@ -30,7 +30,9 @@ test('a changes-requested review decision still blocks and a branch protection i
         ->and($rule)->toContain('The request of a human reviewer is never overridden by the agent\'s own review')
         ->and($rule)->toContain('**A GitHub branch protection is never lifted.**')
         ->and($rule)->toContain('the run stops and reports the refusal. It never uses `--admin`')
-        ->and($rule)->toContain('The other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.')
+        ->and($rule)->toContain(
+            'The other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.',
+        )
         ->and($skill)->toContain('`CHANGES_REQUESTED` blocks, and a GitHub refusal stops the run — never `--admin`')
         ->and($skill)->toContain('and never with `reviewDecision == "CHANGES_REQUESTED"`');
 });
