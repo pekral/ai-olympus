@@ -75,7 +75,7 @@ Creating a test account is allowed only inside these limits:
 - **Two-factor authentication.** When the account must pass a second factor, use the test path the project documents. Without one, the scenario is `Blocked`.
 - **Traceable.** Report every account you created under **Cleanup**: the e-mail, the role, and the mechanism. Report the password only when it is the project-documented test password.
 
-When no source signs in, the scenario is `Blocked`. State the reason and the exact step that unblocks it — for example a non-local target, mandatory two-factor authentication without a test path, or a sandbox that refused the command. Keep the tab open so the user can sign in there. Never ask for passwords or one-time codes in chat. Never treat elapsed time as a successful sign-in. Never skip the UI check silently.
+When no source signs in, the scenario is `Blocked`. State the reason and the exact step that unblocks it — for example a non-local target, mandatory two-factor authentication without a test path, or a sandbox that refused the command. Close the tabs this run opened, as *Browser tabs* states, and name the URL in the report so the user can sign in there. Never ask for passwords or one-time codes in chat. Never treat elapsed time as a successful sign-in. Never skip the UI check silently.
 
 ## Missing test data
 
@@ -102,9 +102,40 @@ Creating, changing, or restoring test data is allowed only inside these limits:
 - **A change prepares the state only.** The scenario still runs as *Constraints* states, in the application and repository under test. A data change never replaces the walkthrough, and it never moves the test to another application, another repository, or an external service.
 - **Identifiable.** Mark every created record so it is recognisable as test data, for example a `QA` prefix in its name and a reserved test domain (RFC 2606) in any e-mail address.
 - **No unauthorized side effects.** The *Constraints* above still apply: creating, changing, or restoring data never sends e-mails, calls external services, or starts imports or jobs that the scenario does not authorize. Use a factory or a console flag that suppresses such effects when the project provides one.
-- **Traceable.** Report every record you created or changed under **Cleanup**: its type, its identifier, and the mechanism. For a changed record, also report the attribute names and the restore result. Never report the value of a personal-data or secret attribute. Delete the created records at the end of the run unless the user needs them to reproduce a failure; then list them as remaining.
+- **Traceable.** Report every record you created or changed under **Cleanup**: its type, its identifier, and the mechanism. For a changed record, also report the attribute names and the restore result. Never report the value of a personal-data or secret attribute. Keep the record that *Scripted cleanup* requires as you work. Delete the created records at the end of the run through *Scripted cleanup*, unless the user needs them to reproduce a failure; then list them as remaining.
 
 When no source can produce the data inside these limits, the scenario is `Blocked`. State the reason and the exact step that unblocks it. Continue the other scenarios.
+
+## Browser tabs
+
+This section owns which browser tabs a testing agent opens and closes. Other skills and agents reference it and do not restate it.
+
+- **Open a tab of your own.** Open a new tab for the run through the browser tool (`tabs_create_mcp` in Claude in Chrome) and record its identifier. Never navigate, reload, or reuse a tab this run did not open.
+- **Close every tab you opened when testing ends.** Close the tab after the last screenshot, console read, and UI read-back, and before the report is written. This applies on every terminating path: `Passed`, `Failed`, `Partial`, `Blocked`, and an aborted run. A failure or a blocked sign-in never keeps the tab open. The report carries the evidence and the URL instead.
+- **Close tabs through the browser tool only.** In Claude Code, use `tabs_close_mcp` of Claude in Chrome, or the tab-close tool of the desktop app's built-in browser. In Codex, use the documented tab-close API of the `cua_repl` browser tools. Never close the window, never end the browser process, and never use a shell command for this.
+- **Never close a tab you did not open.** Tabs that were open before the run, including the tab of the user, stay open. Before you close a tab, list the open tabs (`tabs_context_mcp`) and close only an identifier in your record. A tab you cannot identify as yours stays open.
+- **A tab that will not close is reported.** List it under **Cleanup** with the reason. Do not retry through another mechanism.
+
+## Scripted cleanup
+
+This section owns how a testing agent removes the test data of a run. Other skills and agents reference it and do not restate it. Cleanup runs through a script wherever a script can do it, so it is as fast as possible. Every limit of *Sign-in and test accounts* and *Missing test data* applies to a script as it applies to a manual step.
+
+**Keep a record as you work.** For each test account or record this run creates, write down its type, its identifier, and the mechanism. For each record this run changes, write down the attribute names and the original value of each attribute. Cleanup acts on this record only. A record or an attribute that is not in it is never touched.
+
+Try these mechanisms in order. Stop at the first one that works:
+
+1. **The project's own cleanup mechanism.** Use a seeder, a console command, or a factory teardown that the project documents for test data. Use it only when it removes or restores no more than the record lists. A mechanism that wipes, resets, or truncates the database is never used.
+2. **One scratch script.** Generate one script from the record. It deletes every record the run created and restores every attribute the run changed, in one pass, through the application's own code, run in its console (for example `tinker`).
+3. **The browser.** Delete and restore through the application's UI. Use this only when no script path exists, for example when the console is unavailable or the database cannot be shown to be a development or test database. The report states that the browser fallback ran and why.
+
+A scratch script stays inside these limits:
+
+- **Same limits as the data change.** It runs only against a local development or test database that *Missing test data* shows. It uses no database client and no raw SQL statement that writes. It never changes an access attribute, and it never deletes or re-assigns an existing record.
+- **The record decides the scope.** The script names the identifiers from the record and nothing else. It restores an attribute only when the attribute still holds the value this run set, and it reports the others as remaining. Never widen the script after it is generated. A script that fails leaves the rest to the browser fallback.
+- **No side effect.** The script sends no e-mail, calls no external service, and starts no job that the scenario did not authorize.
+- **Outside tracked files.** Write the script to the session's scratch directory or the operating system's temporary directory, never inside the repository. Run it once. Delete it afterwards, also when it failed.
+- **Read back.** Read the result of the run. Then read the deleted records and the restored values back through the application's code, and in the UI where they are visible.
+- **Traceable.** Report each deleted record and each restored attribute under **Cleanup**, with the mechanism that ran (project mechanism, scratch script, or browser) and the read-back result.
 
 ## Execution
 
@@ -153,12 +184,12 @@ The goal is to protect the application against compromise. Run this check on eve
 
 ### 6. Restore test data and report evidence
 
-1. Restore only values changed by this run. Restore every changed record and delete the test data this run created, as *Missing test data* states, with the read-back it requires. Stop the processes and restore the checkout, per *Local readiness*. Do not overwrite unrelated concurrent edits or delete existing user data. Report any remaining test records or side effects.
+1. Restore only values changed by this run. Restore every changed record and delete the test data this run created, as *Missing test data* states and through *Scripted cleanup*, with the read-back it requires. Stop the processes and restore the checkout, per *Local readiness*. Do not overwrite unrelated concurrent edits or delete existing user data. Report any remaining test records or side effects.
 2. Produce a verdict for every scenario: `Passed`, `Failed`, `Partial`, or `Blocked`. An unexecuted scenario is never `Passed`.
 3. For each failure, include exact URL, viewport, account role/record state, minimal steps, expected versus observed behavior, and a screenshot or concrete visible evidence. Redact secrets and avoid embedding unrelated user data.
 4. Report which scenarios were not exercised and the exact prerequisite needed to unblock each one.
 5. Overall `Passed` requires every required scenario, including applicable security checks and repair re-tests, to pass. An unresolved confirmed threat, a candidate that still needs validation, or a required blocked security check prevents `Passed`. Failures or blockers must remain explicit even when all automated tests are green. A passing focused check never establishes that the entire application is vulnerability-free.
-6. Keep the relevant browser tab open when handing a failure or a `Blocked` sign-in to the user. Otherwise follow the browser tool's cleanup rules.
+6. Close every browser tab this run opened, as *Browser tabs* states, on every terminating path. Never close a tab this run did not open.
 
 ## Output
 
@@ -169,7 +200,7 @@ Return a concise report in the user's language:
 - **Findings:** reproducible failures, transient observations, and environment blockers kept distinct; never claim a regression without evidence linking it to the change.
 - **Security:** checks exercised or skipped with reasons; candidates marked confirmed, rejected, or `needs validation`; redacted proof, affected boundary, impact, repair revision or handoff, regression-test result, and attack/legitimate-flow re-test verdict. Never publish secrets or exploitable details to a public tracker.
 - **Untested:** exact scenarios and missing prerequisites.
-- **Cleanup:** restored values, the restored checkout, processes this run started or restarted and left running, any remaining test artifacts, every test account this run created, and every test record this run created or left in place.
+- **Cleanup:** restored values, the cleanup mechanism that ran (project mechanism, scratch script, or browser fallback with its reason), the browser tabs this run closed and any tab that stayed open, the restored checkout, processes this run started or restarted and left running, any remaining test artifacts, every test account this run created, and every test record this run created or left in place.
 - **Next step:** implementation fixes, access/data preparation, or acceptance when all required rows passed.
 
 Report in the current task by default. Do not post messages to external trackers or create a new agent/task unless asked.
@@ -182,4 +213,6 @@ Report in the current task by default. Do not post messages to external trackers
 - Save/reload checks, relevant visual states, and recent browser errors were considered.
 - Applicable security boundaries were checked. Each candidate was verified or left explicitly unresolved. Every confirmed threat was repaired and re-tested, or remains `Failed` or `Blocked` with its repair handoff.
 - Changed test data and temporary browser settings are restored, or remaining effects are explicitly listed.
+- Test data cleanup ran as *Scripted cleanup* states, and its result was read back.
+- Every browser tab this run opened is closed, and no other tab was closed.
 - The report makes no claim of full acceptance while a required scenario is failed, partial, or blocked.
