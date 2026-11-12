@@ -14,7 +14,7 @@ Try the options in this order and stop at the first that works:
 2. `curl` against the local instance.
 3. An Artisan command run against fixture data.
 4. A replay of the request captured by Laravel Telescope (`@skills/laravel-telescope/SKILL.md`), against the local instance only. Never send it to the host it was captured on, and replace the captured cookies, `Authorization` header, and CSRF token with a local test user's.
-5. For a regression between two known states, `git bisect run vendor/bin/pest --filter=<test>`. Record the first bad commit, then run `git bisect reset` before any further step.
+5. For a regression between two known states, `git bisect run vendor/bin/pest --filter=<test>`. **This is the one exception to `skills/_shared/run-gate.sh --exclusive`:** the wrapper refuses `git`, and its exit `6` (lock timeout) or `3` (refused) would mark a commit bad. Run a bisect session only while no other heavy run of the operator is active. Record the first bad commit, then run `git bisect reset` before any further step.
 
 Done when one command demonstrably fails on this symptom. If no option produces such a command, stop as **Blocked** and name the missing piece (data, access, or environment). The analysis does not continue without it.
 
