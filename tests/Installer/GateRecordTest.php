@@ -411,6 +411,7 @@ test('every heavy command runs under the machine lock and the rules name the wra
     ] as $path) {
         expect($read($path))->toContain('run-gate.sh --exclusive --command');
     }
+
     expect($read('skills/resolve-issue/SKILL.md'))->toContain('Use `run-gate.sh --exclusive`.');
     expect($read('agents/donatello.md'))->not->toContain('does not need it');
     expect($read('rules/compound-engineering/concurrency.md'))->not->toContain('do not need it');
@@ -439,7 +440,9 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
         ->toContain('`krang` first checks it and repairs a dead or stuck holder');
 
     // Both platforms get the helper: the Codex agents list it beside the other orchestration helpers.
-    foreach (glob($packageDir . '/codex/agents/*.toml') ?: [] as $toml) {
+    $tomls = glob($packageDir . '/codex/agents/*.toml');
+
+    foreach ($tomls === false ? [] : $tomls as $toml) {
         expect((string) file_get_contents($toml))->toContain('`verify-gate.sh`, `gate-lock.sh`, `gate-context.sh`');
     }
 });
