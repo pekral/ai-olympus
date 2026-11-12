@@ -43,6 +43,9 @@ test('no skill or agent but the code review wires simplification-audit as a step
     // Guard against a vacuous pass: without this the assertion below would also hold on a
     // tree that carries no such skill at all, so a deletion would read as compliance.
     expect($skillOwnReferences)->not->toBe([]);
+    // The directory scan order is the filesystem's, so sort before comparing.
+    sort($callers);
+
     // Diff mode runs in every code review: the reviewer and the lens list name it, and no other caller does.
     expect($callers)->toBe(['agents/leonardo.md', 'skills/code-review/references/specialized-reviews.md']);
 });
