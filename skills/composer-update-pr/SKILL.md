@@ -52,12 +52,15 @@ Name the step by its number and command, give its exit status, and print the las
 ### 4. No change, no pull request
 Run `git status --porcelain`.
 - Empty: report that nothing was updated, open no branch and no pull request, and stop.
-- A path other than `composer.json` or `composer.lock`: stop, name each path, and leave the tree untouched. A dependency update pull request carries nothing else. This stop replaces opening a pull request with the extra change: the owner decides whether such a change belongs in the pull request.
+- A path other than `composer.json` or `composer.lock` (for example an asset a post-update script published): the run does not stop. Record each such path for steps 5 and 7. The owner decided that these paths enter the pull request, and the description lists them.
+- Safeguards that hold for every path:
+  1. Never commit a file that `git check-ignore` ignores.
+  2. Never commit a `.env*` file or a path outside the project tree. A changed `.env*` path, or a path that resolves outside the project tree, stops the run: name each such path and leave the tree untouched.
 
 ### 5. Branch and commit
 1. Compute the date with the manifest zone when `skills/_shared/read-manifest.sh` prints a `timezone`: `TZ=<zone> date +%F`; otherwise `date +%F`.
 2. Create `chore/composer-update-<date>` with `git checkout -b`. A local or remote branch with that name stops the run: report the name and let the user decide. The run neither reuses nor overwrites a branch it did not create in this run.
-3. Stage only the changed `composer.json` and `composer.lock`.
+3. Stage `composer.json`, `composer.lock`, and every other changed path of step 4, one `git add -- <path>` per path. Run `git check-ignore -q -- <path>` first: exit `0` means the path is ignored and the run does not stage it.
 4. Commit with the subject `chore(composer): update dependencies`. The commit carries no attribution trailer. The task has no tracker item, so the subject carries no reference.
 
 The step is done when `git status --porcelain` prints nothing and `git log -1 --format=%s` prints the subject.
@@ -81,6 +84,7 @@ The body has these sections, in this order:
 - `## Major updates` — one row per package with `level` `major`: name, `from` → `to`, and whether it is a `require` or a `require-dev` package. State under the table: *A major version may contain backward-incompatible changes (semver). Not verified: what breaks in this project; the package release notes and the CI result settle it.* Omit the section when no package has `level` `major`.
 - `## Other updates` — one row per remaining package: name, `from` → `to`, `type` (a `downgraded` row names the downgrade), `level`, and whether it is a dev package.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
+- `## Other changed files` — one line per committed path other than `composer.json` and `composer.lock`, as `git status --porcelain` printed it in step 4, so a reviewer sees each one. Omit the section when there is no such path.
 - `## Testing` — the commands of step 2 and their result; the full test suite is the CI result of the pull request. State `no tests were added`, because the change carries none.
 - `## Merge danger` — the section of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies`.
 - `## Audit` — the section of the same file, with its standalone-run fallback.

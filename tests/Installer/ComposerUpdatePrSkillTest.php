@@ -82,7 +82,18 @@ test('the skill opens a Draft pull request whose description holds only values r
         ->and($skill)->toContain('`## Merge danger`')
         ->and($skill)->toContain('`isDraft` is `true`')
         ->and($skill)->toContain('The skill never promotes the Draft')
-        ->and($skill)->toContain('A dependency update pull request carries nothing else.');
+        ->and($skill)->not->toContain('A dependency update pull request carries nothing else.');
+});
+
+test('the skill commits other changed paths, lists them in the pull request, and never commits an ignored, env, or outside path', function (): void {
+    $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
+
+    expect($skill)->toContain('the run does not stop. Record each such path for steps 5 and 7.')
+        ->and($skill)->toContain('Stage `composer.json`, `composer.lock`, and every other changed path of step 4')
+        ->and($skill)->toContain('`git check-ignore`')
+        ->and($skill)->toContain('Never commit a `.env*` file or a path outside the project tree')
+        ->and($skill)->toContain('`## Other changed files`')
+        ->and($skill)->not->toContain('This stop replaces opening a pull request');
 });
 
 test('the package lists the skill in the README, the skill catalog, and the code-review exclusion groups', function (): void {
