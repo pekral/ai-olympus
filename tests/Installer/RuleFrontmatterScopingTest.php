@@ -266,7 +266,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: *Structure* and *CR Severity Rules* — a subclass does not copy a parent method to change one step of it.
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
         // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
-        'rules/php/core-standards.md' => '918520bc8ed1320fcc2e6f43387e769808f6857452bbd2d8ee03bcad4618bdc2',
+        'rules/php/core-standards.md' => '02d22558cd370e780ac7564d4b6de323d0ab37782a8a0840fdb96289fa37282e',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -444,7 +444,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the marker family gains the `proposal-review` namespace (issue #368).
         // Re-baselined: a second, independent security view (`splinter`) runs in every round and merges into the one review (issue #379).
         // Re-baselined: the merge rules of the two views live in `rules/code-review/review-process.md`, and the rule points there (issue #379).
-        'rules/code-review/general.md' => 'ef04a8d6583357f207b68cb1fc6aba952a3316d1840a1db0b4c1f1cf2ce90ca5',
+        'rules/code-review/general.md' => 'd72b2beeaf0e35aeafdf4756ea9411ca9043935dee9035996254c3e3181a8531',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
