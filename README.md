@@ -63,6 +63,8 @@ The installer never generates a `CLAUDE.md`, and it keeps an existing `CLAUDE.md
 
 Automatic installation on `composer install` and `composer update` is off by default; [`extra.ai-olympus.auto-install`](docs/installation.md#automatic-installation-via-composer-plugin) turns it on, and then every install and update runs `install --force`. The same `extra.ai-olympus` object is the [project manifest](docs/installation.md#project-manifest), which tells the workflows how your project runs its quality gate and coverage; every key is optional, and an absent key keeps the built-in behaviour. Your own `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest take precedence over the packaged rules; only the security floor stays fixed.
 
+The manifest key `parallel.max-units` (1 to 3) caps how many units of a batch run at the same time; without it the planner uses 2 and the batch cap is 3 (see *Project manifest* in [`rules/general/general.md`](rules/general/general.md)).
+
 Agents talk to you in a relaxed, straight-to-the-point voice, in the chat and in the tracker comments people read. The `voice` key of the project manifest switches it to `technical`, and your own instruction in the session overrides it; commit messages, handoffs, and machine-parsed text stay technical either way (see the [`agent-voice`](skills/agent-voice/SKILL.md) skill).
 
 Installation leaves global Claude settings unchanged by default. The opt-in switches, such as `--disable-co-author-attribution`, `--allow-subagent-writes`, and `--deny-network-bash`, configure Claude Code only and grant Codex no permissions; see the [trust model](SECURITY.md).
@@ -87,9 +89,25 @@ In Codex, ask the root session to take the `krang` role, so it spawns the specia
 Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123
 ```
 
+With several references, or with the optional `--merge` flag, the same command prepares a batch: the session holds the `krang` role for every issue and runs one pipeline for each in its own git worktree, at most 3 at a time. Without `--merge` it stops before merge; with it, each unit rebases onto the latest default branch and merges through `merge-github-pr` with every gate unchanged.
+
+```text
+/prepare-issue-for-merge https://github.com/owner/repo/issues/123 https://github.com/owner/repo/issues/124 --merge
+```
+
+`/do-it` takes free-form instructions instead of a reference. It splits them into independently deliverable items, reuses the issue of an item that has one (after a trust check on its author), creates one GitHub issue for every other item, orders the queue by priority, difficulty, and duration, and runs every item to a converged pull request through the same batch mechanism. It reports each item with its pull request, status, and blocker, and never merges.
+
+```text
+/do-it add the CSV export of orders, then a date filter for it, and fix the typo on the login page
+```
+
+Codex invokes the same workflows as `$verify-merge-readiness` and `$do-it`.
+
 [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md) *Starting the orchestrator — the top-level role and the nested hand-over* explains why `krang` is not started as a subagent.
 
-`krang` routes implementation to `donatello`, each code review round to `leonardo`, `splinter` (an independent security view), `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Merging stays a separate, explicit step.
+`krang` routes implementation to `donatello`, each code review round to `leonardo`, `splinter` (an independent security view), `raphael` (interactive testing, when the change is user-visible), and `casey` (an advisory database report) in parallel, a page redesign to `michelangelo` before anything is built, context retrieval to `shredder` when the relevance gate asks for it, and the final report to `april`. Merging stays a separate, explicit step. For a hotfix, only you can start the `merge-github-pr-fast` skill (`/merge-github-pr-fast` in Claude Code, `$merge-github-pr-fast` in Codex): it runs one security-only check of the diff and merges when CI on the head commit is green or the quality gate passed on that exact commit.
+
+A batch unit first tries `gh pr update-branch --rebase` to reach the latest default branch. When that stops on a conflict, `donatello` resolves it on a new `<branch>-vN` branch and opens a new pull request, and nothing is force-pushed. `krang` alone closes the pull request that the new one supersedes, after a pointer comment; every helper agent only reports the replaced number.
 
 ## What it does
 
@@ -102,7 +120,9 @@ Follow .codex/agent-instructions/krang.md as krang and resolve https://github.co
 
 The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. Codex has no user-defined slash commands, so it reaches each command's workflow through the skill the command delegates to, such as `$verify-merge-readiness`, `$deliver-page-redesign`, or `$test-assignment`.
 
-The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. When your project installs `laravel/pao`, the rules read its compact JSON output of Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code.
+The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. A converged review with no findings counts as the pull-request approval, because GitHub does not let the owner approve their own pull request.
+
+Two rules shape the Laravel work. Date and time code uses Carbon or a Laravel date helper (`now()`, `today()`, the `Date` facade, an Eloquent date cast) instead of `date()`, `strtotime()`, or `new DateTime(...)`, and string, array, and collection work reuses `Str`, `Arr`, `Collection`, `Number`, and `data_get()` before any hand-written code (`rules/laravel/laravel.md` *Carbon and Framework Helpers*). When your project installs `laravel/pao`, the rules read its compact JSON output of Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code.
 
 ### Agents
 
@@ -125,6 +145,17 @@ Role boundaries, the handoff contract, and the avatar assets are in [`docs/agent
 ### Adaptive routing — how much pipeline a task gets
 
 Every `krang` run classifies the task with `skills/_shared/classify-risk.sh`, a deterministic shell script, and picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline. A sensitive area such as authentication, secrets, payments, or migrations forces `CRITICAL`, while tests, static analysis, CI, and the pre-merge quality gate run at every tier. The tiers are roles rather than model names, so Codex / OpenAI sessions route identically. Ask for thorough mode (`--thorough`) to run the complete pipeline regardless of the classification. See [Adaptive routing](docs/workflows.md#adaptive-routing--how-much-pipeline-a-task-gets) for the tier table and overrides.
+
+### What a code review checks
+
+A code review covers four areas and nothing else: functionality against the assignment, security, database optimisation, and code rules. It drops every point outside the assignment, proposes no follow-up issue, and still reports a security vulnerability found outside the assignment. Architecture is reviewed through ten principles with one finding shape (changed location, concrete problem, impact, smallest remedy). A duplicated piece of existing logic is a Moderate finding, and a Moderate finding still blocks the merge.
+
+From the second round of a review-and-fix loop, `leonardo` raises only new Critical findings and every security finding; an earlier finding stays tracked until it is fixed. The `Review findings` section of the non-technical report (`pr-summary`) lists only the points that must be resolved before the merge. The owners are `rules/code-review/general.md` (*What a code review checks, and nothing else*, *Later rounds raise only new Critical findings*, *Reuse Existing Logic*) and `rules/code-review/core-analysis.md` (*Architecture principles*).
+
+### Safety guards
+
+- **One heavy job at a time.** Every gate run, dependency install, full test suite, and targeted check (Pest, Rector, or PHPStan on a path list) holds one machine-wide lock in `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus` (`AI_OLYMPUS_LOCK_DIR` moves it), shared by every project and worktree of the account. Agents take it through `skills/_shared/run-gate.sh`, and `skills/_shared/run-validation.sh` holds it itself.
+- **No unfixed vulnerability on a public tracker.** `create-issue`, `create-issues-from-text`, and `/do-it` check the visibility of the target repository before they create an issue. On a public repository, or when the visibility cannot be shown, they withhold an item that describes an unfixed vulnerability and report it to you with the private routes (GitHub private vulnerability reporting and a draft security advisory). A deferred pre-existing security item of `resolve-issue` goes through the same guard (`skills/create-issues-from-text/SKILL.md` *Guard for a possible vulnerability*).
 
 ### Code-review memory
 
