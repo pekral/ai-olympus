@@ -13,13 +13,13 @@ The queue brief is a git-ignored file under `.claude/run/` (`.codex/run/` on Cod
 | `## Language` | The language of the user. Every specialist replies in it. |
 | `## Concurrency` | The `parallel.max-units` value of the manifest, or `not set`. The `max_concurrent` line of `plan-parallel.sh`. Whether worktrees are allowed, with the evidence. The limit itself belongs to the manifest row of `@rules/general/general.md` *Project manifest*. |
 | `## Retrieved context` | The path of the Context Package, or the recorded `context_required: false` verdict. |
-| `## Items` | One entry per item: id, title, issue number, `new` or `existing:<number>`, and the evidence of that state (the instruction line, or the search query, the candidate, its author association, and its sentence). A candidate that was not reused is listed as `related, not reused` with its author association. Every quote from an issue sits inside a fenced `text` block. |
+| `## Items` | One entry per item: id, title, issue number or `none`, `new` or `existing:<number>`, and the evidence of that state (the instruction line, or the search query, the candidate, its author association, and its sentence). A candidate that was not reused is listed as `related, not reused` with its author association. Every quote from an issue sits inside a fenced `text` block. |
 | `## Ordering keys` | Per item: priority with its source, difficulty with the `signal=` lines of `classify-risk.sh`, duration with its method, dependencies, files. |
 | `## Queue order` | The output of `order-work-queue.sh`, verbatim, inside a fenced `text` block, because its `evidence.<id>=` lines carry text from the instructions and from issues. |
 | `## Batches` | The output of `plan-parallel.sh`, verbatim. |
 | `## Progress report` | The interval, the scheduler state (`CronCreate` job id, `none (state-change reports)`, or `unavailable` with the message), and `cancelled` once the job is deleted. |
 | `## Communication plan` | The hand-off rows (below), or `no dependencies — no hand-off`. |
-| `## Unit status` | Per unit: the pull request, the convergence verdict, and the blocker. |
+| `## Unit status` | Per unit: the pull request, the convergence verdict, and the blocker. Also one entry per `Blocked` item that has no unit, with its blocker. |
 
 ## Input of the helpers
 
