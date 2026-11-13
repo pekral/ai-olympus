@@ -105,6 +105,7 @@ test('every command that names krang holds the krang role instead of starting kr
     sort($commands);
 
     expect($commands)->toBe([
+        'commands/do-it.md',
         'commands/prepare-issue-for-merge.md',
         'commands/redesign-page.md',
         'commands/report-code-review.md',
@@ -159,6 +160,7 @@ test('no entry point tells a session to start krang as a subagent', function ():
 test('the skills, the docs, the README, and the Codex adapter reference the owner section', function (): void {
     $references = [
         'skills/verify-merge-readiness/SKILL.md' => 1,
+        'skills/do-it/SKILL.md' => 1,
         'skills/deliver-page-redesign/SKILL.md' => 1,
         'skills/auto-interactive-testing/SKILL.md' => 1,
         'docs/agents.md' => 3,

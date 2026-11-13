@@ -345,7 +345,9 @@ test('the parallel planner pins the rule that lets two units overlap', function 
         'a dependency keeps the dependent in a later batch',
         'a CRITICAL unit never runs beside another unit',
         'a unit without file evidence never runs beside another unit',
-        'at most two units run at the same time',
+        'without a manifest key at most two units run at the same time',
+        'a limit of 1 runs every unit alone',
+        'a limit of 3 puts three units in one batch',
         'a unit never moves ahead of an earlier unit',
         'a dependency on a later unit is refused',
         'a file entry with a leading dot segment is refused',
@@ -355,7 +357,8 @@ test('the parallel planner pins the rule that lets two units overlap', function 
         expect(substr_count($planner, '\'' . $label . '\''))->toBe(1);
     }
 
-    expect($planner)->toContain('MAX_CONCURRENT=2');
+    expect($planner)->toContain('DEFAULT_MAX_UNITS=2');
+    expect($planner)->toContain('read-manifest.sh');
 });
 
 test('the parallel planner decides one step against the live runs and the memory, and pins every blocker', function (): void {
