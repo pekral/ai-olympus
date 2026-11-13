@@ -37,7 +37,8 @@ test('a dry finding is Moderate in its owner section and every file that states 
         ->and($rule)->toContain('A `no` on the `Input consistency:` line is backed by a Critical finding in `## Findings`.')
         ->and($rule)->not->toContain('A `no` on either line is backed by a Critical finding');
 
-    expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))->toContain('A duplicate is **Moderate**')
+    expect((string) file_get_contents($packageDir . '/agents/michelangelo.md'))->toContain('a DRY defect `leonardo` raises as **Moderate**')
+        ->and((string) file_get_contents($packageDir . '/agents/leonardo.md'))->toContain('A duplicate is **Moderate**')
         ->and((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))->toContain(
             'Severity: **Moderate**, as that section declares.',
         )
