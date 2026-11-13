@@ -395,7 +395,7 @@ test('the grant runs every helper for a unit tree in a subshell, so the root ses
         ->and($batch)->toContain('The parentheses are required: a bare `cd` persists in the main session')
         ->and($batch)->toContain('`git check-ref-format --branch`')
         ->and($skill)->toContain('tree runs as `( cd <the unit worktree> && … )`, because the unit worktree is the checked-out head')
-        ->and($merge)->toContain('the unit worktree is the checked-out head: run every command of this step as `( cd <the unit worktree> && … )`');
+        ->and($merge)->toContain('In a batch, the unit worktree is the checked-out head: run this step as `( cd <the unit worktree> && … )`');
 
     // No line of the batch path moves the shell with a bare cd: every cd sits inside parentheses.
     preg_match_all('/`cd [^`]*`/', $batch, $bareCd);
