@@ -15,8 +15,12 @@ test('the code-review rule owns the later-round filter with the security floor a
         ->toContain('This section is the one owner of the rule. Every other file points here and never restates it.')
         ->toContain('- **A new finding is raised only when it is Critical.** A new Moderate or Minor point that the later round finds is not reported.')
         ->toContain(
-            '- **The security floor is unchanged.** A finding that meets the S1–S3 carve-out of the Exclusion Gate '
-                . 'is raised in every round, at its own severity',
+            '- **The security floor is unchanged.** Every security finding of area 2 of *What a code review checks, and nothing else* '
+                . 'is raised in every round, at its own severity, and is never dropped by this section.',
+        )
+        ->toContain(
+            'a finding that meets the S1–S3 carve-out of the Exclusion Gate, a finding of a security skill, '
+                . 'a finding that cites any rule in `@rules/security/**`, and every security point under `## Needs verification`.',
         )
         ->toContain('- **An earlier finding stays tracked until it is fixed.**')
         ->toContain('The convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4) counts them as before.')
@@ -91,11 +95,14 @@ test(
     'the pr-summary lists every point that blocks the merge and names a blocking security point in the JIRA status line (issue #455)',
     function (string $path): void {
         expect(laterRoundsFile($path))->not->toContain('that is not Critical');
-        expect(laterRoundsFile($path))->not->toContain('appears only when it is Critical');
+        expect(laterRoundsFile($path))->not->toContain('only when it is Critical');
     },
 )->with([
     'skills/pr-summary/SKILL.md',
     'skills/pr-summary/templates/pr-summary-jira.md',
+    'skills/code-review-jira/SKILL.md',
+    'skills/code-review-github/references/cr-wrapper-contract.md',
+    'agents/april.md',
 ]);
 
 test('the JIRA status line names a security point that needs verification as a blocker (issue #455)', function (): void {
