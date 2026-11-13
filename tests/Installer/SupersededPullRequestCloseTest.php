@@ -62,7 +62,9 @@ test('the -vN path has one owner, and the other files point to it', function ():
     expect($batch)->toContain('**The close belongs to the root session.**')
         ->and($batch)->toContain('This is the one description of the `-vN` path, and every other file points here.')
         ->and($batch)->toContain('It never closes a pull request.')
-        ->and($batch)->toContain('AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh pr close <replaced number>')
+        ->and($batch)->toContain(
+            'AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh pr close <replaced number>',
+        )
         ->and($batch)->toContain('A new pull request that is not open leaves the replaced one open.')
         ->and($batch)->not->toContain('This file grants no `gh pr close`')
         ->and($orchestration)->toContain('and the next row closes the replaced one')
@@ -74,7 +76,10 @@ test('the -vN path has one owner, and the other files point to it', function ():
 test('no agent definition other than krang and donatello mentions closing a pull request', function (): void {
     $mentions = [];
 
-    foreach (glob(dirname(__DIR__, 2) . '/agents/*.md') ?: [] as $file) {
+    $globResult = glob(dirname(__DIR__, 2) . '/agents/*.md');
+    $agentFiles = $globResult !== false ? $globResult : [];
+
+    foreach ($agentFiles as $file) {
         if (str_contains((string) file_get_contents($file), 'gh pr close')) {
             $mentions[] = basename($file);
         }
