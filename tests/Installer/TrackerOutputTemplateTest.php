@@ -206,7 +206,7 @@ test('no template publishes a line above its end-of-body marker that hides guida
     expect(array_keys($withMarker))->not->toBe([]);
 
     foreach ($withMarker as $contents) {
-        expect(preg_split('/^=== END OF COMMENT BODY/m', $contents)[0])->not->toContain('<!--');
+        expect(explode("\n=== END OF COMMENT BODY", $contents, 2)[0])->not->toContain('<!--');
     }
 });
 
