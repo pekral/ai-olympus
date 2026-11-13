@@ -229,9 +229,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         // Re-baselined: *Database and Eloquent* points to the CR *N+1 queries* walk.
         // Re-baselined: a query condition applied in two or more places is a local scope on the model.
-        // Re-baselined: the file gained `## Carbon and Framework Helpers` (issue #460), which requires Carbon and
-        // the framework helpers; `tests/Installer/CarbonFrameworkHelpersRuleTest.php` pins the wording.
-        'rules/laravel/laravel.md' => '2e65b4a263ef91693fefcab7007c6adac6f58c704e82f1b221370011217b5c78',
+        'rules/laravel/laravel.md' => '0929e252477243b4890d95fbced40b634377a68323354f7836799289412d0353',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired

@@ -2,30 +2,18 @@
 
 declare(strict_types = 1);
 
-/**
- * The Laravel rule section that requires Carbon and the existing framework helpers (issue #460).
- */
-function carbonFrameworkHelpersSection(): string
-{
-    $laravel = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md');
-    $start = strpos($laravel, "## Carbon and Framework Helpers\n");
-    $end = strpos($laravel, "\n## Collections\n");
-
-    expect($start)->toBeInt()
-        ->and($end)->toBeInt();
-
-    return substr($laravel, (int) $start, (int) $end - (int) $start);
-}
-
 test(
     'date and time work in a Laravel project uses Carbon or a Laravel date helper, and the section lists the native functions it replaces',
     function (): void {
-        $section = carbonFrameworkHelpersSection();
-    
+        $section = installerDocsSection(
+            (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md'),
+            '## Carbon and Framework Helpers',
+        );
+
         expect($section)->toContain('**Date and time work uses Carbon or a Laravel date helper.**')
             ->and($section)->toContain('`Carbon` / `CarbonImmutable`, `now()`, `today()`, the `Date` facade, or an Eloquent date cast')
             ->and($section)->toContain('**The native functions and classes this replaces:**');
-    
+
         $natives = [
             'date()',
             'gmdate()',
@@ -46,7 +34,10 @@ test(
 );
 
 test('code reuses a helper the framework already ships instead of a hand-written equivalent', function (): void {
-    $section = carbonFrameworkHelpersSection();
+    $section = installerDocsSection(
+        (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md'),
+        '## Carbon and Framework Helpers',
+    );
 
     expect($section)->toContain('**Reuse a helper the framework already ships.**')
         ->and($section)->toContain('`Str` / `Stringable`, `Arr`, `Collection`, `Number`, `data_get()` / `data_set()`')
@@ -55,18 +46,24 @@ test('code reuses a helper the framework already ships instead of a hand-written
 });
 
 test('the section owns neither the timezone rule, the emptiness rule, nor the project DRY rule, and points to each owner', function (): void {
-    $section = carbonFrameworkHelpersSection();
+    $section = installerDocsSection(
+        (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md'),
+        '## Carbon and Framework Helpers',
+    );
 
     expect($section)->toContain('**The *Time* rule applies unchanged to every Carbon call.**')
         ->and($section)->toContain('This section never restates them.')
-        ->and($section)->toContain('`filled()` / `blank()` are owned by *String Emptiness Checks* below.')
+        ->and($section)->toContain('`filled()` / `blank()` are owned by *String Emptiness Checks* above.')
         ->and($section)->toContain('`@rules/code-review/general.md` *Reuse Existing Logic* owns logic the *project* already implements')
         ->and($section)->not->toContain('`config(\'app.timezone\')`')
         ->and($section)->not->toContain('`blank()` trims first');
 });
 
 test('the review severity is Moderate, the not-findings are named, and the gating is one finding per line', function (): void {
-    $section = carbonFrameworkHelpersSection();
+    $section = installerDocsSection(
+        (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md'),
+        '## Carbon and Framework Helpers',
+    );
 
     expect($section)->toContain('Severity in code review: **Moderate** for a native date function or class from the list above')
         ->and($section)->toContain('The scope is the changed lines.')
@@ -95,11 +92,19 @@ test('the code review walk points to the section and carries the same severity w
         ->and($entry)->not->toContain('`strtotime()`');
 });
 
-test('the Laravel rule keeps its single timezone owner and the reuse rule keeps its own severity', function (): void {
+test('the Carbon section exists once beside the single Time section and the general review rule does not carry it', function (): void {
     $files = packageTextFiles();
     $laravel = $files['rules/laravel/laravel.md'];
 
     expect(substr_count($laravel, '## Time' . "\n"))->toBe(1)
         ->and(substr_count($laravel, '## Carbon and Framework Helpers' . "\n"))->toBe(1)
         ->and($files['rules/code-review/general.md'])->not->toContain('Carbon and Framework Helpers');
+});
+
+test('the Time walk hands a native date call on a Laravel project to the Carbon walk and keeps only the Carbon calls', function (): void {
+    $review = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/core-analysis.md');
+
+    expect($review)->toContain('on a Laravel project a native date function or class (`new DateTimeImmutable(\'now\')`')
+        ->and($review)->toContain('belongs to **Carbon and framework helpers** below, and this bullet raises only the Carbon calls')
+        ->and($review)->toContain('the zone of the Carbon replacement is this bullet\'s.');
 });
