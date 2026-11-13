@@ -39,9 +39,12 @@
 #     3. its start time equals the recorded PROCESS_START (a recycled PID fails here);
 #     4. two samples, AI_OLYMPUS_GATE_PROBE seconds apart (default 5), show no progress, and
 #        neither differs from the last sample the heartbeat recorded.
-#   The tree is the verified wrapper and its descendants, found by walking parent PIDs. Repair
-#   sends SIGTERM, waits AI_OLYMPUS_GATE_REPAIR_GRACE seconds (default 10), then sends SIGKILL only
-#   to a process whose start time still equals the one it recorded. It stops no other process.
+#   The tree is the verified wrapper and its descendants, found by walking parent PIDs in one `ps`
+#   listing that also gives each descendant's elapsed time, so each start time belongs to the PID
+#   it was listed with. Repair sends SIGTERM, waits AI_OLYMPUS_GATE_REPAIR_GRACE seconds (default
+#   10), then sends SIGKILL, and each signal goes only to a process whose start time still equals
+#   the recorded one. A PID that another process took after the listing is never signalled. It
+#   stops no other process.
 #   A holder it cannot prove (an older holder file, another program at that PID) is left running
 #   and reported as refused.
 #   Repair needs an audit ledger (--audit, or AUDIT_TRAIL_FILE) that it can append to, and refuses
@@ -211,46 +214,71 @@ all_gone() {
   done
 }
 
-# Stop the process tree of the verified holder. $1 is the wrapper PID. Prints the pids it stopped
-# as a JSON array; returns 1 when a process survived SIGKILL.
-stop_holder_tree() {
-  local root="$1" pid start grace waited=0 survivors=0
-  local -a pids=("$root") starts=("$(gate_process_start "$root")") live=()
-  while read -r pid _; do
-    [[ -n "$pid" ]] || continue
-    pids+=("$pid")
-    starts+=("$(gate_process_start "$pid" 2>/dev/null || true)")
-  done < <(gate_descendants "$root")
+# True when the live process at <pid> is the one whose start time <start> was recorded: a process
+# that took the PID afterwards started later and fails here.
+same_process() {
+  local actual
+  actual="$(gate_process_start "$1" 2>/dev/null || true)"
+  [[ "$actual" =~ ^[0-9]+$ && "${2:-}" =~ ^[0-9]+$ ]] && gate_same_start "$actual" "$2"
+}
 
-  for pid in "${pids[@]}"; do
-    kill -TERM "$pid" 2>/dev/null || true
+# A tree member is `<pid>:<recorded start>`. It is alive when that process still runs.
+tree_member_alive() {
+  local pid="${1%%:*}"
+  gate_pid_running "$pid" && same_process "$pid" "${1#*:}"
+}
+
+# True when at least one member of the tree is alive.
+tree_alive() {
+  local entry
+  for entry in "$@"; do
+    ! tree_member_alive "$entry" || return 0
+  done
+  return 1
+}
+
+# Stop the process tree of the verified holder. $1 is the wrapper PID and $2 its recorded start.
+# Each descendant's start comes from the same `ps` listing as its PID (gate_descendants). Both
+# SIGTERM and SIGKILL go only to a process whose start still equals that start, and a PID that was
+# reused after the listing counts as gone, so a process the wrapper did not start is never
+# signalled. Prints the pids it stopped as a JSON array; returns 1 when a process of the tree
+# survived SIGKILL.
+stop_holder_tree() {
+  local root="$1" listing listed pid elapsed grace waited=0 entry survivors=0
+  local -a tree=("$root:$2") sent=() gone=()
+  listing="$(gate_descendants "$root")"
+  listed="$(date +%s)"
+  while read -r pid _ elapsed; do
+    [[ "$pid" =~ ^[0-9]+$ && "$elapsed" =~ ^[0-9]+$ ]] || continue
+    tree+=("$pid:$((listed - elapsed))")
+  done <<<"$listing"
+
+  for entry in "${tree[@]}"; do
+    if tree_member_alive "$entry"; then
+      sent+=("$entry")
+      kill -TERM "${entry%%:*}" 2>/dev/null || true
+    fi
   done
   grace="$(gate_seconds_setting AI_OLYMPUS_GATE_REPAIR_GRACE 10)"
-  while ! all_gone "${pids[@]}" && [[ "$waited" -lt "$grace" ]]; do
+  while tree_alive "${tree[@]}" && [[ "$waited" -lt "$grace" ]]; do
     sleep 1
     waited=$((waited + 1))
   done
 
-  local index
-  for index in "${!pids[@]}"; do
-    pid="${pids[$index]}"
-    gate_pid_running "$pid" || continue
-    start="$(gate_process_start "$pid" 2>/dev/null || true)"
-    # The same process, not a new one that took the PID: its start time equals the recorded one.
-    if [[ "$start" =~ ^[0-9]+$ && "${starts[$index]}" =~ ^[0-9]+$ ]] && gate_same_start "$start" "${starts[$index]}"; then
-      kill -KILL "$pid" 2>/dev/null || true
+  for entry in "${tree[@]}"; do
+    if tree_member_alive "$entry"; then
+      kill -KILL "${entry%%:*}" 2>/dev/null || true
     fi
   done
   sleep 1
-  for index in "${!pids[@]}"; do
-    pid="${pids[$index]}"
-    if gate_pid_running "$pid"; then
+  for entry in ${sent[@]+"${sent[@]}"}; do
+    if tree_member_alive "$entry"; then
       survivors=$((survivors + 1))
     else
-      live+=("$pid")
+      gone+=("${entry%%:*}")
     fi
   done
-  printf '%s\n' ${live[@]+"${live[@]}"} | jq -R 'select(length > 0) | tonumber' | jq -s -c .
+  printf '%s\n' ${gone[@]+"${gone[@]}"} | jq -R 'select(length > 0) | tonumber' | jq -s -c .
   [[ "$survivors" -eq 0 ]]
 }
 
@@ -348,7 +376,7 @@ cmd_repair() {
     emit_repair none-live held 'the holder changed while repair probed it; nothing was changed' 0 "$pid" "$project" "$command" '[]' false
     return
   }
-  if ! stopped="$(stop_holder_tree "$pid")"; then
+  if ! stopped="$(stop_holder_tree "$pid" "$(gate_file_field "$GATE_LOCK/holder" PROCESS_START)")"; then
     audit_line note "stop of stuck holder pid $pid of the machine lock failed ($(holder_scope "$wrapper" "$project"))" "a process of the tree survived SIGKILL: $stopped stopped"
     emit_repair refused stuck 'a process of the holder tree survived SIGKILL; the lock was kept' 4 "$pid" "$project" "$command" "$stopped" false
     return
@@ -519,6 +547,34 @@ self_test() {
   chmod 755 "$tmp/sealed"
   check 'repair with a ledger in a directory it cannot write exits 1 and leaves the lock in place' \
     "$([[ "$code" -eq 1 && -d "$lock" && ! -e "$tmp/sealed/run.audit" ]] && echo pass)"
+  rm -rf "$lock"
+
+  # The append can still fail after the writability pre-check (a race, a full disk): repair then
+  # has released the lock with no audit line, and says so with exit 5.
+  mkdir -p "$tmp/stub"
+  cp "$GATE_LIB_DIR/gate-lock.sh" "$GATE_LIB_DIR/gate-record.sh" "$GATE_LIB_DIR/project-commands.sh" "$tmp/stub/"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$tmp/stub/audit-trail.sh"
+  chmod +x "$tmp/stub/"*.sh
+  mkdir -p "$lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nWRAPPER=run-gate.sh\nPROJECT=%s\nCOMMAND=x\n' "$dead" "$(gate_now)" "$(date +%s)" "$project" >"$lock/holder"
+  : >"$audit"
+  code=0; OUT="$("$tmp/stub/gate-lock.sh" repair --audit "$audit" 2>/dev/null)" || code=$?
+  check 'repair whose audit append fails after the pre-check exits 5 and reports audit not written' \
+    "$([[ "$code" -eq 5 && "$(jq -r .action <<<"$OUT")" == released-dead && "$(jq -r .released <<<"$OUT")" == true && "$(jq -r .audit <<<"$OUT")" == 'not written' && ! -e "$lock" && ! -s "$audit" ]] && echo pass)"
+
+  # A PID that another process took after the listing is never signalled: the recorded start differs.
+  local reused reused_start
+  sleep 300 &
+  reused=$!
+  SELF_TEST_PIDS+=("$reused")
+  reused_start="$(gate_process_start "$reused")"
+  code=0; OUT="$(stop_holder_tree "$reused" "$((reused_start - 3600))" 2>/dev/null)" || code=$?
+  check 'a process whose start differs from the recorded one gets neither SIGTERM nor SIGKILL and is not reported stopped' \
+    "$([[ "$code" -eq 0 && "$OUT" == '[]' ]] && kill -0 "$reused" 2>/dev/null && gate_pid_running "$reused" && echo pass)"
+  code=0; OUT="$(stop_holder_tree "$reused" "$reused_start" 2>/dev/null)" || code=$?
+  check 'a process whose start equals the recorded one is stopped and reported' \
+    "$([[ "$code" -eq 0 && "$OUT" == "[$reused]" ]] && ! gate_pid_running "$reused" && echo pass)"
+  { wait "$reused"; } 2>/dev/null || true
   rm -rf "$lock"
 
   # A holder that exited and was never reaped by its parent is a zombie: it holds nothing.

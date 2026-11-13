@@ -49,7 +49,7 @@ description: Unified Git workflow, commits and pull request rules
     3. Rebase the default branch into the side branch: `git rebase "origin/$DEFAULT_BRANCH"` (replays the branch's commits on top of the newest default branch).
     4. Resolve any conflicts (`@skills/git-workflow/SKILL.md`), then `git rebase --continue`.
 - Do **not** run `git pull` again after step 3 — pulling after the rebase replays your commits back onto the branch's old remote tip and discards the sync. The branch's own remote was already taken in step 2; the only remaining publish step is the force-push below.
-- If the rebase changed `composer.lock` (the default branch updated dependencies), run `composer install` immediately afterwards so the installed packages match the new lockfile. Resolve a `composer.lock` conflict before installing.
+- If the rebase changed `composer.lock` (the default branch updated dependencies), run `skills/_shared/run-gate.sh --exclusive --command "composer install"` immediately afterwards so the installed packages match the new lockfile. Resolve a `composer.lock` conflict before installing.
 - Publishing the rebased branch to its remote uses `git push --force-with-lease` (never plain `--force`, and only when you are the sole contributor — see `@skills/git-workflow/SKILL.md`).
 - **Read-only review skills are exempt.** A read-only skill pulls the default branch first, then switches to the branch and runs `git pull --ff-only` only to read the diff (`@skills/code-review/references/branch-checkout-gate.md`); it must never rebase, `composer install`, or otherwise rewrite the branch or working tree.
 
