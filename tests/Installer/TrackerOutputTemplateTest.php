@@ -51,10 +51,7 @@ function trackerOutputTemplateProblems(string $publisher, string $template, stri
     return $problems;
 }
 
-/**
- * @return list<string>
- */
-function trackerOutputPublishingFiles(): array
+function trackerOutputWritesToTracker(string $contents): bool
 {
     $writes = [
         '#upsert-comment\.sh|gh issue create|gh pr create|gh issue comment|gh pr comment#',
@@ -62,19 +59,22 @@ function trackerOutputPublishingFiles(): array
         '#(?:post|publish)\b[^.\n]{0,40}\bcomment\b[^.\n]{0,40}\b(?:on|to) (?:the |each |every |a )?(?:linked |source )?'
         . '(?:github |jira )?(?:issue|pull request|PR|ticket|JIRA|Bugsnag)#i',
     ];
+
+    return array_any($writes, static fn (string $write): bool => preg_match($write, $contents) === 1);
+}
+
+/**
+ * @return list<string>
+ */
+function trackerOutputPublishingFiles(): array
+{
     $files = [];
 
     foreach (packageTextFiles() as $relativePath => $contents) {
-        if (preg_match('#^(skills|agents)/.*\.md$#', $relativePath) !== 1 || str_contains($relativePath, '/templates/')) {
-            continue;
-        }
+        $isPrompt = preg_match('#^(skills|agents)/.*\.md$#', $relativePath) === 1 && !str_contains($relativePath, '/templates/');
 
-        foreach ($writes as $write) {
-            if (preg_match($write, $contents) === 1) {
-                $files[] = $relativePath;
-
-                break;
-            }
+        if ($isPrompt && trackerOutputWritesToTracker($contents)) {
+            $files[] = $relativePath;
         }
     }
 

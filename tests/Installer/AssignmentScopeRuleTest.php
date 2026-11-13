@@ -95,7 +95,11 @@ test('the one pre-existing fix that remains is a security vulnerability in its o
         expect(substr_count($files[$path], '@skills/resolve-issue/references/pre-existing-issue-handling.md'))->toBe(1, $path);
     }
 
-    expect(substr_count($files['skills/resolve-issue/references/pull-request.md'], 'each fix commit of a pre-existing security vulnerability fixed per'))->toBe(1)
+    expect(
+        substr_count($files['skills/resolve-issue/references/pull-request.md'], 'each fix commit of a pre-existing security vulnerability fixed per'),
+    )->toBe(
+        1,
+    )
         ->and(
             substr_count($files['skills/process-code-review/SKILL.md'], 'list every pre-existing security fix under a `## Pre-existing fixes` heading'),
         )->toBe(
