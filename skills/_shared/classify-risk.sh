@@ -119,8 +119,9 @@
 # Merge-risk mode (--merge-risk, the first argument)
 #   Grades a pull request low, medium, or high for a human who triages many of
 #   them. The code review renders the grade on its `Merge risk:` header line
-#   (@rules/code-review/general.md *Merge risk*). The grade is informational: it
-#   never blocks and never replaces a merge gate or the `Merge verdict:` line.
+#   (@rules/code-review/general.md *Merge risk*). The grade selects the merge path
+#   (*Low-risk merge* below). It never replaces the `Merge verdict:` line, and it
+#   lifts no merge gate by itself.
 #
 #   --diff         the unified diff, `git diff <base>..<head>` (`-` reads stdin).
 #                  The changed paths are read from it, so --files is refused.
@@ -152,7 +153,23 @@
 #
 #   Output: merge-risk=, merge-risk-rule=, verification=, one
 #   verification-signal=<input>|<value> per failed input, rollback=, one
-#   rollback-signal=<signal>|<first file> per signal, then the tier block above.
+#   rollback-signal=<signal>|<first file> per signal, low-risk-merge=,
+#   low-risk-merge-rule=, the first low-risk-excluded=<diff header> and the first
+#   low-risk-unreadable=<diff header> when there is one, then the tier block above.
+#
+# Low-risk merge (@skills/merge-github-pr/SKILL.md *Merge path*)
+#   The grade selects the merge path. low-risk-merge=yes is the only verdict that
+#   lets a pull request merge without the full code review and without waiting for
+#   CI. It is yes when merge-risk is low and the diff changes no excluded path. The
+#   excluded paths are the configuration of the agent system itself, which a green
+#   gate and a tier FAST cannot vouch for:
+#     rules/**  agents/**  skills/**  codex/**  .ai/**  .claude/**  .codex/**
+#     .github/workflows/**  CLAUDE.md  AGENTS.md (at any depth)
+#   LOW_RISK_EXCLUDED_RE below is the one list; every other file points here.
+#   Every changed path counts: both sides of a rename, a binary file, and a
+#   mode-only change, because the check reads the `diff --git` header of every
+#   entry. A header it cannot read as `a/<old> b/<new>` (a diff made with
+#   --no-prefix, for example) answers no: an unreadable path never passes.
 #
 # Exit codes
 #   0  a classification was produced (this includes every tier — the tier is the
@@ -217,6 +234,11 @@ DESTRUCTIVE_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remem
 WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
 SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
 EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
+
+# The excluded paths of the low-risk merge: the one list. It is matched right behind
+# the `a/` or `b/` marker of a lower-cased `diff --git` header, so the directories are
+# anchored at the repository root and CLAUDE.md / AGENTS.md match at any depth.
+LOW_RISK_EXCLUDED_RE='(rules|agents|skills|codex|\.ai|\.claude|\.codex)/|\.github/workflows/|([^ "]*/)?(claude|agents)\.md("| |$)'
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -656,9 +678,33 @@ diff_rollback_scan() {
   '
 }
 
+# Read a unified diff on stdin. Print `E|<header>` for the first `diff --git` header that
+# names an excluded path on either side, and `U|<header>` for the first `diff` header that
+# does not read as `a/<old> b/<new>`.
+low_risk_scan() {
+  local line lowered excluded="" unparsed="" old_re new_re readable_re
+  old_re='^diff --git "?a/('"$LOW_RISK_EXCLUDED_RE"')'
+  new_re=' "?b/('"$LOW_RISK_EXCLUDED_RE"')'
+  readable_re='^diff --git "?a/.* "?b/'
+  while IFS= read -r line; do
+    [[ "$line" == "diff "* ]] || continue
+    lowered="$(lower "$line")"
+    if [[ ! "$lowered" =~ $readable_re ]]; then
+      [[ -n "$unparsed" ]] || unparsed="$line"
+      continue
+    fi
+    if [[ -z "$excluded" && ("$lowered" =~ $old_re || "$lowered" =~ $new_re) ]]; then
+      excluded="$line"
+    fi
+  done
+  [[ -z "$excluded" ]] || printf 'E|%s\n' "$excluded"
+  [[ -z "$unparsed" ]] || printf 'U|%s\n' "$unparsed"
+  return 0
+}
+
 # The merge-risk mode: one deterministic low / medium / high grade for a human
 # who triages many pull requests, with every fact behind it printed. The grade
-# is informational. It never blocks and never replaces a merge gate.
+# selects the merge path (low-risk-merge=). It lifts no merge gate by itself.
 merge_risk() {
   local diff_arg="" coverage="" gate="" interactive="not-run"
   local -a pass=()
@@ -760,6 +806,30 @@ merge_risk() {
       [[ "${entry%%|*}" == "$name" ]] && printf 'rollback-signal=%s\n' "$(safe_display "$entry")"
     done
   done
+
+  local low_scan excluded_header="" unreadable_header="" low_risk="no" low_rule
+  low_scan="$(low_risk_scan <<<"$diff_text")"
+  while IFS= read -r line; do
+    case "$line" in
+    E\|*) excluded_header="${line#E|}" ;;
+    U\|*) unreadable_header="${line#U|}" ;;
+    esac
+  done <<<"$low_scan"
+
+  if [[ "$grade" != "low" ]]; then
+    low_rule="no: merge-risk $grade"
+  elif [[ -n "$excluded_header" ]]; then
+    low_rule='no: the diff changes an excluded path'
+  elif [[ -n "$unreadable_header" ]]; then
+    low_rule='no: a diff header names no readable path'
+  else
+    low_risk="yes"
+    low_rule='yes: merge-risk low and no excluded path'
+  fi
+  printf 'low-risk-merge=%s\n' "$low_risk"
+  printf 'low-risk-merge-rule=%s\n' "$low_rule"
+  [[ -z "$excluded_header" ]] || printf 'low-risk-excluded=%s\n' "$(safe_display "$excluded_header")"
+  [[ -z "$unreadable_header" ]] || printf 'low-risk-unreadable=%s\n' "$(safe_display "$unreadable_header")"
   printf '%s\n' "$classification"
   return 0
 }
@@ -1140,6 +1210,65 @@ self_test() {
     --merge-risk --diff "$(newfile 'app/Repositories/OrderRepository.php' "return DB::delete('delete from orders where id = 1');" | writediff)" "${verified[@]}"
 
   expect_line 'a diff on stdin is accepted' 'merge-risk=low' --merge-risk --diff - "${verified[@]}" <"$fix"
+
+  # The low-risk merge verdict: low grade and no excluded path is the only yes.
+  # `fixat <path>` is the tested fix of `$fix`, with its production file at <path>.
+  fixat() {
+    {
+      newfile "$1" '<?php' "return trim(\$value);"
+      newfile 'tests/Unit/FormatterTest.php' "\$this->assertSame('a', trim(' a'));"
+    } | writediff
+  }
+  expect_line 'a low-grade diff with no excluded path merges on the low-risk path' 'low-risk-merge=yes' \
+    --merge-risk --diff "$fix" "${verified[@]}"
+  expect_line 'the low-risk verdict states its rule' 'low-risk-merge-rule=yes: merge-risk low and no excluded path' \
+    --merge-risk --diff "$fix" "${verified[@]}"
+  local excluded_path
+  for excluded_path in 'rules/git/general.php' 'agents/krang.php' 'skills/_shared/run.php' 'codex/agents/a.php' \
+    '.ai/guidelines/core.php' '.claude/settings.php' '.codex/config.php' '.github/workflows/ci.php' \
+    'CLAUDE.md' 'AGENTS.md' 'docs/nested/CLAUDE.md' 'packages/app/AGENTS.md' 'Rules/Git/General.php'; do
+    expect_line "a low-grade diff that changes $excluded_path takes the full path" 'low-risk-merge=no' \
+      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
+    expect_line "the excluded $excluded_path is named" 'low-risk-excluded=diff --git' \
+      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
+  done
+  expect_line 'an excluded path keeps the grade the script computed' 'merge-risk=low' \
+    --merge-risk --diff "$(fixat 'skills/_shared/run.php')" "${verified[@]}"
+  expect_line 'the excluded-path rule is stated' 'low-risk-merge-rule=no: the diff changes an excluded path' \
+    --merge-risk --diff "$(fixat 'skills/_shared/run.php')" "${verified[@]}"
+  expect_line 'a rename out of an excluded path takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$(renamediff 'skills/old/notes.md' 'docs/notes.md' | writediff)" "${verified[@]}"
+  expect_line 'a rename into an excluded path takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$(renamediff 'docs/notes.md' 'rules/notes.md' | writediff)" "${verified[@]}"
+  expect_line 'a mode-only change of an excluded path takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$(printf 'diff --git a/skills/run.sh b/skills/run.sh\nold mode 100644\nnew mode 100755\n' | writediff)" "${verified[@]}"
+  expect_line 'a binary file in an excluded path takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$(printf 'diff --git a/.claude/logo.png b/.claude/logo.png\nBinary files a/.claude/logo.png and b/.claude/logo.png differ\n' | writediff)" "${verified[@]}"
+  expect_line 'an excluded path beside an ordinary one takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$({ cat "$fix"; newfile 'skills/_shared/run.php' "return 1;"; } | writediff)" "${verified[@]}"
+  for excluded_path in 'src/skills/Formatter.php' 'app/rules/Formatter.php' 'src/agents/Formatter.php' 'src/Claude.php' \
+    'src/MyAgents.php' 'docs/rules.md' 'src/ai/Formatter.php' 'src/codex/Formatter.php' 'workflows/Formatter.php'; do
+    expect_line "a look-alike path $excluded_path stays on the low-risk path" 'low-risk-merge=yes' \
+      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
+  done
+  expect_line 'a diff header without the a/ b/ prefixes takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
+  expect_line 'an unreadable header names itself' 'low-risk-unreadable=diff --git src/Formatter.php' \
+    --merge-risk --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
+  expect_line 'a medium grade takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$migration_create" "${verified[@]}"
+  expect_line 'the medium grade is the stated reason' 'low-risk-merge-rule=no: merge-risk medium' \
+    --merge-risk --diff "$migration_create" "${verified[@]}"
+  expect_line 'a high grade takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$migration_drop" --coverage gap --gate green --assignment "$tmp/clear.txt"
+  expect_line 'the high grade is the stated reason' 'low-risk-merge-rule=no: merge-risk high' \
+    --merge-risk --diff "$migration_drop" --coverage gap --gate green --assignment "$tmp/clear.txt"
+  expect_line 'a gate that is not green takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$fix" --coverage ok --gate not-green --assignment "$tmp/clear.txt"
+  expect_line 'a coverage gap takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$fix" --coverage gap --gate green --assignment "$tmp/clear.txt"
+  expect_line 'a missing gate fact takes the full path' 'low-risk-merge=no' \
+    --merge-risk --diff "$fix" --coverage ok --assignment "$tmp/clear.txt"
   expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
   expect_exit 'merge-risk refuses a file list' 1 --merge-risk --diff "$fix" --files "$fix"
   expect_exit 'an unknown coverage value is a usage error' 1 --merge-risk --diff "$fix" --coverage maybe

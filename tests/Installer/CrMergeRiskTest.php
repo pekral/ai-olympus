@@ -37,7 +37,7 @@ test('the JIRA and Bugsnag wrappers inherit the merge risk line from the GitHub 
     'JIRA' => ['skills/code-review-jira/templates/github-output.md'],
 ]);
 
-test('the code review rule states that a script computes the merge risk and that the line never blocks', function (): void {
+test('the code review rule states that a script computes the merge risk and that the line adds no finding', function (): void {
     $rule = mergeRiskSource('rules/code-review/general.md');
 
     expect(substr_count($rule, '**Merge risk — one triage grade for a person who reads many pull requests.**'))->toBe(1)
@@ -46,8 +46,9 @@ test('the code review rule states that a script computes the merge risk and that
         ->and($rule)->toContain('3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production')
         ->and($rule)->toContain('that point goes on the `Not verified:` line with the step that settles it.')
         ->and($rule)->toContain(
-            '4. **The line is informational.** It never blocks, adds no finding and no severity, and never replaces the `Merge verdict:` line',
+            '4. **The line adds no finding, and at the merge the grade selects the merge path.**',
         )
+        ->and($rule)->toContain('The line itself adds no finding and no severity, and never replaces the `Merge verdict:` line')
         ->and($rule)->toContain('No label carries the grade.');
 });
 
