@@ -760,22 +760,27 @@ test('code review output omits empty sections instead of rendering placeholders'
     expect($githubSkill)->not->toContain('post: "No findings identified"');
 });
 
-test('github code review skills do not describe inline review comment workflow', function (): void {
+test('code review skills describe no raw review API call, and the tracker skills other than GitHub describe no inline review', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $githubFacingSkills = [
+    $skillsThatCallNoApi = [
         $packageDir . '/skills/code-review-github/SKILL.md',
         $packageDir . '/skills/code-review-github/templates/pr-comment-output.md',
         $packageDir . '/skills/code-review-jira/SKILL.md',
         $packageDir . '/skills/code-review-jira/templates/github-output.md',
+        $packageDir . '/skills/code-review-bugsnag/SKILL.md',
     ];
 
-    foreach ($githubFacingSkills as $skillFile) {
+    foreach ($skillsThatCallNoApi as $skillFile) {
         $content = (string) file_get_contents($skillFile);
         expect($content)->not->toContain('/pulls/{pr}/reviews');
-        expect($content)->not->toContain('comments[]');
         expect($content)->not->toContain('event=COMMENT');
         expect($content)->not->toContain('event=REQUEST_CHANGES');
+    }
+
+    foreach ([$packageDir . '/skills/code-review-jira/SKILL.md', $packageDir . '/skills/code-review-bugsnag/SKILL.md'] as $trackerSkill) {
+        $content = (string) file_get_contents($trackerSkill);
         expect($content)->not->toContain('inline review comment');
+        expect($content)->not->toContain('post-inline-review.sh');
     }
 });
 

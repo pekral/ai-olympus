@@ -1650,6 +1650,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . '`prevention-proposal` (the refresh of a prevention proposal, '
             . "`skills/code-review/references/prevention-proposal.md`),\n"
             . '`analysis-plan` (the plan artifact `skills/analyze-problem/SKILL.md` publishes on a GitHub issue), '
+            . '`cr-inline` (the inline review comments of a review round, '
+            . 'which `skills/code-review-github/scripts/post-inline-review.sh` posts on the changed lines of a pull request), '
             . '`proposal-review` (the Critical findings of the proposal review, `skills/_shared/orchestration/proposal-review.md` step 6), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
