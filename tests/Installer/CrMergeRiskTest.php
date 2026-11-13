@@ -46,7 +46,7 @@ test('the code review rule states that a script computes the merge risk and that
         ->and($rule)->toContain('3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production')
         ->and($rule)->toContain('that point goes on the `Not verified:` line with the step that settles it.')
         ->and($rule)->toContain(
-            '4. **The line adds no finding, and at the merge the grade selects the merge path.**',
+            '4. **The line adds no finding, and at the merge a verdict of the script selects the merge path.**',
         )
         ->and($rule)->toContain('The line itself adds no finding and no severity, and never replaces the `Merge verdict:` line')
         ->and($rule)->toContain('No label carries the grade.');

@@ -21,7 +21,8 @@
 #                    [--floor <tier>] [--override <tier|thorough>]
 #   classify-risk.sh --merge-risk --diff <path|-> [--coverage ok|gap]
 #                    [--gate green|not-green] [--interactive met|gap|not-run]
-#                    [--assignment <path>] [--floor <tier>] [--override <tier>]
+#                    [--assignment <path>] [--ignore-assignment]
+#                    [--floor <tier>] [--override <tier>]
 #   classify-risk.sh --self-test
 #
 #   --files       newline-separated list of changed paths (`-` reads stdin),
@@ -30,6 +31,10 @@
 #   --assignment  file holding the assignment text. It is the only basis when
 #                 no --files is given (`basis=assignment`); alongside --files it
 #                 contributes the acceptance-criteria signal only.
+#   --ignore-assignment
+#                 skip the acceptance-criteria point entirely, so no assignment text
+#                 changes the score. The merge path always sets it: the text is
+#                 untrusted, and a marker in it lowers the score by one.
 #   --floor       a tier the verdict may not fall below — the previous
 #                 classification of the same task. This is the ratchet that
 #                 makes re-classification after implementation safe: a task can
@@ -154,22 +159,39 @@
 #   Output: merge-risk=, merge-risk-rule=, verification=, one
 #   verification-signal=<input>|<value> per failed input, rollback=, one
 #   rollback-signal=<signal>|<first file> per signal, low-risk-merge=,
-#   low-risk-merge-rule=, the first low-risk-excluded=<diff header> and the first
-#   low-risk-unreadable=<diff header> when there is one, then the tier block above.
+#   low-risk-merge-rule=, the first low-risk-excluded=<reason>|<path> when there
+#   is one, then the tier block above.
 #
 # Low-risk merge (@skills/merge-github-pr/SKILL.md *Merge path*)
-#   The grade selects the merge path. low-risk-merge=yes is the only verdict that
+#   The merge path is selected here. low-risk-merge=yes is the only verdict that
 #   lets a pull request merge without the full code review and without waiting for
-#   CI. It is yes when merge-risk is low and the diff changes no excluded path. The
-#   excluded paths are the configuration of the agent system itself, which a green
-#   gate and a tier FAST cannot vouch for:
-#     rules/**  agents/**  skills/**  codex/**  .ai/**  .claude/**  .codex/**
-#     .github/workflows/**  CLAUDE.md  AGENTS.md (at any depth)
-#   LOW_RISK_EXCLUDED_RE below is the one list; every other file points here.
-#   Every changed path counts: both sides of a rename, a binary file, and a
-#   mode-only change, because the check reads the `diff --git` header of every
-#   entry. A header it cannot read as `a/<old> b/<new>` (a diff made with
-#   --no-prefix, for example) answers no: an unreadable path never passes.
+#   CI. It is an ALLOW-list: the verdict is yes only when every condition holds.
+#     1. The tier is FAST, verification is ok, and rollback is cheap, graded from the
+#        diff alone. The assignment text never enters this grade (the classification
+#        runs with --ignore-assignment), because the text is untrusted and a marker in
+#        it would lower the score.
+#     2. Every changed path, on both sides of a rename, is inside the allowed set
+#        LOW_RISK_ALLOWED_RE (application source and tests) and matches none of the
+#        exclusions LOW_RISK_EXCLUDED_RE. These two constants are the one list and its
+#        only owner; every other file points here. The allowed set is:
+#          src/**  app/**  tests/**  resources/**
+#        Inside it, the exclusions are installer and agent-configuration code
+#        (src/Installer*, src/ComposerPlugin*), gate configuration (phpunit.xml*,
+#        phpstan.neon*, rector.php, ruleset.xml*, pint.json, pest.php, bootstrap.php,
+#        composer.json, composer.lock, package.json and the lockfiles), and every
+#        instruction source (CLAUDE*.md, AGENTS*.md, GEMINI.md, copilot-instructions.md,
+#        .mcp.json, and any .claude, .codex, .agents, .ai, .github, or .claude-plugin
+#        directory). Every path outside the allowed set (rules/**, agents/**, skills/**,
+#        codex/**, commands/**, bin/**, docs/**, .github/**, and the root files) answers no.
+#     3. Every entry is a regular file: no mode 120000 (symlink), no mode 160000
+#        (submodule), and no mode change. The check reads the mode lines of each
+#        `diff --git` entry.
+#     4. No added or removed line mentions .claude, .codex, .agents, a settings.json, or
+#        permissions.allow / permissions.deny (LOW_RISK_GUARD_RE): code that writes agent
+#        configuration is excluded by content as well as by name.
+#     5. Every `diff --git` header reads as `a/<old> b/<new>`. A quoted path or a diff made
+#        with --no-prefix answers no: an unreadable path never passes.
+#   low-risk-excluded= names the first path or entry that answered no.
 #
 # Exit codes
 #   0  a classification was produced (this includes every tier — the tier is the
@@ -189,7 +211,8 @@ Usage: classify-risk.sh [--files <path|->] [--assignment <path>]
                         [--floor <tier>] [--override <tier|thorough>]
        classify-risk.sh --merge-risk --diff <path|-> [--coverage ok|gap]
                         [--gate green|not-green] [--interactive met|gap|not-run]
-                        [--assignment <path>] [--floor <tier>] [--override <tier>]
+                        [--assignment <path>] [--ignore-assignment]
+                        [--floor <tier>] [--override <tier>]
        classify-risk.sh --self-test
 
 Prints key=value lines: tier, score, basis, files, override, forced, floor,
@@ -235,10 +258,13 @@ WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert
 SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
 EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
 
-# The excluded paths of the low-risk merge: the one list. It is matched right behind
-# the `a/` or `b/` marker of a lower-cased `diff --git` header, so the directories are
-# anchored at the repository root and CLAUDE.md / AGENTS.md match at any depth.
-LOW_RISK_EXCLUDED_RE='(rules|agents|skills|codex|\.ai|\.claude|\.codex)/|\.github/workflows/|([^ "]*/)?(claude|agents)\.md("| |$)'
+# The low-risk merge allow-list: the one list and its only owner. LOW_RISK_ALLOWED_RE is the
+# closed set of paths that may take the path, LOW_RISK_EXCLUDED_RE the exclusions that still
+# apply inside it, and LOW_RISK_GUARD_RE the content guard. awk reads all three through the
+# environment, and every one is matched against a lower-cased path or line.
+LOW_RISK_ALLOWED_RE='^(src|app|tests|resources)/.'
+LOW_RISK_EXCLUDED_RE='^src/(installer|composerplugin)|(^|/)(\.claude|\.codex|\.agents|\.ai|\.github|\.claude-plugin)(/|$)|(^|/)(phpunit\.xml[^/]*|phpstan\.neon[^/]*|rector\.php|ruleset\.xml[^/]*|pint\.json|pest\.php|bootstrap\.php|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|\.mcp\.json|gemini\.md|copilot-instructions\.md|claude[^/]*\.md|agents[^/]*\.md)$'
+LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permissions\.(allow|deny)'
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -308,7 +334,7 @@ tier_from_score() {
 }
 
 classify() {
-  local files_arg="" assignment_arg="" floor_arg="" override_arg=""
+  local files_arg="" assignment_arg="" floor_arg="" override_arg="" ignore_assignment=0
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -331,6 +357,10 @@ classify() {
       [[ $# -ge 2 ]] || { usage; return 1; }
       override_arg="$2"
       shift 2
+      ;;
+    --ignore-assignment)
+      ignore_assignment=1
+      shift
       ;;
     *)
       echo "$PROG: unknown argument: $(safe_display "$1")" >&2
@@ -522,7 +552,9 @@ classify() {
 
   # No assignment text is itself unclear: nothing states what done means, so the
   # point fires and the verdict can only move up.
-  if [[ "$have_assignment" -eq 0 ]]; then
+  if [[ "$ignore_assignment" -eq 1 ]]; then
+    :
+  elif [[ "$have_assignment" -eq 0 ]]; then
     add_signal 1 'unclear-acceptance-criteria' 'no assignment text supplied'
   elif [[ ! "$assignment_text" =~ $AC_RE ]]; then
     add_signal 1 'unclear-acceptance-criteria' 'assignment states no acceptance criteria'
@@ -678,28 +710,76 @@ diff_rollback_scan() {
   '
 }
 
-# Read a unified diff on stdin. Print `E|<header>` for the first `diff --git` header that
-# names an excluded path on either side, and `U|<header>` for the first `diff` header that
-# does not read as `a/<old> b/<new>`.
+# Read a unified diff on stdin. Print `N|<entries>` and, for the first entry that fails an
+# allow-list condition, `X|<reason>|<path or header>`. Every path of an entry is checked: the
+# `diff --git` header, the `---` / `+++` lines, and the rename and copy lines.
 low_risk_scan() {
-  local line lowered excluded="" unparsed="" old_re new_re readable_re
-  old_re='^diff --git "?a/('"$LOW_RISK_EXCLUDED_RE"')'
-  new_re=' "?b/('"$LOW_RISK_EXCLUDED_RE"')'
-  readable_re='^diff --git "?a/.* "?b/'
-  while IFS= read -r line; do
-    [[ "$line" == "diff "* ]] || continue
-    lowered="$(lower "$line")"
-    if [[ ! "$lowered" =~ $readable_re ]]; then
-      [[ -n "$unparsed" ]] || unparsed="$line"
-      continue
-    fi
-    if [[ -z "$excluded" && ("$lowered" =~ $old_re || "$lowered" =~ $new_re) ]]; then
-      excluded="$line"
-    fi
-  done
-  [[ -z "$excluded" ]] || printf 'E|%s\n' "$excluded"
-  [[ -z "$unparsed" ]] || printf 'U|%s\n' "$unparsed"
-  return 0
+  LR_ALLOWED_RE="$LOW_RISK_ALLOWED_RE" LR_EXCLUDED_RE="$LOW_RISK_EXCLUDED_RE" LR_GUARD_RE="$LOW_RISK_GUARD_RE" awk '
+    function reject(reason, what) {
+      if (!failed) {
+        failed = 1
+        verdict = "X|" reason "|" what
+      }
+    }
+    function checkpath(path,    lowered) {
+      if (path == "" || path == "/dev/null") { return }
+      got = 1
+      current = path
+      lowered = tolower(path)
+      if (lowered ~ ENVIRON["LR_EXCLUDED_RE"]) { reject("excluded-path", path); return }
+      if (lowered !~ ENVIRON["LR_ALLOWED_RE"]) { reject("outside-allow-list", path) }
+    }
+    function subject() { return (current != "" ? current : header) }
+    function checkmode(mode) {
+      if (mode == "120000" || mode == "160000") { reject("symlink-or-submodule", subject()) }
+    }
+    function endentry() {
+      if (entries > 0 && !got) { reject("unreadable-header", header) }
+    }
+    BEGIN { entries = 0; failed = 0; inhunk = 0 }
+    /^diff / {
+      endentry()
+      entries++
+      header = $0
+      got = 0
+      inhunk = 0
+      current = ""
+      rest = substr($0, 12)
+      if ($0 !~ /^diff --git / || rest !~ /^a\/.* b\//) {
+        reject("unreadable-header", header)
+        got = 1
+        next
+      }
+      if ((length(rest) - 5) % 2 == 0) {
+        half = (length(rest) - 5) / 2
+        if (substr(rest, 1, 2) == "a/" && substr(rest, half + 4, 2) == "b/" && substr(rest, 3, half) == substr(rest, half + 6)) {
+          checkpath(substr(rest, half + 6))
+        }
+      }
+      next
+    }
+    entries == 0 { next }
+    !inhunk && /^@@/ { inhunk = 1; next }
+    inhunk {
+      kind = substr($0, 1, 1)
+      if ((kind == "+" || kind == "-") && tolower(substr($0, 2)) ~ ENVIRON["LR_GUARD_RE"]) { reject("agent-configuration-content", subject()) }
+      next
+    }
+    /^--- / { old = substr($0, 5); sub(/^a\//, "", old); checkpath(old); next }
+    /^\+\+\+ / { new = substr($0, 5); sub(/^b\//, "", new); checkpath(new); next }
+    /^rename from / { checkpath(substr($0, 13)); next }
+    /^rename to / { checkpath(substr($0, 11)); next }
+    /^copy from / { checkpath(substr($0, 11)); next }
+    /^copy to / { checkpath(substr($0, 9)); next }
+    /^(old|new) mode / { reject("mode-change", subject()); next }
+    /^(new file|deleted file) mode / { checkmode($NF); next }
+    /^index / { if (NF >= 3) { checkmode($3) }; next }
+    END {
+      endentry()
+      printf "N|%s\n", entries
+      if (failed) { print verdict }
+    }
+  '
 }
 
 # The merge-risk mode: one deterministic low / medium / high grade for a human
@@ -721,6 +801,10 @@ merge_risk() {
       *) pass+=("$1" "$2") ;;
       esac
       shift 2
+      ;;
+    --ignore-assignment)
+      pass+=("$1")
+      shift
       ;;
     *)
       echo "$PROG: unknown argument in --merge-risk mode: $(safe_display "$1")" >&2
@@ -807,29 +891,35 @@ merge_risk() {
     done
   done
 
-  local low_scan excluded_header="" unreadable_header="" low_risk="no" low_rule
+  local low_scan low_entries=0 low_failure="" low_risk="no" low_rule low_classification low_tier
   low_scan="$(low_risk_scan <<<"$diff_text")"
   while IFS= read -r line; do
     case "$line" in
-    E\|*) excluded_header="${line#E|}" ;;
-    U\|*) unreadable_header="${line#U|}" ;;
+    N\|*) low_entries="${line#N|}" ;;
+    X\|*) [[ -n "$low_failure" ]] || low_failure="${line#X|}" ;;
     esac
   done <<<"$low_scan"
 
-  if [[ "$grade" != "low" ]]; then
-    low_rule="no: merge-risk $grade"
-  elif [[ -n "$excluded_header" ]]; then
-    low_rule='no: the diff changes an excluded path'
-  elif [[ -n "$unreadable_header" ]]; then
-    low_rule='no: a diff header names no readable path'
+  low_classification="$(classify --files - --ignore-assignment <<<"$files")" || return 1
+  low_tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$low_classification")"
+
+  if [[ -n "$low_failure" ]]; then
+    low_rule="no: ${low_failure%%|*}"
+  elif [[ "$low_entries" -eq 0 ]]; then
+    low_rule='no: the diff has no entry'
+  elif [[ "$low_tier" != "FAST" ]]; then
+    low_rule="no: tier $low_tier from the diff alone"
+  elif [[ "$verified" != "ok" ]]; then
+    low_rule='no: verification poor'
+  elif [[ "$rollback" != "cheap" ]]; then
+    low_rule='no: rollback costly'
   else
     low_risk="yes"
-    low_rule='yes: merge-risk low and no excluded path'
+    low_rule='yes: tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list'
   fi
   printf 'low-risk-merge=%s\n' "$low_risk"
   printf 'low-risk-merge-rule=%s\n' "$low_rule"
-  [[ -z "$excluded_header" ]] || printf 'low-risk-excluded=%s\n' "$(safe_display "$excluded_header")"
-  [[ -z "$unreadable_header" ]] || printf 'low-risk-unreadable=%s\n' "$(safe_display "$unreadable_header")"
+  [[ -z "$low_failure" ]] || printf 'low-risk-excluded=%s\n' "$(safe_display "$low_failure")"
   printf '%s\n' "$classification"
   return 0
 }
@@ -1211,7 +1301,8 @@ self_test() {
 
   expect_line 'a diff on stdin is accepted' 'merge-risk=low' --merge-risk --diff - "${verified[@]}" <"$fix"
 
-  # The low-risk merge verdict: low grade and no excluded path is the only yes.
+  # The low-risk merge verdict is an allow-list: yes needs a FAST tier from the diff alone, ok
+  # verification, a cheap rollback, and every path inside the allowed set.
   # `fixat <path>` is the tested fix of `$fix`, with its production file at <path>.
   fixat() {
     {
@@ -1219,56 +1310,105 @@ self_test() {
       newfile 'tests/Unit/FormatterTest.php' "\$this->assertSame('a', trim(' a'));"
     } | writediff
   }
-  expect_line 'a low-grade diff with no excluded path merges on the low-risk path' 'low-risk-merge=yes' \
-    --merge-risk --diff "$fix" "${verified[@]}"
-  expect_line 'the low-risk verdict states its rule' 'low-risk-merge-rule=yes: merge-risk low and no excluded path' \
-    --merge-risk --diff "$fix" "${verified[@]}"
-  local excluded_path
-  for excluded_path in 'rules/git/general.php' 'agents/krang.php' 'skills/_shared/run.php' 'codex/agents/a.php' \
-    '.ai/guidelines/core.php' '.claude/settings.php' '.codex/config.php' '.github/workflows/ci.php' \
-    'CLAUDE.md' 'AGENTS.md' 'docs/nested/CLAUDE.md' 'packages/app/AGENTS.md' 'Rules/Git/General.php'; do
-    expect_line "a low-grade diff that changes $excluded_path takes the full path" 'low-risk-merge=no' \
-      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
-    expect_line "the excluded $excluded_path is named" 'low-risk-excluded=diff --git' \
-      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
+  local lowrisk=(--merge-risk --ignore-assignment --coverage ok --gate green)
+  expect_line 'a tested fix inside the allowed set merges on the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$fix"
+  expect_line 'the low-risk verdict states its rule' \
+    'low-risk-merge-rule=yes: tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list' \
+    "${lowrisk[@]}" --diff "$fix"
+  expect_line 'a tests-only change takes the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(newfile 'tests/Unit/OrderTest.php' "\$this->assertTrue(true);" | writediff)"
+  local allowed_path
+  for allowed_path in 'src/Formatter.php' 'app/Actions/Format.php' 'resources/js/format.js' 'tests/Unit/Format/FormatTest.php' \
+    'src/skills/Formatter.php' 'app/rules/Formatter.php' 'src/agents/Formatter.php' 'src/Claude.php' 'src/MyAgents.php' \
+    'src/ai/Formatter.php' 'src/codex/Formatter.php' 'tests/x y/Formatter.php'; do
+    expect_line "an ordinary file $allowed_path stays on the low-risk path" 'low-risk-merge=yes' \
+      "${lowrisk[@]}" --diff "$(fixat "$allowed_path")"
   done
-  expect_line 'an excluded path keeps the grade the script computed' 'merge-risk=low' \
-    --merge-risk --diff "$(fixat 'skills/_shared/run.php')" "${verified[@]}"
-  expect_line 'the excluded-path rule is stated' 'low-risk-merge-rule=no: the diff changes an excluded path' \
-    --merge-risk --diff "$(fixat 'skills/_shared/run.php')" "${verified[@]}"
-  expect_line 'a rename out of an excluded path takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$(renamediff 'skills/old/notes.md' 'docs/notes.md' | writediff)" "${verified[@]}"
-  expect_line 'a rename into an excluded path takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$(renamediff 'docs/notes.md' 'rules/notes.md' | writediff)" "${verified[@]}"
-  expect_line 'a mode-only change of an excluded path takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$(printf 'diff --git a/skills/run.sh b/skills/run.sh\nold mode 100644\nnew mode 100755\n' | writediff)" "${verified[@]}"
-  expect_line 'a binary file in an excluded path takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$(printf 'diff --git a/.claude/logo.png b/.claude/logo.png\nBinary files a/.claude/logo.png and b/.claude/logo.png differ\n' | writediff)" "${verified[@]}"
+  local blocked_path
+  for blocked_path in 'rules/git/general.php' 'agents/krang.php' 'skills/_shared/classify-risk.sh' 'codex/agents/a.php' \
+    '.ai/guidelines/core.php' '.claude/settings.php' '.codex/config.php' '.github/workflows/ci.php' '.github/actions/setup/action.yml' \
+    'commands/do-it.md' '.agents/skills/x/SKILL.md' 'bin/ai-olympus' '.claude-plugin/marketplace.json' '.mcp.json' \
+    'CLAUDE.md' 'AGENTS.md' 'CLAUDE.local.md' 'AGENTS.override.md' 'GEMINI.md' '.github/copilot-instructions.md' \
+    'docs/x y/CLAUDE.md' 'packages/my app/AGENTS.md' 'docs/agent-guide.md' 'docs/guide.md' 'README.md' 'Rules/Git/General.php' \
+    'phpunit.xml' 'phpstan.neon' 'rector.php' 'ruleset.xml' 'pint.json' 'composer.json' 'composer.lock' 'package.json'; do
+    expect_line "a path outside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
+      "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+    expect_line "the outside path $blocked_path is named" 'low-risk-excluded=' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+  done
+  for blocked_path in 'src/InstallerProjectSettings.php' 'src/ComposerPlugin.php' 'src/InstallerFileCopier.php' 'tests/Pest.php' \
+    'tests/phpunit.xml.dist' 'src/phpstan.neon' 'tests/x y/CLAUDE.md' 'src/.claude/a.php' 'tests/Fixtures/.github/x.php' 'app/Agents.md' \
+    'resources/CLAUDE.md' 'src/composer.json' 'tests/bootstrap.php' 'src/gemini.md' 'resources/package.json' 'tests/rector.php' \
+    'tests/.ai/rule.php' 'src/.agents/skill.php'; do
+    expect_line "an excluded path inside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
+      "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+    expect_line "the exclusion $blocked_path is named" 'low-risk-excluded=excluded-path|' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+  done
+  expect_line 'the outside-allow-list reason is stated' 'low-risk-merge-rule=no: outside-allow-list' \
+    "${lowrisk[@]}" --diff "$(fixat 'docs/guide.md')"
+  expect_line 'a changed classifier on the pull request takes the full path' 'low-risk-excluded=outside-allow-list|skills/_shared/classify-risk.sh' \
+    "${lowrisk[@]}" --diff "$(fixat 'skills/_shared/classify-risk.sh')"
   expect_line 'an excluded path beside an ordinary one takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$({ cat "$fix"; newfile 'skills/_shared/run.php' "return 1;"; } | writediff)" "${verified[@]}"
-  for excluded_path in 'src/skills/Formatter.php' 'app/rules/Formatter.php' 'src/agents/Formatter.php' 'src/Claude.php' \
-    'src/MyAgents.php' 'docs/rules.md' 'src/ai/Formatter.php' 'src/codex/Formatter.php' 'workflows/Formatter.php'; do
-    expect_line "a look-alike path $excluded_path stays on the low-risk path" 'low-risk-merge=yes' \
-      --merge-risk --diff "$(fixat "$excluded_path")" "${verified[@]}"
-  done
-  expect_line 'a diff header without the a/ b/ prefixes takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
-  expect_line 'an unreadable header names itself' 'low-risk-unreadable=diff --git src/Formatter.php' \
-    --merge-risk --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
+    "${lowrisk[@]}" --diff "$({ cat "$fix"; newfile '.mcp.json' '{}'; } | writediff)"
+  expect_line 'a rename out of the allowed set takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/Old.php' 'rules/New.php' | writediff)"
+  expect_line 'a rename into the allowed set from an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(renamediff 'skills/Old.php' 'src/New.php' | writediff)"
+  expect_line 'a rename with a space on both sides reads its rename lines' 'low-risk-excluded=outside-allow-list|rules/x y/New.php' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/x y/Old.php' 'rules/x y/New.php' | writediff)"
+  expect_line 'a symlink inside the allowed set takes the full path' 'low-risk-excluded=symlink-or-submodule|src/link' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/link b/src/link\nnew file mode 120000\nindex 0000000..1111111\n--- /dev/null\n+++ b/src/link\n@@ -0,0 +1 @@\n+../CLAUDE.md\n\\ No newline at end of file\n' | writediff)"
+  expect_line 'a symlink at an excluded directory name takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.ai b/.ai\nnew file mode 120000\nindex 0000000..1111111\n--- /dev/null\n+++ b/.ai\n@@ -0,0 +1 @@\n+docs/ai\n\\ No newline at end of file\n' | writediff)"
+  expect_line 'a submodule bump inside the allowed set takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/vendored b/src/vendored\nindex 1111111..2222222 160000\n--- a/src/vendored\n+++ b/src/vendored\n@@ -1 +1 @@\n-Subproject commit 1111111111111111111111111111111111111111\n+Subproject commit 2222222222222222222222222222222222222222\n' | writediff)"
+  expect_line 'a submodule at an excluded directory name takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.claude b/.claude\nindex 1111111..2222222 160000\n--- a/.claude\n+++ b/.claude\n@@ -1 +1 @@\n-Subproject commit 1111111111111111111111111111111111111111\n+Subproject commit 2222222222222222222222222222222222222222\n' | writediff)"
+  expect_line 'a mode change inside the allowed set takes the full path' 'low-risk-excluded=mode-change|src/run.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/run.php b/src/run.php\nold mode 100644\nnew mode 100755\n' | writediff)"
+  expect_line 'a mode-only change on an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/skills/run.sh b/skills/run.sh\nold mode 100644\nnew mode 100755\n' | writediff)"
+  expect_line 'a binary file in an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.claude/logo.png b/.claude/logo.png\nBinary files a/.claude/logo.png and b/.claude/logo.png differ\n' | writediff)"
+  expect_line 'an added line that writes agent configuration takes the full path' 'low-risk-excluded=agent-configuration-content|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(newfile 'src/Helper.php' '<?php' "file_put_contents('.claude/settings.json', \$json);" | writediff)"
+  expect_line 'a removed line that wrote agent configuration takes the full path' 'low-risk-excluded=agent-configuration-content|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/Helper.php b/src/Helper.php\n--- a/src/Helper.php\n+++ b/src/Helper.php\n@@ -1 +1 @@\n-return permissions.allow;\n+return 1;\n' | writediff)"
+  expect_line 'a quoted header takes the full path' 'low-risk-excluded=unreadable-header|' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git "a/src/f\\303\\266o.php" "b/src/f\\303\\266o.php"\n--- "a/src/f\\303\\266o.php"\n+++ "b/src/f\\303\\266o.php"\n@@ -1 +1 @@\n-x\n+y\n' | writediff)"
+  expect_line 'a diff header without the a/ b/ prefixes takes the full path' 'low-risk-excluded=unreadable-header|diff --git src/Formatter.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)"
+  printf '' >"$tmp/empty.diff"
+  expect_line 'an empty diff takes the full path' 'low-risk-merge-rule=no: the diff has no entry' \
+    "${lowrisk[@]}" --diff "$tmp/empty.diff"
   expect_line 'a medium grade takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$migration_create" "${verified[@]}"
-  expect_line 'the medium grade is the stated reason' 'low-risk-merge-rule=no: merge-risk medium' \
-    --merge-risk --diff "$migration_create" "${verified[@]}"
+    "${lowrisk[@]}" --diff "$migration_create"
+  expect_line 'the medium grade is not hidden by the allow-list' 'merge-risk=medium' \
+    "${lowrisk[@]}" --diff "$migration_create"
   expect_line 'a high grade takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$migration_drop" --coverage gap --gate green --assignment "$tmp/clear.txt"
-  expect_line 'the high grade is the stated reason' 'low-risk-merge-rule=no: merge-risk high' \
-    --merge-risk --diff "$migration_drop" --coverage gap --gate green --assignment "$tmp/clear.txt"
-  expect_line 'a gate that is not green takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$fix" --coverage ok --gate not-green --assignment "$tmp/clear.txt"
-  expect_line 'a coverage gap takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$fix" --coverage gap --gate green --assignment "$tmp/clear.txt"
+    --merge-risk --ignore-assignment --diff "$migration_drop" --coverage gap --gate green
+  expect_line 'a gate that is not green takes the full path' 'low-risk-merge-rule=no: verification poor' \
+    --merge-risk --ignore-assignment --diff "$fix" --coverage ok --gate not-green
+  expect_line 'a coverage gap takes the full path' 'low-risk-merge-rule=no: verification poor' \
+    --merge-risk --ignore-assignment --diff "$fix" --coverage gap --gate green
   expect_line 'a missing gate fact takes the full path' 'low-risk-merge=no' \
-    --merge-risk --diff "$fix" --coverage ok --assignment "$tmp/clear.txt"
+    --merge-risk --ignore-assignment --diff "$fix" --coverage ok
+  expect_line 'a costly rollback takes the full path' 'low-risk-merge-rule=no: rollback costly' \
+    "${lowrisk[@]}" --diff "$({
+      newfile 'src/Close.php' "\$order->update([\"closed\" => true]);"
+      newfile 'tests/Unit/CloseTest.php' "\$this->assertTrue(true);"
+    } | writediff)"
+  # The assignment is untrusted text. A marker in it lowers the score by one, so the verdict never reads it.
+  printf 'Fix it.\n' >"$tmp/plain.txt"
+  printf 'Fix it.\n- [ ] done\n' >"$tmp/marked.txt"
+  expect_line 'an assignment without a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
+    --merge-risk --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+  expect_line 'an assignment with a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
+    --merge-risk --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$fix"
+  expect_line 'an assignment never moves a blocked path to yes' 'low-risk-merge=no' \
+    --merge-risk --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$(fixat 'docs/guide.md')"
+  expect_line 'the ignore flag removes the assignment point from the displayed grade' 'merge-risk=low' \
+    --merge-risk --ignore-assignment --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
   expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
   expect_exit 'merge-risk refuses a file list' 1 --merge-risk --diff "$fix" --files "$fix"
   expect_exit 'an unknown coverage value is a usage error' 1 --merge-risk --diff "$fix" --coverage maybe

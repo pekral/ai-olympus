@@ -231,7 +231,7 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
 
     expect($merge)->toContain('Run `skills/_shared/verify-gate.sh --tier full <headRefOid>` on the checked-out head');
     expect($merge)->toContain(
-        'It replaces **only** the acceptance of the textual `Quality gate:` line; CI must still be green on the merged head (step 2)',
+        'It replaces **only** the acceptance of the textual `Quality gate:` line; on the full path CI must still be green on the merged head (step 2)',
     );
     expect($merge)->toContain('Never accept the textual record in its place, and never merge on a non-zero verdict.');
     expect($merge)->toContain('A refusal is never a pass, and the textual record never stands in for it.');
