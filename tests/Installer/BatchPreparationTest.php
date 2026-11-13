@@ -243,7 +243,9 @@ test('every batch unit is brought to the default branch tip before the readiness
 
     expect($batch)->toContain('## Bring a unit to the default branch tip')
         ->and($batch)->toContain('It runs with or without `--merge`')
-        ->and($batch)->toContain('run *Bring a unit to the default branch tip* before step 2 of `@skills/verify-merge-readiness/SKILL.md`, with or without `--merge`.')
+        ->and($batch)->toContain(
+            'run *Bring a unit to the default branch tip* before step 2 of `@skills/verify-merge-readiness/SKILL.md`, with or without `--merge`.',
+        )
         ->and($batch)->toContain('1. Run *Bring a unit to the default branch tip*. It resolves the default branch tip `T`.')
         ->and($batch)->toContain('A dirty worktree, or one on another commit, stops the unit with `Blocked`')
         ->and($skill)->toContain('For every unit of a batch, with or without `--merge`, the root')
@@ -251,8 +253,12 @@ test('every batch unit is brought to the default branch tip before the readiness
         ->and($donatello)->toContain('`git -C <path> reset --keep origin/<branch>` on a clean tree, never with a detached switch')
         ->and($donatello)->toContain('or its `<branch>-vN` after a conflict');
 
-    expect($orchestration)->toContain('| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with `gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |')
-        ->and($orchestration)->toContain('runs through `skills/_shared/audit-trail.sh run --`, which records its `external-write` line, a refused update included.');
+    expect($orchestration)->toContain(
+        '| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with `gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |',
+    )
+        ->and($orchestration)->toContain(
+            'runs through `skills/_shared/audit-trail.sh run --`, which records its `external-write` line, a refused update included.',
+        );
 });
 
 test('the merge step is opt-in, rebases on the latest default branch, re-verifies the gate, and goes through merge-github-pr', function (): void {
