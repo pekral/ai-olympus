@@ -21,6 +21,12 @@
         "skills/code-review-github/templates/pr-comment-output.md",
         "skills/security-threat-analysis/templates/remediation-plan-issue.md"
     ],
+    "skills/_shared/orchestration/batch-preparation.md": [
+        "skills/_shared/templates/superseded-pr-pointer.md"
+    ],
+    "skills/_shared/orchestration/proposal-review.md": [
+        "skills/_shared/templates/proposal-review-comment.md"
+    ],
     "skills/analyze-problem/SKILL.md": [
         "skills/analyze-problem/templates/analysis-report.md"
     ],
@@ -29,6 +35,9 @@
     ],
     "skills/assignment-compliance-check/SKILL.md": [
         "skills/assignment-compliance-check/templates/assignment-compliance.md"
+    ],
+    "skills/auto-interactive-testing/SKILL.md": [
+        "skills/auto-interactive-testing/templates/test-result-comment.md"
     ],
     "skills/code-review-bugsnag/SKILL.md": [
         "skills/code-review-bugsnag/templates/github-output.md",
@@ -58,14 +67,14 @@
     "skills/create-issues-from-text/SKILL.md": [
         "skills/create-issues-from-text/templates/issue-structure.md"
     ],
+    "skills/github-issue-triage/SKILL.md": [
+        "skills/github-issue-triage/templates/needs-info-comment.md"
+    ],
     "skills/github-issue-triage/references/backlog-sweep.md": [
         "skills/github-issue-triage/templates/close-evidence-comment.md"
     ],
     "skills/github-issue-triage/references/pending-analysis.md": [
         "skills/analyze-problem/templates/analysis-report.md"
-    ],
-    "skills/github-issue-triage/SKILL.md": [
-        "skills/github-issue-triage/templates/needs-info-comment.md"
     ],
     "skills/github-release-roadmap/references/github-cli-workflow.md": [
         "skills/create-issues-from-text/templates/issue-structure.md"
@@ -75,12 +84,15 @@
         "skills/pr-summary/templates/pr-summary-jira.md",
         "skills/pr-summary/templates/pr-summary-bugsnag.md"
     ],
-    "skills/process-code-review/references/round-three-deferral.md": [
-        "skills/_shared/templates/follow-up-issue.md"
-    ],
     "skills/process-code-review/SKILL.md": [
         "skills/code-review-github/templates/pr-comment-output.md",
         "skills/resolve-issue/templates/pull-request-body.md"
+    ],
+    "skills/process-code-review/references/round-three-deferral.md": [
+        "skills/_shared/templates/follow-up-issue.md"
+    ],
+    "skills/resolve-issue/SKILL.md": [
+        "skills/resolve-issue/templates/technical-report-comment.md"
     ],
     "skills/resolve-issue/references/deferred-follow-up.md": [
         "skills/_shared/templates/follow-up-issue.md"
@@ -91,9 +103,6 @@
     "skills/resolve-issue/references/tracker-follow-up.md": [
         "skills/resolve-issue/templates/pr-link-back-comment.md",
         "skills/pr-summary/templates/pr-summary-jira.md"
-    ],
-    "skills/resolve-issue/SKILL.md": [
-        "skills/resolve-issue/templates/technical-report-comment.md"
     ],
     "skills/security-threat-analysis/SKILL.md": [
         "skills/security-threat-analysis/templates/remediation-report.md"
@@ -108,11 +117,5 @@
         "skills/verify-merge-readiness/templates/decisions-before-merge.md",
         "skills/pr-summary/templates/pr-summary-github.md",
         "skills/pr-summary/templates/pr-summary-jira.md"
-    ],
-    "skills/_shared/orchestration/batch-preparation.md": [
-        "skills/_shared/templates/superseded-pr-pointer.md"
-    ],
-    "skills/_shared/orchestration/proposal-review.md": [
-        "skills/_shared/templates/proposal-review-comment.md"
     ]
 }

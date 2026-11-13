@@ -98,7 +98,7 @@ A non-security defect that the change under test did not cause is never fixed in
 
 ### 8. Report on the issue and close it
 
-1. Post one comment on the issue in the issue's language. Use the shape in *Output* below.
+1. Post one comment on the issue in the issue's language, rendered from `skills/auto-interactive-testing/templates/test-result-comment.md`, through `skills/code-review-github/scripts/upsert-comment.sh <URL> <comment-file> agent-note`.
 2. When every scenario passed, close the issue as completed.
 3. When a scenario failed or was blocked, leave the issue open. Name the blocker and the step that removes it.
 4. Remove the claim label in both cases. Re-read the issue and verify the state and the labels.
@@ -107,13 +107,7 @@ Continue with the next issue in the queue.
 
 ## Output
 
-**The comment on each issue** contains, in this order:
-
-1. The tested revision, the account, and how the scenarios ran (browser, terminal, or both).
-2. A table with one row for each scenario: the scenario, the observed result with its evidence, and the verdict `Passed`, `Failed`, `Partial`, or `Blocked`.
-3. The environment limitations that the run met.
-4. The cleanup, and every item that stays.
-5. One closing sentence: the issue is closed, or it stays open because of the named blocker.
+**The comment on each issue** is rendered from `skills/auto-interactive-testing/templates/test-result-comment.md`.
 
 **The final report to the user** contains:
 

@@ -209,12 +209,7 @@ Post the non-technical report, in the voice of `@skills/agent-voice/SKILL.md`, o
 - **JIRA** (task filed in JIRA): publish through the canonical JIRA helper with `--create`, which converts the template source to ADF and applies it through `--body-adf` per `@rules/jira/general.md`; use the JIRA shape per `references/tracker-follow-up.md`
 - **Bugsnag** (task originated from a Bugsnag error): post the non-technical report as a comment directly on the Bugsnag error via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (requires `BUGSNAG_TOKEN`; falls back to a Bugsnag MCP server when the script is unavailable). Also mirror it as a comment on the linked GitHub issue from `linkedIssues[]` when one exists.
 
-The non-technical report, rendered from the `pr-summary` template, must be understandable by non-technical testers and product managers and contain:
-
-- **What changed:** a brief, plain-language summary of the fix or feature
-- **How to test:** step-by-step instructions a tester can follow to verify the change works correctly
-- **Risk areas and edge cases:** specific scenarios the tester should focus on to catch potential regressions or unexpected behavior
-- **Pre-existing security fixes also covered by this PR (when any):** plain-language one-line summary per pre-existing security fix commit produced by *Pre-existing issue handling*, plus a one-line "what to re-verify" hint per fix so the tester knows the additional regression surface to validate. Omit the bullet entirely when no such fix landed.
+Render the non-technical report from the template of the target tracker: `skills/pr-summary/templates/pr-summary-github.md`, `skills/pr-summary/templates/pr-summary-jira.md`, or `skills/pr-summary/templates/pr-summary-bugsnag.md`. It must be understandable by non-technical testers and product managers. A pre-existing security fix from *Pre-existing issue handling* is one plain-language item of *What changed*, and on GitHub and Bugsnag a one-line re-verify hint in *How to test*.
 
 ### Per-tracker follow-up
 

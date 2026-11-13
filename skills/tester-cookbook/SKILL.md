@@ -55,9 +55,9 @@ For each impact identified in step 2, look up the corresponding visible label in
 - **Internal-only changes (no UI footprint)** — surface them in the dev-team report ("ask dev team to confirm X"); do not invent UI steps the tester cannot perform.
 
 ### 4. Compose the comment
-Render the comment from `skills/tester-cookbook/templates/test-report-jira.md`: two metadata lines, then the body sections. Compose them in the supported intermediate source format. The canonical helper converts the result to ADF. The body skips the first section when it does not add value (for example when the change is verifiable purely from the dev-team report — a notification text change, a label rename in the report).
+Render the comment from `skills/tester-cookbook/templates/test-report-jira.md`, which owns the order of the lines and sections and which of them are present. Compose it in the supported intermediate source format. The canonical helper converts the result to ADF. Publish only the part above the `=== END OF COMMENT BODY` line of the template.
 
-**Metadata lines (always at the top of the comment, in this order):**
+**Fill the metadata lines:**
 
 - *Authors:* the real change author(s), resolved here — this skill owns the algorithm, no other skill resolves authorship for it:
     1. Collect the commit authors with `git log --pretty='%an <%ae>' base..HEAD | awk 'NF' | sort -u`.
@@ -65,12 +65,12 @@ Render the comment from `skills/tester-cookbook/templates/test-report-jira.md`: 
     3. On a JIRA target, prefer the JIRA-account display name when the loader's user lookup — or `assignee` / `reporter` matching the committer — resolves one. Otherwise prefer the GitHub handle `@handle`. Otherwise fall back to the git `Name <email>` form.
     4. List the identities comma-separated in commit order, deduped.
   Never list the agent / publishing identity. When authorship cannot be determined, write *Authors: unknown — git history did not yield a recognisable identity*.
-- *Available behind:* present only when the verified change is reachable only behind a test parameter (admin switch label _NovaSMS API version_, query {{?preview=1}}, feature toggle, allow-listed account). Name the switch label exactly as it appears in the admin UI when one exists (per the forbidden-vocabulary rule — UI labels, not feature keys). A gate with no UI footprint, such as an environment setting, goes to the dev-team report instead. When the change is reachable for every user unconditionally, omit the line entirely.
+- *Available behind:* the test parameter that the verified change is reachable behind (admin switch label _NovaSMS API version_, query {{?preview=1}}, feature toggle, allow-listed account). Name the switch label exactly as it appears in the admin UI when one exists (per the forbidden-vocabulary rule — UI labels, not feature keys). A gate with no UI footprint, such as an environment setting, goes to the dev-team report instead.
 
-**Body sections:**
+**Fill the body sections:**
 
-- **Brief steps to reach the result** (optional) — at most a handful of bullets, each one a single click-path line, just enough for the tester to land on the affected screen. No precondition tables, no scenario enumeration, no edge-case matrices. When *Available behind* is set, the **first** bullet must be the click-path that enables the gating switch. Example: *"Open Administration → switches → enable *NovaSMS API version v2* → Campaigns → new SMS campaign → send to test number `+420600000000` → open *Recipient status* on the campaign detail."*
-- **What to report back to the dev team** (required) — concrete visible symptoms the tester should flag if observed, written so the tester only needs to recognise them in the UI. Each bullet is one symptom, framed in plain language: *"contacts stuck in status *Waiting* for over an hour"*, *"credits charged even for contacts marked *Invalid number*"*, *"the SMS arrived but the report shows *Not delivered*"*, *"the *NovaSMS API version* switch is missing from the admin screen"*. Never list error codes, never mention Bugsnag, never reference internal class or queue names.
+- **Brief steps to reach the result** — at most a handful of bullets, each one a single click-path line, just enough for the tester to land on the affected screen. No precondition tables, no scenario enumeration, no edge-case matrices. When *Available behind* is set, the **first** bullet must be the click-path that enables the gating switch. Example: *"Open Administration → switches → enable *NovaSMS API version v2* → Campaigns → new SMS campaign → send to test number `+420600000000` → open *Recipient status* on the campaign detail."*
+- **What to report back to the dev team** — concrete visible symptoms the tester should flag if observed, written so the tester only needs to recognise them in the UI. Each bullet is one symptom, framed in plain language: *"contacts stuck in status *Waiting* for over an hour"*, *"credits charged even for contacts marked *Invalid number*"*, *"the SMS arrived but the report shows *Not delivered*"*, *"the *NovaSMS API version* switch is missing from the admin screen"*. Never list error codes, never mention Bugsnag, never reference internal class or queue names.
 
 ### 5. Compose the JIRA source for ADF conversion
 - Headings: `h2.`, `h3.` (never `#`).
