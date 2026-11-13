@@ -129,8 +129,9 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
     expect($body)->toContain('When a question for a human is open, it is the closing sentence of this bullet.');
     expect($jiraTemplate)->toContain('A question about an acceptance criterion closes that criterion\'s bullet in');
 
-    // A finding outside the assignment reaches the ticket only when it is Critical.
-    expect($body)->toContain('A finding outside the assignment appears only when it is Critical.');
+    // The review carries no out-of-scope point, so the ticket lists none (issue #455).
+    expect($jiraTemplate)->toContain('The review carries no out-of-scope point and no follow-up proposal');
+    expect($jiraTemplate)->not->toContain('appears only when it is Critical');
 
     // The verdict is a section now, not an optional slot, and no slot remains for the questions.
     expect($jiraTemplate)->toContain('This section is the only route the assignment verdict takes into this comment');
@@ -2289,7 +2290,7 @@ test('the pr-summary Length section names JIRA as its one capped target (issue #
 
     // Overflow resolves in one section only, and the template points back at the same rule.
     expect($prSummary)->toContain(
-        'never drop an `Acceptance criteria` bullet, a `Review findings` bullet, or a *Not verified* point, because those are what the reader decides on',
+        'never drop an `Acceptance criteria` bullet or a `Review findings` bullet, because those are what the reader decides on',
     );
     expect($jiraTemplate)->toContain('@skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the');
 });

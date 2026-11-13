@@ -14,7 +14,7 @@ metadata:
 ---
 
 ## Scope
-Perform code review for a GitHub pull request and publish results to:
+Perform code review for a GitHub pull request (the review covers exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*, with no out-of-scope observation and no follow-up proposal) and publish results to:
 - GitHub PR (technical findings)
 - Every linked GitHub issue in `closingIssues[]` (human-readable summary)
 

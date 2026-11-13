@@ -448,7 +448,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the DRY check records an unestablished reason to change as *Not a duplicate* and raises nothing (issue #426).
         // Re-baselined: the answer to a reviewer's question takes its prose from `@skills/agent-voice/SKILL.md` instead of the writing rule (issue #432).
         // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-review/general.md' => '1a1d16ca428ea73939b41f9349d9c95aea09c3317bf608848eab1406b22c62f1',
+        // Re-baselined: a later review round raises only new Critical findings and security findings, and a review covers four areas and nothing else (issue #455).
+        // Re-baselined: a later round is an iteration of one review-and-fix loop, and the scripts record every reported finding and the reviewer alone applies the later-round rule (issue #455, review round 3).
+        'rules/code-review/general.md' => '2c7d4550657ec0ddf351f714f3fc821a84c4c5780ff87bc6f13592c7cf17c3dd',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -557,7 +559,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // every marker, heading, field, finding identifier, severity label, and link this rule requires stays.
         // Re-baselined: the scope clarification hands the sentence shape of a report to the voice, and the
         // length limits stay with this rule (issue #432, review round 1).
-        'rules/reports/general.md' => '63bd6c2dbee76505e733d424c3b07e42aad6ffe0719f0226aeeafc9b4b49a98c',
+        // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
+        'rules/reports/general.md' => '4b494b926a2def2d890f0986cc90508c7a7d6dc612714e15a43c9a056e2d85da',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -74,8 +74,9 @@ Review findings (review-only run, in place of the test steps)
   earlier review" renders only when that group has a finding. The groups, the
   answer sentence, and the rule that each finding is a TL;DR of its solution
   backed by evidence are owned by @skills/pr-summary/SKILL.md (Review-only run).
-  A point with no evidence renders under the line "Not verified" ("Neověřeno" in
-  a Czech assignment), with the step that settles it.
+  The section lists only the points that must be resolved before the merge: a
+  defect or an open question. It lists every such point, and never an
+  assumption, a hypothesis, or a point with no evidence.
 
 Closing links line
   One line, the pull request and the source tracker item, separated by " · ",

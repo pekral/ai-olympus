@@ -52,7 +52,7 @@ How this differs from its neighbours:
 1. **Scope.** The files the diff changes, and the security paths a changed line reaches: its callers, middleware, policies, validation, and configuration. A surface outside that set is `out_of_scope`.
 2. **Profile.** `standard`, unless the caller names another. The budget follows `references/profiles-and-budget.md`.
 3. **Workers.** The reviewer runs every pass itself, in sequence, in its own context. It never dispatches a subagent for a hunter, a verifier, or a coverage critic, so the verifier of a candidate is a separate pass, never the hunting pass.
-4. **Result.** A `confirmed` or `needs_validation` finding on a line the diff changes becomes a security finding of the review. A finding outside the changed lines goes to the review's out-of-scope handoff, marked not for public filing, and never into the published comment.
+4. **Result.** A `confirmed` or `needs_validation` finding on a line the diff changes becomes a security finding of the review. A finding outside the changed lines goes to the review's *Security findings outside the assignment*, marked not for public filing, and never into the published comment.
 5. **Severity.** The mapping of `@skills/security-review/SKILL.md` applies: `critical` → Critical; `high`, `medium`, and `low` → Moderate. An `unrated` `needs_validation` finding is Moderate, and its `validation_needed` step is the test hint. Every mapped finding blocks convergence.
 6. **Run directory.** Each review round writes one run directory under `.claude/run/security-audit/` and keeps it on purpose: the next round may use it as its base run (`references/incremental-audit.md`). The directory is git-ignored scratch space.
 

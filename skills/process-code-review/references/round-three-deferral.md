@@ -4,6 +4,10 @@ Referenced from `skills/process-code-review/SKILL.md` *Review loop* step 6. Extr
 
 The cap round — the round equal to `review.max-iterations`, round 3 by default (`references/review-state.md` *Configuration*) — is the loop's last review. It is a **deferral boundary**, not a failure line: what remains is triaged into one of three outcomes rather than iterating once more. The point is a review that converges in a bounded number of rounds without lowering the bar of anything that merges — every outcome below is either a fix, a recorded tracker item, or a hard stop.
 
+A new Moderate that the cap round itself finds is never reported, because a later round raises only new Critical findings and security findings (`@rules/code-review/general.md` *Later rounds raise only new Critical findings*). The table therefore holds the Moderate findings that an earlier round raised and that are still open, plus a security Moderate at any round.
+
+The triage below is the loop's own handling of a finding on the assignment's diff. It is not a follow-up proposal of the review: the review proposes none, and it drops every point outside the assignment except a security vulnerability (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
+
 ## Resolution table — every remaining finding lands in exactly one row
 
 | Remaining finding at the cap round | Outcome | Effect on the convergence gate |

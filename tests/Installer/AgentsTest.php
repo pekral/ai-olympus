@@ -343,31 +343,32 @@ test('leonardo scopes every review pass to the current diff only (issue #179)', 
     expect($content)->toContain('**Do not audit the repository.**');
     expect($content)->toContain('it runs only when the caller explicitly asks for one');
 
-    // A real problem outside the diff is filed as its own issue, not silently dropped.
-    // Since #225 the item is always recorded in the review; it becomes an issue only above the
-    // filing bar. What must not regress is that it is never silently dropped.
-    expect($content)->toContain('**Something real but out of scope is not dropped, it is recorded — and filed only when it clears the bar.**');
+    // A problem outside the assignment that is not a security issue is dropped (issue #455).
+    expect($content)->toContain('**A point outside the assignment is dropped, never recorded.**');
+    expect($content)->not->toContain('**Something real but out of scope is not dropped, it is recorded');
 
     // The cap of three iterations is only affordable because each round re-reads a diff.
     expect($content)->toContain('each round re-reads a diff, not a repository');
 });
 
-test('leonardo hands a critical pre-existing problem over instead of filing it itself', function (): void {
+test('leonardo hands a security vulnerability found outside the assignment over instead of filing it itself', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $krang = krangContractText();
 
-    // The review is about the assignment and the diff that fulfils it. A defect that predates the
-    // change is not its subject, so leonardo reports the Critical ones and files nothing at all —
-    // one agent decides what enters the backlog instead of every reviewer queueing work.
-    expect($content)->toContain('9. **Hand a critical pre-existing problem to the agent that files issues — file nothing yourself.**');
-    expect($content)->toContain('**What you hand over — Critical only.**');
+    // The review covers four areas. A defect that predates the change is not its subject, so leonardo
+    // reports only a security vulnerability and files nothing at all — one agent decides what enters
+    // the backlog instead of every reviewer queueing work.
+    expect($content)->toContain(
+        '9. **Hand a security vulnerability found outside the assignment to the agent that files issues — file nothing yourself.**',
+    );
+    expect($content)->toContain('**What you hand over — security only.**');
     expect($content)->toContain('**You never call an issue-creation skill or `gh issue create` yourself.**');
     expect($content)->toContain('**Who decides, and who files.**');
 
     // The decision, and the right to drop the item, belong to krang.
-    expect($krang)->toContain('**You decide what happens to the critical pre-existing problems `leonardo` hands back.**');
-    expect($krang)->toContain('**Judge the severity yourself**');
+    expect($krang)->toContain('**You decide what happens to the security findings outside the assignment that `leonardo` hands back.**');
+    expect($krang)->toContain('**Judge the item yourself**');
     expect($krang)->toContain('**File it, or drop it.**');
     expect($krang)->toContain('@skills/create-issue/SKILL.md');
 
@@ -381,8 +382,9 @@ test('leonardo hands a critical pre-existing problem over instead of filing it i
     expect($content)->toContain('A `Critical` / `Moderate` finding on a changed line is fixed in this PR');
 
     // The result is a first-class handoff field, not buried in prose.
-    expect($content)->toContain('- **Critical out-of-scope findings:**');
-    expect($content)->toContain('- **Out-of-scope observations:**');
+    expect($content)->toContain('- **Security findings outside the assignment:**');
+    expect($content)->not->toContain('- **Out-of-scope observations:**');
+    expect($content)->not->toContain('- **Critical out-of-scope findings:**');
 });
 
 test('leonardo also runs a pre-implementation security-analysis mode that feeds donatello', function (): void {
