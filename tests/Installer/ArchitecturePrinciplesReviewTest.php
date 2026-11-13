@@ -98,9 +98,13 @@ test('the entries route to the owner that already raises the finding and stay in
 test('a race, replay, or retry on a security surface is a security finding that keeps the higher severity', function (): void {
     $section = architecturePrinciplesSection();
 
-    expect($section)->toContain(
-        'a race, a replay, or a retry on a surface the S3 test of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* names is a security finding. `@skills/security-review/SKILL.md` owns it and it carries the higher of the two severities. An untraced one goes under *Needs verification* and blocks (`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).',
-    )
+    $sentence = 'a race, a replay, or a retry on a surface the S3 test of `@rules/code-review/general.md` '
+        . '*Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* names is a security finding. '
+        . '`@skills/security-review/SKILL.md` owns it and it carries the higher of the two severities. '
+        . 'An untraced one goes under *Needs verification* and blocks '
+        . '(`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).';
+
+    expect($section)->toContain($sentence)
         ->and($section)->toContain('A client retry with no idempotency key belongs to `@skills/api-review/SKILL.md` *Idempotency keys*')
         ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
         ->and($section)->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md` (idempotent settlement)');
