@@ -72,7 +72,15 @@ test('the extract-findings self-test covers every S1 lens and the S3 surfaces th
     'round: a finding of the $lens lens is security-relevant',
     'round: the S3 surface \\"$surface\\" is security-relevant',
     'round: a finding that cites no rule cannot be classified and counts as security-relevant',
+    'round: a finding that carries a Level (a security-lens Moderate) is security-relevant whatever its rule',
+    'round: a security surface named only in the Evidence is security-relevant',
+    'round: a security surface named only in the Suggested fix (S2) is security-relevant',
 ]);
+
+test('the review-state self-test keeps a Level and a Suggested-fix-only security Moderate in round 2 (issue #455)', function (): void {
+    expect(laterRoundsFile('skills/_shared/review-state.sh'))
+        ->toContain('a security-lens Moderate on a non-security rule and an S2 Suggested-fix signal stay recorded and blocking in round 2');
+});
 
 test('the security classification names every S1 lens and the S3 surfaces of the exclusion gate (issue #455)', function (string $term): void {
     expect(laterRoundsFile('skills/_shared/extract-findings.sh'))->toContain($term);
@@ -80,17 +88,20 @@ test('the security classification names every S1 lens and the S3 surfaces of the
     'security-review|security-audit|security-bounty-hunter|security-threat-analysis'
         . '|laravel-security|laravel-authorization-review|git-history-exposure-audit',
     'hostname', 'private.?ip', 'outbound', 'allow.?list', 'supply.?chain', 'malicious', 'clickjack', 'bidi', 'invisible', 'trojan', 'redirect',
+    'enumerat', 'webhook', '$f.level != null', '$f.proposed_fix, $f.evidence',
 ]);
 
 test('the later-round filter fails closed and carries an earlier finding when it drops a new identity (issue #455)', function (): void {
     $rule = laterRoundsFile('rules/code-review/general.md');
 
     expect($rule)
-        ->toContain('The filter fails closed: a finding is dropped only when its security flag is `false`')
+        ->toContain('The filter errs toward security: a finding is dropped only when its security flag is `false`.')
         ->toContain('A round that drops a new identity carries every earlier open finding it no longer reports instead of resolving it');
     $records = laterRoundsFile('skills/code-review/references/finding-records.md');
 
     expect($records)->toContain('A finding that cites no rule cannot be classified and counts as security.');
+    expect($records)->toContain('`security` is a heuristic for the S1–S3 carve-out');
+    expect($records)->not->toContain('covers the whole S1–S3');
     expect($records)->not->toContain('A false negative would let a security finding be dismissed or deferred.');
 });
 

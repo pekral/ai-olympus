@@ -1170,6 +1170,19 @@ EOF
   check 'the S1 lens and the S3 surface are recorded in round 2 and block' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.security)] | length) == 3')"
   check 'nothing is ignored when both are security-relevant' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
 
+  # A security-lens Moderate (it carries a Level) on a non-security rule, and a Moderate whose only security signal
+  # is its Suggested fix (S2), are never dropped from a later round.
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/v1.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/v1.md" >/dev/null)
+  F_LEVEL="$(finding Moderate 'Read-only agent writes a tracked file' 'agents/foo.md:1' "$STRUCT" 'logic-trace — the agent writes through the tool' High)"
+  F_FIX="$(finding Moderate 'A plain point' 'src/Net/Plain.php:4' "$STRUCT" 'logic-trace — the value is used as given' | sed 's/n\/a — w$/check the origin header before use/')"
+  report "$tmp/v2.md" 2 "$F_SQL" "$F_LEVEL" "$F_FIX"
+  run_case 'round 2 reports a Level Moderate and a Suggested-fix-only Moderate' 0 -- record --state "$S" --input "$tmp/v2.md" --changed-files "$tmp/changed-both"
+  check 'a security-lens Moderate on a non-security rule and an S2 Suggested-fix signal stay recorded and blocking in round 2' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.security)] | length) == 3')"
+  check 'nothing is ignored in that round' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
+
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)

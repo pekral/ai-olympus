@@ -182,11 +182,11 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 
 ### Security relevance
 
-A record is `security: true` when it meets the S1–S3 carve-out of `@rules/code-review/general.md`. That is the case when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `security-audit`, `security-bounty-hunter`, `security-threat-analysis`, `laravel-security`, `laravel-authorization-review`, `git-history-exposure-audit`), or when its category, cause, file, or title names a security surface:
+`security` is a heuristic for the S1–S3 carve-out of `@rules/code-review/general.md`, not a proof of it. A record is `security: true` when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `security-audit`, `security-bounty-hunter`, `security-threat-analysis`, `laravel-security`, `laravel-authorization-review`, `git-history-exposure-audit`), when it carries a `Level` (the review template renders `Level` only on a Moderate that a security lens raised), or when its category, cause, file, title, evidence, or Suggested fix names a security surface:
 
 authentication and authorization, access control, sessions and tokens, credentials, secrets, and API keys, cryptography and signatures, permissions and policies, injection of any kind, XSS and output encoding, CSRF, SSRF and outbound requests without an allow-list, open redirects and clickjacking, uploads, file handling, and path traversal, rate limits and lockout, security headers and CSP, mass assignment, privilege escalation, payments and money movement, personal data and exposure of hosts or addresses, supply-chain and malicious-code indicators, and hidden or invisible characters.
 
-A finding that cites no rule cannot be classified and counts as security. The match is broad on purpose and fails closed. A false positive keeps a finding blocking. A false negative would let a security finding be dismissed, deferred, or dropped from a later round (`@rules/code-review/general.md` *Later rounds raise only new Critical findings*).
+A finding that cites no rule cannot be classified and counts as security. The match errs toward security: a false positive keeps a finding blocking, and a false negative would let a security finding be dismissed, deferred, or dropped from a later round (`@rules/code-review/general.md` *Later rounds raise only new Critical findings*). The limit is the keyword list: a security surface that the list does not name, in a finding with no `Level` and a non-security rule, is not recognised, so the reviewer sets the `Level` of a security point and cites its rule.
 
 ### What `--validate` rejects in a schema-2 file
 
