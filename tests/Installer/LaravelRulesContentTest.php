@@ -549,7 +549,7 @@ test('laravel rules reuse an existing query scope before a new one is added', fu
     // The CR walk carries the finding at the DRY severity, on every Laravel project.
     expect($walk)->toContain('- **New Eloquent query scope added (Laravel)**');
     expect($walk)->toContain('regardless of whether `pekral/arch-app-services` is installed');
-    expect($walk)->toContain('Severity: **Critical** (a duplicated filter definition is duplicated logic');
+    expect($walk)->toContain('Severity: **Moderate** (a duplicated filter definition is duplicated logic');
     expect($walk)->toContain('never a second scope beside the first');
 });
 
@@ -565,7 +565,7 @@ test('data validators return bool or throw and never return data', function (): 
     expect($refactor)->toContain('Every public Data Validator method returns `bool` or returns `void` and throws on invalid input');
 });
 
-test('simple logic that does not repeat gets no new class and DRY is a critical review check', function (): void {
+test('simple logic that does not repeat gets no new class and DRY is a moderate review check', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $standards = (string) file_get_contents($packageDir . '/rules/php/core-standards.md');
     $architecture = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
