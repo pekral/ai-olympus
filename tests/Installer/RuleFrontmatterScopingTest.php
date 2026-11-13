@@ -539,7 +539,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // behaviour change in it is a Moderate finding instead of a Critical one.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
-        'rules/refactoring/general.md' => '5244059a14308f5b5cad7841ebf498f59a9bfd1f7ee69be87013188b904a98be',
+        'rules/refactoring/general.md' => '5bb9994d55094363d5a9e96a8c8838d8d60de51fb56762be2779c4d3457d3ff9',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
