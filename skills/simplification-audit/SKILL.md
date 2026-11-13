@@ -127,6 +127,7 @@ Then rank the accepted recommendations by concrete impact, open points, implemen
     - `@rules/code-review/core-analysis.md` *Speculative interfaces* and *Simplicity First* own a new abstraction, a new class for simple logic, and a speculative interface.
     - `@rules/code-review/general.md` *Reuse Existing Logic* owns duplicated and already-existing logic, and *Bulk Data & Batch Processing* owns per-row work.
     - The architecture rules own which layer holds the logic.
+    - `@rules/code-review/core-analysis.md` *Architecture principles — one lens, one finding format* owns the failure and concurrency trace of a state change, a flag parameter at its call site, and a dependency the code does not need. The mode owns only the representation of the state and of a set of booleans.
     - `@skills/test-audit/SKILL.md` with `MODE=cr` owns the value of a test.
 
 ---
