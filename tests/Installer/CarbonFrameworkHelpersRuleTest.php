@@ -17,17 +17,33 @@ function carbonFrameworkHelpersSection(): string
     return substr($laravel, (int) $start, (int) $end - (int) $start);
 }
 
-test('date and time work in a Laravel project uses Carbon or a Laravel date helper, and the section lists the native functions it replaces', function (): void {
-    $section = carbonFrameworkHelpersSection();
+test(
+    'date and time work in a Laravel project uses Carbon or a Laravel date helper, and the section lists the native functions it replaces',
+    function (): void {
+        $section = carbonFrameworkHelpersSection();
+    
+        expect($section)->toContain('**Date and time work uses Carbon or a Laravel date helper.**')
+            ->and($section)->toContain('`Carbon` / `CarbonImmutable`, `now()`, `today()`, the `Date` facade, or an Eloquent date cast')
+            ->and($section)->toContain('**The native functions and classes this replaces:**');
+    
+        $natives = [
+            'date()',
+            'gmdate()',
+            'strtotime()',
+            'mktime()',
+            'time()',
+            'strftime()',
+            'date_create()',
+            'new DateTime(...)',
+            'new DateTimeImmutable(...)',
+            'new DateInterval(...)',
+        ];
 
-    expect($section)->toContain('**Date and time work uses Carbon or a Laravel date helper.**')
-        ->and($section)->toContain('`Carbon` / `CarbonImmutable`, `now()`, `today()`, the `Date` facade, or an Eloquent date cast')
-        ->and($section)->toContain('**The native functions and classes this replaces:**');
-
-    foreach (['date()', 'gmdate()', 'strtotime()', 'mktime()', 'time()', 'strftime()', 'date_create()', 'new DateTime(...)', 'new DateTimeImmutable(...)', 'new DateInterval(...)'] as $native) {
-        expect($section)->toContain('`' . $native . '`');
-    }
-});
+        foreach ($natives as $native) {
+            expect($section)->toContain('`' . $native . '`');
+        }
+    },
+);
 
 test('code reuses a helper the framework already ships instead of a hand-written equivalent', function (): void {
     $section = carbonFrameworkHelpersSection();
@@ -72,7 +88,9 @@ test('the code review walk points to the section and carries the same severity w
     $entry = substr($review, (int) $start, $end - (int) $start);
 
     expect($entry)->toContain('verify it goes through Carbon or the helper the framework already ships')
-        ->and($entry)->toContain('The **Not findings** and the gating against *Time*, *String Emptiness Checks*, and *Reuse Existing Logic* are the ones that section states.')
+        ->and($entry)->toContain(
+            'The **Not findings** and the gating against *Time*, *String Emptiness Checks*, and *Reuse Existing Logic* are the ones that section states.',
+        )
         ->and($entry)->toContain('Severity: **Moderate**.')
         ->and($entry)->not->toContain('`strtotime()`');
 });
