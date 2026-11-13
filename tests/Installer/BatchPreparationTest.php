@@ -180,9 +180,9 @@ test('the root session runs a manifest file under the lock and never types a man
 
     // The runner owns the lock, takes it after the validation, and shares the one gate lock with run-gate.sh.
     expect($runner)->toContain('--exclusive)')
-        ->and($runner)->toContain('gate_lock_acquire "$timeout"')
+        ->and($runner)->toContain('gate_lock_enter "$GATE_LOCK_TIMEOUT"')
         ->and($runner)->toContain('. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-record.sh"')
-        ->and(batchPrepSource('skills/_shared/run-gate.sh'))->toContain('gate_lock_acquire "$timeout"');
+        ->and(batchPrepSource('skills/_shared/run-gate.sh'))->toContain('gate_lock_enter "$timeout"');
 });
 
 test('a manifest command with command substitution is refused as invalid under --exclusive and never runs', function (): void {
@@ -197,14 +197,16 @@ test('a manifest command with command substitution is refused as invalid under -
 
     new Process(['git', 'init', '-q'], $project)->mustRun();
 
+    $lockDir = $project . '/machine';
     $process = new Process(
         ['bash', dirname(__DIR__, 2) . '/skills/_shared/run-validation.sh', '--manifest', $project . '/manifest.json', '--exclusive'],
         $project,
+        ['AI_OLYMPUS_LOCK_DIR' => $lockDir],
     );
     $process->run();
 
     $markerExists = file_exists($project . '/marker');
-    $lockExists = file_exists($project . '/.git/ai-olympus-gate.lock');
+    $lockExists = file_exists($lockDir . '/ai-olympus-gate.lock');
 
     new Process(['rm', '-rf', $project])->mustRun();
 

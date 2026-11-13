@@ -243,8 +243,8 @@ tree_alive() {
 # SIGTERM and SIGKILL go only to a process whose start still equals that start, and a PID that was
 # reused after the listing counts as gone, and a wrapper PID that no longer holds the recorded
 # start after the listing means its children are not the wrapper's: nothing is signalled and the
-# result is `[]`. So a process the wrapper did not start is never signalled. Prints the pids it stopped as a JSON array; returns 1 when a process of the tree
-# survived SIGKILL.
+# result is `[]`. So a process the wrapper did not start is never signalled.
+# Prints the pids it stopped as a JSON array; returns 1 when a process of the tree survived SIGKILL.
 stop_holder_tree() {
   local root="$1" listing listed pid etime elapsed grace waited=0 entry survivors=0
   local -a tree=("$root:$2") sent=() gone=()
@@ -395,7 +395,9 @@ cmd_repair() {
     return
   fi
   audit_line external-write "stop process tree of stuck machine-lock holder pid $pid ($(holder_scope "$wrapper" "$project"))" "stopped pids $stopped after ${age:-unknown}s without progress (limit $(gate_stuck_after)s) and released the lock"
-  emit_repair stopped-and-released stuck "the holder showed no progress for ${age:-unknown}s; its process tree was stopped and the lock was released" 0 "$pid" "$project" "$command" "$stopped" true
+  local effect='its process tree was stopped'
+  [[ "$stopped" != '[]' ]] || effect='no process was stopped, because the holder was gone when its tree was listed'
+  emit_repair stopped-and-released stuck "the holder showed no progress for ${age:-unknown}s; $effect, and the lock was released" 0 "$pid" "$project" "$command" "$stopped" true
 }
 
 SELF_TEST_TMP=""
@@ -427,7 +429,8 @@ self_test() {
   export AI_OLYMPUS_GATE_STUCK_AFTER=4
   export AI_OLYMPUS_GATE_PROBE=1
   export AI_OLYMPUS_GATE_REPAIR_GRACE=3
-  unset AI_OLYMPUS_LOCK_HELD_BY
+  # The ledger of a caller never receives a line of the self-test, and the no-ledger case stays one.
+  unset AI_OLYMPUS_LOCK_HELD_BY AUDIT_TRAIL_FILE AUDIT_TRAIL_ROLE
   local lock="$AI_OLYMPUS_LOCK_DIR/ai-olympus-gate.lock" audit="$tmp/run.audit"
   : >"$audit"
 

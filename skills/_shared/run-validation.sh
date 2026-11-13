@@ -16,13 +16,17 @@
 #   mechanism for running four commands.
 #
 # Usage
-#   run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run]
+#   run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run] [--exclusive]
 #   run-validation.sh --self-test
 #
 #   --manifest  the validation manifest, JSON (`-` reads stdin)
 #   --logs      directory for per-category logs (default: alongside the manifest
 #               in `logs/`); each category writes `<logs>/<category>.log`
 #   --dry-run   validate the manifest and print the plan without executing it
+#   --exclusive accepted and ignored: every run takes the machine-wide lock of run-gate.sh
+#               (see *The machine lock* below), so the flag changes nothing. A batch unit
+#               (`skills/_shared/orchestration/batch-preparation.md`) names it to state the
+#               lock explicitly, and a caller that passes it keeps working.
 #
 # Manifest
 #   {
@@ -99,11 +103,12 @@ PROG="${0##*/}"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run]
+Usage: run-validation.sh --manifest <path|-> [--logs <dir>] [--dry-run] [--exclusive]
        run-validation.sh --self-test
 
 Runs a validation manifest and prints a JSON result. Exit 0 pass, 3 invalid,
-4 failed. Commands are executed without a shell and must name an allow-listed
+4 failed, 6 the machine lock was not available. --exclusive is accepted and
+ignored, because every run takes that lock. Commands are executed without a shell and must name an allow-listed
 project-local tool.
 EOF
 }
@@ -188,6 +193,9 @@ run_manifest() {
       ;;
     --dry-run)
       dry_run=1
+      shift
+      ;;
+    --exclusive)
       shift
       ;;
     *)
@@ -369,7 +377,7 @@ STUB
 
     local out actual status escalate reason
     set +e
-    out="$(cd "${VERDICT_PROJECT:-$tmp/project}" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" 2>/dev/null)"
+    out="$(cd "${VERDICT_PROJECT:-$tmp/project}" && "$script" --manifest "$manifest" --logs "${VERDICT_LOGS:-$tmp/logs}" ${VERDICT_FLAGS:+$VERDICT_FLAGS} 2>/dev/null)"
     actual=$?
     set -e
     status="$(printf '%s' "$out" | jq -r '.status // "none"' 2>/dev/null || printf 'unparseable')"
@@ -412,6 +420,23 @@ STUB
   [[ ! -e "$tmp/locked-logs/tests.log" ]] || { echo 'FAIL  a locked run executed a command' >&2; failures=$((failures + 1)); }
   AI_OLYMPUS_LOCK_HELD_BY="$$" verdict 'a run that the holder started shares its lock' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  rm -rf "$tmp/machine/ai-olympus-gate.lock"
+  VERDICT_FLAGS='--exclusive' verdict '--exclusive is accepted and the run still takes the lock' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false
+  VERDICT_FLAGS='--exclusive' verdict '--exclusive still reports a failing command' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --fail"] }' 4 failed true
+  # The payload must reach the runner as literal text, so single quotes are the point.
+  # shellcheck disable=SC2016
+  VERDICT_FLAGS='--exclusive' verdict '--exclusive refuses command substitution as invalid' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest --filter=$(touch marker)"] }' 3 invalid true
+  [[ ! -e "$tmp/project/marker" && ! -e "$tmp/machine/ai-olympus-gate.lock" ]] \
+    || { echo 'FAIL  --exclusive ran a refused command or took the lock for it' >&2; failures=$((failures + 1)); }
+  mkdir -p "$tmp/machine/ai-olympus-gate.lock"
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date +%s)" >"$tmp/machine/ai-olympus-gate.lock/holder"
+  rm -rf "$tmp/locked-logs"
+  VERDICT_FLAGS='--exclusive' VERDICT_LOGS="$tmp/locked-logs" verdict '--exclusive exits 6 when a live holder keeps the lock' \
+    '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 6 locked false
+  [[ ! -e "$tmp/locked-logs/tests.log" ]] || { echo 'FAIL  --exclusive ran a command without the lock' >&2; failures=$((failures + 1)); }
   rm -rf "$tmp/machine/ai-olympus-gate.lock"
   verdict 'the lock is released after a run' \
     '{ "head_sha": "abc1234", "tests": ["vendor/bin/pest tests/FooTest.php"] }' 0 passed false

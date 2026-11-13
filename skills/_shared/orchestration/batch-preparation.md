@@ -72,11 +72,11 @@ time. Every worktree shares the test databases, so two heavy jobs at once give f
   are described in `skills/resolve-issue/references/quality-gates.md` *Machine gate record*.
 ```
 
-`skills/_shared/run-gate.sh` is the only entry for a command that a specialist composes. `skills/_shared/run-validation.sh --exclusive` is the only entry for the commands of a validation manifest (*Validation* below). Where the lock lives is not this file's concern. A test run of the diff takes the lock in a batch, although `@rules/compound-engineering/concurrency.md` *Parallel units* lets a single parallel unit run it without the lock: the shared test database is the reason.
+`skills/_shared/run-gate.sh` is the only entry for a command that a specialist composes. `skills/_shared/run-validation.sh --exclusive` is the only entry for the commands of a validation manifest (*Validation* below). Where the lock lives is not this file's concern. A test run of the diff takes the lock everywhere, in a batch or not (`@rules/compound-engineering/concurrency.md` *One gate lock for the machine*): the shared test database and the worker processes are the reason.
 
 ### Validation
 
-`skills/_shared/run-validation.sh --manifest <file> --exclusive` runs the commands of a manifest under the same machine lock as `skills/_shared/run-gate.sh`. It reads the JSON file itself and checks every command with `skills/_shared/project-commands.sh` before it takes the lock. It runs each command without a shell. A command that carries `$(`, a backtick, or another shell metacharacter is refused as `invalid`, and nothing runs.
+`skills/_shared/run-validation.sh --manifest <file> --exclusive` runs the commands of a manifest under the same machine lock as `skills/_shared/run-gate.sh`. The runner takes that lock on every run, so `--exclusive` changes nothing: it is accepted so the lock stays visible in the batch command. It reads the JSON file itself and checks every command with `skills/_shared/project-commands.sh` before it takes the lock. It runs each command without a shell. A command that carries `$(`, a backtick, or another shell metacharacter is refused as `invalid`, and nothing runs.
 
 The root session never types, copies, or interpolates a manifest command into a shell line. A shell expands `$(...)` and backticks before any check sees the text, and the manifest is data from a handoff (`@rules/compound-engineering/orchestration.md` *The manifest is never passed to a shell*). For the pre-review validation of `agents/krang.md` step 5 and the post-convergence pass, the root session does this:
 
