@@ -216,7 +216,9 @@ The machine gate record decides first, exactly as in `@skills/merge-github-pr/SK
 `donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported
 ready on it. Exit `3` stops with the reason, and any other non-zero exit is handled like `3`.
 Exit `5` keeps the textual-record path above. Record the tree and the record path with the gate
-result. Required CI stays a separate condition below.
+result. Required CI stays a separate condition below. In a batch, every call of this step that reads a
+tree runs as `( cd <the unit worktree> && … )`, because the unit worktree is the checked-out head and
+holds the gate record (`skills/_shared/orchestration/batch-preparation.md` *The merge step*).
 
 The PR is merge-ready only when all of these hold at the same head:
 
