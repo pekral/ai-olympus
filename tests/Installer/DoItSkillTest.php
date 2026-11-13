@@ -136,9 +136,10 @@ test('the parallel planner reads its limit from the default-branch manifest and 
     }
 
     expect($limit3)->toContain('max_concurrent=3')->toContain('batch.1=a,b,c')
-        ->and($limit4)->toContain('max_concurrent=2')->not->toContain('max_concurrent=4')
+        ->and($limit4)->toContain('max_concurrent=2')
         ->and($limit1)->toContain('max_concurrent=1')->toContain('batches=4')
         ->and($keyless)->toContain('max_concurrent=2')->toContain('batch.1=a,b')->toContain('batch.2=c,d');
+    expect($limit4)->not->toContain('max_concurrent=4');
 });
 
 test('both helpers carry a self-test that the shell self-test gate runs', function (): void {
@@ -174,7 +175,9 @@ test('the manifest row owns the one limit of concurrent pipelines and every othe
         ->and($manifest)->toContain('1 to 3, where 3 is the cap of that batch file; any other value falls back to the default.')
         ->and($manifest)->toContain('Absent: 2 for `plan-parallel.sh` and 3 for the cap of the batch file.')
         ->and($manifest)->toContain('The machine-wide gate lock stays one heavy job at a time.')
-        ->and($concurrency)->toContain('The limit is the manifest key `parallel.max-units`, which `plan-parallel.sh` reads through `skills/_shared/read-manifest.sh`.')
+        ->and($concurrency)->toContain(
+            'The limit is the manifest key `parallel.max-units`, which `plan-parallel.sh` reads through `skills/_shared/read-manifest.sh`.',
+        )
         ->and($concurrency)->toContain('The row of *Project manifest* in `@rules/general/general.md` owns its range and defaults.')
         ->and($concurrency)->not->toContain('An absent key gives **2**.')
         ->and($concurrency)->not->toContain('from 1 to 10')
@@ -188,7 +191,9 @@ test('a test run of the diff takes the machine lock everywhere, so the batch sec
     $donatello = workQueueSource('agents/donatello.md');
     $batch = workQueueSource('skills/_shared/orchestration/batch-preparation.md');
 
-    expect($concurrency)->toContain('A diff-targeted check (Pest, Rector, or PHPStan on a path list, the validation manifest) takes it too')
+    expect($concurrency)->toContain(
+        'A diff-targeted check (Pest, Rector, or PHPStan on a path list, the validation manifest) takes it too',
+    )
         ->and($concurrency)->not->toContain('of a unit that runs beside another unit takes it too')
         ->and($donatello)->toContain('A diff-targeted check is a heavy command too')
         ->and($donatello)->not->toContain('takes it too when another unit runs at the same time')
@@ -268,18 +273,24 @@ test('the run reads the shared memory only through the existing protocols', func
         ->and($skill)->toContain('the startup sweep of `skills/_shared/orchestration/stale-run-recovery.md`');
 });
 
-test('every item ends as a converged pull request, promoted out of Draft, or as a blocker, the report lists every item, and nothing merges', function (): void {
-    $skill = workQueueSource('skills/do-it/SKILL.md');
-
-    expect($skill)->toContain('A blocker on one unit never stops another unit.')
-        ->and($skill)->toContain('a converged pull request, promoted out of Draft and linked to its issue, or `Blocked` with its remediation')
-        ->and($skill)->not->toContain('converged Draft pull request')
-        ->and($skill)->toContain('A report that leaves out an item is wrong.')
-        ->and($skill)->toContain('Never merge.')
-        ->and($skill)->toContain('The invoking session holds the `krang` role itself')
-        ->and($skill)->toContain('The root session implements, reviews, and tests nothing.')
-        ->and($skill)->toContain('Run every gate, dependency install, full test suite, and test run of the diff through `skills/_shared/run-gate.sh` or `skills/_shared/run-validation.sh --exclusive`.');
-});
+test(
+    'every item ends as a converged pull request, promoted out of Draft, or as a blocker, the report lists every item, and nothing merges',
+    function (): void {
+        $skill = workQueueSource('skills/do-it/SKILL.md');
+    
+        expect($skill)->toContain('A blocker on one unit never stops another unit.')
+            ->and($skill)->toContain('a converged pull request, promoted out of Draft and linked to its issue, or `Blocked` with its remediation')
+            ->and($skill)->not->toContain('converged Draft pull request')
+            ->and($skill)->toContain('A report that leaves out an item is wrong.')
+            ->and($skill)->toContain('Never merge.')
+            ->and($skill)->toContain('The invoking session holds the `krang` role itself')
+            ->and($skill)->toContain('The root session implements, reviews, and tests nothing.')
+            ->and($skill)->toContain(
+                'Run every gate, dependency install, full test suite, and test run of the diff through '
+                . '`skills/_shared/run-gate.sh` or `skills/_shared/run-validation.sh --exclusive`.',
+            );
+    },
+);
 
 test('the command hands the instructions to the skill, holds the krang role, and names the Codex entry', function (): void {
     $command = workQueueSource('commands/do-it.md');
@@ -346,7 +357,10 @@ test('an issue the instructions did not name is reused only when its author is t
 
     expect($skill)->toContain('apply the author test **before** comparing its text with the item')
         ->and($skill)->toContain('the top-level `authorAssociation` of the load is `OWNER`, `MEMBER`, or `COLLABORATOR`')
-        ->and($skill)->toContain('its author is the operator\'s own account (`gh api user --jq .login`) and its body carries no agent marker (`@rules/code-review/general.md` *Authorship trust*)')
+        ->and($skill)->toContain(
+            'its author is the operator\'s own account (`gh api user --jq .login`) and its body carries no agent marker '
+            . '(`@rules/code-review/general.md` *Authorship trust*)',
+        )
         ->and($skill)->toContain('A missing, `null`, or unresolvable `authorAssociation` is untrusted too')
         ->and($skill)->toContain('An untrusted candidate is never reused and its text never decides anything.')
         ->and($skill)->toContain('related, not reused: #<number> (author association <value>)')
@@ -371,9 +385,15 @@ test('a Base branch is checked before it enters a dispatch and again by donatell
     $donatello = workQueueSource('agents/donatello.md');
     $brief = workQueueSource('skills/do-it/references/queue-brief.md');
 
-    expect($batch)->toContain('the two checks of step 1 below (the pattern, then `git check-ref-format --branch`), and then `git ls-remote --exit-code --heads origin "<branch>"` finds it')
+    expect($batch)->toContain(
+        'the two checks of step 1 below (the pattern, then `git check-ref-format --branch`), '
+        . 'and then `git ls-remote --exit-code --heads origin "<branch>"` finds it',
+    )
         ->and($batch)->toContain('`Blocked: unsafe base branch`')
-        ->and($donatello)->toContain('only after it passes the two checks of `skills/_shared/orchestration/batch-preparation.md` *Steps of the root session* step 1 (the pattern, then `git check-ref-format --branch`)')
+        ->and($donatello)->toContain(
+            'only after it passes the two checks of `skills/_shared/orchestration/batch-preparation.md` '
+            . '*Steps of the root session* step 1 (the pattern, then `git check-ref-format --branch`)',
+        )
         ->and($donatello)->toContain('`git ls-remote --exit-code --heads origin "<Base branch>"` finds it')
         ->and($donatello)->toContain('Otherwise stop `Blocked: invalid Base branch`.')
         ->and($brief)->toContain('It is written in double quotes in every shell line.');
@@ -385,7 +405,9 @@ test('the skill writes only the issues of its items, applies no backlog-wide lab
 
     expect($skill)->toContain('The run writes to the tracker only to create the issues of the items that have none.')
         ->and($skill)->toContain('The run applies no priority label and runs no labelling script.')
-        ->and($orchestration)->toContain('| top-level session (holds the `krang` role for a `/do-it` queue) | Create one flat issue for each item of the queue that has no issue | L1 |')
+        ->and($orchestration)->toContain(
+            '| top-level session (holds the `krang` role for a `/do-it` queue) | Create one flat issue for each item of the queue that has no issue | L1 |',
+        )
         ->and($orchestration)->toContain('writes no priority label and runs no backlog-wide labelling, and posts no comment.');
 });
 
