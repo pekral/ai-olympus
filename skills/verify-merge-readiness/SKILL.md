@@ -173,8 +173,10 @@ Record in the shared brief:
 
 Dispatch `leonardo` to run the pull-policy and preparation path in
 `@skills/process-code-review/SKILL.md`. In a batch, `leonardo` runs only the fingerprint decision
-below, because it never pushes. `skills/_shared/orchestration/batch-preparation.md` *The merge step*
-assigns the rebase and the push to `donatello` and never force-pushes. Before any new CR round, resolve the default branch and
+below, because it never pushes. For every unit of a batch, with or without `--merge`, the root
+session first runs *Bring a unit to the default branch tip* of
+`skills/_shared/orchestration/batch-preparation.md`. That path assigns the rebase and the push to
+`donatello` and never force-pushes. Before any new CR round, resolve the default branch and
 compute the current fingerprint from the first field of:
 
 ```bash

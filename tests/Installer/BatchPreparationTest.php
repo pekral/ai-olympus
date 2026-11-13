@@ -164,10 +164,13 @@ test('the root session runs a manifest file under the lock and never types a man
     $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
     $runner = batchPrepSource('skills/_shared/run-validation.sh');
 
-    expect($batch)->toContain('`skills/_shared/run-validation.sh --manifest <file> --exclusive` for the validation manifest of a unit (*Validation*);')
+    expect($batch)->toContain('`cd <worktree> && <shared tree>/skills/_shared/run-validation.sh --manifest <file> --exclusive`, *Validation*')
+        ->and($batch)->toContain('`git -C <the unit worktree> rev-parse HEAD` prints the same SHA')
+        ->and($batch)->toContain('Run it from inside the unit worktree, by the absolute path of the script in the shared tree:')
+        ->and($batch)->toContain('The manifest then tests the unit head and never the checkout of the shared tree.')
         ->and($batch)->toContain('The root session never types, copies, or interpolates a manifest command into a shell line.')
         ->and($batch)->toContain('A command that carries `$(`, a backtick, or another shell metacharacter is refused as `invalid`, and nothing runs.')
-        ->and($batch)->toContain('Run `skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive`.')
+        ->and($batch)->toContain('<the shared tree>/skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive`.')
         ->and($batch)->toContain('Exit `6` (the lock wait ran out) is `Blocked`.')
         ->and($batch)->toContain('Dispatch `donatello` in *Fast scoped validation mode* only on exit `3` or `4`')
         ->and($batch)->not->toContain('skills/_shared/run-gate.sh --exclusive --command "<command>"` for the commands of a validation manifest')
@@ -232,6 +235,26 @@ test('siblings never block each other in the planner, and the planner shows why'
         ->and(batchPrepPlanStep($heavyWithoutSibling))->toBe('step=gh-1 decision=parallel lock=gate');
 });
 
+test('every batch unit is brought to the default branch tip before the readiness check, with or without --merge', function (): void {
+    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $skill = batchPrepSource('skills/verify-merge-readiness/SKILL.md');
+    $donatello = batchPrepSource('agents/donatello.md');
+    $orchestration = batchPrepSource('rules/compound-engineering/orchestration.md');
+
+    expect($batch)->toContain('## Bring a unit to the default branch tip')
+        ->and($batch)->toContain('It runs with or without `--merge`')
+        ->and($batch)->toContain('run *Bring a unit to the default branch tip* before step 2 of `@skills/verify-merge-readiness/SKILL.md`, with or without `--merge`.')
+        ->and($batch)->toContain('1. Run *Bring a unit to the default branch tip*. It resolves the default branch tip `T`.')
+        ->and($batch)->toContain('A dirty worktree, or one on another commit, stops the unit with `Blocked`')
+        ->and($skill)->toContain('For every unit of a batch, with or without `--merge`, the root')
+        ->and($skill)->toContain('*Bring a unit to the default branch tip* of')
+        ->and($donatello)->toContain('`git -C <path> reset --keep origin/<branch>` on a clean tree, never with a detached switch')
+        ->and($donatello)->toContain('or its `<branch>-vN` after a conflict');
+
+    expect($orchestration)->toContain('| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with `gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |')
+        ->and($orchestration)->toContain('runs through `skills/_shared/audit-trail.sh run --`, which records its `external-write` line, a refused update included.');
+});
+
 test('the merge step is opt-in, rebases on the latest default branch, re-verifies the gate, and goes through merge-github-pr', function (): void {
     $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
 
@@ -241,15 +264,18 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('*Rebase that moves the head — analyse the incoming changes first*')
         ->and($batch)->toContain('No step of this path force-pushes a branch')
         ->and($batch)->toContain('`leonardo` cannot do this step, because it never pushes and never uses the unit worktree.')
-        ->and($batch)->toContain('The root session runs `gh pr update-branch <PR> --rebase`.')
+        ->and($batch)->toContain('the root session runs `gh pr update-branch <PR> --rebase`.')
         ->and($batch)->toContain('`gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`')
         ->and($batch)->toContain('dispatch `donatello` with the unit worktree path and the gate-serialisation block.')
-        ->and($batch)->toContain('`git -C <worktree> switch --detach origin/<branch>`')
+        ->and($batch)->toContain('`git -C <worktree> reset --keep origin/<branch>`')
+        ->and($batch)->not->toContain('switch --detach')
+        ->and($batch)->toContain('`git -C <worktree> switch -c <branch>-vN`')
+        ->and($batch)->toContain('The root session records the new branch, the pull-request number, and the head in the brief')
         ->and($batch)->toContain(
             'It resolves the conflict so that every acceptance criterion of the issue stays met and every change of the default branch stays.',
         )
-        ->and($batch)->toContain('It pushes the result as the new branch `<branch>-vN`')
-        ->and($batch)->toContain('Dispatch `leonardo` for the fingerprint decision only')
+        ->and($batch)->toContain('It pushes `<branch>-vN` and opens a new pull request that names the one it replaces.')
+        ->and($batch)->toContain('dispatch `leonardo` for the fingerprint decision only')
         ->and($batch)->not->toContain('--force-with-lease')
         ->and($batch)->not->toContain('git push --force')
         ->and($batch)->not->toContain('dispatch `leonardo` for the pull-policy path')
