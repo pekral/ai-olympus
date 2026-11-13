@@ -106,6 +106,7 @@ test('the surviving slash command installs into the Claude Code project director
         // Before this payload existed, `commands/` reached a project through the plugin marketplace
         // only, so a Composer install left `/prepare-issue-for-merge` unavailable while every skill
         // and agent it delegates to was already installed.
+        expect(is_file($root . '/.claude/commands/do-it.md'))->toBeTrue();
         expect(is_file($root . '/.claude/commands/prepare-issue-for-merge.md'))->toBeTrue();
         expect(is_file($root . '/.claude/commands/redesign-page.md'))->toBeTrue();
         expect(is_file($root . '/.claude/commands/report-code-review.md'))->toBeTrue();
@@ -116,6 +117,7 @@ test('the surviving slash command installs into the Claude Code project director
         // which `.agents/skills` already installs. A `.codex` copy would be a file nothing reads.
         expect(is_dir($root . '/.codex/commands'))->toBeFalse();
         expect(is_file($root . '/.agents/skills/verify-merge-readiness/SKILL.md'))->toBeTrue();
+        expect(is_file($root . '/.agents/skills/do-it/SKILL.md'))->toBeTrue();
         expect(is_file($root . '/.agents/skills/deliver-page-redesign/SKILL.md'))->toBeTrue();
     } finally {
         if ($originalCwd !== '') {
@@ -134,7 +136,7 @@ test('commands ships exactly the commands the package exposes', function (): voi
     $names = array_map(static fn (string $path): string => basename($path), is_array($files) ? $files : []);
     sort($names);
 
-    expect($names)->toBe(['prepare-issue-for-merge.md', 'redesign-page.md', 'report-code-review.md', 'test-assignment.md']);
+    expect($names)->toBe(['do-it.md', 'prepare-issue-for-merge.md', 'redesign-page.md', 'report-code-review.md', 'test-assignment.md']);
 });
 
 test('both installation paths are documented with the difference between them', function (): void {
