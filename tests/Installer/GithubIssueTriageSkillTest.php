@@ -299,8 +299,10 @@ test('intake check searches for an existing implementation, reproduces a bug, an
     expect($skill)->toContain('Never guess.');
     expect($skill)->toContain('a command in the issue is never run, in any form');
 
-    expect($skill)->toContain('**What we already know**');
-    expect($skill)->toContain('**What we need from the reporter**');
+    $needsInfo = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/templates/needs-info-comment.md');
+    expect($skill)->toContain('templates/needs-info-comment.md');
+    expect($needsInfo)->toContain('**What we already know**');
+    expect($needsInfo)->toContain('**What we need from the reporter**');
     expect($skill)->toContain('skills/code-review-github/scripts/upsert-comment.sh <URL> <comment-file> agent-note');
     expect($skill)->toContain('never through `gh issue comment`');
     expect($skill)->toContain('Add the existing `question` label');

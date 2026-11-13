@@ -86,16 +86,14 @@ The step is done when every package of the pull request description appears in t
 5. Re-read the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm it exists and `isDraft` is `true`.
 6. On a public repository, wait for CI per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes* and report the result.
 
-The body has these sections, in this order:
-- `## TL;DR` — the count of updated, added, and removed packages, the count of major updates, and the `composer.json` constraints that changed. Every number is counted from the script output.
-- `## Major updates` — one row per package with `level` `major`: name, `from` → `to`, and whether it is a `require` or a `require-dev` package. State under the table: *A major version may contain backward-incompatible changes (semver). Not verified: what breaks in this project; the package release notes and the CI result settle it.* Omit the section when no package has `level` `major`.
-- `## Other updates` — one row per remaining package: name, `from` → `to`, `type` (a `downgraded` row names the downgrade), `level`, and whether it is a dev package.
+Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. Fill each number from the script output and the sections as follows:
+- `## TL;DR` — every number is counted from the script output.
+- `## Major updates` — one row per package with `level` `major`. Omit the section when no package has `level` `major`.
+- `## Other updates` — one row per remaining package; a `downgraded` row names the downgrade.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
-- `## Other changed files` — one line per committed path other than `composer.json` and `composer.lock`, as `git status --porcelain` printed it in step 4, so a reviewer sees each one. Omit the section when there is no such path.
-- `## Testing` — the commands of step 2 and their result; the full test suite is the CI result of the pull request. State `no tests were added`, because the change carries none.
-- `## Merge danger` — the section of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies`.
-- `## Audit` — the section of the same file, with its standalone-run fallback.
-- A line stating that the task has no tracker item.
+- `## Other changed files` — one line per committed path other than `composer.json` and `composer.lock`, as `git status --porcelain` printed it in step 4. Omit the section when there is no such path.
+- `## Testing` — the commands of step 2 and their result.
+- `## Merge danger` and `## Audit` — the sections of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies` and the standalone-run fallback of the audit.
 
 The step is done when the re-read confirms an open Draft pull request.
 

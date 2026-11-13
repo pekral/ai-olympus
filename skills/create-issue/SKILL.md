@@ -38,14 +38,4 @@ metadata:
 
 ## Output Format
 
-```markdown
-# Task
-
-<original text>
-
----
-
-# Notes
-
-Formatted automatically. Content unchanged.
-```
+Render the issue body from `skills/create-issue/templates/issue-body.md`.

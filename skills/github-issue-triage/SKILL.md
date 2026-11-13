@@ -206,19 +206,10 @@ Never guess. A bug that is neither confirmed nor refuted by what you read or ran
 
 ### 3. Needs-info comment
 
-When the outcome is *missing detail*, or the request is too vague to type, publish one comment on the issue with two lists:
-
-```markdown
-<!-- github-issue-triage:needs-info -->
-**What we already know**
-- <a fact the issue or the code settled, with `path:line` where it applies>
-
-**What we need from the reporter**
-1. <a concrete question that one answer closes: version, exact input, expected result, error text>
-```
+When the outcome is *missing detail*, or the request is too vague to type, publish one comment on the issue. Render it from `skills/github-issue-triage/templates/needs-info-comment.md`: the marker line, the list of what we already know, and the numbered list of what we need from the reporter.
 
 - Ask only what the check could not settle. One question asks for one fact.
-- Write the comment in the language of the issue and nowhere else (`@rules/reports/general.md`). The manifest `language.github`, read with `skills/_shared/read-manifest.sh`, replaces it when it is set. Translate the two list titles into that language.
+- Write the comment in the language of the issue and nowhere else (`@rules/reports/general.md`). The manifest `language.github`, read with `skills/_shared/read-manifest.sh`, replaces it when it is set. Translate the two list titles of the template into that language.
 - Leave out secrets, personal data, and the details of a vulnerability. On a **public** repository (`gh repo view --json isPrivate --jq '.isPrivate'` returns `false`), publish no comment when the issue carries the `security` label **or** its text or the check's result describes a vulnerability. Hand such an issue to `leonardo`'s security analysis mode and report it for a human.
 - Publish through the canonical wrapper, never through `gh issue comment`:
 

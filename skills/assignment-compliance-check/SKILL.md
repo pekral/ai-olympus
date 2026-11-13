@@ -86,43 +86,11 @@ This gate matters most here: this skill is invoked directly by every CR wrapper 
 
 > **Render this block on every run that has a linked tracker**, carrying exactly one of the three verdicts below (`@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases*). Never return a bare skip status because the result was clean, and never emit a "What is satisfied" list or an "Open questions" list — satisfied requirements and reviewer questions stay out of the block by design.
 
-Assignment Compliance block, embedded in the consolidated tracker comment (Markdown shown; convert to the JIRA intermediate source per `@rules/jira/general.md`, and to plain text for Bugsnag). The header two lines are identical in all three cases:
+Render the Assignment Compliance block from `skills/assignment-compliance-check/templates/assignment-compliance.md`, embedded in the consolidated tracker comment. Convert it to the JIRA intermediate source per `@rules/jira/general.md`, and to plain text for Bugsnag. The template carries the header lines that are identical in all three cases, and the three verdicts:
 
-```markdown
-## Assignment Compliance
-
-- **Linked task:** <issue / JIRA / Bugsnag URL>
-- **Pull request:** <PR URL>
-```
-
-**Verdict 1 — every acceptance criterion is met.** One sentence, nothing behind it:
-
-```markdown
-- **Verdict:** All stated acceptance criteria are met.
-```
-
-**Verdict 2 — a criterion is not met.** The gap list, one entry per Critical gap:
-
-```markdown
-- **Verdict:** Critical gaps found: N
-
-### Critical gaps
-
-#### 1. <short title in everyday language>
-- **What the task asked for:** <one sentence quoting or paraphrasing the requirement, with the source comment URL or "issue description">
-- **What the pull request does instead:** <one sentence describing the actual behavior implied by the diff>
-- **Example a tester would see:** <concrete input → expected output vs actual output, ideally taken from the example the reporter provided; when the change is reachable only behind a test parameter, the example must start by enabling the gating toggle>
-
-(Repeat for every Critical gap.)
-```
-
-**Verdict 3 — the assignment states no explicit acceptance criteria.** Say so, then name the basis:
-
-```markdown
-- **Verdict:** The assignment states no explicit acceptance criteria.
-- **Judged against:** <what the check used instead — the described expected behaviour, the reporter's reproduction steps, the attached example — and the sources read (description, comments, attachments)>
-- **Result:** <one sentence: the implementation matches that basis, or the one place where it does not>
-```
+1. **Verdict 1** — every acceptance criterion is met. One sentence, nothing behind it.
+2. **Verdict 2** — a criterion is not met. One entry per Critical gap.
+3. **Verdict 3** — the assignment states no explicit acceptance criteria. Say so, then name the basis.
 
 Translate the verdict sentences and the field labels into the assignment language per `@rules/reports/general.md`; never publish an English verdict above assignment-language prose.
 

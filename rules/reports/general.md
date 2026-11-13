@@ -69,6 +69,15 @@ Reports on JIRA and Bugsnag keep the assignment language. The key never lets one
 - Posting in the language of the agent's chat session instead of the language of the assignment.
 - Switching mid-comment between Czech and English when quoting requirements verbatim — quote the requirement verbatim, then continue in the assignment language without a parenthetical translation.
 
+## Every tracker output is rendered from a template
+
+Every text an agent publishes to an issue tracker comes from a template, so the same kind of output looks the same on every run. This covers a GitHub or JIRA comment, a Bugsnag comment, an issue body, a pull-request body, and the body of a comment an agent writes through `upsert-comment.sh`.
+
+- **Templates live next to the skill that owns the output**, in `skills/<skill>/templates/`. Two or more skills that publish the same kind of output share one template in `skills/_shared/templates/`.
+- **A template fixes the shape.** It carries the headings, the fields, the order, and every marker that a script or the merge gate reads. A skill, a reference, or an agent definition points to the template by path and does not describe the shape again. The prose of the output still follows the language rules above and `@skills/agent-voice/SKILL.md`.
+- **A new kind of output adds its template first.** Add the file, point to it from the owning skill, and register the pair in `tests/Installer/TrackerOutputTemplateTest.php`. That test fails when a file that publishes to a tracker names no template.
+- **Code review.** A diff that publishes text to a tracker without a template, or that describes the shape of a published output inline instead of pointing to its template, is a **Moderate** finding. The Suggested Fix names the template to add or to use.
+
 ## A JIRA comment is written for a non-technical reader
 
 The person who reads a JIRA ticket is the person who asked for the work — a product manager, not a developer. A run once published a 10 964 B comment to such a ticket. It carried method names, test file names, the head SHA, the diff fingerprint, the quality-gate result, three CI check statuses, test and assertion counts, and per-line coverage. Rewriting it by hand into what that reader actually needs produced 3 063 B, so 72 % of the published comment was noise for its only audience. This section states what a JIRA comment never carries, what it may always carry, and how long it is.

@@ -79,7 +79,8 @@ The roster has no agent dedicated to the analysis of an issue, so two agents sha
    exists, publish nothing and record `proposal review: no Critical finding` in the brief.
    Otherwise `krang` publishes one new comment on the source issue and never updates an earlier
    one. `leonardo` publishes no comment of its own in this step.
-   - **Content.** Open with a `TL;DR`. List each Critical finding with the agent that found it,
+   - **Content.** Render the comment from `skills/_shared/templates/proposal-review-comment.md`.
+     Open with a `TL;DR`. List each Critical finding with the agent that found it,
      its reason, and the proposed correction. The language follows `@rules/reports/general.md`.
      The prose follows `@skills/agent-voice/SKILL.md`.
      A JIRA ticket follows `@rules/reports/general.md` *A JIRA comment is written for a
