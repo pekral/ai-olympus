@@ -1,4 +1,4 @@
-[Status line: one to three short sentences — the state of the work, whether the change is ready to merge, and that nothing was merged or deployed. Example: "Code review is done. The change is not ready to merge yet. Nothing was merged or deployed."]
+[Status line: one to three short sentences — the state of the work, whether the change is ready to merge, and that nothing was merged or deployed. When a security point that still needs verification blocks the merge, name it here as a blocker, without the detail of the suspicion. Example: "Code review is done. The change is not ready to merge yet. Nothing was merged or deployed."]
 
 h2. Acceptance criteria
 
@@ -11,7 +11,7 @@ h2. Acceptance criteria
 h2. Review findings
 
 * [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words.]
-* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the point it belongs to.]
+* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
 
@@ -123,10 +123,9 @@ Review findings
     (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
-  - A finding about behaviour the assignment does not ask for appears only when
-    it is Critical. The review carries no other out-of-scope point and no
-    follow-up proposal (@rules/code-review/general.md, What a code review checks,
-    and nothing else), so none is listed.
+  - The review carries no out-of-scope point and no follow-up proposal
+    (@rules/code-review/general.md, What a code review checks, and nothing
+    else), so none is listed.
   - When the review has no point to resolve, or no review has run yet, render
     one sentence that says so, and no bullets.
   - The findings new in this review come first. The heading "Already reported

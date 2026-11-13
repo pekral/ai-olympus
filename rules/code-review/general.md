@@ -494,14 +494,14 @@ A missing or different fingerprint requires a new review of the whole PR diff an
 
 This section is the one owner of the rule. Every other file points here and never restates it.
 
-A round that resolves a baseline under *Baseline resolution* above is a later round of its review cycle. A round with no baseline is round 1. From the second round on, the review is narrower than round 1:
+A later round is an iteration of one review-and-fix loop: a round that resolves a baseline from the caller's value (source 1 of *Baseline resolution* above), because an earlier iteration of that loop reviewed the pull request. A round that has no such baseline is round 1. A run whose baseline comes only from a published comment (source 2: a fresh review run, days later) starts round 1 of a new review cycle, so it raises every finding it has under the four areas. From the second round on, the review is narrower than round 1:
 
 - **A new finding is raised only when it is Critical.** A new Moderate or Minor point that the later round finds is not reported. It is not in the findings, it is not in the `Counts:` line, and it is not published.
 - **The security floor is unchanged.** A finding that meets the S1–S3 carve-out of the Exclusion Gate is raised in every round, at its own severity, and is never dropped by this section.
 - **An earlier finding stays tracked until it is fixed.** *Carry-over is unconditional* above applies at every severity. A finding that an earlier round raised and that is still open is reported again, and so is a resolved finding that returns. The convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4) counts them as before.
 - **The filter applies to identity, never to severity of a tracked finding.** A finding keeps the severity it had. This section never lowers one, and it never closes one.
 
-`skills/_shared/review-state.sh record` applies the same filter to a round report from round 2 on: a finding with a new identity that is neither Critical nor security-relevant is not recorded, never blocks, and is named on stderr. Round 1 records every finding.
+`skills/_shared/review-state.sh record` applies the same filter to a round report from round 2 on: a finding with a new identity that is neither Critical nor security-relevant is not recorded, never blocks, and is named on stderr. Round 1 records every finding. The filter fails closed: a finding is dropped only when its security flag is `false`, and that flag covers the whole S1–S3 carve-out. A round that drops a new identity carries every earlier open finding it no longer reports instead of resolving it, so a finding re-cited under a new identity (a renamed file, another rule section) never leaves the loop unfixed.
 
 ### A finding is settled by the reviewer's own re-read, never by a claim
 

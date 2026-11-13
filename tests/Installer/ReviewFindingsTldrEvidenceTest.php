@@ -142,8 +142,7 @@ test('review findings list only what must be resolved and every such point (issu
                 . 'and leave out none of the points that must be resolved.',
         )
         ->toContain(
-            '3. **A point that needs no action is not listed:** a resolved point, a deferred point, an informational point, '
-                . 'and a finding about behaviour the assignment does not ask for that is not Critical',
+            '3. **A point that needs no action is not listed:** a resolved point, a deferred point, and an informational point.',
         )
         ->toContain('This holds on every target.')
         ->toContain(

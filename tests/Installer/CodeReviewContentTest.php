@@ -129,8 +129,9 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
     expect($body)->toContain('When a question for a human is open, it is the closing sentence of this bullet.');
     expect($jiraTemplate)->toContain('A question about an acceptance criterion closes that criterion\'s bullet in');
 
-    // A finding outside the assignment reaches the ticket only when it is Critical.
-    expect($body)->toContain('A finding outside the assignment appears only when it is Critical.');
+    // The review carries no out-of-scope point, so the ticket lists none (issue #455).
+    expect($jiraTemplate)->toContain('The review carries no out-of-scope point and no follow-up proposal');
+    expect($jiraTemplate)->not->toContain('appears only when it is Critical');
 
     // The verdict is a section now, not an optional slot, and no slot remains for the questions.
     expect($jiraTemplate)->toContain('This section is the only route the assignment verdict takes into this comment');

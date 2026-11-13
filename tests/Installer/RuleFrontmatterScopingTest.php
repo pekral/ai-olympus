@@ -449,7 +449,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the answer to a reviewer's question takes its prose from `@skills/agent-voice/SKILL.md` instead of the writing rule (issue #432).
         // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
         // Re-baselined: a later review round raises only new Critical findings and security findings, and a review covers four areas and nothing else (issue #455).
-        'rules/code-review/general.md' => '9385be0241778e6cf59016198f4be230c1fba021805d84b54463634dbb87d623',
+        // Re-baselined: a later round is an iteration of one review-and-fix loop, and the later-round filter fails closed (issue #455, review round 1).
+        'rules/code-review/general.md' => '2124454b1702e8db9a1268d07f3ead1a2a7c26909b2f8bb39b085d7fd259c90e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

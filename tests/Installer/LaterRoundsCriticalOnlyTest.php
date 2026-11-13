@@ -61,6 +61,74 @@ test('the review-state self-test covers the later-round filter (issue #455)', fu
     'a new Critical in a later round is recorded and blocks',
     'the security floor: a new security finding in round 2 is recorded at its severity and blocks',
     'a resolved earlier finding that returns is reopened and tracked, never ignored',
+    'a round that drops a new identity carries the earlier open finding and the loop continues',
+    'a renamed file never resolves the earlier open finding',
+    'the S1 lens and the S3 surface are recorded in round 2 and block',
+]);
+
+test('the extract-findings self-test covers every S1 lens and the S3 surfaces the filter relies on (issue #455)', function (string $label): void {
+    expect(laterRoundsFile('skills/_shared/extract-findings.sh'))->toContain($label);
+})->with([
+    'round: a finding of the $lens lens is security-relevant',
+    'round: the S3 surface \\"$surface\\" is security-relevant',
+    'round: a finding that cites no rule cannot be classified and counts as security-relevant',
+]);
+
+test('the security classification names every S1 lens and the S3 surfaces of the exclusion gate (issue #455)', function (string $term): void {
+    expect(laterRoundsFile('skills/_shared/extract-findings.sh'))->toContain($term);
+})->with([
+    'security-review|security-audit|security-bounty-hunter|security-threat-analysis'
+        . '|laravel-security|laravel-authorization-review|git-history-exposure-audit',
+    'hostname', 'private.?ip', 'outbound', 'allow.?list', 'supply.?chain', 'malicious', 'clickjack', 'bidi', 'invisible', 'trojan', 'redirect',
+]);
+
+test('the later-round filter fails closed and carries an earlier finding when it drops a new identity (issue #455)', function (): void {
+    $rule = laterRoundsFile('rules/code-review/general.md');
+
+    expect($rule)
+        ->toContain('The filter fails closed: a finding is dropped only when its security flag is `false`')
+        ->toContain('A round that drops a new identity carries every earlier open finding it no longer reports instead of resolving it');
+    $records = laterRoundsFile('skills/code-review/references/finding-records.md');
+
+    expect($records)->toContain('A finding that cites no rule cannot be classified and counts as security.');
+    expect($records)->not->toContain('A false negative would let a security finding be dismissed or deferred.');
+});
+
+test('a later round is an iteration of one review-and-fix loop, and a published-comment baseline starts a new cycle (issue #455)', function (): void {
+    $rule = laterRoundsFile('rules/code-review/general.md');
+
+    expect($rule)
+        ->toContain('A later round is an iteration of one review-and-fix loop')
+        ->toContain('starts round 1 of a new review cycle');
+    expect($rule)->not->toContain('A round that resolves a baseline under *Baseline resolution* above is a later round of its review cycle.');
+});
+
+test(
+    'the pr-summary lists every point that blocks the merge and names a blocking security point in the JIRA status line (issue #455)',
+    function (string $path): void {
+        expect(laterRoundsFile($path))->not->toContain('that is not Critical');
+        expect(laterRoundsFile($path))->not->toContain('appears only when it is Critical');
+    },
+)->with([
+    'skills/pr-summary/SKILL.md',
+    'skills/pr-summary/templates/pr-summary-jira.md',
+]);
+
+test('the JIRA status line names a security point that needs verification as a blocker (issue #455)', function (): void {
+    expect(laterRoundsFile('skills/pr-summary/templates/pr-summary-jira.md'))
+        ->toContain('When a security point that still needs verification blocks the merge, name it here as a blocker');
+    expect(laterRoundsFile('skills/pr-summary/SKILL.md'))
+        ->toContain('A security point that still needs verification blocks the merge: the status line names it as a blocker in plain words');
+});
+
+test('the security hand-off keeps its renamed field name in every line that routes to it (issue #455)', function (string $path): void {
+    $content = laterRoundsFile($path);
+
+    expect($content)->toContain('*Security findings outside the assignment*');
+    expect($content)->not->toContain('out-of-scope handoff');
+})->with([
+    'agents/leonardo.md',
+    'skills/security-audit/SKILL.md',
 ]);
 
 test('the code-review rule owns the four areas of a review and drops everything else (issue #455)', function (): void {
@@ -110,6 +178,8 @@ test(
         expect(laterRoundsFile($path))->not->toContain($retired);
     },
 )->with([
+    'conformance gate follow-up' => ['skills/code-review/references/assignment-conformance-gate.md', 'move it to its own issue / PR'],
+    'conformance gate move' => ['skills/code-review/references/assignment-conformance-gate.md', 'when it has independent value'],
     'krang critical pre-existing' => ['agents/krang.md', 'critical pre-existing problems'],
     'lens follow-up items' => ['skills/code-review/references/specialized-reviews.md', 'travel in the reviewer\'s handoff as follow-up items'],
     'leonardo critical field' => ['agents/leonardo.md', '**Critical out-of-scope findings:**'],
