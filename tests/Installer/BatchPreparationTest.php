@@ -253,7 +253,10 @@ test('every batch unit is brought to the default branch tip before the readiness
         ->and($skill)->toContain('For every unit of a batch, with or without `--merge`, the root')
         ->and($skill)->toContain('*Bring a unit to the default branch tip* of')
         ->and($donatello)->toContain('`git -C <path> switch -C "<branch>" "origin/<branch>"` on a clean tree')
-        ->and($donatello)->toContain('or its `<branch>-vN` after a conflict');
+        ->and($donatello)->toContain('or its `<branch>-vN` after a conflict')
+        ->and($donatello)->toContain('run `git -C <path> merge-base --is-ancestor "<branch>" <head SHA>`')
+        ->and($donatello)->toContain('never compare the local branch with `origin/<branch>`')
+        ->and($donatello)->not->toContain('holds a commit that `origin/<branch>` does not');
 
     expect($orchestration)->toContain(
         '| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with '
@@ -436,5 +439,7 @@ test('a unit that already has a pull request starts on the pull-request head and
         ->and($batch)->toContain('The worktree stays detached until `donatello` puts it on the unit branch')
         ->and($batch)->toContain('The unit worktree starts on the pull-request head')
         ->and($batch)->toContain('so this check holds for a unit that has had a pull request since the start.')
-        ->and($batch)->toContain('It stops `Blocked` when the local branch holds a commit that `origin/<branch>` does not.');
+        ->and($batch)->toContain('`git -C <worktree> merge-base --is-ancestor "<branch>" <head SHA>`')
+        ->and($batch)->toContain('The check runs before the switch, because `switch -C` drops such a commit without a warning.')
+        ->and($batch)->not->toContain('holds a commit that `origin/<branch>` does not');
 });
