@@ -24,6 +24,24 @@ test('the dry check searches every new rule in the whole codebase and publishes 
     }
 });
 
+test('a dry finding is Moderate in its owner section and every file that states it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $start = (int) strpos($rule, '## Reuse Existing Logic');
+    $owner = substr($rule, $start, (int) strpos($rule, "\n### ", $start) - $start);
+
+    expect($owner)->toContain('- Severity: **Moderate**. Duplicated logic drifts apart')
+        ->and($owner)->toContain('A duplicated security control that is a security finding keeps its security severity')
+        ->and($owner)->not->toContain('Severity: **Critical**')
+        ->and($rule)->toContain('A `no` on the `Reuse (DRY):` line is backed by a Moderate finding in `## Findings`.')
+        ->and($rule)->toContain('A `no` on the `Input consistency:` line is backed by a Critical finding in `## Findings`.')
+        ->and($rule)->not->toContain('A `no` on either line is backed by a Critical finding');
+
+    expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))->toContain('A duplicate is **Moderate**')
+        ->and((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))->toContain('Severity: **Moderate**, as that section declares.')
+        ->and((string) file_get_contents($packageDir . '/rules/laravel/architecture.md'))->toContain('*Reuse Existing Logic* at Moderate.');
+});
+
 test('the dry check stays generic: no project path and no project identifier', function (): void {
     $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/general.md');
     $start = (int) strpos($rule, '### DRY check — every new rule is searched for in the whole codebase');
