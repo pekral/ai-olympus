@@ -12,9 +12,9 @@ The root session holds the `krang` role for **every** unit (`@rules/compound-eng
 - **`krang` only orchestrates.** The root session implements nothing, reviews nothing, and tests nothing. It delegates every step of every unit to a specialist: `donatello` (implementation, fixes, the exact-head gate, scoped validation), `leonardo` (code review), `splinter` (security review), `casey` (database review, when the diff touches the database), `raphael` (acceptance check, when the change has user-facing behaviour), and `april` (TL;DR and reporting). A step with no specialist is not done: the unit stops `Blocked` and names it. It creates, edits, and deletes no tracked file, with any tool.
 - **The limits of `krang` apply, with the additions below.** The root session applies `agents/krang.md` *Bash boundary*, the dispatch, audit, and routing ledgers, and *Run cleanup* to every unit. *Dispatch blocking* and the turn rule apply with the one batch exception of *The root session multiplexes the pipelines* below. Its Bash boundary gains exactly these commands, for the batch only:
   - `git worktree add|lock|unlock|remove|prune` for the unit worktrees (*Worktrees* below);
-  - `git fetch origin`, `git merge-base --is-ancestor`, and `git -C <worktree> rev-parse` and `status` (*The merge step*);
-  - `skills/_shared/run-validation.sh --manifest <file> --exclusive` for the validation manifest of a unit (*Validation*);
-  - `gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`, for the pull request of a unit that is behind the default branch (*The merge step*);
+  - `git fetch origin`, `git merge-base --is-ancestor`, and `git -C <worktree> rev-parse` and `status` (*Bring a unit to the default branch tip*, *The merge step*);
+  - `skills/_shared/run-validation.sh --manifest <file> --exclusive` for the validation manifest of a unit, run from inside the unit worktree by the absolute path of the script in the shared tree (`cd <worktree> && <shared tree>/skills/_shared/run-validation.sh --manifest <file> --exclusive`, *Validation*);
+  - `gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`, for the pull request of a unit that is behind the default branch (*Bring a unit to the default branch tip*);
   - `git branch -d` and `git branch -D` for the branch of a merged unit, only after the integration proof of *Worktrees* step 4.
 - **Per-unit state is keyed by the unit slug.** Every unit has its own brief `.claude/run/<source-slug>.md`, dispatch ledger, audit trail, routing ledger, and review state, all in the `.claude/run/` of the shared tree (`@rules/compound-engineering/concurrency.md` *Parallel steps against the runs in progress*). Each brief records the `## PID` of the root session, the unit worktree path, and the next step of its pipeline. The root session keeps one table of the units in its own context: the slug, the next step, and the dispatch it waits for.
 - **The root session multiplexes the pipelines.** This is the one exception to `agents/krang.md` *Dispatch blocking*. A blocking dispatch serves one pipeline and would run the units one after the other, so the batch does not use it. It starts each dispatch in the background (on Codex: it spawns the registered agent and does not wait for it) and continues with another unit. When a handoff arrives, it reads the handoff, appends it to the brief of that unit, and runs the next step of that unit. A unit never advances before its own handoff arrives, and no dispatch is fire-and-forget: every dispatch has its `dispatched` line in the unit's ledger, and `skills/_shared/orchestration/dispatch-liveness.md` covers a round that never returns.
@@ -36,7 +36,7 @@ The root session holds the `krang` role for **every** unit (`@rules/compound-eng
    git worktree lock --reason "pid $PPID agent krang slug <source-slug>" .claude/worktrees/agent-batch-<source-slug>-krang
    ```
    The lock reason lets the startup sweep (`skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*) tell a live worktree from a dead one. When `git worktree add` fails, the unit stops with `Blocked: another run holds this unit's worktree`. The root session installs no dependency. The specialist that needs them installs them through the lock (*Gate serialisation* below).
-5. **Run each pipeline** as prepare-only mode (`skills/_shared/orchestration/merge-preparation.md`) for its unit. A unit that carries no pull request is delivered first, as that file states.
+5. **Run each pipeline** as prepare-only mode (`skills/_shared/orchestration/merge-preparation.md`) for its unit. A unit that carries no pull request is delivered first, as that file states. Once the unit has a pull request, run *Bring a unit to the default branch tip* before step 2 of `@skills/verify-merge-readiness/SKILL.md`, with or without `--merge`.
 6. **Clean up each unit** when its pipeline ends, on every terminating path (*Worktrees* below).
 7. **Publish the aggregated report** as the final reply of the session (*The aggregated report* below). The session posts no tracker comment of its own. Each unit's `april` publishes the unit's TL;DR as in prepare-only mode.
 
@@ -77,8 +77,8 @@ time. Every worktree shares the test databases, so two heavy jobs at once give f
 
 The root session never types, copies, or interpolates a manifest command into a shell line. A shell expands `$(...)` and backticks before any check sees the text, and the manifest is data from a handoff (`@rules/compound-engineering/orchestration.md` *The manifest is never passed to a shell*). For the pre-review validation of `agents/krang.md` step 5 and the post-convergence pass, the root session does this:
 
-1. Check that `head_sha` of the manifest is the head of the pull request. A different head makes the manifest stale, and it is the escalation of `agents/krang.md`.
-2. Run `skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive`. Exit `0` closes the stage with no session. Exit `6` (the lock wait ran out) is `Blocked`. Exit `3` and `4` are the escalations of `agents/krang.md`.
+1. Check that `head_sha` of the manifest is the head of the pull request, and that `git -C <the unit worktree> rev-parse HEAD` prints the same SHA. A different head, or a worktree on another commit, makes the manifest stale, and it is the escalation of `agents/krang.md`.
+2. The runner executes each command in its current directory and never compares `HEAD` with `head_sha`. Run it from inside the unit worktree, by the absolute path of the script in the shared tree: `cd <the unit worktree> && <the shared tree>/skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive`. The manifest then tests the unit head and never the checkout of the shared tree. Exit `0` closes the stage with no session. Exit `6` (the lock wait ran out) is `Blocked`. Exit `3` and `4` are the escalations of `agents/krang.md`.
 3. Dispatch `donatello` in *Fast scoped validation mode* only on exit `3` or `4`, with the runner output and its log paths.
 
 ## Planner evidence — siblings never block each other
@@ -91,18 +91,32 @@ The root session runs `skills/_shared/plan-parallel.sh --step` before each step 
 
 `tests/Installer/BatchPreparationTest.php` runs the planner on both evidences, to show the difference.
 
+## Bring a unit to the default branch tip
+
+The root session runs this for every unit that has a pull request, before the fingerprint decision of `@skills/verify-merge-readiness/SKILL.md` step 2. It runs with or without `--merge`: without it, a unit that is behind the default branch would reach the `BEHIND` or `DIRTY` check of that skill's step 3 and stop. The merge loop below runs it again.
+
+No step of this path force-pushes a branch (`@rules/git/general.md` *Git Rules*: a branch under review is not rewritten). `leonardo` cannot do this step, because it never pushes and never uses the unit worktree.
+
+1. Run `git fetch origin`. Resolve the default branch tip `T`.
+2. When `T` is an ancestor of the head of the pull request (`git -C <worktree> merge-base --is-ancestor T <head>` exits `0`), the unit is at the tip and nothing else runs. When it exits non-zero, bring the pull request to `T`:
+   1. **Update on the server.** Confirm that `git -C <worktree> status --porcelain` prints nothing and that `git -C <worktree> rev-parse HEAD` equals the head SHA of the pull request. A dirty worktree, or one on another commit, stops the unit with `Blocked` and names the worktree, because the next command would drop its state. Then the root session runs `gh pr update-branch <PR> --rebase`. GitHub rebases the branch on the server.
+      - When it succeeds, dispatch `donatello` with the unit worktree path and the gate-serialisation block.
+      - It runs `git -C <worktree> fetch origin` and `git -C <worktree> reset --keep origin/<branch>`. The unit branch stays checked out in the worktree and now holds the new head, so a later step never runs on the old tree.
+      - It pushes nothing and detaches nothing.
+   2. **Conflict.** When the update stops on a conflict, dispatch `donatello` with the unit worktree path and the gate-serialisation block.
+      - It runs `git -C <worktree> fetch origin`, then creates the new branch `<branch>-vN` inside the worktree with `git -C <worktree> switch -c <branch>-vN`, with `N` the next free number, then runs `git -C <worktree> rebase "origin/$DEFAULT_BRANCH"`.
+      - It resolves the conflict so that every acceptance criterion of the issue stays met and every change of the default branch stays. It checks with `git range-diff` that only the conflict hunks changed.
+      - It pushes `<branch>-vN` and opens a new pull request that names the one it replaces.
+      - The root session records the new branch, the pull-request number, and the head in the brief, and every later dispatch of the unit names the new branch. This file grants no `gh pr close`, so the report names the replaced pull request as open.
+
 ## The merge step
 
 The merge runs only when the operator passed `--merge`. Without it, the unit stops before the merge, exactly as in prepare-only mode today, and the report says `not merged — merge not requested`. The flag is the explicit merge request of `agents/krang.md`.
 
 The default branch moves while the other units merge. The root session therefore runs this loop for a unit that reached its merge-ready verdict, and the merge goes through `@skills/merge-github-pr/SKILL.md` and nothing else. Its gates stay unchanged: the converged review, the approval check, CI, the pre-merge quality gate, and the open merge decisions.
 
-1. Run `git fetch origin`. Resolve the default branch tip `T`.
-2. When `T` is not an ancestor of the head of the pull request (`git -C <worktree> merge-base --is-ancestor T <head>` exits non-zero), bring the pull request to `T`. No step of this path force-pushes a branch (`@rules/git/general.md` *Git Rules*: a branch under review is not rewritten). `leonardo` cannot do this step, because it never pushes and never uses the unit worktree.
-   1. The root session runs `gh pr update-branch <PR> --rebase`. GitHub rebases the branch on the server. When it succeeds, dispatch `donatello` with the unit worktree path and the gate-serialisation block. It runs `git -C <worktree> fetch origin` and `git -C <worktree> switch --detach origin/<branch>`, so that the worktree holds the new head. It pushes nothing.
-   2. When the update stops on a conflict, dispatch `donatello` with the unit worktree path and the gate-serialisation block. It runs `git fetch origin` and `git rebase "origin/$DEFAULT_BRANCH"` in the worktree. It resolves the conflict so that every acceptance criterion of the issue stays met and every change of the default branch stays. It checks with `git range-diff` that only the conflict hunks changed. It pushes the result as the new branch `<branch>-vN`, with `N` the next free number, and opens a new pull request that names the one it replaces. The root session continues the unit on the new pull request and records its number and head in the brief. This file grants no `gh pr close`, so the report names the replaced pull request as open.
-   3. Dispatch `leonardo` for the fingerprint decision only: it compares the effective-diff fingerprint with the newest trusted converged review, as `@skills/verify-merge-readiness/SKILL.md` step 2 states. It runs a review round only when the fingerprint is missing or different.
-   4. Decide the gate by `@skills/resolve-issue/references/quality-gates.md` *Rebase that moves the head — analyse the incoming changes first*.
+1. Run *Bring a unit to the default branch tip*. It resolves the default branch tip `T`.
+2. When step 1 moved the head, dispatch `leonardo` for the fingerprint decision only: it compares the effective-diff fingerprint with the newest trusted converged review, as `@skills/verify-merge-readiness/SKILL.md` step 2 states. It runs a review round only when the fingerprint is missing or different. Decide the gate by `@skills/resolve-issue/references/quality-gates.md` *Rebase that moves the head — analyse the incoming changes first*.
 3. Run `skills/_shared/verify-gate.sh --tier full <the new head SHA>`. Exit `0` allows the next step. On a non-zero exit, dispatch `donatello` for `skills/_shared/run-gate.sh --tier full`, then run `verify-gate.sh` again. Exit `5` and every other result follow `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*. A gate that still fails stops the unit.
 4. Run `git fetch origin` again. When the default branch tip changed since step 1, go back to step 1. After three passes the unit stops with `Blocked: the default branch moved on every attempt before the merge`.
 5. Run `@skills/merge-github-pr/SKILL.md` for the one pull request, and record the merge commit SHA, the source of the approval, the gate evidence, and every skipped billing-only check with its check name and message.
