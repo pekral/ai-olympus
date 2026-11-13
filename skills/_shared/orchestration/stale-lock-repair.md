@@ -21,7 +21,7 @@ The machine lock, its heartbeat, and the repair are defined in `@rules/compound-
    |---|---|---|
    | `0` | `none`, `none-live` | Nothing changed. Treat the lock as held by a live run. |
    | `0` | `released-dead` | The holder was dead and the lock is released. Continue. |
-   | `0` | `stopped-and-released` | The holder was stuck. Its process tree is stopped and the lock is released. Continue. |
+   | `0` | `stopped-and-released` | The holder was stuck. Its process tree is stopped and the lock is released. Continue. `stopped` lists the pids; `[]` means the holder was gone when repair listed its tree. |
    | `5` | `released-dead`, `stopped-and-released` | The repair acted, but its audit line was not written (`audit` is `not written`). Append one `note` line through `skills/_shared/audit-trail.sh append --class note`, with the target `machine lock repair` and a result that names the `action` and the `pid`, then continue as for exit `0`. |
    | `3` | `refused` | The holder is not a process this package started. Nothing was stopped. Stop with `Blocked: the machine lock is held by a process this package did not start`, name the holder fields, and state the remedy: the user stops that process or removes the lock after checking it. |
    | `4` | `refused` | A process of the tree survived SIGKILL. Stop with `Blocked: the stuck lock holder could not be stopped`, with the holder fields. |
