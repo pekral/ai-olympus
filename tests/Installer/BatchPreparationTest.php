@@ -254,7 +254,8 @@ test('every batch unit is brought to the default branch tip before the readiness
         ->and($donatello)->toContain('or its `<branch>-vN` after a conflict');
 
     expect($orchestration)->toContain(
-        '| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with `gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |',
+        '| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit to the default branch tip with '
+        . '`gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |',
     )
         ->and($orchestration)->toContain(
             'runs through `skills/_shared/audit-trail.sh run --`, which records its `external-write` line, a refused update included.',
