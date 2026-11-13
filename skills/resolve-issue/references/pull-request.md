@@ -14,7 +14,7 @@ Once the Pre-PR self-check is clean and the user has **not** opted out:
 
 - Create a branch (name always in English, regardless of the assignment language) and commit changes following `@rules/git/general.md`
 - **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/pull-requests.md` *Draft pull requests*. The inline self-check above is the implementer's single-pass pre-PR self-check, **not** the authoritative code review — the authoritative `code-review-github` / `process-code-review` (the `leonardo` ↔ `donatello` convergence loop) still runs **after** the PR exists, so at creation time the PR is not yet ready to merge and agents will keep working on it. It is promoted out of Draft (`gh pr ready`) by `@skills/process-code-review/SKILL.md` once that review converges (0 Critical, no undeferred Moderate — `@skills/process-code-review/SKILL.md` *Review loop* step 4).
-- Create the pull request with:
+- Render the pull request body from `skills/resolve-issue/templates/pull-request-body.md`, which owns the sections, their order, and the conditional ones. Create the pull request with:
   - clear description of the change
   - **reference to the source tracker item** — the pull request itself carries it, never only a commit message, per `@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*:
     - **GitHub-sourced task:** the literal English `Closes #<N>` in the body, per `@rules/git/pull-requests.md` *Issue Linking*. A translated keyword is not parsed and leaves the pull request unlinked

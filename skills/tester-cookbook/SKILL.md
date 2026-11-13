@@ -55,7 +55,7 @@ For each impact identified in step 2, look up the corresponding visible label in
 - **Internal-only changes (no UI footprint)** — surface them in the dev-team report ("ask dev team to confirm X"); do not invent UI steps the tester cannot perform.
 
 ### 4. Compose the comment
-Every comment opens with two metadata lines, then the body sections. Compose them in the supported intermediate source format. The canonical helper converts the result to ADF. The body skips the first section when it does not add value (for example when the change is verifiable purely from the dev-team report — a notification text change, a label rename in the report).
+Render the comment from `skills/tester-cookbook/templates/test-report-jira.md`: two metadata lines, then the body sections. Compose them in the supported intermediate source format. The canonical helper converts the result to ADF. The body skips the first section when it does not add value (for example when the change is verifiable purely from the dev-team report — a notification text change, a label rename in the report).
 
 **Metadata lines (always at the top of the comment, in this order):**
 

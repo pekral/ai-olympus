@@ -560,7 +560,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the scope clarification hands the sentence shape of a report to the voice, and the
         // length limits stay with this rule (issue #432, review round 1).
         // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
-        'rules/reports/general.md' => '4b494b926a2def2d890f0986cc90508c7a7d6dc612714e15a43c9a056e2d85da',
+        // Re-baselined: every tracker output is rendered from a template (issue #499).
+        'rules/reports/general.md' => '73f53f7ebdbecf4d1f57eb07fd41f61434af2254c52356fc2993639435c1ac5b',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -197,7 +197,7 @@ Reporting is split by audience and destination:
 
 ### Technical report → codebase tracker (GitHub PR)
 
-Post the technical report as a comment on the GitHub PR, since that is where the codebase and testing state live. It must contain:
+Post the technical report as a comment on the GitHub PR, rendered from `skills/resolve-issue/templates/technical-report-comment.md`. It must contain:
 
 - **Self-check summary** — the result of each item of the *Pre-PR self-check* above. Report what this pass actually did — never a code-review or security-review verdict it did not produce (`@rules/code-review/review-process.md` *Output Rules — Truthful reporting*); those are `leonardo`'s, published by the review loop that runs after this skill.
 
@@ -209,7 +209,7 @@ Post the non-technical report, in the voice of `@skills/agent-voice/SKILL.md`, o
 - **JIRA** (task filed in JIRA): publish through the canonical JIRA helper with `--create`, which converts the template source to ADF and applies it through `--body-adf` per `@rules/jira/general.md`; use the JIRA shape per `references/tracker-follow-up.md`
 - **Bugsnag** (task originated from a Bugsnag error): post the non-technical report as a comment directly on the Bugsnag error via `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -` (requires `BUGSNAG_TOKEN`; falls back to a Bugsnag MCP server when the script is unavailable). Also mirror it as a comment on the linked GitHub issue from `linkedIssues[]` when one exists.
 
-The non-technical report must be understandable by non-technical testers and product managers and contain:
+The non-technical report, rendered from the `pr-summary` template, must be understandable by non-technical testers and product managers and contain:
 
 - **What changed:** a brief, plain-language summary of the fix or feature
 - **How to test:** step-by-step instructions a tester can follow to verify the change works correctly

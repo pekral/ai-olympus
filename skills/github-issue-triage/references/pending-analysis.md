@@ -51,7 +51,7 @@ A report that fails a check goes back to its subagent with the concrete defect; 
 
 ## 4. Publish the analysis
 
-The prose of the report follows `@skills/agent-voice/SKILL.md`. Every marker, heading, field, identifier, and link stays as this skill defines it.
+The report is the one `skills/analyze-problem/templates/analysis-report.md` renders. The prose of the report follows `@skills/agent-voice/SKILL.md`. Every marker, heading, field, identifier, and link stays as this skill defines it.
 
 ```bash
 skills/code-review-github/scripts/upsert-comment.sh <URL> <report-file> agent-note

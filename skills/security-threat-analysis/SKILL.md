@@ -59,53 +59,7 @@ If running interactively, confirm the inputs with the user. If running autonomou
 
 ## Output Format
 
-Render the report as Markdown using this structure:
-
-```markdown
-# Security Threat Analysis — <Threat Title>
-
-## Source
-- **URL / Identifier**: <link or CVE/GHSA id>
-- **Published**: <date>
-- **Patched in**: <upstream fixed version(s)>
-
-## Summary (non-technical)
-One short paragraph in plain language: what the threat is, why it matters, and what happens if it is not fixed. No code, no jargon.
-
-## Classification
-- **Category (OWASP / CWE)**: <e.g. A03:2021 / CWE-89>
-- **Severity**: Critical | High | Medium | Low
-- **CVSS**: <score if published>
-- **Attack vector**: <network/local/…>, <authenticated/unauthenticated>
-- **Preconditions**: <feature, role, configuration>
-
-## Project Exposure
-- **Status**: Affected | Not affected | Indeterminate
-- **Evidence**:
-  - `<file>:<line>` — <what was found>
-  - `<dependency>@<version>` — <vulnerable range comparison>
-- If status is *Not affected*, state which check disproved exposure.
-
-## Remediation Plan
-Ordered steps an AI agent can execute:
-1. <Exact action — e.g. `composer require vendor/package:^X.Y`>
-2. <Exact action — e.g. update `config/security.php` key `…` to `…`>
-3. <Exact action — e.g. add middleware `…` to route group `…`>
-
-For each step, include:
-- **Target**: <file or command>
-- **Change**: <minimal diff or command>
-- **Why**: <one sentence linking the step to the threat>
-
-## Verification
-- **Manual check**: <request, screen, or log line that confirms the fix>
-- **Automated test**: <test name and assertion that fails before the fix and passes after>
-- **Coverage note**: <which changed code paths must reach 100 %>
-
-## Residual Risks and Follow-ups
-- <Anything the upstream fix does not cover>
-- <Compensating controls if the upstream fix is not yet available>
-```
+Render the report as Markdown from `skills/security-threat-analysis/templates/remediation-report.md`.
 
 Every section must be filled. If a section has nothing to report, write a short explicit note (e.g. `No residual risk identified.`) instead of leaving placeholders.
 

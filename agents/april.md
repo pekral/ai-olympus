@@ -50,7 +50,7 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 5. **Apply the no-hollow-AI-phrasing contract to every draft from steps 2–4.** Lead with the concrete thing (artifact, example, output, number) before explaining it. Never invent facts, credibility, statistics, or customer evidence. Delete generic AI throat-clearing ("in today's rapidly evolving landscape", "game-changer", "cutting-edge", "here's why this matters" as a standalone bridge) and any closing question added only to juice engagement.
 
-6. **Publish only when explicitly instructed (L2)** and only via the canonical `upsert-comment.sh` wrapper — never use raw `gh pr comment`, `gh issue comment`, or any bare `gh` write command. When not asked to publish, return the drafts in the handoff only.
+6. **Publish only when explicitly instructed (L2)** and only via the canonical `upsert-comment.sh` wrapper, with the comment rendered from `skills/_shared/templates/announcement-drafts-comment.md` — never use raw `gh pr comment`, `gh issue comment`, or any bare `gh` write command. When not asked to publish, return the drafts in the handoff only.
 
 ## Post-convergence reporting mode
 
@@ -95,8 +95,7 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    matches the **source tracker** — `templates/pr-summary-github.md` for a GitHub issue,
    `templates/pr-summary-jira.md` for a JIRA ticket. Its first sentence is a TL;DR with the verified
    merge-readiness verdict. On a GitHub issue, directly after it,
-   render the `Decisions before merge` section from the brief's `## Open decisions`, in the shape
-   `@skills/verify-merge-readiness/SKILL.md` step 4 defines: one numbered question per decision, with its options and its recommendation, and then the `### Already decided` lines from the brief's `## Decided before merge`.
+   render the `Decisions before merge` section from the brief's `## Open decisions`, from `skills/verify-merge-readiness/templates/decisions-before-merge.md`: one numbered question per decision, with its options and its recommendation, and then the `### Already decided` lines from the brief's `## Decided before merge`.
    Never drop, merge, or reword a decision into a verdict of your own. Include the current
    assignment-compliance block and the exact head SHA, diff fingerprint, gate result, PR URL, and
    issue URL. On a JIRA ticket follow the two-comment split of that same step 4: the TL;DR takes the
@@ -167,7 +166,7 @@ the explicit statement that the PR was not merged.
 `krang` dispatches this mode only from `@skills/test-assignment/SKILL.md` in `report` mode, after the `donatello` and `raphael` handoffs are in the brief. That dispatch is the explicit publication request (L1). It is not a request to change a tracker status, promote the pull request, or merge.
 
 1. Read the brief: the acceptance criteria, the input map, the test matrix, the `raphael` verdicts and the base-branch comparison, and the `donatello` record of the suite, the gate, and CI.
-2. Publish the technical test report on the pull request, in English, through `skills/code-review-github/scripts/upsert-comment.sh <PR> - test-report`. It carries the verdict sentence, the input map, the criterion table with the exact requests or tests, the suite, gate, and CI record with the head SHA, the base-branch comparison, the uncovered cases, and `Decisions before merge`.
+2. Publish the technical test report on the pull request, in English, through `skills/code-review-github/scripts/upsert-comment.sh <PR> - test-report`. Render it from `skills/test-assignment/templates/test-report-pr.md`, with `Decisions before merge` from `skills/verify-merge-readiness/templates/decisions-before-merge.md`.
 3. When the source is an issue and not the pull request itself, publish the plain-language summary there through `@skills/pr-summary/SKILL.md` and the helper of that tracker. It carries the test verdict as the opening sentence, each acceptance criterion with its verdict in plain words, `How to test` from the scenarios `raphael` ran, and `Decisions before merge`. The three JIRA publication checks of *Post-convergence reporting mode* step 5 apply unchanged.
 4. Read each comment back by its identity, as *Post-convergence reporting mode* step 6 does. An unconfirmed publication is `Blocked: publication unconfirmed`.
 

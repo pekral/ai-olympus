@@ -326,11 +326,14 @@ test('assignment-compliance-check states the tracker verdict in all three cases'
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
+    $template = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/templates/assignment-compliance.md');
+
     expect($compliance)->toContain('every run that has a linked tracker');
-    expect($compliance)->toContain('All stated acceptance criteria are met.');
-    expect($compliance)->toContain('Critical gaps found: N');
-    expect($compliance)->toContain('The assignment states no explicit acceptance criteria.');
-    expect($compliance)->toContain('**Judged against:**');
+    expect($compliance)->toContain('templates/assignment-compliance.md');
+    expect($template)->toContain('All stated acceptance criteria are met.');
+    expect($template)->toContain('Critical gaps found: N');
+    expect($template)->toContain('The assignment states no explicit acceptance criteria.');
+    expect($template)->toContain('**Judged against:**');
     expect($compliance)->not->toContain('no critical gaps — assignment compliance block omitted');
     expect($compliance)->not->toContain('**only when at least one Critical gap exists**');
     expect($compliance)->not->toContain('### What is satisfied');

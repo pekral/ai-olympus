@@ -85,22 +85,7 @@ The mechanism has a level. The first practical level wins, and a weaker level on
 
 ### The proposal sections
 
-The script renders these sections in this order. Every mandatory field of the epic maps to one of them.
-
-| Section | Field |
-| --- | --- |
-| `## Defect class` | The class and its normalized fingerprints, with the window and the number of independent pull requests |
-| `## Independent occurrences` | A link to every pull request, and the quoted record text of the first three |
-| `## Root-cause analysis` | The gaps |
-| `## Existing safeguards checked` | The safeguards and why each was insufficient |
-| `## Recommended mechanism` | The level, the mechanism, why no stronger level was chosen, and the statement about automatic enforcement with its limitation and alternative |
-| `## Affected files` | The files |
-| `## Implementation steps` | The steps |
-| `## Verification plan` | The regression verification |
-| `## False positives` | The false positives |
-| `## Impact and limits` | The impact and the limits |
-| `## Promotion target` | Only with a `target`: the type, the path, the change, the existing knowledge checked, the candidates it supersedes, and the statement that an approval holds only for this exact text |
-| `## Approval` | The statement that nothing is implemented before a human approves |
+The script renders these sections in the order of `skills/code-review/templates/prevention-proposal.md`, which owns the headings, the first line, and the marker line. Every mandatory field of the epic maps to one section of the template.
 
 ## One defect class, one proposal
 

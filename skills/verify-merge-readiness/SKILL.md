@@ -249,28 +249,12 @@ tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub i
   `@skills/assignment-compliance-check/SKILL.md`;
 - the exact head SHA, effective diff fingerprint, quality-gate result, PR link, and issue link.
 
-The `Decisions before merge` section is written for a human who reads it once and answers. Write
-it in the assignment language, and translate its heading. Render every open decision from the brief
-as its own numbered block in this shape (in the tracker's own markup on JIRA):
-
-```markdown
-## Decisions before merge
-
-### 1. <short title>
-<What the point is and why it is outside the assignment, in one or two plain sentences.>
-Where: `<file or area>`
-Options: **A** implement in this PR · **B** file as a follow-up issue · **C** drop
-Recommendation: **<A|B|C>** — <one reason>
-```
-
-End the section with one line: *Reply on this issue with the number and the letter of each answer,
-for example `1B, 2C`.* When the brief carries no open decision, the section holds one line stating
-that no decision is required. Never omit the section, because the merge gate reads it.
-
-Each point of the brief's `## Decided before merge` follows the questions as one line under the
-sub-heading `### Already decided`: the title, the answer letter, the author, and the comment URL. It
-is never numbered, because nobody answers it again. When the brief carries no open decision, the one
-line that no decision is required still stands, and the `### Already decided` lines follow it.
+The `## Decisions before merge` section is written for a human who reads it once and answers. Write
+it in the assignment language, and translate its heading. Render it from
+`skills/verify-merge-readiness/templates/decisions-before-merge.md` (in the tracker's own markup on
+JIRA): one numbered block for every open decision of the brief, the reply line, and the
+`### Already decided` lines from the brief's `## Decided before merge`.
+Never omit the section, because the merge gate reads it.
 
 **On a JIRA ticket the TL;DR takes the JIRA shape, and the decisions move to the pull request.**
 `@rules/reports/general.md` *A JIRA comment is written for a non-technical reader* bans the head
