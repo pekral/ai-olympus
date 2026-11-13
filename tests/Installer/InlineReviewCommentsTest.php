@@ -44,20 +44,26 @@ dataset('wrapper self-test scenarios', [
     'external-write audit line' => ['the review is one external-write audit line'],
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
-    'forged marker by a stranger' => ['a resolved thread, a forged marker, and another line post the finding again'],
+    'finding fields' => ['the inline comment carries the Faulty example in a code block'],
+    'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
     'forged marker in the text' => ['a forged marker in the problem text is neutralised'],
     'invalid document' => ['invalid document is refused'],
     'multi-line range' => ['multi-line comment carries start_line and start_side'],
     'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
     'one review of inline comments' => ['one review request'],
+    'outdated thread is not duplicated' => ['an outdated thread of the same finding id is not duplicated'],
     'outside-diff finding stays out' => ['outside-diff finding is not an inline comment'],
     'path, line, and side' => ['comment anchors path, line, and side'],
     'private repository posts a security finding' => ['a private repository posts a security finding inline'],
     'public repository withholds a security finding' => ['a public repository withholds the marked finding'],
     'range across a hunk gap' => ['a range across a hunk gap is outside the diff'],
+    'reply by another author' => ['a thread with a reply by another author is reported as has_reply and not resolved'],
+    'reply of the actor without a marker' => ['a reply of the actor without its marker counts as a reviewer comment'],
+    'reply on a later page' => ['a reply on a later page of the thread comments is found'],
     'resolve only the fixed thread of this actor' => ['resolve closes only the open thread of this actor for a fixed id'],
     'stale head is refused' => ['a stale commit id exits 4'],
     'suggestion block' => ['comment carries a suggestion block'],
+    'suggestion marker guard' => ['a suggestion with a marker is refused with its own message'],
 ]);
 
 test('the wrapper self-test asserts the scenario', function (string $label): void {
@@ -103,7 +109,18 @@ test('the contract section states the inline review end to end', function (): vo
         ->and($section)->toContain('post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
         ->and($section)->toContain('A quiet loop iteration posts nothing')
         ->and($section)->toContain('The JIRA ticket, the Bugsnag error, and the non-technical tracker summary are unchanged')
-        ->and($section)->toContain('`cr-inline` marker is an agent marker');
+        ->and($section)->toContain('An outdated thread, which GitHub reports without a line, counts for any line of that path')
+        ->and($section)->toContain('`cr-inline` marker is an agent marker')
+        ->and($section)->toContain(
+            'Exits `2`, `3`, and `4` (a missing tool, a failed API call, a head that is not the reviewed one) share one fallback',
+        )
+        ->and($section)->toContain('write the line `Inline: not posted (<reason>)`')
+        ->and($section)->toContain('Never re-run the review for it, because the publish step reviews nothing again.')
+        ->and($section)->not->toContain('re-run the review on the new head')
+        ->and($section)->toContain('set every optional key of the findings file that the finding has')
+        ->and($section)->toContain('The first line of `## Findings` is `Inline: <n> finding(s) in <review_url>`')
+        ->and($section)->toContain('Classify each comment of the thread on its own.')
+        ->and($section)->toContain('the script lists it under `has_reply`');
 });
 
 test('the contract posts a security finding inline on a private repository and withholds it on a public one', function (): void {
@@ -194,11 +211,13 @@ test('the review loop reads an inline thread as the agent own finding and resolv
     $skill = inlineReviewSource('skills/process-code-review/SKILL.md');
     $reference = inlineReviewSource('skills/process-code-review/references/resolve-reviewer-threads.md');
 
-    expect($skill)->toContain('A thread whose first comment carries a `cr-inline` agent marker is this actor\'s own finding')
-        ->and($skill)->toContain('never added as a reviewer instruction')
+    expect($skill)->toContain('Classify each comment on its own')
+        ->and($skill)->toContain('only a comment the current actor wrote with its `cr-inline` marker is its own finding')
+        ->and($skill)->toContain('Every other comment of the thread is a reviewer comment and goes on the checklist.')
         ->and($reference)->toContain('**A thread of the agent\'s own finding is resolved through the wrapper.**')
         ->and($reference)->toContain('skills/code-review-github/scripts/post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
-        ->and($reference)->toContain('Give it the ids that `review-state.sh` reports as resolved.');
+        ->and($reference)->toContain('Give it the ids that `review-state.sh` reports as resolved.')
+        ->and($reference)->toContain('is listed under `has_reply` and not resolved');
 });
 
 test('the merge gate keeps reading the cr-comment and ignores the inline findings as reviewer feedback', function (): void {
@@ -217,4 +236,81 @@ test('the github review skill delegates the inline review to the contract', func
     expect($skill)->toContain('one pull-request review of inline comments through `scripts/post-inline-review.sh`')
         ->and($skill)->toContain('#### Inline review (before the PR comment)')
         ->and($skill)->toContain('`references/cr-wrapper-contract.md` *Inline review comments*');
+});
+
+test('the gate and the thread rule bind agent status to the actor and read the other comments of an inline thread', function (): void {
+    $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
+    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+
+    expect($contract)->toContain(
+        'A `cr-inline` marker counts only on a comment that the current actor wrote; the other comments of an inline thread are reviewer comments',
+    )
+        ->and($contract)->not->toContain('therefore read the thread as this actor\'s finding and never as a reviewer instruction')
+        ->and($script)->toContain('reply: ((.comments.pageInfo.hasNextPage // false) or any(.comments.nodes[]; agent_comment($actor) | not))')
+        ->and($script)->toContain('comments(first:100){pageInfo{hasNextPage endCursor} nodes{author{login} body}}')
+        ->and($script)->toContain('((.author.login // "") == $actor) and ((.body // "") | contains("<!-- cr-inline:actor=');
+});
+
+test('an outdated thread is matched without its line', function (): void {
+    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+
+    expect($script)->toContain('and (.line == null or .line == $f.line)')
+        ->and($script)->not->toContain('(.line // .originalLine) == $f.line');
+});
+
+test('the inline comment renders the finding fields of the review template as optional keys', function (): void {
+    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+
+    $keys = ['rule', 'provenance', 'impact', 'evidence', 'faulty_example', 'expected_behavior', 'test_hint'];
+
+    foreach ([...$keys, 'raised_by', 'answered', 'author', 'level'] as $key) {
+        expect($script)->toContain('"' . $key . '"');
+    }
+
+    $labels = ['Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Author'];
+
+    foreach ([...$labels, 'Impact', 'Evidence', 'Faulty example', 'Expected behavior', 'Test hint'] as $label) {
+        expect($script)->toContain('"' . $label . '"');
+    }
+
+    expect($script)->toContain('suggestion must not contain an agent marker');
+});
+
+test('both GitHub wrappers resolve the target and the actor through one shared helper', function (): void {
+    $helper = inlineReviewSource('skills/_shared/github-target.sh');
+
+    expect($helper)->toContain('github_target_resolve()')
+        ->and($helper)->toContain('github_actor_resolve()');
+
+    foreach (['skills/code-review-github/scripts/upsert-comment.sh', 'skills/code-review-github/scripts/post-inline-review.sh'] as $wrapper) {
+        $source = inlineReviewSource($wrapper);
+
+        expect($source)->toContain('_shared/github-target.sh"')
+            ->and($source)->toContain('github_actor_resolve || exit 3')
+            ->and($source)->toContain('github_target_resolve')
+            ->and($source)->not->toContain('for attempt in 1 2 3; do')
+            ->and($source)->not->toContain('resolve_repo_from_git');
+    }
+});
+
+test('audit-trail verify reads the pull request reviews and review comments, and the wrapper list names the new wrapper', function (): void {
+    $audit = inlineReviewSource('skills/_shared/audit-trail.sh');
+    $orchestration = inlineReviewSource('rules/compound-engineering/orchestration.md');
+
+    expect($audit)->toContain('gh api "$pulls/reviews" --paginate')
+        ->and($audit)->toContain('gh api "$pulls/comments" --paginate')
+        ->and($audit)->toContain('pullrequestreview-$id')
+        ->and($audit)->toContain('verify names a pull-request review and a review comment of the account that have no line')
+        ->and($orchestration)->toContain('`post-inline-review.sh` (`post` and `resolve`), `delete-owned-github-comment.sh`');
+});
+
+test('a published report with an Inline line resolves nothing by absence, and the loop documents it', function (): void {
+    $extractor = inlineReviewSource('skills/_shared/extract-findings.sh');
+
+    expect($extractor)->toContain('a report with an Inline line resolves no open record by absence')
+        ->and($extractor)->toContain('a report whose inline review was not posted still resolves by absence')
+        ->and(inlineReviewSource('skills/code-review/references/feedback-loop.md'))
+        ->toContain('resolves no open record in `collect`')
+        ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
+        ->toContain('The extractor resolves no record by absence for that report');
 });

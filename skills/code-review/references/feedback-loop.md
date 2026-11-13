@@ -54,6 +54,8 @@ This file is the one contract that connects the earlier phases of the recurring-
 1. **After each round.** When the review of the round returned its findings, the loop passes that round report to `skills/_shared/feedback-loop.sh record --dir .claude/run/feedback --pr-url <pull request URL> --input -`. The report goes on standard input through a quoted here-document with a delimiter that no report line equals. The report stays data: no part of it becomes an argument or a command.
 2. **After the publish.** When the converged comment is published, the loop runs `skills/_shared/feedback-loop.sh collect --dir .claude/run/feedback --pr-url <pull request URL>`. The converged comment carries no finding heading, so this run resolves the findings that the loop fixed and marks the deferred ones (`finding-records.md` *One occurrence per finding per pull request*).
 
+A published comment whose `## Findings` section opens with `Inline: <n> finding(s) in <review url>` resolves no open record in `collect`: the findings it no longer lists sit in inline review comments and are still open (`finding-records.md` *One occurrence per finding per pull request*). Such a finding reaches the store through the round report of `record` only.
+
 The output and the exit code change no count, no gate, and no fix. When a command fails, the loop goes on and the completion report adds one line, `feedback: not recorded (<first stderr line>)`. A missing store only lowers the number of occurrences the analysis sees. It cannot create a recurrence.
 
 - **Only a pull request on GitHub is recorded.** A review with no pull request URL records nothing.

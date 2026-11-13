@@ -19,6 +19,11 @@
 #                    problem, fix          required, the text of the finding, 4000 characters at most
 #                    suggestion            optional, the exact replacement of the lines; RIGHT side only
 #                    do_not_file_publicly  optional boolean; a security finding that must not reach a public repository
+#                    rule, provenance, impact, evidence, faulty_example, expected_behavior, test_hint, answered
+#                                          optional text (4000 characters at most); each one that is set is rendered
+#                    raised_by             optional, `splinter`, `leonardo`, or `both`
+#                    author                optional `@login` of the pull request author
+#                    level                 optional, `High`, `Medium`, or `Low`; a Moderate only
 #   --commit-id    The head SHA the round reviewed. The script refuses a head that is not the current one (exit 4).
 #
 # Behavior of post:
@@ -29,25 +34,30 @@
 #      `do_not_file_publicly` is withheld and never posted. On a private repository it is posted like any other.
 #   4. Read the changed lines of the pull request. A finding whose line (or any line of its range) is not in the diff is
 #      reported as `outside_diff` and is not posted: GitHub rejects the whole review for one such comment.
-#   5. Read the review threads. A finding that has an unresolved inline thread of this actor on the same path and line
-#      with the same finding id is reported as `already_open` and is not posted again.
+#   5. Read the review threads, with every comment of each thread. A finding that has an unresolved inline thread on the
+#      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
+#      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
 #   6. POST one review (`event` COMMENT, `commit_id` the reviewed head, `comments[]` one per remaining finding).
 #      Nothing remaining means no review is posted.
 #   Each inline comment carries the severity, the finding id, the problem, the suggested fix (a `suggestion` block when
-#   the finding has a `suggestion`), and two hidden agent markers: `<!-- cr-inline:actor=<login> -->` and
+#   the finding has a `suggestion`), the optional fields above in the order of the finding template, and two hidden
+#   agent markers: `<!-- cr-inline:actor=<login> -->` and
 #   `<!-- cr-inline:finding=<finding id> -->`. The first is an agent marker in the sense of
 #   `rules/code-review/general.md` *Authorship trust*: a reader never takes the comment as a trusted reviewer request.
 #
 # resolve
-#   Resolves every unresolved inline thread that this actor opened (first comment authored by the actor and carrying
-#   its markers) for one of the given finding ids. Give only the ids that the round found fixed. A thread of a finding
-#   that is rejected, deferred, or still open stays unresolved.
+#   Resolves every unresolved inline thread that this actor opened for one of the given finding ids. A comment is the
+#   agent's own only when the actor wrote it and it carries `<!-- cr-inline:actor=<actor> -->`. A thread that holds any
+#   other comment (a reply by another author, a comment of the actor without the marker) is not resolved and is
+#   reported as `has_reply`: its comments are reviewer comments. Every page of the thread comments is read. Give
+#   only the ids that the round found fixed. A thread of a finding that is rejected, deferred, or still open stays unresolved.
 #
 # Output (stdout, one JSON document):
 #   post     {"review_url","review_id","posted":[{finding_id,path,line}],"already_open":[...],"outside_diff":[...],
 #             "withheld":[{finding_id}]}  The caller keeps every `outside_diff` finding in the CR comment. A withheld
 #             finding stays out of every public surface.
-#   resolve  {"resolved":[{finding_id,thread_id}],"not_open":[finding ids with no open thread]}
+#   resolve  {"resolved":[{finding_id,thread_id}],"has_reply":[{finding_id,thread_id}],"not_open":[finding ids with no
+#            open thread]}
 #   stderr   `action=created id=<review id> comments=<n>` or `action=none` for post.
 #
 # Audit trail:
@@ -68,6 +78,8 @@ set -euo pipefail
 PROG="post-inline-review.sh"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$HERE/../../_shared/audit-trail.sh"
+# shellcheck source=../../_shared/github-target.sh
+source "$HERE/../../_shared/github-target.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -107,33 +119,6 @@ require_tools() {
   done
 }
 
-OWNER=""
-REPO=""
-NUMBER=""
-NWO=""
-
-resolve_target() {
-  local input="$1" parsed remote
-  if [[ "$input" =~ ^https?://(www\.)?github\.com/ ]]; then
-    parsed="$(printf '%s' "$input" | sed -nE 's#^https?://(www\.)?github\.com/([^/]+)/([^/]+)/pull/([0-9]+).*#\2 \3 \4#p' || true)"
-    [[ -n "$parsed" ]] || die 1 "could not extract a pull request from URL: $input"
-  elif [[ "$input" =~ ^[0-9]+$ ]]; then
-    remote="$(git config --get remote.origin.url 2>/dev/null || true)"
-    [[ -n "$remote" ]] || die 1 "cannot resolve the repository from the git remote; pass a full URL instead"
-    parsed="$(printf '%s' "$remote" \
-      | sed -E -e 's#^git@github\.com:#https://github.com/#' -e 's#\.git$##' \
-      | sed -nE 's#^https?://github\.com/([^/]+)/([^/]+).*#\1 \2#p')"
-    [[ -n "$parsed" ]] || die 1 "cannot resolve the repository from the git remote; pass a full URL instead"
-    parsed="$parsed $input"
-  else
-    die 1 "argument must be a pull request number or a github.com /pull/<N> URL: $input"
-  fi
-  OWNER="$(printf '%s' "$parsed" | awk '{print $1}')"
-  REPO="$(printf '%s' "$parsed" | awk '{print $2}')"
-  NUMBER="$(printf '%s' "$parsed" | awk '{print $3}')"
-  NWO="${OWNER}/${REPO}"
-}
-
 # --- jq programs: program text this package ships, never built from input -------------------------------
 
 IFS= read -r -d '' JQ_NORMALIZE <<'JQ' || true
@@ -142,11 +127,14 @@ def isint: type == "number" and . == floor and . >= 1;
 def isstr($max): type == "string" and length >= 1 and length <= $max;
 def printable: explode | map(select((. >= 32 and . != 127) or . == 10 or . == 9)) | implode;
 def prose: printable | gsub("<!--"; "&lt;!--") | gsub("-->"; "--&gt;");
+def optstr: . == null or (type == "string" and length >= 1 and length <= 4000);
+def marker_free: . == null or ((type == "string") and ((test("<!--[ ]*[a-z][a-z0-9-]*:(actor|finding|lines)=")) | not));
+def codespan: gsub("`"; "");
 req(type == "array" and length > 0; "the findings document must be a non-empty JSON array")
 | req(length <= 100; "at most 100 findings per review")
 | map(
     req(type == "object"; "every finding must be an object")
-    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly"]) | length) == 0; "a finding holds an unknown key")
+    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "faulty_example", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level"]) | length) == 0; "a finding holds an unknown key")
     | req((.finding_id | type) == "string" and (.finding_id | test("^[rf]-[0-9a-f]{16}$")); "finding_id must be r- or f- and 16 hex digits")
     | req(.severity == "Critical" or .severity == "Moderate"; "severity must be Critical or Moderate")
     | req(.title | isstr(200); "title must be 1 to 200 characters")
@@ -156,9 +144,15 @@ req(type == "array" and length > 0; "the findings document must be a non-empty J
     | req(.side == null or .side == "RIGHT" or .side == "LEFT"; "side must be RIGHT or LEFT")
     | req(.problem | isstr(4000); "problem must be 1 to 4000 characters")
     | req(.fix | isstr(4000); "fix must be 1 to 4000 characters")
-    | req(.suggestion == null or ((.suggestion | type) == "string" and (.suggestion | length) <= 4000 and ((.suggestion | test("<!--[ ]*[a-z][a-z0-9-]*:(actor|finding)=")) | not)); "suggestion must be a string of 4000 characters at most")
+    | req(.suggestion == null or ((.suggestion | type) == "string" and (.suggestion | length) <= 4000); "suggestion must be a string of 4000 characters at most")
+    | req(.suggestion | marker_free; "suggestion must not contain an agent marker")
     | req(.suggestion == null or (.side // "RIGHT") == "RIGHT"; "a suggestion needs side RIGHT")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
+    | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.faulty_example | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, faulty_example, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
+    | req(.faulty_example | marker_free; "faulty_example must not contain an agent marker")
+    | req(.raised_by == null or .raised_by == "splinter" or .raised_by == "leonardo" or .raised_by == "both"; "raised_by must be splinter, leonardo, or both")
+    | req(.level == null or (.severity == "Moderate" and (.level == "High" or .level == "Medium" or .level == "Low")); "level must be High, Medium, or Low and belongs to a Moderate")
+    | req(.author == null or ((.author | type) == "string" and (.author | test("^@[A-Za-z0-9][A-Za-z0-9-]{0,38}$"))); "author must be an @login")
     | {
         finding_id,
         severity,
@@ -169,14 +163,33 @@ req(type == "array" and length > 0; "the findings document must be a non-empty J
         side: (.side // "RIGHT"),
         problem: (.problem | prose),
         fix: (.fix | prose),
-        suggestion,
-        withhold: (.do_not_file_publicly == true)
+        suggestion: (.suggestion | if . == null then null else printable end),
+        withhold: (.do_not_file_publicly == true),
+        rule: (.rule | if . == null then null else prose | codespan end),
+        provenance: (.provenance | if . == null then null else prose end),
+        impact: (.impact | if . == null then null else prose end),
+        evidence: (.evidence | if . == null then null else prose end),
+        faulty_example: (.faulty_example | if . == null then null else printable end),
+        expected_behavior: (.expected_behavior | if . == null then null else prose end),
+        test_hint: (.test_hint | if . == null then null else prose end),
+        raised_by,
+        answered: (.answered | if . == null then null else prose end),
+        author,
+        level
       }
   )
 | reduce .[] as $f ({seen: {}, out: []};
     ("\($f.finding_id) \($f.path) \($f.line)") as $k
     | if .seen[$k] then . else .seen[$k] = true | .out += [$f] end)
 | .out
+JQ
+
+# A thread comment is the agent's own only when the current actor wrote it and it carries the actor's marker.
+# The marker alone grants nothing: any other author, and a comment of the actor without the marker, is a
+# reviewer comment.
+IFS= read -r -d '' JQ_AGENT <<'JQ' || true
+def agent_comment($actor):
+  ((.author.login // "") == $actor) and ((.body // "") | contains("<!-- cr-inline:actor=\($actor) -->"));
 JQ
 
 # Every changed line of one pull-request file, as "<SIDE>\t<line>\t<path>" strings.
@@ -203,10 +216,9 @@ def file_anchors:
     any($threads[0][];
       (.isResolved | not)
       and .path == $f.path
-      and ((.line // .originalLine) == $f.line)
-      and ((.comments.nodes[0].author.login // "") == $actor)
-      and ((.comments.nodes[0].body // "")
-        | (contains("<!-- cr-inline:actor=\($actor) -->") and contains("<!-- cr-inline:finding=\($f.finding_id) -->"))));
+      and (.line == null or .line == $f.line)
+      and (.comments.nodes[0] | agent_comment($actor))
+      and ((.comments.nodes[0].body // "") | contains("<!-- cr-inline:finding=\($f.finding_id) -->")));
   map(
     if .withhold and ($private | not) then {class: "withheld", f: .}
     elif (covered | not) then {class: "outside_diff", f: .}
@@ -218,10 +230,29 @@ JQ
 IFS= read -r -d '' JQ_PAYLOAD <<'JQ' || true
 def fence($s): ([($s | [match("`+"; "g").length] | max) // 0, 2] | max + 1) as $n | ("`" * $n);
 def icon: if . == "Critical" then "🔴" else "🟠" end;
+def labelled($label; $value): if $value == null then empty else "**\($label):** \($value)" end;
+def block($label; $value): if $value == null then empty else "**\($label):**\n\(fence($value))\n\($value)\n\(fence($value))" end;
+def meta:
+  [ labelled("Rule"; (if .rule == null then null else "`\(.rule)`" end)),
+    labelled("Provenance"; .provenance),
+    labelled("Answered"; .answered),
+    labelled("Raised by"; (if .raised_by == null then null else "`\(.raised_by)`" end)),
+    labelled("Level"; (if .level == null then null else "`\(.level)`" end)),
+    labelled("Author"; .author) ]
+  | if length == 0 then empty else map("- " + .) | join("\n") end;
 def render:
-  "\(.severity | icon) **\(.severity)** · `\(.finding_id)` — \(.title)\n\n**Problem:** \(.problem)\n\n**Suggested fix:** \(.fix)"
-  + (if .suggestion == null then "" else "\n\n" + fence(.suggestion) + "suggestion\n" + .suggestion + "\n" + fence(.suggestion) end)
-  + "\n\n<!-- cr-inline:actor=\($actor) -->\n<!-- cr-inline:finding=\(.finding_id) -->";
+  ([ "\(.severity | icon) **\(.severity)** · `\(.finding_id)` — \(.title)",
+     meta,
+     "**Problem:** \(.problem)",
+     labelled("Impact"; .impact),
+     labelled("Evidence"; .evidence),
+     block("Faulty example"; .faulty_example),
+     labelled("Expected behavior"; .expected_behavior),
+     labelled("Test hint"; .test_hint),
+     "**Suggested fix:** \(.fix)",
+     (if .suggestion == null then empty else fence(.suggestion) + "suggestion\n" + .suggestion + "\n" + fence(.suggestion) end),
+     "<!-- cr-inline:actor=\($actor) -->\n<!-- cr-inline:finding=\(.finding_id) -->" ]
+   | join("\n\n"));
 [.[] | select(.class == "post") | .f] as $posted
 | {
     commit_id: $commit,
@@ -231,22 +262,9 @@ def render:
   }
 JQ
 
-THREADS_QUERY='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{id isResolved path line originalLine comments(first:1){nodes{author{login} body}}}}}}}'
+THREADS_QUERY='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{id isResolved path line originalLine comments(first:100){pageInfo{hasNextPage endCursor} nodes{author{login} body}}}}}}}'
+COMMENTS_QUERY='query($threadId:ID!,$cursor:String){node(id:$threadId){... on PullRequestReviewThread{comments(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{author{login} body}}}}}'
 RESOLVE_MUTATION='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{isResolved}}}'
-
-get_actor() {
-  local attempt err
-  ACTOR=""
-  err="$TMP_ROOT/actor.err"
-  for attempt in 1 2 3; do
-    if ACTOR="$(gh api user --jq .login 2>"$err")" && [[ -n "$ACTOR" ]]; then
-      return 0
-    fi
-    ACTOR=""
-    if [[ $attempt -lt 3 ]]; then sleep 1; fi
-  done
-  die 3 "failed to resolve the current GitHub actor after 3 attempts: $(cat "$err" 2>/dev/null || true)"
-}
 
 # Writes the review threads of the pull request, every page, to the file given as $1 as one JSON array.
 fetch_threads() {
@@ -270,11 +288,42 @@ fetch_threads() {
     jq -s '.[0] + .[1].data.repository.pullRequest.reviewThreads.nodes' "$out" "$TMP_ROOT/page.json" >"$out.next"
     mv "$out.next" "$out"
     if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' "$TMP_ROOT/page.json")" != "true" ]]; then
+      extend_thread_comments "$out"
       return 0
     fi
     cursor="$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty' "$TMP_ROOT/page.json")"
     [[ -n "$cursor" ]] || die 3 "review thread lookup on ${NWO}#${NUMBER} returned a next page without a cursor, nothing was published"
   done
+}
+
+# Pages the comments of every thread whose comment list has a next page, so a reply past the first 100 is seen.
+extend_thread_comments() {
+  local file="$1" thread_id cursor page resp
+  while IFS= read -r thread_id; do
+    cursor="$(jq -r --arg id "$thread_id" '.[] | select(.id == $id) | .comments.pageInfo.endCursor // empty' "$file")"
+    page=0
+    while [[ -n "$cursor" ]]; do
+      page=$((page + 1))
+      if [[ $page -gt 50 ]]; then
+        die 3 "more than 50 pages of comments in one review thread on ${NWO}#${NUMBER}; nothing was published"
+      fi
+      resp="$(gh api graphql -f query="$COMMENTS_QUERY" -f threadId="$thread_id" -f cursor="$cursor" 2>"$TMP_ROOT/comments.err")" \
+        || die 3 "review thread comment lookup failed on ${NWO}#${NUMBER}, nothing was published: $(cat "$TMP_ROOT/comments.err")"
+      printf '%s' "$resp" >"$TMP_ROOT/page.json"
+      jq -e '.data.node.comments.nodes | type == "array"' "$TMP_ROOT/page.json" >/dev/null 2>&1 \
+        || die 3 "review thread comment lookup on ${NWO}#${NUMBER} returned no comment list, nothing was published"
+      jq --arg id "$thread_id" --slurpfile page "$TMP_ROOT/page.json" '
+        map(if .id == $id
+            then .comments.nodes += $page[0].data.node.comments.nodes | .comments.pageInfo = $page[0].data.node.comments.pageInfo
+            else . end)' "$file" >"$file.next"
+      mv "$file.next" "$file"
+      if [[ "$(jq -r '.data.node.comments.pageInfo.hasNextPage' "$TMP_ROOT/page.json")" == "true" ]]; then
+        cursor="$(jq -r '.data.node.comments.pageInfo.endCursor // empty' "$TMP_ROOT/page.json")"
+      else
+        cursor=""
+      fi
+    done
+  done < <(jq -r '.[] | select(.comments.pageInfo.hasNextPage == true) | .id' "$file")
 }
 
 read_head() {
@@ -315,7 +364,7 @@ cmd_post() {
   jq "$JQ_NORMALIZE" "$TMP_ROOT/findings.raw" >"$TMP_ROOT/findings.json" 2>"$TMP_ROOT/normalize.err" \
     || die 1 "invalid findings document: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/normalize.err" | head -n 1)"
 
-  get_actor
+  github_actor_resolve || exit 3
   read_head
   if [[ "$HEAD_SHA" != "$commit" ]]; then
     echo "$PROG: the commit id ${commit} is not the current head ${HEAD_SHA} of ${NWO}#${NUMBER}; nothing was published" >&2
@@ -335,7 +384,7 @@ cmd_post() {
   fetch_threads "$TMP_ROOT/threads.json"
 
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
-    --arg actor "$ACTOR" --argjson private "$private" "$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
+    --arg actor "$ACTOR" --argjson private "$private" "$JQ_AGENT"$'\n'"$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
 
   local to_post
   to_post="$(jq '[.[] | select(.class == "post")] | length' "$TMP_ROOT/classified.json")"
@@ -390,19 +439,22 @@ cmd_resolve() {
   [[ -n "$fixed" ]] || { usage; exit 1; }
   printf '%s' "$fixed" | grep -Eq '^[rf]-[0-9a-f]{16}(,[rf]-[0-9a-f]{16})*$' || die 1 "--fixed must be a comma-separated list of finding ids"
 
-  get_actor
+  github_actor_resolve || exit 3
   fetch_threads "$TMP_ROOT/threads.json"
 
   jq -n --arg ids "$fixed" '$ids | split(",")' >"$TMP_ROOT/fixed.json"
-  jq --slurpfile fixed "$TMP_ROOT/fixed.json" --arg actor "$ACTOR" '
+  jq --slurpfile fixed "$TMP_ROOT/fixed.json" --arg actor "$ACTOR" "$JQ_AGENT"'
     [.[]
       | select(.isResolved | not)
-      | select((.comments.nodes[0].author.login // "") == $actor)
+      | select(.comments.nodes[0] | agent_comment($actor))
       | (.comments.nodes[0].body // "") as $body
-      | select($body | contains("<!-- cr-inline:actor=\($actor) -->"))
       | ($body | capture("<!-- cr-inline:finding=(?<id>[rf]-[0-9a-f]{16}) -->")? // null) as $m
       | select($m != null and ($fixed[0] | index($m.id)) != null)
-      | {finding_id: $m.id, thread_id: .id}]' "$TMP_ROOT/threads.json" >"$TMP_ROOT/targets.json"
+      | {finding_id: $m.id, thread_id: .id,
+         reply: ((.comments.pageInfo.hasNextPage // false) or any(.comments.nodes[]; agent_comment($actor) | not))}]' \
+    "$TMP_ROOT/threads.json" >"$TMP_ROOT/matched.json"
+  jq '[.[] | select(.reply | not) | {finding_id, thread_id}]' "$TMP_ROOT/matched.json" >"$TMP_ROOT/targets.json"
+  jq '[.[] | select(.reply) | {finding_id, thread_id}]' "$TMP_ROOT/matched.json" >"$TMP_ROOT/replies.json"
 
   local count i thread_id finding_id rc failed=0
   count="$(jq 'length' "$TMP_ROOT/targets.json")"
@@ -425,12 +477,13 @@ cmd_resolve() {
     i=$((i + 1))
   done
 
-  jq -n --slurpfile targets "$TMP_ROOT/targets.json" --slurpfile fixed "$TMP_ROOT/fixed.json" \
+  jq -n --slurpfile targets "$TMP_ROOT/targets.json" --slurpfile replies "$TMP_ROOT/replies.json" --slurpfile fixed "$TMP_ROOT/fixed.json" \
     --rawfile closed "$TMP_ROOT/resolved.ids" '
     ($closed | split("\n") | map(select(. != "") | tonumber)) as $idx
     | [$idx[] as $i | $targets[0][$i]] as $resolved
     | {resolved: $resolved,
-       not_open: [$fixed[0][] | select(. as $id | ([$targets[0][] | .finding_id] | index($id)) == null)]}'
+       has_reply: $replies[0],
+       not_open: [$fixed[0][] | select(. as $id | ([$targets[0][], $replies[0][] | .finding_id] | index($id)) == null)]}'
   if [[ "$failed" -gt 0 ]]; then
     exit 3
   fi
@@ -466,6 +519,7 @@ case "$*" in
     if [[ "${GH_RESOLVE_FAILS:-0}" == "1" ]]; then echo 'gh: boom' >&2; exit 1; fi
     echo '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
     ;;
+  "api graphql "*"node(id"*) cat "$GH_NODE_PAGE" ;;
   "api graphql "*)
     if [[ "$*" == *"cursor="* ]]; then cat "$GH_THREADS_2"; else cat "$GH_THREADS_1"; fi
     ;;
@@ -492,6 +546,7 @@ JSON
   cp "$tmp/threads.empty" "$tmp/threads.2"
 
   local id1="r-1111111111111111" id2="r-2222222222222222" id3="r-3333333333333333" id4="r-4444444444444444"
+  local id5="r-5555555555555555" id6="r-6666666666666666" id7="r-7777777777777777"
   local out rc
 
   # run_post <label> <findings json> [env assignments...]: runs `post` against the stub, sets $out, $rc.
@@ -504,7 +559,7 @@ JSON
     set +e
     out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="$tmp/files.json" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
-      GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
+      GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" - <<<"$findings" 2>"$tmp/stderr")"
     rc=$?
     set -e
@@ -587,7 +642,13 @@ JSON
  {"id":"T3","isResolved":false,"path":"src/A.php","line":10,"originalLine":10,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}}]}}}}}
 JSON
   run_post "[$f_in]"
-  check 'a resolved thread, a forged marker, and another line post the finding again' "$(yes_if review_has '.comments | length == 1')"
+  check 'a resolved thread, a forged marker, and another live line post the finding again' "$(yes_if review_has '.comments | length == 1')"
+  cat >"$tmp/threads.2" <<JSON
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+ {"id":"T4","isResolved":false,"path":"src/A.php","line":null,"originalLine":9,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}}]}}}}}
+JSON
+  run_post "[$f_in]"
+  check 'an outdated thread of the same finding id is not duplicated' "$([[ ! -s "$tmp/review.calls" ]] && yes_if out_has ".already_open[0].finding_id == \"$id1\"" || echo no)"
 
   # 8. visibility: public withholds a do_not_file_publicly finding, private posts it, a failed check is public
   local f_sec
@@ -617,10 +678,17 @@ JSON
     "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"../etc/passwd\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"start_line\":11,\"problem\":\"p\",\"fix\":\"f\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":30,\"side\":\"LEFT\",\"problem\":\"p\",\"fix\":\"f\",\"suggestion\":\"x\"}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"extra\":1}]"; do
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"extra\":1}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"suggestion\":\"<!-- cr-inline:finding=$id2 -->\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"faulty_example\":\"<!-- cr-inline:actor=bot -->\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"level\":\"High\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"raised_by\":\"someone\"}]"; do
     run_post "$bad"
     check "invalid document is refused: ${bad:0:40}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
   done
+
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\",\"suggestion\":\"<!-- cr-inline:finding=$id2 -->\"}]"
+  check 'a suggestion with a marker is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'suggestion must not contain an agent marker' "$tmp/stderr" && echo yes || echo no)"
 
   # 11. text from the finding cannot forge a marker, and a backtick run in a suggestion gets a longer fence
   local f_forge
@@ -629,6 +697,19 @@ JSON
   check 'a forged marker in the problem text is neutralised' "$(yes_if review_has ".comments[0].body | contains(\"<!-- cr-inline:finding=$id2 -->\") | not")"
   check 'a suggestion with backticks gets a longer fence' "$(yes_if review_has '.comments[0].body | contains($bt + $bt[0:1] + "suggestion\na " + $bt + "b" + $bt + "\n" + $bt + $bt[0:1])')"
 
+  # 13. the fields of a published finding reach the inline comment, in the template order
+  local f_full
+  f_full="{\"finding_id\":\"$id3\",\"severity\":\"Moderate\",\"title\":\"Query in a loop\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"One query per row.\",\"fix\":\"Batch it.\",\"rule\":\"@rules/sql/optimalize.md#batch\",\"provenance\":\"regression — introduced in this revision\",\"impact\":\"Slow page.\",\"evidence\":\"logic-trace — the loop at line 11\",\"faulty_example\":\"foreach (\$rows as \$r) { find(\$r); }\",\"expected_behavior\":\"One query.\",\"test_hint\":\"Feature test on the list page.\",\"raised_by\":\"splinter\",\"answered\":\"https://github.com/o/r/pull/7#issuecomment-1 — \`human\`, 2026-11-13\",\"author\":\"@octocat\",\"level\":\"High\"}"
+  cp "$tmp/threads.empty" "$tmp/threads.1"
+  cp "$tmp/threads.empty" "$tmp/threads.2"
+  run_post "[$f_full]"
+  check 'the inline comment carries the Rule field in a code span' "$(yes_if review_has '.comments[0].body | contains("- **Rule:** `@rules/sql/optimalize.md#batch`")')"
+  check 'the inline comment carries Provenance, Raised by, Level, Author, and Answered' "$(yes_if review_has '.comments[0].body | contains("- **Provenance:** regression — introduced in this revision") and contains("- **Raised by:** `splinter`") and contains("- **Level:** `High`") and contains("- **Author:** @octocat") and contains("- **Answered:** https://github.com/o/r/pull/7#issuecomment-1")')"
+  check 'the inline comment carries Impact, Evidence, Expected behavior, and Test hint' "$(yes_if review_has '.comments[0].body | contains("**Impact:** Slow page.") and contains("**Evidence:** logic-trace") and contains("**Expected behavior:** One query.") and contains("**Test hint:** Feature test on the list page.")')"
+  check 'the inline comment carries the Faulty example in a code block' "$(yes_if review_has '.comments[0].body | contains("**Faulty example:**\n" + $bt + "\nforeach ($rows as $r) { find($r); }\n" + $bt)')"
+  check 'the fields come before the suggested fix and the markers' "$(yes_if review_has '.comments[0].body | (index("**Problem:**") < index("**Evidence:**")) and (index("**Test hint:**") < index("**Suggested fix:**")) and (index("**Suggested fix:**") < index("<!-- cr-inline:actor=bot -->"))')"
+  check 'a finding without the optional fields renders none of their labels' "$(run_post "[$f_in]"; yes_if review_has '.comments[0].body | (contains("**Provenance:**") or contains("**Evidence:**") or contains("**Rule:**")) | not')"
+
   # 12. resolve: only the threads of this actor for the given ids, and a failed mutation is a failure
   cat >"$tmp/threads.1" <<JSON
 {"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
@@ -636,23 +717,33 @@ JSON
  {"id":"TB","isResolved":false,"path":"src/A.php","line":12,"originalLine":12,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id2 -->"}]}},
  {"id":"TC","isResolved":false,"path":"src/A.php","line":13,"originalLine":13,"comments":{"nodes":[{"author":{"login":"stranger"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}},
  {"id":"TD","isResolved":true,"path":"src/A.php","line":14,"originalLine":14,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}},
- {"id":"TE","isResolved":false,"path":"src/A.php","line":15,"originalLine":15,"comments":{"nodes":[{"author":{"login":"human"},"body":"please rename"}]}}]}}}}}
+ {"id":"TE","isResolved":false,"path":"src/A.php","line":15,"originalLine":15,"comments":{"nodes":[{"author":{"login":"human"},"body":"please rename"}]}},
+ {"id":"TF","isResolved":false,"path":"src/A.php","line":16,"originalLine":16,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id5 -->"},{"author":{"login":"human"},"body":"this is incomplete, also validate X"}]}},
+ {"id":"TG","isResolved":false,"path":"src/A.php","line":17,"originalLine":17,"comments":{"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id6 -->"},{"author":{"login":"bot"},"body":"operator reply under the shared account, no marker"}]}},
+ {"id":"TH","isResolved":false,"path":"src/A.php","line":18,"originalLine":18,"comments":{"pageInfo":{"hasNextPage":true,"endCursor":"k1"},"nodes":[{"author":{"login":"bot"},"body":"<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id7 -->"}]}}]}}}}}
+JSON
+  cat >"$tmp/node.page" <<'JSON'
+{"data":{"node":{"comments":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[{"author":{"login":"human"},"body":"a late reply on page two"}]}}}}
 JSON
   : >"$tmp/resolves"
   : >"$tmp/ledger.audit"
   set +e
-  out="$(PATH="$bin:$PATH" GH_ACTOR=bot GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_RESOLVES="$tmp/resolves" \
-    AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo bash "$script" resolve https://github.com/o/r/pull/7 --fixed "$id1,$id4" 2>"$tmp/stderr")"
+  out="$(PATH="$bin:$PATH" GH_ACTOR=bot GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" \
+    AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo bash "$script" resolve https://github.com/o/r/pull/7 --fixed "$id1,$id4,$id5,$id6,$id7" 2>"$tmp/stderr")"
   rc=$?
   set -e
   check 'resolve exits 0' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   check 'resolve closes only the open thread of this actor for a fixed id' "$([[ "$(wc -l <"$tmp/resolves" | tr -d ' ')" == "1" ]] && grep -q 'threadId=TA' "$tmp/resolves" && echo yes || echo no)"
   check 'resolve reports the resolved thread and the id with no open thread' "$(yes_if out_has ".resolved[0].thread_id == \"TA\" and .not_open == [\"$id4\"]")"
+  check 'a thread with a reply by another author is reported as has_reply and not resolved' "$(yes_if out_has ".has_reply | map(.thread_id) | contains([\"TF\"])")"
+  check 'a reply of the actor without its marker counts as a reviewer comment' "$(yes_if out_has ".has_reply | map(.thread_id) | contains([\"TG\"])")"
+  check 'a reply on a later page of the thread comments is found' "$(yes_if out_has ".has_reply | map(.thread_id) | contains([\"TH\"]) and length == 3")"
+  check 'a thread with a reply is not an unopened finding' "$(yes_if out_has ".not_open == [\"$id4\"]")"
   check 'resolve leaves one external-write audit line' "$([[ "$(grep -c '|external-write|resolve review thread' "$tmp/ledger.audit")" == "1" ]] && echo yes || echo no)"
   : >"$tmp/resolves"
   : >"$tmp/ledger.audit"
   set +e
-  out="$(PATH="$bin:$PATH" GH_ACTOR=bot GH_RESOLVE_FAILS=1 GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_RESOLVES="$tmp/resolves" \
+  out="$(PATH="$bin:$PATH" GH_ACTOR=bot GH_RESOLVE_FAILS=1 GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" \
     AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo bash "$script" resolve https://github.com/o/r/pull/7 --fixed "$id1" 2>"$tmp/stderr")"
   rc=$?
   set -e
@@ -690,7 +781,7 @@ main() {
   fi
   require_tools
   TMP_ROOT="$(mktemp -d)"
-  resolve_target "$1"
+  github_target_resolve "$1" pull || exit 1
   shift
   if [[ "$sub" == "post" ]]; then
     cmd_post "$@"

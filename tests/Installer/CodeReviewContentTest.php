@@ -215,19 +215,16 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
     $githubScriptBody = (string) file_get_contents($githubScript);
     expect($githubScriptBody)->toContain('MARKER_KEY="${3:-cr-comment}"');
     expect($githubScriptBody)->toContain('<!-- ${MARKER_KEY}:actor=${ACTOR} -->');
-    expect($githubScriptBody)->toContain('gh api user --jq .login');
-    // Issue #519: a transient `gh api user` failure (rate limit, network blip,
-    // token refresh) used to crash with a misleading "is gh authenticated?"
-    // message because stderr and exit code were both swallowed. The script
-    // now retries up to three times, captures the underlying stderr, and
-    // surfaces the real error to the caller.
-    expect($githubScriptBody)->toContain('ACTOR_STDERR="$(mktemp)"');
-    expect($githubScriptBody)->toContain('trap \'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"\' EXIT');
-    expect($githubScriptBody)->toContain('for attempt in 1 2 3; do');
-    expect($githubScriptBody)->toContain('gh api user --jq .login 2>"$ACTOR_STDERR"');
-    expect($githubScriptBody)->toContain('failed to resolve current GitHub actor after 3 attempts');
-    expect($githubScriptBody)->toContain('(run: gh auth status)');
-    expect($githubScriptBody)->not->toContain('gh api user --jq .login 2>/dev/null');
+    $targetHelperBody = (string) file_get_contents($packageDir . '/skills/_shared/github-target.sh');
+    expect($githubScriptBody)->toContain('github_actor_resolve || exit 3');
+    expect($githubScriptBody)->toContain('github_target_resolve "$INPUT" \'issues|pull\' || exit 1');
+    expect($githubScriptBody)->toContain('trap \'rm -f "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"\' EXIT');
+    expect($githubScriptBody)->not->toContain('for attempt in 1 2 3; do');
+    expect($targetHelperBody)->toContain('gh api user --jq .login 2>"$err_file"');
+    expect($targetHelperBody)->toContain('for attempt in 1 2 3; do');
+    expect($targetHelperBody)->toContain('failed to resolve current GitHub actor after 3 attempts');
+    expect($targetHelperBody)->toContain('(run: gh auth status)');
+    expect($targetHelperBody)->not->toContain('gh api user --jq .login 2>/dev/null');
     // Update in place on GitHub: the helper looks the marker-carrying comment up
     // and PATCHes it, so a PR carries one permanent cr-comment per actor. The
     // POST branch survives as the no-match case only.
