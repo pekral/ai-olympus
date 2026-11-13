@@ -112,12 +112,44 @@ test('a race, replay, or retry on a security surface is a security finding that 
         ->and($section)->toContain('Off an S3 surface, a client retry with no idempotency key belongs to `api-review` *Idempotency keys*')
         ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
         ->and($section)->toContain(
-            'On a project that implements MPP, a replayed or concurrently settled credential is the '
+            'On a project that implements MPP, a replayed or concurrently settled MPP credential is the '
             . '*Idempotent settlement under concurrency* finding of `@skills/machine-payments-protocol/SKILL.md`. '
             . 'It stays a security finding at the higher of the two severities, and this entry raises no second one.',
         )
         ->and($section)->not->toContain('a replayed MPP credential on a project that implements MPP to')
         ->and($section)->not->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md`');
+});
+
+test('each entry routes every other lens that raises the same question on the same line', function (): void {
+    $section = architecturePrinciplesSection();
+    $audit = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/simplification-audit/SKILL.md');
+
+    expect($section)->toContain(
+        'On a latency-critical surface, the missing readback is the finding of '
+        . '`@skills/latency-critical-systems/SKILL.md` with `MODE=cr`, and this entry raises no second one.',
+    )
+        ->and($section)->toContain('*SQL query reuse of existing indexes*, and *SQL query performance non-regression*')
+        ->and($section)->toContain('the database lens (the engine-resolved lens and the advisory `casey` report)')
+        ->and($section)->toContain(
+            'A collaborator an Action needs but receives through `__invoke()` instead of its constructor '
+            . 'is the constructor-injection finding of **Architecture conformance (Laravel)**.',
+        )
+        ->and($section)->toContain('This entry covers only a collaborator the class never calls.')
+        ->and($section)->toContain(
+            'A set of booleans that permits invalid combinations is the state-representation finding of '
+            . '`@skills/simplification-audit/SKILL.md` with `MODE=cr`.',
+        )
+        ->and($section)->toContain('an HTTP method whose repeat breaks its idempotence contract belongs to `api-review` *HTTP methods & idempotence*')
+        ->and($section)->toContain('an upsert with no backing unique index or a concurrent transaction with no deadlock retry to the schema-pattern lens')
+        ->and($section)->toContain(
+            'A lifecycle or async state whose representation permits stale or contradictory values is the representation finding of '
+            . '`@skills/simplification-audit/SKILL.md` with `MODE=cr`. '
+            . 'This entry raises a finding only for a failure or an interleaving it traced.',
+        )
+        ->and($audit)->toContain(
+            '*Architecture principles — one lens, one finding format* owns the failure and concurrency trace of a state change, '
+            . 'a flag parameter at its call site, and a dependency the code does not need.',
+        );
 });
 
 test('the preference clause keeps the review inside the scope of the change', function (): void {
