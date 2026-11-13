@@ -17,7 +17,7 @@ metadata:
 ---
 
 ## Scope
-Perform code review for JIRA issues by analyzing related pull requests and publishing results to:
+Perform code review for JIRA issues by analyzing related pull requests (the review covers exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*, with no out-of-scope observation and no follow-up proposal) and publishing results to:
 - GitHub (technical findings)
 - JIRA (human-readable summary)
 

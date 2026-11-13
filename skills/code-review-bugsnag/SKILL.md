@@ -14,7 +14,7 @@ metadata:
 ---
 
 ## Scope
-Perform code review for a fix linked to a Bugsnag error by analyzing the related pull request and publishing results to:
+Perform code review for a fix linked to a Bugsnag error by analyzing the related pull request (the review covers exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*, with no out-of-scope observation and no follow-up proposal) and publishing results to:
 - GitHub (technical findings, on the linked PR)
 - Bugsnag (human-readable summary, as a comment on the error)
 

@@ -123,9 +123,10 @@ Review findings
     (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
-  - A finding outside the assignment — a pre-existing defect, or behaviour the
-    assignment does not ask for — appears only when it is Critical. Every other
-    finding outside the assignment stays on the pull request.
+  - A finding about behaviour the assignment does not ask for appears only when
+    it is Critical. The review carries no other out-of-scope point and no
+    follow-up proposal (@rules/code-review/general.md, What a code review checks,
+    and nothing else), so none is listed.
   - When the review has no point to resolve, or no review has run yet, render
     one sentence that says so, and no bullets.
   - The findings new in this review come first. The heading "Already reported

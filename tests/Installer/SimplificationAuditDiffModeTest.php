@@ -13,7 +13,7 @@ test('the skill owns one diff mode whose findings anchor only to a changed line'
     expect($section)->toContain('inside every code review');
     expect($section)->toContain('The mode reads the changed lines, and the code they directly call or replace, only to judge the changed lines.');
     expect($section)->toContain('Every finding anchors to a changed line.');
-    expect($section)->toContain('goes to the reviewer\'s out-of-scope observations, never into the published comment.');
+    expect($section)->toContain('is dropped, never published.');
     expect($section)->toContain('the same five dimensions');
     expect($section)->toContain('`references/worker-brief.md`');
     expect($section)->toContain('*Never force an abstraction*');

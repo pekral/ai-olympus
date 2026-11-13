@@ -16,7 +16,7 @@ A code review does not run `@skills/class-refactoring/SKILL.md` or `@skills/refa
 
 - **Duplication that violates a rule is a finding.** *Reuse of existing logic* in `@rules/code-review/core-analysis.md` owns the reuse-first gate at its own severity.
 - **The three frontend lenses run as usual.** `frontend-patterns`, `frontend-a11y`, and `design-system` own what is inside a component.
-- **An out-of-scope problem a reviewer notices goes into the reviewer's handoff.** When it clears the filing bar, it becomes its own tracker issue (`@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar*).
+- **An out-of-scope problem a reviewer notices is dropped.** The one exception is a security vulnerability, which the reviewer's handoff reports (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
 
 ## Validation & Coverage Gate
 

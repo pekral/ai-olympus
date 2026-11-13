@@ -14,6 +14,24 @@ paths:
 - Load existing review comments and reports when available.
 - Do not repeat already reported findings. On a pull request that has already been reviewed once, *Incremental Review Scope — Diff Since the Last Reviewed Revision* below defines what "already reported" means: which findings a later round drops, which it must carry over, and how the round's scope is resolved.
 
+## What a code review checks, and nothing else (issue #455)
+
+This section is the one owner of the subject of a code review. Every other file points here and never restates it.
+
+A code review covers exactly four areas, in this order:
+
+1. **Functionality against the assignment.** The change does what the assignment asks, and every acceptance criterion is met (`@skills/code-review/references/assignment-conformance-gate.md`).
+2. **Security.** The security floor of the Exclusion Gate (S1–S3), the security skills, and `@rules/security/**`.
+3. **Database optimisation.** The query, index, and data-access problems of the changed lines: the database lens and the `casey` report.
+4. **Code rules.** The package rules and the project instructions, applied to the changed lines.
+
+The review has no other content:
+
+- **No follow-up proposal.** The review proposes no follow-up issue, no "file this later" suggestion, and no TODO for another person.
+- **No point unrelated to the assignment.** A point outside the assignment that is not a security issue is dropped. It is not a finding, not an observation, not a nice-to-have, and not a note in the handoff.
+- **The security exception stays.** A security vulnerability found outside the assignment is never dropped. The reviewer reports it in its handoff (`@agents/leonardo.md` *Hand a security vulnerability found outside the assignment to the agent that files issues*). The security floor never moves.
+- **An unrequested change in the diff is a point about the assignment.** It stays a finding of area 1 (*Changes → requirements* in the Assignment Conformance Gate).
+
 ## Code Context
 - Ensure the review is based on the latest available state of:
     - main branch
@@ -367,7 +385,7 @@ A review raises questions from two sources. A reviewer asks one on the pull requ
   4. Otherwise add a small new part where the invariant belongs.
   Never recommend a new abstraction where an existing part fits (*Reuse Existing Logic* above).
 - A recommendation never weakens security. It keeps every authorization, validation, and trust-boundary check that `@rules/security/**` requires. It says which check protects the recommended path. When the reviewer's own proposal would remove such a check or break the project's layering, the answer says so, names the rule, and recommends the alternative that fits.
-- A recommendation stays inside the assignment. When the fix belongs outside the pull request, the answer says so and the point follows *File deferred points as follow-up tracker issues* in `@rules/compound-engineering/tracker.md`.
+- A recommendation stays inside the assignment. When the fix belongs outside the pull request, the answer says so and proposes no follow-up issue (*What a code review checks, and nothing else*).
 
 **Consequence — an answer that finds a defect is a finding, too.** When the verification shows the code is wrong, the defect enters the review as an ordinary finding at its ordinary severity, with its reproducer fields. The answer points to that finding. It never replaces the finding.
 

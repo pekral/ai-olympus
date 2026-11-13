@@ -6,6 +6,8 @@ The cap round — the round equal to `review.max-iterations`, round 3 by default
 
 A new Moderate that the cap round itself finds is never reported, because a later round raises only new Critical findings and security findings (`@rules/code-review/general.md` *Later rounds raise only new Critical findings*). The table therefore holds the Moderate findings that an earlier round raised and that are still open, plus a security Moderate at any round.
 
+The triage below is the loop's own handling of a finding on the assignment's diff. It is not a follow-up proposal of the review: the review proposes none, and it drops every point outside the assignment except a security vulnerability (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
+
 ## Resolution table — every remaining finding lands in exactly one row
 
 | Remaining finding at the cap round | Outcome | Effect on the convergence gate |

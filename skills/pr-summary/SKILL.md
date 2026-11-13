@@ -126,7 +126,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - **List only what must be resolved before the merge.** This skill is the one owner of the rule; the wrappers and the templates only point here.
     1. **Two kinds of point are listed:** a defect (a finding of the technical report with evidence that blocks the merge) and an open question that needs an answer.
     2. **Every such point is listed.** Read the whole technical report, and leave out none of the points that must be resolved.
-    3. **A point that needs no action is not listed:** a resolved point, a deferred point, an informational point, and a finding outside the assignment that is not Critical (a pre-existing defect, or behaviour the assignment does not ask for). This holds on every target.
+    3. **A point that needs no action is not listed:** a resolved point, a deferred point, an informational point, and a finding about behaviour the assignment does not ask for that is not Critical. This holds on every target. The review carries no other out-of-scope point and no follow-up proposal (`@rules/code-review/general.md` *What a code review checks, and nothing else*), so none is listed.
     4. **An assumption, a hypothesis, or an unverified suspicion is never listed** (`@rules/general/general.md` *Verified statements only*). Such a point stays in the technical report, under `## Needs verification` and on the `Not verified:` line.
   - Write one bullet per listed point, as a TL;DR of its solution for a human, backed by evidence (*A finding bullet is a TL;DR of the solution, backed by evidence* below). Plain prose only.
   - Put the points that block the release first, and say in words that they block it. Never write a severity label.

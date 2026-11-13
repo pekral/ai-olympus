@@ -26,9 +26,8 @@ test('the code-review rule owns the later-round filter with the security floor a
 test('every other file points at the owner and none restates the filter (issue #455)', function (string $path): void {
     $content = laterRoundsFile($path);
 
-    expect($content)
-        ->toContain('Later rounds raise only new Critical findings')
-        ->not->toContain('A new finding is raised only when it is Critical.');
+    expect($content)->toContain('Later rounds raise only new Critical findings');
+    expect($content)->not->toContain('A new finding is raised only when it is Critical.');
 })->with([
     'skills/process-code-review/SKILL.md',
     'skills/process-code-review/references/review-loop-scope.md',
@@ -63,3 +62,76 @@ test('the review-state self-test covers the later-round filter (issue #455)', fu
     'the security floor: a new security finding in round 2 is recorded at its severity and blocks',
     'a resolved earlier finding that returns is reopened and tracked, never ignored',
 ]);
+
+test('the code-review rule owns the four areas of a review and drops everything else (issue #455)', function (): void {
+    $rule = laterRoundsFile('rules/code-review/general.md');
+
+    expect($rule)
+        ->toContain('## What a code review checks, and nothing else (issue #455)')
+        ->toContain('This section is the one owner of the subject of a code review. Every other file points here and never restates it.')
+        ->toContain('A code review covers exactly four areas, in this order:')
+        ->toContain('1. **Functionality against the assignment.**')
+        ->toContain('2. **Security.**')
+        ->toContain('3. **Database optimisation.**')
+        ->toContain('4. **Code rules.**')
+        ->toContain('- **No follow-up proposal.** The review proposes no follow-up issue')
+        ->toContain('- **No point unrelated to the assignment.** A point outside the assignment that is not a security issue is dropped.')
+        ->toContain('- **The security exception stays.** A security vulnerability found outside the assignment is never dropped.')
+        ->toContain('The security floor never moves.');
+    expect(mb_strpos($rule, '1. **Functionality against the assignment.**'))
+        ->toBeLessThan((int) mb_strpos($rule, '2. **Security.**'))
+        ->and(mb_strpos($rule, '3. **Database optimisation.**'))
+        ->toBeLessThan((int) mb_strpos($rule, '4. **Code rules.**'));
+});
+
+test('every review surface points at the owner of the four areas (issue #455)', function (string $path): void {
+    $content = laterRoundsFile($path);
+
+    expect($content)->toContain('What a code review checks, and nothing else');
+    expect($content)->not->toContain('The review covers exactly four areas, in this order');
+})->with([
+    'agents/leonardo.md',
+    'agents/splinter.md',
+    'skills/code-review/SKILL.md',
+    'skills/code-review-github/SKILL.md',
+    'skills/code-review-jira/SKILL.md',
+    'skills/code-review-bugsnag/SKILL.md',
+    'skills/code-review-github/references/cr-wrapper-contract.md',
+    'skills/code-review/templates/review-output.md',
+    'skills/code-review-github/templates/pr-comment-output.md',
+    'skills/pr-summary/SKILL.md',
+    'skills/process-code-review/references/round-three-deferral.md',
+    'rules/code-review/review-process.md',
+]);
+
+test(
+    'the review no longer records an out-of-scope observation or proposes a follow-up issue (issue #455)',
+    function (string $path, string $retired): void {
+        expect(laterRoundsFile($path))->not->toContain($retired);
+    },
+)->with([
+    'krang critical pre-existing' => ['agents/krang.md', 'critical pre-existing problems'],
+    'lens follow-up items' => ['skills/code-review/references/specialized-reviews.md', 'travel in the reviewer\'s handoff as follow-up items'],
+    'leonardo critical field' => ['agents/leonardo.md', '**Critical out-of-scope findings:**'],
+    'leonardo filed issue' => ['agents/leonardo.md', 'any filed out-of-scope issue'],
+    'leonardo observation field' => ['agents/leonardo.md', '**Out-of-scope observations:**'],
+    'review files an issue' => ['skills/code-review/references/specialized-reviews.md', 'to file an out-of-scope item'],
+    'review process handoff' => ['rules/code-review/review-process.md', 'goes into the reviewer\'s handoff. When it clears the filing bar'],
+    'splinter observation field' => ['agents/splinter.md', '*Out-of-scope observations*'],
+    'wrapper handoff filing' => [
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'becomes a tracker issue only when it clears the filing bar',
+    ],
+]);
+
+test('the security exception for a vulnerability outside the assignment stays (issue #455)', function (): void {
+    $leonardo = laterRoundsFile('agents/leonardo.md');
+    $krang = laterRoundsFile('agents/krang.md');
+
+    expect($leonardo)
+        ->toContain('- **Security findings outside the assignment:**')
+        ->toContain('The one exception is a **security vulnerability**, because leaving it unreported means nobody learns of it at all.')
+        ->toContain('**Never disclose an unfixed vulnerability on a public tracker.**')
+        ->toContain('Mark every item `do not file publicly`');
+    expect($krang)->toContain('**Never file an item marked `do not file publicly`**');
+});

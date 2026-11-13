@@ -62,13 +62,13 @@ test('every target template carries the TL;DR and lists only the points to resol
     expect($github)
         ->toContain('the rule that each finding is a TL;DR of its solution')
         ->toContain('lists only the points that must be resolved')
-        ->toContain('and never an assumption, a hypothesis, or a point with no evidence.')
-        ->not->toContain('### Not verified');
+        ->toContain('and never an assumption, a hypothesis, or a point with no evidence.');
+    expect($github)->not->toContain('### Not verified');
     expect($bugsnag)
         ->toContain('the rule that each finding is a TL;DR of its solution')
         ->toContain('lists only the points that must be resolved')
-        ->toContain('defect or an open question. It lists every such point, and never an')
-        ->not->toContain('"Not verified"');
+        ->toContain('defect or an open question. It lists every such point, and never an');
+    expect($bugsnag)->not->toContain('"Not verified"');
     expect($jira)
         ->toContain(
             '* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: '
@@ -77,9 +77,9 @@ test('every target template carries the TL;DR and lists only the points to resol
         ->toContain('for example "an order created without a customer fails"')
         ->toContain('never an assumption, a hypothesis, or a point that needs no action.')
         ->toContain('Every such point of the technical')
-        ->not->toContain('h3. Not verified')
-        ->not->toContain('Neověřeno')
         ->toContain('"h2. Nálezy z kontroly');
+    expect($jira)->not->toContain('h3. Not verified');
+    expect($jira)->not->toContain('Neověřeno');
 });
 
 test('the wrappers point at the pr-summary owner and pass the evidence (issue #371)', function (): void {
@@ -122,9 +122,8 @@ test('a JIRA body that overflows the cap shortens each finding to two sentences 
         ->toContain('8. **When a JIRA body still overflows 3 000 characters, shorten each finding bullet to two sentences:**')
         ->toContain('then shorten the findings per item 8 above. Never drop a `Review findings` bullet.')
         ->toContain('then shorten the findings per item 8 of *A finding bullet is a TL;DR of the solution, backed by evidence*;');
-    expect($skill)
-        ->not->toContain('is carrying content the banned list already forbids')
-        ->not->toContain('*Not verified* point');
+    expect($skill)->not->toContain('is carrying content the banned list already forbids');
+    expect($skill)->not->toContain('*Not verified* point');
     expect($jira)->toContain('then write each Review findings bullet in two sentences');
 });
 
@@ -144,7 +143,7 @@ test('review findings list only what must be resolved and every such point (issu
         )
         ->toContain(
             '3. **A point that needs no action is not listed:** a resolved point, a deferred point, an informational point, '
-                . 'and a finding outside the assignment that is not Critical',
+                . 'and a finding about behaviour the assignment does not ask for that is not Critical',
         )
         ->toContain('This holds on every target.')
         ->toContain(

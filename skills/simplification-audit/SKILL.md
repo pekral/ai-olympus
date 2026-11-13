@@ -112,7 +112,7 @@ Then rank the accepted recommendations by concrete impact, open points, implemen
 
 `@agents/leonardo.md` runs this skill with `MODE=cr` over the current diff of the pull request on every review (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*). This section is the one owner of the diff-mode contract; the reviewer and the lens list reference it and never restate it. In this mode:
 
-1. **Scope.** The mode reads the changed lines, and the code they directly call or replace, only to judge the changed lines. Every finding anchors to a changed line. A simplification only in called or replaced code goes to the reviewer's out-of-scope observations, never into the published comment.
+1. **Scope.** The mode reads the changed lines, and the code they directly call or replace, only to judge the changed lines. Every finding anchors to a changed line. A simplification only in called or replaced code is dropped, never published.
 2. **Dimensions and bar.** Apply the same five dimensions as *Scope* above, the same signals in `references/worker-brief.md`, and the same bar: a finding names a concrete smaller result that is materially useful. *Never force an abstraction* in *Constraints* applies unchanged.
 3. **Passes.** The reviewer runs every pass itself, in sequence, in its own context. It builds no inventory, ranks no hot spots, dispatches no worker, and writes no report. Each finding carries the eight fields of `references/worker-brief.md`, and a `skip` verdict returns no finding.
 4. **Validation.** Step 3 *Validate and synthesize* applies to every finding before it is returned, including the re-run search behind a deletion-test or single-implementation finding.
