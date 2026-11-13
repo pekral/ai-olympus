@@ -25,7 +25,7 @@ metadata:
 - Proceed directly to step 3; do not gate on a confirmation round when the breakdown is unambiguous
 
 ### 3. Create Issues
-- Before every issue is created, apply *Guard for a possible vulnerability* below; a withheld item gets no issue, and its text goes into no issue body, not even the parent of an EPIC
+- Before every issue is created, apply *Guard for a possible vulnerability* below; a withheld item gets no issue, and no created issue, the EPIC parent included, names or describes it
 - One issue per step
 - Ensure each is independently deliverable: it delivers a working result on its own (*Split into vertical slices*)
 - For every issue created — flat breakdown, EPIC parent, and sub-issues alike — select and apply the single most relevant existing label per `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*; this is additive to, and independent of, the structural `EPIC` label from *EPIC parent & sub-issues* below
@@ -39,10 +39,11 @@ metadata:
 
 This section is the single owner of the guard. `@skills/create-issue/SKILL.md` and `@skills/do-it/SKILL.md` step 5 reference it and do not restate it. `agents/leonardo.md` *Never disclose an unfixed vulnerability on a public tracker* stays the L3 source of the rule.
 
-1. Check the visibility of the repository once per run with `gh repo view --json isPrivate`. A result that is not `true`, and a check that fails, count as public.
-2. On a public repository, create no issue for an item whose text describes an unfixed vulnerability: a missing or broken security control with an exploit path in code that already exists. Disclosing it on a public tracker is L3. This holds even when *Constraints* say to preserve the original assignment: the withheld text goes into no issue body.
-3. Report each withheld item to the operator as withheld, with the reason, and name the private routes: GitHub private vulnerability reporting and a draft security advisory. The operator decides the disclosure. The report goes to the operator only, never to a tracker, a comment, or a pull request.
-4. The other items continue. On a private repository every item is created as the steps above state.
+1. Check the visibility of the repository the issue is created in, once per target, with `gh repo view <owner/name> --json isPrivate`. Use the same `<owner/name>` that the create call gets. A result that is not `true`, a check that fails, and a target whose visibility cannot be shown (a tracker that is not GitHub, for example) count as public.
+2. On a public repository, create no issue for an item whose text describes an unfixed vulnerability: a missing or broken security control with an exploit path in code that already exists. Disclosing it on a public tracker is L3. This holds even when *Constraints* say to preserve the original assignment.
+3. **No created issue names or describes a withheld item.** This covers the title, the body, a comment, `## Context`, `## Dependencies`, the preserved original text, and the EPIC parent, its title included. An item that depends on a withheld item is withheld too, and the report names it.
+4. Report each withheld item to the operator as withheld, with the reason, and name the private routes: GitHub private vulnerability reporting and a draft security advisory. The operator decides the disclosure. The report goes to the operator only, never to a tracker, a comment, or a pull request.
+5. The other items continue. On a private repository every item is created as the steps above state.
 
 ---
 
