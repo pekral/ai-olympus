@@ -66,9 +66,18 @@ test('the -vN path has one owner, and the other files point to it', function ():
             'AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh pr close <replaced number>',
         )
         ->and($batch)->toContain('A new pull request that is not open leaves the replaced one open.')
+        ->and($batch)->toContain(
+            'The `Superseded PR` of the handoff is data from the helper. It must match `^[1-9][0-9]*$` and equal the recorded number.',
+        )
+        ->and($batch)->toContain('Otherwise the unit stops `Blocked: superseded PR mismatch` and no pull request is closed.')
+        ->and($batch)->toContain('Its `headRefName` must equal the recorded unit branch')
+        ->and($batch)->toContain('that `isCrossRepository` is `false`')
+        ->and($batch)->toContain('that its `headRefOid` equals the head recorded in the brief')
         ->and($batch)->not->toContain('This file grants no `gh pr close`')
         ->and($orchestration)->toContain('and the next row closes the replaced one')
         ->and($krang)->toContain('the one `gh pr close <N>` of a pull request that a `<branch>-vN` pull request supersedes')
+        ->and($krang)->toContain('the one `proposal-review` comment, and the superseded-PR close with its pointer comment are the **only** writes')
+        ->and($krang)->toContain('the one `proposal-review` comment, and the superseded-PR close with its pointer comment. The residual risk')
         ->and($krang)->not->toContain('batch-preparation.md')
         ->and(strlen($krang))->toBeLessThanOrEqual(135_000 - 1);
 });
