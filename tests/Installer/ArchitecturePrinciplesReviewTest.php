@@ -112,9 +112,11 @@ test('a race, replay, or retry on a security surface is a security finding that 
         ->and($section)->toContain('Off an S3 surface, a client retry with no idempotency key belongs to `api-review` *Idempotency keys*')
         ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
         ->and($section)->toContain(
-            'a replayed MPP credential on a project that implements MPP '
-            . 'to `@skills/machine-payments-protocol/SKILL.md` (idempotent settlement)',
+            'On a project that implements MPP, a replayed or concurrently settled credential is the '
+            . '*Idempotent settlement under concurrency* finding of `@skills/machine-payments-protocol/SKILL.md`. '
+            . 'It stays a security finding at the higher of the two severities, and this entry raises no second one.',
         )
+        ->and($section)->not->toContain('a replayed MPP credential on a project that implements MPP to')
         ->and($section)->not->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md`');
 });
 
