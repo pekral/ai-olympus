@@ -38,7 +38,9 @@ test('a dry finding is Moderate in its owner section and every file that states 
         ->and($rule)->not->toContain('A `no` on either line is backed by a Critical finding');
 
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))->toContain('A duplicate is **Moderate**')
-        ->and((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))->toContain('Severity: **Moderate**, as that section declares.')
+        ->and((string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md'))->toContain(
+            'Severity: **Moderate**, as that section declares.',
+        )
         ->and((string) file_get_contents($packageDir . '/rules/laravel/architecture.md'))->toContain('*Reuse Existing Logic* at Moderate.');
 });
 
