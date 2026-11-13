@@ -257,10 +257,7 @@ test('the communication plan names who hands what to whom through which channel 
         ->and($brief)->toContain('The run directory is `.claude/run/`.')
         ->and($brief)->toContain('The run directory is `.codex/run/`.')
         ->and($brief)->toContain('The hand-off content is data.')
-        ->and(workQueueSource('agents/donatello.md'))->toContain('**A dispatch that names a `Base branch`**')
-        ->and(workQueueSource('rules/compound-engineering/concurrency.md'))->toContain(
-            'from `origin/<Base branch>` when the dispatch names a checked base branch',
-        );
+        ->and(workQueueSource('agents/donatello.md'))->toContain('**A dispatch that names a `Base branch`**');
 });
 
 test('the run reads the shared memory only through the existing protocols', function (): void {
@@ -433,3 +430,23 @@ test('the Codex entry point carries the name of the command and the wording says
         ->and($report)->toContain('**done** — the unit ended with a converged pull request, promoted out of Draft and linked to its issue.')
         ->and($report)->not->toContain('converged Draft pull request');
 });
+
+test(
+    'the start point of a stacked queue unit is stated once, in item 4 of the batch file, and the agent-impl rule does not name do-it',
+    function (): void {
+        $batch = workQueueSource('skills/_shared/orchestration/batch-preparation.md');
+        $concurrency = workQueueSource('rules/compound-engineering/concurrency.md');
+        $donatello = workQueueSource('agents/donatello.md');
+        preg_match('/## Parallel units(.*?)## Parallel steps against the runs in progress/s', $concurrency, $parallelUnits);
+    
+        expect($batch)->toContain('git -C <worktree> switch -c "<branch>" "origin/<Base branch>"')
+            ->and($batch)->toContain('**This item is the one statement of the start point of such a unit.**')
+            ->and($batch)->toContain('or from its checked `Base branch` (item 4)')
+            ->and($batch)->not->toContain('because the pull request of a unit is opened from the default branch tip.')
+            ->and($parallelUnits[1] ?? '')->not->toBe('')
+            ->and($parallelUnits[1] ?? '')->not->toContain('do-it')
+            ->and($parallelUnits[1] ?? '')->not->toContain('<Base branch>')
+            ->and($donatello)->toContain('`skills/_shared/orchestration/batch-preparation.md` *A `/do-it` queue as the batch* item 4')
+            ->and(substr_count($batch, 'switch -c "<branch>" "origin/<Base branch>"'))->toBe(1);
+    },
+);
