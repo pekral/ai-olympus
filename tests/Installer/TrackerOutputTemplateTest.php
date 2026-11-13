@@ -7,51 +7,48 @@ declare(strict_types = 1);
  */
 function trackerOutputPublishers(): array
 {
-    $cr = 'skills/code-review-github/templates/pr-comment-output.md';
-    $summaryGithub = 'skills/pr-summary/templates/pr-summary-github.md';
-    $summaryJira = 'skills/pr-summary/templates/pr-summary-jira.md';
-    $summaryBugsnag = 'skills/pr-summary/templates/pr-summary-bugsnag.md';
-    $pullRequestBody = 'skills/resolve-issue/templates/pull-request-body.md';
-    $decisions = 'skills/verify-merge-readiness/templates/decisions-before-merge.md';
-    $followUp = 'skills/_shared/templates/follow-up-issue.md';
-    $analysis = 'skills/analyze-problem/templates/analysis-report.md';
-    $issueStructure = 'skills/create-issues-from-text/templates/issue-structure.md';
+    $registry = json_decode(
+        (string) file_get_contents(__DIR__ . '/../Fixtures/tracker-output-publishers.json'),
+        associative: true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    assert(is_array($registry));
+    $publishers = [];
 
-    return [
-        'agents/april.md' => [$summaryGithub, $summaryJira, 'skills/test-assignment/templates/test-report-pr.md', $decisions, 'skills/_shared/templates/announcement-drafts-comment.md'],
-        'agents/casey.md' => ['skills/mysql-problem-solver/templates/cr-report.md'],
-        'agents/donatello.md' => [$pullRequestBody],
-        'agents/krang.md' => ['skills/_shared/templates/superseded-pr-pointer.md', 'skills/_shared/templates/proposal-review-comment.md', 'skills/_shared/templates/memory-entry-written.md'],
-        'agents/leonardo.md' => [$cr, 'skills/security-threat-analysis/templates/remediation-plan-issue.md'],
-        'skills/_shared/orchestration/batch-preparation.md' => ['skills/_shared/templates/superseded-pr-pointer.md'],
-        'skills/_shared/orchestration/proposal-review.md' => ['skills/_shared/templates/proposal-review-comment.md'],
-        'skills/analyze-problem/SKILL.md' => [$analysis],
-        'skills/analyze-support-issue/SKILL.md' => ['skills/analyze-support-issue/templates/support-comment-jira.md'],
-        'skills/assignment-compliance-check/SKILL.md' => ['skills/assignment-compliance-check/templates/assignment-compliance.md'],
-        'skills/code-review-bugsnag/SKILL.md' => ['skills/code-review-bugsnag/templates/github-output.md', $summaryBugsnag],
-        'skills/code-review-github/references/cr-wrapper-contract.md' => [$cr, $summaryGithub],
-        'skills/code-review-jira/SKILL.md' => ['skills/code-review-jira/templates/github-output.md', $summaryJira],
-        'skills/code-review/references/feedback-loop.md' => ['skills/_shared/templates/memory-entry-written.md', 'skills/code-review/templates/prevention-proposal.md'],
-        'skills/code-review/references/prevention-proposal.md' => ['skills/code-review/templates/prevention-proposal.md'],
-        'skills/composer-update-pr/SKILL.md' => ['skills/composer-update-pr/templates/pull-request-body.md'],
-        'skills/create-issue/SKILL.md' => ['skills/create-issue/templates/issue-body.md'],
-        'skills/create-issues-from-text/SKILL.md' => [$issueStructure],
-        'skills/github-issue-triage/SKILL.md' => ['skills/github-issue-triage/templates/needs-info-comment.md'],
-        'skills/github-issue-triage/references/backlog-sweep.md' => ['skills/github-issue-triage/templates/close-evidence-comment.md'],
-        'skills/github-issue-triage/references/pending-analysis.md' => [$analysis],
-        'skills/github-release-roadmap/references/github-cli-workflow.md' => [$issueStructure],
-        'skills/pr-summary/SKILL.md' => [$summaryGithub, $summaryJira, $summaryBugsnag],
-        'skills/process-code-review/SKILL.md' => [$cr, $pullRequestBody],
-        'skills/process-code-review/references/round-three-deferral.md' => [$followUp],
-        'skills/resolve-issue/SKILL.md' => ['skills/resolve-issue/templates/technical-report-comment.md'],
-        'skills/resolve-issue/references/deferred-follow-up.md' => [$followUp],
-        'skills/resolve-issue/references/pull-request.md' => [$pullRequestBody],
-        'skills/resolve-issue/references/tracker-follow-up.md' => ['skills/resolve-issue/templates/pr-link-back-comment.md', $summaryJira],
-        'skills/security-threat-analysis/SKILL.md' => ['skills/security-threat-analysis/templates/remediation-report.md'],
-        'skills/test-assignment/SKILL.md' => ['skills/test-assignment/templates/test-report-pr.md'],
-        'skills/tester-cookbook/SKILL.md' => ['skills/tester-cookbook/templates/test-report-jira.md'],
-        'skills/verify-merge-readiness/SKILL.md' => [$decisions, $summaryGithub, $summaryJira],
-    ];
+    foreach ($registry as $publisher => $templates) {
+        assert(is_array($templates));
+        $publishers[(string) $publisher] = [];
+
+        foreach ($templates as $template) {
+            assert(is_string($template));
+            $publishers[(string) $publisher][] = $template;
+        }
+    }
+
+    return $publishers;
+}
+
+/**
+ * @return list<string>
+ */
+function trackerOutputTemplateProblems(string $publisher, string $template, string $contents): array
+{
+    $packageDir = dirname(__DIR__, 2);
+    $problems = [];
+
+    if (preg_match('#^skills/(_shared|[a-z0-9-]+)/templates/[A-Za-z0-9_.-]+\.md$#', $template) !== 1) {
+        return [$template . ' is not a skill template path'];
+    }
+
+    if (!is_file($packageDir . '/' . $template) || filesize($packageDir . '/' . $template) === 0) {
+        $problems[] = $template . ' is missing or empty';
+    }
+
+    if (!str_contains($contents, 'templates/' . basename($template))) {
+        $problems[] = $publisher . ' does not name templates/' . basename($template);
+    }
+
+    return $problems;
 }
 
 /**
@@ -97,24 +94,12 @@ test('every registered publisher names each of its templates and the template ex
     $problems = [];
 
     foreach (trackerOutputPublishers() as $publisher => $templates) {
-        $contents = (string) file_get_contents($packageDir . '/' . $publisher);
-
         expect($templates)->not->toBe([]);
 
+        $contents = (string) file_get_contents($packageDir . '/' . $publisher);
+
         foreach ($templates as $template) {
-            if (preg_match('#^skills/(_shared|[a-z0-9-]+)/templates/[A-Za-z0-9_.-]+\.md$#', $template) !== 1) {
-                $problems[] = $template . ' is not a skill template path';
-
-                continue;
-            }
-
-            if (!is_file($packageDir . '/' . $template) || filesize($packageDir . '/' . $template) === 0) {
-                $problems[] = $template . ' is missing or empty';
-            }
-
-            if (!str_contains($contents, 'templates/' . basename($template))) {
-                $problems[] = $publisher . ' does not name templates/' . basename($template);
-            }
+            $problems = [...$problems, ...trackerOutputTemplateProblems($publisher, $template, $contents)];
         }
     }
 
