@@ -101,10 +101,10 @@ test('the Carbon section exists once beside the single Time section and the gene
         ->and($files['rules/code-review/general.md'])->not->toContain('Carbon and Framework Helpers');
 });
 
-test('the Time walk hands a native date call on a Laravel project to the Carbon walk and keeps only the Carbon calls', function (): void {
+test('the Time walk hands a native date call on a Laravel project to the Carbon walk', function (): void {
     $review = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/core-analysis.md');
 
     expect($review)->toContain('on a Laravel project a native date function or class (`new DateTimeImmutable(\'now\')`')
-        ->and($review)->toContain('belongs to **Carbon and framework helpers** below, and this bullet raises only the Carbon calls')
+        ->and($review)->toContain('belongs to **Carbon and framework helpers** below, and this bullet does not raise it')
         ->and($review)->toContain('the zone of the Carbon replacement is this bullet\'s.');
 });
