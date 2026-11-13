@@ -139,6 +139,8 @@ test('no line still hands the prose of a human-read tracker comment to the writi
         'skills/pr-summary/references/terse-output-style.md' => ['`@rules/writing/general.md`'],
         'skills/analyze-support-issue/SKILL.md' => ['`@rules/writing/general.md`'],
         'skills/auto-interactive-testing/SKILL.md' => ['`@rules/writing/general.md`'],
+        'skills/git-history-exposure-audit/SKILL.md' => ['`@rules/writing/general.md`'],
+        'skills/simplification-audit/SKILL.md' => ['`@rules/writing/general.md`'],
     ];
 
     foreach ($stale as $path => $phrases) {
@@ -153,7 +155,9 @@ test('no line still hands the prose of a human-read tracker comment to the writi
         ->toContain('The prose of a tracker comment takes its sentence style from `@skills/agent-voice/SKILL.md` instead.')
         ->and(agentVoiceSource('skills/pr-summary/SKILL.md'))
         ->toContain('The length of the report follows *Length follows the facts* below and `@rules/reports/general.md`.')
-        ->and(agentVoiceSource('skills/deliver-page-redesign/SKILL.md'))->toContain('`@skills/agent-voice/SKILL.md`');
+        ->and(agentVoiceSource('skills/deliver-page-redesign/SKILL.md'))->toContain('`@skills/agent-voice/SKILL.md`')
+        ->and(agentVoiceSource('skills/git-history-exposure-audit/SKILL.md'))->toContain('`@skills/agent-voice/SKILL.md` to the prose of the full-audit report')
+        ->and(agentVoiceSource('skills/simplification-audit/SKILL.md'))->toContain('`@skills/agent-voice/SKILL.md` to the prose of the audit report');
 });
 
 test('the voice reaches a dispatched agent through the brief and the resolver sits in a Bash boundary', function (): void {
