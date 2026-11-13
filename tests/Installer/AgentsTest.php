@@ -891,21 +891,23 @@ test('april builds How to test from the donatello handoff for the current head S
     expect($raphael)->toContain('the implementation one always, the scoped-validation one when `krang` did not skip that pass');
 });
 
-test('krang processes multiple resolved sources in batches and fans out only the two units a parallel batch holds', function (): void {
+test('krang processes multiple resolved sources in batches and fans out only the units a parallel batch holds', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = krangContractText();
 
     // The contract lives in the rule; krang keeps the pointer that reaches it.
     $concurrency = (string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md');
-    expect($concurrency)->toContain('Processing of multiple sources — sequential by default, two at a time only when the planner proves it safe');
+    expect($concurrency)->toContain('Processing of multiple sources — sequential by default, several at a time only when the planner proves it safe');
     expect($concurrency)->toContain('processes the resulting **batches one after another**');
     // The analysis-only branch still dispatches leonardo sequentially, not as a parallel fan-out.
     expect($content)->toContain('dispatch their `leonardo` runs one after another — strictly sequentially, never in parallel');
-    // The only fan-out is the two implementation units of a batch the planner approved.
-    expect($concurrency)->toContain('A two-unit batch is the only fan-out.');
-    expect($concurrency)->toContain('Never fan out analysis-only `leonardo` runs, never dispatch more than two `Task` calls in one message');
+    // The only fan-out is the implementation units of a batch the planner approved.
+    expect($concurrency)->toContain('A batch of several units is the only fan-out.');
+    expect($concurrency)->toContain('never dispatch more `Task` calls in one message than the batch holds units');
     expect($concurrency)->toContain('The planner decides, never the orchestrator.');
-    expect($concurrency)->toContain('That limit is fixed in the script and the manifest has no key for it.');
+    expect($concurrency)->not->toContain('That limit is fixed in the script and the manifest has no key for it.');
+    expect($concurrency)->toContain('The limit is the manifest key `parallel.max-units`');
+    expect($concurrency)->toContain('The row of *Project manifest* in `@rules/general/general.md` owns its range and defaults.');
     // Each source still gets its own per-source brief.
     expect($concurrency)->toContain('Each source gets its own shared brief');
     // Step 3 classifies each resolved source independently when several were resolved.
@@ -3055,7 +3057,7 @@ test('krang plans parallel batches with the deterministic planner and the single
     expect($krang)->toContain('*Plan parallel batches*');
     expect($krang)->toContain('skills/_shared/plan-parallel.sh');
     expect($krang)->toContain('a unit with no named file stays empty, which keeps it out of every parallel batch');
-    expect($krang)->toContain('dispatch both step-5 `donatello` runs as two blocking `Task` calls in **one** message');
+    expect($krang)->toContain('dispatch the step-5 `donatello` runs as blocking `Task` calls in **one** message');
     expect($krang)->toContain('**A unit in a `mode.<k>=parallel` batch takes no write-lock**');
     expect($krang)->toContain('**Remove the implementation worktree of a parallel unit**');
 

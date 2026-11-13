@@ -358,7 +358,7 @@ test('the batch is a named path in the concurrency, orchestration, and git rules
     expect($concurrency)->toContain('**A batch the operator starts with `/prepare-issue-for-merge` is a separate path.**')
         ->and($concurrency)->toContain('The root session holds the `krang` role for every unit')
         ->and($concurrency)->toContain('`.claude/worktrees/agent-batch-<source-slug>-krang`')
-        ->and($concurrency)->toContain('At most 3 units run at once.')
+        ->and($concurrency)->toContain('At most 3 units run at once, or the lower `parallel.max-units`')
         ->and($concurrency)->toContain('`plan-parallel.sh --step` ignores a sibling and the gate-lock holder as evidence')
         ->and($concurrency)->toContain('goes through `skills/_shared/run-gate.sh` and the one gate lock below')
         ->and($concurrency)->toContain('**Three sanctioned exceptions exist.**')
@@ -366,8 +366,8 @@ test('the batch is a named path in the concurrency, orchestration, and git rules
         ->and($concurrency)->toContain('The third is the operator batch (*Parallel units* below)')
         ->and($concurrency)->toContain('the orchestrator never creates a worktree for a single unit of any other request');
 
-    expect($orchestration)->toContain('The one exception is that batch: two blocking `Task` calls in one message, each unit in its own worktree.')
-        ->and($orchestration)->toContain('The operator batch of `/prepare-issue-for-merge` is the second exception')
+    expect($orchestration)->toContain('The one exception is that batch: one blocking `Task` call per unit in one message, each unit in its own worktree.')
+        ->and($orchestration)->toContain('The operator batch of `/prepare-issue-for-merge` and `/do-it` is the second exception')
         ->and($orchestration)->toContain('(`skills/_shared/orchestration/batch-preparation.md`)')
         ->and($orchestration)->toContain('- **One exception: the operator batch.** A session that runs `/prepare-issue-for-merge` with several references')
         ->and($orchestration)->toContain('It ends its turn without a result only while every unit waits for a running dispatch.')
