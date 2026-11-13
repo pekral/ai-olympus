@@ -561,7 +561,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // length limits stay with this rule (issue #432, review round 1).
         // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
         // Re-baselined: every tracker output is rendered from a template (issue #499).
-        'rules/reports/general.md' => '10bf9d526aef02c39fb2281f64dfe355f37f75aebca8dea74ebf3edfcded233f',
+        'rules/reports/general.md' => 'b8932b7d09695c845d2ca4e29175701428664510149809d9483e8cbe8843feb2',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

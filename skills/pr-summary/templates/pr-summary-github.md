@@ -49,7 +49,8 @@
        Render this slot only when the calling CR wrapper passes one or more markdown
        blocks (typically the `## Assignment Compliance` block returned by
        `@skills/assignment-compliance-check/SKILL.md`). Each block is appended
-       verbatim, in the order received, separated by a single blank line. When no
+       verbatim, in the order received (only the part of a block above its
+       `=== END OF COMMENT BODY` line), separated by a single blank line. When no
        blocks are passed, omit this slot entirely — including the surrounding blank
        lines — so the comment runs straight from `How to test` to the closing links
        line; that is the shape of a non-CR invocation, never of a clean CR result.

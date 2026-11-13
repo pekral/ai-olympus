@@ -54,7 +54,7 @@ Length
   the Clarifying questions block and/or the Assignment Compliance block returned
   by @skills/assignment-compliance-check/SKILL.md. Each block is already
   converted to plain text by the wrapper; append it verbatim, in the order
-  received, separated by a single blank line. When no blocks are passed,
+  received (only the part of a block above its `=== END OF COMMENT BODY` line), separated by a single blank line. When no blocks are passed,
   omit this slot entirely — including the surrounding blank lines — so the
   comment runs straight from the test steps to the closing links line; that is the
   shape of a non-CR invocation, never of a clean CR result. This is the only route
