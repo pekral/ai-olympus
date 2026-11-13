@@ -498,6 +498,7 @@ test('a Blocked item is no unit: the queue runs only the items that have an issu
 
     expect($skill)->toContain('1. For each item with an issue, in queue order, run the unit as that file states')
         ->and($batch)->toContain(
-            'every item that is not `Blocked` after step 5 of the skill has an issue; a `Blocked` item is no unit and keeps its blocker in `## Unit status`',
+            'every item that is not `Blocked` after step 5 of the skill has an issue; '
+            . 'a `Blocked` item is no unit and keeps its blocker in `## Unit status`',
         );
 });
