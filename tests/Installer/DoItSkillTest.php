@@ -473,7 +473,9 @@ test('on a public repository an item that describes an unfixed vulnerability get
         ->and($skill)->toContain('Disclosing it on a public tracker is L3')
         ->and($skill)->toContain('The item stops `Blocked: possible vulnerability — operator decides disclosure`')
         ->and($skill)->toContain('GitHub private vulnerability reporting, a draft security advisory')
-        ->and($skill)->toContain('lists only items whose issue creation failed, was withheld as a possible vulnerability, or was skipped by the dependency check')
+        ->and($skill)->toContain(
+            'lists only items whose issue creation failed, was withheld as a possible vulnerability, or was skipped by the dependency check',
+        )
         ->and($orchestration)->toContain(
             'It creates no issue for an item that describes an unfixed vulnerability on a public repository: that disclosure is L3',
         )
