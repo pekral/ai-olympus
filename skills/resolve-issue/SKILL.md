@@ -130,7 +130,7 @@ Change nothing outside the assignment (`@rules/compound-engineering/general.md` 
 Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every bug fix. The Iron Law (`NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST`) applies without exception:
 
 8. Write or update a test that reproduces the bug (the failing test). Follow the RED step in `@skills/test-driven-development/SKILL.md`.
-9. **Verify RED** — run the test (`run-gate.sh --exclusive`) and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not proceed to the fix until the test is observed failing.** This step is mandatory and blocking.
+9. **Verify RED** — run the test (`run-gate.sh --exclusive`) and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not write the fix until the test is observed failing.** This step is mandatory and blocking.
 10. Apply the fix (GREEN step) — write the smallest production change that makes the test pass, then verify all relevant tests pass. Then repair the records the defect already wrote — after this fix, never before (`references/data-repair.md`).
 
 ### If feature
