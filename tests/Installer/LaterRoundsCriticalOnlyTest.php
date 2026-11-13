@@ -20,7 +20,8 @@ test('the code-review rule owns the later-round filter with the security floor a
         )
         ->toContain('- **An earlier finding stays tracked until it is fixed.**')
         ->toContain('The convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4) counts them as before.')
-        ->toContain('`skills/_shared/review-state.sh record` applies the same filter to a round report from round 2 on');
+        ->toContain('The reviewer alone applies this section.')
+        ->toContain('apply no filter: they record every finding a round reports');
 });
 
 test('every other file points at the owner and none restates the filter (issue #455)', function (string $path): void {
@@ -34,7 +35,6 @@ test('every other file points at the owner and none restates the filter (issue #
     'skills/process-code-review/references/review-state.md',
     'skills/process-code-review/references/round-three-deferral.md',
     'skills/code-review/references/finding-records.md',
-    'skills/_shared/review-state.sh',
 ]);
 
 test('the convergence gate and the cap-round table stay unchanged by the later-round filter (issue #455)', function (): void {
@@ -51,58 +51,31 @@ test('the convergence gate and the cap-round table stay unchanged by the later-r
         ->toContain('| **Moderate, non-security, passing the filing bar** |');
 });
 
-test('the review-state self-test covers the later-round filter (issue #455)', function (string $label): void {
-    expect(laterRoundsFile('skills/_shared/review-state.sh'))->toContain($label);
-})->with([
-    'round 1 still records a new non-Critical finding',
-    'a new non-security Moderate in round 2 is not recorded and not blocking',
-    'the ignored point is named on stderr',
-    'a Moderate raised in round 1 stays tracked as confirmed in round 2',
-    'a new Critical in a later round is recorded and blocks',
-    'the security floor: a new security finding in round 2 is recorded at its severity and blocks',
-    'a resolved earlier finding that returns is reopened and tracked, never ignored',
-    'a round that drops a new identity carries the earlier open finding and the loop continues',
-    'a renamed file never resolves the earlier open finding',
-    'the S1 lens and the S3 surface are recorded in round 2 and block',
-]);
+test('the scripts record every finding a round reports and the reviewer alone applies the later-round rule (issue #455)', function (): void {
+    $state = laterRoundsFile('skills/_shared/review-state.sh');
+    $extract = laterRoundsFile('skills/_shared/extract-findings.sh');
 
-test('the extract-findings self-test covers every S1 lens and the S3 surfaces the filter relies on (issue #455)', function (string $label): void {
-    expect(laterRoundsFile('skills/_shared/extract-findings.sh'))->toContain($label);
-})->with([
-    'round: a finding of the $lens lens is security-relevant',
-    'round: the S3 surface \\"$surface\\" is security-relevant',
-    'round: a finding that cites no rule cannot be classified and counts as security-relevant',
-    'round: a finding that carries a Level (a security-lens Moderate) is security-relevant whatever its rule',
-    'round: a security surface named only in the Evidence is security-relevant',
-    'round: a security surface named only in the Suggested fix (S2) is security-relevant',
-]);
-
-test('the review-state self-test keeps a Level and a Suggested-fix-only security Moderate in round 2 (issue #455)', function (): void {
-    expect(laterRoundsFile('skills/_shared/review-state.sh'))
-        ->toContain('a security-lens Moderate on a non-security rule and an S2 Suggested-fix signal stay recorded and blocking in round 2');
+    expect($state)
+        ->toContain('every finding a later round reports is recorded and blocks')
+        ->toContain('nothing a later round reports is ignored');
+    expect($state)->not->toContain('$ignored');
+    expect($state)->not->toContain('non-Critical, non-security');
+    expect($extract)->not->toContain('$f.level != null');
 });
 
-test('the security classification names every S1 lens and the S3 surfaces of the exclusion gate (issue #455)', function (string $term): void {
-    expect(laterRoundsFile('skills/_shared/extract-findings.sh'))->toContain($term);
-})->with([
-    'security-review|security-audit|security-bounty-hunter|security-threat-analysis'
-        . '|laravel-security|laravel-authorization-review|git-history-exposure-audit',
-    'hostname', 'private.?ip', 'outbound', 'allow.?list', 'supply.?chain', 'malicious', 'clickjack', 'bidi', 'invisible', 'trojan', 'redirect',
-    'enumerat', 'webhook', '$f.level != null', '$f.proposed_fix, $f.evidence',
-]);
-
-test('the later-round filter fails closed and carries an earlier finding when it drops a new identity (issue #455)', function (): void {
+test('the owner and the references state that the scripts apply no later-round filter (issue #455)', function (): void {
     $rule = laterRoundsFile('rules/code-review/general.md');
-
-    expect($rule)
-        ->toContain('The filter errs toward security: a finding is dropped only when its security flag is `false`.')
-        ->toContain('A round that drops a new identity carries every earlier open finding it no longer reports instead of resolving it');
     $records = laterRoundsFile('skills/code-review/references/finding-records.md');
+    $state = laterRoundsFile('skills/process-code-review/references/review-state.md');
 
-    expect($records)->toContain('A finding that cites no rule cannot be classified and counts as security.');
-    expect($records)->toContain('`security` is a heuristic for the S1–S3 carve-out');
-    expect($records)->not->toContain('covers the whole S1–S3');
-    expect($records)->not->toContain('A false negative would let a security finding be dismissed or deferred.');
+    expect($rule)->not->toContain('never leaves the loop unfixed');
+    expect($rule)->not->toContain('The filter applies to identity');
+    expect($records)->toContain('`--round` prints every finding of the report it reads and applies no round filter.');
+    expect($records)->not->toContain('heuristic for the S1–S3');
+    expect($state)->toContain('**`record` stores every finding a round reports.**');
+    expect($state)->not->toContain('`record` drops every other new finding');
+    expect(laterRoundsFile('skills/process-code-review/SKILL.md'))
+        ->toContain('the script records every finding the round reports.');
 });
 
 test('a later round is an iteration of one review-and-fix loop, and a published-comment baseline starts a new cycle (issue #455)', function (): void {

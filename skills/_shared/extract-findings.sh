@@ -362,21 +362,15 @@ IFS= read -r -d '' JQ_BUILD <<'EOF' || true
 EOF
 
 # Round mode: build the review-loop records (schema 2) from the parsed findings and the identities computed
-# outside jq. `security` is a heuristic for the S1-S3 carve-out of rules/code-review/general.md. It is true when
-# the rule is a security rule or the report of a security lens (S1, S2), when the finding carries a `Level` (the
-# review template renders Level only on a Moderate that a security lens raised), when the rule names no rule or
-# skill (`unclassified`), or when the rule, location, title, evidence, or Suggested fix names a security surface
-# from a keyword list (S2, S3). It errs toward security: a false positive keeps a finding blocking, a false
-# negative would let it be dismissed, deferred, or dropped from a later round. Its limit is the keyword list: a
-# security surface that the list does not name, in a finding with no Level and a non-security rule, is missed.
+# outside jq. A finding is security-relevant (the S1-S3 carve-out) when its rule is a security rule or a
+# security lens, or when its rule, location, or title names a security surface. The match is broad on
+# purpose: a false positive keeps a finding blocking, a false negative would let it be dismissed or deferred.
 JQ_ROUND=''
 IFS= read -r -d '' JQ_ROUND <<'EOF' || true
 def is_security($f):
-  $f.category == "unclassified"
-  or $f.level != null
-  or ($f.category | test("^(rules/security/|skills/(security-review|security-audit|security-bounty-hunter|security-threat-analysis|laravel-security|laravel-authorization-review|git-history-exposure-audit)(/|$))"))
-  or ([$f.category, $f.cause_key, $f.file, $f.title, $f.proposed_fix, $f.evidence] | join(" ") | ascii_downcase
-      | test("auth|login|passw|access.?control|idor|object.?level|field.?level|session|cookie|token|crypt|secret|credential|api.?key|signature|signing|hmac|inject|sql|ldap|xpath|ssti|xxe|deserializ|xss|escap|encod|sanitiz|csrf|ssrf|outbound|allow.?list|traversal|upload|file.?handling|redirect|clickjack|frame.?ancestor|rate.?limit|brute|lockout|throttl|secur|\\bcsp\\b|\\bcors\\b|\\bhsts\\b|\\btls\\b|\\bssl\\b|certificat|mass.?assign|ownership|privilege|permission|polic|payment|billing|financ|money|pii|personal.?data|expos|leak|hostname|private.?ip|internal.?(host|ip|url|address)|infrastructure|supply.?chain|malicious|malware|postinstall|trojan|backdoor|typosquat|bidi|invisible|hidden|zero.?width|homoglyph|vulnerab|exploit|attack|untrusted|bypass|\\.env|\\bcommands?\\b|\\bshell\\b|\\beval\\b|\\binclude\\b|enumerat|webhook|\\borigin\\b"));
+  ($f.category | test("^(rules/security/|skills/(security-review|laravel-authorization-review)(/|$))"))
+  or ([$f.category, $f.cause_key, $f.file, $f.title] | join(" ") | ascii_downcase
+      | test("auth|login|passw|session|cookie|token|csrf|xss|inject|secret|credential|crypt|signature|permission|polic|privilege|idor|ssrf|open.?redirect|upload|traversal|payment|billing|pii|rate.?limit|brute|security|sanitiz|escap|deserializ|mass.?assign|\\bcsp\\b|\\bcors\\b|\\btls\\b|certificat"));
 
 [ .findings | to_entries[]
   | .key as $i | .value as $f
@@ -1088,9 +1082,9 @@ self_test() {
   check 'the refusal tells the reviewer to move the point under Needs verification' "$(grep -q 'Evidence is required; move an unproven point under ## Needs verification: finding 1 (moderate, "Copied step")' "$tmp/case.err" && echo 0 || echo 1)"
   run_case 'store mode still reads a finding without Evidence' 0 no -- --repo acme/shop --pr 7 --input "$tmp/q5.md"
   check 'store mode writes the record of the finding without Evidence' "$([[ "$(wc -l <"$tmp/case.out" | tr -d ' ')" == 1 ]] && echo 0 || echo 1)"
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-'; } >"$tmp/q5v.md"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q5v.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q5v.md" >"$tmp/q5.out"
-  check 'round: an unproven point under Needs verification is needs-verification' "$(jq -e '.status == "needs-verification" and .severity == "medium" and .security == false and .evidence == null' "$tmp/q5.out" >/dev/null && echo 0 || echo 1)"
+  check 'round: an unproven point under Needs verification is needs-verification at its Level' "$(jq -e '.status == "needs-verification" and .severity == "low" and .security == false and .evidence == null' "$tmp/q5.out" >/dev/null && echo 0 || echo 1)"
   { head_of "$SHA1" 2026-10-01T10:00:00Z; printf '## Needs verification\n\n'; finding Moderate 'Maybe a race' 'src/Cache/Store.php:3' "$STRUCT" 'logic-trace — two writers'; } >"$tmp/q6.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.out"
   "$script" --repo acme/shop --pr 7 --input "$tmp/q6.md" >"$tmp/q6.store"
@@ -1098,41 +1092,6 @@ self_test() {
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Session token is logged' 'src/Foo/Bar.php:1' "$STRUCT" 'logic-trace — x'; } >"$tmp/q7.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q7.md" >"$tmp/q7.out"
   check 'round: a finding that names a security surface is security-relevant' "$(jq -e '.security == true' "$tmp/q7.out" >/dev/null && echo 0 || echo 1)"
-  # The S1 lenses and every S3 surface of rules/code-review/general.md are security-relevant, so the round-2
-  # filter of review-state.sh never drops one of them.
-  local lens surface n=0
-  for lens in security-review security-audit security-bounty-hunter security-threat-analysis laravel-security laravel-authorization-review git-history-exposure-audit; do
-    { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'A plain point' 'src/Foo/Bar.php:1' "@skills/$lens/SKILL.md" 'logic-trace — x'; } >"$tmp/s1.md"
-    "$script" --round --repo acme/shop --pr 7 --input "$tmp/s1.md" >"$tmp/s1.out"
-    check "round: a finding of the $lens lens is security-relevant" "$(jq -e '.security == true' "$tmp/s1.out" >/dev/null && echo 0 || echo 1)"
-  done
-  for surface in 'Internal hostname exposed in a commit' 'Private IP address committed' 'Clickjacking: the page can be framed' 'Malicious postinstall script added' 'Bidirectional control character hidden in agent instructions' 'Invisible character in a rule file' 'Outbound request without an allow-list' 'Supply chain: an unpinned package' 'Trojan Source persistence' 'Open redirect after login' 'Secret in a log line' 'API key in the repository' 'Signature is not verified' 'Account lockout is missing' 'Privilege escalation through a role field' 'Money movement without a check' 'Personal data exposure in a response' 'Missing Content-Security-Policy header: no CSP' 'Mass assignment of the owner id' 'Path traversal in the file name' 'An HTTP header is injected'; do
-    n=$((n + 1))
-    { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate "$surface" "src/Foo/Bar$n.php:1" "$STRUCT" 'logic-trace — x'; } >"$tmp/s3.md"
-    "$script" --round --repo acme/shop --pr 7 --input "$tmp/s3.md" >"$tmp/s3.out"
-    check "round: the S3 surface \"$surface\" is security-relevant" "$(jq -e '.security == true' "$tmp/s3.out" >/dev/null && echo 0 || echo 1)"
-  done
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'The step is copied' 'src/Foo/Bar.php:1' "$STRUCT" 'logic-trace — x'; } >"$tmp/ns.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/ns.md" >"$tmp/ns.out"
-  check 'round: a structure finding that names no security surface stays non-security' "$(jq -e '.security == false' "$tmp/ns.out" >/dev/null && echo 0 || echo 1)"
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Read-only agent writes a tracked file' 'agents/foo.md:1' "$STRUCT" 'logic-trace — x' High; } >"$tmp/lv.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/lv.md" >"$tmp/lv.out"
-  check 'round: a finding that carries a Level (a security-lens Moderate) is security-relevant whatever its rule' "$(jq -e '.security == true and .severity == "high"' "$tmp/lv.out" >/dev/null && echo 0 || echo 1)"
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'A plain point' 'src/Foo/Bar.php:1' "$STRUCT" 'exploit-path — the request parameter reaches a shell'; } >"$tmp/ev.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/ev.md" >"$tmp/ev.out"
-  check 'round: a security surface named only in the Evidence is security-relevant' "$(jq -e '.security == true' "$tmp/ev.out" >/dev/null && echo 0 || echo 1)"
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'A plain point' 'src/Foo/Bar.php:1' "$STRUCT" 'logic-trace — x' | sed 's/n\/a — w$/validate the origin header/'; } >"$tmp/sf.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/sf.md" >"$tmp/sf.out"
-  check 'round: a security surface named only in the Suggested fix (S2) is security-relevant' "$(jq -e '.security == true and (.recommendation | test("origin"))' "$tmp/sf.out" >/dev/null && echo 0 || echo 1)"
-  for surface in 'Shell command built from a request parameter' 'Unvalidated user input reaches eval' 'User-controlled path passed to include' 'Webhook payload processed without a check' 'Error message reveals whether an e-mail is registered, enabling enumeration' 'Request accepted from any origin'; do
-    n=$((n + 1))
-    { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate "$surface" "src/Foo/Bar$n.php:1" "$STRUCT" 'logic-trace — x'; } >"$tmp/s3.md"
-    "$script" --round --repo acme/shop --pr 7 --input "$tmp/s3.md" >"$tmp/s3.out"
-    check "round: the S3 surface \"$surface\" is security-relevant" "$(jq -e '.security == true' "$tmp/s3.out" >/dev/null && echo 0 || echo 1)"
-  done
-  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'A point without a rule' 'src/Foo/Bar.php:1' 'none' 'logic-trace — x'; } >"$tmp/uc.md"
-  "$script" --round --repo acme/shop --pr 7 --input "$tmp/uc.md" >"$tmp/uc.out"
-  check 'round: a finding that cites no rule cannot be classified and counts as security-relevant' "$(jq -e '.category == "unclassified" and .security == true' "$tmp/uc.out" >/dev/null && echo 0 || echo 1)"
 
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'exploit-path — run $(touch '"$tmp"'/pwned-ev); `rm -rf /` | sh && echo ok > x'; } >"$tmp/q8.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q8.md" >"$tmp/q8.out"

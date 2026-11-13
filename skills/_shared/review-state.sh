@@ -246,20 +246,11 @@ EOF
 # never read the file, so the finding stays open. A round counts as a delta round unless `scope` recorded
 # `full` for it, and round 1 is always full. A non-security point that only needed verification may leave on any
 # round: the reviewer's own check settled it.
-# From round 2 on, a finding with a new identity is kept only when it is Critical or security-relevant
-# (@rules/code-review/general.md *Later rounds raise only new Critical findings*); every identity the state already
-# holds, a reopened one included, stays tracked. A security flag counts only when it is exactly `true`: a record
-# that is not clearly non-security is kept. A round that dropped a new identity may have re-cited an earlier open
-# finding under a new identity (a renamed file, another rule section), so that round carries every earlier open
-# finding it no longer reports instead of resolving it: the reviewer never re-read it as fixed.
 JQ_RECORD=''
 IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 . as $s
 | ($s.iteration + 1) as $n
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
-| ($cur | length) as $reported
-| ($cur | map(select($n < 2 or $prev[.finding_id] != null or .security != false or .severity == "critical"))) as $cur
-| ($reported - ($cur | length)) as $ignored
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
 | (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope
 | def lift: if . == "new" then "confirmed" else . end;
@@ -278,7 +269,6 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
       end ]
   + [ $s.findings[] | select($now[.finding_id] == null) | . as $f
       | if ($f | is_open | not) then {rec: $f, from: $f.status, carried: false}
-        elif $ignored > 0 then {rec: $f, from: $f.status, carried: true}
         elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}
         else {rec: ($f | .status = "resolved" | .revision = $rev | .time = $time), from: $f.status, carried: false} end ]
   | . as $merged
@@ -304,7 +294,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
       verdict: $v.verdict
     }]
   | settle($cap; $threshold; false)
-  | {state: ., carried: ($merged | map(select(.carried) | .rec.finding_id)), ignored: $ignored}
+  | {state: ., carried: ($merged | map(select(.carried) | .rec.finding_id))}
 EOF
 
 # effective_config — the round cap and the blocking threshold of the default-branch manifest, as
@@ -494,9 +484,6 @@ cmd_record() {
   jq -c --argjson cap "$cap" '.state | .max_iterations = $cap' "$TMP/merged.json" \
     | jq -c --arg t "$threshold" '.blocking_threshold = $t' >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  local ignored
-  ignored="$(jq -r '.ignored' "$TMP/merged.json")"
-  [[ "$ignored" == 0 ]] || echo "$PROG: ignored $ignored new non-Critical, non-security finding(s) in round $((iteration + 1)): a later round raises only new Critical findings; an earlier open finding this round no longer reports stays open" >&2
   jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
     "$JQ_STATE"' output($cap; $threshold; $carried)' "$TMP/next.json"
 }
@@ -1103,85 +1090,16 @@ EOF
   run_case 'a delta whose changed files name "." is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-dot"
   check 'a changed-files entry "." never puts a path-less finding inside the delta' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
 
-  # --- later rounds raise only new Critical findings; the security floor and earlier findings stay ----------
+  # --- the script records every finding a round reports; the reviewer alone applies the later-round rule ----
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/l1.md" 1 "$F_SQL" "$F_STRUCT"
-  run_case 'round 1 records a Critical and a non-security Moderate' 0 -- record --state "$S" --input "$tmp/l1.md"
-  check 'round 1 still records a new non-Critical finding' "$(q '.counts.new == 2 and .counts.remaining_blocking == 2')"
+  report "$tmp/l1.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l1.md" >/dev/null)
   F_OTHER="$(finding Moderate 'Another copied step' 'src/Foo/Other.php:9' "$STRUCT" 'rule-violation — the step is copied again')"
-  report "$tmp/l2.md" 2 "$F_SQL" "$F_STRUCT" "$F_OTHER"
-  run_case 'round 2 reports a new non-security Moderate' 0 -- record --state "$S" --input "$tmp/l2.md" --changed-files "$tmp/changed-both"
-  check 'a new non-security Moderate in round 2 is not recorded and not blocking' "$(jq -e '(.findings | length) == 2 and all(.findings[]; .file != "src/Foo/Other.php")' "$repo/$S" >/dev/null && q '.rounds[1].new == 0 and .counts.remaining_blocking == 2' || echo 1)"
-  check 'the ignored point is named on stderr' "$(grep -q 'ignored 1 new non-Critical, non-security' "$tmp/err" && echo 0 || echo 1)"
-  check 'a Moderate raised in round 1 stays tracked as confirmed in round 2' "$(jq -e '[.findings[] | select(.file == "src/Foo/Bar.php")][0].status == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
-  report "$tmp/l3.md" 3 "$F_SQL" "$F_STRUCT" "$F_SQL2"
-  run_case 'round 3 reports a new Critical' 0 -- record --state "$S" --input "$tmp/l3.md" --changed-files "$tmp/changed-both"
-  check 'a new Critical in a later round is recorded and blocks' "$(q '.rounds[2].new == 1 and (.blocking | length) == 3')"
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/l4.md" 1 "$F_SQL"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l4.md" >/dev/null)
-  report "$tmp/l5.md" 2 "$F_SQL" "$F_LOW_SEC"
-  run_case 'round 2 reports a new security Moderate' 0 -- record --state "$S" --input "$tmp/l5.md" --changed-files "$tmp/changed-both"
-  check 'the security floor: a new security finding in round 2 is recorded at its severity and blocks' "$(q '.rounds[1].new == 1 and ([.blocking[] | select(.security and .severity == "low")] | length) == 1')"
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/l6.md" 1 "$F_SQL" "$F_STRUCT"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l6.md" >/dev/null)
-  report "$tmp/l7.md" 2 "$F_SQL"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l7.md" --changed-files "$tmp/changed-both" >/dev/null)
-  report "$tmp/l8.md" 3 "$F_SQL" "$F_STRUCT"
-  run_case 'round 3 reports a Moderate that round 2 resolved' 0 -- record --state "$S" --input "$tmp/l8.md" --changed-files "$tmp/changed-both"
-  check 'a resolved earlier finding that returns is reopened and tracked, never ignored' "$(q '.counts.reopened == 1 and .counts.confirmed == 2')"
-
-  # An earlier open finding that a round re-cites under a new identity (another rule section, a renamed file) is
-  # not fixed. The round drops the new identity, so it carries the earlier finding instead of resolving it.
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/d1.md" 1 "$F_SQL" "$F_STRUCT"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/d1.md" >/dev/null)
-  F_DRIFT="$(finding Moderate 'Copied step' 'src/Foo/Bar.php:10' "@rules/php/core-standards.md#duplication" 'rule-violation — the step is copied')"
-  F_RENAMED="$(finding Moderate 'Copied step' 'src/Foo/Renamed.php:10' "$STRUCT" 'rule-violation — the step is copied')"
-  report "$tmp/d2.md" 2 "$F_SQL" "$F_DRIFT"
-  run_case 'round 2 re-cites an open Moderate under another rule section' 0 -- record --state "$S" --input "$tmp/d2.md" --changed-files "$tmp/changed-both"
-  check 'a round that drops a new identity carries the earlier open finding and the loop continues' "$(q '.verdict == "continue" and .counts.resolved == 0 and .counts.remaining_blocking == 2 and (.carried | length) == 1')"
-  check 'the drift is named on stderr' "$(grep -q 'an earlier open finding this round no longer reports stays open' "$tmp/err" && echo 0 || echo 1)"
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/d1.md" >/dev/null)
-  report "$tmp/d3.md" 2 "$F_SQL" "$F_RENAMED"
-  run_case 'round 2 re-cites an open Moderate in a renamed file' 0 -- record --state "$S" --input "$tmp/d3.md" --changed-files "$tmp/changed-both"
-  check 'a renamed file never resolves the earlier open finding' "$(q '.verdict == "continue" and .counts.resolved == 0 and .counts.remaining_blocking == 2')"
-  report "$tmp/d4.md" 3 "$F_SQL"
-  run_case 'round 3 reports neither the Moderate nor a new one' 0 -- record --state "$S" --input "$tmp/d4.md" --changed-files "$tmp/changed-both"
-  check 'a round that dropped nothing resolves the finding it no longer reports' "$(q '.counts.resolved == 1 and .counts.remaining_blocking == 1')"
-
-  # The round-2 filter relies on the security flag of extract-findings.sh. A new Moderate of the S1 git-history
-  # lens and one that only an S3 surface names are recorded and block.
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/s1.md" 1 "$F_SQL"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/s1.md" >/dev/null)
-  F_GIT="$(finding Moderate 'Commit message names a build host' 'the pull request as a whole' '@skills/git-history-exposure-audit/SKILL.md' 'exploit-path — the host appears in a commit')"
-  F_S3="$(finding Moderate 'Outbound request to a user-supplied address' 'src/Net/Fetch.php:4' "$STRUCT" 'exploit-path — the url is fetched as given')"
-  report "$tmp/s2.md" 2 "$F_SQL" "$F_GIT" "$F_S3"
-  run_case 'round 2 reports a git-history Moderate and an S3-only Moderate' 0 -- record --state "$S" --input "$tmp/s2.md" --changed-files "$tmp/changed-both"
-  check 'the S1 lens and the S3 surface are recorded in round 2 and block' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.security)] | length) == 3')"
-  check 'nothing is ignored when both are security-relevant' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
-
-  # A security-lens Moderate (it carries a Level) on a non-security rule, and a Moderate whose only security signal
-  # is its Suggested fix (S2), are never dropped from a later round.
-  rm -f "$repo/$S"
-  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/v1.md" 1 "$F_SQL"
-  (cd "$repo" && "$script" record --state "$S" --input "$tmp/v1.md" >/dev/null)
-  F_LEVEL="$(finding Moderate 'Read-only agent writes a tracked file' 'agents/foo.md:1' "$STRUCT" 'logic-trace — the agent writes through the tool' High)"
-  F_FIX="$(finding Moderate 'A plain point' 'src/Net/Plain.php:4' "$STRUCT" 'logic-trace — the value is used as given' | sed 's/n\/a — w$/check the origin header before use/')"
-  report "$tmp/v2.md" 2 "$F_SQL" "$F_LEVEL" "$F_FIX"
-  run_case 'round 2 reports a Level Moderate and a Suggested-fix-only Moderate' 0 -- record --state "$S" --input "$tmp/v2.md" --changed-files "$tmp/changed-both"
-  check 'a security-lens Moderate on a non-security rule and an S2 Suggested-fix signal stay recorded and blocking in round 2' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.security)] | length) == 3')"
-  check 'nothing is ignored in that round' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
+  report "$tmp/l2.md" 2 "$F_SQL" "$F_OTHER" "$F_LOW_SEC"
+  run_case 'round 2 reports a new non-security Moderate and a new security Moderate' 0 -- record --state "$S" --input "$tmp/l2.md" --changed-files "$tmp/changed-both"
+  check 'every finding a later round reports is recorded and blocks' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.file == "src/Foo/Other.php")] | length) == 1')"
+  check 'nothing a later round reports is ignored' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
 
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"
