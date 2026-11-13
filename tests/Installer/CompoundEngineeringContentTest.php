@@ -86,7 +86,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
 
-    expect($pullRequest)->toContain('**`## Merge danger`**');
+    expect($pullRequest)->toContain('**Merge danger** — it tells');
     expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
@@ -97,11 +97,11 @@ test('the pull request body states the merge danger from the merge-risk script a
         'A revert does not run `down()`: when the diff carries a migration, roll it back with `php artisan migrate:rollback` before the revert.',
     );
     expect($pullRequest)->not->toContain('<(git diff');
-    expect($pullRequest)->toContain('one `Evidence:` line under them: the name of the regression test that failed before the fix and passes after it');
+    expect($pullRequest)->toContain('the `Evidence:` line is the name of the regression test that failed before the fix and passes after it');
 
     // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
-    expect($finalization)->toContain('including its `## Merge danger` section; that file owns the shape');
+    expect($finalization)->toContain('Body rendered from `skills/resolve-issue/templates/pull-request-body.md` and filled as `@skills/resolve-issue/references/pull-request.md` states, including its `## Merge danger` section.');
     expect($rule)->not->toContain('rollback=costly');
     expect($finalization)->not->toContain('rollback=costly');
 });
@@ -753,7 +753,10 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
 
     // resolve-issue's PR body template renders a mandatory `## Audit` section.
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
-    expect($resolveIssue)->toContain('**`## Audit`** — mandatory on every PR');
+    $template = (string) file_get_contents($packageDir . '/skills/resolve-issue/templates/pull-request-body.md');
+    expect($template)->toContain('## Audit');
+    expect($template)->toContain('Merge danger, and Audit are always present');
+    expect($resolveIssue)->toContain('**Audit** — transcribe the accumulated');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
 
     // The standalone-run fallback must not assert a boundary restriction `donatello` no longer has:

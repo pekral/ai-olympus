@@ -56,7 +56,12 @@ function trackerOutputTemplateProblems(string $publisher, string $template, stri
  */
 function trackerOutputPublishingFiles(): array
 {
-    $writes = '#upsert-comment\.sh|gh issue create|gh pr create|gh issue comment|gh pr comment|comment create|add_issue_comment|file-deferred-moderate#';
+    $writes = [
+        '#upsert-comment\.sh|gh issue create|gh pr create|gh issue comment|gh pr comment#',
+        '#comment create|add_issue_comment|file-deferred-moderate#',
+        '#(?:post|publish)\b[^.\n]{0,40}\bcomment\b[^.\n]{0,40}\b(?:on|to) (?:the |each |every |a )?(?:linked |source )?'
+        . '(?:github |jira )?(?:issue|pull request|PR|ticket|JIRA|Bugsnag)#i',
+    ];
     $files = [];
 
     foreach (packageTextFiles() as $relativePath => $contents) {
@@ -64,8 +69,12 @@ function trackerOutputPublishingFiles(): array
             continue;
         }
 
-        if (preg_match($writes, $contents) === 1) {
-            $files[] = $relativePath;
+        foreach ($writes as $write) {
+            if (preg_match($write, $contents) === 1) {
+                $files[] = $relativePath;
+
+                break;
+            }
         }
     }
 
@@ -112,7 +121,8 @@ test('the reports rule owns the template requirement and its code review severit
 
     expect($section)->toContain('`skills/<skill>/templates/`');
     expect($section)->toContain('`skills/_shared/templates/`');
-    expect($section)->toContain('tests/Installer/TrackerOutputTemplateTest.php');
+    expect($section)->toContain('`tests/Fixtures/tracker-output-publishers.json`');
+    expect($section)->toContain('`tests/Installer/TrackerOutputTemplateTest.php` fails');
     expect($section)->toContain('is a **Moderate** finding');
     expect($section)->toContain('without a template');
     expect($section)->not->toContain('## Tracker-Published Reports');
@@ -153,4 +163,39 @@ test('a skill points to the template of an output and does not describe its shap
     expect($read('skills/composer-update-pr/SKILL.md'))->not->toContain('one row per package with `level` `major`: name');
     expect($read('skills/security-threat-analysis/SKILL.md'))->not->toContain('# Security Threat Analysis — <Threat Title>');
     expect($read('skills/code-review/references/prevention-proposal.md'))->not->toContain('| `## Defect class` |');
+    expect($read('skills/resolve-issue/references/pull-request.md'))->not->toContain('- **Summary** —');
+    expect($read('skills/resolve-issue/references/pull-request.md'))->not->toContain('Omit the section entirely');
+    expect($read('skills/process-code-review/SKILL.md'))->not->toContain('that file owns the shape');
+    expect($read('skills/resolve-issue/SKILL.md'))->not->toContain('**Risk areas and edge cases:**');
+    expect($read('skills/tester-cookbook/SKILL.md'))->not->toContain('**Body sections:**');
+    expect($read('skills/tester-cookbook/SKILL.md'))->not->toContain('(always at the top of the comment, in this order)');
+    expect($read('skills/auto-interactive-testing/SKILL.md'))->not->toContain('contains, in this order:');
+});
+
+test('a JIRA or Bugsnag template keeps its guidance below the end-of-body marker', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $templates = ['skills/tester-cookbook/templates/test-report-jira.md', 'skills/resolve-issue/templates/pr-link-back-comment.md'];
+
+    foreach ($templates as $template) {
+        $contents = (string) file_get_contents($packageDir . '/' . $template);
+        $marker = strpos($contents, '=== END OF COMMENT BODY');
+
+        expect($marker)->toBeInt();
+        expect(substr($contents, 0, (int) $marker))->not->toContain('<!--');
+    }
+});
+
+test('the templates that restate a disclosure guard point to its owner', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+    $plan = $read('skills/security-threat-analysis/templates/remediation-plan-issue.md');
+    $review = $read('skills/_shared/templates/proposal-review-comment.md');
+
+    expect($plan)->toContain('agents/leonardo.md Security analysis mode step 4');
+    expect($plan)->toContain('Security-risk analysis section and the Success criteria');
+    expect($plan)->toContain('An unfixed Critical is never published by rewording alone');
+    expect($plan)->not->toContain('phrase each item as the invariant');
+    expect($review)->toContain('skills/_shared/orchestration/proposal-review.md step 6');
+    expect($review)->toContain('marked or not');
+    expect($review)->not->toContain('A finding marked do not file publicly is never in this comment');
 });

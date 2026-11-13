@@ -286,7 +286,9 @@ test('an approved proposal is implemented by the ordinary pipeline under four pr
     expect(feedbackFile('skills/resolve-issue/SKILL.md'))
         ->toContain('Prevention proposal sources also need the `references/safeguard-implementation.md` proofs.');
     expect(feedbackFile('skills/resolve-issue/references/pull-request.md'))
-        ->toContain('**`## Safeguard`** — when the source issue is a prevention proposal');
+        ->toContain('**Safeguard** — the section that `references/safeguard-implementation.md` *The pull request* defines');
+    expect(feedbackFile('skills/resolve-issue/templates/pull-request-body.md'))
+        ->toContain('Safeguard: only when the source issue is a prevention proposal');
     expect(feedbackFile('skills/code-review/references/specialized-reviews.md'))
         ->toContain(
             '- **Safeguard pull request → the safeguard review runs.** Trigger it whenever the pull request body carries a `## Safeguard` section',

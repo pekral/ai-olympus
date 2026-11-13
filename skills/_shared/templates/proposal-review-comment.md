@@ -7,5 +7,5 @@
    - **Correction:** <how `## Proposed solution` changed>
 
 <!-- Published by krang as one new comment in the proposal-review marker namespace with --create on GitHub and JIRA, and without a namespace on Bugsnag. -->
-<!-- When no Critical finding exists, publish nothing. A finding marked do not file publicly is never in this comment. -->
+<!-- When no Critical finding exists, publish nothing. Apply the Disclosure bullet of skills/_shared/orchestration/proposal-review.md step 6: no finding about an unfixed vulnerability of existing code, marked or not, is in this comment. -->
 <!-- A JIRA ticket takes the non-technical reader shape of rules/reports/general.md: no file name, no code, no SHA. -->

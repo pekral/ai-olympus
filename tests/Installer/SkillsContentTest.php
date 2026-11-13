@@ -1584,8 +1584,9 @@ test('a security remediation plan is a machine-checkable checklist that blocks P
     expect($checklist)->toContain('same repository / project as the source');
 
     // The verified state is rendered into the PR body as its own section.
-    expect($pullRequest)->toContain('**`## Security acceptance checklist`**');
-    expect($pullRequest)->toContain('Omit the section entirely when no plan existed');
+    expect($pullRequest)->toContain('**Security acceptance checklist** — the verified checklist');
+    expect(file_get_contents($packageDir . '/skills/resolve-issue/templates/pull-request-body.md'))
+        ->toContain('Security acceptance checklist: only when a pre-implementation security plan was passed into the run');
 
     // leonardo keeps deriving its own remediation-conformance verdict — this is evidence, not a replacement.
     expect($checklist)->toContain('this section is evidence that verdict can cite, never a replacement for it');
