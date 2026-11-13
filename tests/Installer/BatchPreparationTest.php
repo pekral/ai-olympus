@@ -379,7 +379,7 @@ test('the batch is a named path in the concurrency, orchestration, and git rules
 
     // The pointer lives in a reference that krang already loads for prepare-only mode.
     expect($krang)->not->toContain('batch-preparation.md')
-        ->and($krang)->toContain('(except the operator batch: `@rules/compound-engineering/orchestration.md` *Starting the orchestrator*)')
+        ->and($krang)->toContain('(except the operator batch, *Starting the orchestrator*)')
         ->and(strlen($krang))->toBeLessThanOrEqual(135_000 - 1);
 });
 
