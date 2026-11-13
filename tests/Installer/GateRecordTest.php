@@ -407,6 +407,8 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
     expect($lock)->toContain('elapsed="$(gate_etime_seconds "$etime")" || continue');
     // The wrapper's own start is checked after the listing, so the children of a reused root are not signalled.
     expect($lock)->toContain("  if ! same_process \"\$root\" \"\$2\"; then\n    printf '[]\\n'\n    return 0\n  fi");
+    // A repair that stopped nothing does not report a stopped tree.
+    expect($lock)->toContain('[[ "$stopped" != \'[]\' ]] || effect=\'no process was stopped');
     expect(gateScript('gate-record.sh'))->toContain('ps -A -o pid=,ppid=,time=,etime=');
     expect($lock)->not->toContain('pkill');
     expect($lock)->not->toContain('killall');
@@ -603,6 +605,7 @@ test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHP
     $allowed = [
         'agents/donatello.md' => ['"tests": ["vendor/bin/pest', '"static_analysis": ["vendor/bin/phpstan'],
         'skills/resolve-issue/references/bug-diagnosis.md' => ['`git bisect run vendor/bin/pest'],
+        'skills/_shared/orchestration/batch-preparation.md' => ['- Never run a bare `vendor/bin/pest`'],
         'skills/resolve-issue/references/quality-gates.md' => ['Before you run a gate or coverage command, whichever source supplied it, export'],
     ];
     $violations = gateGuardUnwrapped($packageDir, $tool, $allowed);
