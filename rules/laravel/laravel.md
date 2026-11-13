@@ -227,6 +227,29 @@ Applies only when the project installs `laravel/pao`. The package detects an age
 - **A queued job, a console command, and a scheduled task resolve it the same way.** A worker is a separate process that loads its own configuration; nothing about the dispatcher's ambient zone travels in the payload.
 - **A per-account or per-user timezone belongs to the presentation and input layers only.** Render in it, interpret typed input in it, and convert back to the configured zone before storing or comparing. A calculation that carries a user's zone into the middle of it has two sources of truth.
 
+## Carbon and Framework Helpers
+
+A Laravel project already ships a date API and a set of helpers. Hand-written code beside them forks the behaviour the framework tests, and it hides the zone, the locale, and the test clock the framework applies.
+
+- **Date and time work uses Carbon or a Laravel date helper.** Create, parse, format, compare, and shift a date or time with `Carbon` / `CarbonImmutable`, `now()`, `today()`, the `Date` facade, or an Eloquent date cast (`date`, `datetime`, `immutable_datetime`). Parsing, formatting, comparison, and interval arithmetic are `Carbon` methods (`Carbon::parse()`, `format()`, `isoFormat()`, `diffInDays()`, `addDays()`, `isBefore()`).
+- **The native functions and classes this replaces:** `date()`, `gmdate()`, `strtotime()`, `mktime()`, `gmmktime()`, `time()`, `strftime()`, `date_create()`, `date_diff()`, `checkdate()`, `new DateTime(...)`, `new DateTimeImmutable(...)`, `DateTime::createFromFormat()`, and `new DateInterval(...)` used for interval arithmetic. `Carbon::setTestNow()` / `travelTo()` freezes a Carbon clock, and a native call ignores it.
+- **The *Time* rule applies unchanged to every Carbon call.** The explicit timezone, the single zone, and the ban on SQL `NOW()` are owned by *Time* above. This section never restates them.
+- **Reuse a helper the framework already ships.** Before you write a loop, a regular expression, or a string, array, number, or nested-key manipulation, check what `Str` / `Stringable`, `Arr`, `Collection`, `Number`, `data_get()` / `data_set()`, `tap()`, `value()`, and `when()` already do. Write `Str::slug($title)` instead of a hand-written `preg_replace` chain, `data_get($payload, 'user.address.city')` instead of a nest of `isset()` checks, and `Number::currency($amount)` instead of a hand-written `number_format()` wrapper. `filled()` / `blank()` are owned by *String Emptiness Checks* below.
+- **Use only a helper the installed Laravel version ships.** The version in `composer.json` decides (`@rules/general/general.md` *Project Context*).
+- **Two owners, no overlap.** This section owns logic the *framework* already provides. `@rules/code-review/general.md` *Reuse Existing Logic* owns logic the *project* already implements, and this section never restates it.
+
+Severity in code review: **Moderate** for a native date function or class from the list above, or a hand-written equivalent of an existing framework helper, that the diff adds. The scope is the changed lines. Existing native calls elsewhere are not a finding, and this rule is never a licence to open a migration pull request for them.
+
+**Not findings:**
+- A vendor or framework contract that requires or returns a native type: a vendor SDK method that takes a `DateTimeImmutable`, a PHP interface signature, or a `DateTimeInterface` type hint, which Carbon satisfies.
+- Elapsed-time measurement with `hrtime()` or `microtime(true)`, because it is not date work.
+- A date that an Eloquent cast already yields as Carbon.
+- Code outside the Laravel application that does not depend on `illuminate/*`, such as a framework-agnostic package in the same repository.
+- A hand-written block whose semantics differ from the helper in a way the PR description states, and a helper that the project's Laravel version does not ship.
+- A real-clock call in a test file, which belongs to the *Date tests stay correct across a daylight saving transition* walk of `@rules/code-review/core-analysis.md`.
+
+**Gating — one finding per line.** A native date call that carries no timezone is raised once, here: its Carbon replacement is where *Time* applies. A Carbon call with no timezone belongs to *Time*, and this section never raises it.
+
 ## Collections
 - **Chain collection operations into one fluent pipeline.** A `Collection` method returns a `Collection`, so a sequence of transformations reads as a single expression that states what the data becomes. Write the pipeline, not a running tally of intermediate variables:
 ```php
