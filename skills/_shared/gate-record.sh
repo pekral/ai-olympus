@@ -535,9 +535,10 @@ gate_seconds_setting() {
 gate_stuck_after() { gate_seconds_setting AI_OLYMPUS_GATE_STUCK_AFTER 1800; }
 gate_heartbeat_interval() { gate_seconds_setting AI_OLYMPUS_GATE_HEARTBEAT_INTERVAL 30; }
 
-# The descendants of a process, one `<pid> <cpu centiseconds> <elapsed seconds>` line each. The
-# elapsed time comes from the same `ps` listing as the PID, so a caller that derives a start time
-# from it never pairs a PID with the start of a process that took the PID after the listing.
+# The descendants of a process, one `<pid> <cpu centiseconds> <etime>` line each. The etime is the
+# raw `ps` column, which `gate_etime_seconds` converts. It comes from the same `ps` listing as the
+# PID, so a caller that derives a start time from it never pairs a PID with the start of a process
+# that took the PID after the listing.
 # The process itself and the subtree of <exclude> are left out, so the heartbeat never counts its
 # own work as progress. `ps -A -o pid=,ppid=,time=,etime=` prints the same columns on macOS and
 # Linux; `time` is [[dd-]hh:]mm:ss[.cc] and `etime` is [[dd-]hh:]mm:ss.
@@ -550,7 +551,7 @@ gate_descendants() {
       for (i = 1; i <= n; i++) v = v * 60 + a[i]
       return (d * 86400 + v) * 100
     }
-    { pid[NR] = $1; par[NR] = $2; cpu[NR] = centis($3); ela[NR] = centis($4) / 100; n = NR }
+    { pid[NR] = $1; par[NR] = $2; cpu[NR] = centis($3); ela[NR] = $4; n = NR }
     END {
       inset[root] = 1
       if (ex > 0) excluded[ex] = 1
@@ -561,7 +562,7 @@ gate_descendants() {
           if ((par[i] in inset) && !(pid[i] in inset) && !(pid[i] in excluded)) { inset[pid[i]] = 1; changed = 1 }
         }
       } while (changed)
-      for (i = 1; i <= n; i++) if ((pid[i] in inset) && pid[i] != root) printf "%s %.0f %.0f\n", pid[i], cpu[i], ela[i]
+      for (i = 1; i <= n; i++) if ((pid[i] in inset) && pid[i] != root) printf "%s %.0f %s\n", pid[i], cpu[i], ela[i]
     }'
 }
 
