@@ -176,6 +176,10 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 - Every entry under `## Needs verification` is `needs-verification`.
 - `confirmed`, `resolved`, and `dismissed` are never read from a report. `skills/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
 
+### Later rounds
+
+`--round` prints every finding of the report it reads and applies no round filter. The round filter of `@rules/code-review/general.md` *Later rounds raise only new Critical findings* belongs to the reviewer and to `skills/_shared/review-state.sh record`, which drops a new non-Critical, non-security identity from round 2 on.
+
 ### Security relevance
 
 A record is `security: true` when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `laravel-authorization-review`), or when its category, cause, file, or title names a security surface: authentication, sessions and tokens, credentials and secrets, cryptography and signatures, permissions and policies, injection, XSS, CSRF, SSRF, open redirects, uploads and path traversal, payments, personal data, rate limits, escaping and sanitizing, deserialization, mass assignment, and security headers. The match is broad on purpose. A false positive keeps a finding blocking. A false negative would let a security finding be dismissed or deferred.

@@ -10,16 +10,12 @@ h2. Acceptance criteria
 
 h2. Review findings
 
-* [One finding per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words.]
-* [Next finding. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the finding it belongs to.]
+* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words.]
+* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A finding outside the assignment appears only when it is Critical. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
 
 * [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
-
-h3. Not verified
-
-* [Only when a point has no evidence: what is unknown, and the step that settles it. No solution sentence. Omit the heading when there is no such point.]
 
 h2. What changed
 
@@ -119,19 +115,18 @@ Review findings
     is wrong, what the fix is, what the fix changes for the user or the
     business, and the evidence in plain words (an observed value, a reproduced
     behaviour, a failing or passing test, a query result). Plain prose only.
-  - A point with no evidence is never a problem or a solution. It renders under
-    "Not verified" (h3.), after the findings, with the step that settles it,
-    and is never dropped for length. It carries only points about the
-    assignment or a rendered finding; a process point stays on the pull
-    request. When the body still overflows, merge the points into one bullet,
-    then write each finding in two sentences. The rule is owned by
-    @skills/pr-summary/SKILL.md (Review-only run).
+  - Only a point that must be resolved before the merge is listed: a defect
+    or an open question that needs an answer. Every such point of the technical
+    review is listed. A point that needs no action (resolved, deferred,
+    informational) is not. An assumption, a hypothesis, or a point with no
+    evidence is never listed. The rule is owned by @skills/pr-summary/SKILL.md
+    (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
   - A finding outside the assignment — a pre-existing defect, or behaviour the
     assignment does not ask for — appears only when it is Critical. Every other
     finding outside the assignment stays on the pull request.
-  - When the review found nothing to report, or no review has run yet, render
+  - When the review has no point to resolve, or no review has run yet, render
     one sentence that says so, and no bullets.
   - The findings new in this review come first. The heading "Already reported
     in an earlier review" renders only when that group has a finding. The two
@@ -167,14 +162,15 @@ Impact after deployment
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
   Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
-  kódu", "h3. Neověřeno", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
+  kódu", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
   the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
   3 000 characters, counted over the published body. When the comment overflows,
-  shorten What changed first, then merge Impact after deployment bullets —
+  shorten What changed first, then merge Impact after deployment bullets,
+  then write each Review findings bullet in two sentences —
   never drop an Acceptance criteria bullet or a Review findings bullet. @rules/reports/general.md owns this cap, and
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
   one target it applies to.

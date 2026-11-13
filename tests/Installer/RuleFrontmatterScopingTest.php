@@ -448,7 +448,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the DRY check records an unestablished reason to change as *Not a duplicate* and raises nothing (issue #426).
         // Re-baselined: the answer to a reviewer's question takes its prose from `@skills/agent-voice/SKILL.md` instead of the writing rule (issue #432).
         // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-review/general.md' => 'c59412f54068cef292fc22d1105b05692650bac3eb017fa0ad54f36b7b08a89e',
+        // Re-baselined: a later review round raises only new Critical findings and security findings (issue #455).
+        'rules/code-review/general.md' => '1a62d90893425c5bec048f46c787c264f293c48ec407c3eeab553ce1922a54db',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -557,7 +558,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // every marker, heading, field, finding identifier, severity label, and link this rule requires stays.
         // Re-baselined: the scope clarification hands the sentence shape of a report to the voice, and the
         // length limits stay with this rule (issue #432, review round 1).
-        'rules/reports/general.md' => '63bd6c2dbee76505e733d424c3b07e42aad6ffe0719f0226aeeafc9b4b49a98c',
+        // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
+        'rules/reports/general.md' => '4b494b926a2def2d890f0986cc90508c7a7d6dc612714e15a43c9a056e2d85da',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

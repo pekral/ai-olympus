@@ -2289,7 +2289,7 @@ test('the pr-summary Length section names JIRA as its one capped target (issue #
 
     // Overflow resolves in one section only, and the template points back at the same rule.
     expect($prSummary)->toContain(
-        'never drop an `Acceptance criteria` bullet, a `Review findings` bullet, or a *Not verified* point, because those are what the reader decides on',
+        'never drop an `Acceptance criteria` bullet or a `Review findings` bullet, because those are what the reader decides on',
     );
     expect($jiraTemplate)->toContain('@skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the');
 });

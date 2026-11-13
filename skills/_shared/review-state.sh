@@ -246,11 +246,17 @@ EOF
 # never read the file, so the finding stays open. A round counts as a delta round unless `scope` recorded
 # `full` for it, and round 1 is always full. A non-security point that only needed verification may leave on any
 # round: the reviewer's own check settled it.
+# From round 2 on, a finding with a new identity is kept only when it is Critical or security-relevant
+# (@rules/code-review/general.md *Later rounds raise only new Critical findings*); every identity the state already
+# holds, a reopened one included, stays tracked.
 JQ_RECORD=''
 IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 . as $s
 | ($s.iteration + 1) as $n
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
+| ($cur | length) as $reported
+| ($cur | map(select($n < 2 or $prev[.finding_id] != null or .security or .severity == "critical"))) as $cur
+| ($reported - ($cur | length)) as $ignored
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
 | (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope
 | def lift: if . == "new" then "confirmed" else . end;
@@ -294,7 +300,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
       verdict: $v.verdict
     }]
   | settle($cap; $threshold; false)
-  | {state: ., carried: ($merged | map(select(.carried) | .rec.finding_id))}
+  | {state: ., carried: ($merged | map(select(.carried) | .rec.finding_id)), ignored: $ignored}
 EOF
 
 # effective_config — the round cap and the blocking threshold of the default-branch manifest, as
@@ -484,6 +490,9 @@ cmd_record() {
   jq -c --argjson cap "$cap" '.state | .max_iterations = $cap' "$TMP/merged.json" \
     | jq -c --arg t "$threshold" '.blocking_threshold = $t' >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
+  local ignored
+  ignored="$(jq -r '.ignored' "$TMP/merged.json")"
+  [[ "$ignored" == 0 ]] || echo "$PROG: ignored $ignored new non-Critical, non-security finding(s) in round $((iteration + 1)): a later round raises only new Critical findings" >&2
   jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
     "$JQ_STATE"' output($cap; $threshold; $carried)' "$TMP/next.json"
 }
@@ -1089,6 +1098,38 @@ EOF
   printf '.\n./\nsrc/Foo/Bar.php\n' >"$tmp/changed-dot"
   run_case 'a delta whose changed files name "." is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-dot"
   check 'a changed-files entry "." never puts a path-less finding inside the delta' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
+
+  # --- later rounds raise only new Critical findings; the security floor and earlier findings stay ----------
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/l1.md" 1 "$F_SQL" "$F_STRUCT"
+  run_case 'round 1 records a Critical and a non-security Moderate' 0 -- record --state "$S" --input "$tmp/l1.md"
+  check 'round 1 still records a new non-Critical finding' "$(q '.counts.new == 2 and .counts.remaining_blocking == 2')"
+  F_OTHER="$(finding Moderate 'Another copied step' 'src/Foo/Other.php:9' "$STRUCT" 'rule-violation — the step is copied again')"
+  report "$tmp/l2.md" 2 "$F_SQL" "$F_STRUCT" "$F_OTHER"
+  run_case 'round 2 reports a new non-security Moderate' 0 -- record --state "$S" --input "$tmp/l2.md" --changed-files "$tmp/changed-both"
+  check 'a new non-security Moderate in round 2 is not recorded and not blocking' "$(jq -e '(.findings | length) == 2 and all(.findings[]; .file != "src/Foo/Other.php")' "$repo/$S" >/dev/null && q '.rounds[1].new == 0 and .counts.remaining_blocking == 2' || echo 1)"
+  check 'the ignored point is named on stderr' "$(grep -q 'ignored 1 new non-Critical, non-security' "$tmp/err" && echo 0 || echo 1)"
+  check 'a Moderate raised in round 1 stays tracked as confirmed in round 2' "$(jq -e '[.findings[] | select(.file == "src/Foo/Bar.php")][0].status == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  report "$tmp/l3.md" 3 "$F_SQL" "$F_STRUCT" "$F_SQL2"
+  run_case 'round 3 reports a new Critical' 0 -- record --state "$S" --input "$tmp/l3.md" --changed-files "$tmp/changed-both"
+  check 'a new Critical in a later round is recorded and blocks' "$(q '.rounds[2].new == 1 and (.blocking | length) == 3')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/l4.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l4.md" >/dev/null)
+  report "$tmp/l5.md" 2 "$F_SQL" "$F_LOW_SEC"
+  run_case 'round 2 reports a new security Moderate' 0 -- record --state "$S" --input "$tmp/l5.md" --changed-files "$tmp/changed-both"
+  check 'the security floor: a new security finding in round 2 is recorded at its severity and blocks' "$(q '.rounds[1].new == 1 and ([.blocking[] | select(.security and .severity == "low")] | length) == 1')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/l6.md" 1 "$F_SQL" "$F_STRUCT"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l6.md" >/dev/null)
+  report "$tmp/l7.md" 2 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l7.md" --changed-files "$tmp/changed-both" >/dev/null)
+  report "$tmp/l8.md" 3 "$F_SQL" "$F_STRUCT"
+  run_case 'round 3 reports a Moderate that round 2 resolved' 0 -- record --state "$S" --input "$tmp/l8.md" --changed-files "$tmp/changed-both"
+  check 'a resolved earlier finding that returns is reopened and tracked, never ignored' "$(q '.counts.reopened == 1 and .counts.confirmed == 2')"
 
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"
