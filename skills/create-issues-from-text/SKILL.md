@@ -25,12 +25,24 @@ metadata:
 - Proceed directly to step 3; do not gate on a confirmation round when the breakdown is unambiguous
 
 ### 3. Create Issues
+- Before every issue is created, apply *Guard for a possible vulnerability* below; a withheld item gets no issue, and its text goes into no issue body, not even the parent of an EPIC
 - One issue per step
 - Ensure each is independently deliverable: it delivers a working result on its own (*Split into vertical slices*)
 - For every issue created — flat breakdown, EPIC parent, and sub-issues alike — select and apply the single most relevant existing label per `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*; this is additive to, and independent of, the structural `EPIC` label from *EPIC parent & sub-issues* below
 
 ### 4. Output
-- Return list of created issues with URLs
+- Return list of created issues with URLs, and the list of withheld items with their reasons
+
+---
+
+## Guard for a possible vulnerability
+
+This section is the single owner of the guard. `@skills/create-issue/SKILL.md` and `@skills/do-it/SKILL.md` step 5 reference it and do not restate it. `agents/leonardo.md` *Never disclose an unfixed vulnerability on a public tracker* stays the L3 source of the rule.
+
+1. Check the visibility of the repository once per run with `gh repo view --json isPrivate`. A result that is not `true`, and a check that fails, count as public.
+2. On a public repository, create no issue for an item whose text describes an unfixed vulnerability: a missing or broken security control with an exploit path in code that already exists. Disclosing it on a public tracker is L3. This holds even when *Constraints* say to preserve the original assignment: the withheld text goes into no issue body.
+3. Report each withheld item to the operator as withheld, with the reason, and name the private routes: GitHub private vulnerability reporting and a draft security advisory. The operator decides the disclosure. The report goes to the operator only, never to a tracker, a comment, or a pull request.
+4. The other items continue. On a private repository every item is created as the steps above state.
 
 ---
 

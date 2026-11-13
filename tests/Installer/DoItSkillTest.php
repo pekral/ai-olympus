@@ -467,12 +467,9 @@ test('on a public repository an item that describes an unfixed vulnerability get
     $skill = workQueueSource('skills/do-it/SKILL.md');
     $orchestration = workQueueSource('rules/compound-engineering/orchestration.md');
 
-    expect($skill)->toContain('Check the visibility of the repository once with `gh repo view --json isPrivate`.')
-        ->and($skill)->toContain('A result that is not `true`, and a check that fails, count as public.')
-        ->and($skill)->toContain('create no issue for an item whose text describes an unfixed vulnerability')
-        ->and($skill)->toContain('Disclosing it on a public tracker is L3')
-        ->and($skill)->toContain('The item stops `Blocked: possible vulnerability — operator decides disclosure`')
-        ->and($skill)->toContain('GitHub private vulnerability reporting, a draft security advisory')
+    expect($skill)->toContain('Apply `@skills/create-issues-from-text/SKILL.md` *Guard for a possible vulnerability*, the one owner of the guard, before each creation.')
+        ->and($skill)->not->toContain('gh repo view --json isPrivate')
+        ->and($skill)->toContain('A withheld item stops `Blocked: possible vulnerability — operator decides disclosure`')
         ->and($skill)->toContain(
             'lists only items whose issue creation failed, was withheld as a possible vulnerability, or was skipped by the dependency check',
         )
