@@ -512,13 +512,16 @@ test('an item that depends on a Blocked item is Blocked too, and the Blocked ite
 
     expect($skill)->toContain('A unit that depends on a `Blocked` item or unit is `Blocked` too and names it.')
         ->and($skill)->toContain(
-            'An item that depends on a `Blocked` item, or on an item with no issue, is `Blocked` too and names it, and it gets no issue. '
+            'An item that depends on a `Blocked` item, or on an item with no issue, is `Blocked` too and names it, and a new one gets no issue. '
             . 'Record each `Blocked` item with its blocker under `## Unit status` only.',
         )
         ->and($skill)->toContain('- Every item that is not `Blocked` has one issue, either reused with evidence under the author test or created once.')
         ->and($skill)->toContain(
-            'An item that depends on an item with no issue (withheld or refused), or on a `Blocked` item, gets no issue. '
-            . 'It becomes `Blocked: depends on item-<n>`, and the run records it only under `## Unit status` of the brief. '
+            'Walk the items in `order=`. An item, new or reused, that depends on an item with no issue (withheld or refused), '
+            . 'or on a `Blocked` item, becomes `Blocked: depends on item-<n>`. '
+            . 'A new one gets no issue and a reused one keeps its issue. '
+            . 'The run records the blocker only under `## Unit status` of the brief. '
+            . 'An item that the guard below withholds keeps the reason of the guard, because the guard runs on it first. '
             . 'The id and the state of the other item never reach a tracker.',
         )
         ->and($skill)->toContain('after the dependency check and the guard below')
