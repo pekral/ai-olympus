@@ -304,7 +304,9 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('`Blocked: the default branch moved on every attempt before the merge`')
         ->and($batch)->toContain('the merge goes through `@skills/merge-github-pr/SKILL.md` and nothing else')
         ->and($batch)->toContain('Its gates stay unchanged')
-        ->and($batch)->toContain('`git fetch origin`, `git merge-base --is-ancestor`, `git check-ref-format --branch`, and `git -C <worktree> rev-parse` and `status`')
+        ->and($batch)->toContain(
+            '`git fetch origin`, `git merge-base --is-ancestor`, `git check-ref-format --branch`, and `git -C <worktree> rev-parse` and `status`',
+        )
         ->and($batch)->not->toContain('gh pr merge')
         ->and($batch)->not->toContain('--admin');
 
@@ -392,7 +394,7 @@ test('the grant runs every helper for a unit tree in a subshell, so the root ses
     expect($batch)->toContain('`( cd <worktree> && <shared tree>/skills/_shared/verify-gate.sh --tier full <sha> )`')
         ->and($batch)->toContain('The parentheses are required: a bare `cd` persists in the main session')
         ->and($batch)->toContain('`git check-ref-format --branch`')
-        ->and($skill)->toContain("tree runs as `( cd <the unit worktree> && … )`, because the unit worktree is the checked-out head")
+        ->and($skill)->toContain('tree runs as `( cd <the unit worktree> && … )`, because the unit worktree is the checked-out head')
         ->and($merge)->toContain('the unit worktree is the checked-out head: run every command of this step as `( cd <the unit worktree> && … )`');
 
     // No line of the batch path moves the shell with a bare cd: every cd sits inside parentheses.
