@@ -101,7 +101,10 @@ test('the pull request body states the merge danger from the merge-risk script a
 
     // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
-    expect($finalization)->toContain('Body rendered from `skills/resolve-issue/templates/pull-request-body.md` and filled as `@skills/resolve-issue/references/pull-request.md` states, including its `## Merge danger` section.');
+    expect($finalization)->toContain(
+        'Body rendered from `skills/resolve-issue/templates/pull-request-body.md` and filled as '
+        . '`@skills/resolve-issue/references/pull-request.md` states, including its `## Merge danger` section.',
+    );
     expect($rule)->not->toContain('rollback=costly');
     expect($finalization)->not->toContain('rollback=costly');
 });
