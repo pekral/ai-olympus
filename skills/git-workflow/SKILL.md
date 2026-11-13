@@ -82,7 +82,7 @@ git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"   # optional; st
 ```
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
-composer install                      # run only when composer.lock actually changed
+skills/_shared/run-gate.sh --exclusive --command "composer install"   # run only when composer.lock actually changed
 ```
 The default branch itself is exempt — pull it directly with `git pull`. Read-only review skills are exempt too: they `git pull` only to read the diff and never rebase.
 

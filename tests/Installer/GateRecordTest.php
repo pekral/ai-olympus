@@ -377,6 +377,9 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
         'repair with a ledger in a directory it cannot write exits 1 and leaves the lock in place',
         'a group- and other-writable machine directory loses those permissions',
         'a symlinked machine directory is refused',
+        'repair whose audit append fails after the pre-check exits 5 and reports audit not written',
+        'a process whose start differs from the recorded one gets neither SIGTERM nor SIGKILL and is not reported stopped',
+        'a process whose start equals the recorded one is stopped and reported',
     ] as $label) {
         expect(substr_count($lock, '\'' . $label . '\''))->toBe(1);
     }
@@ -391,8 +394,13 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
     expect($lock)->not->toContain('grep -c "^$1"');
     expect(gateScript('run-gate.sh'))->not->toContain('grep -c "^$1"');
     expect(gateScript('gate-record.sh'))->toContain('gate_pid_running()')->toContain('gate_same_start()')->toContain('gate_selftest_calls()');
-    // SIGKILL reaches only a process whose start time still equals the recorded one.
-    expect($lock)->toContain('kill -KILL "$pid"');
+    // SIGTERM and SIGKILL reach only a process whose start time still equals the recorded one, and each
+    // descendant's start comes from the same listing as its PID.
+    expect($lock)
+        ->toContain("    if tree_member_alive \"\$entry\"; then\n      sent+=(\"\$entry\")\n      kill -TERM \"\${entry%%:*}\"")
+        ->toContain("    if tree_member_alive \"\$entry\"; then\n      kill -KILL \"\${entry%%:*}\"");
+    expect($lock)->not->toContain('starts+=("$(gate_process_start');
+    expect(gateScript('gate-record.sh'))->toContain('ps -A -o pid=,ppid=,time=,etime=');
     expect($lock)->not->toContain('pkill');
     expect($lock)->not->toContain('killall');
     expect(gateScript('gate-record.sh'))->toContain('bash "$GATE_LIB_DIR/gate-lock.sh" heartbeat "$$" "$GATE_LOCK"');
@@ -549,18 +557,16 @@ function gateGuardAllowed(array $allowed, string $relative, string $line): bool
     return false;
 }
 
-test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHPStan outside the wrapper', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-
-    // A line that carries one of these tools must name the wrapper (or the validation runner, which
-    // holds the lock itself) on the same line or on the continuation lines of its list item.
-    $tool = '/vendor\/bin\/(pest|rector|phpstan|phpunit)|\bpest --|artisan test|\b(re-?)?runs?\b[^.]{0,80}\bcoverage (tooling|check|command|run)\b/i';
-    $locked = '/run-gate\.sh|run-validation\.sh/';
-    $allowed = [
-        'agents/donatello.md' => ['"tests": ["vendor/bin/pest', '"static_analysis": ["vendor/bin/phpstan'],
-        'skills/resolve-issue/references/bug-diagnosis.md' => ['`git bisect run vendor/bin/pest'],
-        'skills/resolve-issue/references/quality-gates.md' => ['Before you run a gate or coverage command, whichever source supplied it, export'],
-    ];
+/**
+ * The `file:line` of every Markdown line that matches the pattern and names neither the wrapper nor
+ * the validation runner on the line or on the continuation lines of its list item, minus the named
+ * exceptions of its file.
+ *
+ * @param array<string, list<string>> $allowed
+ * @return list<string>
+ */
+function gateGuardUnwrapped(string $packageDir, string $pattern, array $allowed): array
+{
     $violations = [];
 
     foreach (gateGuardMarkdownFiles($packageDir) as $path) {
@@ -568,8 +574,8 @@ test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHP
         $lines = explode("\n", (string) file_get_contents($path));
 
         foreach ($lines as $index => $line) {
-            $unwrapped = preg_match($tool, $line) === 1
-                && preg_match($locked, gateGuardBlock($lines, $index)) !== 1
+            $unwrapped = preg_match($pattern, $line) === 1
+                && preg_match('/run-gate\.sh|run-validation\.sh/', gateGuardBlock($lines, $index)) !== 1
                 && !gateGuardAllowed($allowed, $relative, $line);
 
             if ($unwrapped) {
@@ -578,12 +584,57 @@ test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHP
         }
     }
 
+    return $violations;
+}
+
+test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHPStan outside the wrapper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // A line that carries one of these tools must name the wrapper (or the validation runner, which
+    // holds the lock itself) on the same line or on the continuation lines of its list item.
+    $tool = '/vendor\/bin\/(pest|rector|phpstan|phpunit)|\bpest --|artisan test|\b(re-?)?runs?\b[^.]{0,80}\bcoverage (tooling|check|command|run)\b/i';
+    $allowed = [
+        'agents/donatello.md' => ['"tests": ["vendor/bin/pest', '"static_analysis": ["vendor/bin/phpstan'],
+        'skills/resolve-issue/references/bug-diagnosis.md' => ['`git bisect run vendor/bin/pest'],
+        'skills/resolve-issue/references/quality-gates.md' => ['Before you run a gate or coverage command, whichever source supplied it, export'],
+    ];
+    $violations = gateGuardUnwrapped($packageDir, $tool, $allowed);
+
     expect($violations)->toBe([]);
 
     // The bisect exception is written out where it applies.
     expect((string) file_get_contents($packageDir . '/skills/resolve-issue/references/bug-diagnosis.md'))
         ->toContain('the wrapper refuses `git`')
         ->toContain('exit `6` (lock timeout)');
+});
+
+test('no rule, skill, or agent line tells the reader to run a dependency install outside the wrapper', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+
+    // A dependency install holds the machine lock too. The guard reads Markdown under rules/, skills/, and agents/ only,
+    // so a CI workflow `run:` step in a YAML file and a Dockerfile `RUN` line are out of reach. It matches a run
+    // instruction: a run verb before the backticked command, or a code line that starts with the command.
+    $install = '/(\b([Rr]un|[Rr]uns|re-run)\b[^.`,(]{0,40}`|^\s*)(composer (install|update)|npm (ci|install))\b/';
+    $allowed = [
+        'skills/vite-patterns/SKILL.md' => ['npm ci'],
+        'skills/code-review/references/specialized-reviews.md' => ['`composer-update-pr` — runs `composer update`'],
+    ];
+    $violations = gateGuardUnwrapped($packageDir, $install, $allowed);
+
+    expect($violations)->toBe([]);
+
+    $read = static fn (string $file): string => (string) file_get_contents($packageDir . '/' . $file);
+
+    // The four sites that ran a bare install now name the wrapper, and `raphael` may run it.
+    foreach ([
+        'rules/git/general.md',
+        'skills/process-code-review/SKILL.md',
+        'skills/interactive-testing/SKILL.md',
+        'skills/git-workflow/SKILL.md',
+        'agents/raphael.md',
+    ] as $file) {
+        expect($read($file))->toContain('skills/_shared/run-gate.sh --exclusive --command "');
+    }
 });
 
 test('every instruction that runs the tests of a change names the wrapper', function (): void {
