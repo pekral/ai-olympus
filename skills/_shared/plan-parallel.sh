@@ -144,8 +144,8 @@ limit_from_manifest() {
     if (.parallel | type) == "object" and (.parallel | has("max-units")) then (.parallel["max-units"] | tojson) else "unset" end
   ' 2>/dev/null)" || return 0
   [[ "$raw" != unset && -n "$raw" ]] || return 0
-  if [[ "$raw" =~ ^[0-9]+$ ]] && ((raw >= 1 && raw <= MAX_UNITS_CAP)); then
-    MAX_CONCURRENT="$raw"
+  if [[ "$raw" =~ ^[0-9]{1,2}$ ]] && ((10#$raw >= 1 && 10#$raw <= MAX_UNITS_CAP)); then
+    MAX_CONCURRENT="$((10#$raw))"
     return 0
   fi
   echo "$PROG: refused: parallel.max-units must be an integer from 1 to $MAX_UNITS_CAP; using $DEFAULT_MAX_UNITS" >&2
@@ -676,7 +676,7 @@ self_test() {
     $'a|FAST||a.md\nb|CRITICAL||b.md\nc|FAST||c.md' \
     'max_concurrent=3 batches=3 batch.1=a mode.1=sequential batch.2=b mode.2=sequential reason.b=critical:b batch.3=c mode.3=sequential reason.c=critical:b '
   local bad
-  for bad in 0 4 5 10 11 -1 2.5 '"3"' true null '[3]'; do
+  for bad in 0 4 5 10 11 99 18446744073709551617 18446744073709551618 -1 2.5 '"3"' true null '[3]'; do
     expect_limit "a limit of $bad is refused and the default 2 is kept" "$bad" "$three" \
       "${head}batches=2 batch.1=a,b mode.1=parallel batch.2=c mode.2=sequential reason.c=batch-full " \
       'refused: parallel.max-units must be an integer from 1 to 3; using 2'

@@ -491,3 +491,13 @@ test('a candidate issue whose body carries an agent marker is never trusted, wha
         )
         ->and($skill)->toContain('`@rules/code-review/general.md` *Authorship trust*');
 });
+
+test('a Blocked item is no unit: the queue runs only the items that have an issue and keeps the blocker in the unit status', function (): void {
+    $skill = workQueueSource('skills/do-it/SKILL.md');
+    $batch = workQueueSource('skills/_shared/orchestration/batch-preparation.md');
+
+    expect($skill)->toContain('1. For each item with an issue, in queue order, run the unit as that file states')
+        ->and($batch)->toContain(
+            'every item that is not `Blocked` after step 5 of the skill has an issue; a `Blocked` item is no unit and keeps its blocker in `## Unit status`',
+        );
+});
