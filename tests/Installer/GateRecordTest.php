@@ -380,6 +380,8 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
         'repair whose audit append fails after the pre-check exits 5 and reports audit not written',
         'a process whose start differs from the recorded one gets neither SIGTERM nor SIGKILL and is not reported stopped',
         'a process whose start equals the recorded one is stopped and reported',
+        'the children of a root whose start differs from the recorded one are not signalled',
+        'the children of a root whose start equals the recorded one are stopped with it',
     ] as $label) {
         expect(substr_count($lock, '\'' . $label . '\''))->toBe(1);
     }
@@ -400,6 +402,11 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
         ->toContain("    if tree_member_alive \"\$entry\"; then\n      sent+=(\"\$entry\")\n      kill -TERM \"\${entry%%:*}\"")
         ->toContain("    if tree_member_alive \"\$entry\"; then\n      kill -KILL \"\${entry%%:*}\"");
     expect($lock)->not->toContain('starts+=("$(gate_process_start');
+    // One etime parser: gate_descendants prints the raw column and gate_etime_seconds converts it.
+    expect(gateScript('gate-record.sh'))->not->toContain('centis($4)')->toContain('ela[NR] = $4;');
+    expect($lock)->toContain('elapsed="$(gate_etime_seconds "$etime")" || continue');
+    // The wrapper's own start is checked after the listing, so the children of a reused root are not signalled.
+    expect($lock)->toContain("  if ! same_process \"\$root\" \"\$2\"; then\n    printf '[]\\n'\n    return 0\n  fi");
     expect(gateScript('gate-record.sh'))->toContain('ps -A -o pid=,ppid=,time=,etime=');
     expect($lock)->not->toContain('pkill');
     expect($lock)->not->toContain('killall');
