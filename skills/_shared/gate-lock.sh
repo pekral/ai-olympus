@@ -43,8 +43,9 @@
 #   listing that also gives each descendant's elapsed time, so each start time belongs to the PID
 #   it was listed with. Repair sends SIGTERM, waits AI_OLYMPUS_GATE_REPAIR_GRACE seconds (default
 #   10), then sends SIGKILL, and each signal goes only to a process whose start time still equals
-#   the recorded one. A PID that another process took after the listing is never signalled. It
-#   stops no other process.
+#   the recorded one. The wrapper's own start is checked again after the listing, so the children
+#   of a PID that another process took before the listing are not signalled, and a PID that
+#   another process took after the listing is never signalled. It stops no other process.
 #   A holder it cannot prove (an older holder file, another program at that PID) is left running
 #   and reported as refused.
 #   Repair needs an audit ledger (--audit, or AUDIT_TRAIL_FILE) that it can append to, and refuses
@@ -240,16 +241,24 @@ tree_alive() {
 # Stop the process tree of the verified holder. $1 is the wrapper PID and $2 its recorded start.
 # Each descendant's start comes from the same `ps` listing as its PID (gate_descendants). Both
 # SIGTERM and SIGKILL go only to a process whose start still equals that start, and a PID that was
-# reused after the listing counts as gone, so a process the wrapper did not start is never
-# signalled. Prints the pids it stopped as a JSON array; returns 1 when a process of the tree
+# reused after the listing counts as gone, and a wrapper PID that no longer holds the recorded
+# start after the listing means its children are not the wrapper's: nothing is signalled and the
+# result is `[]`. So a process the wrapper did not start is never signalled. Prints the pids it stopped as a JSON array; returns 1 when a process of the tree
 # survived SIGKILL.
 stop_holder_tree() {
-  local root="$1" listing listed pid elapsed grace waited=0 entry survivors=0
+  local root="$1" listing listed pid etime elapsed grace waited=0 entry survivors=0
   local -a tree=("$root:$2") sent=() gone=()
   listing="$(gate_descendants "$root")"
   listed="$(date +%s)"
-  while read -r pid _ elapsed; do
-    [[ "$pid" =~ ^[0-9]+$ && "$elapsed" =~ ^[0-9]+$ ]] || continue
+  # A root that no longer holds the recorded start after the listing is not the wrapper, so the
+  # listed children are not its own: nothing is signalled.
+  if ! same_process "$root" "$2"; then
+    printf '[]\n'
+    return 0
+  fi
+  while read -r pid _ etime; do
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    elapsed="$(gate_etime_seconds "$etime")" || continue
     tree+=("$pid:$((listed - elapsed))")
   done <<<"$listing"
 
@@ -575,6 +584,21 @@ self_test() {
   check 'a process whose start equals the recorded one is stopped and reported' \
     "$([[ "$code" -eq 0 && "$OUT" == "[$reused]" ]] && ! gate_pid_running "$reused" && echo pass)"
   { wait "$reused"; } 2>/dev/null || true
+  # The children of a root PID that another process took before the listing are that process's own.
+  local parent child parent_start
+  sh -c 'sleep 300 & wait' &
+  parent=$!
+  SELF_TEST_PIDS+=("$parent")
+  sleep 1
+  child="$(gate_descendants "$parent" | awk 'NR == 1 { print $1 }')"
+  parent_start="$(gate_process_start "$parent")"
+  code=0; OUT="$(stop_holder_tree "$parent" "$((parent_start - 3600))" 2>/dev/null)" || code=$?
+  check 'the children of a root whose start differs from the recorded one are not signalled' \
+    "$([[ "$code" -eq 0 && "$OUT" == '[]' && "$child" =~ ^[0-9]+$ ]] && gate_pid_running "$parent" && gate_pid_running "$child" && echo pass)"
+  code=0; OUT="$(stop_holder_tree "$parent" "$parent_start" 2>/dev/null)" || code=$?
+  check 'the children of a root whose start equals the recorded one are stopped with it' \
+    "$([[ "$code" -eq 0 && "$OUT" == *"$parent"* && "$OUT" == *"$child"* ]] && ! gate_pid_running "$parent" && ! gate_pid_running "$child" && echo pass)"
+  { wait "$parent"; } 2>/dev/null || true
   rm -rf "$lock"
 
   # A holder that exited and was never reaped by its parent is a zombie: it holds nothing.
