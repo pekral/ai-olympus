@@ -79,7 +79,6 @@ test('each new finding declares a severity, its exemptions, and its gating', fun
 
     expect($section)->toContain('Severity: **Critical** when the traced failure corrupts persisted data, money, or authorization; **Moderate** otherwise.')
         ->and($section)->toContain('a failure the reviewer cannot trace is not raised')
-        ->and($section)->toContain('a job\'s retry and backoff setting to `@rules/php/core-standards.md` *Async Review Note*')
         ->and($section)->toContain('A review runs nothing, so it reports the missing measurement, never a measured one.')
         ->and($section)->toContain('a before and after figure from the real operation on data of production shape');
 });
@@ -92,60 +91,40 @@ test('the entries route to the owner that already raises the finding and stay in
         ->and($section)->toContain('per `@rules/php/core-standards.md` *Named Arguments*')
         ->and($section)->toContain('The **Suggested Fix** is a named argument at the call site')
         ->and($section)->toContain('only when the two behaviours change for different reasons')
-        ->and($section)->toContain(
-            'A bare literal for a flag parameter is this entry\'s finding, '
-            . 'and the *Named Arguments Review* of `@skills/code-review/SKILL.md` raises no second one.',
-        )
         ->and($section)->toContain('for the concurrency trace only (an exception between two writes is still traced)');
 });
 
 test('a race, replay, or retry on a security surface is a security finding that keeps the higher severity', function (): void {
     $section = architecturePrinciplesSection();
 
-    $sentence = 'a race, a replay, or a retry on a surface the S3 test of `@rules/code-review/general.md` '
-        . '*Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* names is a security finding. '
-        . '`@skills/security-review/SKILL.md` owns it and it carries the higher of the two severities. '
-        . 'An untraced one goes under *Needs verification* and blocks '
-        . '(`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).';
+    $clause = 'A point on a surface the S3 test of `@rules/code-review/general.md` '
+        . '*Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* names stays the '
+        . '`@skills/security-review/SKILL.md` finding, at the higher of the two severities.';
 
-    expect($section)->toContain($sentence)
-        ->and($section)->toContain('Off an S3 surface, a client retry with no idempotency key belongs to `api-review` *Idempotency keys*')
-        ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
+    expect($section)->toContain($clause)
         ->and($section)->toContain(
-            'On a project that implements MPP, a replayed or concurrently settled MPP credential is the '
-            . '*Idempotent settlement under concurrency* finding of `@skills/machine-payments-protocol/SKILL.md`. '
-            . 'It stays a security finding at the higher of the two severities, and this entry raises no second one.',
-        )
-        ->and($section)->not->toContain('a replayed MPP credential on a project that implements MPP to')
-        ->and($section)->not->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md`');
+            'A race, a replay, or a retry on an S3 surface is a security finding. '
+            . 'An untraced one goes under *Needs verification* and blocks '
+            . '(`@skills/process-code-review/references/review-state.md` *Evidence and blocking*). '
+            . 'This entry raises only a failure or an interleaving it traced.',
+        );
 });
 
-test('each entry routes every other lens that raises the same question on the same line', function (): void {
+test('one general rule gives every overlapping line one owner, and the four entries reference it', function (): void {
     $section = architecturePrinciplesSection();
     $audit = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/simplification-audit/SKILL.md');
 
-    expect($section)->toContain(
-        'On a latency-critical surface, the missing readback is the finding of '
-        . '`@skills/latency-critical-systems/SKILL.md` with `MODE=cr`, and this entry raises no second one.',
-    )
-        ->and($section)->toContain('*SQL query reuse of existing indexes*, and *SQL query performance non-regression*')
-        ->and($section)->toContain('the database lens (the engine-resolved lens and the advisory `casey` report)')
+    $rule = '**One owner per line.** When another rule or lens that runs on the same changed line raises the same question, '
+        . 'that owner\'s finding stands and no entry below raises a second one.';
+
+    expect(substr_count($section, $rule))->toBe(1)
         ->and($section)->toContain(
-            'A collaborator an Action needs but receives through `__invoke()` instead of its constructor '
-            . 'is the constructor-injection finding of **Architecture conformance (Laravel)**.',
+            'When no other owner runs on the line, the entry below raises it.',
         )
-        ->and($section)->toContain('This entry covers only a collaborator the class never calls.')
-        ->and($section)->toContain(
-            'A set of booleans that permits invalid combinations is the state-representation finding of '
-            . '`@skills/simplification-audit/SKILL.md` with `MODE=cr`.',
-        )
-        ->and($section)->toContain('an HTTP method whose repeat breaks its idempotence contract belongs to `api-review` *HTTP methods & idempotence*')
-        ->and($section)->toContain('an upsert with no backing unique index or a concurrent transaction with no deadlock retry to the schema-pattern lens')
-        ->and($section)->toContain(
-            'A lifecycle or async state whose representation permits stale or contradictory values is the representation finding of '
-            . '`@skills/simplification-audit/SKILL.md` with `MODE=cr`. '
-            . 'This entry raises a finding only for a failure or an interleaving it traced.',
-        )
+        ->and(substr_count($section, '*One owner per line* above decides every overlap with another rule or lens.'))->toBe(4)
+        ->and($section)->not->toContain('On a latency-critical surface, the missing readback')
+        ->and($section)->not->toContain('a concurrent transaction with no deadlock retry to the schema-pattern lens')
+        ->and($section)->not->toContain('On a project that implements MPP')
         ->and($audit)->toContain(
             '*Architecture principles — one lens, one finding format* owns the failure and concurrency trace of a state change, '
             . 'a flag parameter at its call site, and a dependency the code does not need.',
