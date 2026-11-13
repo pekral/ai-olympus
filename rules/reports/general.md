@@ -75,6 +75,7 @@ Every text an agent publishes to an issue tracker comes from a template, so the 
 
 - **Templates live next to the skill that owns the output**, in `skills/<skill>/templates/`. Two or more skills that publish the same kind of output share one template in `skills/_shared/templates/`.
 - **A template fixes the shape.** It carries the headings, the fields, the order, and every marker that a script or the merge gate reads. A skill, a reference, or an agent definition points to the template by path and does not describe the shape again. The prose of the output still follows the language rules above and `@skills/agent-voice/SKILL.md`.
+- **A template whose target includes JIRA or Bugsnag keeps its guidance below a `=== END OF COMMENT BODY — NOTHING BELOW THIS LINE IS EVER PUBLISHED ===` line.** Those sources have no comment syntax, so the publisher cuts the text at that line and publishes only the part above it. No `<!--` line stands above the marker.
 - **A new kind of output adds its template first.** Add the file, point to it from the owning skill, and register the pair in `tests/Fixtures/tracker-output-publishers.json`. `tests/Installer/TrackerOutputTemplateTest.php` fails when a file that publishes to a tracker names no template.
 - **Code review.** A diff that publishes text to a tracker without a template, or that describes the shape of a published output inline instead of pointing to its template, is a **Moderate** finding. The Suggested Fix names the template to add or to use.
 

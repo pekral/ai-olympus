@@ -174,7 +174,15 @@ test('a skill points to the template of an output and does not describe its shap
 
 test('a JIRA or Bugsnag template keeps its guidance below the end-of-body marker', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $templates = ['skills/tester-cookbook/templates/test-report-jira.md', 'skills/resolve-issue/templates/pr-link-back-comment.md'];
+    $templates = [
+        'skills/tester-cookbook/templates/test-report-jira.md',
+        'skills/resolve-issue/templates/pr-link-back-comment.md',
+        'skills/_shared/templates/follow-up-issue.md',
+        'skills/_shared/templates/proposal-review-comment.md',
+        'skills/assignment-compliance-check/templates/assignment-compliance.md',
+        'skills/pr-summary/templates/pr-summary-jira.md',
+        'skills/pr-summary/templates/pr-summary-bugsnag.md',
+    ];
 
     foreach ($templates as $template) {
         $contents = (string) file_get_contents($packageDir . '/' . $template);
@@ -182,6 +190,43 @@ test('a JIRA or Bugsnag template keeps its guidance below the end-of-body marker
 
         expect($marker)->toBeInt();
         expect(substr($contents, 0, (int) $marker))->not->toContain('<!--');
+    }
+
+    expect((string) file_get_contents($packageDir . '/skills/analyze-support-issue/templates/support-comment-jira.md'))->not->toContain('<!--');
+});
+
+test('no template publishes a line above its end-of-body marker that hides guidance in an HTML comment', function (): void {
+    $withMarker = array_filter(
+        packageTextFiles(),
+        static fn (string $contents, string $path): bool => preg_match('#^skills/[^/]+/templates/[^/]+\.md$#', $path) === 1
+            && preg_match('/^=== END OF COMMENT BODY/m', $contents) === 1,
+        ARRAY_FILTER_USE_BOTH,
+    );
+
+    expect(array_keys($withMarker))->not->toBe([]);
+
+    foreach ($withMarker as $contents) {
+        expect(preg_split('/^=== END OF COMMENT BODY/m', $contents)[0])->not->toContain('<!--');
+    }
+});
+
+test('the end-of-body convention is stated in the rule and in every path that embeds or files such a template', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
+
+    expect($read('rules/reports/general.md'))->toContain('No `<!--` line stands above the marker.');
+
+    foreach ([
+        'skills/assignment-compliance-check/SKILL.md',
+        'skills/pr-summary/SKILL.md',
+        'skills/pr-summary/templates/pr-summary-github.md',
+        'skills/pr-summary/templates/pr-summary-bugsnag.md',
+        'skills/resolve-issue/references/tracker-follow-up.md',
+        'skills/resolve-issue/references/deferred-follow-up.md',
+        'skills/process-code-review/references/round-three-deferral.md',
+        'skills/_shared/orchestration/proposal-review.md',
+    ] as $path) {
+        expect($read($path))->toContain('`=== END OF COMMENT BODY` line');
     }
 });
 

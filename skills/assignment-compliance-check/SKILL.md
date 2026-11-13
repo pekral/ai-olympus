@@ -86,7 +86,7 @@ This gate matters most here: this skill is invoked directly by every CR wrapper 
 
 > **Render this block on every run that has a linked tracker**, carrying exactly one of the three verdicts below (`@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases*). Never return a bare skip status because the result was clean, and never emit a "What is satisfied" list or an "Open questions" list — satisfied requirements and reviewer questions stay out of the block by design.
 
-Render the Assignment Compliance block from `skills/assignment-compliance-check/templates/assignment-compliance.md`, embedded in the consolidated tracker comment. Convert it to the JIRA intermediate source per `@rules/jira/general.md`, and to plain text for Bugsnag. The template carries the header lines that are identical in all three cases, and the three verdicts:
+Render the Assignment Compliance block from `skills/assignment-compliance-check/templates/assignment-compliance.md`, return only the part above its `=== END OF COMMENT BODY` line, and embed it in the consolidated tracker comment. Convert it to the JIRA intermediate source per `@rules/jira/general.md`, and to plain text for Bugsnag. The template carries the header lines that are identical in all three cases, and the three verdicts:
 
 1. **Verdict 1** — every acceptance criterion is met. One sentence, nothing behind it.
 2. **Verdict 2** — a criterion is not met. One entry per Critical gap.
