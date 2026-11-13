@@ -92,6 +92,10 @@ test('the entries route to the owner that already raises the finding and stay in
         ->and($section)->toContain('per `@rules/php/core-standards.md` *Named Arguments*')
         ->and($section)->toContain('The **Suggested Fix** is a named argument at the call site')
         ->and($section)->toContain('only when the two behaviours change for different reasons')
+        ->and($section)->toContain(
+            "A bare literal for a flag parameter is this entry's finding, "
+            . 'and the *Named Arguments Review* of `@skills/code-review/SKILL.md` raises no second one.',
+        )
         ->and($section)->toContain('for the concurrency trace only (an exception between two writes is still traced)');
 });
 
@@ -105,9 +109,13 @@ test('a race, replay, or retry on a security surface is a security finding that 
         . '(`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).';
 
     expect($section)->toContain($sentence)
-        ->and($section)->toContain('A client retry with no idempotency key belongs to `api-review` *Idempotency keys*')
+        ->and($section)->toContain('Off an S3 surface, a client retry with no idempotency key belongs to `api-review` *Idempotency keys*')
         ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
-        ->and($section)->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md` (idempotent settlement)');
+        ->and($section)->toContain(
+            'a replayed MPP credential on a project that implements MPP '
+            . 'to `@skills/machine-payments-protocol/SKILL.md` (idempotent settlement)',
+        )
+        ->and($section)->not->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md`');
 });
 
 test('the preference clause keeps the review inside the scope of the change', function (): void {
