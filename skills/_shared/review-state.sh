@@ -1090,6 +1090,17 @@ EOF
   run_case 'a delta whose changed files name "." is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-dot"
   check 'a changed-files entry "." never puts a path-less finding inside the delta' "$(q '.scope == "full" and .reasons == ["open-finding-outside-delta"]')"
 
+  # --- the script records every finding a round reports; the reviewer alone applies the later-round rule ----
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/l1.md" 1 "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/l1.md" >/dev/null)
+  F_OTHER="$(finding Moderate 'Another copied step' 'src/Foo/Other.php:9' "$STRUCT" 'rule-violation — the step is copied again')"
+  report "$tmp/l2.md" 2 "$F_SQL" "$F_OTHER" "$F_LOW_SEC"
+  run_case 'round 2 reports a new non-security Moderate and a new security Moderate' 0 -- record --state "$S" --input "$tmp/l2.md" --changed-files "$tmp/changed-both"
+  check 'every finding a later round reports is recorded and blocks' "$(q '.rounds[1].new == 2 and .counts.remaining_blocking == 3 and ([.blocking[] | select(.file == "src/Foo/Other.php")] | length) == 1')"
+  check 'nothing a later round reports is ignored' "$(grep -q 'ignored' "$tmp/err" && echo 1 || echo 0)"
+
   # --- untrusted input -------------------------------------------------------------------------------------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)

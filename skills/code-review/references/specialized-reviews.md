@@ -200,7 +200,7 @@ Criterion: the skill's unit of work is the whole repository, a document, a track
 - `tester-cookbook` — writes a QA report for a human tester and posts it as a tracker comment.
 - `analyze-support-issue` — analyses a support issue and publishes a tracker comment. It may reproduce a case locally, but its evidence never depends on a running application, so question 3 passes it on to question 4.
 - `smartest-project-addition` — proposes the next addition to this package.
-- `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review still calls `create-issue` after it publishes, to file an out-of-scope item (`agents/leonardo.md`). That call creates a different artifact and reads no diff, so it is not a lens and produces no finding.
+- `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review calls none of them, because a code review proposes and files no follow-up issue (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
 - `cleanup-local-branches` — deletes local branch refs. It writes no file, which is what keeps it here while `git-workflow` sits in group 1.
 
 ### Group 4 — moves the run's own artifact forward
@@ -240,7 +240,7 @@ Apply this subsection only when the source issue is flagged as **highest priorit
    - **JIRA:** the native `priority` field equals `Highest` or `Blocker`.
    - **Bugsnag:** the linked GitHub issue carries one of the GitHub labels above.
    If no signal matches, skip the rest of this subsection and run the review normally.
-2. **Narrow the review scope** to whatever directly affects the bug fix and its safe deployment. Out-of-scope improvements the diff merely happens to sit near are never blockers — they travel in the reviewer's handoff as follow-up items.
+2. **Narrow the review scope** to whatever directly affects the bug fix and its safe deployment. Out-of-scope improvements the diff merely happens to sit near are never blockers — they are dropped (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
 3. **Keep the resolution gate at Critical and Moderate.** No widening, no narrowing — those two severities still block the merge, exactly as in the default flow. State this explicitly in the review header so the caller does not have to infer it.
 4. Critical and Moderate findings, the **Architecture conformance** walk-through, the **Coverage gate**, the **Database Analysis** section, and every **Specialized Review** that the diff triggers stay mandatory and blocking — fast-track never skips them.
 5. **Record the fast-track decision** in the review output: the matched signal (label name or JIRA priority value) and a one-line reminder that the gate remained Critical + Moderate.

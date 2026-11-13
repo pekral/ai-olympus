@@ -24,11 +24,7 @@ metadata:
 ---
 
 ## Scope
-Perform structured code review focused on:
-- correctness
-- architecture
-- regression risks
-- security and performance issues
+Perform structured code review of exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*: functionality against the assignment, security, database optimisation, and code rules on the changed lines. A point outside them is dropped, and the review proposes no follow-up issue.
 
 ---
 

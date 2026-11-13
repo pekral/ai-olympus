@@ -14,6 +14,24 @@ paths:
 - Load existing review comments and reports when available.
 - Do not repeat already reported findings. On a pull request that has already been reviewed once, *Incremental Review Scope — Diff Since the Last Reviewed Revision* below defines what "already reported" means: which findings a later round drops, which it must carry over, and how the round's scope is resolved.
 
+## What a code review checks, and nothing else (issue #455)
+
+This section is the one owner of the subject of a code review. Every other file points here and never restates it.
+
+A code review covers exactly four areas, in this order:
+
+1. **Functionality against the assignment.** The change does what the assignment asks, and every acceptance criterion is met (`@skills/code-review/references/assignment-conformance-gate.md`).
+2. **Security.** The security floor of the Exclusion Gate (S1–S3), the security skills, and `@rules/security/**`.
+3. **Database optimisation.** The query, index, and data-access problems of the changed lines: the database lens and the `casey` report.
+4. **Code rules.** The package rules and the project instructions, applied to the changed lines.
+
+The review has no other content:
+
+- **No follow-up proposal.** The review proposes no follow-up issue, no "file this later" suggestion, and no TODO for another person.
+- **No point unrelated to the assignment.** A point outside the assignment that is not a security issue is dropped. It is not a finding, not an observation, not a nice-to-have, and not a note in the handoff.
+- **The security exception stays.** A security vulnerability found outside the assignment is never dropped. The reviewer reports it in its handoff (`@agents/leonardo.md` *Hand a security vulnerability found outside the assignment to the agent that files issues*). The security floor never moves.
+- **An unrequested change in the diff is a point about the assignment.** It stays a finding of area 1 (*Changes → requirements* in the Assignment Conformance Gate).
+
 ## Code Context
 - Ensure the review is based on the latest available state of:
     - main branch
@@ -367,7 +385,7 @@ A review raises questions from two sources. A reviewer asks one on the pull requ
   4. Otherwise add a small new part where the invariant belongs.
   Never recommend a new abstraction where an existing part fits (*Reuse Existing Logic* above).
 - A recommendation never weakens security. It keeps every authorization, validation, and trust-boundary check that `@rules/security/**` requires. It says which check protects the recommended path. When the reviewer's own proposal would remove such a check or break the project's layering, the answer says so, names the rule, and recommends the alternative that fits.
-- A recommendation stays inside the assignment. When the fix belongs outside the pull request, the answer says so and the point follows *File deferred points as follow-up tracker issues* in `@rules/compound-engineering/tracker.md`.
+- A recommendation stays inside the assignment. When the fix belongs outside the pull request, the answer says so and proposes no follow-up issue (*What a code review checks, and nothing else*).
 
 **Consequence — an answer that finds a defect is a finding, too.** When the verification shows the code is wrong, the defect enters the review as an ordinary finding at its ordinary severity, with its reproducer fields. The answer points to that finding. It never replaces the finding.
 
@@ -471,6 +489,19 @@ A missing or different fingerprint requires a new review of the whole PR diff an
 - **Carry-over is unconditional.** Every finding from a previous round that was neither fixed nor rejected is re-reported in this round, at its original severity, whether or not this revision touched its line. This is not optional and it is not a courtesy: the merge gate reads the **current** round's own verdict (`@skills/process-code-review/SKILL.md` *Review loop* step 4), so a delta-scoped round that dropped an unresolved Critical would converge a PR that still carries it.
 - **The security lenses always read the whole PR diff.** In every round, `security-review`, the security-rule lens, and every other security lens read the whole PR diff, not only the delta. A narrow delta cannot show a security regression at an untouched call site of a changed function. The whole review widens to the whole PR after a delta on a surface the S3 test of the Exclusion Gate names — authentication, authorization, sessions, secrets, injection, uploads, payments, and the rest of that list — after a regression of a resolved finding, and after a delta on shared or core architecture. `@skills/process-code-review/references/review-state.md` *Incremental scope and the broad review* computes the trigger deterministically.
 - **A gate that reads the whole PR still reads the whole PR.** Three are named because narrowing them would lose a real defect: the **Coverage gate** (every line the PR diff added or changed, not only the delta's), the **Assignment Conformance Gate** (both directions, against the whole implementation), and the **Reviewer Comment Fulfillment Gate** (every reviewer comment on the PR, not only the ones posted since the baseline). A line that landed in round 1 and is still uncovered in round 4 is uncovered.
+
+### Later rounds raise only new Critical findings (issue #455)
+
+This section is the one owner of the rule. Every other file points here and never restates it.
+
+A later round is an iteration of one review-and-fix loop: a round that resolves a baseline from the caller's value (source 1 of *Baseline resolution* above), because an earlier iteration of that loop reviewed the pull request. A round that has no such baseline is round 1. A run whose baseline comes only from a published comment (source 2: a fresh review run, days later) starts round 1 of a new review cycle, so it raises every finding it has under the four areas. From the second round on, the review is narrower than round 1:
+
+- **A new finding is raised only when it is Critical.** A new Moderate or Minor point that the later round finds is not reported. It is not in the findings, it is not in the `Counts:` line, and it is not published.
+- **The security floor is unchanged.** A finding that meets the S1–S3 carve-out of the Exclusion Gate is raised in every round, at its own severity, and is never dropped by this section.
+- **An earlier finding stays tracked until it is fixed.** *Carry-over is unconditional* above applies at every severity. A finding that an earlier round raised and that is still open is reported again, and so is a resolved finding that returns. The convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4) counts them as before.
+- **A tracked finding keeps its severity.** This section never lowers the severity of a tracked finding, and it never closes one.
+
+The reviewer alone applies this section. `skills/_shared/review-state.sh record` and `skills/_shared/extract-findings.sh --round` apply no filter: they record every finding a round reports, and a finding the reviewer reports blocks the convergence gate at its own severity.
 
 ### A finding is settled by the reviewer's own re-read, never by a claim
 

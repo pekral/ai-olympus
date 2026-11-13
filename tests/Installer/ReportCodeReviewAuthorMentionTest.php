@@ -25,7 +25,7 @@ test('a review-only run mentions the author of the changes on each missing-test 
 
     expect($prSummary)
         ->toContain('End the bullet that retells a missing-test or a DRY finding with the author mention')
-        ->toContain('When the review found nothing, render one sentence that says so, and no bullets.');
+        ->toContain('When the review has no point to resolve, render one sentence that says so, and no bullets.');
     expect($prSummary)->not->toContain('## Missing tests added');
 
     expect((string) file_get_contents($packageDir . '/agents/leonardo.md'))

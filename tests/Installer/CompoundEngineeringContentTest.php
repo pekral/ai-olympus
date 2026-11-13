@@ -1053,7 +1053,7 @@ test('leonardo and the deferred-follow-up procedure both route filing through th
     // Refactoring Proposals entry unconditionally, then only what cleared the bar. It now files
     // nothing at all — it hands a Critical pre-existing problem to the agent that owns the
     // backlog, which judges it and may drop it. The bar itself did not move; the decision did.
-    expect($leonardo)->toContain('**What you hand over — Critical only.**');
+    expect($leonardo)->toContain('**What you hand over — security only.**');
     expect($leonardo)->toContain('**You never call an issue-creation skill or `gh issue create` yourself.**');
     expect($leonardo)->not->toContain('Every out-of-scope item the review produced therefore also becomes an issue');
 
