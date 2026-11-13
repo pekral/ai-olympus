@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5] - 2026-11-13
+
 - 📖 **Changed**: `README.md` describes what milestone 0.5 ships (#458). The Quick start gains the batch form of `/prepare-issue-for-merge` (several references or `--merge`) and `/do-it`, with the Codex forms `$verify-merge-readiness` and `$do-it`. New passages cover `merge-github-pr-fast`, the `<branch>-vN` path in which only `krang` closes the superseded pull request, the `parallel.max-units` manifest key, the Carbon and framework-helper rule, the four review areas with the later-round Critical-and-security rule, the Moderate DRY finding and the architecture principles, the machine-wide lock for heavy commands, and the vulnerability guard of the issue-creating skills. The skill (69), rule (33), command (5), and agent (9) counts are unchanged and match the tree.
 
 - 🧭 **Added**: `krang` alone closes a pull request that a `<branch>-vN` pull request supersedes (#470). `rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels* gets a row for `krang` (or the top-level session in the `krang` role) at L1 inside an orchestrated run, with a pointer comment through `upsert-comment.sh` and the close through `audit-trail.sh run --`, and a row that forbids every helper agent to close a pull request. `agents/donatello.md` never closes a pull request and hands the replaced number back as `Superseded PR`. `skills/_shared/orchestration/batch-preparation.md` *Bring a unit to the default branch tip* step 2.2 is the one owner of the `-vN` path, and `agents/krang.md` grants the close in its Bash boundary. The content tests are in `tests/Installer/SupersededPullRequestCloseTest.php`.

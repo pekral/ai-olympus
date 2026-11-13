@@ -25,7 +25,7 @@ CI installs the package into a clean Composer project on PHP 8.4, 8.5, and 8.6 a
 From your Composer project root:
 
 ```bash
-composer require pekral/ai-olympus:0.4 --dev
+composer require pekral/ai-olympus:0.5 --dev
 vendor/bin/ai-olympus install --force
 ```
 
@@ -34,7 +34,7 @@ vendor/bin/ai-olympus install --force
 >
 > During the agent rename, the installer removes verified, unchanged copies of the old definitions once their replacements are installed. Edited old definitions and custom agents are preserved. See the [old-to-new name mapping](docs/agents.md#renamed-agents). Use `--prune` only after reviewing orphaned files: it also removes custom files absent from the package.
 
-The constraint pins release `0.4`; commit your project's `composer.lock` to keep installations reproducible. Composer may ask whether you trust the package as a plugin; see the [plugin trust model](SECURITY.md#plugin-trust-model).
+The constraint pins release `0.5`; commit your project's `composer.lock` to keep installations reproducible. Composer may ask whether you trust the package as a plugin; see the [plugin trust model](SECURITY.md#plugin-trust-model).
 
 The installer writes, for Claude Code and Codex:
 
