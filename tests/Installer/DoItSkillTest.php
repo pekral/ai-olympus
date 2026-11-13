@@ -473,7 +473,7 @@ test('on a public repository an item that describes an unfixed vulnerability get
         ->and($skill)->toContain('Disclosing it on a public tracker is L3')
         ->and($skill)->toContain('The item stops `Blocked: possible vulnerability — operator decides disclosure`')
         ->and($skill)->toContain('GitHub private vulnerability reporting, a draft security advisory')
-        ->and($skill)->toContain('lists only items whose issue creation failed or was withheld as a possible vulnerability')
+        ->and($skill)->toContain('lists only items whose issue creation failed, was withheld as a possible vulnerability, or was skipped by the dependency check')
         ->and($orchestration)->toContain(
             'It creates no issue for an item that describes an unfixed vulnerability on a public repository: that disclosure is L3',
         )
@@ -496,7 +496,7 @@ test('a Blocked item is no unit: the queue runs only the items that have an issu
     $skill = workQueueSource('skills/do-it/SKILL.md');
     $batch = workQueueSource('skills/_shared/orchestration/batch-preparation.md');
 
-    expect($skill)->toContain('1. For each item with an issue, in queue order, run the unit as that file states')
+    expect($skill)->toContain('1. For each item that is not `Blocked`, in queue order, run the unit as that file states')
         ->and($batch)->toContain(
             'every item that is not `Blocked` after step 5 of the skill has an issue; '
             . 'a `Blocked` item, and an item that depends on one, is no unit and keeps its blocker in `## Unit status`',
@@ -510,14 +510,21 @@ test('an item that depends on a Blocked item is Blocked too, and the Blocked ite
 
     expect($skill)->toContain('A unit that depends on a `Blocked` item or unit is `Blocked` too and names it.')
         ->and($skill)->toContain(
-            'An item that depends on a `Blocked` item is `Blocked` too and names it. '
-            . 'Record each `Blocked` item with its blocker under `## Unit status`.',
+            'An item that depends on a `Blocked` item, or on an item with no issue, is `Blocked` too and names it, and it gets no issue. '
+            . 'Record each `Blocked` item with its blocker under `## Unit status` only.',
         )
         ->and($skill)->toContain('- Every item that is not `Blocked` has one issue, either reused with evidence under the author test or created once.')
         ->and($skill)->toContain(
-            'A dependency on an item that gets no issue is named only as `item-<n> (withheld)`, '
-            . 'never by its text, so the dependent keeps its blocker.',
+            'An item that depends on an item with no issue (withheld or refused), or on a `Blocked` item, gets no issue. '
+            . 'It becomes `Blocked: depends on item-<n>`, and the run records it only under `## Unit status` of the brief. '
+            . 'The id and the state of the other item never reach a tracker.',
         )
+        ->and($skill)->toContain('after the dependency check and the guard below')
+        ->and($skill)->not->toContain('(withheld)`, never by its text')
+        ->and($skill)->not->toContain('`item-<n> (withheld)`')
+        ->and($skill)->toContain('1. For each item that is not `Blocked`, in queue order, run the unit as that file states')
+        ->and($skill)->toContain('This holds for a reused (`existing:<n>`) item, which keeps its issue and gets no unit.')
+        ->and($skill)->not->toContain('1. For each item with an issue')
         ->and($skill)->toContain('1. Write one line per item that is not `Blocked`, in queue order:')
         ->and($skill)->toContain('Done when every item that is not `Blocked` sits in exactly one batch.')
         ->and($skill)->not->toContain('- Every item has one issue')
