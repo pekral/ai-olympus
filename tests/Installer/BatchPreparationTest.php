@@ -164,13 +164,15 @@ test('the root session runs a manifest file under the lock and never types a man
     $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
     $runner = batchPrepSource('skills/_shared/run-validation.sh');
 
-    expect($batch)->toContain('`cd <worktree> && <shared tree>/skills/_shared/run-validation.sh --manifest <file> --exclusive`, *Validation*')
+    expect($batch)->toContain('`( cd <worktree> && <shared tree>/skills/_shared/run-validation.sh --manifest <file> --exclusive )`')
         ->and($batch)->toContain('`git -C <the unit worktree> rev-parse HEAD` prints the same SHA')
-        ->and($batch)->toContain('Run it from inside the unit worktree, by the absolute path of the script in the shared tree:')
+        ->and($batch)->toContain('Run it from inside the unit worktree, by the absolute path of the script in the shared tree, in a subshell:')
+        ->and($batch)->toContain('The subshell leaves the working directory of the root session in the shared tree.')
         ->and($batch)->toContain('The manifest then tests the unit head and never the checkout of the shared tree.')
         ->and($batch)->toContain('The root session never types, copies, or interpolates a manifest command into a shell line.')
         ->and($batch)->toContain('A command that carries `$(`, a backtick, or another shell metacharacter is refused as `invalid`, and nothing runs.')
-        ->and($batch)->toContain('<the shared tree>/skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive`.')
+        ->and($batch)->toContain('<the shared tree>/skills/_shared/run-validation.sh --manifest <the manifest file of the unit> --exclusive )`.')
+        ->and($batch)->not->toContain('`cd <the unit worktree> &&')
         ->and($batch)->toContain('Exit `6` (the lock wait ran out) is `Blocked`.')
         ->and($batch)->toContain('Dispatch `donatello` in *Fast scoped validation mode* only on exit `3` or `4`')
         ->and($batch)->not->toContain('skills/_shared/run-gate.sh --exclusive --command "<command>"` for the commands of a validation manifest')
@@ -250,7 +252,7 @@ test('every batch unit is brought to the default branch tip before the readiness
         ->and($batch)->toContain('A dirty worktree, or one on another commit, stops the unit with `Blocked`')
         ->and($skill)->toContain('For every unit of a batch, with or without `--merge`, the root')
         ->and($skill)->toContain('*Bring a unit to the default branch tip* of')
-        ->and($donatello)->toContain('`git -C <path> reset --keep origin/<branch>` on a clean tree, never with a detached switch')
+        ->and($donatello)->toContain('`git -C <path> switch -C "<branch>" "origin/<branch>"` on a clean tree')
         ->and($donatello)->toContain('or its `<branch>-vN` after a conflict');
 
     expect($orchestration)->toContain(
@@ -258,8 +260,10 @@ test('every batch unit is brought to the default branch tip before the readiness
         . '`gh pr update-branch <PR> --rebase`, with or without `--merge` | L2 |',
     )
         ->and($orchestration)->toContain(
-            'runs through `skills/_shared/audit-trail.sh run --`, which records its `external-write` line, a refused update included.',
-        );
+            'runs through `skills/_shared/audit-trail.sh run --`, which records an `external-write` line for a successful update '
+            . 'and a `note` line for a refused one.',
+        )
+        ->and($orchestration)->not->toContain('a refused update included');
 });
 
 test('the merge step is opt-in, rebases on the latest default branch, re-verifies the gate, and goes through merge-github-pr', function (): void {
@@ -274,10 +278,11 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('the root session runs `gh pr update-branch <PR> --rebase`.')
         ->and($batch)->toContain('`gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`')
         ->and($batch)->toContain('dispatch `donatello` with the unit worktree path and the gate-serialisation block.')
-        ->and($batch)->toContain('`git -C <worktree> reset --keep origin/<branch>`')
+        ->and($batch)->toContain('`git -C <worktree> switch -C "<branch>" "origin/<branch>"`')
+        ->and($batch)->not->toContain('reset --keep')
         ->and($batch)->not->toContain('switch --detach')
-        ->and($batch)->toContain('`git -C <worktree> switch -c <branch>-vN`')
-        ->and($batch)->toContain('The root session records the new branch, the pull-request number, and the head in the brief')
+        ->and($batch)->toContain('`git -C <worktree> switch -c "<branch>-vN"`')
+        ->and($batch)->toContain('records the new branch, the pull-request number, and the head in the brief')
         ->and($batch)->toContain(
             'It resolves the conflict so that every acceptance criterion of the issue stays met and every change of the default branch stays.',
         )
@@ -286,13 +291,20 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->not->toContain('--force-with-lease')
         ->and($batch)->not->toContain('git push --force')
         ->and($batch)->not->toContain('dispatch `leonardo` for the pull-policy path')
-        ->and($batch)->toContain('`skills/_shared/verify-gate.sh --tier full <the new head SHA>`')
-        ->and($batch)->toContain('On a non-zero exit, dispatch `donatello` for `skills/_shared/run-gate.sh --tier full`, then run `verify-gate.sh` again.')
+        ->and($batch)->toContain(
+            '`( cd <the unit worktree> && <the shared tree>/skills/_shared/verify-gate.sh --tier full <the new head SHA> )`',
+        )
+        ->and($batch)->toContain('so the check never runs in the shared tree.')
+        ->and($batch)->toContain(
+            'On a non-zero exit, dispatch `donatello` for `skills/_shared/run-gate.sh --tier full`, then run `verify-gate.sh` again in the same form.',
+        )
+        ->and($batch)->toContain('with the unit worktree as the checked-out head of its step 3.')
+        ->and($batch)->toContain('`@skills/verify-merge-readiness/SKILL.md` step 3 runs the same way for a batch unit.')
         ->and($batch)->toContain('When the default branch tip changed since step 1, go back to step 1.')
         ->and($batch)->toContain('`Blocked: the default branch moved on every attempt before the merge`')
         ->and($batch)->toContain('the merge goes through `@skills/merge-github-pr/SKILL.md` and nothing else')
         ->and($batch)->toContain('Its gates stay unchanged')
-        ->and($batch)->toContain('`git fetch origin`, `git merge-base --is-ancestor`, and `git -C <worktree> rev-parse` and `status`')
+        ->and($batch)->toContain('`git fetch origin`, `git merge-base --is-ancestor`, `git check-ref-format --branch`, and `git -C <worktree> rev-parse` and `status`')
         ->and($batch)->not->toContain('gh pr merge')
         ->and($batch)->not->toContain('--admin');
 
@@ -325,7 +337,7 @@ test('each worktree is removed once clean and pushed, and the branch of a merged
         ->and($batch)->toContain('Never use `--force`.')
         ->and($batch)->toContain('A dirty or unpushed worktree stays in place, and the report names it.')
         ->and($batch)->toContain('`@rules/git/general.md` *Clean up after the task — on every terminating path* item 3')
-        ->and($batch)->toContain('`git merge-base --is-ancestor <branch> "origin/$DEFAULT_BRANCH"` allows `git branch -d`')
+        ->and($batch)->toContain('`git merge-base --is-ancestor "<branch>" "origin/$DEFAULT_BRANCH"` allows `git branch -d`')
         ->and($batch)->toContain('`@skills/cleanup-local-branches/SKILL.md` step 5 allows `git branch -D`')
         ->and($batch)->toContain('A branch without that proof stays, and the report names it.');
 });
@@ -370,4 +382,57 @@ test('the startup sweep already covers the batch worktree names', function (): v
     $sweep = batchPrepSource('skills/_shared/orchestration/stale-run-recovery.md');
 
     expect($sweep)->toContain('every remaining `.claude/worktrees/agent-*` entry');
+});
+
+test('the grant runs every helper for a unit tree in a subshell, so the root session never leaves the shared tree', function (): void {
+    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $skill = batchPrepSource('skills/verify-merge-readiness/SKILL.md');
+    $merge = batchPrepSource('skills/merge-github-pr/SKILL.md');
+
+    expect($batch)->toContain('`( cd <worktree> && <shared tree>/skills/_shared/verify-gate.sh --tier full <sha> )`')
+        ->and($batch)->toContain('The parentheses are required: a bare `cd` persists in the main session')
+        ->and($batch)->toContain('`git check-ref-format --branch`')
+        ->and($skill)->toContain("tree runs as `( cd <the unit worktree> && … )`, because the unit worktree is the checked-out head")
+        ->and($merge)->toContain('the unit worktree is the checked-out head: run every command of this step as `( cd <the unit worktree> && … )`');
+
+    // No line of the batch path moves the shell with a bare cd: every cd sits inside parentheses.
+    preg_match_all('/`cd [^`]*`/', $batch, $bareCd);
+
+    expect($bareCd[0])->toBe([]);
+});
+
+test('a fork pull request never enters the batch path, because the conflict path would republish it as a same-repository branch', function (): void {
+    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+
+    expect($batch)->toContain('read `isCrossRepository`, `headRefName`, and `headRefOid` from `skills/code-review-github/scripts/load-issue.sh`')
+        ->and($batch)->toContain('A unit whose pull request does not show `isCrossRepository` as `false` (it is `true` or `null`) stops with')
+        ->and($batch)->toContain('`Blocked: fork pull request — the batch path never republishes fork commits`')
+        ->and($batch)->toContain('the GitHub approval that `@rules/git/pull-requests.md` *Merging* requires for a fork pull request');
+});
+
+test('every branch name is checked before it enters a shell line or a dispatch and is written in double quotes', function (): void {
+    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $donatello = batchPrepSource('agents/donatello.md');
+
+    expect($batch)->toContain('it must match `^[A-Za-z0-9._/-]{1,200}$`. Only then run `git check-ref-format --branch \'<name>\'`.')
+        ->and($batch)->toContain('A name that fails either check stops the unit with `Blocked: unsafe branch name`.')
+        ->and($batch)->toContain('The same two checks apply to every `<branch>-vN` name that a handoff returns, before the root session records it.')
+        ->and($batch)->toContain('Write every branch in every shell line in double quotes, and `headRefOid` only after it matches `^[0-9a-f]{40}$`.')
+        ->and($batch)->toContain('`git merge-base --is-ancestor "<branch>" "origin/$DEFAULT_BRANCH"`')
+        ->and($donatello)->toContain('Type a branch name only in double quotes, and only after the dispatch confirms the root session checked it');
+
+    // No unquoted branch placeholder in a shell form of the path.
+    expect($batch)->not->toContain('switch -c <branch>')
+        ->and($batch)->not->toContain('switch -C <branch>');
+});
+
+test('a unit that already has a pull request starts on the pull-request head and reaches the tip without a blocked check', function (): void {
+    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+
+    expect($batch)->toContain('**A unit that already has a pull request** starts at the head of that pull request')
+        ->and($batch)->toContain('with the checked `headRefOid` of step 1 in place of `"origin/$DEFAULT_BRANCH"` in the `git worktree add --detach` line.')
+        ->and($batch)->toContain('The worktree stays detached until `donatello` puts it on the unit branch')
+        ->and($batch)->toContain('The unit worktree starts on the pull-request head')
+        ->and($batch)->toContain('so this check holds for a unit that has had a pull request since the start.')
+        ->and($batch)->toContain('It stops `Blocked` when the local branch holds a commit that `origin/<branch>` does not.');
 });
