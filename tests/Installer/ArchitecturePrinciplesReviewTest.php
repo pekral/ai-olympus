@@ -40,6 +40,9 @@ test('the table names an owner for each of the ten principles', function (): voi
 
     expect(array_keys($rows))->toBe([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         ->and($rows[1])->toContain('**Simplicity First**')
+        ->and($rows[1])->toContain(
+            '*A public member that no caller uses* of `@rules/compound-engineering/general.md` *Code Review Application*',
+        )
         ->and($rows[2])->toContain('**Reuse of existing logic**')
         ->and($rows[3])->toContain('*Unify code only when it changes for the same reason*')
         ->and($rows[4])->toContain('**Dependency the code does not need**')
@@ -79,6 +82,28 @@ test('each new finding declares a severity, its exemptions, and its gating', fun
         ->and($section)->toContain('a job\'s retry and backoff setting to `@rules/php/core-standards.md` *Async Review Note*')
         ->and($section)->toContain('A review runs nothing, so it reports the missing measurement, never a measured one.')
         ->and($section)->toContain('a before and after figure from the real operation on data of production shape');
+});
+
+test('the entries route to the owner that already raises the finding and stay inside their trace', function (): void {
+    $section = architecturePrinciplesSection();
+
+    expect($section)->toContain('declares a parameter typed `Container` or `Application` to fetch one collaborator from it')
+        ->and($section)->toContain('lazy resolution of an optional or rarely used dependency (`@rules/laravel/laravel.md` *Dependency Injection*)')
+        ->and($section)->toContain('per `@rules/php/core-standards.md` *Named Arguments*')
+        ->and($section)->toContain('The **Suggested Fix** is a named argument at the call site')
+        ->and($section)->toContain('only when the two behaviours change for different reasons')
+        ->and($section)->toContain('for the concurrency trace only (an exception between two writes is still traced)');
+});
+
+test('a race, replay, or retry on a security surface is a security finding that keeps the higher severity', function (): void {
+    $section = architecturePrinciplesSection();
+
+    expect($section)->toContain(
+        'a race, a replay, or a retry on a surface the S3 test of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* names is a security finding. `@skills/security-review/SKILL.md` owns it and it carries the higher of the two severities. An untraced one goes under *Needs verification* and blocks (`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).',
+    )
+        ->and($section)->toContain('A client retry with no idempotency key belongs to `@skills/api-review/SKILL.md` *Idempotency keys*')
+        ->and($section)->toContain('a retry-abusable or non-idempotent job to `@skills/security-review/SKILL.md` *Queues & Background Jobs*')
+        ->and($section)->toContain('a replayed payment receipt to `@skills/machine-payments-protocol/SKILL.md` (idempotent settlement)');
 });
 
 test('the preference clause keeps the review inside the scope of the change', function (): void {
