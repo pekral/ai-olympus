@@ -93,7 +93,7 @@ test('the entries route to the owner that already raises the finding and stay in
         ->and($section)->toContain('The **Suggested Fix** is a named argument at the call site')
         ->and($section)->toContain('only when the two behaviours change for different reasons')
         ->and($section)->toContain(
-            "A bare literal for a flag parameter is this entry's finding, "
+            'A bare literal for a flag parameter is this entry\'s finding, '
             . 'and the *Named Arguments Review* of `@skills/code-review/SKILL.md` raises no second one.',
         )
         ->and($section)->toContain('for the concurrency trace only (an exception between two writes is still traced)');
