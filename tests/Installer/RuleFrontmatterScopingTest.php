@@ -414,7 +414,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
         // Re-baselined: *Before you create an Action* searches every Action for repeated steps, and CR Severity Rules hands a repeated fragment to *Reuse Existing Logic*.
         // Re-baselined: an Enum carries no data transformation, and a Data Builder method is never `static`.
-        'rules/laravel/architecture.md' => 'd02d94b44257f431967decf627268e2e7ffaae6451cb450aba38ced97576f085',
+        // Re-baselined: a duplicate fragment is the Moderate finding of *Reuse Existing Logic* (issue #457).
+        'rules/laravel/architecture.md' => '9775a697efd423979118cae86e434907a322617f4c4ff954e8e6167007269ea0',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.
@@ -448,7 +449,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the DRY check records an unestablished reason to change as *Not a duplicate* and raises nothing (issue #426).
         // Re-baselined: the answer to a reviewer's question takes its prose from `@skills/agent-voice/SKILL.md` instead of the writing rule (issue #432).
         // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-review/general.md' => 'c59412f54068cef292fc22d1105b05692650bac3eb017fa0ad54f36b7b08a89e',
+        // Re-baselined: a DRY finding is Moderate, and the `Reuse (DRY):` header line is backed by a Moderate finding (issue #457).
+        'rules/code-review/general.md' => '1a1d16ca428ea73939b41f9349d9c95aea09c3317bf608848eab1406b22c62f1',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
