@@ -467,7 +467,9 @@ test('on a public repository an item that describes an unfixed vulnerability get
     $skill = workQueueSource('skills/do-it/SKILL.md');
     $orchestration = workQueueSource('rules/compound-engineering/orchestration.md');
 
-    expect($skill)->toContain('Apply `@skills/create-issues-from-text/SKILL.md` *Guard for a possible vulnerability*, the one owner of the guard, before each creation.')
+    expect($skill)->toContain(
+        'Apply `@skills/create-issues-from-text/SKILL.md` *Guard for a possible vulnerability*, the one owner of the guard, before each creation.',
+    )
         ->and($skill)->not->toContain('gh repo view --json isPrivate')
         ->and($skill)->toContain('A withheld item stops `Blocked: possible vulnerability — operator decides disclosure`')
         ->and($skill)->toContain(
