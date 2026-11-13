@@ -499,6 +499,28 @@ test('a Blocked item is no unit: the queue runs only the items that have an issu
     expect($skill)->toContain('1. For each item with an issue, in queue order, run the unit as that file states')
         ->and($batch)->toContain(
             'every item that is not `Blocked` after step 5 of the skill has an issue; '
-            . 'a `Blocked` item is no unit and keeps its blocker in `## Unit status`',
+            . 'a `Blocked` item, and an item that depends on one, is no unit and keeps its blocker in `## Unit status`',
         );
+});
+
+test('an item that depends on a Blocked item is Blocked too, and the Blocked items with their blockers are recorded', function (): void {
+    $skill = workQueueSource('skills/do-it/SKILL.md');
+    $brief = workQueueSource('skills/do-it/references/queue-brief.md');
+    $report = workQueueSource('skills/do-it/references/progress-report.md');
+
+    expect($skill)->toContain('A unit that depends on a `Blocked` item or unit is `Blocked` too and names it.')
+        ->and($skill)->toContain(
+            'An item that depends on a `Blocked` item is `Blocked` too and names it. '
+            . 'Record each `Blocked` item with its blocker under `## Unit status`.',
+        )
+        ->and($skill)->toContain('- Every item that is not `Blocked` has one issue, either reused with evidence under the author test or created once.')
+        ->and($skill)->toContain(
+            'A dependency on an item that gets no issue is named only as `item-<n> (withheld)`, '
+            . 'never by its text, so the dependent keeps its blocker.',
+        )
+        ->and($skill)->toContain('1. Write one line per item that is not `Blocked`, in queue order:')
+        ->and($skill)->toContain('Done when every item that is not `Blocked` sits in exactly one batch.')
+        ->and($skill)->not->toContain('- Every item has one issue')
+        ->and($brief)->toContain('Also one entry per `Blocked` item that has no unit, with its blocker.')
+        ->and($report)->toContain('the item or its unit is `Blocked`');
 });

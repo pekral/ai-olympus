@@ -21,7 +21,7 @@ States:
 
 - **done** — the unit ended with a converged pull request, promoted out of Draft and linked to its issue.
 - **in progress** — a unit is running. Name its current stage: the role of the last `dispatched` line of the unit ledger `.claude/run/<source-slug>.dispatches` that has no `delivered`, `failed`, or `skipped` line after it.
-- **parked** — the unit is `Blocked`, waits for an answer of the operator, or waits for a dependency. Name which of the three, and name the dependency.
+- **parked** — the item or its unit is `Blocked`, waits for an answer of the operator, or waits for a dependency. Name which of the three, and name the dependency.
 - **queued** — the batch of the unit has not started.
 
 Where each value comes from:

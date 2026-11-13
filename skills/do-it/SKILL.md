@@ -96,26 +96,26 @@ Done when every item has all five keys, and the duration has its method name.
 ### 5. Create the issues and fix the order
 
 1. Run `skills/_shared/order-work-queue.sh` with one line per item (`references/queue-brief.md` *Input of the helpers*). Record its output under `## Queue order`. The helper orders by priority, then difficulty, then duration, shortest first. A dependency comes before its dependent and inherits the priority of its most urgent dependent, and the `inherits.` lines name each case.
-2. Create an issue for each id in `create=`, and only for those ids, through `@skills/create-issues-from-text/SKILL.md`, after the guard below. Assign it, label it as that skill states, and fill `## Dependencies` with the issue numbers of the dependencies. Record each issue number in the brief.
+2. Create an issue for each id in `create=`, and only for those ids, through `@skills/create-issues-from-text/SKILL.md`, after the guard below. Assign it, label it as that skill states, and fill `## Dependencies` with the issue numbers of the dependencies. A dependency on an item that gets no issue is named only as `item-<n> (withheld)`, never by its text, so the dependent keeps its blocker. Record each issue number in the brief.
    - **Guard for a possible vulnerability.** Check the visibility of the repository once with `gh repo view --json isPrivate`. A result that is not `true`, and a check that fails, count as public. On a public repository, create no issue for an item whose text describes an unfixed vulnerability, which is a missing or broken security control with an exploit path in code that already exists. Disclosing it on a public tracker is L3 (`agents/leonardo.md` *Never disclose an unfixed vulnerability on a public tracker*). The item stops `Blocked: possible vulnerability — operator decides disclosure`, and the report names it for the operator, who chooses a private channel (GitHub private vulnerability reporting, a draft security advisory). The other items continue.
 3. The run applies no priority label and runs no labelling script. The priority of a new issue is derived from its conventional-commits title by the rules of `@skills/github-issue-triage/SKILL.md`, so a later triage run assigns the same label. The write stays inside the queue: only the issues of the items that had none.
 
-Done when `create=` is `none` or lists only items whose issue creation failed or was withheld as a possible vulnerability, and every item with an issue has its number in the brief. A refused creation makes the item `Blocked` with the message of the tracker, and a withheld item is `Blocked` with its reason. The other items continue.
+Done when `create=` is `none` or lists only items whose issue creation failed or was withheld as a possible vulnerability, and every item with an issue has its number in the brief. A refused creation makes the item `Blocked` with the message of the tracker, and a withheld item is `Blocked` with its reason. An item that depends on a `Blocked` item is `Blocked` too and names it. Record each `Blocked` item with its blocker under `## Unit status`. The other items continue.
 
 ### 6. Plan the batches
 
-1. Write one line per item, in queue order: `<item id>|<tier>|<depends-on>|<files>`.
+1. Write one line per item that is not `Blocked`, in queue order: `<item id>|<tier>|<depends-on>|<files>`.
 2. Run `skills/_shared/plan-parallel.sh`. It reads `parallel.max-units` itself, so the one concurrency limit stays with the manifest row. Record the output under `## Batches`.
 3. Check that worktrees are allowed. They are allowed when `git worktree list` exits `0` and no project instruction of the default branch (`CLAUDE.md`, `AGENTS.md`) forbids them. The command of the user is the explicit request that `@rules/git/general.md` *Worktrees / Workspaces* requires. When worktrees are not allowed, run every unit alone on the shared tree, one after the other, as the end-to-end run of `agents/krang.md` does for one source, and record `worktrees: not allowed` with the evidence under `## Concurrency`.
 4. Emit the first progress report.
 
-Done when every item sits in exactly one batch.
+Done when every item that is not `Blocked` sits in exactly one batch.
 
 ### 7. Write the communication plan
 
 When no item depends on another item, record `no dependencies — no hand-off` and go on. Otherwise write the plan under `## Communication plan`, as `references/queue-brief.md` *Communication plan* states. It names, for every dependency edge, who hands what to whom through which channel. It works on both platforms, because its channel is the brief files of `.claude/run/` and the dispatch prompt.
 
-Done when every dependency edge has one row.
+Done when every dependency edge between items that are not `Blocked` has one row.
 
 ### 8. Execute the batches
 
@@ -124,7 +124,7 @@ Execute the queue as *A `/do-it` queue as the batch* of `skills/_shared/orchestr
 1. For each item with an issue, in queue order, run the unit as that file states: the end-to-end run of `agents/krang.md` in full-delivery mode on the issue URL of the item. Start the units of a batch with `mode.<k>=parallel` together, in the background. Every other unit starts alone. Finish a batch before the next one starts. Every dispatch carries the unit marker of `references/queue-brief.md`, the path of the queue brief, and the Context Package path.
 2. Before the dispatch of a unit that depends on an item, copy the hand-off row of the communication plan into the brief of the unit (`## Handoff log`). The dispatch of the unit names the dependency, its pull request, and `Base branch` when the dependency pull request is not merged.
 3. When every unit of the queue waits for a running dispatch, end the turn, as the batch file states. The scheduled progress report of Claude Code fires while the session waits.
-4. After each unit ends, append its status to `## Unit status`: the pull request, the convergence verdict, and the blocker. A blocker on one unit never stops another unit. A unit that depends on a `Blocked` unit is `Blocked` too and names it.
+4. After each unit ends, append its status to `## Unit status`: the pull request, the convergence verdict, and the blocker. A blocker on one unit never stops another unit. A unit that depends on a `Blocked` item or unit is `Blocked` too and names it.
 5. Emit a progress report as `references/progress-report.md` states.
 6. Run `agents/krang.md` *Run cleanup* for every unit, remove the unit worktrees as the batch file states, and remove the files of the queue run at the end.
 
@@ -137,7 +137,7 @@ End the progress report first, on every terminating path: cancel the `CronCreate
 | Field | Content |
 | --- | --- |
 | Item | the id and the title |
-| Issue | the number, with `created` or `reused` and the evidence |
+| Issue | the number, with `created` or `reused` and the evidence, or `none` for a `Blocked` item without an issue |
 | Keys | priority, difficulty, duration with its method |
 | Batch | the batch number and its mode |
 | Pull request | the link, or `none` |
@@ -148,7 +148,7 @@ After the table, list what is not verified, with the step that settles each poin
 
 ## Done when
 
-- Every item has one issue, either reused with evidence under the author test or created once.
+- Every item that is not `Blocked` has one issue, either reused with evidence under the author test or created once.
 - `skills/_shared/order-work-queue.sh` produced the order, and `skills/_shared/plan-parallel.sh` produced the batches.
 - The units ran through `skills/_shared/orchestration/batch-preparation.md`.
 - The communication plan exists when items depend on each other.
