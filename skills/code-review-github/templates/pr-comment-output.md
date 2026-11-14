@@ -120,6 +120,7 @@ History exposure: not run — the repository is private.  *(render this one body
 |---|---|---|---|
 | {scenario} | {desktop / mobile} | {Met / Not met / Partial / Blocked} | {what the walkthrough observed} |
 
+- **Affected parts:** one row for each part: {part} · {CR / blast radius / own trace} · {scenario} · {Passed / Failed / Blocked / not testable through the UI}, or `none`
 - **Untested:** {scenario — missing prerequisite}, or `none`
 - **Cleanup:** {restored values, removed test data}, or `none`
 
