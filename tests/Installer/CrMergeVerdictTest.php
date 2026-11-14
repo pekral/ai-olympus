@@ -9,7 +9,7 @@ test('every code review comment answers whether the change can be merged with th
     $agent = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     expect($rule)->toContain('**Merge verdict — the direct answer to "can we merge, and is the assignment met with no Critical finding?".**')
-        ->and($rule)->toContain('1. the header block — `Status:`, `Counts:`, `Merge verdict:`')
+        ->and($rule)->toContain('1. the header block — `Overview:` (*Quick overview* below), `Status:`, `Counts:`, `Merge verdict:`')
         ->and($rule)->toContain('`@skills/merge-github-pr/SKILL.md` still runs its own merge gate, and a `yes` never lifts it.');
 
     expect($contract)->toContain('- **`Merge verdict:` header line.** The posted PR comment always carries it, directly under `Counts:`');
