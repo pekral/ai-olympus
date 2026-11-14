@@ -54,5 +54,8 @@ test('the impact report reaches the implementer, the reviewer, and the acceptanc
         ->toContain('On a `STANDARD` or `CRITICAL` task, record the Map result through `@skills/blast-radius-analysis/SKILL.md`');
     expect(blastRadiusRead('agents/donatello.md'))->toContain('- **Impact report:** `## Impact report` in the brief');
     expect(blastRadiusRead('agents/leonardo.md'))->toContain('read it as a lead, never as evidence');
-    expect(blastRadiusRead('agents/raphael.md'))->toContain('add each of its `verification.runtime` scenarios as a regression row');
+    expect(blastRadiusRead('agents/raphael.md'))->toContain('`@skills/interactive-testing/references/affected-parts.md`');
+    expect(blastRadiusRead('skills/interactive-testing/references/affected-parts.md'))->toContain(
+        'Its `verification.runtime` scenarios are regression scenarios already.',
+    );
 });
