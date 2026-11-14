@@ -7,13 +7,15 @@ This file owns how a testing agent probes every input of the user interface for 
 Every boundary of step 5 of the skill applies to every probe in this file:
 
 - Every payload is harmless. It proves an effect with a unique marker string, or with a DOM marker in place of `alert`. It never destroys data, never causes a denial of service, and never targets a third-party host. A payload never carries a real secret or real personal data.
-- A SQL or NoSQL payload that can widen a condition (a tautology, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only.
-  - A request counts as read-only only when the traced handler source shows no INSERT, UPDATE, or DELETE on any branch that the input value or the query result can reach, including a branch that runs only when the read returns rows or returns none.
+- A probe that writes targets only a record this run created. Never change a hidden field, a route parameter, or a query parameter to the identifier of a record this run did not create.
+- A SQL or NoSQL payload that executes a condition (a tautology, a boolean pair such as `' AND '1'='1`, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only.
+  - A request counts as read-only only when the traced handler source shows that no data write of any form runs on any branch that the input value or the query result can reach, including a branch that runs only when the read returns rows or returns none.
+  - A data write includes INSERT, UPDATE, DELETE, REPLACE, MERGE, UPSERT, TRUNCATE, DDL (CREATE, ALTER, DROP, CREATE TABLE ... AS SELECT), and a stored routine or trigger that writes. In a document store it includes insert*, update*, replace*, delete*, bulkWrite, findAndModify, findOneAnd*, and the aggregate stages `$merge` and `$out`. The list gives examples, and any other write counts too.
   - The report row names the traced handler and its branches.
   - The local query log of a normal value is supporting evidence and never the proof on its own.
   - A search, a filter, or a sort is not read-only by its role in the page.
-  - A request whose source the agent cannot trace to that standard is state-changing: it gets only the safe markers of the SQL row below, sent against a record this run created.
-  - A write or delete never receives a tautology, `-- `, `#`, or `/*`.
+  - A request that is not proven read-only is state-changing. It gets only non-executing markers: a lone single quote, or a lone brace or malformed JSON. The agent confirms an injection from the traced source, where the value reaches a string-built query, and never from a live condition-changing payload.
+  - A request that is not proven read-only never receives a tautology, a boolean pair, `-- `, `#`, or `/*`.
 - Mark every record a probe creates as test data, as *Missing test data* in the skill states. Remove it through *Scripted cleanup*.
 - A probe that sends an e-mail, starts a job, or calls an external service needs the authorization of the scenario. Without it, stop before the effect and mark the probe `not checked`.
 
@@ -40,13 +42,13 @@ For each input, send the payloads that fit the context of its value. A payload c
 | Class | Context of the value | Harmless payload |
 |---|---|---|
 | HTML and script injection, stored and reflected | A value rendered in a page, an attribute, or a script | `<img src=x onerror="document.title='XSS-<marker>'">` and `"><b id="XSS-<marker>">x</b>` |
-| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only over every branch: a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. Any other request (state-changing, or not traced to that standard): only a single quote and the pair `' AND '1'='2` and `' AND '1'='1`, against a record this run created; never a tautology or a comment sequence |
-| NoSQL injection marker | A value that reaches a document query | Request proven read-only over every branch only: `{"$ne": null}`, or `[$ne]=x` as a parameter. Any other request: a single quote or a brace, against a record this run created, and never an operator that widens the condition |
-| Template or expression injection | A value that a template engine or an expression field evaluates | `{{7*7}}`, `${7*7}`, `<%= 7*7 %>`; the value `49` in the output proves the injection |
-| Path traversal | A file name, a path-like field, or a download parameter | `../../<marker>` and `..%2f..%2f<marker>`, aimed at a name that does not exist |
-| Header and CRLF injection | A value that reaches a response header, a redirect, or an e-mail header | `<marker>%0d%0aX-Probe: <marker>`; look for the injected header |
-| Formula injection | A value that reaches a CSV or spreadsheet export | `=1+1`, `+1+1`, `-1+1`, `@SUM(1)`; open the export and check that the cell is neutralized |
-| File upload with a mismatched type, extension, or content | A file upload | A text file named `.png`, an image named `.php`, a double extension, and a `Content-Type` that does not match the content; every file is harmless |
+| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only over every branch: a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. Any other request: only a lone single quote, and confirm the injection from the traced source; never a tautology, a boolean pair, or a comment sequence |
+| NoSQL injection marker | A value that reaches a document query | Request proven read-only over every branch only: `{"$ne": null}`, or `[$ne]=x` as a parameter. Any other request: only a lone brace or malformed JSON, and confirm the injection from the traced source; never an operator that widens the condition |
+| Template or expression injection | A value that a template engine or an expression field evaluates | `{{7*7}}`, `${7*7}`, `<%= 7*7 %>`; arithmetic only, never a function call, a file read, or a command; the value `49` in the output proves the injection |
+| Path traversal | A file name, a path-like field, or a download parameter | `../../<marker>` and `..%2f..%2f<marker>`, aimed at a name that does not exist, and only to a request that reads a file (a download or a preview) and is proven read-only. A field that saves, renames, moves, copies, or deletes a file gets no traversal sequence: confirm from the traced source whether the value reaches a path without normalization |
+| Header and CRLF injection | A value that reaches a response header, a redirect, or an e-mail header | `<marker>%0d%0aX-Probe: <marker>`; look for the injected header. In an e-mail header, send it only with the e-mail authorization of the scenario, to a local mail catcher, and never as a `To`, `Cc`, or `Bcc` header |
+| Formula injection | A value that reaches a CSV or spreadsheet export | `=1+1`, `+1+1`, `-1+1`, `@SUM(1)`; arithmetic only, never `HYPERLINK`, `DDE`, or a command; read the raw export file as text, never open it in a spreadsheet application, and check that the cell is neutralized |
+| File upload with a mismatched type, extension, or content | A file upload | A text file named `.png`, an image named `.php`, a double extension, and a `Content-Type` that does not match the content; every file is harmless: a plain text body that holds only the marker, never code, with a file name that carries the unique marker so it never overwrites an existing file, and no request that executes the stored file |
 
 Replace `<marker>` with one unique string for the run, so the agent finds a stored payload again on every page that shows it. After each payload, check the result in three places:
 
@@ -59,7 +61,7 @@ Replace `<marker>` with one unique string for the run, so the agent finds a stor
 For each input, send every class of invalid data that applies to its kind:
 
 - empty and whitespace-only values;
-- a value over the maximum length that the field, the column, or the validation rule sets;
+- a value over the maximum length that the field, the column, or the validation rule sets, by one character, or at most 10,000 characters when no limit exists;
 - a value of the wrong type, such as text in a number field;
 - negative values, zero, and out-of-range numbers and dates;
 - unexpected Unicode: control characters, a right-to-left override, and emoji;
@@ -67,7 +69,7 @@ For each input, send every class of invalid data that applies to its kind:
 
 ## 4. Bypass the client-side validation
 
-A browser limit is a convenience and never protection. For each input that carries a client-side limit, send the invalid data of section 3 and the payloads of section 2 a second time, past that limit. The payload limits of section 2 apply to this second send:
+A browser limit is a convenience and never protection. For each input that carries a client-side limit, send the invalid data of section 3 and the payloads of section 2 a second time, past that limit. The payload limits of section 2 and the boundaries apply to this second send, and it never adds a live condition-changing payload to a request that is not proven read-only:
 
 1. Remove `required`, `maxlength`, `pattern`, `type`, and `disabled` in the DOM, or set a select to an option it does not offer.
 2. Submit the form, or send the same request from the page, so the browser constraints do not run.
@@ -87,4 +89,4 @@ A `vulnerable` input follows the flow of step 5 of the skill: it is a candidate 
 
 On a shared or remote target every input is `not checked`, and the security check is `Blocked`, as step 5 of the skill states.
 
-Report one row for each input: the page, the input, its kind, the payload classes sent, and the result. Report the `not checked` rows under **Untested** and the proof of each `vulnerable` row under **Security**.
+Report one row for each input: the page, the input, its kind, the payload classes sent, the traced handler and its branches, and the result. Report the `not checked` rows under **Untested** and the proof of each `vulnerable` row under **Security**.
