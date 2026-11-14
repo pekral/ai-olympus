@@ -42,7 +42,9 @@
 #   - with --pr, the pull request's URL appears in an `external-write` line;
 #   - with --pr or --issue, every comment of the current GitHub account that carries an agent marker
 #     (`<!-- <namespace>:actor=`) and was made since the first ledger line has an `external-write` line.
-#     A comment without a marker is the operator's own and is skipped;
+#     A comment without a marker is the operator's own and is skipped. With --pr the same holds for every
+#     pull-request review and every review comment of the account that carries an agent marker: an
+#     `external-write` line must name `pullrequestreview-<id>` of the review;
 #   - with --pr or --issue, every label the account added (`+label <name>`) or removed (`-label <name>`)
 #     since the first ledger line is named by an `external-write` line. A label event carries no
 #     marker, so an unrecorded one is `not verified:`, never a problem;
@@ -336,11 +338,19 @@ cmd_run() {
 # issue since <since>, each one a line "kind<TAB>id-or-label<TAB>time". A comment counts only when its
 # body carries an agent marker (`<!-- <namespace>:actor=`): the account is shared with the operator,
 # and a comment without a marker is the operator's own (`rules/code-review/general.md` *Authorship
-# trust*). Return 1 when a read fails.
+# trust*). With a fourth argument, the pull request base (`repos/<o>/<r>/pulls/<n>`), it also lists the
+# reviews and the review comments of the account that carry an agent marker, as "review<TAB>review id<TAB>time"
+# (a review comment is listed under the review it belongs to). Return 1 when a read fails.
 observe_item_writes() {
-  local base="$1" login="$2" since="$3" out
+  local base="$1" login="$2" since="$3" pulls="${4:-}" out
   out="$(gh api "$base/comments" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .created_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "comment\t%s\t%s\n", $3, $2 }' <<<"$out"
+  if [[ -n "$pulls" ]]; then
+    out="$(gh api "$pulls/reviews" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .submitted_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
+    awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "review\t%s\t%s\n", $3, $2 }' <<<"$out"
+    out="$(gh api "$pulls/comments" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .created_at, (.pull_request_review_id | tostring)] | @tsv' 2>/dev/null)" || return 1
+    awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "review\t%s\t%s\n", $3, $2 }' <<<"$out"
+  fi
   out="$(gh api "$base/timeline" --paginate --jq '.[] | select(.event == "labeled" or .event == "unlabeled") | [.actor.login, .created_at, .event, .label.name] | @tsv' 2>/dev/null)" || return 1
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
 }
@@ -376,7 +386,7 @@ note_names() {
 # change with none is not verified, because a label event cannot be told from the operator's own.
 # Reads and writes the caller's `problems`, `notes`, `writes`, `note_target`, `since`, and `login` variables.
 observe_item() {
-  local item="$1" base kind id when observed sign name
+  local item="$1" is_pr="${2:-}" base pulls="" kind id when observed sign name seen_reviews=" "
   if [[ "$item" =~ ^https://[^/]+/([^/]+)/([^/]+)/(pull|issues)/([0-9]+) ]]; then
     base="repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/issues/${BASH_REMATCH[4]}"
   elif [[ "$item" =~ ^[0-9]+$ ]]; then
@@ -385,13 +395,21 @@ observe_item() {
     notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
     return 0
   fi
-  if ! observed="$(observe_item_writes "$base" "$login" "$since")"; then
-    notes+=("the comments or the timeline of $(clean_field "$item") could not be read; run 'gh api $base/comments' and 'gh api $base/timeline' and compare them with the ledger")
+  if [[ "$is_pr" == pr ]]; then
+    pulls="${base%/issues/*}/pulls/${base##*/}"
+  fi
+  if ! observed="$(observe_item_writes "$base" "$login" "$since" "$pulls")"; then
+    notes+=("the comments or the timeline of $(clean_field "$item") could not be read; run 'gh api $base/comments' and 'gh api $base/timeline' (and for a pull request 'gh api ${pulls:-$base}/reviews' and 'gh api ${pulls:-$base}/comments') and compare them with the ledger")
     return 0
   fi
   while IFS=$'\t' read -r kind id when; do
     [[ -n "$kind" ]] || continue
     case "$kind" in
+    review)
+      [[ "$seen_reviews" != *" $id "* ]] || continue
+      seen_reviews="$seen_reviews$id "
+      grep -Fq -- "pullrequestreview-$id" <<<"$writes" || note_names "review $id" || problems+=("review $id of $login on $(clean_field "$item") (made $when) carries an agent marker and has no external-write line naming pullrequestreview-$id; append the line when this run wrote it, or a note line with the target 'review $id' when it did not")
+      ;;
     comment)
       grep -Fq -- "issuecomment-$id" <<<"$writes" || note_names "comment $id" || problems+=("comment $id of $login on $(clean_field "$item") (created $when) carries an agent marker and has no external-write line; append the line when this run wrote it, or a note line with the target 'comment $id' when it did not")
       ;;
@@ -499,7 +517,7 @@ cmd_verify() {
     if [[ -z "$since" || -z "$login" ]]; then
       notes+=("the comments and the label changes of the account could not be compared with the ledger (no ledger time, or the account login could not be read)")
     else
-      [[ -z "$pr" ]] || observe_item "$pr"
+      [[ -z "$pr" ]] || observe_item "$pr" pr
       [[ -z "$issue" ]] || observe_item "$issue"
     fi
   fi
@@ -768,6 +786,7 @@ EOF
     cat >"$obs" <<'OBS'
 donatello|2026-11-11T10:00:00Z|external-write|gh pr create -> https://example.test/o/r/pull/5|ok (exit 0)
 donatello|2026-11-11T10:30:00Z|external-write|https://example.test/o/r/issues/5#issuecomment-101|created (exit 0)
+donatello|2026-11-11T10:35:00Z|external-write|https://example.test/o/r/pull/5#pullrequestreview-902|created review with 2 inline comments
 donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge +label other-tag|ok (exit 0)
 OBS
     mkdir -p "$tmp/obsbin"
@@ -795,6 +814,27 @@ case "$*" in
 ]
 JSON
   ;;
+*"pulls/5/reviews"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":901,"body":"Code review\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":902,"body":"Code review\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":904,"body":"the operator reviewed by hand"},
+  {"user":{"login":"other"},"submitted_at":"2026-11-11T11:00:00Z","id":905,"body":"Code review\n<!-- cr-inline:actor=other -->"},
+  {"user":{"login":"bot"},"submitted_at":"2000-01-01T00:00:00Z","id":906,"body":"Code review\n<!-- cr-inline:actor=bot -->"}
+]
+JSON
+  ;;
+*"pulls/5/comments"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":903,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":903,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":902,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":907,"body":"a hand-written inline remark"}
+]
+JSON
+  ;;
 *"issues/5/timeline"*)
   jq -r "$expr" <<'JSON'
 [
@@ -817,6 +857,8 @@ OBSGH
     PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
     expect_eq 'verify reports an agent comment with no ledger line' "$rc" 3
     if grep -q '^problem: comment 102 ' "$tmp/obs.out" && grep -q '^problem: comment 557 ' "$tmp/obs.out"; then ok 'verify names an agent comment of the account that has no line'; else bad "verify missed an unrecorded agent comment: $(cat "$tmp/obs.out")"; fi
+    if grep -q '^problem: review 901 ' "$tmp/obs.out" && grep -q '^problem: review 903 ' "$tmp/obs.out"; then ok 'verify names a pull-request review and a review comment of the account that have no line'; else bad "verify missed an unrecorded inline review: $(cat "$tmp/obs.out")"; fi
+    if [[ "$(grep -c '^problem: review 903 ' "$tmp/obs.out")" == 1 ]] && ! grep -q 'review 902 \|review 904 \|review 905 \|review 906 \|review 907 ' "$tmp/obs.out"; then ok 'verify skips a recorded review, an operator review, another actor, a write before the run, and names a review once'; else bad "verify named a review it should skip: $(cat "$tmp/obs.out")"; fi
     if ! grep -q 'comment 555\|comment 556' "$tmp/obs.out"; then ok 'verify skips a comment of the account that carries no agent marker'; else bad "verify named an operator comment: $(cat "$tmp/obs.out")"; fi
     if ! grep -q 'comment 101 \|comment 103 \|comment 104 \|other-label\|old-label' "$tmp/obs.out"; then
       ok 'verify skips a recorded comment, another actor, and a write before the run'
@@ -834,6 +876,8 @@ OBSGH
     cat >>"$obs" <<'OBS'
 donatello|2026-11-11T12:00:00Z|note|comment 102|written by another agent, not by this run
 donatello|2026-11-11T12:00:01Z|note|comment 557|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|review 901|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|review 903|written by another agent, not by this run
 donatello|2026-11-11T12:00:02Z|note|label surprise|set by the operator, not by an agent
 donatello|2026-11-11T12:00:03Z|note|label tag|set by the operator, not by an agent
 donatello|2026-11-11T12:00:04Z|note|label ready to merge|removed by the operator, not by an agent

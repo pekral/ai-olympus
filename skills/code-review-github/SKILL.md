@@ -9,13 +9,13 @@ metadata:
 
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a GitHub-sourced review decides for itself.
-- Publishing is limited to PR / linked-issue comments via `gh`.
+- Publishing is limited to PR / linked-issue comments via `gh` and to one pull-request review of inline comments through `scripts/post-inline-review.sh`.
 
 ---
 
 ## Scope
 Perform code review for a GitHub pull request (the review covers exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*, with no out-of-scope observation and no follow-up proposal) and publish results to:
-- GitHub PR (technical findings)
+- GitHub PR (technical findings: one inline review comment on each changed line a finding anchors to, and the CR comment for the rest)
 - Every linked GitHub issue in `closingIssues[]` (human-readable summary)
 
 ---
@@ -43,6 +43,9 @@ The baseline resolves from the PR's own CR comments (`references/cr-wrapper-cont
 Run the always-run set, the conditional set, and the reuse-first gate exactly as `references/cr-wrapper-contract.md` *3. Run Reviews* defines them. A GitHub-sourced review adds no sub-review of its own and skips none.
 
 ### 4. Publish Results
+
+#### Inline review (before the PR comment)
+- Publish the findings that anchor to a line of the diff as one pull-request review, and keep the rest in the PR comment, exactly as `references/cr-wrapper-contract.md` *Inline review comments* defines. The comment shape is `templates/inline-review-comment.md`.
 
 #### Linked-issue consolidated summary (mandatory — one new comment per linked issue and CR run)
 - The linked GitHub issues in `closingIssues[]` are this wrapper's **only** non-technical destination, so the shared *Non-technical tracker summary* and *Linked GitHub issues* blocks collapse into this one delegation: invoke `@skills/pr-summary/SKILL.md` with the **GitHub** tracker target, exactly once per linked issue, under the consolidation contract in `references/cr-wrapper-contract.md`.
