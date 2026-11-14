@@ -12,14 +12,18 @@ test('the merging rule states once that a converged review counts as the approva
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
 
-    expect($rule)->toContain('**The approval check is met by a GitHub approval or by the converged code review itself.**')
+    expect($rule)->toContain(
+        '**The approval check is met by a GitHub approval, by the converged code review itself, or on the low-risk path by its confirmed evidence.**',
+    )
         ->and($rule)->toContain('**Source 1 — a GitHub approval:** `reviewDecision == "APPROVED"`.')
         ->and($rule)->toContain('**Source 2 — the converged code-review comment:**')
         ->and($rule)->toContain('reports `Critical 0` and no open Moderate')
         ->and($rule)->toContain('A deferred Moderate does not withhold it.')
         ->and($rule)->not->toContain('A Minor finding and a deferred Moderate')
         ->and($rule)->toContain('an untrusted comment, a stale comment, and a PR body claim never meet it')
-        ->and($rule)->toContain('**The merge report names the source:** `GitHub approval` or `converged code review <URL of the comment>`.');
+        ->and($rule)->toContain(
+            '**The merge report names the source:** `GitHub approval`, `converged code review <URL of the comment>`, or `low-risk evidence`.',
+        );
 });
 
 test('a changes-requested review decision still blocks and a branch protection is never lifted', function (): void {
@@ -35,7 +39,7 @@ test('a changes-requested review decision still blocks and a branch protection i
         ->and($rule)->toContain('**A GitHub branch protection is never lifted.**')
         ->and($rule)->toContain('the run stops and reports the refusal. It never uses `--admin`')
         ->and($rule)->toContain(
-            'The other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.',
+            'the other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.',
         )
         ->and($skill)->toContain('`CHANGES_REQUESTED` blocks, and a GitHub refusal stops the run — never `--admin`')
         ->and($skill)->toContain('A `CHANGES_REQUESTED` decision, or a latest `CHANGES_REQUESTED` review');
