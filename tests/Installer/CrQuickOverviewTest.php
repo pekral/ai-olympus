@@ -15,6 +15,7 @@ test('the rule owns the quick overview once and defines its three parts', functi
         ->and($section)->toContain('1. **`Overview:` is the first line of the header block.**')
         ->and($section)->toContain('2. **`## Changed areas` follows the header block.** It is one table with the columns `Layer`, `Files`, and `Summary`.')
         ->and($section)->toContain('3. **`## Prompt to fix all issues` is the last section, and only while a finding is open.**')
+        ->and($section)->toContain('The block lists the findings posted as inline review comments and the findings that stay in `## Findings` alike')
         ->and($section)->toContain('The merge gate still reads every value from the same comment');
 });
 
@@ -62,6 +63,7 @@ test('the fix-all prompt of every template puts the guard before the findings an
 
     expect($guard)->toBeGreaterThan(0)
         ->and($guard)->toBeLessThan($first)
+        ->and($section)->toContain('the findings posted as inline review comments and the findings kept in `## Findings` alike, so the `Inline:` line never shortens it')
         ->and($section)->toContain('Verify each finding against the current code before you change anything.')
         ->and($section)->toContain('on a private repository (`gh repo view <nameWithOwner> --json isPrivate` answers `true`) it lists every finding, security findings included')
         ->and($section)->toContain('On a public repository, and when the check fails, it leaves out every finding marked `do not file publicly`')
@@ -78,7 +80,8 @@ test('the rule leaves a withheld security finding out on a public repository and
     expect($rule)->toContain('Read the repository visibility once with `gh repo view <nameWithOwner> --json isPrivate`. On `true` the block lists every finding, security findings included')
         ->and($rule)->toContain('On any other answer, and when the check fails, the repository counts as public')
         ->and($rule)->toContain('a finding that the review marked `do not file publicly`')
-        ->and($rule)->toContain('has no line in the block, and the block carries no word about it');
+        ->and($rule)->toContain('has no line in the block, and the block carries no word about it')
+        ->and($rule)->toContain('the block leaves out exactly the findings that `post-inline-review.sh` reports as `withheld`');
 });
 
 test('every value the merge gate reads stays once in both templates and the gate still names them', function (string $template): void {
