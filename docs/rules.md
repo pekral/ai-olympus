@@ -51,7 +51,7 @@ runs the activity names the file with `@rules/…` and reads it; `compound-engin
 | Rule | What it governs | Scope |
 |---|---|---|
 | [`compound-engineering/memory.md`](../rules/compound-engineering/memory.md) | The per-user, git-ignored code-review memory database — location, entry fields, the Critical-finding read protocol with the per-dispatch slice, write protocol, and the one-time migration of the Markdown file. Also attaches when a session reads `docs/memory/**` | Memory |
-| [`git/pull-requests.md`](../rules/git/pull-requests.md) | Issue linking, PR title / body / Draft state, PR lifecycle, and the code-review merge gate with its HOTFIX, FAST-tier, and dependency-only cases | Pull requests |
+| [`git/pull-requests.md`](../rules/git/pull-requests.md) | Issue linking, PR title / body / Draft state, PR lifecycle, and the code-review merge gate with its HOTFIX, FAST-tier, dependency-only, and low-risk merge-path cases | Pull requests |
 | [`reports/general.md`](../rules/reports/general.md) | Which language a tracker-published report is written in (the assignment's), and what a JIRA comment may carry | Tracker reports |
 | [`compound-engineering/tracker.md`](../rules/compound-engineering/tracker.md) | The tracker workflow — analyse every comment first, fix the cause before repairing the data it wrote, claim, phase status, PR ↔ issue linking, deferred follow-ups, labels | Tracker runs |
 | [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Code review |

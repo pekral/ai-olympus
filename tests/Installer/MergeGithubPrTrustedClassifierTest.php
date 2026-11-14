@@ -12,7 +12,9 @@ test('the merge gate runs the classifier from the default branch, never from the
     $section = installerDocsSection($exemptions, '## The trusted classifier — the default-branch copy');
 
     expect($section)->toContain('Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review')
-        ->and($section)->toContain('`<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex')
+        ->and($section)->toContain(
+            '`<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex',
+        )
         ->and($section)->toContain('with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`')
         ->and($section)->toContain('Never run `skills/_shared/classify-risk.sh` of the checked-out branch, of the gated head, or of a review worktree.')
         ->and($section)->toContain('`domain-vocabulary.sh` and `read-manifest.sh`')
