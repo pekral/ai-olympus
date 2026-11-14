@@ -535,26 +535,22 @@ test('migrate reads the default branch and ignores an edit of the working tree',
     installerRemoveDirectory($root);
 });
 
-test('migrate falls back to origin/main and refuses a repository with no default branch', function (): void {
+test('migrate never guesses the default branch and refuses a repository whose origin/HEAD is unset', function (): void {
     $root = memoryRepository();
-    exec('git -C ' . escapeshellarg($root) . ' update-ref refs/remotes/origin/main HEAD 2>&1');
-    exec('git -C ' . escapeshellarg($root) . ' symbolic-ref --delete refs/remotes/origin/HEAD 2>&1');
+    $git = 'git -C ' . escapeshellarg($root);
+    exec($git . ' update-ref refs/remotes/origin/main HEAD 2>&1');
+    exec($git . ' symbolic-ref --delete refs/remotes/origin/HEAD 2>&1');
 
-    [$mainExit, $mainOutput] = memoryRun($root, 'migrate');
+    [$exitCode, $output, $error] = memoryRun($root, 'migrate');
 
-    exec('git -C ' . escapeshellarg($root) . ' update-ref -d refs/remotes/origin/main 2>&1');
-    exec('git -C ' . escapeshellarg($root) . ' update-ref -d refs/remotes/origin/master 2>&1');
-
-    [$noneExit, $noneOutput, $noneError] = memoryRun($root, 'migrate', '--run-dir', '.codex/run');
-
-    expect($mainExit)->toBe(0);
-    expect($mainOutput)->toContain('"inserted":3')->toContain('"parsed":3');
-    expect($noneExit)->toBe(1);
-    expect($noneOutput)->toBe('');
-    expect($noneError)->toBe(
-        'Cannot resolve the default branch of the project, so the memory source cannot be read: read-manifest.sh: no default-branch ref' . PHP_EOL,
+    expect($exitCode)->toBe(1);
+    expect($output)->toBe('');
+    expect($error)->toBe(
+        'Cannot resolve the default branch of the project, so the memory source cannot be read: '
+        . 'read-manifest.sh: origin/HEAD does not name the default branch; run: git remote set-head origin --auto '
+        . 'read-manifest.sh: no default-branch ref' . PHP_EOL,
     );
-    expect(is_file($root . '/.codex/run/code-review-memory.sqlite'))->toBeFalse();
+    expect(is_file($root . '/.claude/run/code-review-memory.sqlite'))->toBeFalse();
 
     installerRemoveDirectory($root);
 });
@@ -592,7 +588,6 @@ test('migrate ignores a local branch that is named like the remote default branc
     exec($git . ' add docs 2>&1');
     exec($git . ' -c user.name=test -c user.email=test@example.test -c commit.gpgsign=false commit -q -m forged 2>&1');
     exec($git . ' update-ref refs/heads/origin/master HEAD 2>&1');
-    exec($git . ' symbolic-ref --delete refs/remotes/origin/HEAD 2>&1');
 
     [$exitCode, $stdout] = memoryRun($root, 'migrate');
     [, $query] = memoryRun($root, 'query', '--role', 'donatello', '--symbol', 'previous');

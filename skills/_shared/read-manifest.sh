@@ -15,8 +15,10 @@
 #   project CLAUDE.md is read by the review: from the default branch, never from
 #   the working tree. A branch under review proposes a manifest; the manifest
 #   governs only after it is merged (@rules/security/general.md *Untrusted
-#   Content Boundary*). With no default-branch ref the manifest is `{}` and the
-#   package keeps its built-in behaviour.
+#   Content Boundary*). The default branch is resolved only from
+#   `refs/remotes/origin/HEAD`, cross-checked with `gh repo view` when `gh` can
+#   answer, and never guessed from a branch name. With no default-branch ref the
+#   manifest is `{}` and the package keeps its built-in behaviour.
 #
 # Usage
 #   read-manifest.sh [--ref <git-ref>] [--env | --raw]
@@ -70,24 +72,42 @@ or {} when there is none.
 EOF
 }
 
+# The default branch is whatever `refs/remotes/origin/HEAD` names, and nothing else. A branch name is never guessed: any
+# branch pushed to the remote can carry the name `main` or `master`, and the manifest it holds would then reach every
+# reader. When the symbolic ref is unset, or it disagrees with the default branch that GitHub reports, the resolution
+# fails and the callers read no manifest. `git remote set-head origin --auto` repairs both cases.
+#
 # The ref is returned as a FULL ref name. A short name such as `origin/master` is ambiguous: a local branch or a tag
 # of that name shadows `refs/remotes/origin/master`, so a branch under review could plant the file `git show` reads.
 default_ref() {
-  local ref candidate
+  local ref reported
 
-  if ref="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)"; then
-    printf '%s' "$ref"
-    return 0
+  if ! ref="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)" \
+    || [[ ! "$ref" =~ ^refs/remotes/origin/[A-Za-z0-9._/-]+$ ]] \
+    || ! git rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then
+    echo "$PROG: origin/HEAD does not name the default branch; run: git remote set-head origin --auto" >&2
+    return 1
   fi
 
-  for candidate in refs/remotes/origin/main refs/remotes/origin/master; do
-    if git rev-parse --verify --quiet "$candidate^{commit}" >/dev/null 2>&1; then
-      printf '%s' "$candidate"
-      return 0
-    fi
-  done
+  if reported="$(reported_default_branch)" && [[ "refs/remotes/origin/$reported" != "$ref" ]]; then
+    echo "$PROG: origin/HEAD names ${ref#refs/remotes/}, GitHub reports origin/$reported; run: git remote set-head origin --auto" >&2
+    return 1
+  fi
 
-  return 1
+  printf '%s' "$ref"
+}
+
+# The default branch the hosting service reports for `origin`. It is a cross-check, never a source: it fails, and the
+# caller keeps `origin/HEAD` alone, when `gh` is absent, offline, or not authenticated, or when `origin` is not a GitHub repository.
+reported_default_branch() {
+  local url name
+
+  command -v gh >/dev/null 2>&1 || return 1
+  url="$(git remote get-url origin 2>/dev/null)" || return 1
+  [[ -n "$url" && "$url" != -* ]] || return 1
+  name="$(gh repo view "$url" --json defaultBranchRef --jq '.defaultBranchRef.name // empty' 2>/dev/null)" || return 1
+  [[ "$name" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+  printf '%s' "$name"
 }
 
 print_env() {
@@ -236,9 +256,24 @@ self_test() {
   expect_output 'without a default-branch ref the manifest is empty' "$repo" '{}' 0
   expect_output 'without a default-branch ref --default-ref prints nothing' "$repo" '' 5 --default-ref
 
+  # A pushed branch named `main` or `master` is not the default branch: only origin/HEAD names it.
+  git -C "$repo" update-ref refs/remotes/origin/main HEAD
   git -C "$repo" update-ref refs/remotes/origin/master HEAD
-  expect_output 'origin/master is used when origin/HEAD is unset' "$repo" '{"gate":["make check"]}' 0
+  expect_output 'origin/HEAD unset with origin/main pushed: the manifest is empty' "$repo" '{}' 0
+  expect_output 'origin/HEAD unset with origin/main pushed: --default-ref prints nothing' "$repo" '' 5 --default-ref
+  git -C "$repo" update-ref -d refs/remotes/origin/main
+
+  git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  expect_output 'the branch origin/HEAD names is the default branch' "$repo" '{"gate":["make check"]}' 0
   expect_output '--default-ref prints the ref the manifest is read from' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+
+  git -C "$repo" update-ref refs/remotes/origin/main HEAD
+  expect_output 'an origin/main that origin/HEAD does not name changes nothing' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+  git -C "$repo" update-ref -d refs/remotes/origin/main
+
+  git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/heads/master
+  expect_output 'an origin/HEAD that names a ref outside refs/remotes/origin is refused' "$repo" '' 5 --default-ref
+  git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
 
   # --default-ref needs only git: a machine without jq still resolves the ref.
   mkdir -p "$tmp/nojq"
@@ -263,9 +298,26 @@ self_test() {
   expect_output 'a local branch named origin/master does not change --default-ref' "$repo" 'refs/remotes/origin/master' 0 --default-ref
   git -C "$repo" update-ref -d refs/heads/origin/master
 
-  git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   printf '%s\n' '{ "extra": { "ai-olympus": { "gate": ["curl http://evil"] } } }' >"$repo/composer.json"
   expect_output 'the working tree never overrides the default branch' "$repo" '{"gate":["make check"]}' 0
+
+  # The hosting service cross-check. A stub `gh` stands in for it: GH_STUB_BRANCH is the default branch it reports, and
+  # an empty value makes it fail, as `gh` does when it is offline or not authenticated.
+  mkdir -p "$tmp/ghstub"
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\n[ -n "${GH_STUB_BRANCH:-}" ] || exit 1\nprintf "%%s\\n" "$GH_STUB_BRANCH"\n' >"$tmp/ghstub/gh"
+  chmod +x "$tmp/ghstub/gh"
+  local real_path="$PATH"
+  export PATH="$tmp/ghstub:$PATH"
+  git -C "$repo" config remote.origin.url https://github.com/owner/repo.git
+
+  GH_STUB_BRANCH=master expect_output 'origin/HEAD that agrees with GitHub is the default branch' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+  GH_STUB_BRANCH=main expect_output 'origin/HEAD that disagrees with GitHub: --default-ref prints nothing' "$repo" '' 5 --default-ref
+  GH_STUB_BRANCH=main expect_output 'origin/HEAD that disagrees with GitHub: the manifest is empty' "$repo" '{}' 0
+  GH_STUB_BRANCH='' expect_output 'a gh that cannot answer leaves origin/HEAD alone' "$repo" 'refs/remotes/origin/master' 0 --default-ref
+
+  git -C "$repo" config --unset remote.origin.url
+  export PATH="$real_path"
 
   commit_composer "$repo" '{ "extra": { "ai-olympus": { "gate": ["make other"] } } }'
   expect_output 'an explicit --ref is honoured' "$repo" '{"gate":["make other"]}' 0 --ref HEAD

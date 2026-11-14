@@ -539,6 +539,7 @@ STUB
     git -C "$dir" add composer.json
     git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m manifest
     git -C "$dir" update-ref refs/remotes/origin/master HEAD
+    git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   }
 
   manifest_project "$tmp/manifest" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/castor"] }, "env": { "RUN_VALIDATION_PROBE": "manifest-env" } } } }'

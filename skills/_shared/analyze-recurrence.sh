@@ -683,6 +683,7 @@ self_test() {
   git -C "$prepo" add composer.json
   git -C "$prepo" -c user.name=t -c user.email=t@t commit -q -m manifest
   git -C "$prepo" update-ref refs/remotes/origin/master HEAD
+  git -C "$prepo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   printf '%s\n' '{ "extra": { "ai-olympus": { "promotion": { "min-occurrences": 2, "min-distinct-tasks": 2, "min-confidence": 0 } } } }' >"$prepo/composer.json"
   (cd "$prepo" && "$script" --store "$tmp/learn3.jsonl" --patterns >"$tmp/out" 2>"$tmp/err")
   check 'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern' "$(jq -e '.min_occurrences == 4 and .min_distinct_tasks == 3 and .min_confidence == 10 and .patterns[0].eligible == false' "$tmp/out" >/dev/null && echo 0 || echo 1)"

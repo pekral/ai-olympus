@@ -550,6 +550,7 @@ make_manifest_repo() {
   git -C "$dir" add composer.json
   git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m manifest
   git -C "$dir" update-ref refs/remotes/origin/master HEAD
+  git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
 }
 
 # expect_limit <label> <raw JSON value of parallel.max-units> <units> <expected stdout> [expected part of stderr]
