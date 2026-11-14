@@ -169,11 +169,11 @@ test('donatello and krang name the helper in their Bash boundary and run the che
 
 test('the changelog records the audit line written at the moment of the write', function (): void {
     $changelog = auditTrailSource('CHANGELOG.md');
-    $unreleased = substr($changelog, (int) strpos($changelog, '## [Unreleased]'));
-    $unreleased = substr($unreleased, 0, (int) strpos($unreleased, "\n## [", 1));
+    $entry = substr($changelog, (int) strpos($changelog, '(#376)'));
+    $entry = substr($entry, 0, (int) strpos($entry, "\n", 1));
 
-    expect($unreleased)->toContain('(#376)')
-        ->and($unreleased)->toContain('audit-trail.sh');
+    expect($changelog)->toContain('(#376)')
+        ->and($entry)->toContain('audit-trail.sh');
 });
 
 test('leonardo runs gh pr ready and the label writes through the helper and appends no hand-written line for them', function (): void {
