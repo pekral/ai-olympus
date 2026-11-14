@@ -85,7 +85,49 @@ test('the input probing reference ends each input as protected, vulnerable, or n
         ->and($reference)->toContain('| `not checked` | The agent did not probe the input |')
         ->and($reference)->toContain('A `vulnerable` input follows the flow of step 5 of the skill: it is a candidate first')
         ->and($reference)->toContain('A read-only tester returns the proof to the caller and never classifies it.')
-        ->and($reference)->toContain('Probe only the authorized local development or test instance')
-        ->and($reference)->toContain('Keep exploitable details out of a public tracker.')
+        ->and($reference)->toContain('Every boundary of step 5 of the skill applies to every probe in this file:')
+        ->and($reference)->toContain('Keep exploitable details out of a public tracker:')
         ->and($reference)->toContain('`@rules/security/frontend.md` and `@rules/security/backend.md` define what a protected application does.');
+});
+
+test('the input probing reference sends a condition-widening payload only to a read-only request', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('goes only to a read-only request: a search, a filter, or a sort.')
+        ->and($reference)->toContain('A write or delete never receives a tautology, `-- `, `#`, or `/*`.')
+        ->and($reference)->toContain('State-changing input (create, update, delete): only a single quote and the pair')
+        ->and($reference)->toContain('never a tautology or a comment sequence |')
+        ->and($reference)->toContain('Read-only request only: `{"$ne": null}`')
+        ->and($reference)->toContain('The payload limits of section 2 apply to this second send:');
+});
+
+test('the input probing reference restates no boundary of the skill and sets the shared target result', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->not->toContain('every probe is `Blocked`')
+        ->and($reference)->not->toContain('The interactive browser drives every probe.')
+        ->and($reference)->not->toContain('API endpoints that no page calls')
+        ->and($reference)->toContain('On a shared or remote target every input is `not checked`, and the security check is `Blocked`');
+});
+
+test('a vulnerable input is a pointer in the input probing row and its proof stays in the security row', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($skill)->toContain('Render a `vulnerable` input as `vulnerable — see Security` and keep its proof in the *Security* row only.')
+        ->and($skill)->toContain('A public tracker never receives that proof.')
+        ->and($reference)->toContain('names a `vulnerable` input as `vulnerable — see Security`, and the proof stays in the *Security* row.');
+});
+
+test('raphael returns the input probing rows to the caller', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/raphael.toml');
+
+    expect($raphael)->toContain('- **Input probing:** when the walkthrough reached a page with an input, one row for each input of the inventory')
+        ->and($raphael)->toContain('The proof of a `vulnerable` input goes only under the security observations for `leonardo`.')
+        ->and($codex)->toContain('`.codex/agent-instructions/raphael.md`');
 });
