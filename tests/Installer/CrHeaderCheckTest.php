@@ -95,7 +95,7 @@ test('the check reads both header lines against the values the rule and the temp
 test('the self-test covers every scenario of the assignment', function (): void {
     $script = crHeaderCheckSource('skills/_shared/check-cr-header.sh');
 
-    expect(substr_count($script, '  scenario \''))->toBe(26)
+    expect(substr_count($script, '  scenario \''))->toBe(27)
         ->and($script)->toContain('scenario \'a body without the Merge verdict line is refused\' 3')
         ->and($script)->toContain('scenario \'a body without the Security assessment line is refused\' 3')
         ->and($script)->toContain('scenario \'a security line with the answers out of order is refused\' 3')
