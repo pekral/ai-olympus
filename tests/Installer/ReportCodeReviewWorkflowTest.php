@@ -100,7 +100,7 @@ test('report-code-review adds the interactive-testing result to the review repor
         ->toContain('Render `## Interactive testing` from the `raphael` report the caller passes');
     expect((string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md'))
         ->toContain('A review-only caller (`/report-code-review`) fixes nothing: it requests no repair')
-        ->toContain('4. Repair nothing on your own initiative.');
+        ->toContain('5. Repair nothing on your own initiative.');
 });
 
 test('report-code-review runs leonardo, splinter, raphael, and casey in one parallel round', function (): void {
