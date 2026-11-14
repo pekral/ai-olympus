@@ -76,6 +76,8 @@ test('the fix-all prompt of every template puts the guard before the findings an
             'the findings posted as inline review comments and the findings kept in `## Findings` alike, so the `Inline:` line never shortens it',
         )
         ->and($section)->toContain('Verify each finding against the current code before you change anything.')
+        ->and($section)->toContain('Keep each change minimal. When you finish')
+        ->and($section)->not->toContain('inside the lines the finding names')
         ->and($section)->toContain(
             'on a private repository (`gh repo view <nameWithOwner> --json isPrivate` answers `true`) it lists every finding, security findings included',
         )
@@ -97,7 +99,11 @@ test('the rule leaves a withheld security finding out on a public repository and
         ->and($rule)->toContain('On any other answer, and when the check fails, the repository counts as public')
         ->and($rule)->toContain('a finding that the review marked `do not file publicly`')
         ->and($rule)->toContain('has no line in the block, and the block carries no word about it')
-        ->and($rule)->toContain('the block leaves out exactly the findings that `post-inline-review.sh` reports as `withheld`');
+        ->and($rule)->toContain('The marker and the visibility decide, never the output of `post-inline-review.sh`')
+        ->and($rule)->toContain(
+            'when the script did not run, exited non-zero, or was not given the finding, the block still leaves out every marked finding on a public repository',
+        )
+        ->and($rule)->not->toContain('leaves out exactly the findings that `post-inline-review.sh` reports');
 });
 
 test('every value the merge gate reads stays once in both templates and the gate still names them', function (string $template): void {
