@@ -11,10 +11,12 @@ test(
     'every code review template renders one merge risk header line between the security assessment and the reviewed revision',
     function (string $template): void {
         $content = mergeRiskSource($template);
-        $line = '**Merge risk:** {low | medium | high} — impact: {tier} ({each `signal=` name})'
+        $line = '**Merge risk:** {low | medium | high} — {one plain-language sentence on why, derived from the script output and the diff}'
+            . ' · impact: {tier} ({each `signal=` name})'
             . ' · verification: {ok | poor} ({each `verification-signal=`})'
             . ' · rollback: {cheap | costly} ({each `rollback-signal=` with its file})'
-            . ' · error detection: {ok | poor — each blanket or empty catch with its `file:line` | not checked — <reason>}';
+            . ' · error detection: {ok | poor — each blanket or empty catch with its `file:line` | not checked — <reason>}'
+            . ' · up to {short SHA}';
 
         expect(substr_count($content, $line))->toBe(1)
             ->and(substr_count($content, '**Merge risk:**'))->toBe(1)
