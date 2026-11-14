@@ -452,6 +452,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a later round is an iteration of one review-and-fix loop, and the scripts record every reported finding and the reviewer alone applies the later-round rule (issue #455, review round 3).
         // Re-baselined: a GitHub review is one pull-request review whose body carries the hidden record (issue #522).
         // Re-baselined: the inline comment shape points to its template, and the baseline reads the newest trusted code-review report (issue #522, review round 1).
+        // Re-baselined: the `Merge risk:` grade selects the merge path at the merge instead of being informational (issue #495).
         'rules/code-review/general.md' => '715b7cd41455fb8f7dafb35a1ee2e1047a733580112ca5a6d6a9724341e3431b',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
