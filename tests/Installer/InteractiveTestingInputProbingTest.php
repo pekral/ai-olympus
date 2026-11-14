@@ -94,11 +94,16 @@ test('the input probing reference sends a condition-widening payload only to a r
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
-    expect($reference)->toContain('goes only to a read-only request: a search, a filter, or a sort.')
+    expect($reference)->toContain('goes only to a request that is proven read-only.')
+        ->and($reference)->toContain('only after the agent shows that it runs no INSERT, UPDATE, or DELETE for a normal value')
         ->and($reference)->toContain('A write or delete never receives a tautology, `-- `, `#`, or `/*`.')
-        ->and($reference)->toContain('State-changing input (create, update, delete): only a single quote and the pair')
+        ->and($reference)->toContain('Any other request (state-changing, or without proof that it is read-only): only a single quote and the pair')
         ->and($reference)->toContain('never a tautology or a comment sequence |')
-        ->and($reference)->toContain('Read-only request only: `{"$ne": null}`')
+        ->and($reference)->toContain('Request proven read-only only: `{"$ne": null}`')
+        ->and($reference)->toContain('from the traced handler source or from the local query log, and the report row names that evidence.')
+        ->and($reference)->toContain('A search, a filter, or a sort is not read-only by its role in the page.')
+        ->and($reference)->toContain('A request without that proof is state-changing:')
+        ->and($reference)->toContain('Any other request: a single quote or a brace,')
         ->and($reference)->toContain('The payload limits of section 2 apply to this second send:');
 });
 
