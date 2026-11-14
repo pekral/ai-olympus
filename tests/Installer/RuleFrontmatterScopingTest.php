@@ -451,7 +451,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a later review round raises only new Critical findings and security findings, and a review covers four areas and nothing else (issue #455).
         // Re-baselined: a later round is an iteration of one review-and-fix loop, and the scripts record every reported finding and the reviewer alone applies the later-round rule (issue #455, review round 3).
         // Re-baselined: the `Merge risk:` grade selects the merge path at the merge instead of being informational (issue #495).
-        'rules/code-review/general.md' => 'c45f3fc0c8f8d896bb2752db35db4d3b3b3b3aefd9b991dc8fd942acfbeb5c24',
+        'rules/code-review/general.md' => 'f9786648e027796f39742e49988f005c8d8166854843325c91501d4d1a465da3',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

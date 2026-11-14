@@ -95,7 +95,8 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `coverage` | test and review skills | The project's coverage command. |
 | `env` | every project tool command an agent runs, `run-validation.sh` | Environment variables exported to those commands, always through `read-manifest.sh --env`. A name that changes which program runs or what it loads (`PATH`, `HOME`, `GIT_*`, `LD_*`, `DYLD_*`, `BASH_ENV`, …) is refused. |
 | `validation.executables` | `run-validation.sh` | Extra `vendor/bin/<name>` executables a validation manifest may run. |
-| `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. |
+| `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. The low-risk merge path needs at least one. |
+| `merge.low-risk-path` | `classify-risk.sh`, `merge-github-pr` | `true` opts in to the low-risk merge path; needs `risk.critical-paths`. Absent or any other value: every merge takes the full path. |
 | `recurrence.threshold` | `analyze-recurrence.sh` | Pull requests in which one defect class must appear to count as a recurrence. At least 2. Absent: 2. |
 | `recurrence.window-days` | `analyze-recurrence.sh` | Days in which those occurrences must fall. At least 1. Absent: 90. |
 | `promotion.min-occurrences` | `analyze-recurrence.sh --patterns`, `promote-learning.sh` | Validated records one pattern needs before it becomes a promotion candidate of every target type except `memory`. At least 2. Absent: 3. The `memory` target takes no threshold: one resolved Critical record is enough. |

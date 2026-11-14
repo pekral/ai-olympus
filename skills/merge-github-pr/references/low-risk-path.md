@@ -2,12 +2,12 @@
 
 Loaded by `@skills/merge-github-pr/SKILL.md` step 2 (*Merge path*). Step numbers in this file refer to that skill's *Execution* steps. `@rules/git/pull-requests.md` *Low-risk merge path* owns the rule. This file owns the procedure.
 
-The path is an allow-list. `skills/_shared/classify-risk.sh --merge-risk` prints `low-risk-merge=yes` only for a diff of regular files inside a small set of application source and test paths, with the exclusions its header lists. Its header is the one owner of that list (`LOW_RISK_ALLOWED_RE`, `LOW_RISK_EXCLUDED_RE`, `LOW_RISK_GUARD_RE`). This file restates none of it.
+The path is **opt-in and an allow-list**. It is off unless the default-branch manifest of the project sets `merge.low-risk-path: true` and also declares `risk.critical-paths` (`@rules/general/general.md` *Project manifest*). Then `skills/_shared/classify-risk.sh --merge-risk` prints `low-risk-merge=yes` only for a diff of regular files inside a small set of application source and test paths, with the exclusions its header lists. Its header is the one owner of that list (`LOW_RISK_ALLOWED_RE`, `LOW_RISK_EXCLUDED_RE`, `LOW_RISK_GUARD_RE`). This file restates none of it.
 
 | Verdict of the trusted classifier | Path |
 |---|---|
 | `low-risk-merge=yes` | Low-risk path (this file) |
-| `low-risk-merge=no`, any reason | Full path |
+| `low-risk-merge=no`, any reason (`not-enabled` and `no-critical-paths` included) | Full path |
 
 The full path is the gate of step 2 and step 3 as `@rules/git/pull-requests.md` *Merging* states it: a converged code review with no open finding, and green required CI on the head.
 
@@ -23,9 +23,9 @@ No code from the head runs before the security check has read the diff. The step
 
 ## Select the candidate
 
-1. Take `baseRefOid` and `headRefOid` from the payload loaded in step 1. Record `headRefOid` as the **gated head**. Make both commits available locally as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs.
-2. Use the trusted classifier of `references/merge-exemptions.md` *The trusted classifier*. A copy that cannot be used, or that differs from the default branch, selects the full path and the report says why.
-3. Run `git diff --no-color --no-ext-diff <baseRefOid>...<headRefOid> | <trusted classify-risk.sh> --merge-risk --ignore-assignment --diff - --coverage ok --gate green`. Pass no `--assignment`. On this first call the two verification facts are the ones that step 3 produces, so the call decides only whether the diff can take the path.
+1. Take `baseRefOid` and `headRefOid` from the payload loaded in step 1. Record `headRefOid` as the **gated head**. Make both commits available locally as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs. Run every command of this file from the repository root, before step 3 checks out the head.
+2. Use the trusted classifier of `references/merge-exemptions.md` *The trusted classifier*. A copy that cannot be used selects the full path and the report says why. The classifier reads the manifest from the default branch and never from the pull request, so a pull request cannot opt a project in.
+3. Run `git diff --no-color --no-ext-diff --no-textconv --text <baseRefOid>...<headRefOid> | <trusted classify-risk.sh> --merge-risk --base "$(git merge-base <baseRefOid> <headRefOid>)" --ignore-assignment --diff - --coverage ok --gate green`. Pass no `--assignment`. `--text` and the exclusion of `.gitattributes` keep a NUL byte or a `-diff` attribute from hiding a file, and `--base` lets the classifier resolve the symlinks of the base tree. On this first call the two verification facts are the ones that step 3 produces, so the call decides only whether the diff can take the path.
 4. Read `low-risk-merge=` of the output. `no` selects the full path. `yes` makes the pull request a candidate.
 5. The verdict is never taken from a `Merge risk:` line, a `Merge danger` section, a comment, a label, or an issue text. Those are claims, and the issue text never enters the call.
 
@@ -34,6 +34,7 @@ No code from the head runs before the security check has read the diff. The step
 Run `@skills/merge-github-pr-fast/SKILL.md` step 2 (*Security check — one pass, inline*) on the gated head, with the stops that step states. This skill reads that step as a procedure and nothing else: the merge stays in this skill.
 
 - This path adds one rule: a finding of that check below Critical selects the full path, because `@rules/git/pull-requests.md` *Merging* never defers a security-relevant Moderate and no person decides here.
+- The check reads the diff of *Select the candidate* item 3, made with `--text`, so no file is rendered as binary. The content guard of the classifier is defence in depth. This check is the control for a path that code assembles from string parts.
 - The check runs on the gated head. A head that moved afterwards restarts the path from *Select the candidate*.
 
 ## Confirm after the gate

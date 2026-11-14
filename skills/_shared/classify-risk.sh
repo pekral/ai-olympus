@@ -19,7 +19,7 @@
 # Usage
 #   classify-risk.sh [--files <path|->] [--assignment <path>]
 #                    [--floor <tier>] [--override <tier|thorough>]
-#   classify-risk.sh --merge-risk --diff <path|-> [--coverage ok|gap]
+#   classify-risk.sh --merge-risk --diff <path|-> [--base <commit>] [--coverage ok|gap]
 #                    [--gate green|not-green] [--interactive met|gap|not-run]
 #                    [--assignment <path>] [--ignore-assignment]
 #                    [--floor <tier>] [--override <tier>]
@@ -165,7 +165,13 @@
 # Low-risk merge (@skills/merge-github-pr/SKILL.md *Merge path*)
 #   The merge path is selected here. low-risk-merge=yes is the only verdict that
 #   lets a pull request merge without the full code review and without waiting for
-#   CI. It is an ALLOW-list: the verdict is yes only when every condition holds.
+#   CI. The path is OPT-IN and an ALLOW-list: the verdict is yes only when every
+#   condition holds.
+#     0. The project opted in. The default-branch manifest (read-manifest.sh, never the
+#        working tree) sets `merge.low-risk-path: true` AND declares at least one entry of
+#        `risk.critical-paths`. Without both the verdict is no. The project owns which of
+#        its files are critical: a changed path that matches an entry forces the tier
+#        CRITICAL, so it takes the full path.
 #     1. The tier is FAST, verification is ok, and rollback is cheap, graded from the
 #        diff alone. The assignment text never enters this grade (the classification
 #        runs with --ignore-assignment), because the text is untrusted and a marker in
@@ -175,22 +181,31 @@
 #        exclusions LOW_RISK_EXCLUDED_RE. These two constants are the one list and its
 #        only owner; every other file points here. The allowed set is:
 #          src/**  app/**  tests/**  resources/**
-#        Inside it, the exclusions are installer and agent-configuration code
-#        (src/Installer*, src/ComposerPlugin*), gate configuration (phpunit.xml*,
-#        phpstan.neon*, rector.php, ruleset.xml*, pint.json, pest.php, bootstrap.php,
-#        composer.json, composer.lock, package.json and the lockfiles), and every
-#        instruction source (CLAUDE*.md, AGENTS*.md, GEMINI.md, copilot-instructions.md,
-#        .mcp.json, and any .claude, .codex, .agents, .ai, .github, or .claude-plugin
-#        directory). Every path outside the allowed set (rules/**, agents/**, skills/**,
-#        codex/**, commands/**, bin/**, docs/**, .github/**, and the root files) answers no.
-#     3. Every entry is a regular file: no mode 120000 (symlink), no mode 160000
-#        (submodule), and no mode change. The check reads the mode lines of each
-#        `diff --git` entry.
-#     4. No added or removed line mentions .claude, .codex, .agents, a settings.json, or
-#        permissions.allow / permissions.deny (LOW_RISK_GUARD_RE): code that writes agent
-#        configuration is excluded by content as well as by name.
+#        Inside it, the built-in exclusions stay even when a project opts in: the
+#        installer and the sources that feed the agents (src/Install*, src/ComposerPlugin*,
+#        src/CommandOptions*, src/Memory*, src/Graph*, src/Slice*, src/Metrics*), gate
+#        configuration (phpunit.xml*, phpstan.neon*, rector.php, ruleset.xml*, pint.json,
+#        pest.php, bootstrap.php, composer.json, composer.lock, package.json and the
+#        lockfiles), and every instruction source (CLAUDE*.md, AGENTS*.md, GEMINI.md,
+#        copilot-instructions.md, .mcp.json, .gitattributes, and any .claude, .codex,
+#        .agents, .ai, .github, or .claude-plugin directory). Every path outside the allowed
+#        set (rules/**, agents/**, skills/**, codex/**, commands/**, bin/**, docs/**,
+#        .github/**, and the root files) answers no.
+#     3. Every entry is a regular file whose content the diff shows: no mode 120000
+#        (symlink), no mode 160000 (submodule), no mode change, and no `Binary files` or
+#        `GIT binary patch` entry. The check reads the mode lines of each `diff --git` entry.
+#     4. No changed path is the target of a symlink of the BASE tree whose own name is
+#        outside the allowed set or excluded (`--base <commit>` names the base; git ls-tree
+#        lists the links). A link chain is followed; an unreadable base answers no.
 #     5. Every `diff --git` header reads as `a/<old> b/<new>`. A quoted path or a diff made
 #        with --no-prefix answers no: an unreadable path never passes.
+#     6. A literal-token content guard (LOW_RISK_GUARD_RE) rejects an added or removed line
+#        that names .claude, .codex, .agents, a settings.json, or permissions.allow /
+#        permissions.deny. It is defence in depth and NOT the boundary: it matches literal
+#        tokens only, so a path assembled from string parts passes it. The security-only check
+#        of the merge reads the diff and is the control for assembled paths.
+#   The caller makes the diff with `git diff --no-color --no-ext-diff --no-textconv --text`,
+#   so a NUL byte or a `-diff` attribute cannot hide a file from this scan.
 #   low-risk-excluded= names the first path or entry that answered no.
 #
 # Exit codes
@@ -209,7 +224,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: classify-risk.sh [--files <path|->] [--assignment <path>]
                         [--floor <tier>] [--override <tier|thorough>]
-       classify-risk.sh --merge-risk --diff <path|-> [--coverage ok|gap]
+       classify-risk.sh --merge-risk --diff <path|-> [--base <commit>] [--coverage ok|gap]
                         [--gate green|not-green] [--interactive met|gap|not-run]
                         [--assignment <path>] [--ignore-assignment]
                         [--floor <tier>] [--override <tier>]
@@ -263,7 +278,7 @@ EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http
 # apply inside it, and LOW_RISK_GUARD_RE the content guard. awk reads all three through the
 # environment, and every one is matched against a lower-cased path or line.
 LOW_RISK_ALLOWED_RE='^(src|app|tests|resources)/.'
-LOW_RISK_EXCLUDED_RE='^src/(installer|composerplugin)|(^|/)(\.claude|\.codex|\.agents|\.ai|\.github|\.claude-plugin)(/|$)|(^|/)(phpunit\.xml[^/]*|phpstan\.neon[^/]*|rector\.php|ruleset\.xml[^/]*|pint\.json|pest\.php|bootstrap\.php|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|\.mcp\.json|gemini\.md|copilot-instructions\.md|claude[^/]*\.md|agents[^/]*\.md)$'
+LOW_RISK_EXCLUDED_RE='^src/(install|composerplugin|commandoptions|memory|graph|slice|metrics)|(^|/)(\.claude|\.codex|\.agents|\.ai|\.github|\.claude-plugin)(/|$)|(^|/)(phpunit\.xml[^/]*|phpstan\.neon[^/]*|rector\.php|ruleset\.xml[^/]*|pint\.json|pest\.php|bootstrap\.php|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|\.gitattributes|\.mcp\.json|gemini\.md|copilot-instructions\.md|claude[^/]*\.md|agents[^/]*\.md)$'
 LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permissions\.(allow|deny)'
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -725,6 +740,7 @@ low_risk_scan() {
       if (path == "" || path == "/dev/null") { return }
       got = 1
       current = path
+      print "P|" path
       lowered = tolower(path)
       if (lowered ~ ENVIRON["LR_EXCLUDED_RE"]) { reject("excluded-path", path); return }
       if (lowered !~ ENVIRON["LR_ALLOWED_RE"]) { reject("outside-allow-list", path) }
@@ -759,6 +775,7 @@ low_risk_scan() {
       next
     }
     entries == 0 { next }
+    !inhunk && (/^Binary files / || /^GIT binary patch/) { reject("binary-entry", subject()); next }
     !inhunk && /^@@/ { inhunk = 1; next }
     inhunk {
       kind = substr($0, 1, 1)
@@ -782,19 +799,134 @@ low_risk_scan() {
   '
 }
 
+# The opt-in of the low-risk merge path. The project turns the path on in the default-branch
+# manifest with `merge.low-risk-path: true` and must also declare `risk.critical-paths`. Print the
+# reason and return 1 when the path is off. The manifest is read through `read-manifest.sh` from the
+# default branch, never from the working tree, so a pull request cannot turn the path on for itself.
+low_risk_opt_in() {
+  local reader manifest enabled count
+  reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
+  if [[ ! -f "$reader" ]] || ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+    printf 'manifest-unreadable'
+    return 1
+  fi
+  manifest="$(bash "$reader" 2>/dev/null)" || { printf 'manifest-unreadable'; return 1; }
+  enabled="$(jq -r '(.merge // {}) | if type == "object" then (.["low-risk-path"] == true) else false end' <<<"$manifest")" || enabled=""
+  if [[ "$enabled" != "true" ]]; then
+    printf 'not-enabled'
+    return 1
+  fi
+  count="$(jq -r '(.risk // {}) | if type == "object" then ((.["critical-paths"] // []) | if type == "array" then length else 0 end) else 0 end' <<<"$manifest")" || count=0
+  if [[ ! "$count" =~ ^[0-9]+$ || "$count" -eq 0 ]]; then
+    printf 'no-critical-paths'
+    return 1
+  fi
+  return 0
+}
+
+# Read the changed paths on stdin and the symlinks of the BASE tree from `git ls-tree`. Print
+# `X|<reason>|<path>` for the first changed path that is the target of a base symlink whose own name
+# is outside the allowed set or excluded, so a link at an instruction name never lets its target
+# through. A link target is resolved through the other links, and a link chain that does not end
+# answers no. A base tree that cannot be read answers no.
+low_risk_links() {
+  local base="$1" listing line oid path target changed
+  listing="$(git -c core.quotepath=false ls-tree -r "$base" 2>/dev/null)" || { printf 'X|base-unavailable|%s\n' "$base"; return 0; }
+  changed="$(cat)"
+  {
+    while IFS= read -r line; do
+      [[ "$line" == 120000\ blob\ * ]] || continue
+      oid="${line#120000 blob }"
+      oid="${oid%%$'\t'*}"
+      path="${line#*$'\t'}"
+      if [[ "$path" == \"* ]]; then
+        printf 'X\037unreadable-link\037%s\n' "$path"
+        continue
+      fi
+      target="$(git cat-file blob "$oid" 2>/dev/null)" || { printf 'X\037unreadable-link\037%s\n' "$path"; continue; }
+      printf 'L\037%s\037%s\n' "$path" "$target"
+    done <<<"$listing"
+    while IFS= read -r line; do
+      if [[ -n "$line" ]]; then printf 'C\037%s\n' "$line"; fi
+    done <<<"$changed"
+  } | LR_ALLOWED_RE="$LOW_RISK_ALLOWED_RE" LR_EXCLUDED_RE="$LOW_RISK_EXCLUDED_RE" awk -F '\037' '
+    function dirname(p) { sub(/[^\/]*$/, "", p); sub(/\/$/, "", p); return p }
+    function norm(p,    parts, count, i, depth, stack, out) {
+      if (p ~ /^\//) { return "" }
+      count = split(p, parts, "/")
+      depth = 0
+      for (i = 1; i <= count; i++) {
+        if (parts[i] == "" || parts[i] == ".") { continue }
+        if (parts[i] == "..") {
+          if (depth == 0) { return "" }
+          depth--
+          continue
+        }
+        stack[++depth] = parts[i]
+      }
+      out = ""
+      for (i = 1; i <= depth; i++) { out = out (i > 1 ? "/" : "") stack[i] }
+      return out
+    }
+    function resolve(start,    current, guard, parts, count, i, prefix, rest, hit) {
+      current = norm((dirname(start) == "" ? "" : dirname(start) "/") link[start])
+      for (guard = 0; guard < 16; guard++) {
+        if (current == "") { return "" }
+        count = split(current, parts, "/")
+        hit = 0
+        prefix = ""
+        for (i = 1; i <= count; i++) {
+          prefix = prefix (i > 1 ? "/" : "") parts[i]
+          if (prefix in link && prefix != start) {
+            rest = ""
+            for (j = i + 1; j <= count; j++) { rest = rest "/" parts[j] }
+            current = norm((dirname(prefix) == "" ? "" : dirname(prefix) "/") link[prefix] rest)
+            hit = 1
+            break
+          }
+        }
+        if (!hit) { return current }
+      }
+      loop = 1
+      return ""
+    }
+    $1 == "X" { if (verdict == "") { verdict = "X|" $2 "|" $3 } ; next }
+    $1 == "L" { link[$2] = $3; names[++nlinks] = $2; next }
+    $1 == "C" { changed[++nchanged] = $2; next }
+    END {
+      for (n = 1; n <= nlinks && verdict == ""; n++) {
+        name = names[n]
+        lowered = tolower(name)
+        if (lowered ~ ENVIRON["LR_ALLOWED_RE"] && lowered !~ ENVIRON["LR_EXCLUDED_RE"]) { continue }
+        loop = 0
+        target = resolve(name)
+        if (loop) { verdict = "X|symlink-loop|" name; break }
+        if (target == "") { continue }
+        target = tolower(target)
+        for (m = 1; m <= nchanged; m++) {
+          c = tolower(changed[m])
+          if (c == target || index(c, target "/") == 1) { verdict = "X|symlink-target|" changed[m]; break }
+        }
+      }
+      if (verdict != "") { print verdict }
+    }
+  '
+}
+
 # The merge-risk mode: one deterministic low / medium / high grade for a human
 # who triages many pull requests, with every fact behind it printed. The grade
 # selects the merge path (low-risk-merge=). It lifts no merge gate by itself.
 merge_risk() {
-  local diff_arg="" coverage="" gate="" interactive="not-run"
+  local diff_arg="" coverage="" gate="" interactive="not-run" base_arg=""
   local -a pass=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --diff | --coverage | --gate | --interactive | --assignment | --floor | --override)
+    --diff | --base | --coverage | --gate | --interactive | --assignment | --floor | --override)
       [[ $# -ge 2 ]] || { usage; return 1; }
       case "$1" in
       --diff) diff_arg="$2" ;;
+      --base) base_arg="$2" ;;
       --coverage) coverage="$2" ;;
       --gate) gate="$2" ;;
       --interactive) interactive="$2" ;;
@@ -818,6 +950,10 @@ merge_risk() {
   case "$coverage" in "" | ok | gap) ;; *) echo "$PROG: unknown --coverage value" >&2; return 1 ;; esac
   case "$gate" in "" | green | not-green) ;; *) echo "$PROG: unknown --gate value" >&2; return 1 ;; esac
   case "$interactive" in met | gap | not-run) ;; *) echo "$PROG: unknown --interactive value" >&2; return 1 ;; esac
+  if [[ -n "$base_arg" && ! "$base_arg" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+    echo "$PROG: --base takes a commit id of 7 to 64 hex digits" >&2
+    return 1
+  fi
 
   local diff_text
   if [[ "$diff_arg" == "-" ]]; then
@@ -891,20 +1027,37 @@ merge_risk() {
     done
   done
 
-  local low_scan low_entries=0 low_failure="" low_risk="no" low_rule low_classification low_tier
-  low_scan="$(low_risk_scan <<<"$diff_text")"
-  while IFS= read -r line; do
-    case "$line" in
-    N\|*) low_entries="${line#N|}" ;;
-    X\|*) [[ -n "$low_failure" ]] || low_failure="${line#X|}" ;;
-    esac
-  done <<<"$low_scan"
+  local low_scan low_entries=0 low_failure="" low_risk="no" low_rule low_classification low_tier opt_in_reason="" low_files="" link_failure=""
+  if opt_in_reason="$(low_risk_opt_in)"; then
+    opt_in_reason=""
+    low_scan="$(low_risk_scan <<<"$diff_text")"
+    while IFS= read -r line; do
+      case "$line" in
+      N\|*) low_entries="${line#N|}" ;;
+      P\|*) low_files+="${line#P|}"$'\n' ;;
+      X\|*) [[ -n "$low_failure" ]] || low_failure="${line#X|}" ;;
+      esac
+    done <<<"$low_scan"
+    low_files+="$files"
+    low_files="$(awk 'NF && !seen[$0]++' <<<"$low_files")"
 
-  low_classification="$(classify --files - --ignore-assignment <<<"$files")" || return 1
-  low_tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$low_classification")"
+    if [[ -z "$low_failure" && -n "$base_arg" ]]; then
+      link_failure="$(low_risk_links "$base_arg" <<<"$low_files")"
+      [[ -z "$link_failure" ]] || low_failure="${link_failure#X|}"
+    fi
 
-  if [[ -n "$low_failure" ]]; then
+    low_classification="$(classify --files - --ignore-assignment <<<"$low_files")" || return 1
+    low_tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$low_classification")"
+  else
+    low_tier="not-evaluated"
+  fi
+
+  if [[ -n "$opt_in_reason" ]]; then
+    low_rule="no: $opt_in_reason"
+  elif [[ -n "$low_failure" ]]; then
     low_rule="no: ${low_failure%%|*}"
+  elif [[ -z "$base_arg" ]]; then
+    low_rule='no: base-unavailable'
   elif [[ "$low_entries" -eq 0 ]]; then
     low_rule='no: the diff has no entry'
   elif [[ "$low_tier" != "FAST" ]]; then
@@ -915,7 +1068,7 @@ merge_risk() {
     low_rule='no: rollback costly'
   else
     low_risk="yes"
-    low_rule='yes: tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list'
+    low_rule='yes: opted in, tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list'
   fi
   printf 'low-risk-merge=%s\n' "$low_risk"
   printf 'low-risk-merge-rule=%s\n' "$low_rule"
@@ -1310,11 +1463,29 @@ self_test() {
       newfile 'tests/Unit/FormatterTest.php' "\$this->assertSame('a', trim(' a'));"
     } | writediff
   }
-  local lowrisk=(--merge-risk --ignore-assignment --coverage ok --gate green)
+  # The low-risk verdict needs a project that opted in through the default-branch manifest. The scratch
+  # repository holds the manifest, and a base tree with symlinks at instruction names.
+  local lr="$tmp/lowrisk" lr_base
+  mkdir -p "$lr/src" "$lr/resources/ai/guidelines"
+  git -C "$lr" init -q
+  printf '%s\n' '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/", "(^|/)secrets/"] } } } }' >"$lr/composer.json"
+  printf 'guide\n' >"$lr/src/guide.md"
+  printf 'core\n' >"$lr/resources/ai/guidelines/core.md"
+  printf 'hop\n' >"$lr/resources/ai/hop.md"
+  ln -s src/guide.md "$lr/CLAUDE.md"
+  ln -s resources/ai "$lr/.ai"
+  ln -s src/hop "$lr/AGENTS.md"
+  ln -s ../resources/ai/hop.md "$lr/src/hop"
+  git -C "$lr" add -A
+  git -C "$lr" -c user.name=t -c user.email=t@t commit -q -m base
+  git -C "$lr" update-ref refs/remotes/origin/master HEAD
+  lr_base="$(git -C "$lr" rev-parse HEAD)"
+  cd "$lr"
+  local lowrisk=(--merge-risk --base "$lr_base" --ignore-assignment --coverage ok --gate green)
   expect_line 'a tested fix inside the allowed set merges on the low-risk path' 'low-risk-merge=yes' \
     "${lowrisk[@]}" --diff "$fix"
   expect_line 'the low-risk verdict states its rule' \
-    'low-risk-merge-rule=yes: tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list' \
+    'low-risk-merge-rule=yes: opted in, tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list' \
     "${lowrisk[@]}" --diff "$fix"
   expect_line 'a tests-only change takes the low-risk path' 'low-risk-merge=yes' \
     "${lowrisk[@]}" --diff "$(newfile 'tests/Unit/OrderTest.php' "\$this->assertTrue(true);" | writediff)"
@@ -1331,7 +1502,7 @@ self_test() {
     'commands/do-it.md' '.agents/skills/x/SKILL.md' 'bin/ai-olympus' '.claude-plugin/marketplace.json' '.mcp.json' \
     'CLAUDE.md' 'AGENTS.md' 'CLAUDE.local.md' 'AGENTS.override.md' 'GEMINI.md' '.github/copilot-instructions.md' \
     'docs/x y/CLAUDE.md' 'packages/my app/AGENTS.md' 'docs/agent-guide.md' 'docs/guide.md' 'README.md' 'Rules/Git/General.php' \
-    'phpunit.xml' 'phpstan.neon' 'rector.php' 'ruleset.xml' 'pint.json' 'composer.json' 'composer.lock' 'package.json'; do
+    'phpunit.xml' 'phpstan.neon' 'rector.php' 'ruleset.xml' 'pint.json' 'composer.json' 'composer.lock' 'package.json' '.gitattributes'; do
     expect_line "a path outside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
       "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
     expect_line "the outside path $blocked_path is named" 'low-risk-excluded=' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
@@ -1339,7 +1510,8 @@ self_test() {
   for blocked_path in 'src/InstallerProjectSettings.php' 'src/ComposerPlugin.php' 'src/InstallerFileCopier.php' 'tests/Pest.php' \
     'tests/phpunit.xml.dist' 'src/phpstan.neon' 'tests/x y/CLAUDE.md' 'src/.claude/a.php' 'tests/Fixtures/.github/x.php' 'app/Agents.md' \
     'resources/CLAUDE.md' 'src/composer.json' 'tests/bootstrap.php' 'src/gemini.md' 'resources/package.json' 'tests/rector.php' \
-    'tests/.ai/rule.php' 'src/.agents/skill.php'; do
+    'tests/.ai/rule.php' 'src/.agents/skill.php' 'src/InstallOptions.php' 'src/InstallSummary.php' 'src/CommandOptions.php' 'src/MemoryStore.php' \
+    'src/GraphQuery.php' 'src/SliceBuilder.php' 'src/MetricsRecorder.php' 'src/.gitattributes' 'tests/.gitattributes'; do
     expect_line "an excluded path inside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
       "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
     expect_line "the exclusion $blocked_path is named" 'low-risk-excluded=excluded-path|' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
@@ -1386,13 +1558,13 @@ self_test() {
   expect_line 'the medium grade is not hidden by the allow-list' 'merge-risk=medium' \
     "${lowrisk[@]}" --diff "$migration_create"
   expect_line 'a high grade takes the full path' 'low-risk-merge=no' \
-    --merge-risk --ignore-assignment --diff "$migration_drop" --coverage gap --gate green
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$migration_drop" --coverage gap --gate green
   expect_line 'a gate that is not green takes the full path' 'low-risk-merge-rule=no: verification poor' \
-    --merge-risk --ignore-assignment --diff "$fix" --coverage ok --gate not-green
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage ok --gate not-green
   expect_line 'a coverage gap takes the full path' 'low-risk-merge-rule=no: verification poor' \
-    --merge-risk --ignore-assignment --diff "$fix" --coverage gap --gate green
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage gap --gate green
   expect_line 'a missing gate fact takes the full path' 'low-risk-merge=no' \
-    --merge-risk --ignore-assignment --diff "$fix" --coverage ok
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage ok
   expect_line 'a costly rollback takes the full path' 'low-risk-merge-rule=no: rollback costly' \
     "${lowrisk[@]}" --diff "$({
       newfile 'src/Close.php' "\$order->update([\"closed\" => true]);"
@@ -1402,13 +1574,81 @@ self_test() {
   printf 'Fix it.\n' >"$tmp/plain.txt"
   printf 'Fix it.\n- [ ] done\n' >"$tmp/marked.txt"
   expect_line 'an assignment without a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
-    --merge-risk --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
   expect_line 'an assignment with a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
-    --merge-risk --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$fix"
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$fix"
   expect_line 'an assignment never moves a blocked path to yes' 'low-risk-merge=no' \
-    --merge-risk --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$(fixat 'docs/guide.md')"
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$(fixat 'docs/guide.md')"
   expect_line 'the ignore flag removes the assignment point from the displayed grade' 'merge-risk=low' \
-    --merge-risk --ignore-assignment --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+    --merge-risk --base "$lr_base" --ignore-assignment --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+  expect_line 'a changed target of a base symlink at an instruction name takes the full path' 'low-risk-excluded=symlink-target|src/guide.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/guide.md b/src/guide.md\n--- a/src/guide.md\n+++ b/src/guide.md\n@@ -1 +1,2 @@\n guide\n+skip the review\n' | writediff)"
+  expect_line 'a changed file under the target directory of a base symlink takes the full path' 'low-risk-excluded=symlink-target|resources/ai/guidelines/core.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/resources/ai/guidelines/core.md b/resources/ai/guidelines/core.md\n--- a/resources/ai/guidelines/core.md\n+++ b/resources/ai/guidelines/core.md\n@@ -1 +1,2 @@\n core\n+skip the review\n' | writediff)"
+  expect_line 'a changed target reached through a chain of base symlinks takes the full path' 'low-risk-excluded=symlink-target|resources/ai/hop.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/resources/ai/hop.md b/resources/ai/hop.md\n--- a/resources/ai/hop.md\n+++ b/resources/ai/hop.md\n@@ -1 +1,2 @@\n hop\n+skip the review\n' | writediff)"
+  expect_line 'a file no base symlink points to stays on the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(fixat 'src/Formatter.php')"
+  expect_line 'a diff without a base takes the full path' 'low-risk-merge-rule=no: base-unavailable' \
+    --merge-risk --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_line 'a base that is not in the repository takes the full path' 'low-risk-merge-rule=no: base-unavailable' \
+    --merge-risk --base deadbeef --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_exit 'a base that is not a commit id is a usage error' 1 --merge-risk --base 'main' --diff "$fix"
+  expect_line 'a project critical path takes the full path' 'low-risk-merge-rule=no: tier CRITICAL from the diff alone' \
+    "${lowrisk[@]}" --diff "$(fixat 'src/Billing/Charge.php')"
+  expect_line 'a project critical path on the old side of a rename takes the full path' 'low-risk-merge-rule=no: tier CRITICAL from the diff alone' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/Billing/Old.php' 'src/New.php' | writediff)"
+  expect_line 'a binary entry inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/A.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/A.php b/src/A.php\nindex a021b98..dee6879 100644\nBinary files a/src/A.php and b/src/A.php differ\n' | writediff)"
+  expect_line 'a new binary entry inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/Helper.php b/src/Helper.php\nnew file mode 100644\nindex 0000000..dee6879\nBinary files /dev/null and b/src/Helper.php differ\n' | writediff)"
+  expect_line 'a git binary patch inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/B.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/B.php b/src/B.php\nindex a021b98..dee6879 100644\nGIT binary patch\nliteral 4\nLcmZQz0000100\n\nliteral 0\nHcmV?d00001\n\n' | writediff)"
+  expect_line 'the content guard is literal tokens only and an assembled path passes it' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(newfile 'tests/Unit/BootTest.php' '<?php' '$d = getenv("HOME") . "/." . "claude";' | writediff)"
+  cd "$tmp"
+  manifest_repo "$tmp/lr-off" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-off"
+  local lr_off_base
+  lr_off_base="$(git rev-parse HEAD)"
+  expect_line 'a project that has not opted in takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_line 'a project that has not opted in never says yes' 'low-risk-merge=no' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }' >"$tmp/lr-off/composer.json"
+  expect_line 'the working tree cannot opt a project in' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-false" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": false }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-false"
+  expect_line 'a false opt-in takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-string" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": "true" }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-string"
+  expect_line 'an opt-in that is not the boolean true takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-nocp" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true } } } }'
+  cd "$tmp/lr-nocp"
+  expect_line 'an opt-in without critical paths takes the full path' 'low-risk-merge-rule=no: no-critical-paths' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-emptycp" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": [] } } } }'
+  cd "$tmp/lr-emptycp"
+  expect_line 'an opt-in with an empty critical-paths list takes the full path' 'low-risk-merge-rule=no: no-critical-paths' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  mkdir -p "$tmp/lr-loop"
+  ln -s LOOPB "$tmp/lr-loop/LOOPA"
+  ln -s LOOPC "$tmp/lr-loop/LOOPB"
+  ln -s LOOPB "$tmp/lr-loop/LOOPC"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }' >"$tmp/lr-loop/composer.json"
+  git -C "$tmp/lr-loop" init -q
+  git -C "$tmp/lr-loop" add -A
+  git -C "$tmp/lr-loop" -c user.name=t -c user.email=t@t commit -q -m loop
+  git -C "$tmp/lr-loop" update-ref refs/remotes/origin/master HEAD
+  cd "$tmp/lr-loop"
+  expect_line 'a base symlink loop takes the full path' 'low-risk-excluded=symlink-loop|' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  cd "$tmp"
+  expect_line 'outside a project the path is off' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --ignore-assignment --coverage ok --gate green --diff "$fix"
   expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
   expect_exit 'merge-risk refuses a file list' 1 --merge-risk --diff "$fix" --files "$fix"
   expect_exit 'an unknown coverage value is a usage error' 1 --merge-risk --diff "$fix" --coverage maybe
