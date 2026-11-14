@@ -264,7 +264,9 @@ test('verify-merge-readiness changes only the assignment and leaves every other 
     expect($preparation)->toContain('`@skills/verify-merge-readiness/SKILL.md` *Scope — the assignment only*');
     expect($april)->toContain('render the `Decisions before merge` section');
     expect($merge)->toContain('#### Open merge decisions (hard gate, no exemption)');
-    expect($merge)->toContain('Never take the recommendation, or silence, as an answer');
+    expect($merge)->toContain('Read `references/open-merge-decisions.md` and apply it before every merge.');
+    expect((string) file_get_contents($packageDir . '/skills/merge-github-pr/references/open-merge-decisions.md'))
+        ->toContain('Never take the recommendation, or silence, as an answer');
     expect($tracker)->toContain('a merge-preparation run reports instead of dropping');
 });
 
@@ -272,7 +274,6 @@ test('a merge decision already answered in the assignment or a trusted comment i
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $testAssignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
 
     expect($skill)->toContain('### Look for the answer before you ask');
@@ -284,6 +285,7 @@ answer is already written down is never asked again.');
   point stays an open decision');
     expect($skill)->toContain('### Already decided');
     expect($april)->toContain('the `### Already decided` lines from the brief\'s `## Decided before merge`');
-    expect($merge)->toContain('A citation that fails the check is an unanswered question.');
+    expect((string) file_get_contents($packageDir . '/skills/merge-github-pr/references/open-merge-decisions.md'))
+        ->toContain('A citation that fails the check is an unanswered question.');
     expect($testAssignment)->toContain('*Look for the answer before you ask*');
 });
