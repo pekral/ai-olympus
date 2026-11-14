@@ -7,7 +7,13 @@ This file owns how a testing agent probes every input of the user interface for 
 Every boundary of step 5 of the skill applies to every probe in this file:
 
 - Every payload is harmless. It proves an effect with a unique marker string, or with a DOM marker in place of `alert`. It never destroys data, never causes a denial of service, and never targets a third-party host. A payload never carries a real secret or real personal data.
-- A SQL or NoSQL payload that can widen a condition (a tautology, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only. A request counts as read-only only after the agent shows that it runs no INSERT, UPDATE, or DELETE for a normal value, from the traced handler source or from the local query log, and the report row names that evidence. A search, a filter, or a sort is not read-only by its role in the page. A request without that proof is state-changing: it gets only the safe markers of the SQL row below, sent against a record this run created. A write or delete never receives a tautology, `-- `, `#`, or `/*`.
+- A SQL or NoSQL payload that can widen a condition (a tautology, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only.
+  - A request counts as read-only only when the traced handler source shows no INSERT, UPDATE, or DELETE on any branch that the input value or the query result can reach, including a branch that runs only when the read returns rows or returns none.
+  - The report row names the traced handler and its branches.
+  - The local query log of a normal value is supporting evidence and never the proof on its own.
+  - A search, a filter, or a sort is not read-only by its role in the page.
+  - A request whose source the agent cannot trace to that standard is state-changing: it gets only the safe markers of the SQL row below, sent against a record this run created.
+  - A write or delete never receives a tautology, `-- `, `#`, or `/*`.
 - Mark every record a probe creates as test data, as *Missing test data* in the skill states. Remove it through *Scripted cleanup*.
 - A probe that sends an e-mail, starts a job, or calls an external service needs the authorization of the scenario. Without it, stop before the effect and mark the probe `not checked`.
 
@@ -34,8 +40,8 @@ For each input, send the payloads that fit the context of its value. A payload c
 | Class | Context of the value | Harmless payload |
 |---|---|---|
 | HTML and script injection, stored and reflected | A value rendered in a page, an attribute, or a script | `<img src=x onerror="document.title='XSS-<marker>'">` and `"><b id="XSS-<marker>">x</b>` |
-| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only: a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. Any other request (state-changing, or without proof that it is read-only): only a single quote and the pair `' AND '1'='2` and `' AND '1'='1`, against a record this run created; never a tautology or a comment sequence |
-| NoSQL injection marker | A value that reaches a document query | Request proven read-only only: `{"$ne": null}`, or `[$ne]=x` as a parameter. Any other request: a single quote or a brace, against a record this run created, and never an operator that widens the condition |
+| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only over every branch: a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. Any other request (state-changing, or not traced to that standard): only a single quote and the pair `' AND '1'='2` and `' AND '1'='1`, against a record this run created; never a tautology or a comment sequence |
+| NoSQL injection marker | A value that reaches a document query | Request proven read-only over every branch only: `{"$ne": null}`, or `[$ne]=x` as a parameter. Any other request: a single quote or a brace, against a record this run created, and never an operator that widens the condition |
 | Template or expression injection | A value that a template engine or an expression field evaluates | `{{7*7}}`, `${7*7}`, `<%= 7*7 %>`; the value `49` in the output proves the injection |
 | Path traversal | A file name, a path-like field, or a download parameter | `../../<marker>` and `..%2f..%2f<marker>`, aimed at a name that does not exist |
 | Header and CRLF injection | A value that reaches a response header, a redirect, or an e-mail header | `<marker>%0d%0aX-Probe: <marker>`; look for the injected header |
