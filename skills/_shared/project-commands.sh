@@ -170,6 +170,15 @@ load_project_manifest() {
   project="$(bash "$reader" 2>/dev/null)" || project='{}'
   PROJECT_MANIFEST="$project"
 
+  if [[ "$project" == '{}' && -z "${PROJECT_DEFAULT_REF_HINTED:-}" ]]; then
+    local ref_status=0
+    bash "$reader" --default-ref >/dev/null 2>&1 || ref_status=$?
+    if [[ "$ref_status" -eq 5 ]]; then
+      PROJECT_DEFAULT_REF_HINTED=1
+      echo 'project-commands.sh: the default branch does not resolve, so the project manifest is empty; run: git remote set-head origin --auto' >&2
+    fi
+  fi
+
   if ! printf '%s' "$project" | jq -e '(.validation // {}) | type == "object" and ((.executables // []) | type == "array")' >/dev/null 2>&1; then
     PROJECT_REFUSAL='project manifest: validation.executables must be an array'
     return 3

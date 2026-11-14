@@ -500,6 +500,17 @@ self_test() {
   code=0; run_in "$plain" --tier full || code=$?
   check 'a manifest without a gate exits 5 and --exclusive is the route that still serialises' "$([[ "$code" -eq 5 ]] && echo pass)"
 
+  local hint_err="$tmp/hint.err" hint_code=0
+  git -C "$plain" symbolic-ref --delete refs/remotes/origin/HEAD
+  (cd "$plain" && "$script" --tier full >/dev/null 2>"$hint_err") || hint_code=$?
+  check 'an unresolved default branch exits 5 and names the repair command once on stderr' \
+    "$([[ "$hint_code" -eq 5 && "$(grep -c 'run: git remote set-head origin --auto' "$hint_err")" -eq 1 ]] && echo pass)"
+  git -C "$plain" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  hint_code=0
+  (cd "$plain" && "$script" --tier full >/dev/null 2>"$hint_err") || hint_code=$?
+  check 'a resolved default branch prints no repair hint' \
+    "$([[ "$hint_code" -eq 5 && ! -s "$hint_err" ]] && echo pass)"
+
   code=0; run_in "$plain" --exclusive --command 'vendor/bin/gate-ok one' --command 'vendor/bin/gate-ok two' || code=$?
   check '--exclusive runs every command in order and releases the lock' \
     "$([[ "$code" -eq 0 && "$(gate_selftest_calls gate-ok)" -eq 2 && "$(printf '%s' "$OUT" | jq -r .status)" == passed && ! -e "$MLOCK" ]] && echo pass)"
