@@ -323,7 +323,7 @@ test(
     function (): void {
         $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
         $contract = inlineReviewContract();
-    
+
         expect($script)->toContain('rule: (.rule | if . == null then null else codespan | prose end)')
             ->and($script)->toContain('| req(.suggestion | marker_free; "suggestion must not contain an agent marker")')
             ->and($script)->toContain('| req(.faulty_example | marker_free; "faulty_example must not contain an agent marker")')
