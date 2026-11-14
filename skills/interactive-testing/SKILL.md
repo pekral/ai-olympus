@@ -145,7 +145,8 @@ A scratch script stays inside these limits:
 2. For a merged change, compare its recorded base and head; an empty working-tree diff does not mean there is nothing to test. Include all commits in the requested change, not just the last styling commit.
 3. Turn each requirement and meaningful changed behavior into a row: preconditions, user actions, expected visible result, persistence check, and relevant viewport/role.
 4. Include the main successful flow, validation/empty states, navigation, save/reload behavior, and immediate regressions implied by the diff. Distinguish layout changes from processing or integration behavior outside the assignment.
-5. Record the revision and browser target. If the served checkout/version cannot be established, state that limitation instead of assuming it matches the diff.
+5. Build the list of affected parts before the walkthrough, and turn each part with a user-visible surface into a regression scenario, as `@skills/interactive-testing/references/affected-parts.md` states. A part without a UI surface is listed as `not testable through the UI`, with the reason.
+6. Record the revision and browser target. If the served checkout/version cannot be established, state that limitation instead of assuming it matches the diff.
 
 ### 2. Prepare the local environment
 
@@ -169,6 +170,7 @@ Check and prepare the local environment as *Local readiness* states, before the 
 6. Capture and actually inspect rendered screenshots for relevant states, especially failures. Check readability, wrapping, clipping, scrolling, control reachability, and correspondence between icons and actions. Restore temporary viewport overrides afterward.
 7. Read recent console errors through the browser tool. Reproduce suspicious behavior once with a stable, fully loaded page. Separate reproducible failures, transient observations, environment blockers, and unproven attribution to the diff.
 8. For side-effecting flows without authorization, or whose prerequisites *Missing test data* cannot produce, stop before the effect and mark that portion `Blocked`; do not mark the entire action passed because its button rendered.
+9. Walk every regression scenario of the affected parts in the browser, with the evidence rules of this step. A regression scenario counts toward the overall verdict of *Restore test data and report evidence*.
 
 ### 5. Check security and repair confirmed threats
 
@@ -198,6 +200,7 @@ Return a concise report in the user's language:
 - **Scope:** assignment, tested base/head and working-tree changes, project URL, account role/workspace, browser tool, viewport sizes, and every preparation step *Local readiness* ran.
 - **Result:** one row per scenario with expected behavior, actual interactions and observation, evidence, and verdict.
 - **Findings:** reproducible failures, transient observations, and environment blockers kept distinct; never claim a regression without evidence linking it to the change.
+- **Affected parts:** one row per affected part with its source (`CR`, `blast radius`, or `own trace`), its regression scenario, and its verdict (`Passed`, `Failed`, `Blocked`, or `not testable through the UI`). A failure is linked to the change only with evidence, as *Findings* requires.
 - **Security:** checks exercised or skipped with reasons; candidates marked confirmed, rejected, or `needs validation`; redacted proof, affected boundary, impact, repair revision or handoff, regression-test result, and attack/legitimate-flow re-test verdict. Never publish secrets or exploitable details to a public tracker.
 - **Untested:** exact scenarios and missing prerequisites.
 - **Cleanup:** restored values, the cleanup mechanism that ran (project mechanism, scratch script, or browser fallback with its reason), the browser tabs this run closed and any tab that stayed open, the restored checkout, processes this run started or restarted and left running, any remaining test artifacts, every test account this run created, and every test record this run created or left in place.
@@ -211,6 +214,7 @@ Report in the current task by default. Do not post messages to external trackers
 - The agent itself operated the interactive browser and observed the results.
 - Every acceptance criterion has an honest verdict backed by executed interactions or a named blocker.
 - Save/reload checks, relevant visual states, and recent browser errors were considered.
+- Every affected part has a verdict, and every regression scenario was walked in the browser or is `Blocked` with its prerequisite.
 - Applicable security boundaries were checked. Each candidate was verified or left explicitly unresolved. Every confirmed threat was repaired and re-tested, or remains `Failed` or `Blocked` with its repair handoff.
 - Changed test data and temporary browser settings are restored, or remaining effects are explicitly listed.
 - Test data cleanup ran as *Scripted cleanup* states, and its result was read back.
