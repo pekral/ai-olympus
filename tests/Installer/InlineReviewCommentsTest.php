@@ -135,6 +135,15 @@ test('the contract posts a security finding inline on a private repository and w
         ->and($section)->toContain('it is posted in no inline comment and in no part of this comment');
 });
 
+test('the inline fallback keeps a withheld finding out of the comment on a public repository', function (): void {
+    $section = inlineReviewContract();
+
+    expect($section)->toContain(
+        'keep every finding in this comment as before, except a finding marked `do_not_file_publicly` on a public repository, '
+        . 'which stays out of the comment as the previous bullet states, and write the line `Inline: not posted (<reason>)`.',
+    );
+});
+
 test('the contract no longer forbids line-anchored review comments', function (): void {
     $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
 
