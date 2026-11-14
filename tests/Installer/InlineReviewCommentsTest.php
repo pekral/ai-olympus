@@ -144,6 +144,17 @@ test('the inline fallback keeps a withheld finding out of the comment on a publi
     );
 });
 
+test('the review templates keep a withheld finding out of the findings section', function (string $template): void {
+    expect(inlineReviewSource($template))->toContain(
+        'and every entry when the inline review was not posted (`Inline: not posted (<reason>)`), '
+        . 'except a finding marked `do_not_file_publicly` on a public repository and when the visibility check fails, '
+        . 'which stays out of this comment (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*).',
+    );
+})->with([
+    'skills/code-review-github/templates/pr-comment-output.md',
+    'skills/code-review/templates/review-output.md',
+]);
+
 test('the contract no longer forbids line-anchored review comments', function (): void {
     $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
 

@@ -66,7 +66,8 @@ History exposure: not run — the repository is private.  *(render this one body
 
 > Render only when at least one Critical or Moderate finding exists. Within this section, render only the severity sub-headings that have items — omit the other entirely. When both severities are empty, omit the entire `## Findings` parent heading.
 >
-> **GitHub — a finding that anchors to a line of the diff is an inline review comment, not an entry here.** The publishing run posts it on its line as one pull-request review (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*) and renders one line `Inline: <n> finding(s) in <review url>` in its place. This section keeps the entries of the findings outside the diff, and every entry when the inline review was not posted (`Inline: not posted (<reason>)`). The `Counts:` line and the round report of the review loop keep every finding.
+> **GitHub — a finding that anchors to a line of the diff is an inline review comment, not an entry here.** The publishing run posts it on its line as one pull-request review (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*) and renders one line `Inline: <n> finding(s) in <review url>` in its place.
+> This section keeps the entries of the findings outside the diff, and every entry when the inline review was not posted (`Inline: not posted (<reason>)`), except a finding marked `do_not_file_publicly` on a public repository and when the visibility check fails, which stays out of this comment (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*). The `Counts:` line and the round report of the review loop keep every finding.
 
 ### 🔴 Critical 1. <short title>
 
