@@ -94,6 +94,8 @@
 #   3  GitHub API call failed
 set -euo pipefail
 
+PROG="upsert-comment.sh"
+
 usage() {
   cat >&2 <<'EOF'
 Usage: upsert-comment.sh [--create] <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
@@ -137,45 +139,10 @@ for bin in gh jq php; do
   fi
 done
 
-resolve_repo_from_git() {
-  local remote
-  remote="$(git config --get remote.origin.url 2>/dev/null || true)"
-  if [[ -z "$remote" ]]; then
-    return 1
-  fi
-  printf '%s' "$remote" \
-    | sed -E -e 's#^git@github\.com:#https://github.com/#' -e 's#\.git$##' \
-    | sed -nE 's#^https?://github\.com/([^/]+)/([^/]+).*#\1 \2#p'
-}
+# shellcheck source=../../_shared/github-target.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/github-target.sh"
 
-OWNER=""
-REPO=""
-NUMBER=""
-
-if [[ "$INPUT" =~ ^https?://(www\.)?github\.com/ ]]; then
-  parsed="$(printf '%s' "$INPUT" | sed -nE 's#^https?://(www\.)?github\.com/([^/]+)/([^/]+)/(issues|pull)/([0-9]+).*#\2 \3 \5#p' || true)"
-  if [[ -z "$parsed" ]]; then
-    echo "upsert-comment.sh: could not extract issue/PR from URL: $INPUT" >&2
-    exit 1
-  fi
-  OWNER="$(printf '%s' "$parsed" | awk '{print $1}')"
-  REPO="$(printf '%s' "$parsed"  | awk '{print $2}')"
-  NUMBER="$(printf '%s' "$parsed" | awk '{print $3}')"
-elif [[ "$INPUT" =~ ^[0-9]+$ ]]; then
-  NUMBER="$INPUT"
-  parsed="$(resolve_repo_from_git || true)"
-  if [[ -z "$parsed" ]]; then
-    echo "upsert-comment.sh: cannot resolve repo from git remote — pass a full URL instead" >&2
-    exit 1
-  fi
-  OWNER="$(printf '%s' "$parsed" | awk '{print $1}')"
-  REPO="$(printf '%s' "$parsed"  | awk '{print $2}')"
-else
-  echo "upsert-comment.sh: argument must be a bare number or a github.com URL: $INPUT" >&2
-  exit 1
-fi
-
-NWO="${OWNER}/${REPO}"
+github_target_resolve "$INPUT" 'issues|pull' || exit 1
 
 if [[ "$BODY_SRC" == "-" ]]; then
   BODY="$(cat)"
@@ -198,31 +165,11 @@ fi
 # "is gh authenticated?" message. Capture stderr to surface the actual cause
 # and retry up to three times so a single transient API hiccup does not abort
 # the whole CR comment publish — see issue #519.
-ACTOR_STDERR="$(mktemp)"
 LOOKUP_STDERR="$(mktemp)"
 NEW_BODY_FILE="$(mktemp)"
 PREVIOUS_BODY_FILE="$(mktemp)"
-trap 'rm -f "$ACTOR_STDERR" "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"' EXIT
-ACTOR=""
-ACTOR_ERR=""
-for attempt in 1 2 3; do
-  : > "$ACTOR_STDERR"
-  if ACTOR="$(gh api user --jq .login 2>"$ACTOR_STDERR")" && [[ -n "$ACTOR" ]]; then
-    break
-  fi
-  ACTOR=""
-  ACTOR_ERR="$(cat "$ACTOR_STDERR")"
-  [[ $attempt -lt 3 ]] && sleep 1
-done
-
-if [[ -z "$ACTOR" ]]; then
-  if [[ -n "$ACTOR_ERR" ]]; then
-    echo "upsert-comment.sh: failed to resolve current GitHub actor after 3 attempts: ${ACTOR_ERR}" >&2
-  else
-    echo "upsert-comment.sh: failed to resolve current GitHub actor — is gh authenticated? (run: gh auth status)" >&2
-  fi
-  exit 3
-fi
+trap 'rm -f "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"' EXIT
+github_actor_resolve || exit 3
 
 MARKER="<!-- ${MARKER_KEY}:actor=${ACTOR} -->"
 

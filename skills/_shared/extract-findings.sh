@@ -244,7 +244,7 @@ def subsystem_of($text):
 
 (gsub("\r"; "") | gsub("[\\x00-\\x08\\x0b-\\x1f\\x7f]"; "") | split("\n")) as $lines
 | (reduce $lines[] as $l (
-    {fence: false, section: "", items: [], cur: null, field: null, skip: false, defer: []};
+    {fence: false, section: "", items: [], cur: null, field: null, skip: false, defer: [], inline: false};
     ($l | cap("^#{3,6}\\s+(?:\\S+\\s+)?(?<sev>Critical|Moderate)\\s+[0-9]+\\.\\s*(?<title>.*)$")) as $h
     | ($l | cap("^\\s*-\\s+\\*\\*(?<name>[^*:]+):\\*\\*\\s*(?<rest>.*)$")) as $f
     | if ($l | test("^\\s*(```|~~~)")) then (.fence = (.fence | not)) | addline($l)
@@ -257,6 +257,7 @@ def subsystem_of($text):
           .cur = {severity: ($h.sev | ascii_downcase), title: ($h.title | trim), section: .section, fields: {}, dups: []} end
       elif ($l | test("^#{3,6}\\s")) then close
       elif ($l | test("^---\\s*$")) then close
+      elif .cur == null and ($l | test("^Inline: [0-9]+ finding\\(s\\) in ")) then .inline = true
       elif .cur == null and (.section | test("^Deferred to sub-issues"; "i")) then
         if ($l | test("^\\s*([-*]|[0-9]+\\.)\\s")) then
           (if (.defer | length) <= $maxDefer then .defer += [$l[0:4000]] else . end)
@@ -330,6 +331,7 @@ def subsystem_of($text):
     revision: $rev,
     time: $time,
     deferrals: $deferrals,
+    inline: $s.inline,
     errors: ([
         (if ($missing | length) > 0 then "input is not a code-review report: missing header line(s): \($missing | map(ascii_upcase[:1] + .[1:]) | join(", "))" else empty end),
         (if ($missing | index(["reviewed revision"]) | not) and ($rev | test("^[0-9a-f]{7,64}$") | not) then "header \"Reviewed revision\" is not a commit SHA" else empty end),
@@ -402,15 +404,18 @@ IFS= read -r -d '' JQ_MERGE <<'EOF' || true
 # Moderate of the same subsystem is listed under `## Deferred to sub-issues` with a sub-issue URL: then it
 # becomes deferred and stays open. Either change takes the revision and time of the report that made it, so
 # replaying an older report afterwards changes nothing. A deferred record is never resolved by absence, and
-# an older report never resolves a newer record.
+# an older report never resolves a newer record. A report whose Findings section opens with the line
+# `Inline: <n> finding(s) in <url>` moved its findings to inline review comments: it resolves nothing by
+# absence, because the absent entry is still open.
 | ($old | map(
     .id as $id
     | .subsystem as $sub
     | if .repo == $repo and .pr == $pr and .disposition == "confirmed" and .status == "open"
          and (.time < $time) and (($newids | index([$id])) == null)
       then (if .severity == "moderate" and ($deferred | index([$sub])) != null
-            then .disposition = "deferred" else .status = "resolved" end)
-           | .revision = $rev | .time = $time
+            then .disposition = "deferred" | .revision = $rev | .time = $time
+            elif $inline then .
+            else .status = "resolved" | .revision = $rev | .time = $time end)
       else . end)) as $kept
 | (reduce .new[] as $n ({records: $kept, added: 0, updated: 0};
     (.records | map(.id) | index([$n.id])) as $ix
@@ -602,6 +607,7 @@ cmd_extract() {
     '{old: $old[0], new: $new[0]}' >"$tmp/pair.json"
   jq -c --arg repo "$repo" --argjson pr "$pr" --arg rev "$revision" --arg time "$time" \
     --argjson deferred "$(jq -c '[.deferrals[].subsystem] | unique' "$tmp/parsed.json")" \
+    --argjson inline "$(jq -c '.inline' "$tmp/parsed.json")" \
     "$JQ_MERGE" "$tmp/pair.json" >"$tmp/merged.json"
 
   local out
@@ -806,6 +812,20 @@ self_test() {
   report "$tmp/i4.md" "$SHA3" 2026-10-05T10:00:00Z "$R1" "$LOC" "Back again."
   "$script" --repo acme/shop --pr 7 --input "$tmp/i4.md" --store "$tmp/store.jsonl" >/dev/null
   check 'a reopened finding stays one record and is open again' "$([[ "$(wc -l <"$tmp/store.jsonl" | tr -d ' ')" == 1 ]] && jq -e '.status == "open"' "$tmp/store.jsonl" >/dev/null && echo 0 || echo 1)"
+
+  # A report that moved its findings to inline review comments resolves nothing by absence.
+  {
+    printf '# Code Review\n\n**Status:** needs-fix\n**Counts:** Critical 0 · Moderate 1\n'
+    printf '**Reviewed revision:** %s\n**Last updated:** 2026-10-06T10:00:00Z\n\n## Findings\n\n' "$SHA3"
+    printf 'Inline: 1 finding(s) in https://github.com/acme/shop/pull/7#pullrequestreview-1\n'
+  } >"$tmp/inline.md"
+  cp "$tmp/store.jsonl" "$tmp/store.beforeinline"
+  "$script" --repo acme/shop --pr 7 --input "$tmp/inline.md" --store "$tmp/store.jsonl" >"$tmp/inline.out"
+  check 'a report with an Inline line resolves no open record by absence' "$(jq -e '.resolved == 0 and .extracted == 0' "$tmp/inline.out" >/dev/null && cmp -s "$tmp/store.beforeinline" "$tmp/store.jsonl" && echo 0 || echo 1)"
+  sed 's/^Inline: .*/Inline: not posted (the review request failed)/' "$tmp/inline.md" >"$tmp/inline-failed.md"
+  "$script" --repo acme/shop --pr 7 --input "$tmp/inline-failed.md" --store "$tmp/store.jsonl" >"$tmp/inline-failed.out"
+  check 'a report whose inline review was not posted still resolves by absence' "$(jq -e '.resolved == 1' "$tmp/inline-failed.out" >/dev/null && jq -e '.status == "resolved"' "$tmp/store.jsonl" >/dev/null && echo 0 || echo 1)"
+  cp "$tmp/store.beforeinline" "$tmp/store.jsonl"
 
   # A report of another pull request leaves this pull request's record alone.
   sed 's/2026-10-04/2026-11-01/' "$tmp/clean.md" >"$tmp/clean-later.md"

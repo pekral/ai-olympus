@@ -19,7 +19,8 @@
     ],
     "agents/leonardo.md": [
         "skills/code-review-github/templates/pr-comment-output.md",
-        "skills/security-threat-analysis/templates/remediation-plan-issue.md"
+        "skills/security-threat-analysis/templates/remediation-plan-issue.md",
+        "skills/code-review-github/templates/inline-review-comment.md"
     ],
     "skills/_shared/orchestration/batch-preparation.md": [
         "skills/_shared/templates/superseded-pr-pointer.md"
@@ -43,9 +44,13 @@
         "skills/code-review-bugsnag/templates/github-output.md",
         "skills/pr-summary/templates/pr-summary-bugsnag.md"
     ],
+    "skills/code-review-github/SKILL.md": [
+        "skills/code-review-github/templates/inline-review-comment.md"
+    ],
     "skills/code-review-github/references/cr-wrapper-contract.md": [
         "skills/code-review-github/templates/pr-comment-output.md",
-        "skills/pr-summary/templates/pr-summary-github.md"
+        "skills/pr-summary/templates/pr-summary-github.md",
+        "skills/code-review-github/templates/inline-review-comment.md"
     ],
     "skills/code-review-jira/SKILL.md": [
         "skills/code-review-jira/templates/github-output.md",
