@@ -101,7 +101,8 @@ test('the rule leaves a withheld security finding out on a public repository and
         ->and($rule)->toContain('has no line in the block, and the block carries no word about it')
         ->and($rule)->toContain('The marker and the visibility decide, never the output of `post-inline-review.sh`')
         ->and($rule)->toContain(
-            'when the script did not run, exited non-zero, or was not given the finding, the block still leaves out every marked finding on a public repository',
+            'when the script did not run, exited non-zero, or was not given the finding, '
+            . 'the block still leaves out every marked finding on a public repository',
         )
         ->and($rule)->not->toContain('leaves out exactly the findings that `post-inline-review.sh` reports');
 });
