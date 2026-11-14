@@ -8,13 +8,20 @@ Every boundary of step 5 of the skill applies to every probe in this file:
 
 - Every payload is harmless. It proves an effect with a unique marker string, or with a DOM marker in place of `alert`. It never destroys data, never causes a denial of service, and never targets a third-party host. A payload never carries a real secret or real personal data.
 - A probe that writes targets only a record this run created. Never change a hidden field, a route parameter, a query parameter, or a select or radio value to the identifier of a record this run did not create.
+- On a request that is not proven read-only, the agent classifies every input from the traced handler source before it sends any marker or invalid value.
+  - An input is a content field only when the source shows that the write uses it solely as a stored value of the run's own record: not in a WHERE clause, a filter, a key, or a join, not twice in a string-built query, and not normalized into a selector.
+  - An input whose use the source does not show, or that the write uses in a selector, is record-selecting, and the next bullet applies.
+  - A write that also changes a record this run did not create, such as a related or counterparty record, gets no marker and no invalid value in any input. Its rows are `not checked`, and the report row names this reason.
+  - When the agent is unsure, the input is `not checked`.
 - On a request that is not proven read-only, an input that selects or identifies the record that the request writes gets no marker and no invalid value. This covers a hidden id or token, a route or query parameter, a select or radio value that names a record, and any key that feeds a WHERE clause or a filter of the write.
   - Exception: the traced source shows that the handler rejects the value before any write (validation, a parse failure that aborts the request, `findOrFail`, or route model binding).
   - Without that proof, the input is `not checked`, and the report row names this reason.
 - On a request that is not proven read-only, markers and invalid values go only to content fields of the run's own record. That covers an empty or whitespace-only value, a lone brace, a wrong type, and a quote. Probe one input per request.
 - No value exceeds 10,000 characters. A limit above 10,000 characters gets no over-length probe, and the report row records why.
-  - An out-of-range number or date is exactly one step past the limit.
-  - A number that sets a count, a repeat, a page size, or a file size gets no value above its limit plus one, and no out-of-range probe when it has no limit.
+  - The limit of a number is the one that a validation rule or the client control sets, never a column type or a language range.
+  - An out-of-range number or date is exactly one step past that validated limit.
+  - A number that sets an amount of work, memory, or time gets no value above that limit plus one, no negative value, and no zero. This covers a count, a repeat, a page size, a size, a dimension, a duration, a delay, a timeout, the span of a date range, and similar.
+  - The exception for such a number is a traced source that shows a rejection before any query or loop. Without that proof, the number is `not checked`, and it gets no out-of-range probe when no such limit exists.
 - A SQL or NoSQL payload that executes a condition goes only to a request that is proven read-only, and it stays bounded to the value of the run's own record.
   - No such payload may return or expose a row this run did not create, and none may feed a filter or a selection that a later write uses.
   - The bounded SQL pair is `<own value>' AND '1'='1` against `<own value>' AND '1'='2`. The bounded NoSQL pair is `[$in][]=<own value>` against a value that matches nothing.
@@ -68,12 +75,12 @@ Replace `<marker>` with one unique string for the run, so the agent finds a stor
 
 ## 3. Invalid data
 
-For each input, send every class of invalid data that applies to its kind. The record-selecting and size limits of the boundaries apply to every class:
+For each input, send every class of invalid data that applies to its kind. The record-selecting, number, and size limits of the boundaries apply to every class:
 
 - empty and whitespace-only values;
 - a value over the maximum length that the field, the column, or the validation rule sets, by one character, within the 10,000-character cap of the boundaries;
 - a value of the wrong type, such as text in a number field;
-- negative values, zero, and numbers and dates exactly one step out of range;
+- negative values, zero, and numbers and dates exactly one step out of range, except a number that sets an amount of work, memory, or time (see the boundaries);
 - unexpected Unicode: control characters, a right-to-left override, and emoji;
 - a value outside the offered options of a select or a radio group, which names no existing record: use the marker, or an identifier that does not exist.
 

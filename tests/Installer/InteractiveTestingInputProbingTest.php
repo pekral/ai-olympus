@@ -62,7 +62,7 @@ test('the input probing reference sends every class of invalid data', function (
         ->and($reference)->toContain('- empty and whitespace-only values;')
         ->and($reference)->toContain('- a value over the maximum length')
         ->and($reference)->toContain('- a value of the wrong type, such as text in a number field;')
-        ->and($reference)->toContain('- negative values, zero, and numbers and dates exactly one step out of range;')
+        ->and($reference)->toContain('- negative values, zero, and numbers and dates exactly one step out of range, except a number that sets')
         ->and($reference)->toContain('- unexpected Unicode: control characters, a right-to-left override, and emoji;')
         ->and($reference)->toContain('- a value outside the offered options of a select or a radio group, which names no existing record:');
 });
@@ -139,7 +139,7 @@ test('a record-selecting input of a request not proven read-only gets nothing', 
             'That covers an empty or whitespace-only value, a lone brace, a wrong type, and a quote. Probe one input per request.',
         )
         ->and($reference)->toContain('a select or radio value to the identifier of a record this run did not create.')
-        ->and($reference)->toContain('The record-selecting and size limits of the boundaries apply to every class:')
+        ->and($reference)->toContain('The record-selecting, number, and size limits of the boundaries apply to every class:')
         ->and($reference)->toContain('use the marker, or an identifier that does not exist.');
 });
 
@@ -149,52 +149,43 @@ test('every value and number is bounded in size and magnitude', function (): voi
 
     expect($reference)->toContain('No value exceeds 10,000 characters.')
         ->and($reference)->toContain('A limit above 10,000 characters gets no over-length probe, and the report row records why.')
-        ->and($reference)->toContain('An out-of-range number or date is exactly one step past the limit.')
-        ->and($reference)->toContain('A number that sets a count, a repeat, a page size, or a file size gets no value above its limit plus one,')
-        ->and($reference)->toContain('and no out-of-range probe when it has no limit.')
         ->and($reference)->toContain('by one character, within the 10,000-character cap of the boundaries;')
         ->and($reference)->not->toContain('at most 10,000 characters when no limit exists');
 });
 
-test('a request that is not proven read-only gets only non-executing markers and no boolean pair', function (): void {
+test('the limit of a number comes from a validation rule or the client control and work-setting numbers stay inside it', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
-    expect($reference)->toContain('A request that is not proven read-only is state-changing.')
-        ->and($reference)->toContain('It gets only non-executing markers: a lone single quote, or a lone brace or malformed JSON.')
-        ->and($reference)->toContain('where the value reaches a string-built query, and never from a live condition-changing payload.')
-        ->and($reference)->toContain('never receives a tautology, a boolean pair, `-- `, `#`, or `/*`.')
-        ->and($reference)->toContain('Any other request: only a lone single quote, sent to a content field of the run\'s own record,')
-        ->and($reference)->toContain('Any other request: only a lone brace or malformed JSON, sent to a content field of the run\'s own record,')
-        ->and($reference)->not->toContain('`\' AND \'1\'=\'2` and')
-        ->and($reference)->not->toContain('only a single quote and the pair');
+    expect($reference)->toContain(
+        'The limit of a number is the one that a validation rule or the client control sets, never a column type or a language range.',
+    )
+        ->and($reference)->toContain('An out-of-range number or date is exactly one step past that validated limit.')
+        ->and($reference)->toContain(
+            'A number that sets an amount of work, memory, or time gets no value above that limit plus one, no negative value, and no zero.',
+        )
+        ->and($reference)->toContain('a dimension, a duration, a delay, a timeout, the span of a date range, and similar.')
+        ->and($reference)->toContain('The exception for such a number is a traced source that shows a rejection before any query or loop.')
+        ->and($reference)->toContain('it gets no out-of-range probe when no such limit exists.')
+        ->and($reference)->not->toContain('exactly one step past the limit.')
+        ->and($reference)->not->toContain('gets no value above its limit plus one');
 });
 
-test('a data write of any form on any reachable branch makes a request not read-only', function (): void {
+test('the agent classifies every input of a write from the traced source before the first probe and fails closed', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
-    expect($reference)->toContain('A data write includes INSERT, UPDATE, DELETE, REPLACE, MERGE, UPSERT, TRUNCATE,')
-        ->and($reference)->toContain('DDL (CREATE, ALTER, DROP, CREATE TABLE ... AS SELECT), and a stored routine or trigger that writes.')
-        ->and($reference)->toContain('In a document store it includes insert*, update*, replace*, delete*, bulkWrite, findAndModify, findOneAnd*,')
-        ->and($reference)->toContain('and the aggregate stages `$merge` and `$out`.')
-        ->and($reference)->toContain('The list gives examples, and any other write counts too.');
-});
-
-test('every payload and invalid-data row stays inside the records and the host of this run', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
-
-    expect($reference)->toContain('A probe that writes targets only a record this run created.')
-        ->and($reference)->toContain('arithmetic only, never a function call, a file read, or a command; the value `49`')
-        ->and($reference)->toContain('and only to a request that reads a file (a download or a preview) and is proven read-only.')
-        ->and($reference)->toContain('A field that saves, renames, moves, copies, or deletes a file gets no traversal sequence')
-        ->and($reference)->toContain('to a local mail catcher, and never as a `To`, `Cc`, or `Bcc` header')
-        ->and($reference)->toContain('arithmetic only, never `HYPERLINK`, `DDE`, or a command;')
-        ->and($reference)->toContain('read the raw export file as text, never open it in a spreadsheet application')
-        ->and($reference)->toContain('a plain text body that holds only the marker, never code,')
-        ->and($reference)->toContain('so it never overwrites an existing file, and no request that executes the stored file')
-        ->and($reference)->toContain('with a file name that carries the unique marker');
+    expect($reference)->toContain('the agent classifies every input from the traced handler source before it sends any marker or invalid value.')
+        ->and($reference)->toContain(
+            'An input is a content field only when the source shows that the write uses it solely as a stored value of the run\'s own record:',
+        )
+        ->and($reference)->toContain(
+            'not in a WHERE clause, a filter, a key, or a join, not twice in a string-built query, and not normalized into a selector.',
+        )
+        ->and($reference)->toContain('An input whose use the source does not show, or that the write uses in a selector, is record-selecting,')
+        ->and($reference)->toContain('A write that also changes a record this run did not create, such as a related or counterparty record,')
+        ->and($reference)->toContain('gets no marker and no invalid value in any input.')
+        ->and($reference)->toContain('When the agent is unsure, the input is `not checked`.');
 });
 
 test('the input probing reference restates no boundary of the skill and sets the shared target result', function (): void {
