@@ -6,12 +6,10 @@ This file owns how a testing agent probes every input of the user interface for 
 
 Every boundary of step 5 of the skill applies to every probe in this file:
 
-- Probe only the authorized local development or test instance, with this run's test accounts and records. On a shared or remote target, every probe is `Blocked`. The report names the local reproduction that is needed.
 - Every payload is harmless. It proves an effect with a unique marker string, or with a DOM marker in place of `alert`. It never destroys data, never causes a denial of service, and never targets a third-party host. A payload never carries a real secret or real personal data.
+- A SQL or NoSQL payload that can widen a condition (a tautology, a comment sequence, `{"$ne": null}`) goes only to a read-only request: a search, a filter, or a sort. An input that reaches a write or a delete gets only the safe markers of the SQL row below, sent against a record this run created. A write or delete never receives a tautology, `-- `, `#`, or `/*`.
 - Mark every record a probe creates as test data, as *Missing test data* in the skill states. Remove it through *Scripted cleanup*.
 - A probe that sends an e-mail, starts a job, or calls an external service needs the authorization of the scenario. Without it, stop before the effect and mark the probe `not checked`.
-- The interactive browser drives every probe. A targeted HTTP request from the page supplements it and never replaces it.
-- This check covers the inputs that the exercised pages expose. API endpoints that no page calls, automated fuzzing tools, and a whole-repository security audit are outside it.
 
 ## 1. Build the input inventory
 
@@ -36,8 +34,8 @@ For each input, send the payloads that fit the context of its value. A payload c
 | Class | Context of the value | Harmless payload |
 |---|---|---|
 | HTML and script injection, stored and reflected | A value rendered in a page, an attribute, or a script | `<img src=x onerror="document.title='XSS-<marker>'">` and `"><b id="XSS-<marker>">x</b>` |
-| SQL injection marker | A value that reaches a query, a filter, or a sort | A single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value |
-| NoSQL injection marker | A value that reaches a document query | `{"$ne": null}`, or `[$ne]=x` as a parameter |
+| SQL injection marker | A value that reaches a query, a filter, or a sort | Read-only request (search, filter, sort): a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. State-changing input (create, update, delete): only a single quote and the pair `' AND '1'='2` and `' AND '1'='1`, against a record this run created; never a tautology or a comment sequence |
+| NoSQL injection marker | A value that reaches a document query | Read-only request only: `{"$ne": null}`, or `[$ne]=x` as a parameter. State-changing input: a single quote or a brace, against a record this run created, and never an operator that widens the condition |
 | Template or expression injection | A value that a template engine or an expression field evaluates | `{{7*7}}`, `${7*7}`, `<%= 7*7 %>`; the value `49` in the output proves the injection |
 | Path traversal | A file name, a path-like field, or a download parameter | `../../<marker>` and `..%2f..%2f<marker>`, aimed at a name that does not exist |
 | Header and CRLF injection | A value that reaches a response header, a redirect, or an e-mail header | `<marker>%0d%0aX-Probe: <marker>`; look for the injected header |
@@ -63,7 +61,7 @@ For each input, send every class of invalid data that applies to its kind:
 
 ## 4. Bypass the client-side validation
 
-A browser limit is a convenience and never protection. For each input that carries a client-side limit, send the invalid data of section 3 and the payloads of section 2 a second time, past that limit:
+A browser limit is a convenience and never protection. For each input that carries a client-side limit, send the invalid data of section 3 and the payloads of section 2 a second time, past that limit. The payload limits of section 2 apply to this second send:
 
 1. Remove `required`, `maxlength`, `pattern`, `type`, and `disabled` in the DOM, or set a select to an option it does not offer.
 2. Submit the form, or send the same request from the page, so the browser constraints do not run.
@@ -79,6 +77,8 @@ Every input of the inventory ends in exactly one result:
 | `vulnerable` | A payload executed, a payload persisted unescaped, or invalid data was stored | A minimal, redacted proof: the input, the value, the observed effect, and the expected denial |
 | `not checked` | The agent did not probe the input | The reason, and the step that unblocks it |
 
-A `vulnerable` input follows the flow of step 5 of the skill: it is a candidate first, the agent traces it, and it is confirmed only after a minimal proof. A read-only tester returns the proof to the caller and never classifies it. A scanner warning, or a payload that the page echoes back inside an escaped context, is not `vulnerable`. Keep exploitable details out of a public tracker.
+A `vulnerable` input follows the flow of step 5 of the skill: it is a candidate first, the agent traces it, and it is confirmed only after a minimal proof. A read-only tester returns the proof to the caller and never classifies it. A scanner warning, or a payload that the page echoes back inside an escaped context, is not `vulnerable`. Keep exploitable details out of a public tracker: the *Input probing* row of the report names a `vulnerable` input as `vulnerable — see Security`, and the proof stays in the *Security* row.
 
-Report one row for each input: the page, the input, its kind, the payload classes sent, and the result. Report the `not checked` rows under **Untested** and the `vulnerable` rows under **Security**.
+On a shared or remote target every input is `not checked`, and the security check is `Blocked`, as step 5 of the skill states.
+
+Report one row for each input: the page, the input, its kind, the payload classes sent, and the result. Report the `not checked` rows under **Untested** and the proof of each `vulnerable` row under **Security**.
