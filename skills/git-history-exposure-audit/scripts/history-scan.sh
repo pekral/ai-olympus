@@ -1566,6 +1566,7 @@ st_build_range() {
   st_commit 'base work'
   ST_BASE="$(git rev-parse HEAD)"
   st_git update-ref refs/remotes/origin/master "$ST_BASE"
+  st_git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   st_git checkout -q -b pr "$ST_ROOT"
   printf '* diff=evil filter=evil\n' >.gitattributes
   printf 'aws = %s\n' "$ST_AWS_RANGE" >added.txt

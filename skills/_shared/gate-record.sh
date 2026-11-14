@@ -825,6 +825,7 @@ STUB
   git -C "$dir" add -A
   git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m init
   git -C "$dir" update-ref refs/remotes/origin/master HEAD
+  git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
 }
 
 # How many stub calls in $GATE_SELFTEST_CALLS start with $1; 0 when no stub ran.

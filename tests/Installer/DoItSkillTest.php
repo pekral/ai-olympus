@@ -117,6 +117,7 @@ test('the parallel planner reads its limit from the default-branch manifest and 
             ['add', 'composer.json'],
             ['commit', '-q', '-m', 'manifest'],
             ['update-ref', 'refs/remotes/origin/master', 'HEAD'],
+            ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master'],
         ];
 
         foreach ($commands as $command) {

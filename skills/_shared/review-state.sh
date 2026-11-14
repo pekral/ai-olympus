@@ -724,6 +724,7 @@ EOF
     git -C "$repo" add composer.json
     git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m manifest
     git -C "$repo" update-ref refs/remotes/origin/master HEAD
+    git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   }
 
   # finding <severity> <title> <location> <rule> <evidence|-> [level]
