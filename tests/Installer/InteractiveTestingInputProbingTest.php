@@ -188,6 +188,47 @@ test('the agent classifies every input of a write from the traced source before 
         ->and($reference)->toContain('When the agent is unsure, the input is `not checked`.');
 });
 
+test('a request that is not proven read-only gets only non-executing markers and no boolean pair', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('A request that is not proven read-only is state-changing.')
+        ->and($reference)->toContain('It gets only non-executing markers: a lone single quote, or a lone brace or malformed JSON.')
+        ->and($reference)->toContain('where the value reaches a string-built query, and never from a live condition-changing payload.')
+        ->and($reference)->toContain('never receives a tautology, a boolean pair, `-- `, `#`, or `/*`.')
+        ->and($reference)->toContain('Any other request: only a lone single quote, sent to a content field of the run\'s own record,')
+        ->and($reference)->toContain('Any other request: only a lone brace or malformed JSON, sent to a content field of the run\'s own record,')
+        ->and($reference)->not->toContain('`\' AND \'1\'=\'2` and')
+        ->and($reference)->not->toContain('only a single quote and the pair');
+});
+
+test('a data write of any form on any reachable branch makes a request not read-only', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('A data write includes INSERT, UPDATE, DELETE, REPLACE, MERGE, UPSERT, TRUNCATE,')
+        ->and($reference)->toContain('DDL (CREATE, ALTER, DROP, CREATE TABLE ... AS SELECT), and a stored routine or trigger that writes.')
+        ->and($reference)->toContain('In a document store it includes insert*, update*, replace*, delete*, bulkWrite, findAndModify, findOneAnd*,')
+        ->and($reference)->toContain('and the aggregate stages `$merge` and `$out`.')
+        ->and($reference)->toContain('The list gives examples, and any other write counts too.');
+});
+
+test('every payload and invalid-data row stays inside the records and the host of this run', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('A probe that writes targets only a record this run created.')
+        ->and($reference)->toContain('arithmetic only, never a function call, a file read, or a command; the value `49`')
+        ->and($reference)->toContain('and only to a request that reads a file (a download or a preview) and is proven read-only.')
+        ->and($reference)->toContain('A field that saves, renames, moves, copies, or deletes a file gets no traversal sequence')
+        ->and($reference)->toContain('to a local mail catcher, and never as a `To`, `Cc`, or `Bcc` header')
+        ->and($reference)->toContain('arithmetic only, never `HYPERLINK`, `DDE`, or a command;')
+        ->and($reference)->toContain('read the raw export file as text, never open it in a spreadsheet application')
+        ->and($reference)->toContain('a plain text body that holds only the marker, never code,')
+        ->and($reference)->toContain('so it never overwrites an existing file, and no request that executes the stored file')
+        ->and($reference)->toContain('with a file name that carries the unique marker');
+});
+
 test('the input probing reference restates no boundary of the skill and sets the shared target result', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
