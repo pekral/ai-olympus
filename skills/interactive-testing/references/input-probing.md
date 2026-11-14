@@ -7,8 +7,18 @@ This file owns how a testing agent probes every input of the user interface for 
 Every boundary of step 5 of the skill applies to every probe in this file:
 
 - Every payload is harmless. It proves an effect with a unique marker string, or with a DOM marker in place of `alert`. It never destroys data, never causes a denial of service, and never targets a third-party host. A payload never carries a real secret or real personal data.
-- A probe that writes targets only a record this run created. Never change a hidden field, a route parameter, or a query parameter to the identifier of a record this run did not create.
-- A SQL or NoSQL payload that executes a condition (a tautology, a boolean pair such as `' AND '1'='1`, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only.
+- A probe that writes targets only a record this run created. Never change a hidden field, a route parameter, a query parameter, or a select or radio value to the identifier of a record this run did not create.
+- On a request that is not proven read-only, an input that selects or identifies the record that the request writes gets no marker and no invalid value. This covers a hidden id or token, a route or query parameter, a select or radio value that names a record, and any key that feeds a WHERE clause or a filter of the write.
+  - Exception: the traced source shows that the handler rejects the value before any write (validation, a parse failure that aborts the request, `findOrFail`, or route model binding).
+  - Without that proof, the input is `not checked`, and the report row names this reason.
+- On a request that is not proven read-only, markers and invalid values go only to content fields of the run's own record. That covers an empty or whitespace-only value, a lone brace, a wrong type, and a quote. Probe one input per request.
+- No value exceeds 10,000 characters. A limit above 10,000 characters gets no over-length probe, and the report row records why.
+  - An out-of-range number or date is exactly one step past the limit.
+  - A number that sets a count, a repeat, a page size, or a file size gets no value above its limit plus one, and no out-of-range probe when it has no limit.
+- A SQL or NoSQL payload that executes a condition goes only to a request that is proven read-only, and it stays bounded to the value of the run's own record.
+  - No such payload may return or expose a row this run did not create, and none may feed a filter or a selection that a later write uses.
+  - The bounded SQL pair is `<own value>' AND '1'='1` against `<own value>' AND '1'='2`. The bounded NoSQL pair is `[$in][]=<own value>` against a value that matches nothing.
+  - A tautology, an OR clause, a comment sequence, a sleep call, and a not-equal operator are never sent.
   - A request counts as read-only only when the traced handler source shows that no data write of any form runs on any branch that the input value or the query result can reach, including a branch that runs only when the read returns rows or returns none.
   - A data write includes INSERT, UPDATE, DELETE, REPLACE, MERGE, UPSERT, TRUNCATE, DDL (CREATE, ALTER, DROP, CREATE TABLE ... AS SELECT), and a stored routine or trigger that writes. In a document store it includes insert*, update*, replace*, delete*, bulkWrite, findAndModify, findOneAnd*, and the aggregate stages `$merge` and `$out`. The list gives examples, and any other write counts too.
   - The report row names the traced handler and its branches.
@@ -42,8 +52,8 @@ For each input, send the payloads that fit the context of its value. A payload c
 | Class | Context of the value | Harmless payload |
 |---|---|---|
 | HTML and script injection, stored and reflected | A value rendered in a page, an attribute, or a script | `<img src=x onerror="document.title='XSS-<marker>'">` and `"><b id="XSS-<marker>">x</b>` |
-| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only over every branch: a single quote, `' OR '1'='1`, and `1' AND SLEEP(0)-- -`; compare the response with the response to a normal value. Any other request: only a lone single quote, and confirm the injection from the traced source; never a tautology, a boolean pair, or a comment sequence |
-| NoSQL injection marker | A value that reaches a document query | Request proven read-only over every branch only: `{"$ne": null}`, or `[$ne]=x` as a parameter. Any other request: only a lone brace or malformed JSON, and confirm the injection from the traced source; never an operator that widens the condition |
+| SQL injection marker | A value that reaches a query, a filter, or a sort | Request proven read-only over every branch: the bounded pair of the boundaries; compare the two responses. Any other request: only a lone single quote, sent to a content field of the run's own record, and confirm the injection from the traced source; never a tautology, a boolean pair, or a comment sequence |
+| NoSQL injection marker | A value that reaches a document query | Request proven read-only over every branch only: the bounded pair of the boundaries; compare the two responses. Any other request: only a lone brace or malformed JSON, sent to a content field of the run's own record, and confirm the injection from the traced source; never an operator that widens the condition |
 | Template or expression injection | A value that a template engine or an expression field evaluates | `{{7*7}}`, `${7*7}`, `<%= 7*7 %>`; arithmetic only, never a function call, a file read, or a command; the value `49` in the output proves the injection |
 | Path traversal | A file name, a path-like field, or a download parameter | `../../<marker>` and `..%2f..%2f<marker>`, aimed at a name that does not exist, and only to a request that reads a file (a download or a preview) and is proven read-only. A field that saves, renames, moves, copies, or deletes a file gets no traversal sequence: confirm from the traced source whether the value reaches a path without normalization |
 | Header and CRLF injection | A value that reaches a response header, a redirect, or an e-mail header | `<marker>%0d%0aX-Probe: <marker>`; look for the injected header. In an e-mail header, send it only with the e-mail authorization of the scenario, to a local mail catcher, and never as a `To`, `Cc`, or `Bcc` header |
@@ -58,14 +68,14 @@ Replace `<marker>` with one unique string for the run, so the agent finds a stor
 
 ## 3. Invalid data
 
-For each input, send every class of invalid data that applies to its kind:
+For each input, send every class of invalid data that applies to its kind. The record-selecting and size limits of the boundaries apply to every class:
 
 - empty and whitespace-only values;
-- a value over the maximum length that the field, the column, or the validation rule sets, by one character, or at most 10,000 characters when no limit exists;
+- a value over the maximum length that the field, the column, or the validation rule sets, by one character, within the 10,000-character cap of the boundaries;
 - a value of the wrong type, such as text in a number field;
-- negative values, zero, and out-of-range numbers and dates;
+- negative values, zero, and numbers and dates exactly one step out of range;
 - unexpected Unicode: control characters, a right-to-left override, and emoji;
-- a value outside the offered options of a select or a radio group.
+- a value outside the offered options of a select or a radio group, which names no existing record: use the marker, or an identifier that does not exist.
 
 ## 4. Bypass the client-side validation
 
@@ -89,4 +99,4 @@ A `vulnerable` input follows the flow of step 5 of the skill: it is a candidate 
 
 On a shared or remote target every input is `not checked`, and the security check is `Blocked`, as step 5 of the skill states.
 
-Report one row for each input: the page, the input, its kind, the payload classes sent, the traced handler and its branches, and the result. Report the `not checked` rows under **Untested** and the proof of each `vulnerable` row under **Security**.
+Report one row for each input: the page, the input, its kind, the payload classes sent, the traced handler and its branches, and the result. This paragraph is the one statement of the row fields. Report the `not checked` rows under **Untested** and the proof of each `vulnerable` row under **Security**.

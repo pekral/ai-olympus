@@ -32,7 +32,8 @@ test('the input probing reference builds the inventory of every input kind', fun
         ->and($reference)->toContain('| URL query parameter |')
         ->and($reference)->toContain('| Route parameter |')
         ->and($reference)->toContain('Give each input one row: the page, the input, its kind')
-        ->and($reference)->toContain('the payload classes sent, the traced handler and its branches, and the result.');
+        ->and($reference)->toContain('the payload classes sent, the traced handler and its branches, and the result.')
+        ->and($reference)->toContain('This paragraph is the one statement of the row fields.');
 });
 
 test('the input probing reference names every hostile payload class and keeps each payload harmless', function (): void {
@@ -61,9 +62,9 @@ test('the input probing reference sends every class of invalid data', function (
         ->and($reference)->toContain('- empty and whitespace-only values;')
         ->and($reference)->toContain('- a value over the maximum length')
         ->and($reference)->toContain('- a value of the wrong type, such as text in a number field;')
-        ->and($reference)->toContain('- negative values, zero, and out-of-range numbers and dates;')
+        ->and($reference)->toContain('- negative values, zero, and numbers and dates exactly one step out of range;')
         ->and($reference)->toContain('- unexpected Unicode: control characters, a right-to-left override, and emoji;')
-        ->and($reference)->toContain('- a value outside the offered options of a select or a radio group.');
+        ->and($reference)->toContain('- a value outside the offered options of a select or a radio group, which names no existing record:');
 });
 
 test('the input probing reference bypasses the client-side validation and counts it as unprotected', function (): void {
@@ -95,17 +96,64 @@ test('the input probing reference sends a condition-changing payload only to a r
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
-    expect($reference)->toContain(
-        '(a tautology, a boolean pair such as `\' AND \'1\'=\'1`, a comment sequence, `{"$ne": null}`) goes only to a request that is proven read-only.',
-    )
+    expect($reference)->toContain('A SQL or NoSQL payload that executes a condition goes only to a request that is proven read-only,')
         ->and($reference)->toContain('shows that no data write of any form runs on any branch that the input value or the query result can reach')
         ->and($reference)->toContain('including a branch that runs only when the read returns rows or returns none.')
         ->and($reference)->toContain('The report row names the traced handler and its branches.')
         ->and($reference)->toContain('The local query log of a normal value is supporting evidence and never the proof on its own.')
         ->and($reference)->toContain('A search, a filter, or a sort is not read-only by its role in the page.')
-        ->and($reference)->toContain('Request proven read-only over every branch: a single quote,')
-        ->and($reference)->toContain('Request proven read-only over every branch only: `{"$ne": null}`')
         ->and($reference)->toContain('it never adds a live condition-changing payload to a request that is not proven read-only:');
+});
+
+test('a read-only payload stays bounded to the value of the run own record', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('and it stays bounded to the value of the run\'s own record.')
+        ->and($reference)->toContain('No such payload may return or expose a row this run did not create,')
+        ->and($reference)->toContain('none may feed a filter or a selection that a later write uses.')
+        ->and($reference)->toContain('The bounded SQL pair is `<own value>\' AND \'1\'=\'1` against `<own value>\' AND \'1\'=\'2`.')
+        ->and($reference)->toContain('The bounded NoSQL pair is `[$in][]=<own value>` against a value that matches nothing.')
+        ->and($reference)->toContain('A tautology, an OR clause, a comment sequence, a sleep call, and a not-equal operator are never sent.')
+        ->and($reference)->toContain('Request proven read-only over every branch: the bounded pair of the boundaries; compare the two responses.')
+        ->and($reference)->toContain('Request proven read-only over every branch only: the bounded pair of the boundaries; compare the two responses.')
+        ->and($reference)->not->toContain('`\' OR \'1\'=\'1`')
+        ->and($reference)->not->toContain('SLEEP(0)')
+        ->and($reference)->not->toContain('`{"$ne": null}`')
+        ->and($reference)->not->toContain('`[$ne]=x`')
+        ->and($reference)->not->toContain('`\' AND \'1\'=\'1`');
+});
+
+test('a record-selecting input of a request not proven read-only gets nothing', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('an input that selects or identifies the record that the request writes gets no marker and no invalid value.')
+        ->and($reference)->toContain('a hidden id or token, a route or query parameter, a select or radio value that names a record,')
+        ->and($reference)->toContain('any key that feeds a WHERE clause or a filter of the write.')
+        ->and($reference)->toContain('Exception: the traced source shows that the handler rejects the value before any write')
+        ->and($reference)->toContain('(validation, a parse failure that aborts the request, `findOrFail`, or route model binding).')
+        ->and($reference)->toContain('Without that proof, the input is `not checked`, and the report row names this reason.')
+        ->and($reference)->toContain('markers and invalid values go only to content fields of the run\'s own record.')
+        ->and($reference)->toContain(
+            'That covers an empty or whitespace-only value, a lone brace, a wrong type, and a quote. Probe one input per request.',
+        )
+        ->and($reference)->toContain('a select or radio value to the identifier of a record this run did not create.')
+        ->and($reference)->toContain('The record-selecting and size limits of the boundaries apply to every class:')
+        ->and($reference)->toContain('use the marker, or an identifier that does not exist.');
+});
+
+test('every value and number is bounded in size and magnitude', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
+
+    expect($reference)->toContain('No value exceeds 10,000 characters.')
+        ->and($reference)->toContain('A limit above 10,000 characters gets no over-length probe, and the report row records why.')
+        ->and($reference)->toContain('An out-of-range number or date is exactly one step past the limit.')
+        ->and($reference)->toContain('A number that sets a count, a repeat, a page size, or a file size gets no value above its limit plus one,')
+        ->and($reference)->toContain('and no out-of-range probe when it has no limit.')
+        ->and($reference)->toContain('by one character, within the 10,000-character cap of the boundaries;')
+        ->and($reference)->not->toContain('at most 10,000 characters when no limit exists');
 });
 
 test('a request that is not proven read-only gets only non-executing markers and no boolean pair', function (): void {
@@ -116,8 +164,8 @@ test('a request that is not proven read-only gets only non-executing markers and
         ->and($reference)->toContain('It gets only non-executing markers: a lone single quote, or a lone brace or malformed JSON.')
         ->and($reference)->toContain('where the value reaches a string-built query, and never from a live condition-changing payload.')
         ->and($reference)->toContain('never receives a tautology, a boolean pair, `-- `, `#`, or `/*`.')
-        ->and($reference)->toContain('Any other request: only a lone single quote, and confirm the injection from the traced source;')
-        ->and($reference)->toContain('Any other request: only a lone brace or malformed JSON, and confirm the injection from the traced source;')
+        ->and($reference)->toContain('Any other request: only a lone single quote, sent to a content field of the run\'s own record,')
+        ->and($reference)->toContain('Any other request: only a lone brace or malformed JSON, sent to a content field of the run\'s own record,')
         ->and($reference)->not->toContain('`\' AND \'1\'=\'2` and')
         ->and($reference)->not->toContain('only a single quote and the pair');
 });
@@ -138,7 +186,6 @@ test('every payload and invalid-data row stays inside the records and the host o
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
     expect($reference)->toContain('A probe that writes targets only a record this run created.')
-        ->and($reference)->toContain('to the identifier of a record this run did not create.')
         ->and($reference)->toContain('arithmetic only, never a function call, a file read, or a command; the value `49`')
         ->and($reference)->toContain('and only to a request that reads a file (a download or a preview) and is proven read-only.')
         ->and($reference)->toContain('A field that saves, renames, moves, copies, or deletes a file gets no traversal sequence')
@@ -147,7 +194,7 @@ test('every payload and invalid-data row stays inside the records and the host o
         ->and($reference)->toContain('read the raw export file as text, never open it in a spreadsheet application')
         ->and($reference)->toContain('a plain text body that holds only the marker, never code,')
         ->and($reference)->toContain('so it never overwrites an existing file, and no request that executes the stored file')
-        ->and($reference)->toContain('by one character, or at most 10,000 characters when no limit exists;');
+        ->and($reference)->toContain('with a file name that carries the unique marker');
 });
 
 test('the input probing reference restates no boundary of the skill and sets the shared target result', function (): void {
@@ -165,7 +212,9 @@ test('a vulnerable input is a pointer in the input probing row and its proof sta
     $skill = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
     $reference = (string) file_get_contents($packageDir . '/skills/interactive-testing/references/input-probing.md');
 
-    expect($skill)->toContain('Render a `vulnerable` input as `vulnerable — see Security` and keep its proof in the *Security* row only.')
+    expect($skill)->toContain('with the fields that `@skills/interactive-testing/references/input-probing.md` section 5 states')
+        ->and($skill)->not->toContain('the page, the input, its kind, the payload classes sent, and its result')
+        ->and($skill)->toContain('Render a `vulnerable` input as `vulnerable — see Security` and keep its proof in the *Security* row only.')
         ->and($skill)->toContain('A public tracker never receives that proof.')
         ->and($reference)->toContain('names a `vulnerable` input as `vulnerable — see Security`, and the proof stays in the *Security* row.');
 });
@@ -176,6 +225,8 @@ test('raphael returns the input probing rows to the caller', function (): void {
     $codex = (string) file_get_contents($packageDir . '/codex/agents/raphael.toml');
 
     expect($raphael)->toContain('- **Input probing:** when the walkthrough reached a page with an input, one row for each input of the inventory')
+        ->and($raphael)->toContain('with the fields that `@skills/interactive-testing/references/input-probing.md` section 5 states')
+        ->and($raphael)->not->toContain('the page, the input, its kind, the payload classes sent, and its result')
         ->and($raphael)->toContain('The proof of a `vulnerable` input goes only under the security observations for `leonardo`.')
         ->and($codex)->toContain('`.codex/agent-instructions/raphael.md`');
 });
