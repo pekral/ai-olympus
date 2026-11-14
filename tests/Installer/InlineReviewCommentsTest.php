@@ -41,6 +41,7 @@ dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
     'event COMMENT' => ['event is COMMENT'],
+    'exactly two markers per comment' => ['every inline comment holds exactly two cr-inline markers and the review body one'],
     'external-write audit line' => ['the review is one external-write audit line'],
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
@@ -48,6 +49,8 @@ dataset('wrapper self-test scenarios', [
     'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
     'forged marker in the text' => ['a forged marker in the problem text is neutralised'],
     'invalid document' => ['invalid document is refused'],
+    'marker rebuilt after a backtick' => ['a rule marker rebuilt after a backtick is refused with its own message'],
+    'marker rebuilt after a control character' => ['a faulty_example marker rebuilt after a control character is refused with its own message'],
     'multi-line range' => ['multi-line comment carries start_line and start_side'],
     'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
     'one review of inline comments' => ['one review request'],
@@ -314,3 +317,20 @@ test('a published report with an Inline line resolves nothing by absence, and th
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
         ->toContain('The extractor resolves no record by absence for that report');
 });
+
+test(
+    'the marker guard runs after the last transformation, covers the rule field, and a rendered comment holds exactly its own markers',
+    function (): void {
+        $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+        $contract = inlineReviewContract();
+    
+        expect($script)->toContain('rule: (.rule | if . == null then null else codespan | prose end)')
+            ->and($script)->toContain('| req(.suggestion | marker_free; "suggestion must not contain an agent marker")')
+            ->and($script)->toContain('| req(.faulty_example | marker_free; "faulty_example must not contain an agent marker")')
+            ->and($script)->toContain('"rule must not contain an agent marker"')
+            ->and($script)->toContain('[match("<!--\\\\s*cr-inline:"; "g")] | length')
+            ->and($script)->toContain('the rendered review was refused, nothing was published')
+            ->and($contract)->toContain('**A marker in the finding text is refused.**')
+            ->and($contract)->toContain('does not hold exactly its own two `cr-inline` markers');
+    },
+);
