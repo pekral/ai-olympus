@@ -8,14 +8,14 @@ Everything on this page describes the **Composer** path. A project without Compo
 
 The Composer installer requires PHP `^8.4` and Composer 2. CI runs the full quality checks and checks the distribution install on PHP 8.4, 8.5, and 8.6.
 
-Release `0.4` uses the exact Git tag `0.4`. Install this version from Packagist with:
+Release `0.5` uses the exact Git tag `0.5`. Install this version from Packagist with:
 
 ```bash
-composer require pekral/ai-olympus:0.4 --dev
+composer require pekral/ai-olympus:0.5 --dev
 vendor/bin/ai-olympus install --force --prune
 ```
 
-Commit the consuming project's `composer.lock` to keep installations reproducible. The `0.4` constraint pins this version; `^0.4` permits subsequent `0.4.x` patches. During `0.x`, a new minor version may change workflow behavior or installer options. Review the [changelog](../CHANGELOG.md) before changing the constraint, save local customizations, and refresh installed files with `--force --prune` after an update.
+Commit the consuming project's `composer.lock` to keep installations reproducible. The `0.5` constraint pins this version; `^0.5` permits subsequent `0.5.x` patches. During `0.x`, a new minor version may change workflow behavior or installer options. Review the [changelog](../CHANGELOG.md) before changing the constraint, save local customizations, and refresh installed files with `--force --prune` after an update.
 
 ## Global settings and attribution
 
@@ -95,6 +95,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | `coverage` | test and review skills | The project's coverage command. |
 | `env` | every project tool command an agent runs, `run-validation.sh` | Environment variables exported to those commands, always through `read-manifest.sh --env`. A name that changes which program runs or what it loads (`PATH`, `HOME`, `GIT_*`, `LD_*`, `DYLD_*`, `BASH_ENV`, …) is refused. |
 | `validation.executables` | `run-validation.sh` | Extra `vendor/bin/<name>` executables a validation manifest may run. |
+| `parallel.max-units` | `plan-parallel.sh`, `batch-preparation.md` | The one limit of units that run at the same time. `plan-parallel.sh` reads it as the size of a batch, and the cap of `skills/_shared/orchestration/batch-preparation.md` reads it as a ceiling. 1 to 3, where 3 is the cap of that batch file; any other value falls back to the default. Absent: 2 for `plan-parallel.sh` and 3 for the cap of the batch file. A limit of 1 runs every unit alone. The machine-wide gate lock stays one heavy job at a time. |
 | `risk.critical-paths` | `classify-risk.sh` | Extended regexes; a changed path matching one forces the `CRITICAL` tier. |
 | `recurrence.threshold` | `analyze-recurrence.sh` | Pull requests in which one defect class must appear to count as a recurrence. At least 2. Absent: 2. |
 | `recurrence.window-days` | `analyze-recurrence.sh` | Days in which those occurrences must fall. At least 1. Absent: 90. |
