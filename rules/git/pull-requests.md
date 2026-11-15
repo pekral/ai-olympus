@@ -26,7 +26,7 @@ This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md`
   - Shorten it until the check passes, and keep every section of its template, their order, and every required value: tighten the wording, drop repetition, and merge rows that say the same thing.
   - The result stays easy for a person to read: whole sentences, no truncation in the middle of a sentence, no `…` in place of content.
 - **Verbatim content never shrinks; it moves to an overflow comment.** Shortening never rewrites, merges, or drops a line of the Audit block, its incompleteness statement, an item of the Security acceptance checklist, or a package row of a dependency-update body.
-  - When the body is still over the limit after every other part is shortened, move that content unchanged into one comment published on the pull request after the body: `skills/code-review-github/scripts/upsert-comment.sh <PR-URL> <file> agent-note`, headed `## Pull-request body overflow`.
+  - When the body is still over the limit after every other part is shortened, move that content unchanged into one comment published on the pull request after the body: `skills/code-review-github/scripts/upsert-comment.sh <PR-URL> <file> agent-note`, headed `## Pull-request body overflow`. It is the durable copy of that content, so merge preparation never deletes it.
   - Its section in the body keeps its heading and gets a short summary (for the Audit block: the count per event class and every distinct host and external-write target), the incompleteness statement verbatim, and a pointer to that comment. Check the body again.
 - Include links to all sources used during analysis.
 - Prefer adding these as a comment on the related GitHub issue.

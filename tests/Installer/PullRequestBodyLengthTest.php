@@ -54,3 +54,18 @@ test('verbatim audit, security, and package content moves to an overflow comment
         'the transcript moves unchanged to the overflow comment of `@rules/git/pull-requests.md` *PR Content Requirements*',
     );
 });
+
+test('the overflow comment is a durable copy that merge preparation never deletes', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $helper = (string) file_get_contents($packageDir . '/skills/_shared/delete-owned-github-comment.sh');
+    $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
+
+    expect($rule)->toContain('It is the durable copy of that content, so merge preparation never deletes it.')
+        ->and($skill)->toContain('A `## Pull-request body overflow` comment never enters the manifest: it holds the durable copy of the pull-request body\'s verbatim content')
+        ->and($skill)->toContain('and the delete helper refuses it.')
+        ->and($helper)->toContain('refusing to delete a pull-request body overflow comment');
+    expect($reports)->toContain('whose description carries them under the length limit of `@rules/git/pull-requests.md` *PR Content Requirements*.')
+        ->and($reports)->not->toContain('has no length cap');
+});

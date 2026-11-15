@@ -324,6 +324,7 @@ merge evidence. When that report is a pull-request review, it is no comment: pas
 JIRA comment that cannot be told apart from a code-review report is ambiguous and stays. Also
 preserve the new `merge-readiness` comment.
 A `proposal-review` comment (`skills/_shared/orchestration/proposal-review.md` step 6) never enters the manifest.
+A `## Pull-request body overflow` comment never enters the manifest: it holds the durable copy of the pull-request body's verbatim content (`@rules/git/pull-requests.md` *PR Content Requirements*), and the delete helper refuses it.
 
 Delete each manifested top-level issue/PR comment only through:
 

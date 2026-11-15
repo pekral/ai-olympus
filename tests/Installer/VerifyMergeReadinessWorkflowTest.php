@@ -160,6 +160,13 @@ if [[ "$1" == "api" && "$2" == repos/*/issues/comments/998 ]]; then
   exit 0
 fi
 
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/994 ]]; then
+  printf '%s%s\n' \
+    '{"user":{"login":"pekral"},"issue_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"<!-- agent-note:actor=pekral -->\n## Pull-request body overflow\n\nAudit lines"}'
+  exit 0
+fi
+
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/995 ]]; then
   printf '%s%s\n' \
     '{"user":{"login":"pekral"},"issue_url":"' \
@@ -214,6 +221,19 @@ BASH);
 
         expect($otherRepository->getExitCode())->toBe(4);
         expect($otherRepository->getErrorOutput())->toContain('protected comment 995 belongs to a different repository');
+        expect(is_file($state))->toBeFalse();
+
+        $overflow = new Process([
+            $helper,
+            'https://github.com/pekral/ai-olympus/issues/84',
+            '994',
+            '997',
+            '998',
+        ], $packageDir, $baseEnvironment);
+        $overflow->run();
+
+        expect($overflow->getExitCode())->toBe(4);
+        expect($overflow->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment');
         expect(is_file($state))->toBeFalse();
 
         $owned = new Process([
