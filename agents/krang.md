@@ -184,6 +184,8 @@ Brief layout:
 
 A `FAST` run dispatches no `leonardo`, so nothing in it runs `@skills/process-code-review/SKILL.md` — and that skill is what normally promotes the pull request out of Draft and labels it `ready to merge`. Left unhandled, every `FAST` run would end with a Draft PR nobody can merge, which is the saving turning into a stall.
 
+A pull request whose body carries the marker `<!-- ai-olympus:contribution-policy=human-description -->` is the one exception: it stays a Draft for its author, and none of the steps below runs (`@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*).
+
 You close it instead, and only in this exact shape:
 
 1. The post-implementation classification must still read `tier=FAST` on the final diff. A tier that rose is not a `FAST` run any more — dispatch `leonardo` and let the loop close it as usual.

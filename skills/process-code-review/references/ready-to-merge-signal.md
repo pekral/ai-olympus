@@ -4,6 +4,8 @@ Referenced from `skills/process-code-review/SKILL.md` *Promote the PR out of Dra
 
 It runs at exactly one moment: the Review loop converged (`skills/process-code-review/SKILL.md` *Review loop* step 4 — zero Critical, zero unfulfilled reviewer comments, no undeferred Moderate), and the merge has not happened yet. The signal lands on the pull request only. No agent writes a status on the source tracker item once the code review has started (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*): no GitHub issue label, no JIRA transition, and no Bugsnag status.
 
+**One pull request never gets it.** A pull request whose body carries the marker `<!-- ai-olympus:contribution-policy=human-description -->` stays a Draft with no `ready to merge` label and an untouched body, because its description waits for its author (`@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*). Skip *Promote the PR out of Draft*, this section, and the merge-risk refresh for it.
+
 The write is unconditional, idempotent, and verified. A zero exit code is not evidence: an external write can be silently blocked in auto-mode.
 
 ### Pull-request label

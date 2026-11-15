@@ -183,6 +183,8 @@ When a plan does exist, it runs after the self-check above and **still before th
 
 **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/pull-requests.md` *Draft pull requests* — the authoritative `code-review-github` / `process-code-review` loop still runs after the PR exists, and promotes it out of Draft on convergence.
 
+**A foreign repository can restrict AI-written descriptions.** `skills/_shared/contribution-policy.sh` reads its policy first. A restricting or unverified policy replaces the generated body with an outline and holds back every other generated text there (`@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*; steps in `references/pull-request.md`).
+
 The opt-out consequences and the full PR body layout — **`## Merge risk`** with its traffic-light icon, the categorised **Summary** (pre-existing security fixes included), **Open decisions**, the collapsed **Walkthrough** and **Testing** blocks, **`## Security acceptance checklist`**, **TODO list**, and the mandatory collapsed **Audit** block with its standalone-run fallback — live in `references/pull-request.md`.
 
 ### Deferred-item follow-up issues

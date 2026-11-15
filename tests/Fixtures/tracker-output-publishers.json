@@ -103,7 +103,8 @@
         "skills/_shared/templates/follow-up-issue.md"
     ],
     "skills/resolve-issue/references/pull-request.md": [
-        "skills/resolve-issue/templates/pull-request-body.md"
+        "skills/resolve-issue/templates/pull-request-body.md",
+        "skills/resolve-issue/templates/pull-request-outline.md"
     ],
     "skills/resolve-issue/references/tracker-follow-up.md": [
         "skills/resolve-issue/templates/pr-link-back-comment.md",
