@@ -2569,7 +2569,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     // The scope is a stated decision: four project instruction sources, each read from the default branch.
     expect($rule)->toContain('### Scope — the project\'s instruction sources, and nothing else');
     expect($rule)->toContain('`git show "${REF:?}:.ai/rules/index.md"`');
-    expect($rule)->toContain('**The project manifest** — `extra.ai-olympus` in `composer.json` — through `skills/_shared/read-manifest.sh`');
+    expect($rule)->toContain('**The project manifest** — `extra.ai-olympus` in `composer.json` — through the trusted copy of `skills/_shared/read-manifest.sh`');
     expect($rule)->toContain('.github/copilot-instructions.md');
     expect($skill)->toContain('every `.ai/rules/**` file whose globs in `.ai/rules/index.md` cover a changed path');
 
@@ -2629,6 +2629,18 @@ test('the project instruction sources of a review are read through a default-bra
         ->and($skill)->not->toContain('git show "origin/')
         ->and($skill)->not->toContain('git symbolic-ref')
         ->and($skill)->not->toContain('read-manifest.sh --default-ref');
+
+    // The manifest is read through the trusted copy of the script, by reference to the owner, never a copy of the procedure.
+    $trusted = '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* items 2, 4 and 5';
+    $manifest = substr($rule, (int) strpos($rule, '4. **The project manifest**'), 1_200);
+
+    expect($manifest)->toContain($trusted)
+        ->and($manifest)->toContain('A copy that is not available gives `{}` and the review says why.')
+        ->and($manifest)->not->toContain('`cmp`')
+        ->and($manifest)->not->toContain('git rev-parse --path-format')
+        ->and($skill)->toContain('the project manifest through the trusted copy of `skills/_shared/read-manifest.sh`')
+        ->and($skill)->toContain($trusted)
+        ->and($skill)->toContain('a copy that is not available gives `{}` and the review says why');
 
     // The owner of the resolution states the git-only form and the accepted shape.
     $owner = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
