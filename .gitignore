@@ -2,6 +2,9 @@
 /vendor/
 composer.phar
 
+# Node (skill-check)
+/node_modules/
+
 # PHPUnit
 .phpunit.cache/
 coverage/

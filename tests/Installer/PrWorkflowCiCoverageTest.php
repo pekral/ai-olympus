@@ -12,14 +12,53 @@ test('CI runs composer-normalize-check, shell-self-tests, and skill-check, so a 
     expect($workflow)->toContain('uses: actions/setup-node@v4');
 });
 
-test('every npx call in the composer scripts names an exact package version, so CI never runs an unreviewed release', function (): void {
+test('skill-check is pinned to an exact version and locked with an integrity hash for every package', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    /** @var array{private: bool, scripts?: array<string, string>, devDependencies: array<string, string>} $package */
+    $package = json_decode((string) file_get_contents($packageDir . '/package.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+    /** @var array{lockfileVersion: int, packages: array<string, array{version?: string, resolved?: string, integrity?: string}>} $lock */
+    $lock = json_decode((string) file_get_contents($packageDir . '/package-lock.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+
+    expect($package['private'])->toBeTrue();
+    expect($package)->not->toHaveKey('scripts');
+    expect($package['devDependencies']['skill-check'])->toBe('1.2.0');
+    expect($lock['lockfileVersion'])->toBeGreaterThanOrEqual(2);
+    expect($lock['packages']['node_modules/skill-check']['version'])->toBe('1.2.0');
+
+    $locked = array_filter($lock['packages'], static fn (string $path): bool => $path !== '', ARRAY_FILTER_USE_KEY);
+
+    expect($locked)->not->toBeEmpty();
+    expect($locked)->each->toHaveKeys(['resolved', 'integrity']);
+});
+
+test('the composer skill-check scripts install the locked tree and run the local binary, never npx', function (): void {
     $packageDir = dirname(__DIR__, 2);
     /** @var array{scripts: array<string, string|list<string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-    $commands = implode("\n", array_merge(...array_map(static fn (string|array $script): array => (array) $script, array_values($composer['scripts']))));
 
-    preg_match_all('/\bnpx\b(?:\s+-{1,2}[\w-]+)*\s+(\S+)/', $commands, $matches);
+    foreach (['skill-check', 'skill-check-fix'] as $script) {
+        $commands = (array) $composer['scripts'][$script];
 
-    expect($matches[1])->not->toBeEmpty();
-    expect($matches[1])->each->toMatch('/^(@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+$/');
+        expect($commands)->toContain('npm ci --ignore-scripts');
+        expect(implode("\n", $commands))->toContain('node_modules/.bin/skill-check check skills')->not->toContain('npx');
+    }
+});
+
+test('node_modules is git-ignored and left out of the Composer archive, as are the npm manifests', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    /** @var array{archive: array{exclude: list<string>}} $composer */
+    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+    $ignored = preg_split('/\R/', (string) file_get_contents($packageDir . '/.gitignore'));
+
+    expect($ignored)->toContain('/node_modules/');
+    expect($composer['archive']['exclude'])->toContain('/node_modules')->toContain('/package.json')->toContain('/package-lock.json');
+});
+
+test('the CI skill-check job reuses the composer script and caches npm on the lockfile', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
+
+    expect($workflow)->toContain('cache: npm');
+    expect($workflow)->toContain('cache-dependency-path: package-lock.json');
+    expect($workflow)->not->toContain('npx');
 });

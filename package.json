@@ -1,0 +1,8 @@
+{
+  "name": "ai-olympus-dev-tools",
+  "private": true,
+  "description": "Development tooling of the ai-olympus repository. Not part of the Composer distribution.",
+  "devDependencies": {
+    "skill-check": "1.2.0"
+  }
+}

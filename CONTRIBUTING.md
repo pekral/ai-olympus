@@ -21,7 +21,7 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
 1. `bin/ai-olympus install --force --prune` — reinstalls this package's own rules/skills (the repository dogfoods its own installer).
 2. `@fix` — auto-fixes: `skill-check-fix`, `composer-normalize-fix`, `rector-fix`, `pint-fix`, `phpcs-fix`.
 3. `@check` — the full check suite, which must pass with **zero errors**:
-   - `skill-check` — the `SKILL.md` linter (`npx skill-check check skills --no-security-scan`); required whenever a change touches a `skills/**/SKILL.md` file.
+   - `skill-check` — the `SKILL.md` linter (`npm ci --ignore-scripts`, then `node_modules/.bin/skill-check check skills --no-security-scan`); required whenever a change touches a `skills/**/SKILL.md` file.
    - `composer-normalize-check` — `composer.json` normalization (dry-run).
    - `phpcs-check` — PHP CodeSniffer.
    - `pint-check` — Laravel Pint.
@@ -32,7 +32,7 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
    - `shellcheck` — shell script analysis (enforced in CI; skipped locally when ShellCheck is unavailable).
    - `test:coverage` — the Pest test suite with **100% code coverage required** (`--min=100`, via PCOV).
 
-The individual commands are defined in `composer.json` (`composer check`, `composer fix`, `composer phpcs-check`, …). The skill linter also needs Node.js and npm (`npx`).
+The individual commands are defined in `composer.json` (`composer check`, `composer fix`, `composer phpcs-check`, …). The skill linter also needs Node.js and npm: `composer skill-check` installs the locked `skill-check` version from `package-lock.json` with `npm ci --ignore-scripts`.
 
 **CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.4, 8.5, and 8.6, and `skill-check` in its own job. It does not auto-fix files. A separate compatibility job installs the distribution as a dependency on the same PHP versions and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging. The root `CLAUDE.md` also permits this build before a push when resolving PHP check failures. The consumer template at `templates/CLAUDE.md` retains its own workflow.
 
