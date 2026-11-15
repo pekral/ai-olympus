@@ -15,7 +15,7 @@ Closes #<N>
 * **Documentation**
   * <one bullet per documentation change>
 
-<one or two sentences: what stays unchanged, and which pull request this one replaces>
+<one or two sentences: what stays unchanged, and the pull request this one replaces, when it replaces one>
 
 ## Open decisions for the operator
 
@@ -57,8 +57,8 @@ Plan: <plan issue link>
 </details>
 
 <!-- First line: the tracker reference, as skills/resolve-issue/references/pull-request.md states for each tracker. -->
-<!-- Merge risk heading: 🟢 FAST, 🟡 STANDARD, or 🔴 CRITICAL, from the tier= line of the script. If the script cannot run, write ## Merge risk ⚪ not computed — <reason> and no Door and Blast radius lines. -->
+<!-- Merge risk heading: filled as the Merge risk bullet of skills/resolve-issue/references/pull-request.md states. -->
 <!-- Summary: a TL;DR for a reader who opens only this section. Each bullet is one or two short sentences in plain words on what changes for the user of the project, never which file changed. A category only when it has a bullet; Tests, Chores, and Refactoring follow the same shape. The pre-existing bullet only when a pre-existing security fix landed. -->
-<!-- Evidence line: only on a bug fix. Open decisions: only when the run made a choice without a fact. Security acceptance checklist: only when a pre-implementation security plan was passed into the run. Safeguard: only when the source issue is a prevention proposal. TODO: only when a point was deferred. -->
+<!-- Evidence line: only on a bug fix. The pull request this one replaces: only when it replaces one. Open decisions: only when the run made a choice without a fact. Security acceptance checklist: only when a pre-implementation security plan was passed into the run. Safeguard: only when the source issue is a prevention proposal. TODO: only when a point was deferred. -->
 <!-- Merge risk, Summary, Walkthrough, Testing, and Audit are always present. -->
 <!-- The body follows the language rule of rules/git/pull-requests.md Pull Requests. -->
