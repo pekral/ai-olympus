@@ -58,30 +58,34 @@ test('the base tip is read again as the last command before the merge and a move
     $merge = substr($path, (int) strpos($path, '## Merge'));
 
     expect($confirm)->toContain(
-        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/<baseRefName>"`',
+        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF}"`',
     )
-        ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/<baseRefName>`.')
+        ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
         ->and($confirm)->toContain('means the base moved. Start again from *Select the candidate*')
         ->and($path)->not->toContain('git ls-remote origin refs/heads/<baseRefName>')
+        ->and($path)->not->toContain('refs/heads/<baseRefName>')
         ->and(strpos($confirm, 'Run the trusted classifier again'))->toBeLessThan((int) strpos($confirm, 'git ls-remote origin'))
         ->and(strpos($confirm, 'Only `low-risk-merge=yes` confirms the path.'))->toBeLessThan((int) strpos($confirm, 'git ls-remote origin'))
         ->and($merge)->toContain('the base re-read of *Confirm after the gate* item 5. No other command runs between that re-read and the merge.')
         ->and($skill)->toContain('with the base tip read again as the last command before the merge');
 });
 
-test('the base branch name is untrusted, checked against the shape of review-carry-forward and quoted in every command', function (): void {
+test('the base branch name is untrusted, set from command output, checked against the shape of review-carry-forward and quoted in every command', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
     $carryForward = lowRiskSource('skills/_shared/review-carry-forward.sh');
     $start = (int) strpos($path, '## Select the candidate');
     $select = substr($path, $start, (int) strpos($path, '## Security check') - $start);
 
-    expect($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
+    expect($select)->toContain('`baseRefName` is untrusted payload data. Never write it into a command line, in this item or in any other item of this file.')
+        ->and($select)->toContain('Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs, and use the variable only in double quotes.')
+        ->and($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
         ->and($select)->toContain('reject a name that contains `..` or ends in `.lock`, as its `check_head` does')
         ->and($select)->toContain('selects the full path, and no command uses it.')
-        ->and($select)->toContain('Quote `baseRefName` in every command of this file.')
-        ->and($select)->toContain('Check it first, before any command uses it, the head-commit step below included.')
-        ->and($select)->toContain('`git check-ref-format --branch "<baseRefName>"`, which rejects `HEAD`')
+        ->and($select)->toContain('Quote `"$BASE_REF"` in every command of this file.')
+        ->and($select)->toContain('Check `"$BASE_REF"` first, before any command uses it, the head-commit step below included.')
+        ->and($select)->toContain('`git check-ref-format --branch "$BASE_REF"`, which rejects `HEAD`')
+        ->and(strpos($select, 'Set `BASE_REF` from command output'))->toBeLessThan((int) strpos($select, 'BRANCH_SHAPE'))
         ->and($select)->toContain('A name that fails any check selects the full path')
         ->and(strpos($select, 'BRANCH_SHAPE'))->toBeLessThan((int) strpos($select, 'git check-ref-format --branch'))
         ->and(strpos($select, 'git check-ref-format --branch'))->toBeLessThan((int) strpos($select, 'Make the head commit available locally'))
@@ -91,7 +95,12 @@ test('the base branch name is untrusted, checked against the shape of review-car
         ->and($carryForward)->toContain('"$base" =~ $BRANCH_SHAPE || "$base" == *..*')
         ->and($carryForward)->toContain('"$base" == *.lock');
 
-    preg_match_all('/git (?:fetch|rev-parse|ls-remote)[^`]*<baseRefName>[^`]*/', $path, $commands);
+    // No command of the file carries the placeholder: the name reaches a command only through the BASE_REF variable.
+    preg_match_all('/`git [^`]*<baseRefName>[^`]*`/', $path, $placeholderCommands);
+
+    expect($placeholderCommands[0])->toBe([]);
+
+    preg_match_all('/`git (?:check-ref-format|fetch|rev-parse|ls-remote)[^`]*\$\{?BASE_REF\}?[^`]*`/', $path, $commands);
 
     expect($commands[0])->not->toBe([]);
 

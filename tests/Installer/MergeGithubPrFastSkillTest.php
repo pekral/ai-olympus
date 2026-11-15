@@ -153,7 +153,9 @@ test('the base branch name is checked by the low-risk path check and the base ti
     $select = substr($owner, (int) strpos($owner, '## Select the candidate'));
     $backPointer = 'as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs for `headRefOid`. Never use its `baseRefName` fallback';
 
-    expect($select)->toContain('`baseRefName` is untrusted. Check it first, before any command uses it')
+    expect($select)->toContain('`baseRefName` is untrusted payload data. Never write it into a command line')
+        ->and($select)->toContain('Check `"$BASE_REF"` first, before any command uses it')
+        ->and($select)->toContain('Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs')
         ->and($select)->toContain('Read the base tip with the **exact-ref read**')
         ->and($select)->toContain('Run `git fetch origin "<object id of that line>"`')
         ->and($select)->toContain($backPointer);

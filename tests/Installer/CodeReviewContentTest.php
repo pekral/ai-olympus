@@ -2535,10 +2535,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     // Trust boundary: reading the working-tree copy would let a PR rewrite its own review criteria,
     // which is exactly the hole @rules/security/general.md *Untrusted sources* closes.
     expect($rule)->toContain('### Which version is trusted — the default branch, never the checked-out branch');
-    expect($rule)->toContain('git show "origin/$DEFAULT_BRANCH":CLAUDE.md');
-    expect($rule)->toContain(
-        'DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed \'s@^origin/@@\')"',
-    );
+    expect($rule)->toContain('`git show "${REF:?}:CLAUDE.md"`');
     expect($rule)->toContain(
         '- **A PR that adds, edits, or deletes `CLAUDE.md` is reviewed as an ordinary diff.**',
     );
@@ -2571,7 +2568,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
 
     // The scope is a stated decision: four project instruction sources, each read from the default branch.
     expect($rule)->toContain('### Scope — the project\'s instruction sources, and nothing else');
-    expect($rule)->toContain('git show "origin/$DEFAULT_BRANCH":.ai/rules/index.md');
+    expect($rule)->toContain('`git show "${REF:?}:.ai/rules/index.md"`');
     expect($rule)->toContain('**The project manifest** — `extra.ai-olympus` in `composer.json` — through `skills/_shared/read-manifest.sh`');
     expect($rule)->toContain('.github/copilot-instructions.md');
     expect($skill)->toContain('every `.ai/rules/**` file whose globs in `.ai/rules/index.md` cover a changed path');
@@ -2590,6 +2587,42 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     // One canonical home — a second copy is how two versions of the trust boundary drift apart.
     expect(substr_count($rule, '## Project `CLAUDE.md` as an additional review input (mandatory gate)'))->toBe(1);
     expect(substr_count($skill, '### Project `CLAUDE.md` gate (mandatory, always)'))->toBe(1);
+});
+
+test('the project instruction sources of a review are read through the fully qualified default-branch ref of read-manifest.sh', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = codeReviewRuleContents();
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $gate = substr($rule, (int) strpos($rule, '### Which version is trusted'), (int) strpos($rule, '### What is extracted and applied') - (int) strpos($rule, '### Which version is trusted'));
+    $scope = substr($rule, (int) strpos($rule, '### Scope — the project'), 3000);
+    $resolve = '`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code, `.agents/skills/_shared/read-manifest.sh --default-ref` on Codex';
+
+    // The rule is the owner of the procedure: it resolves the ref once and reads every source through it.
+    expect($gate)->toContain($resolve)
+        ->and($gate)->toContain('prints the fully qualified `refs/remotes/origin/<default branch>`')
+        ->and($gate)->toContain('Set `REF` to that output, then read each source with `git show "${REF:?}:<file>"`, in the same shell call.')
+        ->and($gate)->toContain('`git show "${REF:?}:CLAUDE.md"`')
+        ->and($gate)->toContain('Never use the short `origin/<default branch>`')
+        ->and($gate)->toContain('A failed resolution (exit `5`) and an empty `REF` load no source')
+        ->and($gate)->toContain('never falls back to the short ref')
+        ->and($gate)->toContain('Never fall back to the short ref or to the working-tree copy.')
+        ->and($gate)->not->toContain('git show "origin/')
+        ->and($gate)->not->toContain('git symbolic-ref');
+
+    // The other sources are read through the same variable, never by the short ref.
+    expect($scope)->toContain('`git show "${REF:?}:AGENTS.md"`')
+        ->and($scope)->toContain('`git show "${REF:?}:.ai/rules/index.md"`')
+        ->and($scope)->toContain('through the same `REF`')
+        ->and($scope)->not->toContain('git show "origin/');
+
+    // The skill points at the same procedure and carries no short-ref read of its own.
+    expect($skill)->toContain($resolve)
+        ->and($skill)->toContain('`git show "${REF:?}:CLAUDE.md"`')
+        ->and($skill)->toContain('A failed resolution loads no source')
+        ->and($skill)->not->toContain('git show "origin/');
+
+    // The option the rule names exists in the one script that owns the resolution.
+    expect((string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh'))->toContain('read-manifest.sh --default-ref');
 });
 
 test('code review rule scopes a later round to the diff since the last reviewed revision', function (): void {
