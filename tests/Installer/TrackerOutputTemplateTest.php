@@ -60,7 +60,13 @@ function trackerOutputWritesToTracker(string $contents): bool
         . '(?:github |jira )?(?:issue|pull request|PR|ticket|JIRA|Bugsnag)#i',
     ];
 
-    return array_any($writes, static fn (string $write): bool => preg_match($write, $contents) === 1);
+    foreach ($writes as $write) {
+        if (preg_match($write, $contents) === 1) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**

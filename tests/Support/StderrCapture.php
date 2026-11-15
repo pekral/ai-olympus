@@ -10,7 +10,7 @@ use php_user_filter;
 final class StderrCapture extends php_user_filter
 {
 
-    private const string FILTER_NAME = 'tests.stderr-capture';
+    private const FILTER_NAME = 'tests.stderr-capture';
 
     private static string $captured = '';
 

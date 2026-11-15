@@ -11,7 +11,7 @@ namespace Pekral\AiOlympus;
 final class InstallerAgentMigration
 {
 
-    private const array RENAMES = [
+    private const RENAMES = [
         'apollo' => 'michelangelo',
         'argus' => 'raphael',
         'athena' => 'leonardo',
@@ -26,7 +26,7 @@ final class InstallerAgentMigration
      * Digests of every released copy of a definition whose name a current agent reuses for a different agent.
      * `splinter` was the orchestrator from 0.1.3 to 0.3.1, so each of those copies must be replaced even without `--force`.
      */
-    private const array SUPERSEDED_DIGESTS = [
+    private const SUPERSEDED_DIGESTS = [
         'splinter.md' => [
             '26de45cf6452c93dd1d6c3409bf03042dfba56c7b23a5fb70a666e4c0d700abe',
             'f33d1a9cc60f5247346575ab9ad359f492efc11a4f7ca7573f9a68848ea98544',
@@ -42,7 +42,7 @@ final class InstallerAgentMigration
         ],
     ];
 
-    private const array ORIGINAL_DIGESTS = [
+    private const ORIGINAL_DIGESTS = [
         'apollo.md' => '13658fa9f6fe5291ff34a8ac7bc5bd5ff4a5716173b4beaa4c09938c063f1230',
         'apollo.toml' => '709f2eaeb7b38b23cbc3e3fe8079d29233b32d8ceb5e7e31fb6550e44db72a7f',
         'argus.md' => 'c9dd31780e7d2f6fc73516be6488698593846354cdb5905fe7c91131cd8f709d',

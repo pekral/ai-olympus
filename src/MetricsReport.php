@@ -15,9 +15,9 @@ namespace Pekral\AiOlympus;
 final class MetricsReport
 {
 
-    private const array TIERS = ['FAST', 'STANDARD', 'CRITICAL'];
+    private const TIERS = ['FAST', 'STANDARD', 'CRITICAL'];
 
-    private const array CONTEXT_COUNTERS = [
+    private const CONTEXT_COUNTERS = [
         'context_cache_hits' => 'Context cache hits',
         'context_cache_misses' => 'Context cache misses',
         'context_gate_executed' => 'Context gate runs',
@@ -30,7 +30,7 @@ final class MetricsReport
         'sources_searched' => 'Sources searched',
     ];
 
-    private const array GRAPH_COUNTERS = [
+    private const GRAPH_COUNTERS = [
         'files_avoided' => 'Files avoided',
         'graph_hits' => 'Graph hits',
         'graph_misses' => 'Graph misses',
@@ -38,7 +38,7 @@ final class MetricsReport
         'items_from_search' => 'Items from search',
     ];
 
-    private const array REVIEW_COUNTERS = [
+    private const REVIEW_COUNTERS = [
         'confirmed' => 'Findings confirmed',
         'deferred' => 'Findings deferred',
         'dismissed' => 'Findings dismissed',

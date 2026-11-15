@@ -5,7 +5,7 @@ Thank you for your interest in improving this project. This guide covers how to 
 ## Getting started
 
 1. Fork the repository and clone your fork.
-2. Use PHP 8.5 and Composer 2 for the development dependencies, then install them: `composer install`.
+2. Use PHP 8.5 and Composer 2 for the development dependencies, then install them: `composer install`. The development tools need PHP 8.4 or newer, but the package supports PHP 8.2 and newer. Write PHP 8.2 syntax and use no function that is newer than PHP 8.2 in `src/`, `tests/`, and `bin/`: no typed class constants, no `new` without parentheses before `->`, no property hooks, and no `array_any()`.
 3. (Optional, for Claude Code and Codex users) Sync this package's own rules, skills, and agents into the repository: `bin/ai-olympus install --force --prune`.
 
 ## The quality gate: `composer build`
@@ -34,7 +34,7 @@ This is the authoritative gate — see the `scripts` section of `composer.json` 
 
 The individual commands are defined in `composer.json` (`composer check`, `composer fix`, `composer phpcs-check`, …). The skill linter also needs Node.js and npm: `composer skill-check` installs the locked `skill-check` version from `package-lock.json` with `npm ci --ignore-scripts`.
 
-**CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.4, 8.5, and 8.6, and `skill-check` in its own job. It does not auto-fix files. A separate compatibility job installs the distribution as a dependency on the same PHP versions and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging. The root `CLAUDE.md` also permits this build before a push when resolving PHP check failures. The consumer template at `templates/CLAUDE.md` retains its own workflow.
+**CI is not the same gate.** `.github/workflows/pr.yml` runs `security-audit`, `composer-normalize-check`, `phpcs-check`, `pint-check`, `rector-check`, `analyse`, `shellcheck`, `shell-self-tests`, and `test:coverage` on PHP 8.4, 8.5, and 8.6, and `skill-check` in its own job. It does not auto-fix files. The `php-compatibility` job lints every PHP file of `src/`, `tests/`, and `bin/` on PHP 8.2 and 8.3, which the development tools cannot run on. A separate compatibility job installs the distribution as a dependency on PHP 8.2 to 8.6 and exercises the CLI and opt-in Composer auto-install without development dependencies. Run the full `composer build` locally once the review has converged, immediately before merging. The root `CLAUDE.md` also permits this build before a push when resolving PHP check failures. The consumer template at `templates/CLAUDE.md` retains its own workflow.
 
 ## Adding or changing a skill
 

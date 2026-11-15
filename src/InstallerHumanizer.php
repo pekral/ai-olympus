@@ -10,9 +10,9 @@ namespace Pekral\AiOlympus;
 final class InstallerHumanizer
 {
 
-    private const string SECTION_HEADING = '## Output Humanization';
+    private const SECTION_HEADING = '## Output Humanization';
 
-    private const string DIRECTIVE = '- Use [blader/humanizer](https://github.com/blader/humanizer)'
+    private const DIRECTIVE = '- Use [blader/humanizer](https://github.com/blader/humanizer)'
         . ' for all skill outputs to keep the text natural and human-friendly.';
 
     public static function appendIfNeeded(string $destination): void

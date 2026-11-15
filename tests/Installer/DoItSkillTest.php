@@ -121,7 +121,7 @@ test('the parallel planner reads its limit from the default-branch manifest and 
         ];
 
         foreach ($commands as $command) {
-            new Process(['git', '-C', $repository, '-c', 'user.name=t', '-c', 'user.email=t@t', ...$command])->mustRun();
+            (new Process(['git', '-C', $repository, '-c', 'user.name=t', '-c', 'user.email=t@t', ...$command]))->mustRun();
         }
 
         return runWorkQueueHelper('plan-parallel.sh', $units, $repository)['output'];

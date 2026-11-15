@@ -2,6 +2,13 @@
 <ruleset name="PHPCS Rules">
     <description>Custom PHPCS rules for package</description>
 
+    <!--
+        The package supports PHP 8.2, which has no native class constant types (PHP 8.3). Without this
+        setting the type-hint sniff requires them on the PHP version that runs the check and its fixer
+        adds them back.
+    -->
+    <config name="php_version" value="80200"/>
+
     <!-- Include pekral/phpcs-rules -->
     <rule ref="vendor/pekral/phpcs-rules/ruleset.xml"/>
 

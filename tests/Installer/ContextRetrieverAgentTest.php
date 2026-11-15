@@ -163,8 +163,8 @@ test('the graph slice is bounded by the gate budget and the graph stays in git-i
     $command = (string) file_get_contents($packageDir . '/src/CommandOptions.php');
     $packer = (string) file_get_contents($packageDir . '/skills/_shared/pack-context.sh');
 
-    expect($command)->toContain('public const string DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
-        ->and($command)->toContain('private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, \'.codex/run\'];')
+    expect($command)->toContain('public const DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
+        ->and($command)->toContain('private const RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, \'.codex/run\'];')
         ->and($packer)->toContain('GRAPH_RUN_DIR=\'.claude/run\'')
         ->and($packer)->toContain('GRAPH_PATH="${run_dir:-$GRAPH_RUN_DIR}/graph.json"')
         ->and($packer)->toContain('gate_scratch_path graph "$GRAPH_PATH" "$GRAPH_PATH"')

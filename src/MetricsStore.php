@@ -16,7 +16,7 @@ namespace Pekral\AiOlympus;
 final class MetricsStore
 {
 
-    public const string DEFAULT_RELATIVE_PATH = '.ai-olympus/metrics.jsonl';
+    public const DEFAULT_RELATIVE_PATH = '.ai-olympus/metrics.jsonl';
 
     public static function resolvePath(): ?string
     {

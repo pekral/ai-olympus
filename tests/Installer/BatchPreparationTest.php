@@ -190,7 +190,7 @@ test('a manifest command with command substitution is refused as invalid under -
         'tests' => ['vendor/bin/pest --filter=$(touch ' . $project . '/marker)'],
     ], JSON_THROW_ON_ERROR));
 
-    new Process(['git', 'init', '-q'], $project)->mustRun();
+    (new Process(['git', 'init', '-q'], $project))->mustRun();
 
     $lockDir = $project . '/machine';
     $process = new Process(
@@ -203,7 +203,7 @@ test('a manifest command with command substitution is refused as invalid under -
     $markerExists = file_exists($project . '/marker');
     $lockExists = file_exists($lockDir . '/ai-olympus-gate.lock');
 
-    new Process(['rm', '-rf', $project])->mustRun();
+    (new Process(['rm', '-rf', $project]))->mustRun();
 
     expect($process->getExitCode())->toBe(3)
         ->and($process->getOutput())->toContain('"status": "invalid"')

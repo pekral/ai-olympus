@@ -12,13 +12,13 @@ final class GraphParser
 
     use GraphLaravelExtractors;
 
-    private const array NAME_TOKENS = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE, T_STATIC];
+    private const NAME_TOKENS = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE, T_STATIC];
 
-    private const array OPEN_BRACES = ['{', T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES];
+    private const OPEN_BRACES = ['{', T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES];
 
-    private const array DECLARATIONS = [T_CLASS => 'class', T_INTERFACE => 'interface', T_TRAIT => 'trait'];
+    private const DECLARATIONS = [T_CLASS => 'class', T_INTERFACE => 'interface', T_TRAIT => 'trait'];
 
-    private const array NOT_A_CONFIG_CALL = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION];
+    private const NOT_A_CONFIG_CALL = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION];
 
     private readonly GraphNameResolver $names;
 

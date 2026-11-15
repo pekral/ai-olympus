@@ -7,9 +7,9 @@ namespace Pekral\AiOlympus;
 trait GraphLaravelRoutes
 {
 
-    private const array ROUTE_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'any'];
+    private const ROUTE_VERBS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'any'];
 
-    private const array RESOURCE_ROUTES = ['resource', 'apiresource'];
+    private const RESOURCE_ROUTES = ['resource', 'apiresource'];
 
     /**
      * @var array<int, string>

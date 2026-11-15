@@ -31,7 +31,7 @@ function runLockDiff(array $oldPackages, array $newPackages, array $oldDevPackag
         $root . '/new.lock',
     ]);
     $process->run();
-    new Filesystem()->remove($root);
+    (new Filesystem())->remove($root);
 
     return ['exit' => $process->getExitCode(), 'output' => trim($process->getOutput()), 'error' => $process->getErrorOutput()];
 }

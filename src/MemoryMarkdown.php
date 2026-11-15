@@ -7,9 +7,9 @@ namespace Pekral\AiOlympus;
 final class MemoryMarkdown
 {
 
-    private const int MAX_PATHS = 20;
+    private const MAX_PATHS = 20;
 
-    private const array FIELDS = ['Example', 'Role', 'Rule', 'Source', 'Trigger'];
+    private const FIELDS = ['Example', 'Role', 'Rule', 'Source', 'Trigger'];
 
     public static function parse(string $markdown): MemoryParse
     {

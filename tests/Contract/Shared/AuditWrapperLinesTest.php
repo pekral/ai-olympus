@@ -143,8 +143,8 @@ test(
         $ledger = auditLedgerCreate();
         $repository = $ledger['directory'] . '/repository';
         installerEnsureDirectory($repository);
-        new Process(['git', 'init', '-q', $repository])->mustRun();
-        new Process(['git', '-C', $repository, 'remote', 'add', 'origin', 'https://github.com/o/r.git'])->mustRun();
+        (new Process(['git', 'init', '-q', $repository]))->mustRun();
+        (new Process(['git', '-C', $repository, 'remote', 'add', 'origin', 'https://github.com/o/r.git']))->mustRun();
         $bin = auditWrapperFakeBin($ledger['directory'], ['gh' => AUDIT_WRAPPER_FAKE_GH_DELETE]);
         $process = new Process([
             $packageDir . '/skills/_shared/delete-owned-github-comment.sh',

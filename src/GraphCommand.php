@@ -10,7 +10,7 @@ namespace Pekral\AiOlympus;
 final class GraphCommand
 {
 
-    private const string GRAPH_FILE = 'graph.json';
+    private const GRAPH_FILE = 'graph.json';
 
     /**
      * @param array<int, string> $argv
