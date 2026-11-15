@@ -25,9 +25,8 @@ test('the merge gate runs the classifier from the default branch, never from the
         ->and($section)->toContain('any other output and a failed command leave the ref empty, and an empty ref is a failed resolution')
         ->and($section)->toContain('Never compare with the short `origin/<default branch>`')
         ->and($section)->toContain(
-            '`git show refs/remotes/origin/<default branch>:skills/_shared/<file>` when the default branch ships `skills/_shared/<file>`',
+            '`skills/_shared/<file>` when the default branch ships it, otherwise the installed path when the default branch tracks it',
         )
-        ->and($section)->toContain('`git show refs/remotes/origin/<default branch>:<installed path>` when the default branch tracks the installed path')
         ->and($section)->not->toContain('`git show origin/<default branch>:')
         ->and($section)->toContain('no default-branch blob to compare with at either path')
         ->and($section)->toContain('A project whose installed copy is not tracked on the default branch therefore takes the full path')
