@@ -73,10 +73,15 @@ require_tools() {
   fi
 }
 
-# The published review reports. The trust test is the one shared definition `trusted_review` in
+# The published review reports, in both homes: a pull-request review (its hidden record) and a legacy
+# `cr-comment` comment. `review_reports` and the trust test `trusted_review` are the one shared definition in
 # review-trust.jq (rules/code-review/general.md *Authorship trust*). Passing it decides whose report is
 # collected; it never makes the report text trusted.
-JQ_REPORTS='include "review-trust"; [ (.comments // [])[] | select(trusted_review) ]'
+JQ_REPORTS='include "review-trust"; [ review_reports[] | select(trusted_review) ]'
+
+# The record of a review body is read through the one unwrap in cr-header.sh.
+# shellcheck source=cr-header.sh
+source "$HERE/cr-header.sh"
 
 # extractor_verdict <exit-code> <report-index> — 0 when the extractor accepted the report. A refused report
 # is counted and named, and the function returns 1. A missing tool or another failure ends the collection.
@@ -161,10 +166,14 @@ cmd_collect() {
   # no updatedAt for a top-level comment, so the comment cannot say when its report was last rewritten.
   : >"$tmp/order.jsonl"
   for ((i = 0; i < count; i++)); do
+    if ! jq -j --argjson i "$i" '.[$i].body' "$tmp/reports.json" \
+      | cr_review_meta_unwrap "$(jq -r --argjson i "$i" '.[$i].home' "$tmp/reports.json")" >"$tmp/report.$i"; then
+      printf 'the review body holds no single hidden record\n' >"$tmp/extract.err"
+      extractor_verdict 3 "$i" || continue
+    fi
     rc=0
     set +e
-    jq -j --argjson i "$i" '.[$i].body' "$tmp/reports.json" \
-      | "$HERE/extract-findings.sh" --header --input - >"$tmp/header.json" 2>"$tmp/extract.err"
+    "$HERE/extract-findings.sh" --header --input "$tmp/report.$i" >"$tmp/header.json" 2>"$tmp/extract.err"
     rc=$?
     set -e
     if extractor_verdict "$rc" "$i"; then
@@ -176,8 +185,7 @@ cmd_collect() {
   for i in $(jq -s -r 'sort_by([.time, .created]) | .[].i' "$tmp/order.jsonl"); do
     rc=0
     set +e
-    jq -j --argjson i "$i" '.[$i].body' "$tmp/reports.json" \
-      | "$HERE/extract-findings.sh" --repo "$repo" --pr "$pr" --input - --store "$store" >/dev/null 2>"$tmp/extract.err"
+    "$HERE/extract-findings.sh" --repo "$repo" --pr "$pr" --input "$tmp/report.$i" --store "$store" >/dev/null 2>"$tmp/extract.err"
     rc=$?
     set -e
     if extractor_verdict "$rc" "$i"; then
@@ -225,7 +233,8 @@ self_test() {
     fi
   }
 
-  # report <revision> <time> <rule> <location> [impact] — a review report, as the cr-comment body carries it.
+  # report <revision> <time> <rule> <location> [impact] — a review report, as the hidden record of a review or a
+  # legacy cr-comment body carries it.
   report() {
     printf '# Code Review\n\n**Status:** needs-fix\n**Counts:** Critical 1 · Moderate 0\n'
     printf '**Reviewed revision:** %s\n**Last updated:** %s\n\n## Technical Review\n\n## Findings\n\n' "$1" "$2"
@@ -325,6 +334,24 @@ self_test() {
   check 'two collected pull requests give one recurrence in the analysis' "$(jq -e '
       (.recurrences | length) == 1 and .recurrences[0].prs == 2
       and (.recurrences[0].occurrences | map(.url)) == ["https://github.com/acme/shop/pull/7", "https://github.com/acme/shop/pull/9"]' "$tmp/report.json" >/dev/null && echo 0 || echo 1)"
+
+  # The hidden record of a pull-request review is collected like a legacy comment, and a review body without a
+  # single record is refused. The review of round 3 is newer than the legacy comment of round 1.
+  report 8888888888888888888888888888888888888888 2026-10-03T10:00:00Z "$AUTHZ" app/Policies/OrderPolicy.php:3 >"$tmp/round3.md"
+  { cr_review_meta_wrap <"$tmp/round3.md"; printf '\n<!-- cr-comment:actor=leonardo-bot -->\n'; } >"$tmp/review3.md"
+  { cat "$tmp/round3.md"; printf '\n<!-- cr-comment:actor=leonardo-bot -->\n'; } >"$tmp/review-bare.md"
+  comment leonardo-bot OWNER 2026-10-01T10:00:00Z leonardo-bot "$tmp/round1.md" >"$tmp/comments12.jsonl"
+  payload 12 "$tmp/comments12.jsonl" | jq -c --rawfile r "$tmp/review3.md" --rawfile bare "$tmp/review-bare.md" '.reviews = [
+      {author: "leonardo-bot", authorAssociation: "OWNER", state: "COMMENTED", body: $r, submittedAt: "2026-10-03T10:00:00Z", url: null},
+      {author: "leonardo-bot", authorAssociation: "OWNER", state: "COMMENTED", body: $bare, submittedAt: "2026-10-03T11:00:00Z", url: null},
+      {author: "leonardo-bot", authorAssociation: "OWNER", state: "PENDING", body: $r, submittedAt: null, url: null}]' >"$tmp/pr12.json"
+  rm -f "$tmp/homes.jsonl"
+  run_case 'a pull request with a review record and a legacy comment is collected' 0 -- --loaded "$tmp/pr12.json" --store "$tmp/homes.jsonl"
+  check 'the review record and the legacy comment are both read, a body without a record is refused, and a pending review is not' \
+    "$(jq -e '.reports == 3 and .collected == 2 and .refused == 1' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'the finding of the review record is in the store, and the legacy finding it no longer carries is resolved' "$(jq -e -s '
+      (map(select(.cause_key == "missing-authorization" and .status == "open")) | length) == 1
+      and (map(select(.cause_key == "n-plus-one-queries" and .status == "resolved")) | length) == 1' "$tmp/homes.jsonl" >/dev/null && echo 0 || echo 1)"
 
   # A pull request without review reports adds nothing and is not an error.
   : >"$tmp/none.jsonl"

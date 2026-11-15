@@ -126,8 +126,8 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    author login equals the authenticated actor, whose content concerns this PR's preparation,
    review, acceptance verification, or testing, and which the final TL;DR or newer merge evidence
    supersedes. **A code-review report a CR run published never enters the manifest**, on either
-   tracker: the `cr-comment` thread on the pull request, on the linked issue, and on the JIRA issue
-   is the cross-run history (`@rules/code-review/general.md` *One published comment per review run*).
+   tracker: the pull-request reviews and the legacy `cr-comment` comments on the pull request, and the
+   `cr-comment` thread on the linked issue and on the JIRA issue, are the cross-run history (`@rules/code-review/general.md` *One published comment per review run*).
    Never delete another account's comment. Never delete an ambiguous or unrelated
    actor-owned comment, submitted review, or line thread. **On a JIRA source** the manifest covers
    the JIRA issue's comments instead: a comment enters it only when it carries this actor's
@@ -138,8 +138,9 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    human and never delete it. The pull-request comments of a JIRA source stay in place, because
    the GitHub helper protects a GitHub-side TL;DR that a JIRA source does not carry.
 5. Preserve the newly published TL;DR and every code-review report. The newest trusted
-   `cr-comment` is the current merge evidence `@skills/merge-github-pr/SKILL.md` requires, and the
-   earlier ones are the cross-run history.
+   report (`skills/_shared/cr-header.sh --report <loader-file>`) is the current merge evidence
+   `@skills/merge-github-pr/SKILL.md` requires, and the earlier ones are the cross-run history. When
+   it is a pull-request review, it is no comment: pass the final TL;DR ID as `CURRENT_CR_ID` too.
 6. For every manifested ID, call the helper that matches the source tracker:
    - **GitHub** → `skills/_shared/delete-owned-github-comment.sh <TARGET_URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`
    - **JIRA** → `skills/code-review-jira/scripts/delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>`.

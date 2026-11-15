@@ -322,7 +322,9 @@ test('both parsers share the block and fence functions, the mode comes from the 
 
     expect($parser)->toContain('cr_header_ends_block() {')
         ->and(substr_count($parser, 'cr_header_ends_block "$line"'))->toBe(2)
-        ->and(substr_count($parser, 'cr_header_fence_step "$line"'))->toBe(2);
+        ->and(substr_count($parser, 'cr_header_fence_step "$line"'))->toBe(3)
+        ->and($parser)->toContain('! cr_header_fence_step "$line" || continue
+    if [[ "$line" == "$CR_REVIEW_META_OPEN" ]]; then');
     expect($parser)->not->toContain('CR_CANON_LINES');
     expect($script)->not->toContain('names_mode');
     expect($script)
@@ -441,8 +443,9 @@ test('the coverage claim states its steps and why the limit is acceptable, uses 
         ->toContain('and a line whose copy matches the decision-line pattern after these eight steps, in this order:')
         ->toContain('  7. turn `[text](url)`, `[text][label]`, and `[text][]` into `text`, where `text` and `label` hold no `]` and `url` holds no `)`;')
         ->toContain(
-            '  The limit is acceptable because a review-only run carries forward only a comment that passed `trusted_review` '
-            . '(an author with write access and that author\'s own `cr-comment` marker), and it reads HOTFIX only from a canonical header '
+            '  The limit is acceptable because a review-only run carries forward only a report that passed `trusted_review` '
+            . '(an author with write access and that author\'s own `cr-comment` marker, on a pull-request review or a legacy comment), '
+            . 'and it reads HOTFIX only from a canonical header '
             . '`Mode:` line, which is also the only line the merge gate reads it from',
         );
     expect($header)

@@ -167,8 +167,10 @@ Record in the shared brief:
 - every explicit acceptance criterion and its evidence;
 - the authenticated GitHub actor from `gh api user --jq .login`, and on a JIRA source the `acli`
   account from `acli jira auth status`;
-- the newest trusted `cr-comment`, including reviewed SHA, effective diff fingerprint, finding
-  counts, unresolved findings, and the `Quality gate:` exact-head evidence it carries.
+- the newest trusted code-review report (`skills/_shared/cr-header.sh --report <loader-file>`: the
+  hidden record of a pull-request review, or a legacy `cr-comment` comment), including reviewed SHA,
+  effective diff fingerprint, finding counts, unresolved findings, and the `Quality gate:` exact-head
+  evidence it carries.
 
 ### 2. Rebase and decide whether review work exists
 
@@ -313,10 +315,12 @@ the manifest only when all conditions hold:
 
 Never delete another account's comment. Never delete an ambiguous or unrelated actor-owned
 comment. Never delete submitted reviews or line-thread comments.
-**A code-review report a CR run published never enters the manifest**, on either tracker: the `cr-comment` thread on the pull
-request, on the linked issue, and on the JIRA issue is the cross-run history
-(`@rules/code-review/general.md` *One published comment per review run*). Preserve the newest trusted
-`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence. A marked
+**A code-review report a CR run published never enters the manifest**, on either tracker: the pull-request
+reviews and the legacy `cr-comment` comments on the pull request, and the `cr-comment` thread on the linked
+issue and on the JIRA issue, are the cross-run history (`@rules/code-review/general.md` *One published comment
+per review run*). Preserve the newest trusted report that `@skills/merge-github-pr/SKILL.md` needs as current
+merge evidence. When that report is a pull-request review, it is no comment: pass the final TL;DR ID as
+`CURRENT_CR_ID` too, because a submitted review is never deleted. A marked
 JIRA comment that cannot be told apart from a code-review report is ambiguous and stays. Also
 preserve the new `merge-readiness` comment.
 A `proposal-review` comment (`skills/_shared/orchestration/proposal-review.md` step 6) never enters the manifest.

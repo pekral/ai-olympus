@@ -16,7 +16,8 @@ test('the rule owns the quick overview once and defines its three parts', functi
         ->and($section)->toContain('2. **`## Changed areas` follows the header block.** It is one table with the columns `Layer`, `Files`, and `Summary`.')
         ->and($section)->toContain('3. **`## Prompt to fix all issues` is the last section, and only while a finding is open.**')
         ->and($section)->toContain('The block lists the findings posted as inline review comments and the findings that stay in `## Findings` alike')
-        ->and($section)->toContain('The merge gate still reads every value from the same comment');
+        ->and($section)->toContain('The merge gate still reads every value from the same report')
+        ->and($section)->toContain('**On GitHub the review carries none of the three parts.**');
 });
 
 test('the merge risk line keeps the script grade, adds one sentence derived from facts, and names the reviewed head', function (): void {
@@ -129,8 +130,8 @@ test('the wrapper contract, the skill, and the reviewer name the quick overview,
     $contract = quickOverviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
     $carryForward = quickOverviewSource('skills/_shared/review-carry-forward.sh');
 
-    expect($contract)->toContain('- **Quick overview and the fix-all prompt.** The posted PR comment opens with an `Overview:` header line')
-        ->and($contract)->toContain('The non-technical tracker comment carries none of the three parts.')
+    expect($contract)->toContain('- **No quick overview and no fix-all prompt on GitHub.** The hidden record carries no `Overview:` line')
+        ->and($contract)->toContain('The non-technical tracker comment carries none of these parts.')
         ->and(quickOverviewSource('skills/code-review/SKILL.md'))->toContain('- **Quick overview.** Render the `Overview:` header line')
         ->and(quickOverviewSource('agents/leonardo.md'))->toContain('the block lists a finding marked `do not file publicly` only on a private repository')
         ->and($carryForward)->toContain('KNOWN_LABELS=\'|Overview|Status|')

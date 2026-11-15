@@ -108,8 +108,8 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
     $codeReview = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     $krang = krangContractText();
 
-    expect($merge)->toContain('Every CR run **posts a new `cr-comment`** on the PR and leaves the earlier ones unchanged');
-    expect($merge)->toContain('so the newest trusted comment is the only current one; an older CR comment is never read as the verdict');
+    expect($merge)->toContain('Every CR run **posts a new pull-request review** on the PR and leaves the earlier reports unchanged');
+    expect($merge)->toContain('so the newest trusted report is the only current one; an older report is never read as the verdict');
     expect($merge)->not->toContain('updates the one `cr-comment` it owns');
     expect($merge)->toContain('either its `Reviewed revision:` equals `headRefOid`');
     expect($merge)->toContain('its `Reviewed diff fingerprint:` equals a freshly recomputed fingerprint');
@@ -121,7 +121,7 @@ test('the CR staleness gate matches reviewed SHA or effective diff fingerprint',
 
     // The premise's source of truth agrees: the baseline lives in the one comment's header lines,
     // not in a comment chain and not in a tracker's edit history.
-    expect($codeReview)->toContain('publish every review as a **new comment on the destination**');
+    expect($codeReview)->toContain('publish every review as a **new report**: on a GitHub pull request a new pull-request review');
     expect($codeReview)->not->toContain('updating the comment they already own on the destination');
     expect($codeReview)->toContain(
         'History across CR runs** lives in the header lines of the newest trusted comment',

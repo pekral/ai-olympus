@@ -74,7 +74,7 @@ test('verify-merge-readiness consolidates only owned comments and preserves merg
     expect($skill)->toContain('Publish and read back the final TL;DR before deleting anything');
     expect($skill)->toContain('Never delete another account\'s comment');
     expect($skill)->toContain('Preserve the newest trusted');
-    expect($skill)->toContain('`cr-comment` that `@skills/merge-github-pr/SKILL.md` needs as current merge evidence');
+    expect($skill)->toContain('report that `@skills/merge-github-pr/SKILL.md` needs as current');
     expect($skill)->toContain('skills/_shared/delete-owned-github-comment.sh');
     expect($skill)->toContain('exactly one current `merge-readiness` comment');
 

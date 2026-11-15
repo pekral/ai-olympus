@@ -20,8 +20,8 @@ The rule applies to every tracker target and every tracker output:
 
 One narrowly scoped exception: **the technical code-review comment posted on a GitHub pull request stays in canonical English**, regardless of the assignment language. Specifically:
 
-- `@skills/code-review-github/SKILL.md` PR comments (full CR template — Status, Counts, Findings, Coverage, Summary line)
-- `@skills/code-review-jira/SKILL.md` GitHub-side PR comments (the technical findings half of its split publish)
+- `@skills/code-review-github/SKILL.md` pull-request reviews: the short inline comments, the visible lines of the review body, and the hidden record (full CR template — Status, Counts, Findings, Coverage, Summary line); a legacy `cr-comment` PR comment of an earlier run follows the same exception
+- `@skills/code-review-jira/SKILL.md` GitHub-side pull-request reviews (the technical findings half of its split publish)
 - `@skills/code-review/SKILL.md` review markdown — produced for the wrappers above and never published directly, but the output is shaped for the exception channel and therefore stays English at source
 - `@skills/process-code-review/SKILL.md` reply comments on the PR (resolved-items follow-up)
 - `@skills/security-review/SKILL.md` audit findings when they are folded into the GitHub PR comment
