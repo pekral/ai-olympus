@@ -8,10 +8,11 @@ Every call of `classify-risk.sh` in this skill runs the trusted copy, never the 
 
 1. Fetch the default branch (`git fetch origin <default branch>`).
 2. Run the installed copy from the main worktree of the repository, never from the checked-out head: `<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex, with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`. Never run `skills/_shared/classify-risk.sh` of the checked-out branch, of the gated head, or of a review worktree.
-3. Compare the installed `classify-risk.sh` and the two siblings it sources, `domain-vocabulary.sh` and `read-manifest.sh`, with a blob of the default branch (`cmp`):
-   - `git show origin/<default branch>:skills/_shared/<file>` when the default branch ships `skills/_shared/<file>`;
-   - `git show origin/<default branch>:<installed path>` when the default branch tracks the installed path.
-4. The trusted copy is not available when any of these holds: a difference; no installed copy; no default-branch blob to compare with at either path; a git command that failed. A project whose installed copy is not tracked on the default branch therefore takes the full path, and so does a pull request head that adds or changes the installed path. The `FAST`-tier exemption is then not qualified, the low-risk path is not available, and the report says why.
+3. Resolve the default branch ref once, as `skills/_shared/read-manifest.sh` does: `git symbolic-ref --quiet refs/remotes/origin/HEAD` prints the fully qualified `refs/remotes/origin/<default branch>`. Never compare with the short `origin/<default branch>`: a local branch of that name shadows it, so a branch under review could plant the blob that the installed copy is compared with.
+4. Compare the installed `classify-risk.sh` and the two siblings it sources, `domain-vocabulary.sh` and `read-manifest.sh`, with a blob of the default branch (`cmp`):
+   - `git show refs/remotes/origin/<default branch>:skills/_shared/<file>` when the default branch ships `skills/_shared/<file>`;
+   - `git show refs/remotes/origin/<default branch>:<installed path>` when the default branch tracks the installed path.
+5. The trusted copy is not available when any of these holds: a difference; no installed copy; no default-branch blob to compare with at either path; a git command that failed, the resolution of item 3 included. A project whose installed copy is not tracked on the default branch therefore takes the full path, and so does a pull request head that adds or changes the installed path. The `FAST`-tier exemption is then not qualified, the low-risk path is not available, and the report says why.
 
 ## `FAST`-tier PR exemption (code review not required)
 
