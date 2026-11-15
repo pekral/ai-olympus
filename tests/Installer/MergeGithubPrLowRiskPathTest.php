@@ -57,9 +57,11 @@ test('the base tip is read again as the last command before the merge and a move
     $confirm = substr($path, (int) strpos($path, '## Confirm after the gate'));
     $merge = substr($path, (int) strpos($path, '## Merge'));
 
-    expect($confirm)->toContain(
-        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF:?}"` in a shell call that sets `BASE_REF` again from the loader output and repeats the check of item 1 first',
-    )
+    $repeat = 'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: '
+        . '`git ls-remote origin "refs/heads/${BASE_REF:?}"` in a shell call that sets `BASE_REF` again from the loader output '
+        . 'and repeats the check of item 1 first';
+
+    expect($confirm)->toContain($repeat)
         ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
         ->and($confirm)->toContain('A name that differs from the name checked in *Select the candidate* item 1 selects the full path.')
