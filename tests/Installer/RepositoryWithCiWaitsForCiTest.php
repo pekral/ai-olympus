@@ -2,13 +2,8 @@
 
 declare(strict_types = 1);
 
-function repositoryWithCiSource(string $relativePath): string
-{
-    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
-}
-
 test('a repository with ci waits for ci instead of running a local pre-push gate', function (): void {
-    $gates = repositoryWithCiSource('skills/resolve-issue/references/quality-gates.md');
+    $gates = packageSource('skills/resolve-issue/references/quality-gates.md');
 
     expect($gates)->toContain('### A repository with CI waits for CI instead of a local pre-push gate')
         ->and($gates)->toContain('Whether the repository has CI decides, never its visibility.')
@@ -37,7 +32,7 @@ test('a repository with ci waits for ci instead of running a local pre-push gate
 });
 
 test('a ci billing failure runs the local gate, pr-gate first and the full gate otherwise', function (): void {
-    $gates = repositoryWithCiSource('skills/resolve-issue/references/quality-gates.md');
+    $gates = packageSource('skills/resolve-issue/references/quality-gates.md');
 
     expect($gates)->toContain('5. **A billing failure means CI did not run, so the local gate runs.**')
         ->and($gates)->toContain(
@@ -53,13 +48,15 @@ test('a ci billing failure runs the local gate, pr-gate first and the full gate 
 });
 
 test('a rebased branch goes back into its own pull request on a repository with ci', function (): void {
-    $gates = repositoryWithCiSource('skills/resolve-issue/references/quality-gates.md');
-    $git = repositoryWithCiSource('rules/git/general.md');
+    $gates = packageSource('skills/resolve-issue/references/quality-gates.md');
+    $git = packageSource('rules/git/general.md');
 
     expect($gates)->toContain('6. **A rebased branch goes back into the same pull request.**')
         ->and($gates)->toContain(
-            'push the branch to its own remote branch with `git push --force-with-lease`, through `skills/_shared/audit-trail.sh run --`.',
+            'push the branch to its own remote branch with `git push --force-with-lease="refs/heads/<branch>:<remote head the rebase started from>" '
+            . 'origin "<branch>"`, through `skills/_shared/audit-trail.sh run --`.',
         )
+        ->and($gates)->toContain('The pinned lease refuses a push that someone made after the rebase started.')
         ->and($gates)->toContain('The pull request keeps its number: no `<branch>-vN` branch and no new pull request.')
         ->and($gates)->toContain('Without CI the conflict path of `skills/_shared/orchestration/batch-preparation.md`');
     expect($git)->toContain('**A rebase onto the default branch on a repository with CI is such a stated decision.**')
@@ -68,11 +65,11 @@ test('a rebased branch goes back into its own pull request on a repository with 
 });
 
 test('every file that names the pre-push gate points to the ci condition, never to visibility', function (): void {
-    $manifest = repositoryWithCiSource('rules/general/general.md');
+    $manifest = packageSource('rules/general/general.md');
     expect($manifest)->toContain('On a repository with CI it never runs: the run waits for CI instead, and a CI billing failure runs it locally')
         ->and($manifest)->not->toContain('On a public GitHub repository it never runs');
 
-    $donatello = repositoryWithCiSource('agents/donatello.md');
+    $donatello = packageSource('agents/donatello.md');
     expect($donatello)->toContain(
         'On a repository with CI, never run it: push, then wait for the CI result on the pushed head before you hand the branch on, '
         . 'and run the local gate only after a CI billing failure',
@@ -84,23 +81,23 @@ test('every file that names the pre-push gate points to the ci condition, never 
         ->and($donatello)->not->toContain('tells you to run before a push')
         ->and($donatello)->not->toContain('public on GitHub');
 
-    $claude = repositoryWithCiSource('CLAUDE.md');
+    $claude = packageSource('CLAUDE.md');
     expect($claude)->toContain('It is never required before a push: this repository has CI, so CI is the check after a push.')
         ->and($claude)->toContain('On a repository with CI no local pre-push gate runs')
         ->and($claude)->not->toContain('public on GitHub');
-    $agents = repositoryWithCiSource('AGENTS.md');
+    $agents = packageSource('AGENTS.md');
     expect($agents)->toContain('On a repository with CI no local pre-push gate runs')
         ->and($agents)->not->toContain('public on GitHub');
-    $composerUpdate = repositoryWithCiSource('skills/composer-update-pr/SKILL.md');
+    $composerUpdate = packageSource('skills/composer-update-pr/SKILL.md');
     expect($composerUpdate)->toContain('*A repository with CI waits for CI instead of a local pre-push gate*. On a repository without CI, run')
         ->and($composerUpdate)->toContain('6. On a repository with CI, wait for CI per')
         ->and($composerUpdate)->not->toContain('public repository');
-    expect(repositoryWithCiSource('docs/installation.md'))
+    expect(packageSource('docs/installation.md'))
         ->toContain('never run on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch)');
 });
 
 test('the ci wait rule names the implementer handoff on a repository with ci', function (): void {
-    $pullRequests = repositoryWithCiSource('rules/git/pull-requests.md');
+    $pullRequests = packageSource('rules/git/pull-requests.md');
     expect($pullRequests)->toContain('or an implementer\'s handoff after a push on a repository with CI')
         ->and($pullRequests)->not->toContain('after a push on a public repository');
 });

@@ -4,11 +4,6 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-function batchPrepSource(string $relativePath): string
-{
-    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
-}
-
 function batchPrepPlanStep(string $evidence): string
 {
     $process = new Process(['bash', dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh', '--step']);
@@ -19,8 +14,8 @@ function batchPrepPlanStep(string $evidence): string
 }
 
 test('the command accepts several references and an opt-in merge flag and keeps one reference as it was', function (): void {
-    $command = batchPrepSource('commands/prepare-issue-for-merge.md');
-    $skill = batchPrepSource('skills/verify-merge-readiness/SKILL.md');
+    $command = packageSource('commands/prepare-issue-for-merge.md');
+    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
 
     expect($command)->toContain('[more references] [--merge]')
         ->and($command)->toContain('With exactly one reference and no flag, this session holds the `krang` role')
@@ -50,7 +45,7 @@ test('the command accepts several references and an opt-in merge flag and keeps 
 });
 
 test('the root session holds the krang role for every unit and starts no nested krang', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('The root session holds the `krang` role for **every** unit')
         ->and($batch)->toContain('It starts no `krang` as a subagent for a unit.')
@@ -83,7 +78,7 @@ test('the root session holds the krang role for every unit and starts no nested 
 });
 
 test('krang only orchestrates and delegates every step to the specialists', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('**`krang` only orchestrates.** The root session implements nothing, reviews nothing, and tests nothing.')
         ->and($batch)->toContain('`donatello` (implementation, fixes, the exact-head gate, scoped validation)')
@@ -96,7 +91,7 @@ test('krang only orchestrates and delegates every step to the specialists', func
 });
 
 test('the wave is capped, a refused dispatch waits, and dependency cycles block every unit in them', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('**Start at most 3 units at a time.**')
         ->and($batch)->toContain('The next waiting unit starts when a running unit ends.')
@@ -106,7 +101,7 @@ test('the wave is capped, a refused dispatch waits, and dependency cycles block 
 });
 
 test('every unit has its own locked worktree and the review agents keep their own review worktrees', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('git worktree add --detach .claude/worktrees/agent-batch-<source-slug>-krang "origin/$DEFAULT_BRANCH"')
         ->and($batch)->toContain('git worktree lock --reason "pid $PPID agent krang slug <source-slug>"')
@@ -116,16 +111,16 @@ test('every unit has its own locked worktree and the review agents keep their ow
         ->and($batch)->toContain('`krang` takes no write-lock and switches no branch in the shared tree')
         ->and($batch)->toContain('`donatello` uses the unit worktree.');
 
-    $donatello = batchPrepSource('agents/donatello.md');
+    $donatello = packageSource('agents/donatello.md');
 
     expect($donatello)->toContain('**A dispatch that names a `Batch unit` worktree** names a worktree that already exists and is locked: use it')
         ->and($donatello)->toContain('**A dispatch that carries the batch *Gate serialisation* block** makes every heavy job');
 });
 
 test('raphael serves from the unit worktree, installs through the lock, and runs one at a time', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
-    $raphael = batchPrepSource('agents/raphael.md');
-    $toml = batchPrepSource('codex/agents/raphael.toml');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $raphael = packageSource('agents/raphael.md');
+    $toml = packageSource('codex/agents/raphael.toml');
 
     expect($batch)->toContain('**`raphael` serves the application from the unit worktree.**')
         ->and($batch)->toContain('It installs dependencies only as `skills/_shared/run-gate.sh --exclusive --command "<command>"`.')
@@ -142,7 +137,7 @@ test('raphael serves from the unit worktree, installs through the lock, and runs
 });
 
 test('every brief carries the complete gate-serialisation block and names only the run-gate wrapper', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('The root session puts this block into the dispatch of every specialist of every unit, verbatim.')
         ->and($batch)->toContain('`Too many connections`, `Deadlock`, `Table doesn\'t exist`')
@@ -161,8 +156,8 @@ test('every brief carries the complete gate-serialisation block and names only t
 });
 
 test('the root session runs a manifest file under the lock and never types a manifest command into a shell line', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
-    $runner = batchPrepSource('skills/_shared/run-validation.sh');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $runner = packageSource('skills/_shared/run-validation.sh');
 
     expect($batch)->toContain('`( cd <worktree> && <shared tree>/skills/_shared/run-validation.sh --manifest <file> --exclusive )`')
         ->and($batch)->toContain('`git -C <the unit worktree> rev-parse HEAD` prints the same SHA')
@@ -182,7 +177,7 @@ test('the root session runs a manifest file under the lock and never types a man
     expect($runner)->toContain('--exclusive)')
         ->and($runner)->toContain('gate_lock_enter "$GATE_LOCK_TIMEOUT"')
         ->and($runner)->toContain('. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-record.sh"')
-        ->and(batchPrepSource('skills/_shared/run-gate.sh'))->toContain('gate_lock_enter "$timeout"');
+        ->and(packageSource('skills/_shared/run-gate.sh'))->toContain('gate_lock_enter "$timeout"');
 });
 
 test('a manifest command with command substitution is refused as invalid under --exclusive and never runs', function (): void {
@@ -218,7 +213,7 @@ test('a manifest command with command substitution is refused as invalid under -
 });
 
 test('siblings never block each other in the planner, and the planner shows why', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('**No `live` line for a sibling.**')
         ->and($batch)->toContain('**No `live` line for the holder of the gate lock.**')
@@ -240,10 +235,10 @@ test('siblings never block each other in the planner, and the planner shows why'
 });
 
 test('every batch unit is brought to the default branch tip before the readiness check, with or without --merge', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
-    $skill = batchPrepSource('skills/verify-merge-readiness/SKILL.md');
-    $donatello = batchPrepSource('agents/donatello.md');
-    $orchestration = batchPrepSource('rules/compound-engineering/orchestration.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
+    $donatello = packageSource('agents/donatello.md');
+    $orchestration = packageSource('rules/compound-engineering/orchestration.md');
 
     expect($batch)->toContain('## Bring a unit to the default branch tip')
         ->and($batch)->toContain('It runs with or without `--merge`')
@@ -272,7 +267,7 @@ test('every batch unit is brought to the default branch tip before the readiness
 });
 
 test('the merge step is opt-in, rebases on the latest default branch, re-verifies the gate, and goes through merge-github-pr', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('The merge runs only when the operator passed `--merge`.')
         ->and($batch)->toContain('the unit stops before the merge, exactly as in prepare-only mode today')
@@ -300,7 +295,8 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         )
         ->and($batch)->toContain('With CI, it puts the worktree on the unit branch as step 2.1 states')
         ->and($batch)->toContain(
-            '**With CI, the same pull request.** It pushes with `git -C <worktree> push --force-with-lease origin "<branch>"`, '
+            '**With CI, the same pull request.** It pushes with `git -C <worktree> push '
+            . '--force-with-lease="refs/heads/<branch>:<head SHA confirmed above>" origin "<branch>"`, '
             . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local gate.',
         )
         ->and($batch)->toContain('No pull request is opened or closed, and the bullets below do not apply.')
@@ -327,14 +323,14 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->not->toContain('gh pr merge')
         ->and($batch)->not->toContain('--admin');
 
-    $preparation = batchPrepSource('skills/_shared/orchestration/merge-preparation.md');
+    $preparation = packageSource('skills/_shared/orchestration/merge-preparation.md');
 
     expect($preparation)->toContain('**A request with several references, or with `--merge`, is a batch.**')
         ->and($preparation)->toContain('unless the batch path runs its merge step for the `--merge`');
 });
 
 test('one blocker never stops the others and one aggregated report lists every unit', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('The root session writes one report after the last unit ends')
         ->and($batch)->toContain('| PR | the pull-request number and link, or `none` |')
@@ -347,7 +343,7 @@ test('one blocker never stops the others and one aggregated report lists every u
 });
 
 test('each worktree is removed once clean and pushed, and the branch of a merged unit only after the integration proof', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('git -C <path> status --porcelain` prints nothing')
         ->and($batch)->toContain('Run `git worktree unlock <path>` only when the lock reason names `pid <the $PPID of this session>`.')
@@ -362,10 +358,10 @@ test('each worktree is removed once clean and pushed, and the branch of a merged
 });
 
 test('the batch is a named path in the concurrency, orchestration, and git rules and adds no byte to krang.md', function (): void {
-    $concurrency = batchPrepSource('rules/compound-engineering/concurrency.md');
-    $orchestration = batchPrepSource('rules/compound-engineering/orchestration.md');
-    $git = batchPrepSource('rules/git/general.md');
-    $krang = batchPrepSource('agents/krang.md');
+    $concurrency = packageSource('rules/compound-engineering/concurrency.md');
+    $orchestration = packageSource('rules/compound-engineering/orchestration.md');
+    $git = packageSource('rules/git/general.md');
+    $krang = packageSource('agents/krang.md');
 
     expect($concurrency)->toContain('**A batch the operator starts with `/prepare-issue-for-merge` is a separate path.**')
         ->and($concurrency)->toContain('The root session holds the `krang` role for every unit')
@@ -398,15 +394,15 @@ test('the batch is a named path in the concurrency, orchestration, and git rules
 });
 
 test('the startup sweep already covers the batch worktree names', function (): void {
-    $sweep = batchPrepSource('skills/_shared/orchestration/stale-run-recovery.md');
+    $sweep = packageSource('skills/_shared/orchestration/stale-run-recovery.md');
 
     expect($sweep)->toContain('every remaining `.claude/worktrees/agent-*` entry');
 });
 
 test('the grant runs every helper for a unit tree in a subshell, so the root session never leaves the shared tree', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
-    $skill = batchPrepSource('skills/verify-merge-readiness/SKILL.md');
-    $merge = batchPrepSource('skills/merge-github-pr/SKILL.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
+    $merge = packageSource('skills/merge-github-pr/SKILL.md');
 
     expect($batch)->toContain('`( cd <worktree> && <shared tree>/skills/_shared/verify-gate.sh --tier full <sha> )`')
         ->and($batch)->toContain('The parentheses are required: a bare `cd` persists in the main session')
@@ -421,7 +417,7 @@ test('the grant runs every helper for a unit tree in a subshell, so the root ses
 });
 
 test('a fork pull request never enters the batch path, because the conflict path would republish it as a same-repository branch', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('read `isCrossRepository`, `headRefName`, and `headRefOid` from `skills/code-review-github/scripts/load-issue.sh`')
         ->and($batch)->toContain('A unit whose pull request does not show `isCrossRepository` as `false` (it is `true` or `null`) stops with')
@@ -430,8 +426,8 @@ test('a fork pull request never enters the batch path, because the conflict path
 });
 
 test('every branch name is checked before it enters a shell line or a dispatch and is written in double quotes', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
-    $donatello = batchPrepSource('agents/donatello.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $donatello = packageSource('agents/donatello.md');
 
     expect($batch)->toContain('it must match `^[A-Za-z0-9._/-]{1,200}$`. Only then run `git check-ref-format --branch \'<name>\'`.')
         ->and($batch)->toContain('A name that fails either check stops the unit with `Blocked: unsafe branch name`.')
@@ -446,7 +442,7 @@ test('every branch name is checked before it enters a shell line or a dispatch a
 });
 
 test('a unit that already has a pull request starts on the pull-request head and reaches the tip without a blocked check', function (): void {
-    $batch = batchPrepSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
 
     expect($batch)->toContain('**A unit that already has a pull request** starts at the head of that pull request')
         ->and($batch)->toContain('with the checked `headRefOid` of step 1 in place of `"origin/$DEFAULT_BRANCH"` in the `git worktree add --detach` line.')
