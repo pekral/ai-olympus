@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types = 1);
+
+// The contribution-policy check of a foreign repository (issue #361). Per the project's test-isolation rule
+// a Pest test cannot exec a real .sh, so the behavioural proof of the fork-to-upstream scenario and of the
+// own-repository scenario lives in the script's own `--self-test` (the precedent is
+// `skills/_shared/check-cr-header.sh`), which `composer shell-self-tests` runs in the build. The pins below
+// fix the scenarios that self-test must keep, and the wiring from the rule to the steps that follow it.
+
+function contributionPolicySource(string $relativePath): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
+}
+
+test('the policy check is shipped, executable, self-testing, and run by the build', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $script = $packageDir . '/skills/_shared/contribution-policy.sh';
+
+    expect(is_file($script))->toBeTrue()
+        ->and(is_executable($script))->toBeTrue();
+
+    expect(contributionPolicySource('skills/_shared/contribution-policy.sh'))
+        ->toStartWith('#!/usr/bin/env bash')
+        ->toContain('set -euo pipefail')
+        ->toContain('if [[ "${1:-}" == "--self-test" ]]; then');
+
+    /** @var array{scripts: array<string, array<int, string>>} $composer */
+    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
+
+    expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/contribution-policy.sh '))->toBe(1);
+});
+
+test('the self-test covers the fork to upstream scenario and the own repository scenario', function (): void {
+    $script = contributionPolicySource('skills/_shared/contribution-policy.sh');
+
+    expect($script)
+        ->toContain('\'a fork pull request is foreign\'')
+        ->toContain('\'a guide that closes AI-written descriptions restricts\'')
+        ->toContain('\'a repository without push access is foreign\'')
+        ->toContain('\'a guide without an AI rule has no policy\'')
+        ->toContain('\'an unreadable file leaves the policy unknown\'')
+        ->toContain('\'an own repository is not checked, even when its guide restricts AI\'')
+        ->toContain('\'an own repository reads no file\'')
+        ->toContain('\'a branch in the base repository with push access is own\'');
+});
+
+test('the rule owns the foreign repository definition, the policy paths, and the outline', function (): void {
+    $rule = contributionPolicySource('rules/git/pull-requests.md');
+    $script = contributionPolicySource('skills/_shared/contribution-policy.sh');
+    $outline = contributionPolicySource('skills/resolve-issue/templates/pull-request-outline.md');
+    $section = installerDocsSection($rule, '### Foreign repository with a contribution policy — a human writes the description');
+
+    expect($section)
+        ->toContain('`viewerPermission` is not `ADMIN`, `MAINTAIN`, or `WRITE`')
+        ->toContain('`skills/_shared/contribution-policy.sh --base <owner/repo> [--head <owner/repo>]`')
+        ->toContain('Only `ai-policy=none` frees generated text.')
+        ->toContain('The pull request is a Draft with an outline.')
+        ->toContain('skills/resolve-issue/templates/pull-request-outline.md')
+        ->toContain('<!-- ai-olympus:contribution-policy=human-description -->')
+        ->toContain('Every other pull request is **own**');
+
+    foreach (['CONTRIBUTING.md', '.github/CONTRIBUTING.md', 'docs/CONTRIBUTING.md', 'PULL_REQUEST_TEMPLATE.md', '.github/PULL_REQUEST_TEMPLATE.md', 'docs/PULL_REQUEST_TEMPLATE.md'] as $path) {
+        expect($section)->toContain('`' . $path . '`')
+            ->and($script)->toContain('  ' . $path . "\n");
+    }
+
+    expect($outline)->toStartWith('<!-- ai-olympus:contribution-policy=human-description -->')
+        ->and($outline)->toContain('## What and why')
+        ->and($outline)->not->toContain('## Merge risk');
+});
+
+test('every step that generates text or promotes the pull request applies the rule', function (): void {
+    $heading = '*Foreign repository with a contribution policy — a human writes the description*';
+    $marker = '<!-- ai-olympus:contribution-policy=human-description -->';
+
+    foreach (['skills/resolve-issue/SKILL.md', 'skills/pr-summary/SKILL.md', 'skills/process-code-review/references/ready-to-merge-signal.md', 'agents/krang.md'] as $path) {
+        expect(contributionPolicySource($path))->toContain($heading);
+    }
+
+    expect(contributionPolicySource('skills/resolve-issue/references/pull-request.md'))
+        ->toContain('skills/_shared/contribution-policy.sh --base')
+        ->toContain('templates/pull-request-outline.md')
+        ->toContain('On `repository=own`, or on `ai-policy=none`, nothing below changes.');
+
+    expect(contributionPolicySource('skills/pr-summary/SKILL.md'))
+        ->toContain('skills/_shared/contribution-policy.sh --base')
+        ->toContain('A JIRA or Bugsnag target is unchanged.');
+
+    foreach (['skills/process-code-review/references/ready-to-merge-signal.md', 'agents/leonardo.md', 'agents/krang.md'] as $path) {
+        expect(contributionPolicySource($path))->toContain($marker);
+    }
+});

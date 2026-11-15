@@ -14,6 +14,14 @@ Once the Pre-PR self-check is clean and the user has **not** opted out:
 
 - Create a branch (name always in English, regardless of the assignment language) and commit changes following `@rules/git/general.md`
 - **Open the pull request as a Draft** (`gh pr create --draft …`) per `@rules/git/pull-requests.md` *Draft pull requests*. The inline self-check above is the implementer's single-pass pre-PR self-check, **not** the authoritative code review — the authoritative `code-review-github` / `process-code-review` (the `leonardo` ↔ `donatello` convergence loop) still runs **after** the PR exists, so at creation time the PR is not yet ready to merge and agents will keep working on it. It is promoted out of Draft (`gh pr ready`) by `@skills/process-code-review/SKILL.md` once that review converges (0 Critical, no undeferred Moderate — `@skills/process-code-review/SKILL.md` *Review loop* step 4).
+- **Check the contribution policy before any text.** Run `skills/_shared/contribution-policy.sh --base <owner/repo of the pull request base> [--head <owner/repo of the branch>]`. On `repository=own`, or on `ai-policy=none`, nothing below changes.
+
+  On every other result (`restricts`, `unknown`, and exit `4`), follow `@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*:
+  1. Render the body from `skills/resolve-issue/templates/pull-request-outline.md` instead of the body template. The Merge risk, Summary, Walkthrough, Testing, TODO, and Audit bullets below do not apply. When the output carries `pr-template=`, read that file from the base repository with `gh api` and use its text as the outline.
+  2. Publish no report, comment, or follow-up issue in the base repository.
+  3. Put that text, the policy source, and the audit lines in the report to the user.
+
+  The pull request stays a Draft, and the *Verify the link registered* step below still runs.
 - Render the pull request body from `skills/resolve-issue/templates/pull-request-body.md`, the one owner of its sections, their order, and which of them are present. The bullets below say only how to fill them. Before `gh pr create`, and before every `gh pr edit` that rewrites the body, run the length check of `@rules/git/pull-requests.md` *PR Content Requirements*; never publish a body that fails it. Create the pull request with:
   - **reference to the source tracker item** — the pull request itself carries it, never only a commit message, per `@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*:
     - **GitHub-sourced task:** the literal English `Closes #<N>` in the body, per `@rules/git/pull-requests.md` *Issue Linking*. A translated keyword is not parsed and leaves the pull request unlinked

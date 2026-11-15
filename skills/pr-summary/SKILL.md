@@ -251,6 +251,8 @@ GitHub and Bugsnag carry the same two sections and the same closing line, differ
 
 ## Publishing
 
+**A GitHub target in a foreign repository can restrict AI text.** Before the first publish to a GitHub pull request or issue, run `skills/_shared/contribution-policy.sh --base <owner/repo of the target> [--head <owner/repo of the branch>]`. On `repository=own`, or on `ai-policy=none`, publish as below. On every other result, apply `@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*: publish nothing in that repository and return the rendered body to the caller with the policy source, so it reaches the user in the final report. A JIRA or Bugsnag target is unchanged.
+
 Post the summary as a comment to the related PR or issue if available, using the template that matches the target tracker. Publish through the shared helpers so each tracker receives its tracker-native markup — never via raw `gh issue comment` / `gh pr comment` / `acli jira workitem comment add` calls.
 
 - **GitHub target** (PR comment or linked-GitHub-issue mirror): pipe the rendered body into `skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -`. The helper detects the current GitHub actor (`gh api user --jq .login`), appends the marker `<!-- cr-comment:actor=<gh-login> -->`, and **POSTs a new comment**; it never PATCHes the comment of an earlier run. Fall back to the GitHub MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), and only when the read-back of `@rules/code-review/general.md` *A retry identifies the comment of this run* finds no comment of this run: `addIssueComment`, never `updateIssueComment`.
