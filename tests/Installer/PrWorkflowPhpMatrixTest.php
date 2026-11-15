@@ -31,3 +31,9 @@ test('the CI matrices cover every PHP version from the composer.json minimum', f
     expect($lint[0])->toBe($minimum);
     expect($installer)->toBe([...$lint, ...$quality]);
 });
+
+test('the syntax lint job covers every tracked PHP file, the skill scripts and the CLI included', function (): void {
+    $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/pr.yml');
+
+    expect($workflow)->toContain('git ls-files -z -- \'*.php\' \'bin/*\' | xargs -0 -n 1 php');
+});

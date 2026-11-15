@@ -18,7 +18,7 @@ AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-s
 - Claude Code or Codex, to run the workflows; GitHub workflows also need an authenticated `gh` CLI
 - Optional: the `pdo_sqlite` extension with FTS5, for the code-review memory; without it the agents continue without memory
 
-CI installs the package into a clean Composer project on PHP 8.2, 8.3, 8.4, 8.5, and 8.6 and checks that the Claude Code and Codex files are written. The full quality checks run on PHP 8.4, 8.5, and 8.6, because the development tools need PHP 8.4; on PHP 8.2 and 8.3 CI lints every PHP file of the sources and the tests. It does not run the agents inside Claude Code or Codex, so agent availability and permissions still depend on your agent host. The Claude Code plugin channel needs no PHP; CI checks its manifests but does not install it into Claude Code.
+CI installs the package into a clean Composer project on PHP 8.2, 8.3, 8.4, 8.5, and 8.6 and checks that the Claude Code and Codex files are written. The full quality checks run on PHP 8.4, 8.5, and 8.6, because the development tools need PHP 8.4; on PHP 8.2 and 8.3 CI lints every tracked PHP file, including the scripts under `skills/`, and `bin/ai-olympus`. It does not run the agents inside Claude Code or Codex, so agent availability and permissions still depend on your agent host. The Claude Code plugin channel needs no PHP; CI checks its manifests but does not install it into Claude Code.
 
 ## Installation
 

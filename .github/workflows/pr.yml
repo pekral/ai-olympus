@@ -89,7 +89,7 @@ jobs:
           coverage: none
 
       - name: "🔎 Lint the PHP files"
-        run: git ls-files -z -- 'src/*.php' 'tests/*.php' 'bin/*' rector.php | xargs -0 -n 1 php -d display_errors=stderr -l > /dev/null
+        run: git ls-files -z -- '*.php' 'bin/*' | xargs -0 -n 1 php -d display_errors=stderr -l > /dev/null
 
   skill-check:
     name: "📋 Skill Check"
