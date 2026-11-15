@@ -179,7 +179,13 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
         )
         ->and($boundary)->toContain('(create `merge-risk` with `mkdir`, never `mkdir -p`)')
         ->and($boundary)->toContain('fill `$file` with `gh pr view <PR> --json body --jq .body > "$file"`')
-        ->and($boundary)->toContain('so no byte of the body is ever part of a command text, and delete `$file` right after the write')
+        ->and($boundary)->toContain('and `$risk` is a second `mktemp` name in the same directory')
+        ->and($boundary)->toContain('and `$risk` with `classify-risk.sh --merge-risk … > "$risk"`')
+        ->and($boundary)->toContain('whose only arguments are the two file names and which reads `$risk` first')
+        ->and($boundary)->toContain('so no byte of the body and no value that `classify-risk.sh` printed is ever part of a command text')
+        ->and($boundary)->toContain('and delete `$risk` and `$file.new` together with `$file` right after the write')
+        ->and($boundary)->not->toContain('whose only arguments are the values `classify-risk.sh` printed')
+        ->and($boundary)->not->toContain('awk -v')
         ->and($boundary)->not->toContain('whose body you write there with `cat >`')
         ->and($boundary)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($leonardo)->toContain(
@@ -193,7 +199,7 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
         ->and($boundary)->toContain('changing only the `## Merge risk` heading and its two lines')
         ->and($orchestration)->toContain(
             '`gh pr edit <PR> --body-file <file>` only as `skills/_shared/audit-trail.sh run --`, '
-            . 'with a body file that `mktemp` creates under `.claude/run/merge-risk/`',
+            . 'with two files that `mktemp` creates under `.claude/run/merge-risk/`',
         )
         ->and($orchestration)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($orchestration)->toContain('| `leonardo` | Refresh the `## Merge risk` heading and its two lines in the pull-request body')

@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+use Symfony\Component\Process\Process;
+
 test('compound-engineering rule codifies easier-future-work and per-project compound memory (issue #564)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rulePath = $packageDir . '/rules/compound-engineering/general.md';
@@ -78,6 +80,58 @@ test('resolve-issue skill requires the created branch name to be in English', fu
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
 
     expect($content)->toContain('name always in English, regardless of the assignment language');
+});
+
+test('the merge-risk refresh reads the classifier output from a file and composes no value into a command text', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
+    $step = substr($pullRequest, (int) strpos($pullRequest, '5. **The write.**'));
+
+    expect($step)->toContain(
+        'Create the body file `$file` and the classifier file `$risk` as `agents/leonardo.md` *Bash boundary* states',
+    )
+        ->and($step)->toContain('ending in `> "$risk"`')
+        ->and($step)->toContain('It reads `$risk` first and builds the heading, the Door line, and the Blast radius line itself')
+        ->and($step)->toContain('No `-v` value and no value from `classify-risk.sh` is ever part of a command text')
+        ->and($step)->toContain('Delete `$risk` and `$file.new` together with `$file`')
+        ->and($pullRequest)->not->toContain('awk -v')
+        ->and($pullRequest)->not->toContain('<Door line>')
+        ->and($pullRequest)->not->toContain('<Blast radius line>');
+
+    // Run the program exactly as the reference states it, on a classifier output whose file names carry shell syntax.
+    expect(preg_match('/```bash\n(.*?)\n\s*```/s', $step, $match))->toBe(1);
+    $command = (string) preg_replace('/^ +/m', '', $match[1]);
+    $directory = sys_get_temp_dir() . '/merge-risk-refresh-' . bin2hex(random_bytes(4));
+    mkdir($directory);
+    $marker = $directory . '/executed';
+    file_put_contents($directory . '/risk', implode("\n", [
+        'merge-risk=high',
+        'rollback=costly',
+        'rollback-signal=persisted-data-write|config/$(touch ' . $marker . ').php',
+        'rollback-signal=config-infrastructure|src/back\slash`touch ' . $marker . '`.php',
+        'tier=CRITICAL',
+        'signal=+3|migrations-data-loss|database/migrations/x.php',
+        'signal=+1|production-code-changed|src/a.php',
+    ]) . "\n");
+    file_put_contents($directory . '/body', "Closes #1\n\n## Merge risk 🟡 medium\n\n**Door:** two-way no rollback signal\n"
+        . "**Blast radius:** STANDARD (old)\n\n## Summary\n\n* keeps `$(touch " . $marker . ")` and \\n as written\n");
+
+    $process = Process::fromShellCommandline($command, env: ['risk' => $directory . '/risk', 'file' => $directory . '/body']);
+    $process->run();
+    $result = (string) file_get_contents($directory . '/body');
+    $executed = file_exists($marker);
+    array_map('unlink', glob($directory . '/*') ?: []);
+    rmdir($directory);
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($executed)->toBeFalse()
+        ->and($result)->toContain("## Merge risk 🔴 high\n")
+        ->and($result)->toContain(
+            '**Door:** one-way persisted-data-write (config/$(touch ' . $marker . ').php), config-infrastructure (src/back\slash`touch ',
+        )
+        ->and($result)->toContain("**Blast radius:** CRITICAL (migrations-data-loss, production-code-changed)\n")
+        ->and($result)->toContain('* keeps `$(touch ' . $marker . ")` and \\n as written\n")
+        ->and($result)->not->toContain('STANDARD (old)');
 });
 
 test('the pull request body states the merge danger from the merge-risk script and the bug-fix evidence', function (): void {
