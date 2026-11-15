@@ -46,7 +46,7 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 A full build proves the same thing on every run over the same bytes, and on a larger task repeated builds dominate the wall-clock cost of delivering the change. The gate therefore runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
-- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below), except as *Skip the pre-push gate when CI is green* and *A repository with CI waits for CI instead of a local pre-push gate* state. Without `pr-gate` nothing runs before a push, exactly as before, except the billing fallback of that second section.
+- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below), except as *Skip the pre-push gate when CI is green* and *A repository with CI waits for CI instead of a local pre-push gate* state. Without `pr-gate` nothing runs before a push, exactly as before. The billing fallback of that second section is the one exception.
 
 ### Skip the pre-push gate when CI is green
 

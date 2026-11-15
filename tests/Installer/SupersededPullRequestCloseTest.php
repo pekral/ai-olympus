@@ -102,13 +102,12 @@ test('the -vN path applies only on a repository without ci, and with ci donatell
     $pushRow = supersededPrConsentRow('| `donatello` | Force-push a rebased branch back into its own pull request');
     $updateRow = supersededPrConsentRow('| top-level session (holds the `krang` role for a batch) | Bring the pull request of a batch unit');
 
-    expect($closeRow)->toContain('the one owner of the `-vN` path, which applies only on a repository without CI');
+    expect($closeRow)->toContain('the one owner of the `-vN` path, used only without CI');
     expect($pushRow)->not->toBe('')
         ->and($pushRow)->toContain('with `git push --force-with-lease`, on a repository with CI | L1 |')
         ->and($pushRow)->toContain('never the default branch and never plain `--force`')
         ->and($pushRow)->toContain('without CI the `<branch>-vN` path applies instead');
-    expect($updateRow)->toContain('on a repository with CI it force-pushes the branch into the same pull request')
-        ->and($updateRow)->toContain('without CI it pushes `<branch>-vN` as a new pull request')
+    expect($updateRow)->toContain('On a conflict, `donatello` force-pushes the branch with CI, or pushes `<branch>-vN` without CI')
         ->and($updateRow)->not->toContain('A conflict is never forced');
     expect(supersededPrSource('agents/krang.md'))
         ->toContain('(a repository without CI only; with CI the rebased branch stays in its own pull request)');
