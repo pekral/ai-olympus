@@ -159,6 +159,27 @@ test('leonardo labels the converged pull request and never writes a tracker stat
     expect($stepTwelve)->toContain('naming the two skipped writes');
 });
 
+test('leonardo may refresh the merge-risk heading with one named body write and the consent inventory lists it', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/leonardo.toml');
+    $boundary = installerDocsSection($leonardo, '## Bash boundary');
+
+    expect($boundary)->toContain('`@skills/resolve-issue/references/pull-request.md` *Refresh after the gate*')
+        ->and($boundary)->toContain('skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file <file under .claude/run/>')
+        ->and($boundary)->toContain('only on a converged loop')
+        ->and($boundary)->toContain('only after the `mb_strlen` check of `@rules/git/pull-requests.md` *PR Content Requirements*')
+        ->and($boundary)->toContain('only while the `headRefOid` of the pull request equals the head whose gate result it uses')
+        ->and($boundary)->toContain('changing only the `## Merge risk` heading and its two lines')
+        ->and($orchestration)->toContain('| `leonardo` | Refresh the `## Merge risk` heading and its two lines in the pull-request body')
+        ->and($orchestration)->toContain('only while the `headRefOid` equals the head whose gate result it uses');
+
+    // Codex inherits the boundary through the installed definition and restates no list of commands.
+    expect($codex)->toContain('First read `.codex/agent-instructions/leonardo.md` in full')
+        ->and($codex)->not->toContain('gh pr edit');
+});
+
 test('leonardo grants the round-3 sub-issue write its step-10 obligation assigns it (issue #194)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');

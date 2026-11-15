@@ -92,9 +92,18 @@ test('the pull request body states the merge danger from the merge-risk script a
     expect($pullRequest)->toContain('Pass `--coverage ok` when the coverage of the changed lines you measured is 100 %')
         ->and($pullRequest)->toContain('Leave out `--gate`: the quality gate runs only at Finalization')
         ->and($pullRequest)->toContain('Only this refresh can make the heading read `low`.')
-        ->and($pullRequest)->toContain('or when every CI check of the head passed')
-        ->and($pullRequest)->toContain('When the gate verdict depends on CI and a check is still pending, wait per')
-        ->and($readySignal)->toContain('Refresh the `## Merge risk` heading');
+        ->and($readySignal)->toContain('Refresh the `## Merge risk` heading')
+        ->and($readySignal)->toContain('the `headRefOid` check, the inputs of the review\'s `Merge risk:` line, and the gate result')
+        ->and($readySignal)->toContain('exception of `agents/leonardo.md` *Bash boundary*')
+        ->and($readySignal)->toContain('only after the 6,500-character check');
+    expect($pullRequest)->toContain('Never reuse the `--coverage` of the opening.')
+        ->and($pullRequest)->toContain('the same `--assignment <file>`')
+        ->and($pullRequest)->toContain('`skills/_shared/verify-gate.sh --tier full <head>`')
+        ->and($pullRequest)->toContain('*Skip the pre-push gate when CI is green*')
+        ->and($pullRequest)->toContain('a red result wins over an accepted record')
+        ->and($pullRequest)->toContain('so the heading never reads `low` when the pull request opens.')
+        ->and($pullRequest)->not->toContain('at most `medium`')
+        ->and($pullRequest)->toContain('Read the `headRefOid` of the pull request.');
     expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
@@ -109,6 +118,13 @@ test('the pull request body states the merge danger from the merge-risk script a
 
     // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
+    // AC-a: the grade and its icon, never the tier, in both templates and the rule.
+    $gradeHeading = '## Merge risk <🟢 low | 🟡 medium | 🔴 high>';
+    $resolveTemplate = (string) file_get_contents($packageDir . '/skills/resolve-issue/templates/pull-request-body.md');
+    $composerTemplate = (string) file_get_contents($packageDir . '/skills/composer-update-pr/templates/pull-request-body.md');
+    expect($resolveTemplate)->toContain($gradeHeading)
+        ->and($composerTemplate)->toContain($gradeHeading)
+        ->and($rule)->toContain('the grade `low`, `medium`, or `high`');
     expect($finalization)->toContain(
         'Body rendered from `skills/resolve-issue/templates/pull-request-body.md` and filled as '
         . '`@skills/resolve-issue/references/pull-request.md` states, including its `## Merge risk` section.',
