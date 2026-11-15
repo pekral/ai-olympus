@@ -43,11 +43,8 @@ test('the diff is made with text mode from the repository root and the base syml
         ->and($path)->toContain('`--text` and the exclusion of `.gitattributes` keep a NUL byte or a `-diff` attribute from hiding a file')
         ->and($path)->toContain('`--submodule=short --ignore-submodules=none` keep a submodule pointer change from hiding')
         ->and($path)->toContain('`--base <base tip>` lets the classifier resolve the symlinks of the tree the merge lands on')
-        ->and($path)->toContain('`git fetch origin "+refs/heads/<baseRefName>:refs/remotes/origin/<baseRefName>"`')
-        ->and($path)->toContain(
-            '`git rev-parse --verify --end-of-options "refs/remotes/origin/<baseRefName>^{commit}"`, and record the printed SHA as the **base tip**',
-        )
-        ->and($path)->toContain('The exact refspec never takes a tag of the same name.')
+        ->and($path)->toContain('`git fetch origin "<object id of that line>"`')
+        ->and($path)->toContain('`git rev-parse --verify --end-of-options "<object id>^{commit}"`, and record the printed SHA as the **base tip**')
         ->and($path)->not->toContain('`git fetch origin <baseRefName>`')
         ->and($path)->toContain('Never take the base from `baseRefOid`. GitHub does not move `baseRefOid` when the base branch moves')
         ->and($path)->not->toContain('--base <baseRefOid>')
@@ -60,7 +57,7 @@ test('the base tip is read again as the last command before the merge and a move
     $confirm = substr($path, (int) strpos($path, '## Confirm after the gate'));
     $merge = substr($path, (int) strpos($path, '## Merge'));
 
-    expect($confirm)->toContain('as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/<baseRefName>"`')
+    expect($confirm)->toContain('Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/<baseRefName>"`')
         ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/<baseRefName>`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
         ->and($confirm)->toContain('means the base moved. Start again from *Select the candidate*')
@@ -83,12 +80,10 @@ test('the base branch name is untrusted, checked against the shape of review-car
         ->and($select)->toContain('Quote `baseRefName` in every command of this file.')
         ->and($select)->toContain('Check it first, before any command uses it, the head-commit step below included.')
         ->and($select)->toContain('`git check-ref-format --branch "<baseRefName>"`, which rejects `HEAD`')
-        ->and($select)->toContain('`git symbolic-ref -q "refs/remotes/origin/<baseRefName>"`, which must fail')
         ->and($select)->toContain('A name that fails any check selects the full path')
         ->and(strpos($select, 'BRANCH_SHAPE'))->toBeLessThan((int) strpos($select, 'git check-ref-format --branch'))
-        ->and(strpos($select, 'git check-ref-format --branch'))->toBeLessThan((int) strpos($select, 'git symbolic-ref -q'))
-        ->and(strpos($select, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($select, 'Make the head commit available locally'))
-        ->and(strpos($select, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($select, 'git fetch origin'))
+        ->and(strpos($select, 'git check-ref-format --branch'))->toBeLessThan((int) strpos($select, 'Make the head commit available locally'))
+        ->and(strpos($select, 'git check-ref-format --branch'))->toBeLessThan((int) strpos($select, 'git ls-remote origin'))
         ->and($path)->not->toContain('BRANCH_SHAPE=')
         ->and($carryForward)->toContain('BRANCH_SHAPE=\'^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$\'')
         ->and($carryForward)->toContain('"$base" =~ $BRANCH_SHAPE || "$base" == *..*')
@@ -101,6 +96,24 @@ test('the base branch name is untrusted, checked against the shape of review-car
     foreach ($commands[0] as $command) {
         expect($command)->toContain('"');
     }
+});
+
+test('the untrusted base branch name never enters a local ref, so a case variant cannot overwrite the default branch ref', function (): void {
+    $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
+    $start = (int) strpos($path, '## Select the candidate');
+    $select = substr($path, $start, (int) strpos($path, '## Security check') - $start);
+
+    expect($select)->toContain('Run `git fetch origin "<object id of that line>"`')
+        ->and($select)->toContain('Name no destination ref. The untrusted name never enters a local ref, and no command reads a ref by that name')
+        ->and($select)->toContain('the tracking update of `git fetch` also writes `refs/remotes/origin/<baseRefName>`')
+        ->and($select)->toContain('`Master` overwrites `refs/remotes/origin/master` on a case-insensitive file system')
+        ->and($select)->toContain('An object id that is not a full hexadecimal id selects the full path.')
+        ->and($select)->toContain('Never use its `baseRefName` fallback')
+        ->and(strpos($select, 'git ls-remote origin'))->toBeLessThan((int) strpos($select, 'git fetch origin "<object id'))
+        ->and($path)->not->toContain(':refs/remotes/origin/<baseRefName>')
+        ->and($path)->not->toContain('git symbolic-ref')
+        ->and($path)->not->toContain('refs/ai-olympus')
+        ->and(substr_count($path, 'refs/remotes/origin/'))->toBe(2);
 });
 
 test('the security check reads the diff before any code from the head runs and a gate record never skips it', function (): void {
@@ -361,12 +374,22 @@ test('no sentence of the skill or the rule still states that every merge needs t
     $skill = lowRiskSource('skills/merge-github-pr/SKILL.md');
     $pullRequests = lowRiskSource('rules/git/pull-requests.md');
 
-    expect($skill)->toContain('(a GitHub approval, the converged code review, or on the low-risk path its confirmed evidence)')
+    expect($skill)->toContain('and the opt-in low-risk path, which replaces it, qualified in step 2.')
+        ->and($skill)->toContain('(a GitHub approval, the converged code review, or on the low-risk path its confirmed evidence)')
         ->and($skill)->toContain('and the low-risk path (*Merge path* above), this gate is **never** waived')
         ->and($skill)->toContain('on the full path CI must still be green on the merged head (step 2)')
         ->and($skill)->toContain('`GitHub approval`, `converged code review <URL of the comment>`, or `low-risk evidence`')
         ->and($pullRequests)->toContain('On the full path the other gates are unchanged')
         ->and($pullRequests)->toContain('The low-risk path replaces the review and the CI wait');
+});
+
+test('the low-risk path reads the newest trusted code-review report with the shared reader and a Critical or an undeferred Moderate blocks', function (): void {
+    $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
+
+    expect($path)->toContain('The newest trusted code-review report is still read with `skills/_shared/cr-header.sh --report <loader-file>`')
+        ->and($path)->toContain('a Critical or an undeferred Moderate in it blocks, as `merge-exemptions.md` states for the `FAST`-tier exemption')
+        ->and($path)->not->toContain('A trusted code-review comment that exists')
+        ->and(lowRiskSource('skills/merge-github-pr/references/merge-exemptions.md'))->toContain('`skills/_shared/cr-header.sh --report <loader-file>`');
 });
 
 test('the skill body stays within the configured size limit and the moved gates keep a pointer', function (): void {
