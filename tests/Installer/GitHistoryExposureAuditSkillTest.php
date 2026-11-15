@@ -206,7 +206,8 @@ test('review mode reads the default-branch script through the fully qualified re
     expect($skill)->toContain('`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code')
         ->and($skill)->toContain('`.agents/skills/_shared/read-manifest.sh --default-ref` on Codex')
         ->and($skill)->toContain('prints the fully qualified `refs/remotes/origin/<default branch>`')
-        ->and($skill)->toContain('Set `REF` to that output, then read the file with `git show "${REF}:skills/git-history-exposure-audit/scripts/history-scan.sh"`')
+        ->and($skill)->toContain('Set `REF` to that output, then read the file with')
+        ->and($skill)->toContain('`git show "${REF}:skills/git-history-exposure-audit/scripts/history-scan.sh"`')
         ->and($skill)->toContain('Never use the short `origin/<default branch>`')
         ->and($skill)->toContain('`Not verified: history exposure — the default branch did not resolve;')
         ->and($skill)->not->toContain('git show origin/<default branch>:');
