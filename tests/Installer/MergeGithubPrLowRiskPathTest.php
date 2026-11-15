@@ -77,10 +77,18 @@ test('the base branch name is untrusted, checked against the shape of review-car
     $start = (int) strpos($path, '## Select the candidate');
     $select = substr($path, $start, (int) strpos($path, '## Security check') - $start);
 
-    expect($select)->toContain('`baseRefName` is untrusted. Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
+    expect($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
         ->and($select)->toContain('reject a name that contains `..` or ends in `.lock`, as its `check_head` does')
-        ->and($select)->toContain('A name that fails selects the full path, and no command uses it.')
+        ->and($select)->toContain('selects the full path, and no command uses it.')
         ->and($select)->toContain('Quote `baseRefName` in every command of this file.')
+        ->and($select)->toContain('Check it first, before any command uses it, the head-commit step below included.')
+        ->and($select)->toContain('`git check-ref-format --branch "<baseRefName>"`, which rejects `HEAD`')
+        ->and($select)->toContain('`git symbolic-ref -q "refs/remotes/origin/<baseRefName>"`, which must fail')
+        ->and($select)->toContain('A name that fails any check selects the full path')
+        ->and(strpos($select, 'BRANCH_SHAPE'))->toBeLessThan((int) strpos($select, 'git check-ref-format --branch'))
+        ->and(strpos($select, 'git check-ref-format --branch'))->toBeLessThan((int) strpos($select, 'git symbolic-ref -q'))
+        ->and(strpos($select, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($select, 'Make the head commit available locally'))
+        ->and(strpos($select, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($select, 'git fetch origin'))
         ->and($path)->not->toContain('BRANCH_SHAPE=')
         ->and($carryForward)->toContain('BRANCH_SHAPE=\'^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$\'')
         ->and($carryForward)->toContain('"$base" =~ $BRANCH_SHAPE || "$base" == *..*')
