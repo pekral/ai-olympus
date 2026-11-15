@@ -451,7 +451,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a later review round raises only new Critical findings and security findings, and a review covers four areas and nothing else (issue #455).
         // Re-baselined: a later round is an iteration of one review-and-fix loop, and the scripts record every reported finding and the reviewer alone applies the later-round rule (issue #455, review round 3).
         // Re-baselined: a GitHub review is one pull-request review whose body carries the hidden record (issue #522).
-        'rules/code-review/general.md' => 'ac46add5a099422a18a6b4dff5c2db504ae8d59ad85222bb2d6e41a46c624c35',
+        // Re-baselined: the inline comment shape points to its template, and the baseline reads the newest trusted code-review report (issue #522, review round 1).
+        'rules/code-review/general.md' => '715b7cd41455fb8f7dafb35a1ee2e1047a733580112ca5a6d6a9724341e3431b',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
