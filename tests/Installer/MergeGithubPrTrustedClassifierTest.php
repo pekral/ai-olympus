@@ -20,7 +20,9 @@ test('the merge gate runs the classifier from the default branch, never from the
         ->and($section)->toContain('`domain-vocabulary.sh` and `read-manifest.sh`')
         ->and($section)->toContain('`git symbolic-ref --quiet refs/remotes/origin/HEAD` prints the fully qualified `refs/remotes/origin/<default branch>`')
         ->and($section)->toContain('Never compare with the short `origin/<default branch>`')
-        ->and($section)->toContain('`git show refs/remotes/origin/<default branch>:skills/_shared/<file>` when the default branch ships `skills/_shared/<file>`')
+        ->and($section)->toContain(
+            '`git show refs/remotes/origin/<default branch>:skills/_shared/<file>` when the default branch ships `skills/_shared/<file>`',
+        )
         ->and($section)->toContain('`git show refs/remotes/origin/<default branch>:<installed path>` when the default branch tracks the installed path')
         ->and($section)->not->toContain('`git show origin/<default branch>:')
         ->and($section)->toContain('no default-branch blob to compare with at either path')
