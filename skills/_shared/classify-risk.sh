@@ -1480,6 +1480,8 @@ self_test() {
   git -C "$lr" add -A
   git -C "$lr" -c user.name=t -c user.email=t@t commit -q -m base
   git -C "$lr" update-ref refs/remotes/origin/master HEAD
+  git -C "$lr" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  git -C "$lr" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   lr_base="$(git -C "$lr" rev-parse HEAD)"
   cd "$lr"
   local lowrisk=(--merge-risk --base "$lr_base" --ignore-assignment --coverage ok --gate green)
@@ -1644,6 +1646,8 @@ self_test() {
   git -C "$tmp/lr-loop" add -A
   git -C "$tmp/lr-loop" -c user.name=t -c user.email=t@t commit -q -m loop
   git -C "$tmp/lr-loop" update-ref refs/remotes/origin/master HEAD
+  git -C "$tmp/lr-loop" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  git -C "$tmp/lr-loop" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   cd "$tmp/lr-loop"
   expect_line 'a base symlink loop takes the full path' 'low-risk-excluded=symlink-loop|' \
     --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
