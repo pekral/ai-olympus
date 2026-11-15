@@ -77,12 +77,27 @@
 #
 #   score <= 1 -> FAST    score 2-4 -> STANDARD    score >= 5 -> CRITICAL
 #
+# Assignment text
+#   On `basis=assignment` the path signals read the assignment prose. A part that
+#   only quotes or illustrates a word does not describe the task, so it is removed
+#   first: a fenced code block (``` or ~~~), inline code, a block quote, a line that
+#   opens with an example marker (e.g., for example, for instance, example,
+#   například, příklad), and the section under a heading that opens with one. An
+#   anonymised example that mentions a signed-in admin then forces nothing. The
+#   acceptance-criteria point still reads the whole text. Once a diff exists, the
+#   changed paths decide alone, so a real auth, payment, or migration change still
+#   forces CRITICAL however its assignment was worded.
+#
 # Material files
 #   The path signals are matched against *material* files only — the changed
 #   paths that are neither documentation nor tests. Without that narrowing a
 #   README under `docs/security/` would force CRITICAL on a typo fix, and a
 #   test-only change would force CRITICAL for naming a file `AuthTest.php`.
 #   The negative "only" signals are what those file classes contribute instead.
+#   The migration signal reads DATA_PATH_RE on a path: a migrations directory or
+#   a timestamped migration file name. A class only named for a migration
+#   (`InstallerAgentMigration.php`) raises nothing. The assignment prose keeps the
+#   word itself (DATA_RE).
 #
 # Deliberate bias
 #   The patterns are broad on purpose: a false positive costs one tier of extra
@@ -220,7 +235,8 @@
 set -euo pipefail
 
 PROG="${0##*/}"
-# AUTH_RE, DATA_RE, and QUEUE_RE are shared with gate-context.sh.
+# AUTH_RE, DATA_RE, and QUEUE_RE are shared with gate-context.sh. DATA_PATH_RE is
+# the path form of DATA_RE.
 # shellcheck source=domain-vocabulary.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/domain-vocabulary.sh"
 
@@ -266,7 +282,7 @@ AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected resu
 
 # Rollback signals of the merge-risk mode. They are matched against the lower-cased
 # added lines of a unified diff, one line at a time, in documentation and test
-# files never. DATA_RE (domain-vocabulary.sh) decides which files are migrations.
+# files never. DATA_PATH_RE (domain-vocabulary.sh) decides which files are migrations.
 # WRITE_RE and EFFECT_RE read PHP calls, so they run on .php files only. SQL_WRITE_RE
 # reads SQL statements, so it runs on .php files (raw DB::statement, DB::update) and
 # .sql files. Other languages carry the same
@@ -286,6 +302,40 @@ LOW_RISK_EXCLUDED_RE='^src/(install|composerplugin|commandoptions|memory|graph|s
 LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permissions\.(allow|deny)'
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# Print the lower-cased assignment text without the parts that only quote or
+# illustrate a word (see *Assignment text* above).
+assignment_prose() {
+  printf '%s\n' "$1" | awk '
+    match($0, /^[[:space:]]*(```|~~~)/) {
+      mark = substr($0, RSTART + RLENGTH - 3, 3)
+      if (fence == "") { fence = mark } else if (mark == fence) { fence = "" }
+      next
+    }
+    fence != "" { next }
+    /^[[:space:]]*>/ { next }
+    {
+      line = $0
+      sub(/^[[:space:]]*/, "", line)
+      if (match(line, /^#+[[:space:]]/)) {
+        level = RLENGTH - 1
+        if (example && level <= example) { example = 0 }
+        title = substr(line, RLENGTH + 1)
+        sub(/^[[:space:]*_]*/, "", title)
+        if (title ~ /^(examples?|e\.g\.|for example|for instance|např\.|například|příklad|ukázka)([^a-z]|$)/) {
+          example = level
+          next
+        }
+      }
+      if (example) { next }
+      sub(/^([-*+]|[0-9]+[.)])[[:space:]]+/, "", line)
+      sub(/^[*_]+/, "", line)
+      if (line ~ /^(examples?|e\.g\.|for example|for instance|např\.|například|příklad|ukázka)([^a-z]|$)/) { next }
+      gsub(/`+[^`]*`+/, "", $0)
+      print
+    }
+  '
+}
 
 # Print the project's critical-path regexes, one per line. Returns 2 when the
 # manifest cannot be read at all, and 3 when it cannot be parsed although the
@@ -471,7 +521,7 @@ classify() {
       haystack="$(lower "$(printf '%s\n' "${material[@]}")")"
     fi
   elif [[ "$basis" == "assignment" ]]; then
-    haystack="$assignment_text"
+    haystack="$(assignment_prose "$assignment_text")"
   fi
 
   local score=0 forced="none"
@@ -504,7 +554,10 @@ classify() {
     add_signal 3 'auth-security-secrets' "$evidence"
     forced='auth-security-secrets'
   fi
-  if evidence="$(first_match "$DATA_RE")"; then
+  # A changed path is a migration by its directory or file name; prose names it by the word.
+  local data_re="$DATA_RE"
+  [[ "$basis" == "diff" ]] && data_re="$DATA_PATH_RE"
+  if evidence="$(first_match "$data_re")"; then
     add_signal 3 'migrations-data-loss' "$evidence"
     [[ "$forced" == "none" ]] && forced='migrations-data-loss'
   fi
@@ -631,7 +684,7 @@ classify() {
 # a down() whose body is empty is the signal itself. A `Schema::` call changes the
 # schema, not the data, so it is never a persisted-data write.
 diff_rollback_scan() {
-  MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_RE" MR_DESTRUCTIVE_RE="$DESTRUCTIVE_RE" \
+  MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_PATH_RE" MR_DESTRUCTIVE_RE="$DESTRUCTIVE_RE" \
     MR_WRITE_RE="$WRITE_RE" MR_SQL_WRITE_RE="$SQL_WRITE_RE" MR_EFFECT_RE="$EFFECT_RE" awk '
     function hit(name) {
       if (!(name in seen)) {
@@ -1259,6 +1312,60 @@ self_test() {
   printf 'Acceptance criteria: the login form must reject an expired password reset token.\n' >"$authtext"
   expect_tier 'assignment text alone can force CRITICAL' CRITICAL --assignment "$authtext"
   expect_line 'assignment-only classification says so' 'basis=assignment' --assignment "$authtext"
+
+  # Quoted or example text illustrates a word, it does not describe the task. Each
+  # text below states its criteria and names a sensitive word only inside such a part.
+  local quoted="$tmp/quoted.txt"
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+- the greeting uses the declined name
+```php
+$token = Auth::user()->secret;
+```
+TEXT
+  expect_line 'an auth word inside a fenced code block forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n~~~\nmigration secret\n~~~\n' >"$quoted"
+  expect_line 'a tilde fence hides its words as well' 'forced=none' --assignment "$quoted"
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+- rename the `auth-security-secrets` label in the report
+TEXT
+  expect_line 'an auth word inside inline code forces nothing' 'forced=none' --assignment "$quoted"
+  # The #564 false positive: an anonymised example quoted the words "signed-in admin".
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n> Only a signed-in admin sees the page.\n' >"$quoted"
+  expect_line 'an admin word inside a block quote forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n- e.g. a password reset mail\nFor example: the login form.\n' >"$quoted"
+  expect_line 'an auth word on an example line forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n### Example\nThe admin rotates the secret token.\n## Scope\n- the greeting only\n' >"$quoted"
+  expect_line 'an auth word under an example heading forces nothing' 'forced=none' --assignment "$quoted"
+  expect_tier 'an assignment with only quoted sensitive words is not CRITICAL' FAST --assignment "$quoted"
+
+  # Fail-safe: prose outside the quoted part still forces, and a closed fence ends the skip.
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+```
+example
+```
+- the login form rejects an expired token
+TEXT
+  expect_line 'prose after a closed fence still forces auth' 'forced=auth-security-secrets' --assignment "$quoted"
+  printf 'Acceptance criteria:\n### Example\nadmin\n## Rules\n- only a signed-in admin sees the page\n' >"$quoted"
+  expect_line 'a heading ends the example section' 'forced=auth-security-secrets' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- add a migration that drops the legacy column\n' >"$quoted"
+  expect_line 'a migration named in prose still forces data' 'forced=migrations-data-loss' --assignment "$quoted"
+
+  # The migration signal on a diff reads the migration directory and the migration file
+  # name, never the word alone. The #414 false positive was a class named for migrating
+  # installed agent files.
+  expect_line 'a class named Migration outside the migration paths forces nothing' 'forced=none' \
+    --files "$(writefiles 'src/InstallerAgentMigration.php' 'tests/Unit/InstallerAgentMigrationTest.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_line 'a timestamped migration file outside a migrations directory forces data' \
+    'forced=migrations-data-loss' \
+    --files "$(writefiles 'modules/orders/database/2026_01_01_000000_create_orders_table.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_line 'a file in a migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'db/migration/V2__add_index.php')" --assignment "$tmp/clear.txt"
 
   # --- Clarity and coverage signals ------------------------------------------
   expect_line 'a vague assignment scores the clarity point' 'unclear-acceptance-criteria' \

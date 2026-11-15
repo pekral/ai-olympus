@@ -424,6 +424,11 @@ self_test() {
   expect_field 'mixed-case auth words in keywords map to the security domain' \
     'true:true' '"\(.context_required):\(.domains | index(["security"]) != null)"' --keywords 'OAuth Login'
 
+  # The gate reads DATA_RE, which keeps the bare word: the risk classifier alone reads
+  # migrations by their path (DATA_PATH_RE).
+  expect_field 'a class named for a migration still maps to the database domain' \
+    'true' '.domains | index(["database"]) != null' --files src/InstallerAgentMigration.php
+
   expect_field 'a symbol that maps to no domain escalates to LLM classification' \
     'llm:false:5:1500' '"\(.classifier):\(.context_required):\(.budget.max_items):\(.budget.max_tokens)"' \
     --symbols Foo

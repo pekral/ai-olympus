@@ -62,6 +62,36 @@ test('classifier self-test covers every routing scenario the contract names', fu
     }
 });
 
+test('quoted text and a class only named for a migration force no tier', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+
+    // The assignment mode reads prose without its quoted and example parts, and the diff mode
+    // reads the migration signal on the path. The false positives of #564 and #414 stay pinned,
+    // and so do the true positives that must still force CRITICAL.
+    expect($content)->toContain('haystack="$(assignment_prose "$assignment_text")"');
+    expect($content)->toContain('[[ "$basis" == "diff" ]] && data_re="$DATA_PATH_RE"');
+    expect($content)->toContain('MR_DATA_RE="$DATA_PATH_RE"');
+
+    foreach ([
+        'an auth word inside a fenced code block forces nothing',
+        'a tilde fence hides its words as well',
+        'an auth word inside inline code forces nothing',
+        'an admin word inside a block quote forces nothing',
+        'an auth word on an example line forces nothing',
+        'an auth word under an example heading forces nothing',
+        'an assignment with only quoted sensitive words is not CRITICAL',
+        'prose after a closed fence still forces auth',
+        'a heading ends the example section',
+        'a migration named in prose still forces data',
+        'a class named Migration outside the migration paths forces nothing',
+        'a timestamped migration file outside a migrations directory forces data',
+        'a file in a migration directory forces data',
+    ] as $label) {
+        expect($content)->toContain('\'' . $label . '\'');
+    }
+});
+
 test('a sensitive area forces CRITICAL and a lower override is refused, not applied', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
