@@ -5,22 +5,24 @@
 # Why this exists
 #   The merge gate and the code review run some package scripts as a trusted copy: the installed copy under
 #   `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex) of the main worktree, never the copy of the branch
-#   under review. A file in the main worktree is a trusted copy only while it holds the package content. A symbolic
-#   link makes the content follow whatever the working tree holds, and code that runs in that tree can rewrite the
-#   file. This script is the only place that decides whether an installed copy can run as a trusted copy.
+#   under review. A file in the main worktree is a trusted copy only while it is a regular file that holds the content
+#   the package installed and the default branch ships. This script is the only place that decides whether an
+#   installed copy can run as a trusted copy.
 #   `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* owns when a step runs it.
 #
 # Usage
-#   verify-installed-copy.sh --root <main worktree> --ref <refs/remotes/origin/<branch>> <installed path>...
+#   verify-installed-copy.sh --root <main worktree> --commit <default-branch commit id> <installed path>...
 #   verify-installed-copy.sh --self-test
 #
 #   --root   the absolute path of the main worktree, the parent of `git rev-parse --path-format=absolute
 #            --git-common-dir`
-#   --ref    the fully qualified default-branch ref (`refs/remotes/origin/<branch>`), never a short name
+#   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
 #   <installed path>  a path relative to the root, below `.claude/skills/` or `.agents/skills/`
 #
 #   The script reads no file beside itself, so a caller runs it from the default-branch blob:
-#   `git show "${REF:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root ... --ref "${REF:?}" ...`
+#   `git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root ... --commit "${TIP:?}" ...`
+#   Every git command of the script reads the objects the commit names, with replacement objects off
+#   (`GIT_NO_REPLACE_OBJECTS=1`).
 #
 # What it checks, for every path, in this order
 #   1. No component below the root is a symbolic link: not the file and not a directory on the way to it.
@@ -46,6 +48,7 @@
 #   3  at least one path is refused, or a git command failed
 
 set -uo pipefail
+export GIT_NO_REPLACE_OBJECTS=1
 
 REFERENCE_FILE='ai-olympus/installed-copies.sha256'
 
@@ -111,27 +114,27 @@ recorded_hash() {
 
 # Prints the refusal reason of check 4, or nothing when the copy equals the default-branch blob.
 blob_refusal() {
-  local root="$1" ref="$2" path="$3" file="$4" source blob_path
+  local root="$1" commit="$2" path="$3" file="$4" source blob_path
   source="skills/${path#.*/skills/}"
   blob_path=''
-  if [[ "$(git -C "$root" cat-file -t "$ref:$source" </dev/null 2>/dev/null)" == 'blob' ]]; then
+  if [[ "$(git -C "$root" cat-file -t "$commit:$source" </dev/null 2>/dev/null)" == 'blob' ]]; then
     blob_path="$source"
-  elif [[ "$(git -C "$root" cat-file -t "$ref:$path" </dev/null 2>/dev/null)" == 'blob' ]]; then
+  elif [[ "$(git -C "$root" cat-file -t "$commit:$path" </dev/null 2>/dev/null)" == 'blob' ]]; then
     blob_path="$path"
   fi
   if [[ -z "$blob_path" ]]; then
     printf 'no-default-branch-blob'
-  elif ! git -C "$root" cat-file blob "$ref:$blob_path" </dev/null 2>/dev/null | cmp -s - "$file"; then
+  elif ! git -C "$root" cat-file blob "$commit:$blob_path" </dev/null 2>/dev/null | cmp -s - "$file"; then
     printf 'blob-mismatch'
   fi
 }
 
 verify_main() {
-  local root='' ref='' paths=()
+  local root='' commit='' paths=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --root) [[ $# -ge 2 ]] || usage_error '--root needs a value'; root="$2"; shift 2 ;;
-      --ref) [[ $# -ge 2 ]] || usage_error '--ref needs a value'; ref="$2"; shift 2 ;;
+      --commit) [[ $# -ge 2 ]] || usage_error '--commit needs a value'; commit="$2"; shift 2 ;;
       --) shift; paths+=("$@"); break ;;
       -*) usage_error "unknown option: $1" ;;
       *) paths+=("$1"); shift ;;
@@ -140,8 +143,7 @@ verify_main() {
 
   [[ "$root" == /* ]] || usage_error '--root must be an absolute path'
   [[ -d "$root" ]] || usage_error '--root is not a directory'
-  [[ "$ref" =~ ^refs/remotes/origin/[A-Za-z0-9._/-]+$ && "$ref" != *..* ]] \
-    || usage_error '--ref must be a fully qualified refs/remotes/origin/<branch> ref'
+  [[ "$commit" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || usage_error '--commit must be a full hexadecimal commit object id'
   [[ ${#paths[@]} -gt 0 ]] || usage_error 'no installed path given'
   local path
   for path in "${paths[@]}"; do
@@ -164,8 +166,8 @@ verify_main() {
   local git_dir
   git_dir="$(git -C "$root" rev-parse --absolute-git-dir </dev/null 2>/dev/null)" || git_dir=''
   if [[ -z "$git_dir" || "$(git -C "$root" rev-parse --show-toplevel </dev/null 2>/dev/null)" != "$root" ]] \
-    || ! git -C "$root" rev-parse --verify --quiet "$ref^{commit}" </dev/null >/dev/null 2>&1; then
-    printf 'verify-installed-copy.sh: the root is not the top of a git checkout, or the ref does not resolve to a commit\n' >&2
+    || [[ "$(git -C "$root" rev-parse --verify --quiet --end-of-options "$commit^{commit}" </dev/null 2>/dev/null)" != "$commit" ]]; then
+    printf 'verify-installed-copy.sh: the root is not the top of a git checkout, or the commit is not in it\n' >&2
     verdict_refused
     exit 3
   fi
@@ -180,7 +182,7 @@ verify_main() {
       elif [[ "$(sha256_of "$root/$path")" != "$recorded" ]]; then
         reason='hash-mismatch'
       else
-        reason="$(blob_refusal "$root" "$ref" "$path" "$root/$path")"
+        reason="$(blob_refusal "$root" "$commit" "$path" "$root/$path")"
       fi
     fi
     if [[ -z "$reason" ]]; then
@@ -208,6 +210,7 @@ verify_self_test() {
 
   local main="$tmp/main" ref='refs/remotes/origin/master' file='.claude/skills/_shared/tool.sh'
   commit() { git -C "$main" -c user.name=self-test -c user.email=self-test@example.invalid commit -q "$@"; }
+  tip() { git -C "$main" rev-parse --verify "$ref^{commit}"; }
   git init -q --bare "$tmp/origin.git"
   git init -q -b master "$main"
   git -C "$main" remote add origin "$tmp/origin.git"
@@ -246,13 +249,13 @@ verify_self_test() {
 
   reset_install
   expect 'a copy that matches the recorded hash and the default-branch blob is verified' 0 'installed-copy-verdict=verified' \
-    --root "$main" --ref "$ref" "$file"
+    --root "$main" --commit "$(tip)" "$file"
   install_copy '.agents/skills/_shared/tool.sh' "$main/skills/_shared/tool.sh"
   expect 'the Codex copy below .agents/skills is verified the same way' 0 'installed-copy=verified|.agents/skills/_shared/tool.sh' \
-    --root "$main" --ref "$ref" "$file" '.agents/skills/_shared/tool.sh'
+    --root "$main" --commit "$(tip)" "$file" '.agents/skills/_shared/tool.sh'
 
   local output
-  output="$(bash -s -- --root "$main" --ref "$ref" "$file" <"$script" 2>/dev/null)"
+  output="$(bash -s -- --root "$main" --commit "$(tip)" "$file" <"$script" 2>/dev/null)"
   checks=$((checks + 1))
   if [[ "$(tail -n 1 <<<"$output")" == 'installed-copy-verdict=verified' ]]; then
     echo 'ok    the script runs from standard input, as a caller runs the default-branch blob'
@@ -261,66 +264,89 @@ verify_self_test() {
     failures=$((failures + 1))
   fi
 
-  # Replaced content: code that ran in the tree rewrote the copy after the install.
+  # A copy whose content differs from the recorded hash.
   reset_install
   printf '#!/usr/bin/env bash\necho replaced\n' >"$main/$file"
-  expect 'a copy rewritten after the install is refused' 3 "installed-copy=refused|$file|hash-mismatch" --root "$main" --ref "$ref" "$file"
-  expect 'a refused copy ends with the refused verdict' 3 'installed-copy-verdict=refused' --root "$main" --ref "$ref" "$file"
+  expect 'a copy that differs from the recorded hash is refused' 3 "installed-copy=refused|$file|hash-mismatch" --root "$main" --commit "$(tip)" "$file"
+  expect 'a refused copy ends with the refused verdict' 3 'installed-copy-verdict=refused' --root "$main" --commit "$(tip)" "$file"
 
-  # Replaced content and reference together: the default-branch blob still refuses the copy.
+  # A copy that matches its recorded hash but not the default-branch blob.
   rm -rf "$main/.claude" "$main/.git/ai-olympus"
   printf '#!/usr/bin/env bash\necho replaced\n' >"$tmp/replaced.sh"
   install_copy "$file" "$tmp/replaced.sh"
-  expect 'a copy and a reference rewritten together are refused by the default-branch blob' 3 \
-    "installed-copy=refused|$file|blob-mismatch" --root "$main" --ref "$ref" "$file"
+  expect 'a copy that matches its recorded hash but not the default-branch blob is refused' 3 \
+    "installed-copy=refused|$file|blob-mismatch" --root "$main" --commit "$(tip)" "$file"
 
-  # A symbolic link as the file: the content follows the working tree.
+  # A replacement object for the default-branch blob: the check reads the blob the commit names.
+  local original_blob replacement_blob default_tip
+  original_blob="$(git -C "$main" rev-parse "$ref:skills/_shared/tool.sh")"
+  replacement_blob="$(git -C "$main" hash-object -w "$tmp/replaced.sh")"
+  git -C "$main" replace "$original_blob" "$replacement_blob"
+  expect 'a replacement object for the default-branch blob does not change the verdict' 3 \
+    "installed-copy=refused|$file|blob-mismatch" --root "$main" --commit "$(tip)" "$file"
+  git -C "$main" replace -d "$original_blob" >/dev/null
+
+  # The check takes the commit by object id and reads no ref: a moved local ref does not change the verdict.
+  default_tip="$(tip)"
+  git -C "$main" checkout -q -b moved
+  cp "$tmp/replaced.sh" "$main/skills/_shared/tool.sh"
+  git -C "$main" add -A skills
+  commit -m moved
+  git -C "$main" update-ref "$ref" "$(git -C "$main" rev-parse HEAD)"
+  git -C "$main" symbolic-ref refs/remotes/origin/HEAD "$ref"
+  expect 'a local ref that moved does not change the verdict for the given commit' 3 \
+    "installed-copy=refused|$file|blob-mismatch" --root "$main" --commit "$default_tip" "$file"
+  git -C "$main" checkout -q master
+  git -C "$main" update-ref "$ref" "$default_tip"
+  git -C "$main" branch -q -D moved
+
+  # A symbolic link as the file.
   reset_install
   rm "$main/$file"
   ln -s "$main/skills/_shared/tool.sh" "$main/$file"
-  expect 'a copy that is a symbolic link into the working tree is refused' 3 "installed-copy=refused|$file|symlink" \
-    --root "$main" --ref "$ref" "$file"
+  expect 'a copy that is a symbolic link is refused' 3 "installed-copy=refused|$file|symlink" \
+    --root "$main" --commit "$(tip)" "$file"
 
   # A symbolic link as a directory component on the way to the file.
   reset_install
   rm -rf "$main/.claude/skills/_shared"
   ln -s ../../skills/_shared "$main/.claude/skills/_shared"
   expect 'a copy below a symbolically linked directory is refused' 3 "installed-copy=refused|$file|symlink" \
-    --root "$main" --ref "$ref" "$file"
+    --root "$main" --commit "$(tip)" "$file"
   reset_install
   mv "$main/.claude" "$tmp/claude-elsewhere"
   ln -s "$tmp/claude-elsewhere" "$main/.claude"
   expect 'a copy below a symbolically linked top directory is refused' 3 "installed-copy=refused|$file|symlink" \
-    --root "$main" --ref "$ref" "$file"
+    --root "$main" --commit "$(tip)" "$file"
   rm -f "$main/.claude"
   rm -rf "$tmp/claude-elsewhere"
 
   reset_install
   rm "$main/$file"
   mkdir "$main/$file"
-  expect 'a path that is not a regular file is refused' 3 "installed-copy=refused|$file|not-regular" --root "$main" --ref "$ref" "$file"
+  expect 'a path that is not a regular file is refused' 3 "installed-copy=refused|$file|not-regular" --root "$main" --commit "$(tip)" "$file"
 
   reset_install
   rm "$main/$file"
-  expect 'a missing copy is refused' 3 "installed-copy=refused|$file|no-installed-copy" --root "$main" --ref "$ref" "$file"
+  expect 'a missing copy is refused' 3 "installed-copy=refused|$file|no-installed-copy" --root "$main" --commit "$(tip)" "$file"
 
   reset_install
   rm -rf "$main/.git/ai-olympus"
-  expect 'a copy with no recorded reference is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --ref "$ref" "$file"
+  expect 'a copy with no recorded reference is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --commit "$(tip)" "$file"
 
   reset_install
   printf '%s  %s\n' "$(sha256_of "$main/$file")" "$file" >>"$main/.git/ai-olympus/installed-copies.sha256"
-  expect 'a path the reference lists twice is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --ref "$ref" "$file"
+  expect 'a path the reference lists twice is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --commit "$(tip)" "$file"
 
   reset_install
   mv "$main/.git/ai-olympus/installed-copies.sha256" "$tmp/reference"
   ln -s "$tmp/reference" "$main/.git/ai-olympus/installed-copies.sha256"
-  expect 'a reference that is a symbolic link is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --ref "$ref" "$file"
+  expect 'a reference that is a symbolic link is refused' 3 "installed-copy=refused|$file|no-reference" --root "$main" --commit "$(tip)" "$file"
 
   reset_install
   install_copy '.claude/skills/_shared/unknown.sh' "$main/skills/_shared/tool.sh"
   expect 'a copy the default branch does not ship or track is refused' 3 \
-    'installed-copy=refused|.claude/skills/_shared/unknown.sh|no-default-branch-blob' --root "$main" --ref "$ref" '.claude/skills/_shared/unknown.sh'
+    'installed-copy=refused|.claude/skills/_shared/unknown.sh|no-default-branch-blob' --root "$main" --commit "$(tip)" '.claude/skills/_shared/unknown.sh'
 
   # A project that tracks the installed copy instead of shipping skills/: the blob at the installed path counts.
   reset_install
@@ -330,19 +356,21 @@ verify_self_test() {
   git -C "$main" push -q origin master 2>/dev/null
   git -C "$main" fetch -q origin
   expect 'a copy the default branch tracks at the installed path is verified' 0 'installed-copy=verified|.claude/skills/tracked/run.sh' \
-    --root "$main" --ref "$ref" '.claude/skills/tracked/run.sh'
+    --root "$main" --commit "$(tip)" '.claude/skills/tracked/run.sh'
 
-  expect 'a short ref is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --ref 'origin/master' "$file"
-  expect 'a ref that does not resolve is refused' 3 'installed-copy-verdict=refused' --root "$main" --ref 'refs/remotes/origin/absent' "$file"
+  expect 'a ref name in place of a commit id is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --commit "$ref" "$file"
+  expect 'a short commit id is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --commit "$(tip | cut -c1-12)" "$file"
+  expect 'a commit that is not in the checkout is refused' 3 'installed-copy-verdict=refused' \
+    --root "$main" --commit '0123456789abcdef0123456789abcdef01234567' "$file"
   expect 'a path outside the installed skills directories is a usage error' 1 'installed-copy-verdict=refused' \
-    --root "$main" --ref "$ref" 'skills/_shared/tool.sh'
+    --root "$main" --commit "$(tip)" 'skills/_shared/tool.sh'
   expect 'a path with a parent component is a usage error' 1 'installed-copy-verdict=refused' \
-    --root "$main" --ref "$ref" '.claude/skills/../../skills/_shared/tool.sh'
-  expect 'a root below the top of the checkout is refused' 3 'installed-copy-verdict=refused' --root "$main/skills" --ref "$ref" "$file"
-  expect 'a relative root is a usage error' 1 'installed-copy-verdict=refused' --root 'main' --ref "$ref" "$file"
-  expect 'no path is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --ref "$ref"
+    --root "$main" --commit "$(tip)" '.claude/skills/../../skills/_shared/tool.sh'
+  expect 'a root below the top of the checkout is refused' 3 'installed-copy-verdict=refused' --root "$main/skills" --commit "$(tip)" "$file"
+  expect 'a relative root is a usage error' 1 'installed-copy-verdict=refused' --root 'main' --commit "$(tip)" "$file"
+  expect 'no path is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --commit "$(tip)"
   mkdir -p "$tmp/plain/.claude/skills/_shared"
-  GIT_CEILING_DIRECTORIES="$tmp" expect 'a root outside a git checkout is refused' 3 'installed-copy-verdict=refused' --root "$tmp/plain" --ref "$ref" "$file"
+  GIT_CEILING_DIRECTORIES="$tmp" expect 'a root outside a git checkout is refused' 3 'installed-copy-verdict=refused' --root "$tmp/plain" --commit "$(tip)" "$file"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "verify-installed-copy self-test: $failures failure(s) ($checks checks)" >&2
