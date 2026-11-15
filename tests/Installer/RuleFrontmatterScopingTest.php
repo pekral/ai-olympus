@@ -454,8 +454,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the inline comment shape points to its template, and the baseline reads the newest trusted code-review report (issue #522, review round 1).
         // Re-baselined: the `Merge risk:` grade selects the merge path at the merge instead of being informational (issue #495).
         // Re-baselined: the project instruction sources are read through the default-branch ref that git alone resolves.
-        // Re-baselined: the project manifest is read through the trusted copy of `read-manifest.sh`.
-        'rules/code-review/general.md' => '0a3d223a0fc0f5b223b5c3a3451a5c24025839ac80d404123ac431b07fb4df0a',
+        // Re-baselined: the review gate reads the project manifest by git ref, and the accepted ref shape lives in `merge-exemptions.md` item 3.
+        'rules/code-review/general.md' => 'bdcd2f9c5e9b69a249081462d5afa7a2f1bf52d41ed000f57ae4e5995456cc2f',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
