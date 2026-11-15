@@ -39,6 +39,11 @@ final class InstallerFailure extends RuntimeException
         return new self(sprintf('Cannot write Claude settings file %s: %s.', $path, $reason));
     }
 
+    public static function referenceWriteFailed(string $path): self
+    {
+        return new self(sprintf('Cannot write the installed-copy reference %s.', $path));
+    }
+
     public static function graphWriteFailed(string $path): self
     {
         return new self(sprintf('Cannot write the knowledge graph file %s.', $path));

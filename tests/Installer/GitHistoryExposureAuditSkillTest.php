@@ -201,7 +201,7 @@ test('a review-mode finding blocks at its severity and never shows the value', f
 });
 
 test(
-    'review mode runs the installed copy from the main worktree after it compared the script and its sibling with the default-branch blobs',
+    'review mode runs the installed copy from the main worktree after the shared verifier accepted the script and its sibling',
     function (): void {
         $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
         $step = substr(
@@ -224,22 +224,16 @@ test(
             ->and($step)->not->toContain('git symbolic-ref')
             ->and($step)->not->toContain('refs/remotes/origin/?*');
     
-        // Both files the scan runs are compared with the default-branch blobs, in the same shell call as the resolution.
-        expect($step)->toContain('compare the installed `history-scan.sh` and its sibling `_shared/read-manifest.sh`')
-            ->and($step)->toContain($owner . ' items 4 and 5')
-            ->and($step)->toContain('`git show "${REF:?}:skills/git-history-exposure-audit/scripts/history-scan.sh"`')
-            ->and($step)->toContain('`git show "${REF:?}:skills/_shared/read-manifest.sh"`')
-            ->and($step)->toContain('`git show "${REF:?}:<installed path>"`')
-            ->and($step)->toContain('In the same shell call, set `REF`')
-            ->and($step)->not->toContain('git show "${REF}:')
+        expect($step)->toContain('Verify both with `skills/_shared/verify-installed-copy.sh`')
+            ->and($step)->toContain($owner . ' items 3 to 6')
+            ->and($step)->toContain('in the same shell call as each scan command of steps 3 and 4')
             ->and($step)->toContain('A failed resolution is a failed scan, and an empty `REF` is a failed resolution:')
             ->and($step)->toContain('Never use the short `origin/<default branch>`')
             ->and($step)->toContain('`Not verified: history exposure — the default branch did not resolve;')
-            ->and($step)->toContain('`Not verified: history exposure — the trusted copy of the script is not available;')
-            ->and($step)->toContain('`Not verified: history exposure — the installed script differs from the default-branch script;')
+            ->and($step)->toContain('`Not verified: history exposure — the trusted copy of the script is not available (')
             ->and($step)->not->toContain('git show origin/<default branch>:')
             ->and($step)->not->toContain('the installed copy is accepted only when');
-    
+
         // The script runs its sibling for the allow-list, so the sibling is part of the trusted copy.
         expect(historyExposureSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))
             ->toContain('local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh"');
