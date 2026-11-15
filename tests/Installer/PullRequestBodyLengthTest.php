@@ -63,7 +63,10 @@ test('the overflow comment is a durable copy that merge preparation never delete
     $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
 
     expect($rule)->toContain('It is the durable copy of that content, so merge preparation never deletes it.')
-        ->and($skill)->toContain('A `## Pull-request body overflow` comment never enters the manifest: it holds the durable copy of the pull-request body\'s verbatim content')
+        ->and($skill)->toContain(
+            'A `## Pull-request body overflow` comment never enters the manifest: '
+            . 'it holds the durable copy of the pull-request body\'s verbatim content',
+        )
         ->and($skill)->toContain('and the delete helper refuses it.')
         ->and($helper)->toContain('refusing to delete a pull-request body overflow comment');
     expect($reports)->toContain('whose description carries them under the length limit of `@rules/git/pull-requests.md` *PR Content Requirements*.')
