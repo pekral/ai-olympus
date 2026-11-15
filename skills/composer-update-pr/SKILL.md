@@ -75,7 +75,7 @@ The step is done when `git status --porcelain` prints nothing and `git log -1 --
 The step is done when every package of the pull request description appears in the script output or in that diff.
 
 ### 7. Push and open the Draft pull request
-1. Scan the commits of the branch before anything leaves the machine: `skills/git-history-exposure-audit/scripts/history-scan.sh range --base "$(git rev-parse "origin/$DEFAULT_BRANCH")" --head "$(git rev-parse HEAD)"`. The script takes full commit object ids only. Do not re-implement its rules.
+1. Scan the commits of the branch before anything leaves the machine. Resolve the fully qualified default-branch ref with git only, as `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 3 directs, and set `REF` to it in the same shell call as the scan: `skills/git-history-exposure-audit/scripts/history-scan.sh range --base "$(git rev-parse "${REF:?}")" --head "$(git rev-parse HEAD)"`. An empty `REF` is a failed scan. The script takes full commit object ids only. Do not re-implement its rules.
    - Exit `0`: continue.
    - Exit `5` with a finding of class `credential` or `sensitive-file`: stop. Push nothing, open no pull request, report each such finding line as the script printed it (the script never prints a found value), and leave the branch as it is for the user.
    - Exit `5` with findings of other classes only: continue and list those finding lines in the report.
