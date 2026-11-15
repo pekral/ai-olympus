@@ -127,7 +127,7 @@ The project's fixers and checkers do not run during the branch's working life â€
 ### 4. Merge
 
 - Merge with the CLI, using the project's default strategy
-- On the low-risk path, merge only after the completed security-only check and the confirmed verdict, pinned to the gated head (`--match-head-commit <gated head>`), with the base tip read again after the gate (`references/low-risk-path.md`); a passing gate record never skips the check
+- On the low-risk path, merge only after the completed security-only check and the confirmed verdict, pinned to the gated head (`--match-head-commit <gated head>`), with the base tip read again as the last command before the merge (`references/low-risk-path.md`); a passing gate record never skips the check
 
 ### 5. Post-merge
 
