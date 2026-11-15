@@ -125,17 +125,21 @@ test('both commits of the diff are fetched and verified before the security chec
         ->and(strpos($skill, 'git cat-file -e'))->toBeLessThan((int) strpos($skill, '### 2. Security check'));
 });
 
-test('the base branch name is checked before the fallback fetch uses it, and is fetched with an exact refspec', function (): void {
+test('the base branch name is read into a variable, checked there, and fetched with an exact refspec', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
-    $fetch = 'git fetch origin "+refs/heads/<baseRefName>:refs/remotes/origin/<baseRefName>"';
+    $fetch = 'git fetch origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"';
 
     expect($skill)->toContain('`baseRefOid`, `baseRefName`, `headRefName`')
+        ->and($skill)->toContain('never write it into a command line, the checks below included')
+        ->and($skill)->toContain('BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r \'.baseRefName\')"')
+        ->and($skill)->toContain('Run checks 1 to 4 on `"$BASE_REF"`.')
         ->and($skill)->toContain('A failed check stops the run: `Blocked: invalid base branch name`.')
-        ->and($skill)->toContain('It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`')
+        ->and($skill)->toContain('It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`.')
         ->and($skill)->toContain('2. It is not the literal `HEAD`.')
-        ->and($skill)->toContain('`git check-ref-format --branch "<baseRefName>"` exits `0`.')
-        ->and($skill)->toContain('`git symbolic-ref -q "refs/remotes/origin/<baseRefName>"` exits non-zero')
-        ->and($skill)->toContain('Use the name only in double quotes, and fetch it with the exact refspec: `' . $fetch . '`.')
+        ->and($skill)->toContain('`git check-ref-format --branch "$BASE_REF"` exits `0`.')
+        ->and($skill)->toContain('`git symbolic-ref -q "refs/remotes/origin/$BASE_REF"` exits non-zero')
+        ->and($skill)->toContain('Use the variable only in double quotes, and fetch it with the exact refspec: `' . $fetch . '`.')
+        ->and($skill)->not->toContain('<baseRefName>')
         ->and(strpos($skill, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($skill, $fetch));
 
     // The skill reuses the shape check of the carry-forward script; the reference must name a check that exists there.
