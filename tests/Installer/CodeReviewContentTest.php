@@ -2569,7 +2569,9 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     // The scope is a stated decision: four project instruction sources, each read from the default branch.
     expect($rule)->toContain('### Scope — the project\'s instruction sources, and nothing else');
     expect($rule)->toContain('`git show "${REF:?}:.ai/rules/index.md"`');
-    expect($rule)->toContain('**The project manifest** — `extra.ai-olympus` in `composer.json` — through the trusted copy of `skills/_shared/read-manifest.sh`');
+    expect($rule)->toContain(
+        '**The project manifest** — `extra.ai-olympus` in `composer.json` — through the trusted copy of `skills/_shared/read-manifest.sh`',
+    );
     expect($rule)->toContain('.github/copilot-instructions.md');
     expect($skill)->toContain('every `.ai/rules/**` file whose globs in `.ai/rules/index.md` cover a changed path');
 
@@ -2606,7 +2608,9 @@ test('the project instruction sources of a review are read through a default-bra
         ->and($gate)->toContain('`REF="$(git symbolic-ref --quiet refs/remotes/origin/HEAD)"`')
         ->and($gate)->toContain('`refs/remotes/origin/?*`')
         ->and($gate)->toContain('The resolution runs no script')
-        ->and($gate)->toContain('Read each source with `git show "${REF:?}:<file>"`, in the same shell call as the resolution: a later call starts a new shell')
+        ->and($gate)->toContain(
+            'Read each source with `git show "${REF:?}:<file>"`, in the same shell call as the resolution: a later call starts a new shell',
+        )
         ->and($gate)->toContain('`git show "${REF:?}:CLAUDE.md"`')
         ->and($gate)->toContain('Never use the short `origin/<default branch>`')
         ->and($gate)->toContain('An empty `REF` loads no source')
