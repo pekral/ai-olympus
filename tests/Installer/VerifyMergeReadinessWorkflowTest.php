@@ -167,6 +167,15 @@ if [[ "$1" == "api" && "$2" == repos/*/issues/comments/994 ]]; then
   exit 0
 fi
 
+if [[ "$1" == "api" && "$2" == repos/*/issues/comments/993 ]]; then
+  printf '%s%s' \
+    '{"user":{"login":"pekral"},"issue_url":"' \
+    'https://api.github.com/repos/pekral/ai-olympus/issues/84","body":"<!-- agent-note:actor=pekral -->\n## Pull-request body overflow\n\n'
+  head -c 135168 /dev/zero | tr '\0' 'a'
+  printf '%s\n' '"}'
+  exit 0
+fi
+
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/995 ]]; then
   printf '%s%s\n' \
     '{"user":{"login":"pekral"},"issue_url":"' \
@@ -234,6 +243,19 @@ BASH);
 
         expect($overflow->getExitCode())->toBe(4);
         expect($overflow->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment');
+        expect(is_file($state))->toBeFalse();
+
+        $largeOverflow = new Process([
+            $helper,
+            'https://github.com/pekral/ai-olympus/issues/84',
+            '993',
+            '997',
+            '998',
+        ], $packageDir, $baseEnvironment);
+        $largeOverflow->run();
+
+        expect($largeOverflow->getExitCode())->toBe(4);
+        expect($largeOverflow->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment');
         expect(is_file($state))->toBeFalse();
 
         $owned = new Process([

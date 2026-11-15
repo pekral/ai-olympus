@@ -112,7 +112,9 @@ if [[ "$(printf '%s' "$COMMENT_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" != "$(p
 fi
 
 # The overflow comment holds the durable copy of the pull-request body's verbatim content.
-if printf '%s' "$COMMENT_JSON" | jq -r '.body // empty' | grep -Eq '^## Pull-request body overflow[[:space:]]*$'; then
+# Read the body into a variable first: grep -q exits on the first match, which would SIGPIPE jq under pipefail on a large body.
+COMMENT_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
+if grep -Eq '^## Pull-request body overflow[[:space:]]*$' <<<"$COMMENT_BODY"; then
   printf '%s\n' "$PROG: refusing to delete a pull-request body overflow comment" >&2
   exit 4
 fi
