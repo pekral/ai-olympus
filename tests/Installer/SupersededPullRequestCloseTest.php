@@ -2,15 +2,10 @@
 
 declare(strict_types = 1);
 
-function supersededPrSource(string $relativePath): string
-{
-    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
-}
-
 function supersededPrConsentRow(string $startsWith): string
 {
     $section = installerDocsSection(
-        supersededPrSource('rules/compound-engineering/orchestration.md'),
+        packageSource('rules/compound-engineering/orchestration.md'),
         '## Externally-visible actions & consent levels',
     );
 
@@ -46,7 +41,7 @@ test('the consent table forbids every helper agent to close a pull request', fun
 });
 
 test('donatello never closes a pull request and hands the superseded number back', function (): void {
-    $donatello = supersededPrSource('agents/donatello.md');
+    $donatello = packageSource('agents/donatello.md');
 
     expect($donatello)->toContain('**You never close a pull request**, and `gh pr close` is not in your grant.')
         ->and($donatello)->toContain('you open the new pull request and hand the number of the replaced one back as `Superseded PR` in your handoff')
@@ -55,9 +50,9 @@ test('donatello never closes a pull request and hands the superseded number back
 });
 
 test('the -vN path has one owner, and the other files point to it', function (): void {
-    $batch = supersededPrSource('skills/_shared/orchestration/batch-preparation.md');
-    $krang = supersededPrSource('agents/krang.md');
-    $orchestration = supersededPrSource('rules/compound-engineering/orchestration.md');
+    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
+    $krang = packageSource('agents/krang.md');
+    $orchestration = packageSource('rules/compound-engineering/orchestration.md');
 
     expect($batch)->toContain('**The close belongs to the root session.**')
         ->and($batch)->toContain('This is the one description of the `-vN` path, and every other file points here.')
@@ -109,8 +104,8 @@ test('the -vN path applies only on a repository without ci, and with ci donatell
         ->and($pushRow)->toContain('without CI the `<branch>-vN` path applies instead');
     expect($updateRow)->toContain('On a conflict, `donatello` force-pushes the branch with CI, or pushes `<branch>-vN` without CI')
         ->and($updateRow)->not->toContain('A conflict is never forced');
-    expect(supersededPrSource('agents/krang.md'))
+    expect(packageSource('agents/krang.md'))
         ->toContain('(a repository without CI only; with CI the rebased branch stays in its own pull request)');
-    expect(supersededPrSource('agents/donatello.md'))
+    expect(packageSource('agents/donatello.md'))
         ->toContain('When the `-vN` path replaces a pull request on a repository without CI,');
 });

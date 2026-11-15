@@ -985,6 +985,15 @@ function packageTextFiles(): array
 }
 
 /**
+ * The content of one package file, read by its package-relative path. Shared by the content tests
+ * that pin a sentence of a rule, a skill, or an agent file.
+ */
+function packageSource(string $relativePath): string
+{
+    return (string) file_get_contents(__DIR__ . '/../' . $relativePath);
+}
+
+/**
  * The four groups of *Skills deliberately not run*
  * (`skills/code-review/references/specialized-reviews.md`), keyed by group number, each holding the
  * skill names its bullets classify. Only the lead of a bullet — everything before the em-dash that
