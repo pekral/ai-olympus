@@ -14,7 +14,7 @@ Qualify it from evidence this step produces itself, never from a claim on the pu
 
 The exemption covers the code-review gate **and nothing else**. No conflicts, not a Draft, the approval check met (an exemption from the code-review gate is not an exemption from the approval check, `@rules/git/pull-requests.md` *Merging*), and branch up to date all still apply, and an explicit "merge anytime" request does not widen it. When a merge proceeds under it, record in the merge report that the code-review gate was exempted as a `FAST`-tier PR, together with the classifier's own `tier=`, `score=`, and `signal=` lines as the proof.
 
-**A PR that does carry a code-review comment is reviewed on its merits, whatever the classifier says.** When a trusted CR comment exists, read it: a Critical or an undeferred Moderate in it blocks the merge, and the exemption never overrides a review that actually ran. The exemption exists for the PR nobody reviewed, not as a way to discard a review somebody wrote.
+**A PR that does carry a code-review report is reviewed on its merits, whatever the classifier says.** When the newest trusted code-review report (`skills/_shared/cr-header.sh --report <loader-file>`) exists, read it: a Critical or an undeferred Moderate in it blocks the merge, and the exemption never overrides a review that actually ran. The exemption exists for the PR nobody reviewed, not as a way to discard a review somebody wrote.
 
 ## Dependency-only PR exemption (code review not required)
 

@@ -27,9 +27,16 @@ test('a changes-requested review decision still blocks and a branch protection i
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
 
-    expect($rule)->toContain('It also blocks when the latest review of an author in `reviews[]` has `state == "CHANGES_REQUESTED"`')
+    expect($rule)->toContain(
+        'It also blocks when the latest `APPROVED` or `CHANGES_REQUESTED` review of an author in `reviews[]` has `state == "CHANGES_REQUESTED"`',
+    )
+        ->and($rule)->toContain(
+            'A `COMMENTED` review, and a review that carries an agent marker (`@rules/code-review/general.md` *Authorship trust*), '
+                . 'never replaces that review.',
+        )
         ->and($rule)->toContain('an `authorAssociation` of `OWNER`, `MEMBER`, or `COLLABORATOR`')
-        ->and($skill)->toContain('a latest `CHANGES_REQUESTED` review of a trusted author in `reviews[]`')
+        ->and($skill)->toContain('a trusted author whose latest `APPROVED` or `CHANGES_REQUESTED` review in `reviews[]` is `CHANGES_REQUESTED`')
+        ->and($skill)->toContain('A `COMMENTED` review, and a review that carries an agent marker, never replaces that review.')
         ->and($rule)->toContain('**`reviewDecision == "CHANGES_REQUESTED"` always blocks.**')
         ->and($rule)->toContain('The request of a human reviewer is never overridden by the agent\'s own review')
         ->and($rule)->toContain('**A GitHub branch protection is never lifted.**')
@@ -38,7 +45,7 @@ test('a changes-requested review decision still blocks and a branch protection i
             'The other gates are unchanged: converged code review, pre-merge quality gate, CI, no conflicts, not a Draft, branch up to date.',
         )
         ->and($skill)->toContain('`CHANGES_REQUESTED` blocks, and a GitHub refusal stops the run — never `--admin`')
-        ->and($skill)->toContain('A `CHANGES_REQUESTED` decision, or a latest `CHANGES_REQUESTED` review');
+        ->and($skill)->toContain('A `CHANGES_REQUESTED` decision, or a trusted author whose latest `APPROVED` or `CHANGES_REQUESTED` review');
 });
 
 test('the skills reference the rule and no longer demand a GitHub approval on its own', function (): void {

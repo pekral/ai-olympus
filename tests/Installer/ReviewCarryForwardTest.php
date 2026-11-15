@@ -126,7 +126,8 @@ test('review-only mode decides the carry-forward with the script before it dispa
             'Dispatch nobody for it, take no write-lock for it, and publish nothing. '
                 . 'Append one `note` line to the audit ledger: `no round dispatched — carry-forward`.',
         )
-        ->toContain('Report the reason, both fingerprints, and the URL of the carried review.')
+        ->toContain('Report the reason, both fingerprints, and the URL of the carried review: the `review_url` the script prints, '
+            . 'or the pull-request URL when the carried report is the hidden record of a pull-request review (`review_url` is `null` there).')
         ->toContain('one `outbound-request` audit line for each entry of its `reads` list.')
         ->toContain('`skills/_shared/review-carry-forward.sh decide` (*Review-only mode* step 2;')
         ->toContain('`Review carried forward` when review-only mode found every linked pull request unchanged and dispatched nobody');

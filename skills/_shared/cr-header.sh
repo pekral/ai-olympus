@@ -73,7 +73,6 @@
 #              not a record: nothing is printed and the function returns 3 (fail closed).
 #
 # Command line (besides --self-test)
-#   cr-header.sh --unwrap <review|comment>   cr_review_meta_unwrap on standard input
 #   cr-header.sh --report <loader-file>      the newest trusted code-review report of a pull request, unwrapped:
 #                                            `newest_trusted_report` of review-trust.jq over the output of
 #                                            skills/code-review-github/scripts/load-issue.sh, then the unwrap of
@@ -629,17 +628,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     cr_header_self_test
     exit $?
     ;;
-  --unwrap)
-    [[ "${2:-}" == review || "${2:-}" == comment ]] || { echo 'Usage: cr-header.sh --unwrap <review|comment>' >&2; exit 1; }
-    cr_review_meta_unwrap "$2" || { echo 'cr-header.sh: the review body holds no single hidden record' >&2; exit 3; }
-    exit 0
-    ;;
   --report)
     [[ -r "${2:-}" ]] || { echo 'Usage: cr-header.sh --report <loader-file>' >&2; exit 1; }
     cr_review_meta_report "$2" || { echo 'cr-header.sh: no trusted code-review report, or the newest one is not a record' >&2; exit 3; }
     exit 0
     ;;
   esac
-  echo 'Usage: cr-header.sh --self-test | --unwrap <review|comment> | --report <loader-file> (the file is meant to be sourced)' >&2
+  echo 'Usage: cr-header.sh --self-test | --report <loader-file> (the file is meant to be sourced)' >&2
   exit 1
 fi
