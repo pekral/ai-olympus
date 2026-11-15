@@ -200,25 +200,50 @@ test('a review-mode finding blocks at its severity and never shows the value', f
     expect($skill)->toContain('Deleting the value in one more commit is not a fix');
 });
 
-test('review mode reads the default-branch script through the fully qualified ref of read-manifest.sh', function (): void {
-    $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
-
-    expect($skill)->toContain('`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code')
-        ->and($skill)->toContain('`.agents/skills/_shared/read-manifest.sh --default-ref` on Codex')
-        ->and($skill)->toContain('prints the fully qualified `refs/remotes/origin/<default branch>`')
-        ->and($skill)->toContain('Set `REF` to that output, then read the file with')
-        ->and($skill)->toContain('`git show "${REF:?}:skills/git-history-exposure-audit/scripts/history-scan.sh"`, in the same shell call.')
-        ->and($skill)->not->toContain('git show "${REF}:')
-        ->and($skill)->toContain('A failed resolution is a failed scan, and an empty `REF` is a failed resolution:')
-        ->and($skill)->toContain('Never use the short `origin/<default branch>`')
-        ->and($skill)->toContain('`Not verified: history exposure — the default branch did not resolve;')
-        ->and($skill)->not->toContain('git show origin/<default branch>:');
-
-    // The skill reuses the resolution of read-manifest.sh; the option it names must exist there.
-    expect(historyExposureSource('skills/_shared/read-manifest.sh'))
-        ->toContain('read-manifest.sh --default-ref')
-        ->toContain('git symbolic-ref --quiet refs/remotes/origin/HEAD');
-});
+test(
+    'review mode runs the installed copy from the main worktree after it compared the script and its sibling with the default-branch blobs',
+    function (): void {
+        $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
+        $step = substr(
+            $skill,
+            (int) strpos($skill, '2. **The trusted copy of the script.**'),
+            (int) strpos($skill, '3. **The commits.**') - (int) strpos($skill, '2. **The trusted copy of the script.**'),
+        );
+        $owner = '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier*';
+    
+        // The copy runs from <main>, never by a relative path, and the ref comes from git alone.
+        expect($step)->toContain('`<main>/.claude/skills/git-history-exposure-audit/scripts/history-scan.sh` on Claude Code')
+            ->and($step)->toContain('`<main>/.agents/skills/git-history-exposure-audit/scripts/history-scan.sh` on Codex')
+            ->and($step)->toContain('with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`')
+            ->and($step)->toContain($owner . ' item 2')
+            ->and($step)->toContain('never by a relative path')
+            ->and($step)->toContain('Never run a copy from the checked-out branch or from the review worktree')
+            ->and($step)->toContain($owner . ' item 3')
+            ->and($step)->toContain('The resolution runs no script')
+            ->and($step)->not->toContain('--default-ref')
+            ->and($step)->not->toContain('git symbolic-ref')
+            ->and($step)->not->toContain('refs/remotes/origin/?*');
+    
+        // Both files the scan runs are compared with the default-branch blobs, in the same shell call as the resolution.
+        expect($step)->toContain('compare the installed `history-scan.sh` and its sibling `_shared/read-manifest.sh`')
+            ->and($step)->toContain($owner . ' items 4 and 5')
+            ->and($step)->toContain('`git show "${REF:?}:skills/git-history-exposure-audit/scripts/history-scan.sh"`')
+            ->and($step)->toContain('`git show "${REF:?}:skills/_shared/read-manifest.sh"`')
+            ->and($step)->toContain('`git show "${REF:?}:<installed path>"`')
+            ->and($step)->toContain('In the same shell call, set `REF`')
+            ->and($step)->not->toContain('git show "${REF}:')
+            ->and($step)->toContain('A failed resolution is a failed scan, and an empty `REF` is a failed resolution:')
+            ->and($step)->toContain('Never use the short `origin/<default branch>`')
+            ->and($step)->toContain('`Not verified: history exposure — the default branch did not resolve;')
+            ->and($step)->toContain('`Not verified: history exposure — the trusted copy of the script is not available;')
+            ->and($step)->toContain('`Not verified: history exposure — the installed script differs from the default-branch script;')
+            ->and($step)->not->toContain('git show origin/<default branch>:');
+    
+        // The script runs its sibling for the allow-list, so the sibling is part of the trusted copy.
+        expect(historyExposureSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))
+            ->toContain('local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh"');
+    },
+);
 
 test('the allow-list is a default-branch manifest key and the package lists the skill', function (): void {
     expect(historyExposureSource('rules/general/general.md'))->toContain('| `history-exposure.allow` | object[] | `{rule, path}` pairs');
