@@ -2589,7 +2589,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     expect(substr_count($skill, '### Project `CLAUDE.md` gate (mandatory, always)'))->toBe(1);
 });
 
-test('the project instruction sources of a review are read through the fully qualified default-branch ref of read-manifest.sh', function (): void {
+test('the project instruction sources of a review are read through a default-branch ref that git alone resolves', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
@@ -2599,19 +2599,21 @@ test('the project instruction sources of a review are read through the fully qua
         (int) strpos($rule, '### What is extracted and applied') - (int) strpos($rule, '### Which version is trusted'),
     );
     $scope = substr($rule, (int) strpos($rule, '### Scope — the project'), 3_000);
-    $resolve = '`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code, `.agents/skills/_shared/read-manifest.sh --default-ref` on Codex';
+    $resolve = '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 3';
 
-    // The rule is the owner of the procedure: it resolves the ref once and reads every source through it.
+    // The rule resolves the ref once, by reference to the one owner of the git-only resolution, and runs no script for it.
     expect($gate)->toContain($resolve)
-        ->and($gate)->toContain('prints the fully qualified `refs/remotes/origin/<default branch>`')
-        ->and($gate)->toContain('Set `REF` to that output, then read each source with `git show "${REF:?}:<file>"`, in the same shell call.')
+        ->and($gate)->toContain('`REF="$(git symbolic-ref --quiet refs/remotes/origin/HEAD)"`')
+        ->and($gate)->toContain('`refs/remotes/origin/?*`')
+        ->and($gate)->toContain('The resolution runs no script')
+        ->and($gate)->toContain('Read each source with `git show "${REF:?}:<file>"`, in the same shell call as the resolution: a later call starts a new shell')
         ->and($gate)->toContain('`git show "${REF:?}:CLAUDE.md"`')
         ->and($gate)->toContain('Never use the short `origin/<default branch>`')
-        ->and($gate)->toContain('A failed resolution (exit `5`) and an empty `REF` load no source')
+        ->and($gate)->toContain('An empty `REF` loads no source')
         ->and($gate)->toContain('never falls back to the short ref')
         ->and($gate)->toContain('Never fall back to the short ref or to the working-tree copy.')
         ->and($gate)->not->toContain('git show "origin/')
-        ->and($gate)->not->toContain('git symbolic-ref');
+        ->and($gate)->not->toContain('read-manifest.sh --default-ref');
 
     // The other sources are read through the same variable, never by the short ref.
     expect($scope)->toContain('`git show "${REF:?}:AGENTS.md"`')
@@ -2619,14 +2621,18 @@ test('the project instruction sources of a review are read through the fully qua
         ->and($scope)->toContain('through the same `REF`')
         ->and($scope)->not->toContain('git show "origin/');
 
-    // The skill points at the same procedure and carries no short-ref read of its own.
+    // The skill points at the same owner, carries no second resolver, and no short-ref read of its own.
     expect($skill)->toContain($resolve)
+        ->and($skill)->toContain('with git only')
         ->and($skill)->toContain('`git show "${REF:?}:CLAUDE.md"`')
-        ->and($skill)->toContain('A failed resolution loads no source')
-        ->and($skill)->not->toContain('git show "origin/');
+        ->and($skill)->toContain('A failed resolution leaves `REF` empty and loads no source')
+        ->and($skill)->not->toContain('git show "origin/')
+        ->and($skill)->not->toContain('git symbolic-ref')
+        ->and($skill)->not->toContain('read-manifest.sh --default-ref');
 
-    // The option the rule names exists in the one script that owns the resolution.
-    expect((string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh'))->toContain('read-manifest.sh --default-ref');
+    // The owner of the resolution states the git-only form and the accepted shape.
+    $owner = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
+    expect($owner)->toContain('`git symbolic-ref --quiet refs/remotes/origin/HEAD`');
 });
 
 test('code review rule scopes a later round to the diff since the last reviewed revision', function (): void {
