@@ -12,7 +12,8 @@ Run every `gh label` and `gh pr edit` command below, and `gh pr ready` in the re
 The pull request is on GitHub whatever the source tracker is, so this write runs for a GitHub, a JIRA, and a Bugsnag source, and also when there is no source tracker item.
 1. **Create the label when the repository lacks it**, then ignore the "already exists" outcome on every later run: `gh label create "ready to merge" --description "The code review converged; the PR is waiting to be merged" --color 1d76db`.
 2. **Apply it to the pull request:** `gh pr edit <PR-NUMBER|URL> --add-label "ready to merge"`.
-3. **Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <PR-URL>`. When it did not land, report the failed write in the completion report; the PR stays promoted.
+3. **Refresh the `## Merge risk` heading** of the pull-request body with the gate result, per `@skills/resolve-issue/references/pull-request.md` *Merge risk* → *Refresh after the gate*. Skip it when the body carries no such heading.
+4. **Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <PR-URL>`. When it did not land, report the failed write in the completion report; the PR stays promoted.
 
 ### Revert when the review re-opens
 A commit landing after the promotion can re-open the review (*Finalization* — **Only a gate fix that changes business logic re-opens the review**). The pull-request signal then states something untrue, so withdraw it:

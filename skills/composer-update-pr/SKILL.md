@@ -88,6 +88,7 @@ The step is done when every package of the pull request description appears in t
 
 Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. The body keeps the 6,500-character limit of `@rules/git/pull-requests.md` *PR Content Requirements*, checked before `gh pr create`. Fill each number from the script output and the sections as follows:
 - `## TL;DR` — every number is counted from the script output.
+- `## Summary` — the categorised bullets of the template, in plain words: each major update with its versions and what the jump means, the minor and patch updates, the added or removed packages, and the manifest changes. A category without a bullet is left out. A consequence the run did not read in the package's release notes is `not verified`.
 - `## Major updates` — one row per package with `level` `major`. Omit the section when no package has `level` `major`.
 - `## Other updates` — one row per remaining package; a `downgraded` row names the downgrade.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
