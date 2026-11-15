@@ -128,13 +128,15 @@ test('both commits of the diff are fetched and verified before the security chec
 test('the base branch name is checked by the low-risk path check and the base tip is fetched by object id with no destination ref', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
     $check = 'with the `baseRefName` check of `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* item 1.';
-    $read = 'Read the base tip with the exact-ref read of that item, on `"refs/heads/${BASE_REF}"`.';
+    $read = 'Read the base tip with the exact-ref read of that item, on `"refs/heads/${BASE_REF:?}"`.';
     $fetch = 'Run `git fetch origin "<object id>"` with that object id, as that item directs. Name no destination ref';
 
     expect($skill)->toContain('`baseRefOid`, `baseRefName`, `headRefName`')
         ->and($skill)->toContain('run `git fetch origin refs/pull/<number>/head` and fetch the base tip by object id instead')
         ->and($skill)->toContain('never write it into a command line, the steps below included')
         ->and($skill)->toContain('BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r \'.baseRefName\')"')
+        ->and($skill)->toContain('Run the check and the read of items 1 and 2 in the same shell call that sets `BASE_REF`')
+        ->and($skill)->toContain('a later call sets it again and repeats the check first')
         ->and($skill)->toContain($check)
         ->and($skill)->toContain('A name that fails stops the run: `Blocked: invalid base branch name`.')
         ->and($skill)->toContain($read)

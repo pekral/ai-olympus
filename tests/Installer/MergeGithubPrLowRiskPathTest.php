@@ -58,10 +58,11 @@ test('the base tip is read again as the last command before the merge and a move
     $merge = substr($path, (int) strpos($path, '## Merge'));
 
     expect($confirm)->toContain(
-        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF}"`',
+        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF:?}"` in a shell call that sets `BASE_REF` again from the loader output and repeats the check of item 1 first',
     )
         ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
+        ->and($confirm)->toContain('A name that differs from the name checked in *Select the candidate* item 1 selects the full path.')
         ->and($confirm)->toContain('means the base moved. Start again from *Select the candidate*')
         ->and($path)->not->toContain('git ls-remote origin refs/heads/<baseRefName>')
         ->and($path)->not->toContain('refs/heads/<baseRefName>')
@@ -83,7 +84,13 @@ test('the base branch name is untrusted, set from command output, checked first,
         ->and($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
         ->and($select)->toContain('reject a name that contains `..` or ends in `.lock`, as its `check_head` does')
         ->and($select)->toContain('selects the full path, and no command uses it.')
-        ->and($select)->toContain('Quote `"$BASE_REF"` in every command of this file.')
+        ->and($select)->toContain('Quote the variable in every command of this file.')
+        ->and($select)->toContain('Every command that uses `BASE_REF` sets it from that command output and runs the check above in the same shell call')
+        ->and($select)->toContain('a later Bash call starts a new shell')
+        ->and($select)->toContain('Write the variable as `"${BASE_REF:?}"` in a command, so an unset or empty value fails.')
+        ->and($select)->toContain('`git ls-remote origin "refs/heads/${BASE_REF:?}"`')
+        ->and($select)->not->toContain('`git ls-remote origin "refs/heads/${BASE_REF}"`')
+        ->and($select)->toContain('Record the checked name beside the base tip')
         ->and($select)->toContain('Check `"$BASE_REF"` first, before any command uses it,')
         ->and($select)->toContain('`git check-ref-format --branch "$BASE_REF"`, which rejects `HEAD`')
         ->and(strpos($select, 'Set `BASE_REF` from command output'))->toBeLessThan((int) strpos($select, 'BRANCH_SHAPE'))
