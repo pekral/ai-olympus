@@ -125,6 +125,25 @@ test('both commits of the diff are fetched and verified before the security chec
         ->and(strpos($skill, 'git cat-file -e'))->toBeLessThan((int) strpos($skill, '### 2. Security check'));
 });
 
+test('the base branch name is checked before the fallback fetch uses it, and is fetched with an exact refspec', function (): void {
+    $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
+    $fetch = 'git fetch origin "+refs/heads/<baseRefName>:refs/remotes/origin/<baseRefName>"';
+
+    expect($skill)->toContain('`baseRefOid`, `baseRefName`, `headRefName`')
+        ->and($skill)->toContain('A failed check stops the run: `Blocked: invalid base branch name`.')
+        ->and($skill)->toContain('It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`')
+        ->and($skill)->toContain('2. It is not the literal `HEAD`.')
+        ->and($skill)->toContain('`git check-ref-format --branch "<baseRefName>"` exits `0`.')
+        ->and($skill)->toContain('`git symbolic-ref -q "refs/remotes/origin/<baseRefName>"` exits non-zero')
+        ->and($skill)->toContain('Use the name only in double quotes, and fetch it with the exact refspec: `' . $fetch . '`.')
+        ->and(strpos($skill, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($skill, $fetch));
+
+    // The skill reuses the shape check of the carry-forward script; the reference must name a check that exists there.
+    expect(mergeFastSource('skills/_shared/review-carry-forward.sh'))
+        ->toContain('BRANCH_SHAPE=\'^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$\'')
+        ->toContain('! "$base" =~ $BRANCH_SHAPE || "$base" == *..*');
+});
+
 test('the report names the merge commit, the security check, and every skipped merge-github-pr gate', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
     $report = substr($skill, (int) strpos($skill, '## Output'));

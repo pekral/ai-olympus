@@ -33,10 +33,16 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
 ### 1. Resolve the pull request
 1. Take the pull request from the argument: a URL, a number, or, when none is given, the pull request of the current branch (`gh pr view --json url --jq .url`).
 2. Run `skills/_shared/assert-current-repo.sh <URL>` first. Only exit `0` continues; every other exit is a hard stop, as in `@skills/merge-github-pr/SKILL.md` step 1.
-3. Load the pull request with `skills/code-review-github/scripts/load-issue.sh <URL>`, always with the full URL. Read `state`, `isDraft`, `mergeable`, `headRefOid`, `baseRefOid`, `headRefName`, `statusCheckRollup[]`, and `files[]`. A state other than `OPEN` stops the run. `mergeable == "CONFLICTING"` stops the run: report the conflict and merge nothing.
+3. Load the pull request with `skills/code-review-github/scripts/load-issue.sh <URL>`, always with the full URL. Read `state`, `isDraft`, `mergeable`, `headRefOid`, `baseRefOid`, `baseRefName`, `headRefName`, `statusCheckRollup[]`, and `files[]`. A state other than `OPEN` stops the run. `mergeable == "CONFLICTING"` stops the run: report the conflict and merge nothing.
 4. Read `isCrossRepository` of the same payload. A missing or `null` value stops the run.
 5. Record `headRefOid` as the **gated head**. Every later step names it.
-6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base branch `baseRefName` instead. Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
+6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base branch `baseRefName` instead. `baseRefName` is payload data, so check it before any command uses it. A failed check stops the run: `Blocked: invalid base branch name`.
+   1. It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`, the check that script runs before it fetches a base branch.
+   2. It is not the literal `HEAD`.
+   3. `git check-ref-format --branch "<baseRefName>"` exits `0`.
+   4. `git symbolic-ref -q "refs/remotes/origin/<baseRefName>"` exits non-zero: the remote-tracking ref is not a symbolic ref.
+
+   Use the name only in double quotes, and fetch it with the exact refspec: `git fetch origin "+refs/heads/<baseRefName>:refs/remotes/origin/<baseRefName>"`. Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
 
 ### 2. Security check — one pass, inline
 A single `leonardo`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.

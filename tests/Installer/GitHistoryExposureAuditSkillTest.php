@@ -200,6 +200,23 @@ test('a review-mode finding blocks at its severity and never shows the value', f
     expect($skill)->toContain('Deleting the value in one more commit is not a fix');
 });
 
+test('review mode reads the default-branch script through the fully qualified ref of read-manifest.sh', function (): void {
+    $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
+
+    expect($skill)->toContain('`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code')
+        ->and($skill)->toContain('`.agents/skills/_shared/read-manifest.sh --default-ref` on Codex')
+        ->and($skill)->toContain('prints the fully qualified `refs/remotes/origin/<default branch>`')
+        ->and($skill)->toContain('`git show "<that ref>:skills/git-history-exposure-audit/scripts/history-scan.sh"`')
+        ->and($skill)->toContain('Never use the short `origin/<default branch>`')
+        ->and($skill)->toContain('`Not verified: history exposure — the default branch did not resolve;')
+        ->and($skill)->not->toContain('git show origin/<default branch>:');
+
+    // The skill reuses the resolution of read-manifest.sh; the option it names must exist there.
+    expect(historyExposureSource('skills/_shared/read-manifest.sh'))
+        ->toContain('read-manifest.sh --default-ref')
+        ->toContain('git symbolic-ref --quiet refs/remotes/origin/HEAD');
+});
+
 test('the allow-list is a default-branch manifest key and the package lists the skill', function (): void {
     expect(historyExposureSource('rules/general/general.md'))->toContain('| `history-exposure.allow` | object[] | `{rule, path}` pairs');
     expect(historyExposureSource('skills/git-history-exposure-audit/SKILL.md'))
