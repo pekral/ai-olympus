@@ -22,6 +22,7 @@ This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md`
 
 ### PR Content Requirements
 - **State the merge risk.** The body of an agent-opened pull request opens with a `## Merge risk` section whose heading carries a traffic-light icon and the tier, followed by the door (`one-way` or `two-way`) and the blast radius. `@skills/resolve-issue/references/pull-request.md` owns the section and renders it from `skills/_shared/classify-risk.sh --merge-risk`.
+- **Keep the body at most 6,500 characters.** This is a hard limit for every agent-opened pull-request body, checked before each `gh pr create` and `gh pr edit` that writes the body: `[ "$(LC_ALL=en_US.UTF-8 wc -m < <body-file>)" -le 6500 ]`. A body over the limit is never published. Shorten it until the check passes, and keep every section of its template, their order, and every required value: tighten the wording, drop repetition, and merge rows that say the same thing. The result stays easy for a person to read: whole sentences, no truncation in the middle of a sentence, no `…` in place of content. `@skills/resolve-issue/references/pull-request.md` owns the check.
 - Include links to all sources used during analysis.
 - Prefer adding these as a comment on the related GitHub issue.
 

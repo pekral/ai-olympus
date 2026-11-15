@@ -62,3 +62,4 @@ Plan: <plan issue link>
 <!-- Evidence line: only on a bug fix. The pull request this one replaces: only when it replaces one. Open decisions: only when the run made a choice without a fact. Security acceptance checklist: only when a pre-implementation security plan was passed into the run. Safeguard: only when the source issue is a prevention proposal. TODO: only when a point was deferred. -->
 <!-- Merge risk, Summary, Walkthrough, Testing, and Audit are always present. -->
 <!-- The body follows the language rule of rules/git/pull-requests.md Pull Requests. -->
+<!-- The whole body is at most 6,500 characters (rules/git/pull-requests.md PR Content Requirements): shorten the wording, never drop a section. -->
