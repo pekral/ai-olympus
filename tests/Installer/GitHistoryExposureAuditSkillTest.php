@@ -239,6 +239,16 @@ test(
             ->and($step)->toContain('`Not verified: history exposure — the installed script differs from the default-branch script;')
             ->and($step)->not->toContain('git show origin/<default branch>:');
     
+        // A project that ignores the installed directory and ships no skills tree keeps a working scan, and the history scan has no full-path fallback.
+        expect($step)->toContain('When the default branch neither ships the files nor tracks the installed paths')
+            ->and($step)->toContain('accepted only when the diff of the pull request does not add, change, or delete')
+            ->and($step)->toContain('`git diff --name-only <baseRefOid> <headRefOid> -- <installed history-scan path> <installed read-manifest path>`')
+            ->and($step)->toContain('prints nothing')
+            ->and($step)->toContain('A non-empty or failed check is a failed scan')
+            ->and($step)->toContain('A checked-out head can replace an ignored installed file only by adding that path')
+            ->and($step)->not->toContain('no default-branch blob')
+            ->and($step)->not->toContain('as item 5 of that section lists, is a failed scan');
+
         // The script runs its sibling for the allow-list, so the sibling is part of the trusted copy.
         expect(historyExposureSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))
             ->toContain('local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh"');
