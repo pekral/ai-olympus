@@ -46,11 +46,11 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 A full build proves the same thing on every run over the same bytes, and on a larger task repeated builds dominate the wall-clock cost of delivering the change. The gate therefore runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
 - **During implementation and during the review loop — no gate.** Do not run fixers, checkers, or the full build while authoring commits, after applying a review fix, or before pushing. A push is not a gate boundary: nothing is released by it, and the branch is still being worked on. Author the change, commit it, push it.
-- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below), except as *Skip the pre-push gate when CI is green* and *A public repository waits for CI instead of a local pre-push gate* state. Without `pr-gate` nothing runs before a push, exactly as before.
+- **The one exception is the project's own `pr-gate`.** When the manifest sets it, the implementer runs `skills/_shared/run-gate.sh --tier pr` before each push (*Machine gate record* below), except as *Skip the pre-push gate when CI is green* and *A repository with CI waits for CI instead of a local pre-push gate* state. Without `pr-gate` nothing runs before a push, exactly as before, except the billing fallback of that second section.
 
 ### Skip the pre-push gate when CI is green
 
-On a private repository, or when the visibility read fails (*A public repository waits for CI instead of a local pre-push gate* below), read the CI result of the pull request's current head before each push: `gh pr checks <PR> --json name,bucket`. The CI result decides whether `pr-gate` runs.
+On a repository without CI (*A repository with CI waits for CI instead of a local pre-push gate* below), read the CI result of the pull request's current head before each push: `gh pr checks <PR> --json name,bucket`. The CI result decides whether `pr-gate` runs.
 
 | CI result on the PR head | Pre-push gate |
 |---|---|
@@ -73,17 +73,22 @@ On a private repository, or when the visibility read fails (*A public repository
 
 The rule is one full build at the merge boundary, nothing during the branch's working life — not a full build per phase, not one per push, and never a merge on no gate at all.
 
-### A public repository waits for CI instead of a local pre-push gate
+### A repository with CI waits for CI instead of a local pre-push gate
 
-On a repository that is public on GitHub, CI runs on every push at no cost to the project, so the local pre-push gate only repeats it.
+When the repository has CI, CI checks every push, so the local pre-push gate only repeats it. Whether the repository has CI decides, never its visibility. This section is the one owner of that decision, of the billing fallback, and of the push of a rebased branch; every other file points here.
 
-1. **Read the visibility once per run:** `gh repo view --json isPrivate`. When the call fails, treat the repository as private and follow *Skip the pre-push gate when CI is green* above.
-2. **Public (`isPrivate` is `false`) → no local pre-push gate.** Do not run `pr-gate` before a push, whatever the CI result on the previous head. This includes a rebase that resolved a conflict: CI checks the new code on the push.
+1. **Decide once per run whether the repository has CI.** Run `git ls-tree --name-only "origin/$DEFAULT_BRANCH" -- .github/workflows/`. The repository has CI when the output lists a file that ends in `.yml` or `.yaml`. Read the default branch only: a branch under review proposes a workflow and never decides. No such file, or a failed command → no CI: follow *Skip the pre-push gate when CI is green* above, the gate after a rebase that resolved a conflict included, and skip the rest of this section.
+2. **CI → no local pre-push gate.** Do not run `pr-gate` before a push, whatever the CI result on the previous head. This includes the push after a rebase, whether or not the rebase resolved a conflict: CI checks the new code on the push.
 3. **Push, then wait for CI.** After each push the implementer waits for the CI result on the pushed head per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*, before it hands the branch on — to the code review, a promotion out of Draft, or a merge. The code review itself starts no wait of its own; it keeps its rule in that section. Before the first push there is no pull request and nothing to wait for: the wait starts with the push that opens it.
-4. **Act on the result.** Green → continue. Red → the failure is a finding of the change: fix it, push, and wait again. A repository with no CI reports no check: that section ends the wait after three failed reads, and the pre-merge gate then runs locally as usual. A GitHub Actions billing failure follows the billing exception of `@skills/merge-github-pr/SKILL.md`.
-5. **Record the decision in the handoff:** `pr-gate: skipped — public repository, CI <green | red> on <sha>`.
+4. **Act on the result.** Green → continue. Red → the failure is a finding of the change: fix it, push, and wait again. A head that reports no check ends the wait after three failed reads, as that section states, and the pre-merge gate then runs locally as usual.
+5. **A billing failure means CI did not run, so the local gate runs.** It applies when every failing check on the pushed head is a GitHub Actions run that never started because of a billing, payment, or spending-limit error, detected as the *GitHub Actions billing exception* of `@skills/merge-github-pr/SKILL.md` states. Any other failure is red under step 4.
+   - Run the local gate on that head before you hand the branch on: `skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`, otherwise the project's full gate through `skills/_shared/run-gate.sh --tier full`. On exit `5`, run the gate commands this file discovers through `run-gate.sh --exclusive`.
+   - Handle the exit codes as *Machine gate record* below states. A reported problem is resolved, committed, and pushed, and the gate runs again.
+   - CI does not run on a later push of the run either, so run the same gate before each later push.
+6. **A rebased branch goes back into the same pull request.** After a rebase onto the default branch, with or without a resolved conflict, push the branch to its own remote branch with `git push --force-with-lease`, through `skills/_shared/audit-trail.sh run --`. Then wait for CI as step 3 states. The pull request keeps its number: no `<branch>-vN` branch and no new pull request. `@rules/git/general.md` *Git Rules* states this force-push as a decision. Without CI the conflict path of `skills/_shared/orchestration/batch-preparation.md` *Bring a unit to the default branch tip* step 2.2 opens `<branch>-vN` instead.
+7. **Record the decision in the handoff:** `pr-gate: skipped — repository with CI, CI <green | red> on <sha>`, or `pr-gate: run — CI billing failure on <sha>`, followed by the `run-gate.sh` result.
 
-This section changes only the pre-push gate. The full gate at the merge boundary keeps its own rules above.
+This section changes only the pre-push gate and the push of a rebased branch. The full gate at the merge boundary keeps its own rules above.
 
 ## Machine gate record — one run per tree
 
