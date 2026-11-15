@@ -99,8 +99,9 @@ test('the merge-risk refresh reads the classifier output from a file and compose
         ->and($pullRequest)->not->toContain('<Blast radius line>');
 
     // Run the program exactly as the reference states it, on a classifier output whose file names carry shell syntax.
-    expect(preg_match('/```bash\n(.*?)\n\s*```/s', $step, $match))->toBe(1);
-    $command = (string) preg_replace('/^ +/m', '', $match[1]);
+    $program = [];
+    expect(preg_match('/```bash\n(.*?)\n\s*```/s', $step, $program))->toBe(1);
+    $command = (string) preg_replace('/^ +/m', '', $program[1] ?? '');
     $directory = sys_get_temp_dir() . '/merge-risk-refresh-' . bin2hex(random_bytes(4));
     mkdir($directory);
     $marker = $directory . '/executed';
@@ -120,7 +121,7 @@ test('the merge-risk refresh reads the classifier output from a file and compose
     $process->run();
     $result = (string) file_get_contents($directory . '/body');
     $executed = file_exists($marker);
-    array_map('unlink', glob($directory . '/*') ?: []);
+    array_map(unlink(...), array_filter([$directory . '/risk', $directory . '/body', $directory . '/body.new'], is_file(...)));
     rmdir($directory);
 
     expect($process->getExitCode())->toBe(0)
