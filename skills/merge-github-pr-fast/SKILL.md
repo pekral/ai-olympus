@@ -42,7 +42,7 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
    3. `git check-ref-format --branch "$BASE_REF"` exits `0`.
    4. `git symbolic-ref -q "refs/remotes/origin/$BASE_REF"` exits non-zero: the remote-tracking ref is not a symbolic ref.
 
-   Use the variable only in double quotes, and fetch it with the exact refspec: `git fetch origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"`. Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
+   Use the variable only in double quotes, and fetch it with the exact refspec: `git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"`. Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
 
 ### 2. Security check — one pass, inline
 A single `leonardo`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.
