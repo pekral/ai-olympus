@@ -1,5 +1,7 @@
 # Code Review
 
+> **On GitHub this is the hidden record of the one pull-request review.** `skills/code-review-github/scripts/post-inline-review.sh post --meta-file` wraps it as hidden HTML in the review body, and every reader unwraps it (`skills/_shared/cr-header.sh`). The record leaves out four parts that only a person reads: the `Overview:` line, the changed-areas table, the TL;DR section, and the fix-all prompt (`@rules/code-review/general.md` *Quick overview*). Every other line and section stays, because the merge gate, the carry-forward, the recurrence analysis, and `pr-summary` read them.
+>
 > **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
 > The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 >
@@ -15,7 +17,7 @@
 >
 > **Minor findings are not detected.** The review raises Critical and Moderate findings only (`@rules/code-review/general.md` *Minor findings are not detected*). There is no exception: a security lens publishes its `Critical` as Critical and its `High` / `Medium` / `Low` as Moderate, and does not publish `Info`. No severity sub-heading and no `Counts:` or `Summary:` slot exists for any other tier.
 
-**Overview:** {one or two sentences on what the change does, in plain language, derived from the assignment and the diff}  *(always rendered, as the first line of the header block — `@rules/code-review/general.md` *Quick overview*. It stays on one line: the header block takes no table and no list.)*
+**Overview:** {one or two sentences on what the change does, in plain language, derived from the assignment and the diff}  *(not rendered in the GitHub record; elsewhere always rendered, as the first line of the header block — `@rules/code-review/general.md` *Quick overview*. It stays on one line: the header block takes no table and no list.)*
 **Status:** clean / needs-fix  *(`clean` when the run converged — no Critical, no unfulfilled reviewer comment, and every remaining Moderate carrying a `Deferred:` field. A Moderate without that field is outstanding, so the status is `needs-fix`.)*
 **Counts:** Critical {n} · Moderate {n}  *(always the real detected counts)*
 **Merge verdict:** {yes | no} — assignment met: {yes | no | no linked issue} · open Critical: {n} · {when no: every blocker in one short clause each — the open Critical findings, the unmet criteria, an unfulfilled reviewer comment, an undeferred Moderate, or a missing green quality gate}  *(always rendered — the one-line answer to "can we merge, and is the assignment met with no Critical finding?". `yes` only when all of `@rules/code-review/general.md` *Merge verdict* holds. It never replaces the merge gate.)*
@@ -40,7 +42,7 @@ Independent security view not run — dispatch splinter  *(render this line only
 
 ## Changed areas
 
-> Render on every review comment, converged or not, directly after the header block (`@rules/code-review/general.md` *Quick overview*). One table: one row per changed area of `git diff --name-only <base>..<head>`, and every changed file belongs to exactly one row. Repeat no header line here.
+> Not rendered in the GitHub record. Elsewhere render on every review comment, converged or not, directly after the header block (`@rules/code-review/general.md` *Quick overview*). One table: one row per changed area of `git diff --name-only <base>..<head>`, and every changed file belongs to exactly one row. Repeat no header line here.
 
 | Layer | Files | Summary |
 |---|---|---|
@@ -50,7 +52,7 @@ Independent security view not run — dispatch splinter  *(render this line only
 
 ## TL;DR
 
-> **The body of a converged run.** One plain-language line per change the review loop landed on the branch — the CR items it fixed, the pre-existing security fixes, the gate commit, and the reason any reviewer point was rejected or deferred. When the run landed no change, one line stating the reviewed scope and the verdict. Render this section on every converged run and omit it on a run that still carries an outstanding finding, where `## Findings` below is the body instead. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+> **Not rendered in the GitHub record.** Elsewhere **the body of a converged run**: one plain-language line per change the review loop landed on the branch — the CR items it fixed, the pre-existing security fixes, the gate commit, and the reason any reviewer point was rejected or deferred. When the run landed no change, one line stating the reviewed scope and the verdict. Render this section on every converged run and omit it on a run that still carries an outstanding finding, where `## Findings` below is the body instead. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 
 - {what changed, in one sentence}
 
@@ -66,8 +68,8 @@ History exposure: not run — the repository is private.  *(render this one body
 
 > Render only when at least one Critical or Moderate finding exists. Within this section, render only the severity sub-headings that have items — omit the other entirely. When both severities are empty, omit the entire `## Findings` parent heading.
 >
-> **GitHub — a finding that anchors to a line of the diff is an inline review comment, not an entry here.** The publishing run posts it on its line as one pull-request review (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*) and renders one line `Inline: <n> finding(s) in <review url>` in its place.
-> This section keeps the entries of the findings outside the diff, and every entry when the inline review was not posted (`Inline: not posted (<reason>)`), except a finding marked `do_not_file_publicly` on a public repository or when the visibility check fails, which stays out of this comment (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*). The `Counts:` line and the round report of the review loop keep every finding.
+> **GitHub — this section lists every published finding in full.** On GitHub this report is the hidden record of the one pull-request review (`@skills/code-review-github/references/cr-wrapper-contract.md` *GitHub pull-request review*). A finding that anchors to a line of the diff is also a short inline review comment, and a finding outside the diff is also one visible line of the review body. The record keeps the full entry of each: the findings posted inline, the `already_open` ones, and the `outside_diff` ones alike. It carries no `Inline:` line; a legacy comment with the line `Inline: <n> finding(s) in <review url>` stays readable.
+> A finding marked `do_not_file_publicly` on a public repository, or when the visibility check fails, stays out of the record too, because hidden HTML is public (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*). The `Counts:` line and the round report of the review loop keep every finding.
 
 ### 🔴 Critical 1. <short title>
 
@@ -251,7 +253,7 @@ History exposure: not run — the repository is private.  *(render this one body
 
 ## Prompt to fix all issues
 
-> Render as the last section, and only while at least one Critical or Moderate finding is open (a finding with no `Deferred:` field). Omit the heading and the block when nothing is open — no placeholder. Canonical contract: `@rules/code-review/general.md` *Quick overview*.
+> Not rendered in the GitHub record. Elsewhere render as the last section, and only while at least one Critical or Moderate finding is open (a finding with no `Deferred:` field). Omit the heading and the block when nothing is open — no placeholder. Canonical contract: `@rules/code-review/general.md` *Quick overview*.
 > The block lists every open finding of the round, the findings posted as inline review comments and the findings kept in `## Findings` alike, so the `Inline:` line never shortens it. The fence is longer than every run of backticks inside the block, and each finding takes one line with no nested fence. Visibility decides which findings the block carries: on a private repository (`gh repo view <nameWithOwner> --json isPrivate` answers `true`) it lists every finding, security findings included. On a public repository, and when the check fails, it leaves out every finding marked `do not file publicly` and carries no word about it.
 
 ````text

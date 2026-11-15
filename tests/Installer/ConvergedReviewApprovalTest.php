@@ -14,7 +14,7 @@ test('the merging rule states once that a converged review counts as the approva
 
     expect($rule)->toContain('**The approval check is met by a GitHub approval or by the converged code review itself.**')
         ->and($rule)->toContain('**Source 1 — a GitHub approval:** `reviewDecision == "APPROVED"`.')
-        ->and($rule)->toContain('**Source 2 — the converged code-review comment:**')
+        ->and($rule)->toContain('**Source 2 — the converged code-review report:**')
         ->and($rule)->toContain('reports `Critical 0` and no open Moderate')
         ->and($rule)->toContain('A deferred Moderate does not withhold it.')
         ->and($rule)->not->toContain('A Minor finding and a deferred Moderate')

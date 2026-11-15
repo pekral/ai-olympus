@@ -109,29 +109,32 @@ test('the self-test covers every scenario of the assignment', function (): void 
         ->and($script)->toContain('\'a check that dies is a refusal, never a valid body\'');
 });
 
-test('the publication step checks the header lines of the body it then publishes', function (): void {
+test('the publication step checks the header lines of the record it then publishes', function (): void {
     $contract = crHeaderCheckSource('skills/code-review-github/references/cr-wrapper-contract.md');
-    $publish = 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>';
+    $script = crHeaderCheckSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $publish = 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+        . '<reviewed head SHA> --meta-file <record-file> <findings-file>';
 
-    expect(substr_count($contract, '- **Check the header lines before publishing.**'))->toBe(1)
-        ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <body-file>`'))->toBe(1)
-        ->and(substr_count($contract, '`BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/cr-body.XXXXXX")"`, never a fixed name'))->toBe(1)
+    expect(substr_count($contract, '- **Check the record before publishing.**'))->toBe(1)
+        ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <record-file>`'))->toBe(1)
+        ->and(substr_count($contract, '`META_FILE="$(mktemp "${TMPDIR:-/tmp}/cr-record.XXXXXX")"`, never a fixed name'))->toBe(1)
         ->and(substr_count($contract, 'verifies both the `Merge verdict:` line and the `Security assessment:` line in one pass'))->toBe(1)
         ->and(substr_count($contract, 'Publish only after exit `0`; any other exit code is a refusal.'))->toBe(1)
-        ->and(substr_count($contract, 'A body that the check refused is never published.'))->toBe(1)
-        ->and(substr_count($contract, '- Publish via `' . $publish . '` (the body file the check accepted).'))->toBe(1)
-        ->and(strpos($contract, '- **Check the header lines before publishing.**'))->toBeLessThan((int) strpos($contract, '- Publish via `' . $publish));
+        ->and(substr_count($contract, 'The wrapper runs the same check again and publishes nothing for a record it refuses.'))->toBe(1)
+        ->and(substr_count($contract, $publish))->toBe(1)
+        ->and(strpos($contract, '- **Check the record before publishing.**'))->toBeLessThan((int) strpos($contract, $publish))
+        ->and($script)->toContain('"$CHECK_HEADER" --file "$TMP_ROOT/meta.md"')
+        ->and($script)->toContain('the review record was refused by check-cr-header.sh, nothing was published');
 });
 
-test('the standalone review publication in the leonardo agent routes both pull request comments through the header check', function (): void {
+test('the standalone review publication in the leonardo agent routes the record through the header check', function (): void {
     $leonardo = crHeaderCheckSource('agents/leonardo.md');
-    $check = '`@skills/code-review-github/references/cr-wrapper-contract.md` *Check the header lines before publishing*';
-    $publish = 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>';
+    $check = '`@skills/code-review-github/references/cr-wrapper-contract.md` *Check the record before publishing*';
 
     expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh <PR-NUMBER|URL> -'))->toBe(0)
-        ->and(substr_count($leonardo, $publish))->toBe(2)
+        ->and(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(0)
         ->and(substr_count($leonardo, $check))->toBe(1)
-        ->and(substr_count($leonardo, 'after the same header check, exactly as on a GitHub source'))->toBe(1)
+        ->and(substr_count($leonardo, 'after the same record check: a JIRA-sourced review reviews a pull request'))->toBe(1)
         ->and(substr_count($leonardo, 'check-cr-header.sh'))->toBe(0);
 });
 

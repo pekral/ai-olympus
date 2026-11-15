@@ -40,33 +40,52 @@ test('the build runs the wrapper self-test exactly once', function (): void {
 dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
+    'critical dry finding refused' => ['a Critical dry finding is refused: a duplicated security control keeps the Problem shape'],
+    'DRY line outside the diff' => ['a DRY finding outside the diff is the DRY line in the review body'],
+    'DRY shape' => ['the DRY finding is the Moderate DRY shape with the existing implementation, byte for byte'],
     'event COMMENT' => ['event is COMMENT'],
-    'exactly two markers per comment' => ['every inline comment holds exactly two cr-inline markers and the review body one'],
+    'exactly two markers per comment' => ['every inline comment holds exactly two cr-inline markers and the review body none'],
     'external-write audit line' => ['the review is one external-write audit line'],
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
-    'finding fields' => ['the inline comment carries the Faulty example in a code block'],
+    'faulty example of five lines at most' => ['a faulty example of more than 5 lines is refused with its own message'],
+    'finding fields' => ['a faulty example with backticks gets a longer fence'],
+    'finding with no line' => ['a finding with no line is one visible line marked (no line)'],
     'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
     'forged marker in the text' => ['a forged marker in the problem text is neutralised'],
+    'hidden record in the review body' => ['the review body holds one hidden record, one fingerprint marker, and the cr-comment actor marker'],
+    'hidden record round trip' => ['the hidden record comes back byte for byte, --> and --!> and &lt; and <!-- included'],
     'invalid document' => ['invalid document is refused'],
     'marker rebuilt after a backtick' => ['a rule marker rebuilt after a backtick is refused with its own message'],
     'marker rebuilt after a control character' => ['a faulty_example marker rebuilt after a control character is refused with its own message'],
+    'moderate icon and mention' => ['a Moderate finding carries the orange icon and the author mention line before the markers'],
     'multi-line range' => ['multi-line comment carries start_line and start_side'],
     'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
+    'no other visible field' => ['the inline comment renders no Rule, Provenance, Raised by, Level, Evidence, Expected '
+        . 'behavior, Test hint, Suggested fix, or suggestion block',
+    ],
+    'no raw end of comment in the record' => ['the hidden block holds no raw --> of the record'],
     'one review of inline comments' => ['one review request'],
     'outdated thread is not duplicated' => ['an outdated thread of the same finding id is not duplicated'],
     'outside-diff finding stays out' => ['outside-diff finding is not an inline comment'],
+    'outside-diff visible line' => ['outside-diff finding is one visible line of the review body'],
     'path, line, and side' => ['comment anchors path, line, and side'],
     'private repository posts a security finding' => ['a private repository posts a security finding inline'],
+    'problem and impact shape' => ['the inline comment is the Problem, Impact, and faulty example shape, byte for byte'],
     'public repository withholds a security finding' => ['a public repository withholds the marked finding'],
     'range across a hunk gap' => ['a range across a hunk gap is outside the diff'],
+    'record naming a withheld id is refused' => ['a record that names a withheld finding by its id is refused and nothing is posted'],
+    'record naming a withheld title is refused' => ['a record that names a withheld finding by its title is refused and nothing is posted'],
+    'record refused by the header check' => ['a record that check-cr-header.sh refuses publishes nothing'],
     'reply by another author' => ['a thread with a reply by another author is reported as has_reply and not resolved'],
     'reply of the actor without a marker' => ['a reply of the actor without its marker counts as a reviewer comment'],
     'reply on a later page' => ['a reply on a later page of the thread comments is found'],
     'resolve only the fixed thread of this actor' => ['resolve closes only the open thread of this actor for a fixed id'],
     'stale head is refused' => ['a stale commit id exits 4'],
-    'suggestion block' => ['comment carries a suggestion block'],
     'suggestion marker guard' => ['a suggestion with a marker is refused with its own message'],
+    'withheld finding stays out of the record' => ['a withheld finding is in no visible line and not in the hidden record'],
+    'zero-finding round' => ['a round with no finding posts one review with no inline comment'],
+    'zero-finding round is hidden only' => ['a round with no finding carries only hidden text in the review body'],
 ]);
 
 test('the wrapper self-test asserts the scenario', function (string $label): void {
@@ -95,17 +114,15 @@ test('the contract section states the inline review end to end', function (): vo
     $section = inlineReviewContract();
 
     expect($section)->toContain(
-        'every finding that anchors to a line of the diff is published as an inline review comment on that line, as one pull-request review',
+        'every finding that anchors to a line of the diff is published as an inline review comment on that line, whatever lens raised it',
     )
-        ->and($section)->toContain(
-            'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id <reviewed head SHA> <findings-file>',
-        )
-        ->and($section)->toContain('Never write a review with a raw `gh api` call or the GitHub MCP server.')
-        ->and($section)->toContain('refuses a `--commit-id` that is not the current head (exit `4`')
-        ->and($section)->toContain('records an `external-write` audit line')
-        ->and($section)->toContain(
-            '`outside_diff`: a finding whose line, or any line of its range, is not in the diff stays in this comment under `## Findings`',
-        )
+        ->and($section)->toContain('**Two shapes, fixed by `templates/inline-review-comment.md`, which the script renders.**')
+        ->and($section)->toContain('`🟠 **Moderate · DRY:** This repeats the logic of `<existing>`. Please unify it and call '
+            . 'the existing implementation instead.`')
+        ->and($section)->toContain('Nothing else is visible: no Rule, Provenance, Answered, Raised by, Level, Evidence, '
+            . 'Expected behavior, Test hint, or Suggested fix line, and no `suggestion` block.')
+        ->and($section)->toContain('A duplicated security control keeps its security severity and takes the first shape.')
+        ->and($section)->toContain('`<icon> **Problem:** … **Impact:** … (`<path:line>`, outside the diff)` or `(no line)`')
         ->and($section)->toContain(
             '`already_open`: the finding has an unresolved inline thread of this actor on the same path and line, so nothing is posted again',
         )
@@ -114,41 +131,47 @@ test('the contract section states the inline review end to end', function (): vo
         ->and($section)->toContain('The JIRA ticket, the Bugsnag error, and the non-technical tracker summary are unchanged')
         ->and($section)->toContain('An outdated thread, which GitHub reports without a line, counts for any line of that path')
         ->and($section)->toContain('`cr-inline` marker is an agent marker')
-        ->and($section)->toContain(
-            'Exits `2`, `3`, and `4` (a missing tool, a failed API call, a head that is not the reviewed one) share one fallback',
-        )
-        ->and($section)->toContain('write the line `Inline: not posted (<reason>)`')
-        ->and($section)->toContain('Never re-run the review for it, because the publish step reviews nothing again.')
-        ->and($section)->not->toContain('re-run the review on the new head')
-        ->and($section)->toContain('set every optional key of the findings file that the finding has')
-        ->and($section)->toContain('The first line of `## Findings` is `Inline: <n> finding(s) in <review_url>`')
         ->and($section)->toContain('Classify each comment of the thread on its own.')
         ->and($section)->toContain('the script lists it under `has_reply`');
 });
 
-test('the contract posts a security finding inline on a private repository and withholds it on a public one', function (): void {
+test('the contract publishes one review whose body carries the hidden record and posts no cr-comment comment', function (): void {
+    $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
+    $section = installerDocsSection($contract, '#### GitHub pull-request review (one review per CR run — no `cr-comment` comment)');
+
+    expect($section)->toContain('A CR run on GitHub publishes exactly one pull-request review and no pull-request comment')
+        ->and($section)->toContain('A round with no finding still posts the review, so the merge gate and the carry-forward always find the round.')
+        ->and($section)->toContain(
+            'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+                . '<reviewed head SHA> --meta-file <record-file> <findings-file>',
+        )
+        ->and($section)->toContain('Never write a review with a raw `gh api` call or the GitHub MCP server, and never post '
+            . 'the record as a pull-request comment.')
+        ->and($section)->toContain('refuses a `--commit-id` that is not the current head (exit `4`)')
+        ->and($section)->toContain('records an `external-write` audit line')
+        ->and($section)->toContain('without the `Overview:` line, `## Changed areas`, `## TL;DR`, and `## Prompt to fix all issues`')
+        ->and($section)->toContain('It carries no `Inline:` line. It never names a finding withheld on a public repository')
+        ->and($section)->toContain('never fall back to a `cr-comment` pull-request comment')
+        ->and($section)->toContain('Never re-run the review for it, because the publish step reviews nothing again.')
+        ->and($contract)->not->toContain('upsert-comment.sh --create <PR-NUMBER|URL> <body-file>')
+        ->and($contract)->not->toContain('write the line `Inline: not posted (<reason>)`');
+});
+
+test('the contract posts a security finding inline on a private repository and withholds it everywhere on a public one', function (): void {
     $section = inlineReviewContract();
 
     expect($section)->toContain('Only the value `true` is private.')
         ->and($section)->toContain('On a private repository the finding is posted inline like any other, so the developers have the fix next to the code.')
         ->and($section)->toContain('On a public repository, and when the check fails, the finding is withheld')
-        ->and($section)->toContain('it is posted in no inline comment and in no part of this comment');
+        ->and($section)->toContain('it is in no inline comment, in no visible line, and not in the hidden record, because '
+            . 'hidden HTML is readable through the API')
+        ->and($section)->toContain('The script refuses a record that names a withheld finding by its finding id or its title (exit `1`, nothing posted).');
 });
 
-test('the inline fallback keeps a withheld finding out of the comment on a public repository', function (): void {
-    $section = inlineReviewContract();
-
-    expect($section)->toContain(
-        'keep every finding in this comment as before, except a finding marked `do_not_file_publicly` on a public repository, '
-        . 'which stays out of the comment as the previous bullet states, and write the line `Inline: not posted (<reason>)`.',
-    );
-});
-
-test('the review templates keep a withheld finding out of the findings section', function (string $template): void {
+test('the review templates keep a withheld finding out of the hidden record', function (string $template): void {
     expect(inlineReviewSource($template))->toContain(
-        'and every entry when the inline review was not posted (`Inline: not posted (<reason>)`), '
-        . 'except a finding marked `do_not_file_publicly` on a public repository or when the visibility check fails, '
-        . 'which stays out of this comment (`@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*).',
+        '> A finding marked `do_not_file_publicly` on a public repository, or when the visibility check fails, stays out of the record too, '
+        . 'because hidden HTML is public',
     );
 })->with([
     'skills/code-review-github/templates/pr-comment-output.md',
@@ -159,16 +182,17 @@ test('the contract no longer forbids line-anchored review comments', function ()
     $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
 
     expect($contract)->not->toContain('never as line-anchored review comments')
-        ->and($contract)->toContain('A finding that anchors to a line of the diff is published as an inline review comment on that line')
-        ->and($contract)->toContain('that review is not a comment of the `cr-comment` namespace');
+        ->and($contract)->toContain('every finding that anchors to a line of the diff is published as an inline review comment on that line')
+        ->and($contract)->toContain('the machine record of the round as hidden HTML in the `cr-comment` marker namespace');
 });
 
-test('the review templates move the anchored findings inline and keep the rest', function (string $template): void {
+test('the review templates list every published finding in full in the hidden record', function (string $template): void {
     $content = inlineReviewSource($template);
 
-    expect($content)->toContain('**GitHub — a finding that anchors to a line of the diff is an inline review comment, not an entry here.**')
-        ->and($content)->toContain('`Inline: <n> finding(s) in <review url>`')
-        ->and($content)->toContain('`Inline: not posted (<reason>)`')
+    expect($content)->toContain('**GitHub — this section lists every published finding in full.**')
+        ->and($content)->toContain('the findings posted inline, the `already_open` ones, and the `outside_diff` ones alike')
+        ->and($content)->toContain('It carries no `Inline:` line; a legacy comment with the line `Inline: <n> finding(s) in <review url>` stays readable.')
+        ->and($content)->not->toContain('`Inline: not posted (<reason>)`')
         ->and($content)->toContain('The `Counts:` line and the round report of the review loop keep every finding.');
 })->with([
     'skills/code-review-github/templates/pr-comment-output.md',
@@ -197,16 +221,20 @@ test('the agent marker family names cr-inline, and the trust filter reads it as 
         ->and($trust)->toContain('def agent_marker: type == "string" and test("[a-z][a-z0-9-]*:actor=");');
 });
 
-test('the review rule keeps one cr-comment per run and adds the inline review beside it', function (): void {
+test('the review rule publishes one review on GitHub and moves the machine record into its hidden body', function (): void {
     $rule = installerDocsSection(
         inlineReviewSource('rules/code-review/general.md'),
         '## One published comment per review run — a TL;DR, not a systematic report',
     );
 
-    expect($rule)->toContain('**A review run publishes exactly one comment per destination, in the `cr-comment` namespace.**')
-        ->and($rule)->toContain('**On a GitHub pull request, a finding that anchors to a line of the diff is published inline.**')
-        ->and($rule)->toContain('The review is not a second comment of the `cr-comment` namespace')
-        ->and($rule)->toContain('the `cr-comment` still holds the header block, the counts, the verdicts, and every finding outside the diff');
+    expect($rule)->toContain('**A review run publishes exactly one report per destination, in the `cr-comment` namespace.**')
+        ->and($rule)->toContain('**On a GitHub pull request the one report is one pull-request review, and no `cr-comment` '
+            . 'pull-request comment is posted.**')
+        ->and($rule)->toContain('**Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it')
+        ->and($rule)->toContain('**Each finding that cannot anchor is one short visible line in the review body**')
+        ->and($rule)->toContain('**The machine record is hidden HTML in the review body.**')
+        ->and($rule)->toContain('reaches none of the three**, the hidden record included: hidden HTML is public.')
+        ->and($rule)->toContain('Every reader reads the newest trusted report across both homes');
 });
 
 test('leonardo publishes inline through the wrapper only, and the consent table names the write', function (): void {
@@ -219,8 +247,10 @@ test('leonardo publishes inline through the wrapper only, and the consent table 
     )
         ->and($leonardo)->toContain(
             'post the findings that anchor to a line of the diff first, as one pull-request review '
-            . 'through `skills/code-review-github/scripts/post-inline-review.sh post`',
+            . 'through `skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> '
+                . '--commit-id <reviewed head SHA> --meta-file <record-file> <findings-file>`',
         )
+        ->and($leonardo)->toContain('That one review is the whole publish: no `cr-comment` pull-request comment is posted.')
         ->and($leonardo)->toContain('reaches the handoff only')
         ->and($orchestration)->toContain('(`upsert-comment.sh`, `post-inline-review.sh`, `delete-owned-github-comment.sh`,')
         ->and($orchestration)->toContain(
@@ -249,7 +279,8 @@ test('the merge gate keeps reading the cr-comment and ignores the inline finding
     expect($merge)->toContain('The inline review comments of a round (the `cr-inline` marker')
         ->and($merge)->toContain('They are never read as reviewer feedback and add no verdict')
         ->and($merge)->toContain(
-            'this gate reads the `Counts:` line and the `## Deferred to sub-issues` section of the newest trusted `cr-comment`, exactly as before',
+            'this gate reads the `Counts:` line and the `## Deferred to sub-issues` section of the '
+                . 'newest trusted report, the hidden record of its review included',
         );
 });
 
@@ -257,8 +288,8 @@ test('the github review skill delegates the inline review to the contract', func
     $skill = inlineReviewSource('skills/code-review-github/SKILL.md');
 
     expect($skill)->toContain('one pull-request review of inline comments through `scripts/post-inline-review.sh`')
-        ->and($skill)->toContain('#### Inline review (before the PR comment)')
-        ->and($skill)->toContain('`references/cr-wrapper-contract.md` *Inline review comments*');
+        ->and($skill)->toContain('#### Inline review (the one publication on the pull request)')
+        ->and($skill)->toContain('`references/cr-wrapper-contract.md` *GitHub pull-request review* and *Inline review comments*');
 });
 
 test('the gate and the thread rule bind agent status to the actor and read the other comments of an inline thread', function (): void {
@@ -279,24 +310,6 @@ test('an outdated thread is matched without its line', function (): void {
 
     expect($script)->toContain('and (.line == null or .line == $f.line)')
         ->and($script)->not->toContain('(.line // .originalLine) == $f.line');
-});
-
-test('the inline comment renders the finding fields of the review template as optional keys', function (): void {
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
-
-    $keys = ['rule', 'provenance', 'impact', 'evidence', 'faulty_example', 'expected_behavior', 'test_hint'];
-
-    foreach ([...$keys, 'raised_by', 'answered', 'author', 'level'] as $key) {
-        expect($script)->toContain('"' . $key . '"');
-    }
-
-    $labels = ['Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Author'];
-
-    foreach ([...$labels, 'Impact', 'Evidence', 'Faulty example', 'Expected behavior', 'Test hint'] as $label) {
-        expect($script)->toContain('"' . $label . '"');
-    }
-
-    expect($script)->toContain('suggestion must not contain an agent marker');
 });
 
 test('both GitHub wrappers resolve the target and the actor through one shared helper', function (): void {
@@ -344,38 +357,86 @@ test(
         $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
         $contract = inlineReviewContract();
 
-        expect($script)->toContain('rule: (.rule | if . == null then null else codespan | prose end)')
+        expect($script)->toContain('req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule '
+            . 'must not contain an agent marker")')
             ->and($script)->toContain('| req(.suggestion | marker_free; "suggestion must not contain an agent marker")')
             ->and($script)->toContain('| req(.faulty_example | marker_free; "faulty_example must not contain an agent marker")')
-            ->and($script)->toContain('"rule must not contain an agent marker"')
             ->and($script)->toContain('[match("<!--\\\\s*cr-inline:"; "g")] | length')
             ->and($script)->toContain('the rendered review was refused, nothing was published')
+            ->and($script)->toContain('error("the review body does not hold exactly its own markers")')
             ->and($contract)->toContain('**A marker in the finding text is refused.**')
             ->and($contract)->toContain('does not hold exactly its own two `cr-inline` markers');
     },
 );
 
-test('the inline comment template names every line the wrapper renders, in the same order', function (): void {
-    $template = inlineReviewSource('skills/code-review-github/templates/inline-review-comment.md');
+test('the wrapper accepts the finding fields for the hidden record and renders none of their labels inline', function (): void {
     $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
-    $labels = [
-        'Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Author', 'Problem',
-        'Impact', 'Evidence', 'Faulty example', 'Expected behavior', 'Test hint', 'Suggested fix',
+    $payload = substr($script, (int) strpos($script, 'IFS= read -r -d \'\' JQ_PAYLOAD'), 4_000);
+
+    $keys = [
+        'fix', 'suggestion', 'rule', 'provenance', 'evidence', 'expected_behavior', 'test_hint',
+        'raised_by', 'answered', 'level', 'kind', 'existing', 'faulty_example_lang',
     ];
-    $shape = substr($template, (int) strpos($template, '````markdown'));
-    $positions = array_map(static fn (string $label): int|false => strpos($shape, '**' . $label . ':**'), $labels);
-    $sorted = $positions;
-    sort($sorted);
 
-    expect($script)->toContain('"**Problem:** ')
-        ->and($script)->toContain('"**Suggested fix:** ')
-        ->and($positions)->not->toContain(false)
-        ->and($positions)->toBe($sorted)
-        ->and($shape)->toContain('<!-- cr-inline:actor={login} -->')
-        ->and($shape)->toContain('<!-- cr-inline:finding={finding id} -->')
-        ->and($shape)->toContain('```suggestion');
+    foreach ($keys as $key) {
+        expect($script)->toContain('"' . $key . '"');
+    }
 
-    foreach (array_diff($labels, ['Problem', 'Suggested fix']) as $label) {
-        expect($script)->toContain('"' . $label . '"');
+    $labels = ['Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Evidence', 'Expected behavior', 'Test hint', 'Suggested fix', 'suggestion'];
+
+    foreach ($labels as $label) {
+        expect($payload)->not->toContain('"' . $label . '"')
+            ->and($payload)->not->toContain('**' . $label . ':**');
+    }
+
+    expect($payload)->toContain('"\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", example')
+        ->and($payload)->toContain('def dry_line: "🟠 **Moderate · DRY:** This repeats the logic of `\(.existing)`. Please '
+            . 'unify it and call the existing implementation instead.";')
+        ->and($script)->toContain('"faulty_example must be 5 lines at most"');
+});
+
+test('the inline comment template pins both shapes, the visible line, and the two markers', function (): void {
+    $template = inlineReviewSource('skills/code-review-github/templates/inline-review-comment.md');
+    $first = substr($template, (int) strpos($template, 'Every finding except DRY:'));
+    $markers = "<!-- cr-inline:actor={login} -->\n<!-- cr-inline:finding={finding id} -->";
+
+    expect($first)->toContain(
+        "````markdown\n{🔴 | 🟠} **Problem:** {the problem, in one or two plain sentences}\n\n"
+        . "**Impact:** {what breaks or what risk this introduces, in one sentence}\n\n"
+        . "```{language}\n{the faulty code, at most 5 lines}\n```\n\n@{login}\n\n" . $markers . "\n````",
+    )
+        ->and($template)->toContain(
+            '🟠 **Moderate · DRY:** This repeats the logic of `{existing file:line}`. '
+            . "Please unify it and call the existing implementation instead.\n\n@{login}\n\n" . $markers,
+        )
+        ->and($template)->toContain(
+            '{🔴 | 🟠} **Problem:** {the problem} **Impact:** {the impact} (`{file:line}`, outside the diff | no line) @{login}'
+            . "\n<!-- cr-inline:finding={finding id} -->",
+        )
+        ->and($template)->not->toContain('**Suggested fix:**')
+        ->and($template)->not->toContain('```suggestion');
+});
+
+test('the readers read a review record and a legacy cr-comment through one jq definition and one unwrap', function (): void {
+    $trust = inlineReviewSource('skills/_shared/review-trust.jq');
+    $header = inlineReviewSource('skills/_shared/cr-header.sh');
+    $readers = [
+        'skills/_shared/collect-findings.sh',
+        'skills/_shared/review-carry-forward.sh',
+        'skills/code-review-github/scripts/post-inline-review.sh',
+    ];
+
+    expect($trust)->toContain('def review_reports:')
+        ->and($trust)->toContain('map(select(.state != "PENDING") | . + {home: "review", createdAt: (.createdAt // .submittedAt)})')
+        ->and($trust)->toContain('def newest_trusted_report:')
+        ->and($header)->toContain('cr_review_meta_wrap() {')
+        ->and($header)->toContain('cr_review_meta_unwrap() {')
+        ->and(inlineReviewSource($readers[0]))->toContain('JQ_REPORTS=\'include "review-trust"; [ review_reports[] | select(trusted_review) ]\'')
+        ->and(inlineReviewSource($readers[1]))->toContain('newest_trusted_report')
+        ->and(inlineReviewSource($readers[2]))->toContain('cr_review_meta_wrap <"$TMP_ROOT/meta.md"');
+
+    foreach ($readers as $script) {
+        expect(inlineReviewSource($script))->not->toContain('&amp;')
+            ->and(inlineReviewSource($script))->not->toContain('include "review-trust"; [(.comments // [])[] | select(trusted_review)]');
     }
 });

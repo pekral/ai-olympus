@@ -33,9 +33,11 @@
 #
 # What `decide` reads and checks
 #   1. The pull request, through skills/code-review-github/scripts/load-issue.sh only.
-#   2. The newest trusted review: the newest comment on the pull request that passes `trusted_review` in
-#      review-trust.jq (write-access association and a `cr-comment` marker that names its own author). Only the
-#      newest is read. When it fails a check below, the round runs; the script never falls back to an older one.
+#   2. The newest trusted review: `newest_trusted_report` in review-trust.jq, the newest pull-request review or
+#      legacy `cr-comment` comment that passes `trusted_review` (write-access association and a `cr-comment` marker
+#      that names its own author). A review is read through `cr_review_meta_unwrap` (cr-header.sh), and a review
+#      body without exactly one hidden record is `newest review unusable: report unreadable`. Only the newest is
+#      read. When it fails a check below, the round runs; the script never falls back to an older one.
 #   3. Its header, in the strict view of `cr_header_canonical` (cr-header.sh, the one header parser), then
 #      check-cr-header.sh, then `extract-findings.sh --header` (the body must still parse as a review report).
 #      A review is carried forward only when its header block holds nothing but canonical lines, every label is
@@ -134,13 +136,14 @@
 #   No timestamp ever decides that the assignment is unchanged.
 #
 # Fail-closed table — every row starts the round. The reason printed:
-#   no trusted review                                  no comment passes `trusted_review`
+#   no trusted review                                  no comment or review passes `trusted_review`
 #   context unreadable                                 a loader failed, a payload has the wrong shape, or the
 #                                                      line-anchored review comments were not read in full
 #   source not supported                               the source is Bugsnag or not a recognised reference
 #   comments unverified                                a JIRA comment list or a subtask may have degraded to empty
 #   sub-issues unverified                              the GitHub sub-issue read fell back to [] or hit its cap
-#   newest review unusable: report unreadable          extract-findings.sh refuses the newest review
+#   newest review unusable: report unreadable          extract-findings.sh refuses the newest review, or the newest
+#                                                      review body holds no single hidden record
 #   header invalid                                     a header-block line is not canonical (no bold, a colon outside
 #                                                      the bold, extra or trailing whitespace, a list item, a
 #                                                      blockquote, a fence, an HTML comment, a non-ASCII byte in the
@@ -472,14 +475,17 @@ cmd_decide() {
   if ! load_pr "$PR_URL"; then
     reason 'context unreadable'
   else
-    jq -c -L "$HERE" 'include "review-trust"; [(.comments // [])[] | select(trusted_review)] | sort_by(.createdAt // "") | last // empty' \
-      "$TMP/pr.json" >"$TMP/review.json"
+    jq -c -L "$HERE" 'include "review-trust"; newest_trusted_report' "$TMP/pr.json" >"$TMP/review.json"
     if [[ ! -s "$TMP/review.json" ]]; then
       reason 'no trusted review'
     else
       review_url="$(jq -r '.url // ""' "$TMP/review.json")"
       review_time="$(jq -r '.createdAt // ""' "$TMP/review.json")"
-      read_review_header
+      if jq -j '.body' "$TMP/review.json" | cr_review_meta_unwrap "$(jq -r '.home' "$TMP/review.json")" >"$TMP/review.md"; then
+        read_review_header
+      else
+        reason 'newest review unusable: report unreadable'
+      fi
       check_head
       check_assignment
       check_feedback "$review_time"
@@ -626,7 +632,6 @@ decision_label_after_block() {
 # recorded_fp, and recorded_afp only from canonical lines. Every check runs; none of them stops the others.
 read_review_header() {
   local label value seen='|' counts='' verdict='' i=0 required critical=''
-  jq -j '.body' "$TMP/review.json" >"$TMP/review.md"
   cr_header_canonical <"$TMP/review.md"
   [[ ${#CR_CANON_REJECTED[@]} -eq 0 ]] || reason 'header invalid'
 
@@ -968,6 +973,31 @@ EOF
   expect 'the fetch leaves no run directory, no extra ref, and no FETCH_HEAD' \
     "$([[ -z "$out" && ! -e "$work/.git/FETCH_HEAD" ]] && echo 0 || echo 1)"
   decide_case 'the closed issue passed as --source carries the review forward too' "$CF" -- --pr-url "$pr_url" --source "$issue_url"
+
+  # The hidden record of a pull-request review is a report too, and the newest trusted report wins across both homes.
+  # with_review <body-file> <submittedAt> [state] — add one review of leonardo-bot to the pull request payload.
+  with_review() {
+    jq -c --rawfile b "$1" --arg t "$2" --arg s "${3:-COMMENTED}" \
+      '.reviews += [{author: "leonardo-bot", authorAssociation: "OWNER", state: $s, body: $b, submittedAt: $t, url: null}]' \
+      "$fx/pr.json" >"$fx/pr.next" && mv "$fx/pr.next" "$fx/pr.json"
+  }
+  { review "$head" "$fp" "$afp" | cr_review_meta_wrap; printf '\n<!-- cr-comment:actor=leonardo-bot -->\n'; } >"$fx/review-good.md"
+  { review "$head" "$(printf '%040d' 0)" "$afp" | cr_review_meta_wrap; printf '\n<!-- cr-comment:actor=leonardo-bot -->\n'; } >"$fx/review-old.md"
+  { review "$head" "$fp" "$afp"; printf '\n<!-- cr-comment:actor=leonardo-bot -->\n'; } >"$fx/review-bare.md"
+  pr_fixture "$head" /dev/null
+  with_review "$fx/review-good.md" 2026-10-02T11:00:00Z
+  decide_case 'the hidden record of a pull-request review carries the review forward' "$CF and (.review_url // \"\") == \"\"" -- --pr-url "$pr_url"
+  pr_fixture "$head" "$fx/c-good.jsonl"
+  with_review "$fx/review-old.md" 2026-10-02T11:00:00Z
+  decide_case 'a newer review record wins over an older legacy cr-comment' "$(round_for 'diff changed')" -- --pr-url "$pr_url"
+  pr_fixture "$head" "$fx/c-good.jsonl"
+  with_review "$fx/review-old.md" 2026-10-02T09:00:00Z
+  with_review "$fx/review-old.md" 2026-10-02T12:00:00Z PENDING
+  decide_case 'a newer legacy cr-comment wins over an older review, and a pending review is never read' "$CF" -- --pr-url "$pr_url"
+  pr_fixture "$head" /dev/null
+  with_review "$fx/review-bare.md" 2026-10-02T11:00:00Z
+  decide_case 'a review body without the hidden record is not a report' "$(round_for 'newest review unusable: report unreadable')" -- --pr-url "$pr_url"
+  pr_fixture "$head" "$fx/c-good.jsonl"
 
   # The repository's own object store receives no object: a clone that does not hold the pull request head before
   # decide still does not hold it afterwards, and its object count is unchanged.

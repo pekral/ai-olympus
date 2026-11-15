@@ -64,7 +64,7 @@ extend those steps in the dispatch prompt');
         ->toContain('**A new comment on every run.** A review-only run publishes through the GitHub and JIRA helpers like any other run, with `--create`');
     expect($prSummary)->not->toContain('**One comment, updated in place.**');
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
-        ->toContain('**A review-only run posts new comments too.**')
+        ->toContain('**A review-only run posts a new review too.**')
         ->toContain('**A deferred tracker report — `tracker-report: deferred`.**')
         ->toContain('after the `prepare-issue-context` pre-flight has returned, `security-review` may run in parallel')
         ->toContain('as parallel tool calls in this same context, never as a subagent.');

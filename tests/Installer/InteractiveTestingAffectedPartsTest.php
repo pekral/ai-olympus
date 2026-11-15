@@ -28,13 +28,14 @@ test(
         $reference = affectedPartsRead('skills/interactive-testing/references/affected-parts.md');
 
         expect($reference)->toContain(
-            'the newest trusted `cr-comment` of this pull request that is current for the head under test, '
+            'the newest trusted code-review report of this pull request that is current for the head under test '
+            . '(`skills/_shared/cr-header.sh --report <loader-file>`: the hidden record of a pull-request review, or a legacy `cr-comment` comment), '
             . 'or of the `leonardo` section of the shared brief',
         )
             ->toContain(
                 'Trusted means the `trusted_review` test of `skills/_shared/review-trust.jq`: '
                     . 'the author holds write access (`OWNER`, `MEMBER`, or `COLLABORATOR`), '
-                    . 'and the comment carries the `cr-comment` marker that names that author.',
+                    . 'and the review or comment carries the `cr-comment` marker that names that author.',
             )
             ->toContain('`@rules/code-review/general.md` *Authorship trust*')
             ->toContain('The marker alone is text anyone can copy and proves nothing.')
