@@ -85,6 +85,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $readySignal = (string) file_get_contents($packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md');
 
     expect($pullRequest)->toContain('**Merge risk** — it tells');
     expect($pullRequest)->toContain('🟢 for `low`, 🟡 for `medium`, 🔴 for `high`');
@@ -93,7 +94,7 @@ test('the pull request body states the merge danger from the merge-risk script a
         ->and($pullRequest)->toContain('Only this refresh can make the heading read `low`.')
         ->and($pullRequest)->toContain('or when every CI check of the head passed')
         ->and($pullRequest)->toContain('When the gate verdict depends on CI and a check is still pending, wait per')
-        ->and((string) file_get_contents($packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md'))->toContain('Refresh the `## Merge risk` heading');
+        ->and($readySignal)->toContain('Refresh the `## Merge risk` heading');
     expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
