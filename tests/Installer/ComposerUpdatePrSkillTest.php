@@ -133,7 +133,11 @@ test('the skill scans the commits of the branch with history-scan before the pus
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
 
     expect($skill)->toContain('skills/git-history-exposure-audit/scripts/history-scan.sh range')
-        ->and($skill)->toContain('--base "$(git rev-parse "origin/$DEFAULT_BRANCH")" --head "$(git rev-parse HEAD)"')
+        ->and($skill)->toContain('--base "$(git rev-parse "${REF:?}")" --head "$(git rev-parse HEAD)"')
+        ->and($skill)->toContain('`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 3')
+        ->and($skill)->toContain('set `REF` to it in the same shell call')
+        ->and($skill)->toContain('An empty `REF` is a failed scan')
+        ->and($skill)->not->toContain('--base "$(git rev-parse "origin/$DEFAULT_BRANCH")"')
         ->and($skill)->toContain('class `credential` or `sensitive-file`')
         ->and($skill)->toContain('exit `3`')
         ->and(strpos($skill, 'history-scan.sh range'))->toBeLessThan((int) strpos($skill, '`git push -u origin <branch>`'))
