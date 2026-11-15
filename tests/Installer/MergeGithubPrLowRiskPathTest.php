@@ -33,13 +33,13 @@ test('the merge path is opt-in and selected by the verdict of the trusted classi
 test('the diff is made with text mode from the repository root and the base symlinks are resolved', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
 
-    expect($path)->toContain('git diff --no-color --no-ext-diff --no-textconv --text <baseRefOid>...<headRefOid>')
-        ->and($path)->toContain(
-            '--merge-risk --base "$(git merge-base <baseRefOid> <headRefOid>)" --ignore-assignment --diff - --coverage ok --gate green',
-        )
+    expect($path)->toContain('git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none <baseRefOid>...<headRefOid>')
+        ->and($path)->toContain('--merge-risk --base <baseRefOid> --ignore-assignment --diff - --coverage ok --gate green')
+        ->and($path)->not->toContain('git merge-base')
         ->and($path)->toContain('Run every command of this file from the repository root, before step 3 checks out the head.')
         ->and($path)->toContain('`--text` and the exclusion of `.gitattributes` keep a NUL byte or a `-diff` attribute from hiding a file')
-        ->and($path)->toContain('`--base` lets the classifier resolve the symlinks of the base tree')
+        ->and($path)->toContain('`--submodule=short --ignore-submodules=none` keep a submodule pointer change from hiding')
+        ->and($path)->toContain('`--base <baseRefOid>` lets the classifier resolve the symlinks of the tree the merge lands on')
         ->and($path)->toContain('The check reads the diff of *Select the candidate* item 3, made with `--text`');
 });
 

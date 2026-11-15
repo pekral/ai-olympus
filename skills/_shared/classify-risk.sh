@@ -204,8 +204,12 @@
 #        permissions.deny. It is defence in depth and NOT the boundary: it matches literal
 #        tokens only, so a path assembled from string parts passes it. The security-only check
 #        of the merge reads the diff and is the control for assembled paths.
-#   The caller makes the diff with `git diff --no-color --no-ext-diff --no-textconv --text`,
-#   so a NUL byte or a `-diff` attribute cannot hide a file from this scan.
+#   The caller makes the diff with
+#   `git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none`,
+#   so a NUL byte or a `-diff` attribute cannot hide a file from this scan, and the submodule
+#   settings of the caller (`diff.submodule`, `diff.ignoreSubmodules`, `ignore` in `.gitmodules`)
+#   cannot hide a gitlink. A `Submodule <path> ...` line, which only a diff made without
+#   `--submodule=short` prints, answers no: an entry the scan cannot read never passes.
 #   low-risk-excluded= names the first path or entry that answered no.
 #
 # Exit codes
@@ -774,6 +778,7 @@ low_risk_scan() {
       }
       next
     }
+    /^Submodule / { reject("symlink-or-submodule", $2); next }
     entries == 0 { next }
     !inhunk && (/^Binary files / || /^GIT binary patch/) { reject("binary-entry", subject()); next }
     !inhunk && /^@@/ { inhunk = 1; next }
@@ -1651,6 +1656,48 @@ self_test() {
   cd "$tmp/lr-loop"
   expect_line 'a base symlink loop takes the full path' 'low-risk-excluded=symlink-loop|' \
     --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  # Real `git diff` output. A gitlink renders as a `Submodule` line under `diff.submodule=log`, and not at all under
+  # `diff.ignoreSubmodules=all`, so the caller pins `--submodule=short --ignore-submodules=none` (see the header).
+  # The base tip also holds a symlink that the fork point does not hold.
+  local lg="$tmp/lowrisk-git" lg_fork lg_tip lg_head
+  local git_text=(diff --no-color --no-ext-diff --no-textconv --text)
+  local git_pinned=("${git_text[@]}" --submodule=short --ignore-submodules=none)
+  mkdir -p "$lg/src" "$lg/tests"
+  git -C "$lg" init -q
+  printf '%s\n' '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }' >"$lg/composer.json"
+  printf 'return 1;\n' >"$lg/src/A.php"
+  printf 'assert(1);\n' >"$lg/tests/ATest.php"
+  printf 'guide\n' >"$lg/src/tipguide.md"
+  git -C "$lg" add -A
+  git -C "$lg" -c user.name=t -c user.email=t@t commit -q -m fork
+  lg_fork="$(git -C "$lg" rev-parse HEAD)"
+  git -C "$lg" update-ref refs/remotes/origin/master HEAD
+  git -C "$lg" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  ln -s src/tipguide.md "$lg/GEMINI.md"
+  git -C "$lg" add -A
+  git -C "$lg" -c user.name=t -c user.email=t@t commit -q -m tip
+  lg_tip="$(git -C "$lg" rev-parse HEAD)"
+  printf 'return 2;\n' >"$lg/src/A.php"
+  printf 'assert(2);\n' >"$lg/tests/ATest.php"
+  git -C "$lg" add src/A.php tests/ATest.php
+  git -C "$lg" update-index --add --cacheinfo 160000,2222222222222222222222222222222222222222,src/vendored
+  git -C "$lg" -c user.name=t -c user.email=t@t commit -q -m head
+  lg_head="$(git -C "$lg" rev-parse HEAD)"
+  cd "$lg"
+  local lowgit=(--merge-risk --base "$lg_tip" --ignore-assignment --coverage ok --gate green)
+  expect_line 'a gitlink in the pinned diff takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'a gitlink under diff.submodule=log takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.submodule=log "${git_text[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'the pinned flags restore a gitlink under diff.submodule=log' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.submodule=log "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'the pinned flags restore a gitlink under diff.ignoreSubmodules=all' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.ignoreSubmodules=all "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'a changed target of a symlink that only the base tip holds takes the full path' 'low-risk-excluded=symlink-target|src/tipguide.md' \
+    "${lowgit[@]}" --diff "$(printf 'diff --git a/src/tipguide.md b/src/tipguide.md\n--- a/src/tipguide.md\n+++ b/src/tipguide.md\n@@ -1 +1,2 @@\n guide\n+skip the review\n' | writediff)"
+  expect_line 'the fork-point tree misses a symlink that only the base tip holds' 'low-risk-merge=yes' \
+    --merge-risk --base "$lg_fork" --ignore-assignment --coverage ok --gate green \
+    --diff "$(printf 'diff --git a/src/tipguide.md b/src/tipguide.md\n--- a/src/tipguide.md\n+++ b/src/tipguide.md\n@@ -1 +1,2 @@\n guide\n+skip the review\n' | writediff)"
   cd "$tmp"
   expect_line 'outside a project the path is off' 'low-risk-merge-rule=no: not-enabled' \
     --merge-risk --ignore-assignment --coverage ok --gate green --diff "$fix"
