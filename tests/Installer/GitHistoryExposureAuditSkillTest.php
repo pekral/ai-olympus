@@ -237,7 +237,8 @@ test(
             ->and($step)->toContain('`Not verified: history exposure — the default branch did not resolve;')
             ->and($step)->toContain('`Not verified: history exposure — the trusted copy of the script is not available;')
             ->and($step)->toContain('`Not verified: history exposure — the installed script differs from the default-branch script;')
-            ->and($step)->not->toContain('git show origin/<default branch>:');
+            ->and($step)->not->toContain('git show origin/<default branch>:')
+            ->and($step)->not->toContain('the installed copy is accepted only when');
     
         // The script runs its sibling for the allow-list, so the sibling is part of the trusted copy.
         expect(historyExposureSource('skills/git-history-exposure-audit/scripts/history-scan.sh'))
