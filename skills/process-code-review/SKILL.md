@@ -13,7 +13,6 @@ metadata:
 - Apply @rules/jira/general.md
 - Apply @rules/reports/general.md. **CR reply comments and resolved-items updates posted on the GitHub PR** stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*. The **mirrored non-technical summary** delegated to `@skills/pr-summary/SKILL.md` follows the assignment language. A manifest `language.github` overrides both on GitHub. Never mix languages inside the same comment; never use bilingual *Kritické (Critical)* style parentheses.
 - If the current project uses Laravel, also apply `@rules/laravel/laravel.md`, `@rules/laravel/architecture.md`, `@rules/laravel/filament.md`, and `@rules/laravel/livewire.md`
-- Never mix two natural languages inside a single CR comment. The English exception applies to entire comments — not to inline parenthetical glosses.
 - Never push direct changes to the main branch
 - If the pull request has merge conflicts with the base branch, stop and report it
 - Do not introduce new logic unrelated to review feedback
@@ -55,7 +54,7 @@ If the rebase changed `composer.lock`, run `skills/_shared/run-gate.sh --exclusi
     }
   }' -F owner=<owner> -F repo=<repo> -F number=<number>
   ```
-  **Keep `authorAssociation` in the selection.** `@skills/code-review-github/references/cr-wrapper-contract.md` *Delegation of a reviewer comment to another account* reads that field on every thread comment to decide whether a trusted reviewer addressed the comment to another account. An association this run cannot resolve is treated as absent, so dropping the field from this selection silently turns every line-anchored comment untrusted and disables the disposition for exactly the case it was written for.
+  **Keep `authorAssociation` in the selection.** `@skills/code-review-github/references/cr-wrapper-contract.md` *Delegation of a reviewer comment to another account* reads that field on every thread comment to decide whether a trusted reviewer addressed the comment to another account. An unresolved association counts as absent, so dropping the field turns every line-anchored comment untrusted.
   **Do not accept a truncated list** — the "every unresolved thread" guarantee depends on completeness. When `reviewThreads.pageInfo.hasNextPage` is `true`, repeat the query with `-F cursor=<endCursor>` until it is `false`; when any thread's `comments.nodes` reaches the page size, page that thread's comments the same way. If `gh api graphql` is unavailable, fall back to the GitHub MCP server for the same thread list plus its resolved state.
 - Build the checklist from **both** sources:
   1. Structured CR findings published by the review skills (general comments come from `comments[]`).
@@ -125,7 +124,7 @@ In the single CR comment posted during **PR update**, list every pre-existing se
 
 This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, or **Completion** until the loop converges. The final report (technical and non-technical) is published only **once**, after convergence.
 
-1. Initialise `iteration = 1` and the loop state: `skills/_shared/review-state.sh init` (`references/review-state.md`: rounds, statuses, troubleshooting). `maxIterations` is the default-branch manifest key `review.max-iterations`, default 3; only the script reads it. The cap round (`iteration == maxIterations`, round 3 by default) is the **deferral boundary**, not a failure line: a run still carrying findings there triages them under step 6 instead of iterating again. A Critical and a security-relevant Moderate stay hard blockers at the cap round exactly as at round 1, so the bounded round count never lowers the bar of anything that merges.
+1. Initialise `iteration = 1` and the loop state: `skills/_shared/review-state.sh init` (`references/review-state.md`: rounds, statuses, troubleshooting). `maxIterations` is the default-branch manifest key `review.max-iterations`, default 3; only the script reads it. The cap round (`iteration == maxIterations`, round 3 by default) is the **deferral boundary**, not a failure line: a run still carrying findings there triages them under step 6 instead of iterating again. A Critical and a security-relevant Moderate stay hard blockers at the cap round, as at round 1 (step 6).
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`
@@ -209,6 +208,7 @@ After the fixes are committed and pushed (Finalization above), mark every review
 
 Convergence is exactly the moment the PR becomes ready to merge, so this skill owns that signal on the pull request — the Draft → ready transition per `@rules/git/pull-requests.md` *Draft pull requests*. It never writes a status on the source tracker item (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*):
 
+- Skip this step for a pull request whose body carries the marker `<!-- ai-olympus:contribution-policy=human-description -->` (`references/ready-to-merge-signal.md`).
 - Because this step runs only after the **Review loop converged** (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate), mark the PR ready for review now: `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>` (the helper appends the audit line itself and still runs the write when no ledger is set), and label it `ready to merge` (`references/ready-to-merge-signal.md` *Pull-request label*); its label commands run in the same per-call `run` form. Both are PR state changes, not code changes.
 - Do **this only on a converged loop.** If the loop stopped at the cap round without converging, the PR stays a Draft — never promote a PR that still carries a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar. A Moderate deferred into a sub-issue is not such a finding: it is resolved for this PR and recorded in the tracker.
 - A PR that was already non-draft stays non-draft; `gh pr ready` is idempotent. If `gh pr ready` is unavailable, fall back to the GitHub MCP server's mark-ready operation.
@@ -219,7 +219,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 
 **Precondition:** Review loop has converged (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate).
 
-- **Run the final publishing run inline.** Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker, and it posts **one** report per destination. The invocation must include the PR URL, the converged state (`criticalCount == 0`, no undeferred Moderate),
+- **Run the final publishing run inline,** unless `@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description* holds back AI text in the pull request's repository: then publish nothing there and put the review in the completion report. Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker, and it posts **one** report per destination. The invocation must include the PR URL, the converged state (`criticalCount == 0`, no undeferred Moderate),
   the `reviewedRevision` and `reviewedDiffFingerprint` baseline of the last iteration (per **Incremental review scope**, so the published comment carries the `Reviewed revision:`, `Reviewed diff fingerprint:`, and `Review scope:` header lines), the parts **PR update** assembled, and the instruction to post the final pull-request review + linked-issue / JIRA mirror per the CR wrapper's contract.
   When the caller passed `tracker-report: deferred`, pass it to the wrapper too: the final publish then writes the pull-request review only, and the caller publishes the one tracker report after every CR step finished (`@skills/code-review-github/references/cr-wrapper-contract.md` *Non-technical tracker summary*).
   Do not dispatch as a subagent — run it sequentially in the current context:
