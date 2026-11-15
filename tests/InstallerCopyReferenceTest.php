@@ -15,7 +15,7 @@ function installedCopyReferenceInstall(string $root, string ...$flags): array
 
     try {
         ob_start();
-        [$exitCode, $stderr] = StderrCapture::run(static fn (): int => Installer::run(['ai-olympus', 'install', ...$flags]));
+        [$exitCode, $stderr] = StderrCapture::run(static fn (): int => Installer::run(['ai-olympus', 'install', ...array_values($flags)]));
         ob_end_clean();
     } finally {
         chdir($cwd !== false ? $cwd : $root);
@@ -30,8 +30,9 @@ function installedCopyReferenceInstall(string $root, string ...$flags): array
 function installedCopyReferenceLines(string $reference): array
 {
     $lines = [];
+    $fileLines = file($reference, FILE_IGNORE_NEW_LINES);
 
-    foreach (file($reference, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+    foreach ($fileLines === false ? [] : $fileLines as $line) {
         $lines[substr($line, 66)] = substr($line, 0, 64);
     }
 
