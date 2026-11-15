@@ -83,6 +83,9 @@
       "/assets/social-preview.png",
       "/assets/social-preview.svg",
       "/docs",
+      "/node_modules",
+      "/package-lock.json",
+      "/package.json",
       "/tests"
     ]
   },
@@ -180,11 +183,13 @@
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
-      "npx --yes skill-check@1.2.0 check skills --no-security-scan --format github"
+      "npm ci --ignore-scripts",
+      "node_modules/.bin/skill-check check skills --no-security-scan --format github"
     ],
     "skill-check-fix": [
       "echo \"📋 Running skill-check auto-fix...\"",
-      "npx --yes skill-check@1.2.0 check skills --fix --no-security-scan --format github"
+      "npm ci --ignore-scripts",
+      "node_modules/.bin/skill-check check skills --fix --no-security-scan --format github"
     ],
     "test:coverage": [
       "echo \"📊 Running coverage tests with PCOV...\"",
