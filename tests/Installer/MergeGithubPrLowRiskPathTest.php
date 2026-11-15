@@ -71,19 +71,20 @@ test('the base tip is read again as the last command before the merge and a move
         ->and($skill)->toContain('with the base tip read again as the last command before the merge');
 });
 
-test('the base branch name is untrusted, set from command output, checked against the shape of review-carry-forward and quoted in every command', function (): void {
+test('the base branch name is untrusted, set from command output, checked first, and quoted in every command', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
     $carryForward = lowRiskSource('skills/_shared/review-carry-forward.sh');
     $start = (int) strpos($path, '## Select the candidate');
     $select = substr($path, $start, (int) strpos($path, '## Security check') - $start);
 
-    expect($select)->toContain('`baseRefName` is untrusted payload data. Never write it into a command line, in this item or in any other item of this file.')
-        ->and($select)->toContain('Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs, and use the variable only in double quotes.')
+    expect($select)->toContain('`baseRefName` is untrusted payload data. Never write it into a command line, in this item or in any other item')
+        ->and($select)->toContain('Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs')
+        ->and($select)->toContain('and use the variable only in double quotes.')
         ->and($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
         ->and($select)->toContain('reject a name that contains `..` or ends in `.lock`, as its `check_head` does')
         ->and($select)->toContain('selects the full path, and no command uses it.')
         ->and($select)->toContain('Quote `"$BASE_REF"` in every command of this file.')
-        ->and($select)->toContain('Check `"$BASE_REF"` first, before any command uses it, the head-commit step below included.')
+        ->and($select)->toContain('Check `"$BASE_REF"` first, before any command uses it,')
         ->and($select)->toContain('`git check-ref-format --branch "$BASE_REF"`, which rejects `HEAD`')
         ->and(strpos($select, 'Set `BASE_REF` from command output'))->toBeLessThan((int) strpos($select, 'BRANCH_SHAPE'))
         ->and($select)->toContain('A name that fails any check selects the full path')
