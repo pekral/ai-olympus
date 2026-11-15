@@ -16,7 +16,7 @@ test('skill-check is pinned to an exact version and locked with an integrity has
     $packageDir = dirname(__DIR__, 2);
     /** @var array{private: bool, scripts?: array<string, string>, devDependencies: array<string, string>} $package */
     $package = json_decode((string) file_get_contents($packageDir . '/package.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-    /** @var array{lockfileVersion: int, packages: array<string, array{version?: string, resolved?: string, integrity?: string}>} $lock */
+    /** @var array{lockfileVersion: int, packages: array<string, array<string, string>>} $lock */
     $lock = json_decode((string) file_get_contents($packageDir . '/package-lock.json'), associative: true, flags: JSON_THROW_ON_ERROR);
 
     expect($package['private'])->toBeTrue();
@@ -40,7 +40,10 @@ test('the composer skill-check scripts install the locked tree and run the local
         $commands = (array) $composer['scripts'][$script];
 
         expect($commands)->toContain('npm ci --ignore-scripts');
-        expect(implode("\n", $commands))->toContain('node_modules/.bin/skill-check check skills')->not->toContain('npx');
+        $joined = implode("\n", $commands);
+
+        expect($joined)->toContain('node_modules/.bin/skill-check check skills');
+        expect($joined)->not->toContain('npx');
     }
 });
 
