@@ -8,9 +8,9 @@ metadata:
 
 ## Constraints
 - Apply @rules/git/general.md
-- **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — **0 Critical, and no undeferred Moderate**. A Moderate is resolved either by being fixed in the review loop or, at the cap round only, by being deferred into a tracker sub-issue; a **security-relevant** Moderate (the S1–S3 carve-out) never defers and always blocks. This is the hard merge gate from `@rules/git/pull-requests.md` *Merging*, verified in step 2 below. Its exemptions are a **`FAST`-tier PR** and a **dependency-only PR** (`@rules/git/pull-requests.md` *`FAST`-tier pull requests*, *Dependency-only pull requests*), qualified in step 2. The **low-risk path** (*Merge path* in step 2) is a separate path with its own security-only check.
+- **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — **0 Critical, and no undeferred Moderate**. A Moderate is resolved either by being fixed in the review loop or, at the cap round only, by being deferred into a tracker sub-issue; a **security-relevant** Moderate (the S1–S3 carve-out) never defers and always blocks. This is the hard merge gate from `@rules/git/pull-requests.md` *Merging*, verified in step 2 below. Its exemptions are a **`FAST`-tier PR** and a **dependency-only PR** (`@rules/git/pull-requests.md` *`FAST`-tier pull requests*, *Dependency-only pull requests*), qualified in step 2.
 - Never merge PRs with conflicts
-- Never merge PRs with failing CI — the only sanctioned relaxation is the *GitHub Actions billing exception* below; the low-risk path waits for no CI but a failed check still blocks; no other explicit instruction, including "merge anytime", overrides a real CI failure
+- Never merge PRs with failing CI — the only sanctioned relaxation is the *GitHub Actions billing exception* below; no other explicit instruction, including "merge anytime", overrides a real CI failure
 - Never bypass required approvals or protections. The approval check is `@rules/git/pull-requests.md` *Merging* (a GitHub approval, the converged code review, or on the low-risk path its confirmed evidence); `CHANGES_REQUESTED` blocks, and a GitHub refusal stops the run — never `--admin`
 - This skill never hands a merge to `@skills/merge-github-pr-fast/SKILL.md`. That skill is the user's own explicit `/merge-github-pr-fast` command (`@rules/git/pull-requests.md` *Fast hotfix merge — an explicit, owner-invoked exception*), and no caller of this skill chooses it
 - Every merge holds a **passing** full quality-gate run on the exact head commit being merged (*Pre-merge quality gate*) — accepted from the run recorded by `@skills/process-code-review/SKILL.md` *Finalization* for those exact bytes, carried forward from an earlier head after a rebase that only moved the base (`@skills/resolve-issue/references/quality-gates.md` *Rebase that moves the head — analyse the incoming changes first*, with CI green on the merged head), or executed here; a merge never proceeds without one
@@ -31,7 +31,7 @@ Only a zero exit permits the flow to continue — every non-zero exit is a hard 
 
 #### Merge path — selected by the merge risk of the exact head
 
-The low-risk path is opt-in: the project sets `merge.low-risk-path` and `risk.critical-paths` in its default-branch manifest, and the trusted classifier answers `low-risk-merge=yes` for the exact head (`@rules/git/pull-requests.md` *Low-risk merge path*). Read `references/low-risk-path.md` and follow it. It replaces the code-review gate, the delegated security coverage check, and the CI wait below with one security-only check, run before step 3 executes any code from the head. Every other case takes the full path, and every check below applies as written. Both paths keep the *Pre-merge quality gate* of step 3.
+The low-risk path is opt-in: the project sets `merge.low-risk-path` and `risk.critical-paths` in its default-branch manifest, and the trusted classifier answers `low-risk-merge=yes` for the exact head (`@rules/git/pull-requests.md` *Low-risk merge path*). Read `references/low-risk-path.md` and follow it. It replaces the code-review gate, the delegated security coverage check, and the CI wait below with one security-only check, run before step 3 executes any code from the head. Every other case takes the full path, and every check below applies as written.
 
 For each PR, derive the verdict from the JSON document loaded in step 1:
 
@@ -49,7 +49,7 @@ This is not hypothetical — a security pass that dies mid-run (API error, sessi
 - **Not a Draft** — `isDraft == false`. A Draft PR signals the review/fix loop has not converged (`@rules/git/pull-requests.md` *Draft pull requests*): the Draft state mirrors the unmet code-review gate, so **do not merge** a Draft and report it as skipped. If the PR's code review has in fact converged (0 Critical, no undeferred Moderate), it must first be promoted out of Draft by `@skills/process-code-review/SKILL.md` (`gh pr ready`) before this skill will merge it — never flip a Draft to ready here just to merge it. The billing exception below never relaxes this.
 - No merge conflicts — `mergeable == "MERGEABLE"` and `mergeStateStatus` is not `DIRTY` or `BEHIND`
 - CI is passing (not on the low-risk path) — every entry in `statusCheckRollup[]` has a passing `state` (`SUCCESS` / `NEUTRAL` / `SKIPPED`), **with the single billing exception below**, which rests on the mandatory *Pre-merge quality gate* run in its place. An entry whose `state` is `PENDING`, `EXPECTED`, `QUEUED`, `IN_PROGRESS`, `WAITING`, or `REQUESTED` is still pending: wait for it per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*, then run every pre-check again
-- **The approval check is met** — by `reviewDecision == "APPROVED"` or, on a same-repository PR (`isCrossRepository == false`), by the converged code-review comment verified above. On the low-risk path a same-repository PR also meets it by Source 3. `@rules/git/pull-requests.md` *Merging* owns the rule. Record the source for the merge report: `GitHub approval`, `converged code review <URL of the comment>`, or `low-risk evidence`.
+- **The approval check is met** — by `reviewDecision == "APPROVED"` or, on a same-repository PR (`isCrossRepository == false`), by the converged code-review comment verified above. `@rules/git/pull-requests.md` *Merging* owns the rule. Record the source for the merge report: `GitHub approval`, `converged code review <URL of the comment>`, or `low-risk evidence`.
   - **A fork PR needs `reviewDecision == "APPROVED"`.** A missing or `null` `isCrossRepository` counts as a fork PR (fail closed).
   - **A `CHANGES_REQUESTED` decision, or a trusted author whose latest `APPROVED` or `CHANGES_REQUESTED` review in `reviews[]` is `CHANGES_REQUESTED`, never meets it.** A `COMMENTED` review, and a review that carries an agent marker, never replaces that review.
   - **An exempt PR (`FAST`-tier or dependency-only) still needs the check.** On a same-repository exempt PR without a GitHub approval and without a converged code review, report the unmet check as "approval needs a converged code review". On a fork PR without a GitHub approval, report "approval needs a GitHub approval (fork PR)".
@@ -127,7 +127,7 @@ The project's fixers and checkers do not run during the branch's working life �
 ### 4. Merge
 
 - Merge with the CLI, using the project's default strategy
-- On the low-risk path, merge only after the completed security-only check and the confirmed verdict, pinned to the gated head (`--match-head-commit <gated head>`), with the base tip read again as the last command before the merge (`references/low-risk-path.md`); a passing gate record never skips the check
+- On the low-risk path, merge pinned to the gated head (`--match-head-commit <gated head>`), with the base tip read again as the last command before the merge (`references/low-risk-path.md`); a passing gate record never skips the check
 
 ### 5. Post-merge
 
@@ -156,6 +156,6 @@ The project's fixers and checkers do not run during the branch's working life �
 ## Principles
 
 - Safety over speed
-- Never bypass CI or review gates — a converged code review (0 Critical, no undeferred Moderate) on the final diff and green CI are mandatory preconditions for every merge on the full path. A dependency-only PR is exempt from the review, and a low-risk PR (opt-in project, `low-risk-merge=yes`) from the review and the CI wait; the gate on the exact head and one security-only check carry the latter
+- Never bypass CI or review gates — a converged code review (0 Critical, no undeferred Moderate) on the final diff and green CI are mandatory preconditions for every merge on the full path. A dependency-only PR is exempt from the review, and a low-risk PR from the review and the CI wait (*Merge path* in step 2)
 - Merge only fully ready PRs
 - Be explicit about skipped PRs
