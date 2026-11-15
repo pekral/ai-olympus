@@ -41,7 +41,8 @@ test('the composer skill-check scripts install the locked tree and run the local
     foreach (['skill-check', 'skill-check-fix'] as $script) {
         $commands = (array) $composer['scripts'][$script];
 
-        expect($commands)->toContain('@skill-check-install')->not->toContain('npm ci --ignore-scripts');
+        expect($commands)->toContain('@skill-check-install');
+        expect($commands)->not->toContain('npm ci --ignore-scripts');
         $joined = implode("\n", $commands);
 
         expect($joined)->toContain('node_modules/.bin/skill-check check skills');
