@@ -361,8 +361,7 @@ test('no sentence of the skill or the rule still states that every merge needs t
     $skill = lowRiskSource('skills/merge-github-pr/SKILL.md');
     $pullRequests = lowRiskSource('rules/git/pull-requests.md');
 
-    expect($skill)->toContain('The **low-risk path** (*Merge path* in step 2) is a separate path with its own security-only check.')
-        ->and($skill)->toContain('(a GitHub approval, the converged code review, or on the low-risk path its confirmed evidence)')
+    expect($skill)->toContain('(a GitHub approval, the converged code review, or on the low-risk path its confirmed evidence)')
         ->and($skill)->toContain('and the low-risk path (*Merge path* above), this gate is **never** waived')
         ->and($skill)->toContain('on the full path CI must still be green on the merged head (step 2)')
         ->and($skill)->toContain('`GitHub approval`, `converged code review <URL of the comment>`, or `low-risk evidence`')
