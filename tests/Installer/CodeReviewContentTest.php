@@ -2570,7 +2570,7 @@ test('every CR run loads the project CLAUDE.md from the default branch and appli
     expect($rule)->toContain('### Scope — the project\'s instruction sources, and nothing else');
     expect($rule)->toContain('`git show "${REF:?}:.ai/rules/index.md"`');
     expect($rule)->toContain(
-        '**The project manifest** — `extra.ai-olympus` in `composer.json` — through the trusted copy of `skills/_shared/read-manifest.sh`',
+        '**The project manifest** — `extra.ai-olympus` in `composer.json` — by git ref, through the `REF` of step 1',
     );
     expect($rule)->toContain('.github/copilot-instructions.md');
     expect($skill)->toContain('every `.ai/rules/**` file whose globs in `.ai/rules/index.md` cover a changed path');
@@ -2606,7 +2606,7 @@ test('the project instruction sources of a review are read through a default-bra
     // The rule resolves the ref once, by reference to the one owner of the git-only resolution, and runs no script for it.
     expect($gate)->toContain($resolve)
         ->and($gate)->toContain('`REF="$(git symbolic-ref --quiet refs/remotes/origin/HEAD)"`')
-        ->and($gate)->toContain('`refs/remotes/origin/?*`')
+        ->and($gate)->not->toContain('refs/remotes/origin/?*')
         ->and($gate)->toContain('The resolution runs no script')
         ->and($gate)->toContain(
             'Read each source with `git show "${REF:?}:<file>"`, in the same shell call as the resolution: a later call starts a new shell',
@@ -2634,21 +2634,28 @@ test('the project instruction sources of a review are read through a default-bra
         ->and($skill)->not->toContain('git symbolic-ref')
         ->and($skill)->not->toContain('read-manifest.sh --default-ref');
 
-    // The manifest is read through the trusted copy of the script, by reference to the owner, never a copy of the procedure.
-    $trusted = '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* items 2, 4 and 5';
-    $manifest = substr($rule, (int) strpos($rule, '4. **The project manifest**'), 1_200);
+    // The manifest is read by git ref in the same shell call as REF; no script runs for it.
+    $manifestRead = '`git show "${REF:?}:composer.json" | jq -c \'.extra["ai-olympus"] // {}\'`';
+    $manifest = substr($rule, (int) strpos($rule, '4. **The project manifest**'), 1_500);
 
-    expect($manifest)->toContain($trusted)
-        ->and($manifest)->toContain('A copy that is not available gives `{}` and the review says why.')
+    expect($manifest)->toContain($manifestRead)
+        ->and($manifest)->toContain('in the same shell call as `REF`')
+        ->and($manifest)->toContain('A failed read, an empty output, or invalid JSON gives `{}` and the review says why.')
+        ->and($manifest)->toContain(
+            'This is the reader of the review gate because the gate runs after the head is checked out; `skills/_shared/read-manifest.sh` stays the reader everywhere else (`@rules/general/general.md` *Project manifest*).',
+        )
+        ->and($manifest)->not->toContain('trusted copy')
         ->and($manifest)->not->toContain('`cmp`')
-        ->and($manifest)->not->toContain('git rev-parse --path-format')
-        ->and($skill)->toContain('the project manifest through the trusted copy of `skills/_shared/read-manifest.sh`')
-        ->and($skill)->toContain($trusted)
-        ->and($skill)->toContain('a copy that is not available gives `{}` and the review says why');
+        ->and($skill)->toContain($manifestRead)
+        ->and($skill)->toContain('the project manifest by git ref in the same shell call')
+        ->and($skill)->toContain('a failed read, an empty output, or invalid JSON gives `{}` and the review says why')
+        ->and($skill)->not->toContain('trusted copy of `skills/_shared/read-manifest.sh`');
 
-    // The owner of the resolution states the git-only form and the accepted shape.
+    // The accepted shape lives with the owner of the resolution, and no consumer restates it.
     $owner = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
-    expect($owner)->toContain('`git symbolic-ref --quiet refs/remotes/origin/HEAD`');
+    expect($owner)->toContain('`git symbolic-ref --quiet refs/remotes/origin/HEAD`')
+        ->and($owner)->toContain('`refs/remotes/origin/?*`')
+        ->and($rule)->not->toContain('refs/remotes/origin/?*');
 });
 
 test('code review rule scopes a later round to the diff since the last reviewed revision', function (): void {
