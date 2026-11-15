@@ -57,7 +57,9 @@ test('the base tip is read again as the last command before the merge and a move
     $confirm = substr($path, (int) strpos($path, '## Confirm after the gate'));
     $merge = substr($path, (int) strpos($path, '## Merge'));
 
-    expect($confirm)->toContain('Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/<baseRefName>"`')
+    expect($confirm)->toContain(
+        'Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/<baseRefName>"`',
+    )
         ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/<baseRefName>`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
         ->and($confirm)->toContain('means the base moved. Start again from *Select the candidate*')
@@ -383,7 +385,7 @@ test('no sentence of the skill or the rule still states that every merge needs t
         ->and($pullRequests)->toContain('The low-risk path replaces the review and the CI wait');
 });
 
-test('the low-risk path reads the newest trusted code-review report with the shared reader and a Critical or an undeferred Moderate blocks', function (): void {
+test('the low-risk path reads the newest trusted review report with the shared reader and a Critical or an open Moderate blocks', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
 
     expect($path)->toContain('The newest trusted code-review report is still read with `skills/_shared/cr-header.sh --report <loader-file>`')
