@@ -2593,8 +2593,12 @@ test('the project instruction sources of a review are read through the fully qua
     $packageDir = dirname(__DIR__, 2);
     $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
-    $gate = substr($rule, (int) strpos($rule, '### Which version is trusted'), (int) strpos($rule, '### What is extracted and applied') - (int) strpos($rule, '### Which version is trusted'));
-    $scope = substr($rule, (int) strpos($rule, '### Scope — the project'), 3000);
+    $gate = substr(
+        $rule,
+        (int) strpos($rule, '### Which version is trusted'),
+        (int) strpos($rule, '### What is extracted and applied') - (int) strpos($rule, '### Which version is trusted'),
+    );
+    $scope = substr($rule, (int) strpos($rule, '### Scope — the project'), 3_000);
     $resolve = '`.claude/skills/_shared/read-manifest.sh --default-ref` on Claude Code, `.agents/skills/_shared/read-manifest.sh --default-ref` on Codex';
 
     // The rule is the owner of the procedure: it resolves the ref once and reads every source through it.
