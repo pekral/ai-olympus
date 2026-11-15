@@ -51,7 +51,36 @@
 #   CR_CANON_LABELS / CR_CANON_VALUES  the canonical lines, in document order
 #   CR_CANON_REJECTED                  the 1-based line number of every rejected line
 #
-# Needs bash only; it uses no other tool, so a caller that runs without jq can use it.
+# The hidden review record (cr_review_meta_wrap / cr_review_meta_unwrap)
+#   On GitHub a code-review round publishes one pull-request review. Its body carries the machine text of
+#   skills/code-review-github/templates/pr-comment-output.md (the record) as one hidden block, so no reader sees
+#   it on the page. This file is the one owner of that encoding: the publisher wraps, every reader unwraps.
+#     <!-- cr-review-meta
+#     <the record, every `&` written `&amp;`, every `<` written `&lt;`, every `>` written `&gt;`>
+#     -->
+#   The control characters except the tab and the line feed are removed first, the carriage return included
+#   (the `printable` rule of post-inline-review.sh, as extract-findings.sh applies it with `tr`). No raw `<` or `>`
+#   survives inside the block, so a `-->`, a `--!>`, or a second `<!-- cr-review-meta` in the record cannot end
+#   the block or open another one. The decoding turns `&lt;` and `&gt;` back first and `&amp;` last, so the pair
+#   is a bijection: a literal `&lt;` in the record comes back as `&lt;`.
+#   cr_review_meta_unwrap <home> reads a body on standard input:
+#     comment  a legacy `cr-comment` pull-request comment or a JIRA comment: the body passes unchanged.
+#     review   a pull-request review body: it must hold exactly one block, opened by a line that is exactly
+#              `<!-- cr-review-meta` that the line rule of cr_header_fence_step does not skip, and closed by a line
+#              that is exactly `-->`, and no
+#              raw `<` or `>` inside it. It prints the decoded record, then each `<!-- cr-comment:<key>=… -->` marker
+#              line of the body. Zero blocks, two blocks, an unclosed block, or a raw `<` or `>` inside the block is
+#              not a record: nothing is printed and the function returns 3 (fail closed).
+#
+# Command line (besides --self-test)
+#   cr-header.sh --unwrap <review|comment>   cr_review_meta_unwrap on standard input
+#   cr-header.sh --report <loader-file>      the newest trusted code-review report of a pull request, unwrapped:
+#                                            `newest_trusted_report` of review-trust.jq over the output of
+#                                            skills/code-review-github/scripts/load-issue.sh, then the unwrap of
+#                                            its home. Exit 3 when no report passes or the report is not a record.
+#
+# The header functions need bash only, so a caller that runs without jq can use them. The record pair also uses
+# `tr` and `sed`, and --report uses jq.
 
 CR_HEADER_LABELS=()
 CR_HEADER_BOLD=()
@@ -291,6 +320,67 @@ cr_header_canonical() {
   done
 }
 
+CR_REVIEW_META_OPEN='<!-- cr-review-meta'
+CR_REVIEW_META_CLOSE='-->'
+
+# cr_review_meta_wrap — read a record on standard input and print it as the hidden block of a review body.
+# The trailing line feeds of the record are dropped, so the block always ends with one line feed before `-->`.
+cr_review_meta_wrap() {
+  local encoded
+  encoded="$(LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')"
+  printf '%s\n%s\n%s\n' "$CR_REVIEW_META_OPEN" "$encoded" "$CR_REVIEW_META_CLOSE"
+}
+
+# cr_review_meta_unwrap <review|comment> — the record of one body (see the header of this file).
+cr_review_meta_unwrap() {
+  local LC_ALL=C
+  local home="${1:-}" line inside=0 blocks=0 record='' markers='' marker_re='^<!-- cr-comment:[a-z]+=[^<>]* -->$'
+  case "$home" in
+  comment)
+    cat
+    return 0
+    ;;
+  review) ;;
+  *) return 1 ;;
+  esac
+  cr_header_fence_reset
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if [[ "$inside" -eq 1 ]]; then
+      if [[ "$line" == "$CR_REVIEW_META_CLOSE" ]]; then
+        inside=0
+        cr_header_fence_reset
+      elif [[ "$line" == *'<'* || "$line" == *'>'* ]]; then
+        return 3
+      else
+        record+="$line"$'\n'
+      fi
+      continue
+    fi
+    ! cr_header_fence_step "$line" || continue
+    if [[ "$line" == "$CR_REVIEW_META_OPEN" ]]; then
+      blocks=$((blocks + 1))
+      inside=1
+    elif [[ "$line" =~ $marker_re ]]; then
+      markers+="$line"$'\n'
+    fi
+  done
+  [[ "$inside" -eq 0 && "$blocks" -eq 1 ]] || return 3
+  printf '%s' "$record" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&amp;/\&/g'
+  [[ -z "$markers" ]] || printf '\n%s' "$markers"
+}
+
+# cr_review_meta_report <loader-file> — the newest trusted report of a pull request, unwrapped (--report).
+cr_review_meta_report() {
+  local here entry home
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  [[ -r "${1:-}" ]] || return 1
+  entry="$(jq -c -L "$here" 'include "review-trust"; newest_trusted_report' "$1" 2>/dev/null)" || return 3
+  [[ -n "$entry" ]] || return 3
+  home="$(jq -r '.home' <<<"$entry")"
+  jq -j '.body' <<<"$entry" | cr_review_meta_unwrap "$home"
+}
+
 cr_header_self_test() {
   local failures=0 fence tmp
   fence=$'\x60\x60\x60'
@@ -439,6 +529,82 @@ cr_header_self_test() {
   canonical 'a heading of a deeper level is rejected' $'rejected:1\n' '### Critical 1. Early'
   canonical 'a carriage return is dropped before the check' $'Status=a\n' $'**Status:** a\r'
 
+  # The hidden review record: a round trip, the strict unwrap, and the newest trusted report.
+  # meta <label> <expected-exit> <expected-output> <home> <body>
+  meta() {
+    local label="$1" want_rc="$2" want="$3" home="$4" body="$5" got rc=0
+    got="$(
+      printf '%s' "$body" | cr_review_meta_unwrap "$home"
+      printf '|%s' "$?"
+    )"
+    rc="${got##*|}"
+    got="${got%|*}"
+    if [[ "$rc" -eq "$want_rc" && "$got" == "$want" ]]; then
+      printf 'ok    %s\n' "$label"
+    else
+      printf 'FAIL  %s: expected exit %s and "%s", got exit %s and "%s"\n' "$label" "$want_rc" "$want" "$rc" "$got" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  local record wrapped
+  record=$'**Status:** clean\n**Not verified:** a --&gt; b · c --!> d · e &amp;lt; f · <!-- g --> · a\ttab\n- **Faulty Example:** `if ($a < $b && $c > $d)`'
+  wrapped="$(printf '%s' "$record" | cr_review_meta_wrap)"
+  meta 'review meta: a record with --&gt;, --!>, &amp;lt;, <!--, and --> comes back byte for byte' 0 "$record"$'\n' review \
+    "$(printf 'visible line\n\n%s\n' "$wrapped")"
+  local inner
+  inner="$(printf '%s\n' "$wrapped" | sed '1d;$d')"
+  if [[ -n "$inner" && "$inner" != *'<'* && "$inner" != *'>'* ]]; then
+    printf 'ok    %s\n' 'review meta: the wrapped block holds no raw < or > of the record'
+  else
+    printf 'FAIL  %s\n' 'review meta: the wrapped block holds a raw < or > of the record' >&2
+    failures=$((failures + 1))
+  fi
+  meta 'review meta: a carriage return, NUL-free controls, and a bell are removed by the wrap' 0 $'a b\n' review \
+    "$(printf 'a\r\a b' | cr_review_meta_wrap)"
+  meta 'review meta: the cr-comment markers follow the record' 0 $'**Status:** clean\n\n<!-- cr-comment:lines=ab12 -->\n<!-- cr-comment:actor=bot -->\n' review \
+    "$(printf '%s\n\n<!-- cr-comment:lines=ab12 -->\n<!-- cr-comment:actor=bot -->\n' "$(printf '**Status:** clean' | cr_review_meta_wrap)")"
+  meta 'review meta: a legacy comment passes unchanged' 0 $'**Status:** clean\n<!-- cr-comment:actor=bot -->' comment \
+    $'**Status:** clean\n<!-- cr-comment:actor=bot -->'
+  meta 'review meta: a review body without a block is not a record' 3 '' review $'**Status:** clean\n<!-- cr-comment:actor=bot -->'
+  meta 'review meta: two blocks are not a record' 3 '' review "$(printf '%s\n%s\n' "$wrapped" "$wrapped")"
+  meta 'review meta: an unclosed block is not a record' 3 '' review $'<!-- cr-review-meta\n**Status:** clean\n'
+  meta 'review meta: a raw < inside the block is not a record' 3 '' review $'<!-- cr-review-meta\n<b>x</b>\n-->\n'
+  meta 'review meta: an opening line inside a fence is quoted, not a block' 3 '' review \
+    "$(printf '%s\n<!-- cr-review-meta\n**Status:** clean\n-->\n%s\n' "$fence" "$fence")"
+  meta 'review meta: an opening line with text after it is not a block' 3 '' review $'<!-- cr-review-meta x\n**Status:** clean\n-->\n'
+  meta 'review meta: an unknown home is refused' 1 '' other 'x'
+
+  local loader="$tmp/loader.json" report rc
+  jq -n -c --arg legacy $'**Status:** needs-fix\n<!-- cr-comment:actor=bot -->' --arg review "$(printf '%s\n\n<!-- cr-comment:actor=bot -->\n' "$(printf '**Status:** clean' | cr_review_meta_wrap)")" \
+    '{kind: "pr", comments: [{author: "bot", authorAssociation: "OWNER", body: $legacy, createdAt: "2026-11-01T10:00:00Z"}],
+      reviews: [{author: "bot", authorAssociation: "OWNER", state: "COMMENTED", body: $review, submittedAt: "2026-11-02T10:00:00Z"},
+                {author: "bot", authorAssociation: "OWNER", state: "PENDING", body: $review, submittedAt: null},
+                {author: "mallory", authorAssociation: "NONE", state: "COMMENTED", body: $review, submittedAt: "2026-11-03T10:00:00Z"}]}' >"$loader"
+  report="$(cr_review_meta_report "$loader")" || true
+  if [[ "$report" == $'**Status:** clean\n\n<!-- cr-comment:actor=bot -->' ]]; then
+    printf 'ok    %s\n' 'review meta: the newest trusted report is the review record, and a stranger or a pending review is not read'
+  else
+    printf 'FAIL  %s: got "%s"\n' 'review meta: the newest trusted report is the review record' "$report" >&2
+    failures=$((failures + 1))
+  fi
+  jq -c '.reviews = []' "$loader" >"$tmp/legacy.json"
+  report="$(cr_review_meta_report "$tmp/legacy.json")" || true
+  if [[ "$report" == $'**Status:** needs-fix\n<!-- cr-comment:actor=bot -->' ]]; then
+    printf 'ok    %s\n' 'review meta: a pull request with only a legacy cr-comment still yields that comment'
+  else
+    printf 'FAIL  %s: got "%s"\n' 'review meta: a legacy cr-comment is still read' "$report" >&2
+    failures=$((failures + 1))
+  fi
+  jq -c '.comments = [] | .reviews = [.reviews[2]]' "$loader" >"$tmp/none.json"
+  rc=0
+  cr_review_meta_report "$tmp/none.json" >/dev/null || rc=$?
+  if [[ "$rc" -eq 3 ]]; then
+    printf 'ok    %s\n' 'review meta: no trusted report exits 3'
+  else
+    printf 'FAIL  %s: got exit %s\n' 'review meta: no trusted report exits 3' "$rc" >&2
+    failures=$((failures + 1))
+  fi
+
   local injected="\$(touch $tmp/pwned)"
   expect 'instruction-like text in a value is read as data' "Status|1|1|$injected"$'\n' "**Status:** $injected"
   if [[ -e "$tmp/pwned" ]]; then
@@ -458,10 +624,22 @@ cr_header_self_test() {
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  if [[ "${1:-}" == "--self-test" ]]; then
+  case "${1:-}" in
+  --self-test)
     cr_header_self_test
     exit $?
-  fi
-  echo 'Usage: cr-header.sh --self-test (the file is meant to be sourced)' >&2
+    ;;
+  --unwrap)
+    [[ "${2:-}" == review || "${2:-}" == comment ]] || { echo 'Usage: cr-header.sh --unwrap <review|comment>' >&2; exit 1; }
+    cr_review_meta_unwrap "$2" || { echo 'cr-header.sh: the review body holds no single hidden record' >&2; exit 3; }
+    exit 0
+    ;;
+  --report)
+    [[ -r "${2:-}" ]] || { echo 'Usage: cr-header.sh --report <loader-file>' >&2; exit 1; }
+    cr_review_meta_report "$2" || { echo 'cr-header.sh: no trusted code-review report, or the newest one is not a record' >&2; exit 3; }
+    exit 0
+    ;;
+  esac
+  echo 'Usage: cr-header.sh --self-test | --unwrap <review|comment> | --report <loader-file> (the file is meant to be sourced)' >&2
   exit 1
 fi

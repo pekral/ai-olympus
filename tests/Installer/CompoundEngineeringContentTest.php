@@ -1684,7 +1684,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
 
     expect($codeReview)->toContain('**An agent marker is any `<namespace>:actor=` marker a package helper writes into a comment body.**')
         ->and($codeReview)->toContain(
-            'The namespaces today are exactly `cr-comment` (the upserted, one-per-actor comment), `merge-readiness` '
+            'The namespaces today are exactly `cr-comment` (the code-review report: the hidden record of a GitHub pull-request review, '
+            . 'a legacy comment, and the tracker comments), `merge-readiness` '
             . '(the merge-readiness TL;DR `skills/verify-merge-readiness/SKILL.md` and `agents/april.md` publish), '
             . '`test-report` (the pull-request test report `skills/test-assignment/SKILL.md` and `agents/april.md` publish), '
             . '`support-analysis` (the support-issue analysis `skills/analyze-support-issue/SKILL.md` publishes on a JIRA issue), '
@@ -1711,8 +1712,11 @@ test('the two remaining MCP fallbacks name the agent marker they append (issue #
     $cr = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
     $cookbook = (string) file_get_contents($packageDir . '/skills/tester-cookbook/SKILL.md');
 
-    expect($cr)->toContain('`addIssueComment`, never `updateIssueComment`, appending the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body')
-        ->and($cr)->toContain('an agent marker per `@rules/code-review/general.md` *Authorship trust*');
+    $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($cr)->toContain('never fall back to a `cr-comment` pull-request comment')
+        ->and($cr)->not->toContain('`addIssueComment`, never `updateIssueComment`')
+        ->and($summary)->toContain('Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call');
 
     expect($cookbook)->toContain(
         'Fall back to the JIRA MCP server only when `acli` is unavailable, appending the same '

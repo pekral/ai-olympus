@@ -450,7 +450,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a test that settles a review question runs through `run-gate.sh --exclusive` (issue #409).
         // Re-baselined: a later review round raises only new Critical findings and security findings, and a review covers four areas and nothing else (issue #455).
         // Re-baselined: a later round is an iteration of one review-and-fix loop, and the scripts record every reported finding and the reviewer alone applies the later-round rule (issue #455, review round 3).
-        'rules/code-review/general.md' => '00186e0984e2b05e18f9897d76d2e3e7593e9e11755858f58326ed9f49b8c2f1',
+        // Re-baselined: a GitHub review is one pull-request review whose body carries the hidden record (issue #522).
+        'rules/code-review/general.md' => 'ac46add5a099422a18a6b4dff5c2db504ae8d59ad85222bb2d6e41a46c624c35',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -561,7 +562,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // length limits stay with this rule (issue #432, review round 1).
         // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
         // Re-baselined: every tracker output is rendered from a template (issue #499).
-        'rules/reports/general.md' => 'b8932b7d09695c845d2ca4e29175701428664510149809d9483e8cbe8843feb2',
+        // Re-baselined: the GitHub code review is one pull-request review with a hidden record (issue #522).
+        'rules/reports/general.md' => '98457cf734369ea22d9cd8ca5338ffecfca953cac28abb9ddb9ef3a1d23a3034',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

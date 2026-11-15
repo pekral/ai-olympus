@@ -9,7 +9,7 @@ metadata:
 
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a GitHub-sourced review decides for itself.
-- Publishing is limited to PR / linked-issue comments via `gh` and to one pull-request review of inline comments through `scripts/post-inline-review.sh`.
+- Publishing is limited to linked-issue comments via `gh` and to one pull-request review of inline comments through `scripts/post-inline-review.sh`, which carries the hidden review record in its body. No `cr-comment` pull-request comment is posted.
 
 ---
 
@@ -44,8 +44,8 @@ Run the always-run set, the conditional set, and the reuse-first gate exactly as
 
 ### 4. Publish Results
 
-#### Inline review (before the PR comment)
-- Publish the findings that anchor to a line of the diff as one pull-request review, and keep the rest in the PR comment, exactly as `references/cr-wrapper-contract.md` *Inline review comments* defines. The comment shape is `templates/inline-review-comment.md`.
+#### Inline review (the one publication on the pull request)
+- Publish the round as one pull-request review: the findings that anchor to a line of the diff as inline comments, a visible line for each other finding, and the record rendered from `templates/pr-comment-output.md` as hidden HTML in the review body, exactly as `references/cr-wrapper-contract.md` *GitHub pull-request review* and *Inline review comments* define. The comment shape is `templates/inline-review-comment.md`.
 
 #### Linked-issue consolidated summary (mandatory — one new comment per linked issue and CR run)
 - The linked GitHub issues in `closingIssues[]` are this wrapper's **only** non-technical destination, so the shared *Non-technical tracker summary* and *Linked GitHub issues* blocks collapse into this one delegation: invoke `@skills/pr-summary/SKILL.md` with the **GitHub** tracker target, exactly once per linked issue, under the consolidation contract in `references/cr-wrapper-contract.md`.
@@ -63,7 +63,7 @@ Apply `references/cr-wrapper-contract.md` *Output Rules — GitHub PR comment*. 
 
 ## Output Format
 
-Use the template defined in `templates/pr-comment-output.md`.
+Use the template defined in `templates/pr-comment-output.md` for the hidden record, and `templates/inline-review-comment.md` for the inline comments.
 
 ## References
 

@@ -328,8 +328,12 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
     expect($prSummary)->not->toContain('{anchor:cr-comment-actor-<slug>}');
 
     foreach ([$github, $jira] as $skill) {
-        expect($skill)->toContain('Every CR run **posts its PR comment as a new comment**');
-        expect($skill)->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>');
+        expect($skill)->toContain('Every CR run **posts a new review**');
+        expect($skill)->toContain(
+            'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+                . '<reviewed head SHA> --meta-file <record-file> <findings-file>',
+        );
+        expect($skill)->not->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>');
         expect($skill)->not->toContain('updated in place');
         expect($skill)->not->toContain('updates the PR comment it already owns');
         expect($skill)->not->toContain('POSTs a new comment only when no marker-carrying comment exists');
@@ -341,7 +345,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
     // One comment per review run: the `cr-status` namespace is retired, so the skill publishes
     // nothing itself — it assembles the body and lets Completion drive the wrapper's single
     // `cr-comment` publish through the helper.
-    expect($processCodeReview)->toContain('This step **assembles** the comment body; **Completion** publishes it.');
+    expect($processCodeReview)->toContain('This step **assembles** the report; **Completion** publishes it.');
     expect($processCodeReview)->toContain('The retired `cr-status` namespace has no publisher left');
     expect($processCodeReview)->not->toContain('<!-- cr-status:actor=<gh-login> -->');
     expect($processCodeReview)->not->toContain('- cr-status');
@@ -364,7 +368,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
     $reviewOutput = (string) file_get_contents($packageDir . '/skills/code-review/templates/review-output.md');
     expect($reviewOutput)->not->toContain('{anchor:');
     expect($reviewOutput)->not->toContain('Always-new comment');
-    expect($reviewOutput)->toContain('**A new comment per run:**');
+    expect($reviewOutput)->toContain('**A new report per run:**');
     expect($reviewOutput)->not->toContain('**Update in place:**');
     expect($reviewOutput)->toContain('<!-- cr-comment:actor=<gh-login> -->');
     expect($reviewOutput)->toContain('_cr-comment:actor=<actor-digest>_');
@@ -4458,7 +4462,7 @@ test('a standalone leonardo review on a JIRA source publishes its findings to th
 
     // On the base branch a JIRA source routed the severity-sorted findings, with their counts and
     // code references, straight onto the ticket — the one remaining path that bypassed the split.
-    expect($leonardo)->toContain('**two comments, and the split between them is not optional.**');
+    expect($leonardo)->toContain('**two publications, and the split between them is not optional.**');
     expect($leonardo)->toContain('The severity-sorted findings go to the **linked GitHub pull request**');
     expect($leonardo)->toContain('**Never publish the severity-sorted findings, the counts, or the code references to the JIRA ticket**');
 
@@ -4656,9 +4660,11 @@ test('every code-review report is published as a new comment on each destination
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $updateInPlace = '/\b(?:update|updates|updated|rewrites?)\b[^.\n]{0,60}\bin place\b(?! of)/i';
 
-    expect(substr_count($contract, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(1)
+    expect(substr_count($contract, 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+        . '<reviewed head SHA> --meta-file'))->toBe(1)
+        ->and($contract)->not->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>')
         ->and($contract)->toContain('posts it via `skills/code-review-github/scripts/upsert-comment.sh --create` on **each** entry in `closingIssues[]`')
-        ->and($contract)->toContain('and `pr-summary` does the same on every tracker destination')
+        ->and($contract)->toContain('and `pr-summary` posts a new comment with `--create` on every tracker destination')
         ->and(preg_match_all($updateInPlace, $contract))->toBe(0);
     expect(substr_count($prSummary, 'skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -'))->toBe(1)
         ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -'))->toBe(1)
@@ -4666,12 +4672,17 @@ test('every code-review report is published as a new comment on each destination
         ->and(preg_match_all($updateInPlace, $prSummary))->toBe(0);
     expect($severalPullRequests)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')
         ->and($severalPullRequests)->not->toContain('Carry every other pull request\'s group over verbatim');
-    expect($krang)->toContain('It publishes the one CR comment from the brief as a new comment, with `upsert-comment.sh --create`')
+    expect($krang)->toContain('It publishes the one CR report from the brief as a new pull-request review, through '
+        . '`post-inline-review.sh post --meta-file`')
         ->and($krang)->toContain('`pr-summary` publishes it as a new comment (`--create`), so the tracker comment of an earlier run stays unchanged')
         ->and(preg_match_all($updateInPlace, $krang))->toBe(0);
-    expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(2)
+    expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(0)
+        ->and(substr_count($leonardo, 'post-inline-review.sh post <PR-NUMBER|URL> --commit-id <reviewed head SHA> --meta-file '
+            . '<record-file> <findings-file>'))->toBe(1)
         ->and(substr_count($leonardo, 'without `--create`'))->toBe(0);
-    expect($rule)->toContain('**That one comment is a new comment on every run.**')
+    expect($rule)->toContain(
+        '**That one report is new on every run.** On GitHub every run posts a new pull-request review and never edits an earlier one.',
+    )
         ->and($rule)->toContain('Every check that reads a code-review comment reads the **newest trusted** comment that carries the marker')
         ->and($rule)->toContain(
             'A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment',
