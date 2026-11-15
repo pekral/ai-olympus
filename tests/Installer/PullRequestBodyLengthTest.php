@@ -25,21 +25,12 @@ test('an agent-opened pull-request body is capped at 6,500 characters before eve
 });
 
 test('the length check command has one owner, the pull-request rule', function (): void {
-    $packageDir = dirname(__DIR__, 2);
     $command = 'mb_strlen((string) file_get_contents($argv[1]))';
-    $owners = [];
+    $isRuleOrSkill = static fn (string $content, string $path): bool => (str_starts_with($path, 'rules/') || str_starts_with($path, 'skills/'))
+        && str_ends_with($path, '.md')
+        && str_contains($content, $command);
 
-    foreach (['rules', 'skills'] as $directory) {
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageDir . '/' . $directory, FilesystemIterator::SKIP_DOTS));
-
-        foreach ($files as $file) {
-            if (str_ends_with((string) $file, '.md') && str_contains((string) file_get_contents((string) $file), $command)) {
-                $owners[] = substr((string) $file, strlen($packageDir) + 1);
-            }
-        }
-    }
-
-    expect($owners)->toBe(['rules/git/pull-requests.md']);
+    expect(array_keys(array_filter(packageTextFiles(), $isRuleOrSkill, ARRAY_FILTER_USE_BOTH)))->toBe(['rules/git/pull-requests.md']);
 });
 
 test('verbatim audit, security, and package content moves to an overflow comment instead of being shortened', function (): void {
