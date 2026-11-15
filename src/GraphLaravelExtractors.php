@@ -11,19 +11,19 @@ trait GraphLaravelExtractors
 
     use GraphLaravelRoutes;
 
-    private const string FACADES = 'Illuminate\Support\Facades\\';
+    private const FACADES = 'Illuminate\Support\Facades\\';
 
-    private const array SCHEMA_CHANGES = ['create', 'table', 'drop', 'dropifexists'];
+    private const SCHEMA_CHANGES = ['create', 'table', 'drop', 'dropifexists'];
 
-    private const array DISPATCHING_FACADES = ['Bus', 'Event'];
+    private const DISPATCHING_FACADES = ['Bus', 'Event'];
 
-    private const array ELOQUENT_MODELS = [
+    private const ELOQUENT_MODELS = [
         'Illuminate\Database\Eloquent\Model',
         'Illuminate\Foundation\Auth\User',
         'Illuminate\Database\Eloquent\Relations\Pivot',
     ];
 
-    private const array ELOQUENT_RELATIONS = [
+    private const ELOQUENT_RELATIONS = [
         'hasone',
         'hasmany',
         'hasonethrough',
@@ -37,13 +37,13 @@ trait GraphLaravelExtractors
         'morphedbymany',
     ];
 
-    private const array DIRECTORY_KINDS = ['Http/Controllers' => 'controller', 'Jobs' => 'job', 'Events' => 'event', 'Listeners' => 'listener'];
+    private const DIRECTORY_KINDS = ['Http/Controllers' => 'controller', 'Jobs' => 'job', 'Events' => 'event', 'Listeners' => 'listener'];
 
-    private const array INJECTED_KINDS = ['controller', 'job'];
+    private const INJECTED_KINDS = ['controller', 'job'];
 
-    private const array SCALAR_TYPES = ['int', 'float', 'string', 'bool', 'iterable', 'object', 'mixed', 'null', 'false', 'true'];
+    private const SCALAR_TYPES = ['int', 'float', 'string', 'bool', 'iterable', 'object', 'mixed', 'null', 'false', 'true'];
 
-    private const array PARAMETER_NAMES = [T_VARIABLE, T_ELLIPSIS, T_AMPERSAND_FOLLOWED_BY_VAR_OR_VARARG, '|'];
+    private const PARAMETER_NAMES = [T_VARIABLE, T_ELLIPSIS, T_AMPERSAND_FOLLOWED_BY_VAR_OR_VARARG, '|'];
 
     private string $classKind = 'class';
 

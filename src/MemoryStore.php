@@ -10,9 +10,9 @@ use PDOException;
 final readonly class MemoryStore
 {
 
-    private const string COLUMNS = 'slug, role, "trigger", lesson, rule, evidence, paths, example, source, added';
+    private const COLUMNS = 'slug, role, "trigger", lesson, rule, evidence, paths, example, source, added';
 
-    private const string SCHEMA = <<<'SQL'
+    private const SCHEMA = <<<'SQL'
         CREATE TABLE IF NOT EXISTS memory_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             slug TEXT NOT NULL UNIQUE, role TEXT NOT NULL, "trigger" TEXT NOT NULL, lesson TEXT NOT NULL,

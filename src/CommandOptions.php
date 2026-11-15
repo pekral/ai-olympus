@@ -7,11 +7,11 @@ namespace Pekral\AiOlympus;
 final class CommandOptions
 {
 
-    public const string DEFAULT_RUN_DIRECTORY = '.claude/run';
+    public const DEFAULT_RUN_DIRECTORY = '.claude/run';
 
-    public const int JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
+    public const JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
 
-    private const array RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, '.codex/run'];
+    private const RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, '.codex/run'];
 
     /**
      * @param array<int, string> $arguments

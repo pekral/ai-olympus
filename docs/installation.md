@@ -6,7 +6,7 @@ Everything on this page describes the **Composer** path. A project without Compo
 
 ## Versions and upgrades
 
-The Composer installer requires PHP `^8.4` and Composer 2. CI runs the full quality checks and checks the distribution install on PHP 8.4, 8.5, and 8.6.
+The Composer installer requires PHP `^8.2` and Composer 2. CI checks the distribution install on PHP 8.2, 8.3, 8.4, 8.5, and 8.6. It runs the full quality checks on PHP 8.4, 8.5, and 8.6, because the development tools need PHP 8.4, and lints every PHP file on PHP 8.2 and 8.3.
 
 Release `0.5.1` uses the exact Git tag `0.5.1`. Install this version from Packagist with:
 

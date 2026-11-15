@@ -9,15 +9,15 @@ use JsonException;
 final class MemoryCommand
 {
 
-    private const string DATABASE_FILE = 'code-review-memory.sqlite';
+    private const DATABASE_FILE = 'code-review-memory.sqlite';
 
-    private const string DEFAULT_SOURCE = 'docs/memory/PROJECT_MEMORY.md';
+    private const DEFAULT_SOURCE = 'docs/memory/PROJECT_MEMORY.md';
 
-    private const int DEFAULT_LIMIT = 5;
+    private const DEFAULT_LIMIT = 5;
 
-    private const int EXAMPLES_FOR_TOP = 3;
+    private const EXAMPLES_FOR_TOP = 3;
 
-    private const string USAGE = 'Usage: ai-olympus memory migrate [--source <file.md>] [--run-dir <dir>]'
+    private const USAGE = 'Usage: ai-olympus memory migrate [--source <file.md>] [--run-dir <dir>]'
         . ' | ai-olympus memory add --entry <file.json> [--run-dir <dir>]'
         . ' | ai-olympus memory query --role <role> (--path <p> | --symbol <s>)... [--limit <n>] [--run-dir <dir>]';
 

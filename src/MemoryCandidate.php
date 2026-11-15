@@ -9,7 +9,7 @@ use JsonSerializable;
 final readonly class MemoryCandidate implements JsonSerializable
 {
 
-    private const int MAX_TEXT = 500;
+    private const MAX_TEXT = 500;
 
     /**
      * @param list<string> $paths

@@ -14,7 +14,7 @@ use SplFileInfo;
 final class GraphFixture
 {
 
-    private const string DIRECTORY = __DIR__ . '/../Fixtures/';
+    private const DIRECTORY = __DIR__ . '/../Fixtures/';
 
     public static function source(string $path, string $fixture = 'graph-project'): string
     {

@@ -67,6 +67,30 @@ jobs:
       - name: "📊 Coverage Tests"
         run: composer test:coverage
 
+  php-compatibility:
+    name: "PHP ${{ matrix.php }} syntax lint"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The development tools need PHP 8.4, so the quality checks cannot run on these versions.
+      # The lint still parses every file with the oldest PHP the package allows; the compatibility
+      # job below installs the distribution and runs the CLI on the same versions.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@2.37.1
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: "🔎 Lint the PHP files"
+        run: git ls-files -z -- 'src/*.php' 'tests/*.php' 'bin/*' rector.php | xargs -0 -n 1 php -d display_errors=stderr -l > /dev/null
+
   skill-check:
     name: "📋 Skill Check"
     runs-on: ubuntu-latest
@@ -98,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4', '8.5', '8.6']
+        php: ['8.2', '8.3', '8.4', '8.5', '8.6']
 
     steps:
       - name: Checkout code

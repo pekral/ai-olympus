@@ -36,7 +36,7 @@
     "docs": "https://github.com/pekral/ai-olympus#readme"
   },
   "require": {
-    "php": "^8.4",
+    "php": "^8.2",
     "composer-plugin-api": "^2.0"
   },
   "require-dev": {

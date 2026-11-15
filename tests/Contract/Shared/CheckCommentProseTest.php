@@ -42,7 +42,7 @@ function runCheckCommentProse(array $files, string $diff, bool $withDiff = true,
     $process->setInput($diff);
     $process->run();
 
-    new Filesystem()->remove($root);
+    (new Filesystem())->remove($root);
 
     return ['exit' => $process->getExitCode(), 'output' => trim($process->getOutput()), 'error' => $process->getErrorOutput()];
 }

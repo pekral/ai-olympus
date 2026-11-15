@@ -804,7 +804,7 @@ test('a write that fails inside SQLite rolls back and makes the memory unavailab
     memoryBrokenDatabase($root);
 
     [$exitCode, $stdout, $stderr] = memoryRun($root, 'migrate');
-    $count = new PDO('sqlite:' . $root . '/' . MEMORY_DATABASE)->query('SELECT COUNT(*) FROM memory_entries');
+    $count = (new PDO('sqlite:' . $root . '/' . MEMORY_DATABASE))->query('SELECT COUNT(*) FROM memory_entries');
     $rows = $count === false ? -1 : (int) $count->fetchColumn();
 
     expect($exitCode)->toBe(2);

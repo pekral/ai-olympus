@@ -41,7 +41,7 @@ final class InstallerProjectSettings
      * name: a command that merely mentions `bash-guard` — a log path, a wrapper, a guard the
      * project wrote itself — is never removed on this package's authority.
      */
-    private const string ORPHANED_BASH_GUARD_PATTERN = '/(?:^|\/)(?:agent-skills|ai-olympus)\'?[ \t]+bash-guard$/';
+    private const ORPHANED_BASH_GUARD_PATTERN = '/(?:^|\/)(?:agent-skills|ai-olympus)\'?[ \t]+bash-guard$/';
 
     /**
      * Outbound-network Bash commands denied session-wide when the caller opts in

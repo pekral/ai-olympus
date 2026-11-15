@@ -14,11 +14,11 @@ use SplFileInfo;
 final class GraphIndexer
 {
 
-    public const int VERSION = 2;
+    public const VERSION = 2;
 
-    private const array SKIPPED_DIRECTORIES = ['vendor', 'node_modules'];
+    private const SKIPPED_DIRECTORIES = ['vendor', 'node_modules'];
 
-    private const array AUTOLOAD_TYPES = ['psr-4', 'psr-0', 'classmap'];
+    private const AUTOLOAD_TYPES = ['psr-4', 'psr-0', 'classmap'];
 
     /**
      * @param array<string, \Pekral\AiOlympus\GraphRecord> $previous

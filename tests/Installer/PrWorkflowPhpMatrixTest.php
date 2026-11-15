@@ -2,10 +2,21 @@
 
 declare(strict_types = 1);
 
-// CI must check the oldest PHP version the package allows. When `require.php` in composer.json
-// is raised or lowered, the lowest entry of the quality and installer matrices must follow it.
+// CI must check every PHP version the package allows. The development tools need a newer PHP than
+// `require.php` in composer.json, so the quality matrix starts above the minimum. The syntax lint
+// job covers the versions below it, and the installer matrix covers all of them.
 
-test('the quality and installer matrices start at the composer.json PHP minimum', function (): void {
+/**
+ * @return list<string>
+ */
+function prWorkflowMatrix(string $workflow, string $job): array
+{
+    expect(preg_match('/^  ' . $job . ':\n(?:    .*\n|\n)*?        php: \[([^\]]+)\]/m', $workflow, $matrix))->toBe(1);
+
+    return array_map(static fn (string $version): string => trim($version, ' \''), explode(',', $matrix[1] ?? ''));
+}
+
+test('the CI matrices cover every PHP version from the composer.json minimum', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $composer = (string) file_get_contents($packageDir . '/composer.json');
     $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
@@ -13,8 +24,10 @@ test('the quality and installer matrices start at the composer.json PHP minimum'
     expect(preg_match('/"require": \{\s*"php": "\^(\d+\.\d+)"/', $composer, $constraint))->toBe(1);
     $minimum = $constraint[1] ?? null;
 
-    foreach (['quality-checks', 'installer-compatibility'] as $job) {
-        expect(preg_match('/^  ' . $job . ':\n(?:    .*\n|\n)*?        php: \[\'(\d+\.\d+)\'/m', $workflow, $matrix))->toBe(1);
-        expect($matrix[1] ?? null)->toBe($minimum);
-    }
+    $lint = prWorkflowMatrix($workflow, 'php-compatibility');
+    $quality = prWorkflowMatrix($workflow, 'quality-checks');
+    $installer = prWorkflowMatrix($workflow, 'installer-compatibility');
+
+    expect($lint[0])->toBe($minimum);
+    expect($installer)->toBe([...$lint, ...$quality]);
 });
