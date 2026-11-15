@@ -183,14 +183,15 @@
     ],
     "skill-check": [
       "echo \"📋 Running skill-check (SKILL.md linter)...\"",
-      "npm ci --ignore-scripts",
+      "@skill-check-install",
       "node_modules/.bin/skill-check check skills --no-security-scan --format github"
     ],
     "skill-check-fix": [
       "echo \"📋 Running skill-check auto-fix...\"",
-      "npm ci --ignore-scripts",
+      "@skill-check-install",
       "node_modules/.bin/skill-check check skills --fix --no-security-scan --format github"
     ],
+    "skill-check-install": "npm ci --ignore-scripts",
     "test:coverage": [
       "echo \"📊 Running coverage tests with PCOV...\"",
       "php -d pcov.enabled=1 -d pcov.directory=src -d pcov.exclude=~tests~ -d xdebug.mode=off vendor/bin/pest --compact --colors=never --coverage tests --min=100"

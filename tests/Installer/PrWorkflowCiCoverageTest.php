@@ -36,10 +36,12 @@ test('the composer skill-check scripts install the locked tree and run the local
     /** @var array{scripts: array<string, string|list<string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
 
+    expect($composer['scripts']['skill-check-install'])->toBe('npm ci --ignore-scripts');
+
     foreach (['skill-check', 'skill-check-fix'] as $script) {
         $commands = (array) $composer['scripts'][$script];
 
-        expect($commands)->toContain('npm ci --ignore-scripts');
+        expect($commands)->toContain('@skill-check-install')->not->toContain('npm ci --ignore-scripts');
         $joined = implode("\n", $commands);
 
         expect($joined)->toContain('node_modules/.bin/skill-check check skills');
@@ -47,13 +49,15 @@ test('the composer skill-check scripts install the locked tree and run the local
     }
 });
 
-test('node_modules is git-ignored and left out of the Composer archive, as are the npm manifests', function (): void {
+test('node_modules is git-ignored and the npm manifests are left out of the Composer archive and the GitHub export', function (): void {
     $packageDir = dirname(__DIR__, 2);
     /** @var array{archive: array{exclude: list<string>}} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
     $ignored = preg_split('/\R/', (string) file_get_contents($packageDir . '/.gitignore'));
+    $exportIgnored = preg_split('/\R/', (string) file_get_contents($packageDir . '/.gitattributes'));
 
     expect($ignored)->toContain('/node_modules/');
+    expect($exportIgnored)->toContain('/package.json export-ignore')->toContain('/package-lock.json export-ignore');
     expect($composer['archive']['exclude'])->toContain('/node_modules')->toContain('/package.json')->toContain('/package-lock.json');
 });
 

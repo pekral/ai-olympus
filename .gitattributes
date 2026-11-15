@@ -5,3 +5,5 @@
 /assets/social-preview.png export-ignore
 /assets/social-preview.svg export-ignore
 /docs export-ignore
+/package-lock.json export-ignore
+/package.json export-ignore
