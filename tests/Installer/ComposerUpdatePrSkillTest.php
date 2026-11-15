@@ -90,7 +90,9 @@ test('the pull request body collapses the Testing section into the same block as
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
     $block = "<details>\n<summary><strong>✅ Testing</strong></summary>\n\n<the commands run and their result>";
 
-    expect(composerUpdateSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain("<details>\n<summary><strong>✅ Testing</strong></summary>")
+    expect(composerUpdateSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain(
+        "<details>\n<summary><strong>✅ Testing</strong></summary>",
+    )
         ->and($template)->toContain($block)
         ->and($template)->not->toContain('## Testing')
         ->and($skill)->toContain('the collapsed *✅ Testing* block')
