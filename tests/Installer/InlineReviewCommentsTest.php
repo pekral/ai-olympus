@@ -116,13 +116,12 @@ test('the contract section states the inline review end to end', function (): vo
     expect($section)->toContain(
         'every finding that anchors to a line of the diff is published as an inline review comment on that line, whatever lens raised it',
     )
-        ->and($section)->toContain('**Two shapes, fixed by `templates/inline-review-comment.md`, which the script renders.**')
-        ->and($section)->toContain('`🟠 **Moderate · DRY:** This repeats the logic of `<existing>`. Please unify it and call '
-            . 'the existing implementation instead.`')
-        ->and($section)->toContain('Nothing else is visible: no Rule, Provenance, Answered, Raised by, Level, Evidence, '
-            . 'Expected behavior, Test hint, or Suggested fix line, and no `suggestion` block.')
-        ->and($section)->toContain('A duplicated security control keeps its security severity and takes the first shape.')
-        ->and($section)->toContain('`<icon> **Problem:** … **Impact:** … (`<path:line>`, outside the diff)` or `(no line)`')
+        ->and($section)->toContain('**The shapes live in `templates/inline-review-comment.md`, which the script renders.**')
+        ->and($section)->toContain('are defined there and nowhere else. The findings file supplies these keys for them:')
+        ->and($section)->toContain('`kind: "dry"` with `existing`, the `<path>:<line>` of the existing implementation')
+        ->and($section)->toContain('`faulty_example`, 5 lines at most')
+        ->and($section)->not->toContain('This repeats the logic of')
+        ->and($section)->not->toContain('**Problem:**')
         ->and($section)->toContain(
             '`already_open`: the finding has an unresolved inline thread of this actor on the same path and line, so nothing is posted again',
         )
@@ -231,6 +230,8 @@ test('the review rule publishes one review on GitHub and moves the machine recor
         ->and($rule)->toContain('**On a GitHub pull request the one report is one pull-request review, and no `cr-comment` '
             . 'pull-request comment is posted.**')
         ->and($rule)->toContain('**Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it')
+        ->and($rule)->toContain('`@skills/code-review-github/templates/inline-review-comment.md` fixes its shape')
+        ->and($rule)->not->toContain('**Impact** in one sentence')
         ->and($rule)->toContain('**Each finding that cannot anchor is one short visible line in the review body**')
         ->and($rule)->toContain('**The machine record is hidden HTML in the review body.**')
         ->and($rule)->toContain('reaches none of the three**, the hidden record included: hidden HTML is public.')
@@ -348,7 +349,11 @@ test('a published report with an Inline line resolves nothing by absence, and th
         ->and(inlineReviewSource('skills/code-review/references/feedback-loop.md'))
         ->toContain('resolves no open record in `collect`')
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
-        ->toContain('The extractor resolves no record by absence for that report');
+        ->toContain('The extractor resolves no record by absence for that legacy comment')
+        ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
+        ->toContain('carries no `Inline:` line, so it resolves by absence like any complete report')
+        ->and(inlineReviewSource('skills/code-review/references/feedback-loop.md'))
+        ->not->toContain('carries no such line: the findings it no longer lists');
 });
 
 test(
