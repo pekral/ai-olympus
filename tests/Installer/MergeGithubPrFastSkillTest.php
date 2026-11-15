@@ -127,7 +127,7 @@ test('both commits of the diff are fetched and verified before the security chec
 
 test('the base branch name is read into a variable, checked there, and fetched with an exact refspec', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
-    $fetch = 'git fetch origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"';
+    $fetch = 'git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"';
 
     expect($skill)->toContain('`baseRefOid`, `baseRefName`, `headRefName`')
         ->and($skill)->toContain('never write it into a command line, the checks below included')
