@@ -1,8 +1,19 @@
-## Merge risk <🟢 FAST | 🟡 STANDARD | 🔴 CRITICAL>
+## Merge risk <🟢 low | 🟡 medium | 🔴 high>
 <the section of skills/resolve-issue/templates/pull-request-body.md, with the assignment file holding the one line Update the Composer dependencies>
 
 ## TL;DR
 <count of updated, added, and removed packages; count of major updates; changed composer.json constraints. Every number is counted from the script output.>
+
+## Summary
+
+* **Major updates**
+  * `<name>` <old> → <new>: <one plain sentence on what the jump means, from the release notes the run read, or "not verified">
+* **Minor and patch updates**
+  * <count>, among them `<name>` <old> → <new>
+* **Added or removed packages**
+  * `<name>` <added | removed>
+* **Manifest**
+  * <one bullet per composer.json constraint change>
 
 ## Major updates
 | Package | From | To | Type |
@@ -39,4 +50,4 @@ No tests were added: the change carries none. The full test suite is the CI resu
 
 This task has no tracker item.
 
-<!-- Sections in this order; Merge risk comes first. Omit Major updates when no package has level major, and omit Other changed files when no path other than composer.json and composer.lock changed. -->
+<!-- Sections in this order; Merge risk comes first. Summary: a category only when it has a bullet; every value comes from the script output and the diff. Omit Major updates when no package has level major, and omit Other changed files when no path other than composer.json and composer.lock changed. -->

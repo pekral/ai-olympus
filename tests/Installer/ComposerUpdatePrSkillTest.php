@@ -77,6 +77,8 @@ test('the skill opens a Draft pull request whose description holds only values r
         ->and($skill)->toContain('Create `chore/composer-update-<date>`')
         ->and($skill)->toContain('Commit with the subject `chore(composer): update dependencies`.')
         ->and($skill)->toContain('`## TL;DR`')
+        ->and($skill)->toContain('`## Summary` — the categorised bullets of the template')
+        ->and(composerUpdateSource('skills/composer-update-pr/templates/pull-request-body.md'))->toContain("## Summary\n\n* **Major updates**")
         ->and($skill)->toContain('`## Major updates`')
         ->and(composerUpdateSource('skills/composer-update-pr/templates/pull-request-body.md'))->toContain('Not verified: what breaks in this project')
         ->and($skill)->toContain('`## Merge risk` (the first section)')

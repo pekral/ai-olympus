@@ -1,6 +1,6 @@
 Closes #<N>
 
-## Merge risk <🟢 FAST | 🟡 STANDARD | 🔴 CRITICAL>
+## Merge risk <🟢 low | 🟡 medium | 🔴 high>
 
 **Door:** <one-way | two-way> <rollback signals with their files, or no rollback signal>
 **Blast radius:** <tier> (<signal names>)
