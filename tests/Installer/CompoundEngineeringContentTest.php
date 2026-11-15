@@ -110,6 +110,39 @@ test('the pull request body states the merge danger from the merge-risk script a
     expect($finalization)->not->toContain('rollback=costly');
 });
 
+test('the pull request body template renders a TL;DR layout with a merge risk first and collapsed Walkthrough, Testing, and Audit blocks', function (): void {
+    $template = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/resolve-issue/templates/pull-request-body.md');
+    $order = [
+        'Closes #<N>',
+        '## Merge risk <',
+        '## Summary',
+        '## Open decisions for the operator',
+        '<summary><strong>Walkthrough</strong></summary>',
+        '<summary><strong>✅ Testing</strong></summary>',
+        '<summary><strong>Audit</strong></summary>',
+    ];
+    $positions = array_map(static fn (string $needle): int|false => strpos($template, $needle), $order);
+    $sorted = $positions;
+    sort($sorted);
+
+    expect($positions)->not->toContain(false)
+        ->and($positions)->toBe($sorted)
+        ->and($template)->toStartWith("Closes #<N>\n\n## Merge risk <")
+        ->and($template)->toContain('* **New Features**')
+        ->and($template)->toContain('* **Bug Fixes**')
+        ->and($template)->toContain('* **Documentation**')
+        ->and($template)->toContain("<details>\n<summary><strong>Walkthrough</strong></summary>")
+        ->and($template)->toContain("<details>\n<summary><strong>✅ Testing</strong></summary>")
+        ->and($template)->toContain("<details>\n<summary><strong>Audit</strong></summary>")
+        ->and($template)->not->toContain('## Changes')
+        ->and($template)->not->toContain('## Testing')
+        ->and($template)->not->toContain('## Merge danger')
+        ->and($template)->not->toContain('## Pre-existing fixes')
+        ->and($template)->not->toContain('## Audit')
+        ->and($template)->toContain('the pull request this one replaces, when it replaces one')
+        ->and($template)->toContain('filled as the Merge risk bullet of skills/resolve-issue/references/pull-request.md states');
+});
+
 test('commit granularity is the author\'s judgment, and the package says what that costs', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = gitRuleContents();

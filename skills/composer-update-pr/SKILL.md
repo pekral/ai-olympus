@@ -92,7 +92,7 @@ Render the body from `skills/composer-update-pr/templates/pull-request-body.md`.
 - `## Other updates` — one row per remaining package; a `downgraded` row names the downgrade.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
 - `## Other changed files` — one line per committed path other than `composer.json` and `composer.lock`, as `git status --porcelain` printed it in step 4. Omit the section when there is no such path.
-- `## Testing` — the commands of step 2 and their result.
+- the collapsed *✅ Testing* block — the commands of step 2 and their result.
 - `## Merge risk` (the first section) and the collapsed *Audit* block (the last one) — the sections of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies` and the standalone-run fallback of the audit.
 
 The step is done when the re-read confirms an open Draft pull request.

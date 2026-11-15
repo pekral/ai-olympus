@@ -22,9 +22,13 @@ A major version may contain backward-incompatible changes (semver). Not verified
 ## Other changed files
 - <path as git status --porcelain printed it>
 
-## Testing
+<details>
+<summary><strong>✅ Testing</strong></summary>
+
 <the commands run and their result>
 No tests were added: the change carries none. The full test suite is the CI result of the pull request.
+
+</details>
 
 <details>
 <summary><strong>Audit</strong></summary>

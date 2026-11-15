@@ -85,6 +85,18 @@ test('the skill opens a Draft pull request whose description holds only values r
         ->and($skill)->not->toContain('A dependency update pull request carries nothing else.');
 });
 
+test('the pull request body collapses the Testing section into the same block as the resolve-issue template', function (): void {
+    $template = composerUpdateSource('skills/composer-update-pr/templates/pull-request-body.md');
+    $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
+    $block = "<details>\n<summary><strong>✅ Testing</strong></summary>\n\n<the commands run and their result>";
+
+    expect(composerUpdateSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain("<details>\n<summary><strong>✅ Testing</strong></summary>")
+        ->and($template)->toContain($block)
+        ->and($template)->not->toContain('## Testing')
+        ->and($skill)->toContain('the collapsed *✅ Testing* block')
+        ->and($skill)->not->toContain('`## Testing`');
+});
+
 test('the skill commits other changed paths, lists them in the pull request, and never commits an ignored, env, or outside path', function (): void {
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
 
