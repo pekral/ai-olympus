@@ -53,15 +53,32 @@ test('a rebased branch goes back into its own pull request on a repository with 
 
     expect($gates)->toContain('6. **A rebased branch goes back into the same pull request.**')
         ->and($gates)->toContain(
-            'push the branch to its own remote branch with `git push --force-with-lease="refs/heads/<branch>:<remote head the rebase started from>" '
-            . 'origin "<branch>"`, through `skills/_shared/audit-trail.sh run --`.',
+            'Run `git push --force-with-lease="refs/heads/<branch>:<remote head the rebase started from>" '
+            . 'origin "HEAD:refs/heads/<branch>"`, through `skills/_shared/audit-trail.sh run --`, with the rebased branch checked out.',
         )
+        ->and($gates)->toContain('The name then never starts the refspec, so a leading `+` can never force another ref past the lease.')
+        ->and($gates)->not->toContain('origin "<branch>"`')
         ->and($gates)->toContain('The pinned lease refuses a push that someone made after the rebase started.')
         ->and($gates)->toContain('The pull request keeps its number: no `<branch>-vN` branch and no new pull request.')
         ->and($gates)->toContain('Without CI the conflict path of `skills/_shared/orchestration/batch-preparation.md`');
+    expect(strpos($gates, '**Check the branch name before the push.**'))
+        ->toBeGreaterThan((int) strpos($gates, '6. **A rebased branch goes back into the same pull request.**'))
+        ->toBeLessThan((int) strpos($gates, '**Push to an explicit destination.**'));
     expect($git)->toContain('**A rebase onto the default branch on a repository with CI is such a stated decision.**')
         ->and($git)->toContain('The rebased branch goes back into its own pull request with `git push --force-with-lease`')
         ->and($git)->toContain('Without CI, a conflict opens `<branch>-vN` instead.');
+});
+
+test('the rebase push checks the branch name with the branch checkout gate and refuses the default branch', function (): void {
+    $gates = packageSource('skills/resolve-issue/references/quality-gates.md');
+
+    expect($gates)->toContain('`<branch>` is the head branch of the pull request, which is untrusted text.')
+        ->and($gates)->toContain(
+            'Validate it as `@skills/code-review/references/branch-checkout-gate.md` step 1 states, and refuse a name equal to `$DEFAULT_BRANCH`.',
+        )
+        ->and($gates)->toContain('A failed check stops the push with `Blocked: unsafe branch name`.');
+    expect(packageSource('skills/code-review/references/branch-checkout-gate.md'))
+        ->toContain('Check it with `git check-ref-format --branch "$HEAD_REF"` and against `^[A-Za-z0-9._/-]{1,255}$`.');
 });
 
 test('every file that names the pre-push gate points to the ci condition, never to visibility', function (): void {
