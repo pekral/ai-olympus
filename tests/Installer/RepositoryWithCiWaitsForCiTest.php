@@ -57,7 +57,9 @@ test('a rebased branch goes back into its own pull request on a repository with 
     $git = repositoryWithCiSource('rules/git/general.md');
 
     expect($gates)->toContain('6. **A rebased branch goes back into the same pull request.**')
-        ->and($gates)->toContain('push the branch to its own remote branch with `git push --force-with-lease`, through `skills/_shared/audit-trail.sh run --`.')
+        ->and($gates)->toContain(
+            'push the branch to its own remote branch with `git push --force-with-lease`, through `skills/_shared/audit-trail.sh run --`.',
+        )
         ->and($gates)->toContain('The pull request keeps its number: no `<branch>-vN` branch and no new pull request.')
         ->and($gates)->toContain('Without CI the conflict path of `skills/_shared/orchestration/batch-preparation.md`');
     expect($git)->toContain('**A rebase onto the default branch on a repository with CI is such a stated decision.**')
@@ -66,9 +68,9 @@ test('a rebased branch goes back into its own pull request on a repository with 
 });
 
 test('every file that names the pre-push gate points to the ci condition, never to visibility', function (): void {
-    expect(repositoryWithCiSource('rules/general/general.md'))
-        ->toContain('On a repository with CI it never runs: the run waits for CI instead, and a CI billing failure runs it locally')
-        ->not->toContain('On a public GitHub repository it never runs');
+    $manifest = repositoryWithCiSource('rules/general/general.md');
+    expect($manifest)->toContain('On a repository with CI it never runs: the run waits for CI instead, and a CI billing failure runs it locally')
+        ->and($manifest)->not->toContain('On a public GitHub repository it never runs');
 
     $donatello = repositoryWithCiSource('agents/donatello.md');
     expect($donatello)->toContain(
@@ -86,19 +88,19 @@ test('every file that names the pre-push gate points to the ci condition, never 
     expect($claude)->toContain('It is never required before a push: this repository has CI, so CI is the check after a push.')
         ->and($claude)->toContain('On a repository with CI no local pre-push gate runs')
         ->and($claude)->not->toContain('public on GitHub');
-    expect(repositoryWithCiSource('AGENTS.md'))
-        ->toContain('On a repository with CI no local pre-push gate runs')
-        ->not->toContain('public on GitHub');
-    expect(repositoryWithCiSource('skills/composer-update-pr/SKILL.md'))
-        ->toContain('*A repository with CI waits for CI instead of a local pre-push gate*. On a repository without CI, run')
-        ->toContain('6. On a repository with CI, wait for CI per')
-        ->not->toContain('public repository');
+    $agents = repositoryWithCiSource('AGENTS.md');
+    expect($agents)->toContain('On a repository with CI no local pre-push gate runs')
+        ->and($agents)->not->toContain('public on GitHub');
+    $composerUpdate = repositoryWithCiSource('skills/composer-update-pr/SKILL.md');
+    expect($composerUpdate)->toContain('*A repository with CI waits for CI instead of a local pre-push gate*. On a repository without CI, run')
+        ->and($composerUpdate)->toContain('6. On a repository with CI, wait for CI per')
+        ->and($composerUpdate)->not->toContain('public repository');
     expect(repositoryWithCiSource('docs/installation.md'))
         ->toContain('never run on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch)');
 });
 
 test('the ci wait rule names the implementer handoff on a repository with ci', function (): void {
-    expect(repositoryWithCiSource('rules/git/pull-requests.md'))
-        ->toContain('or an implementer\'s handoff after a push on a repository with CI')
-        ->not->toContain('after a push on a public repository');
+    $pullRequests = repositoryWithCiSource('rules/git/pull-requests.md');
+    expect($pullRequests)->toContain('or an implementer\'s handoff after a push on a repository with CI')
+        ->and($pullRequests)->not->toContain('after a push on a public repository');
 });
