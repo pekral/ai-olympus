@@ -453,7 +453,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a GitHub review is one pull-request review whose body carries the hidden record (issue #522).
         // Re-baselined: the inline comment shape points to its template, and the baseline reads the newest trusted code-review report (issue #522, review round 1).
         // Re-baselined: the `Merge risk:` grade selects the merge path at the merge instead of being informational (issue #495).
-        'rules/code-review/general.md' => '8d856f2a62699ac9f740a35c454374f750fae64d7874ccb2ace693b5fa2bd3ef',
+        // Re-baselined: the project instruction sources are read through the fully qualified default-branch ref of `read-manifest.sh --default-ref`.
+        'rules/code-review/general.md' => '9474f5f594d584e21419f87999ee185b72a20f2bc62eb72575be0bf3dac0db7a',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
