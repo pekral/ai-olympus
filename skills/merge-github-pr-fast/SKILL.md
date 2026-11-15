@@ -36,13 +36,12 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
 3. Load the pull request with `skills/code-review-github/scripts/load-issue.sh <URL>`, always with the full URL. Read `state`, `isDraft`, `mergeable`, `headRefOid`, `baseRefOid`, `baseRefName`, `headRefName`, `statusCheckRollup[]`, and `files[]`. A state other than `OPEN` stops the run. `mergeable == "CONFLICTING"` stops the run: report the conflict and merge nothing.
 4. Read `isCrossRepository` of the same payload. A missing or `null` value stops the run.
 5. Record `headRefOid` as the **gated head**. Every later step names it.
-6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base branch instead. The base branch name is payload data, so never write it into a command line, the checks below included. Set `BASE_REF` from command output: `BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r '.baseRefName')"`. Run checks 1 to 4 on `"$BASE_REF"`. A failed check stops the run: `Blocked: invalid base branch name`.
-   1. It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`.
-   2. It is not the literal `HEAD`.
-   3. `git check-ref-format --branch "$BASE_REF"` exits `0`.
-   4. `git symbolic-ref -q "refs/remotes/origin/$BASE_REF"` exits non-zero: the remote-tracking ref is not a symbolic ref.
+6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base tip by object id instead. The base branch name is payload data, so never write it into a command line, the steps below included. Set `BASE_REF` from command output: `BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r '.baseRefName')"`. Use the variable only in double quotes.
+   1. Check `"$BASE_REF"` before any command uses it, with the `baseRefName` check of `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* item 1. A name that fails stops the run: `Blocked: invalid base branch name`. This skill has no full path to fall back to.
+   2. Read the base tip with the exact-ref read of that item, on `"refs/heads/${BASE_REF}"`. A read that gives no single matching line with a full hexadecimal object id stops the run: `Blocked: pull request commits not available locally — <baseRefOid>`.
+   3. Run `git fetch origin "<object id>"` with that object id, as that item directs. Name no destination ref: the base branch name never enters a local ref.
 
-   Use the variable only in double quotes, and fetch it with the exact refspec: `git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"`. Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
+   Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
 
 ### 2. Security check — one pass, inline
 A single `leonardo`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.
