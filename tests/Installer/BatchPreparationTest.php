@@ -296,7 +296,7 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('With CI, it puts the worktree on the unit branch as step 2.1 states')
         ->and($batch)->toContain(
             '**With CI, the same pull request.** It pushes with `git -C <worktree> push '
-            . '--force-with-lease="refs/heads/<branch>:<head SHA confirmed above>" origin "<branch>"`, '
+            . '--force-with-lease="refs/heads/<branch>:<head SHA confirmed above>" origin "HEAD:refs/heads/<branch>"`, '
             . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local gate.',
         )
         ->and($batch)->toContain('No pull request is opened or closed, and the bullets below do not apply.')
