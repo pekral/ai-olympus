@@ -16,24 +16,10 @@ test('every npx call in the composer scripts names an exact package version, so 
     $packageDir = dirname(__DIR__, 2);
     /** @var array{scripts: array<string, string|list<string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-    $npxCalls = 0;
+    $commands = implode("\n", array_merge(...array_map(static fn (string|array $script): array => (array) $script, array_values($composer['scripts']))));
 
-    foreach ($composer['scripts'] as $script => $commands) {
-        foreach ((array) $commands as $command) {
-            if (preg_match_all('/\bnpx\b((?:\s+-{1,2}[\w-]+)*)\s+(\S+)/', $command, $matches, PREG_SET_ORDER) === 0) {
-                continue;
-            }
+    preg_match_all('/\bnpx\b(?:\s+-{1,2}[\w-]+)*\s+(\S+)/', $commands, $matches);
 
-            foreach ($matches as $match) {
-                $npxCalls++;
-
-                expect($match[2])->toMatch(
-                    '/^(@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+$/',
-                    sprintf('composer script "%s" runs npx without an exact version: %s', $script, $command),
-                );
-            }
-        }
-    }
-
-    expect($npxCalls)->toBeGreaterThan(0);
+    expect($matches[1])->not->toBeEmpty();
+    expect($matches[1])->each->toMatch('/^(@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+$/');
 });
