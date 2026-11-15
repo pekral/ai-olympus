@@ -79,7 +79,7 @@ test('the skill opens a Draft pull request whose description holds only values r
         ->and($skill)->toContain('`## TL;DR`')
         ->and($skill)->toContain('`## Major updates`')
         ->and(composerUpdateSource('skills/composer-update-pr/templates/pull-request-body.md'))->toContain('Not verified: what breaks in this project')
-        ->and($skill)->toContain('`## Merge danger`')
+        ->and($skill)->toContain('`## Merge risk` (the first section)')
         ->and($skill)->toContain('`isDraft` is `true`')
         ->and($skill)->toContain('The skill never promotes the Draft')
         ->and($skill)->not->toContain('A dependency update pull request carries nothing else.');

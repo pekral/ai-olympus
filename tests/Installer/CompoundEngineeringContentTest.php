@@ -86,7 +86,8 @@ test('the pull request body states the merge danger from the merge-risk script a
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
 
-    expect($pullRequest)->toContain('**Merge danger** — it tells');
+    expect($pullRequest)->toContain('**Merge risk** — it tells');
+    expect($pullRequest)->toContain('🟢 for `FAST`, 🟡 for `STANDARD`, 🔴 for `CRITICAL`');
     expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
@@ -103,7 +104,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
     expect($finalization)->toContain(
         'Body rendered from `skills/resolve-issue/templates/pull-request-body.md` and filled as '
-        . '`@skills/resolve-issue/references/pull-request.md` states, including its `## Merge danger` section.',
+        . '`@skills/resolve-issue/references/pull-request.md` states, including its `## Merge risk` section.',
     );
     expect($rule)->not->toContain('rollback=costly');
     expect($finalization)->not->toContain('rollback=costly');
@@ -161,8 +162,8 @@ test('the PR change list survives the removal of the commit plan it was rendered
 
     // The list is what a reviewer checks the assignment off against, so it outlives the plan table
     // that used to produce it — it now describes the change rather than enumerating commits.
-    expect($pullRequest)->toContain('**Changes** — what the pull request actually does');
-    expect($pullRequest)->toContain('never one line per file');
+    expect($pullRequest)->toContain('**Walkthrough** — what the pull request actually does');
+    expect($pullRequest)->toContain('never one row per file');
 
     // The review-loop carve-out has to survive too: the loop pushes commits after the PR body is
     // written and nothing edits that body afterwards.
@@ -754,11 +755,11 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     $hygieneSection = substr($hygieneSection, 0, (int) strpos($hygieneSection, "\n## ", 1));
     expect($hygieneSection)->toContain('.claude/run/<source-slug>.audit');
 
-    // resolve-issue's PR body template renders a mandatory `## Audit` section.
+    // resolve-issue's PR body template renders a mandatory collapsed Audit block.
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $template = (string) file_get_contents($packageDir . '/skills/resolve-issue/templates/pull-request-body.md');
-    expect($template)->toContain('## Audit');
-    expect($template)->toContain('Merge danger, and Audit are always present');
+    expect($template)->toContain('<summary><strong>Audit</strong></summary>');
+    expect($template)->toContain('Merge risk, Summary, Walkthrough, Testing, and Audit are always present');
     expect($resolveIssue)->toContain('**Audit** — transcribe the accumulated');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');
 
