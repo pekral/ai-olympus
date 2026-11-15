@@ -125,27 +125,38 @@ test('both commits of the diff are fetched and verified before the security chec
         ->and(strpos($skill, 'git cat-file -e'))->toBeLessThan((int) strpos($skill, '### 2. Security check'));
 });
 
-test('the base branch name is read into a variable, checked there, and fetched with an exact refspec', function (): void {
+test('the base branch name is checked by the low-risk path check and the base tip is fetched by object id with no destination ref', function (): void {
     $skill = mergeFastSource('skills/merge-github-pr-fast/SKILL.md');
-    $fetch = 'git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"';
+    $check = 'with the `baseRefName` check of `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* item 1.';
+    $read = 'Read the base tip with the exact-ref read of that item, on `"refs/heads/${BASE_REF}"`.';
+    $fetch = 'Run `git fetch origin "<object id>"` with that object id, as that item directs. Name no destination ref';
 
     expect($skill)->toContain('`baseRefOid`, `baseRefName`, `headRefName`')
-        ->and($skill)->toContain('never write it into a command line, the checks below included')
+        ->and($skill)->toContain('run `git fetch origin refs/pull/<number>/head` and fetch the base tip by object id instead')
+        ->and($skill)->toContain('never write it into a command line, the steps below included')
         ->and($skill)->toContain('BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r \'.baseRefName\')"')
-        ->and($skill)->toContain('Run checks 1 to 4 on `"$BASE_REF"`.')
-        ->and($skill)->toContain('A failed check stops the run: `Blocked: invalid base branch name`.')
-        ->and($skill)->toContain('It matches `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh` and holds no `..`.')
-        ->and($skill)->toContain('2. It is not the literal `HEAD`.')
-        ->and($skill)->toContain('`git check-ref-format --branch "$BASE_REF"` exits `0`.')
-        ->and($skill)->toContain('`git symbolic-ref -q "refs/remotes/origin/$BASE_REF"` exits non-zero')
-        ->and($skill)->toContain('Use the variable only in double quotes, and fetch it with the exact refspec: `' . $fetch . '`.')
+        ->and($skill)->toContain($check)
+        ->and($skill)->toContain('A name that fails stops the run: `Blocked: invalid base branch name`.')
+        ->and($skill)->toContain($read)
+        ->and($skill)->toContain($fetch)
+        ->and($skill)->not->toContain(':refs/remotes/origin/')
+        ->and($skill)->not->toContain('refs/remotes/origin/${BASE_REF}')
+        ->and($skill)->not->toContain('git symbolic-ref')
+        ->and($skill)->not->toContain('BRANCH_SHAPE')
         ->and($skill)->not->toContain('<baseRefName>')
-        ->and(strpos($skill, 'git symbolic-ref -q'))->toBeLessThan((int) strpos($skill, $fetch));
+        ->and(strpos($skill, $check))->toBeLessThan((int) strpos($skill, $read))
+        ->and(strpos($skill, $read))->toBeLessThan((int) strpos($skill, $fetch))
+        ->and(strpos($skill, $fetch))->toBeLessThan((int) strpos($skill, 'git cat-file -e'));
 
-    // The skill reuses the shape check of the carry-forward script; the reference must name a check that exists there.
-    expect(mergeFastSource('skills/_shared/review-carry-forward.sh'))
-        ->toContain('BRANCH_SHAPE=\'^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$\'')
-        ->toContain('! "$base" =~ $BRANCH_SHAPE || "$base" == *..*');
+    // The pointers name a check, a read, and a fetch that the owner states, and the owner's pointer back stays true.
+    $owner = mergeFastSource('skills/merge-github-pr/references/low-risk-path.md');
+    $select = substr($owner, (int) strpos($owner, '## Select the candidate'));
+    $backPointer = 'as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs for `headRefOid`. Never use its `baseRefName` fallback';
+
+    expect($select)->toContain('`baseRefName` is untrusted. Check it first, before any command uses it')
+        ->and($select)->toContain('Read the base tip with the **exact-ref read**')
+        ->and($select)->toContain('Run `git fetch origin "<object id of that line>"`')
+        ->and($select)->toContain($backPointer);
 });
 
 test('the report names the merge commit, the security check, and every skipped merge-github-pr gate', function (): void {
