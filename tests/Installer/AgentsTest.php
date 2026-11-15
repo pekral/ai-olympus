@@ -164,24 +164,38 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     $codex = (string) file_get_contents($packageDir . '/codex/agents/leonardo.toml');
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $boundary = installerDocsSection($leonardo, '## Bash boundary');
 
-    expect($boundary)->toContain('`@skills/resolve-issue/references/pull-request.md` *Refresh after the gate*')
+    expect($pullRequest)->toContain('with `gh pr view <PR> --json body --jq .body > "$file"`')
+        ->and($pullRequest)->toContain('no byte of the body is ever part of a command text')
+        ->and($boundary)->toContain('`@skills/resolve-issue/references/pull-request.md` *Refresh after the gate*')
         ->and($boundary)->toContain(
-            'skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file .claude/run/merge-risk/<source-slug>.md`, '
-            . 'whose body you write there with `cat >` and delete right after the write',
+            'skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file "$file"`, '
+            . 'where `$file` is the name that `mktemp <top>/.claude/run/merge-risk/XXXXXXXX` prints',
         )
+        ->and($boundary)->toContain(
+            'after the `pwd -P` check of `@rules/code-review/review-process.md` *No symbolic link may move the scratch directory*',
+        )
+        ->and($boundary)->toContain('(create `merge-risk` with `mkdir`, never `mkdir -p`)')
+        ->and($boundary)->toContain('fill `$file` with `gh pr view <PR> --json body --jq .body > "$file"`')
+        ->and($boundary)->toContain('so no byte of the body is ever part of a command text, and delete `$file` right after the write')
+        ->and($boundary)->not->toContain('whose body you write there with `cat >`')
+        ->and($boundary)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($leonardo)->toContain(
-            'the one body file `.claude/run/merge-risk/<source-slug>.md` of the `## Merge risk` refresh (*Bash boundary*), '
+            'the one body file that `mktemp` creates under `.claude/run/merge-risk/` for the `## Merge risk` refresh (*Bash boundary*), '
             . 'are the only writes',
         )
+        ->and($leonardo)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($boundary)->toContain('only on a converged loop')
         ->and($boundary)->toContain('only after the `mb_strlen` check of `@rules/git/pull-requests.md` *PR Content Requirements*')
         ->and($boundary)->toContain('only while the `headRefOid` of the pull request equals the head whose gate result it uses')
         ->and($boundary)->toContain('changing only the `## Merge risk` heading and its two lines')
         ->and($orchestration)->toContain(
-            '`gh pr edit <PR> --body-file .claude/run/merge-risk/<source-slug>.md` only as `skills/_shared/audit-trail.sh run --`',
+            '`gh pr edit <PR> --body-file <file>` only as `skills/_shared/audit-trail.sh run --`, '
+            . 'with a body file that `mktemp` creates under `.claude/run/merge-risk/`',
         )
+        ->and($orchestration)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($orchestration)->toContain('| `leonardo` | Refresh the `## Merge risk` heading and its two lines in the pull-request body')
         ->and($orchestration)->toContain('only while the `headRefOid` equals the head whose gate result it uses');
 
