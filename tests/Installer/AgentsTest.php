@@ -167,11 +167,21 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
     $boundary = installerDocsSection($leonardo, '## Bash boundary');
 
     expect($boundary)->toContain('`@skills/resolve-issue/references/pull-request.md` *Refresh after the gate*')
-        ->and($boundary)->toContain('skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file <file under .claude/run/>')
+        ->and($boundary)->toContain(
+            'skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file .claude/run/merge-risk/<source-slug>.md`, '
+            . 'whose body you write there with `cat >` and delete right after the write',
+        )
+        ->and($leonardo)->toContain(
+            'the one body file `.claude/run/merge-risk/<source-slug>.md` of the `## Merge risk` refresh (*Bash boundary*), '
+            . 'are the only writes',
+        )
         ->and($boundary)->toContain('only on a converged loop')
         ->and($boundary)->toContain('only after the `mb_strlen` check of `@rules/git/pull-requests.md` *PR Content Requirements*')
         ->and($boundary)->toContain('only while the `headRefOid` of the pull request equals the head whose gate result it uses')
         ->and($boundary)->toContain('changing only the `## Merge risk` heading and its two lines')
+        ->and($orchestration)->toContain(
+            '`gh pr edit <PR> --body-file .claude/run/merge-risk/<source-slug>.md` only as `skills/_shared/audit-trail.sh run --`',
+        )
         ->and($orchestration)->toContain('| `leonardo` | Refresh the `## Merge risk` heading and its two lines in the pull-request body')
         ->and($orchestration)->toContain('only while the `headRefOid` equals the head whose gate result it uses');
 
