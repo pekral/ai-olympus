@@ -564,7 +564,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the review-only section retells only the points of the review that must be resolved (issue #455).
         // Re-baselined: every tracker output is rendered from a template (issue #499).
         // Re-baselined: the GitHub code review is one pull-request review with a hidden record (issue #522).
-        'rules/reports/general.md' => '98457cf734369ea22d9cd8ca5338ffecfca953cac28abb9ddb9ef3a1d23a3034',
+        // Re-baselined: the JIRA length note points to the pull-request length limit instead of saying the description has no cap (PR #524).
+        'rules/reports/general.md' => '5576b0cd49fbb30c92440c5657733d2bd60143f806343287619372d123879df6',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
