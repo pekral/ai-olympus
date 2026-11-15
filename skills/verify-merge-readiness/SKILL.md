@@ -179,8 +179,8 @@ Dispatch `leonardo` to run the pull-policy and preparation path in
 below, because it never pushes. For every unit of a batch, with or without `--merge`, the root
 session first runs *Bring a unit to the default branch tip* of
 `skills/_shared/orchestration/batch-preparation.md`. That path assigns the rebase and the push to
-`donatello` and never force-pushes. Before any new CR round, resolve the default branch and
-compute the current fingerprint from the first field of:
+`donatello`, and it force-pushes only on a repository with CI, into the same pull request.
+Before any new CR round, resolve the default branch and compute the current fingerprint from the first field of:
 
 ```bash
 git diff --binary --full-index --no-color --no-ext-diff --no-renames <base>...<head> | git patch-id --verbatim

@@ -278,7 +278,8 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('the unit stops before the merge, exactly as in prepare-only mode today')
         ->and($batch)->toContain('git -C <worktree> merge-base --is-ancestor T <head>')
         ->and($batch)->toContain('*Rebase that moves the head — analyse the incoming changes first*')
-        ->and($batch)->toContain('No step of this path force-pushes a branch')
+        ->and($batch)->toContain('On a repository without CI, no step of this path force-pushes a branch')
+        ->and($batch)->toContain('On a repository with CI, step 2.2 force-pushes the rebased branch into its own pull request')
         ->and($batch)->toContain('`leonardo` cannot do this step, because it never pushes and never uses the unit worktree.')
         ->and($batch)->toContain('the root session runs `gh pr update-branch <PR> --rebase`.')
         ->and($batch)->toContain('`gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`')
@@ -293,8 +294,19 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         )
         ->and($batch)->toContain('It pushes `<branch>-vN` and opens a new pull request that names the one it replaces.')
         ->and($batch)->toContain('dispatch `leonardo` for the fingerprint decision only')
-        ->and($batch)->not->toContain('--force-with-lease')
-        ->and($batch)->not->toContain('git push --force')
+        ->and($batch)->toContain(
+            'The root session decides whether the repository has CI, as `@skills/resolve-issue/references/quality-gates.md` '
+            . '*A repository with CI waits for CI instead of a local pre-push gate* step 1 states, and names the answer in the dispatch.',
+        )
+        ->and($batch)->toContain('With CI, it puts the worktree on the unit branch as step 2.1 states')
+        ->and($batch)->toContain(
+            '**With CI, the same pull request.** It pushes with `git -C <worktree> push --force-with-lease origin "<branch>"`, '
+            . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local gate.',
+        )
+        ->and($batch)->toContain('No pull request is opened or closed, and the bullets below do not apply.')
+        ->and($batch)->toContain('**Without CI, a new pull request.**')
+        ->and($batch)->not->toContain('git push --force ')
+        ->and($batch)->not->toContain('No step of this path force-pushes a branch')
         ->and($batch)->not->toContain('dispatch `leonardo` for the pull-policy path')
         ->and($batch)->toContain(
             '`( cd <the unit worktree> && <the shared tree>/skills/_shared/verify-gate.sh --tier full <the new head SHA> )`',
