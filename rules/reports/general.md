@@ -108,7 +108,7 @@ Nothing on the banned list is lost. Every one of those facts belongs on the **pu
 
 ### Length — 3 000 characters
 
-A JIRA comment fits within **3 000 characters**, counted over the published body. When it overflows, shorten *What changed* first, then merge *Impact after deployment* bullets. **Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**: those are what the reader decides on. A JIRA comment carries no *How to test*; the steps a tester follows live on the GitHub pull request, whose description carries them and has no length cap.
+A JIRA comment fits within **3 000 characters**, counted over the published body. When it overflows, shorten *What changed* first, then merge *Impact after deployment* bullets. **Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**: those are what the reader decides on. A JIRA comment carries no *How to test*; the steps a tester follows live on the GitHub pull request, whose description carries them under the length limit of `@rules/git/pull-requests.md` *PR Content Requirements*.
 
 ### Boundary — this section and the GitHub-PR English exception never fire on the same comment
 
