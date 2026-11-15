@@ -4,7 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
-- 🔧 **Changed**: the pull-request workflow runs `composer skill-check` in its own job with a Node setup, so a green CI run now covers every step of `composer check`.
+- 🔧 **Changed**: the pull-request workflow runs `composer skill-check` in its own job with a Node setup and a pinned `skill-check` version, so a green CI run now covers every step of `composer check`.
 
 - 🔧 **Changed**: hardened the git ref handling of `merge-github-pr-fast` and `git-history-exposure-audit`. `skills/merge-github-pr-fast/SKILL.md` step 1.6 checks the base branch name of the pull request with the check that `skills/merge-github-pr/references/low-risk-path.md` owns, and fetches the base tip by object id with no destination ref. `skills/git-history-exposure-audit/SKILL.md` *Review mode* step 2 reads the default-branch script through the fully qualified ref that `skills/_shared/read-manifest.sh --default-ref` prints.
 
