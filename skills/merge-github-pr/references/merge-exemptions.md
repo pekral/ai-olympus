@@ -6,7 +6,7 @@ Loaded by `@skills/merge-github-pr/SKILL.md` step 2 (*Pre-checks*). Step numbers
 
 Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review: the `FAST`-tier exemption below and *Merge path* (`references/low-risk-path.md`). A branch proposes a script, and a pull request that edits the tier logic would otherwise grade itself. This is the one owner of the rule.
 
-1. Fetch the default branch (`git fetch origin <default branch>`).
+1. Fetch the default branch (`git fetch origin "+refs/heads/<default branch>:refs/remotes/origin/<default branch>"`).
 2. Run the installed copy from the main worktree of the repository, never from the checked-out head: `<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex, with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`. Never run `skills/_shared/classify-risk.sh` of the checked-out branch, of the gated head, or of a review worktree.
 3. Resolve the default branch ref once, as `skills/_shared/read-manifest.sh` does: `git symbolic-ref --quiet refs/remotes/origin/HEAD` prints the fully qualified `refs/remotes/origin/<default branch>`. Never compare with the short `origin/<default branch>`: a local branch of that name shadows it, so a branch under review could plant the blob that the installed copy is compared with.
 4. Compare the installed `classify-risk.sh` and the two siblings it sources, `domain-vocabulary.sh` and `read-manifest.sh`, with a blob of the default branch (`cmp`):

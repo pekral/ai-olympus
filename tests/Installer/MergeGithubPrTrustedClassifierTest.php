@@ -12,6 +12,8 @@ test('the merge gate runs the classifier from the default branch, never from the
     $section = installerDocsSection($exemptions, '## The trusted classifier — the default-branch copy');
 
     expect($section)->toContain('Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review')
+        ->and($section)->toContain('`git fetch origin "+refs/heads/<default branch>:refs/remotes/origin/<default branch>"`')
+        ->and($section)->not->toContain('`git fetch origin <default branch>`')
         ->and($section)->toContain(
             '`<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex',
         )
