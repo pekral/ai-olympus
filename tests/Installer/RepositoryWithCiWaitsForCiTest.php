@@ -49,7 +49,7 @@ test('a ci billing failure runs the local gate, pr-gate first and the full gate 
         )
         ->and($gates)->toContain('CI does not run on a later push of the run either, so run the same gate before each later push.')
         ->and($gates)->toContain('`pr-gate: run — CI billing failure on <sha>`')
-        ->and($gates)->toContain('exactly as before, except the billing fallback of that second section.');
+        ->and($gates)->toContain('The billing fallback of that second section is the one exception.');
 });
 
 test('a rebased branch goes back into its own pull request on a repository with ci', function (): void {

@@ -283,7 +283,7 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         ->and($batch)->toContain('`leonardo` cannot do this step, because it never pushes and never uses the unit worktree.')
         ->and($batch)->toContain('the root session runs `gh pr update-branch <PR> --rebase`.')
         ->and($batch)->toContain('`gh pr update-branch <PR> --rebase`, through `skills/_shared/audit-trail.sh run --`')
-        ->and($batch)->toContain('dispatch `donatello` with the unit worktree path and the gate-serialisation block.')
+        ->and($batch)->toContain('dispatch `donatello` with the unit worktree path, the gate-serialisation block, and the head SHA confirmed above.')
         ->and($batch)->toContain('`git -C <worktree> switch -C "<branch>" "origin/<branch>"`')
         ->and($batch)->not->toContain('reset --keep')
         ->and($batch)->not->toContain('switch --detach')
