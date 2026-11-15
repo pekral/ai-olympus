@@ -60,7 +60,16 @@ test('the rule owns the foreign repository definition, the policy paths, and the
         ->toContain('<!-- ai-olympus:contribution-policy=human-description -->')
         ->toContain('Every other pull request is **own**');
 
-    foreach (['CONTRIBUTING.md', '.github/CONTRIBUTING.md', 'docs/CONTRIBUTING.md', 'PULL_REQUEST_TEMPLATE.md', '.github/PULL_REQUEST_TEMPLATE.md', 'docs/PULL_REQUEST_TEMPLATE.md'] as $path) {
+    $policyPaths = [
+        'CONTRIBUTING.md',
+        '.github/CONTRIBUTING.md',
+        'docs/CONTRIBUTING.md',
+        'PULL_REQUEST_TEMPLATE.md',
+        '.github/PULL_REQUEST_TEMPLATE.md',
+        'docs/PULL_REQUEST_TEMPLATE.md',
+    ];
+
+    foreach ($policyPaths as $path) {
         expect($section)->toContain('`' . $path . '`')
             ->and($script)->toContain('  ' . $path . "\n");
     }
@@ -74,7 +83,14 @@ test('every step that generates text or promotes the pull request applies the ru
     $heading = '*Foreign repository with a contribution policy — a human writes the description*';
     $marker = '<!-- ai-olympus:contribution-policy=human-description -->';
 
-    foreach (['skills/resolve-issue/SKILL.md', 'skills/pr-summary/SKILL.md', 'skills/process-code-review/references/ready-to-merge-signal.md', 'agents/krang.md'] as $path) {
+    $applyingSteps = [
+        'skills/resolve-issue/SKILL.md',
+        'skills/pr-summary/SKILL.md',
+        'skills/process-code-review/references/ready-to-merge-signal.md',
+        'agents/krang.md',
+    ];
+
+    foreach ($applyingSteps as $path) {
         expect(contributionPolicySource($path))->toContain($heading);
     }
 
