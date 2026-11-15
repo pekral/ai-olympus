@@ -305,6 +305,7 @@ test('the context relevance gate decides cheaply and defaults to false', functio
         'task type docs or formatting skips retrieval',
         'quotes and control characters in input still give valid JSON',
         'mixed-case auth words in keywords map to the security domain',
+        'a class named for a migration still maps to the database domain',
         'a symbol that maps to no domain escalates to LLM classification',
         'a documentation label with changed files does not skip retrieval',
         'reason never carries a caller input value',
@@ -317,7 +318,7 @@ test('the context relevance gate decides cheaply and defaults to false', functio
     $vocabulary = (string) file_get_contents($packageDir . '/skills/_shared/domain-vocabulary.sh');
     $classifier = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
 
-    foreach (['AUTH_RE', 'DATA_RE', 'QUEUE_RE'] as $name) {
+    foreach (['AUTH_RE', 'DATA_PATH_RE', 'DATA_RE', 'QUEUE_RE'] as $name) {
         $definition = '/^' . $name . '=/m';
         expect($vocabulary)->toMatch($definition);
         expect($gate)->not->toMatch($definition);
