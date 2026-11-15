@@ -33,7 +33,9 @@ test('the merge path is opt-in and selected by the verdict of the trusted classi
 test('the diff is made with text mode from the repository root and the base symlinks are resolved', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
 
-    expect($path)->toContain('git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none <baseRefOid>...<headRefOid>')
+    expect($path)->toContain(
+        'git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none <baseRefOid>...<headRefOid>',
+    )
         ->and($path)->toContain('--merge-risk --base <baseRefOid> --ignore-assignment --diff - --coverage ok --gate green')
         ->and($path)->not->toContain('git merge-base')
         ->and($path)->toContain('Run every command of this file from the repository root, before step 3 checks out the head.')
