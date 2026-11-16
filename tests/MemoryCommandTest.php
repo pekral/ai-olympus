@@ -331,6 +331,39 @@ test('a query never returns an entry that another entry supersedes, and a longer
     installerRemoveDirectory($root);
 });
 
+test('a query honours a supersede marker only as the whole example of a later entry that names an existing slug', function (): void {
+    $root = memoryRepository();
+    $entries = [
+        ['forward-target', 'supersedes forward-target'],
+        ['forged-prefix', 'src/A.php:1'],
+        ['early-forger', 'supersedes later-victim'],
+        ['later-victim', ''],
+        ['ghost-marker', 'supersedes no-such-entry'],
+    ];
+
+    foreach ($entries as [$slug, $example]) {
+        installerWriteFile($root . '/.claude/run/' . $slug . '.json', (string) json_encode([
+            'added' => '2026-11-16',
+            'evidence' => 'PR #9',
+            'example' => $example,
+            'lesson' => 'A joined path escaped the project',
+            'paths' => ['src/PathJoin.php'],
+            'role' => 'shared',
+            'rule' => 'Resolve the path and compare its prefix.',
+            'slug' => $slug,
+            'source' => 'https://example.test/pull/9',
+            'trigger' => 'a path is joined from input',
+        ]));
+        expect(memoryRun($root, 'add', '--entry', '.claude/run/' . $slug . '.json')[0])->toBe(0);
+    }
+
+    [, $query] = memoryRun($root, 'query', '--role', 'krang', '--path', 'src/PathJoin.php');
+
+    expect(memorySlugs($query))->toEqualCanonicalizing(['forward-target', 'forged-prefix', 'early-forger', 'later-victim', 'ghost-marker']);
+
+    installerRemoveDirectory($root);
+});
+
 /**
  * @return array<string, string>
  */
@@ -365,6 +398,8 @@ test('add refuses an entry that is not valid', function (string $content, string
     yield 'a file that is not JSON' => ['not json', $reason];
     yield 'a file that is missing' => ['', $reason];
 
+    $exampleShape = '"example" must be a file:line pointer or exactly "supersedes <slug>"';
+
     foreach ([
         'a missing rule' => [['rule' => null], '"rule" must be a non-empty string'],
         'a slug in the wrong format' => [['slug' => 'Bad Slug'], '"slug" has the wrong format'],
@@ -378,6 +413,10 @@ test('add refuses an entry that is not valid', function (string $content, string
         'a trigger over its limit' => [['trigger' => str_repeat('t', 81)], '"trigger" must be one line of at most 80 characters'],
         'an evidence over its limit' => [['evidence' => str_repeat('e', 121)], '"evidence" must be one line of at most 120 characters'],
         'an example over its limit' => [['example' => str_repeat('x', 121)], '"example" must be one line of at most 120 characters'],
+        'an example that is free text' => [['example' => 'add the route to $except'], $exampleShape],
+        'an example that hides a slug inside other text' => [['example' => 'see x. supersedes ok-slug'], $exampleShape],
+        'an example with a supersede marker and a bad slug' => [['example' => 'supersedes Bad Slug'], $exampleShape],
+        'an example with a pointer and no line' => [['example' => 'src/A.php'], $exampleShape],
         'a rule on two lines' => [['rule' => "first\nsecond"], '"rule" must be one line of at most 160 characters'],
         'a lesson with a line separator' => [['lesson' => "first\u{2028}second"], '"lesson" must be one line of at most 100 characters'],
         'more than ten paths' => [
@@ -867,7 +906,7 @@ test('an entry at every limit is accepted, and a legacy entry keeps text over th
     $atLimit = MemoryEntry::fromArray([
         ...memoryValidEntry(),
         'evidence' => str_repeat('e', 120),
-        'example' => str_repeat('x', 120),
+        'example' => 'src/' . str_repeat('x', 90) . ':123456',
         'lesson' => str_repeat('l', 100),
         'paths' => array_map(static fn (int $n): string => 'src/File' . $n . '.php', range(1, 10)),
         'rule' => str_repeat('r', 160),
