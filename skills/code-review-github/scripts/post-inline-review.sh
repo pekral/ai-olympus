@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # post-inline-review.sh — GitHub pull-request review publisher used by CR-track skills. It publishes one review round
 # as ONE pull-request review: its inline comments carry the short human findings on the changed lines, and its body
-# carries one short visible line for each finding that cannot anchor plus the hidden machine record of the round. It
-# also resolves the inline thread of a finding that a later round found fixed.
+# carries a visible TL;DR of the inline findings and the CI result, one short visible line for each finding that
+# cannot anchor, and the hidden machine record of the round. It also resolves the inline thread of a finding that a
+# later round found fixed.
 #
 # Usage:
 #   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> <FINDINGS_FILE|->
@@ -13,7 +14,8 @@
 #   FINDINGS_FILE  A JSON array, or `-` for stdin; `[]` for a round with no finding. One object per finding:
 #                    finding_id            required, `r-` or `f-` and 16 hex digits (finding-records.md)
 #                    severity              required, `Critical` or `Moderate`
-#                    title                 required, 1 to 200 characters; never rendered, it names the finding in checks
+#                    title                 required, 1 to 200 characters; the short name of the finding in its TL;DR
+#                                          line, and the name the withheld-finding check looks for in the record
 #                    path, line            the file in the pull request and the (last) line; both left out for a
 #                                          finding with no line (a functional gap)
 #                    start_line            optional, the first line of a multi-line finding, below `line`
@@ -56,8 +58,10 @@
 #   5. Read the review threads, with every comment of each thread. A finding that has an unresolved inline thread on the
 #      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
 #      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
+#   5a. Read the CI result of the reviewed head: every check run (`commits/<sha>/check-runs`) and every commit status
+#      (`commits/<sha>/status`). A failed lookup publishes the review anyway, and the CI line says the result was not read.
 #   6. POST one review, always, a round with no finding included (`event` COMMENT, `commit_id` the reviewed head,
-#      `comments[]` one per remaining finding). The body is the visible lines, the record wrapped by
+#      `comments[]` one per remaining finding). The body is the TL;DR, the visible lines, the record wrapped by
 #      `cr_review_meta_wrap` (skills/_shared/cr-header.sh), the `<!-- cr-comment:lines=… -->` fingerprint that
 #      skills/_shared/carry-operator-lines.php writes, and `<!-- cr-comment:actor=<login> -->`.
 #   An inline comment has one of two shapes, fixed by templates/inline-review-comment.md:
@@ -68,6 +72,11 @@
 #   `<!-- cr-inline:actor=<login> -->` and `<!-- cr-inline:finding=<finding id> -->`. The first is an agent marker in the
 #   sense of `rules/code-review/general.md` *Authorship trust*: a reader never takes the comment as a trusted reviewer
 #   request. The icon is 🔴 for Critical and 🟠 for Moderate.
+#   The TL;DR opens the body (templates/inline-review-comment.md): one line for each finding posted or `already_open`,
+#   Critical first, with the icon, the severity, the title, and a link to its line on the Files changed page
+#   (`#diff-<SHA-256 of the path>R<line>`, `L<line>` on the old file), then one CI line: the passed, failed, pending,
+#   and skipped counts and the name of each failing check. A withheld finding and an `outside_diff` finding have no
+#   TL;DR line. The visible-text check of step 4a reads the TL;DR too.
 #
 # resolve
 #   Resolves every unresolved inline thread that this actor opened for one of the given finding ids. A comment is the
@@ -265,6 +274,32 @@ def file_anchors:
     end)
 JQ
 
+# The CI result of the reviewed head for the TL;DR: every check run and every commit status, in four counts, and the
+# names of the failing checks. A name is shown in a code span, so it loses its backticks, its line breaks, and every
+# marker opening or end of comment.
+IFS= read -r -d '' JQ_CI <<'JQ' || true
+def req($c; $m): if $c then . else error($m) end;
+def name: tostring | explode | map(select(. >= 32 and . != 127)) | implode | gsub("`"; "") | gsub("<!--"; "&lt;!--")
+  | gsub("-->"; "--&gt;") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ") | .[0:100];
+def bucket:
+  if .kind == "run" then
+    if .status != "completed" then "pending"
+    elif .conclusion == "success" then "passed"
+    elif .conclusion == "neutral" or .conclusion == "skipped" then "skipped"
+    else "failed" end
+  elif .state == "success" then "passed"
+  elif .state == "pending" then "pending"
+  else "failed" end;
+def count($b): map(select(.bucket == $b)) | length;
+req(($runs | length) >= 1 and ($runs | all((.check_runs | type) == "array")); "no check run list")
+| req(($status | length) == 1 and (($status[0].statuses // []) | type) == "array"; "no commit status list")
+| ([$runs[].check_runs[] | {kind: "run", name: (.name // "" | name), status, conclusion}]
+   + [($status[0].statuses // [])[] | {kind: "status", name: (.context // "" | name), state}])
+| map(. + {bucket: bucket})
+| {read: true, total: length, passed: count("passed"), failed: count("failed"), pending: count("pending"),
+   skipped: count("skipped"), failed_names: ([.[] | select(.bucket == "failed") | .name | select(. != "")] | unique)}
+JQ
+
 # The inline comments and the draft body of the review. The draft body ends with the actor marker; the fingerprint
 # marker is added by carry-operator-lines.php before JQ_REVIEW builds the request.
 IFS= read -r -d '' JQ_PAYLOAD <<'JQ' || true
@@ -286,13 +321,28 @@ def visible:
   (if .kind == "dry" then dry_line else "\(.severity | icon) **Problem:** \(.problem | oneline) **Impact:** \(.impact | oneline)" end)
   + " " + where + (if .author == null then "" else " " + .author end)
   + "\n<!-- cr-inline:finding=\(.finding_id) -->";
+def tldr_line:
+  "- \(.severity | icon) **\(.severity)\(if .kind == "dry" then " · DRY" else "" end)** · \(.title | oneline) — "
+  + "[`\(.path | gsub("`"; "")):\(.line)`](\($files_url)#diff-\($anchors[.path])\(if .side == "LEFT" then "L" else "R" end)\(.line))";
+def ci_line:
+  "- **CI** on `\($short)`: "
+  + if $ci.read != true then "not read, the lookup on GitHub failed."
+    elif $ci.total == 0 then "no check reported a result for this commit."
+    else "\($ci.passed) passed, \($ci.failed) failed"
+      + (if ($ci.failed_names | length) > 0 then " (" + ($ci.failed_names | map("`\(.)`") | join(", ")) + ")" else "" end)
+      + (if $ci.pending > 0 then ", \($ci.pending) pending" else "" end)
+      + (if $ci.skipped > 0 then ", \($ci.skipped) skipped" else "" end) + "."
+    end;
 [.[] | select(.class == "post") | .f] as $posted
 | [.[] | select(.class == "outside_diff") | .f] as $outside
+| [.[] | select(.class == "post" or .class == "already_open") | .f] as $inline
+| ((["**TL;DR**", ""] + (if $inline == [] then ["- No finding is open as an inline comment."]
+     else [$inline | sort_by(if .severity == "Critical" then 0 else 1 end) | .[] | tldr_line] end) + [ci_line]) | join("\n")) as $tldr
 | {
     visible: ($outside | length),
     comments: [$posted[] | {path, line, side, body: render} + (if .start_line == null then {} else {start_line, start_side: .side} end)],
-    body: (([$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n")),
-    visible_text: ([$posted[] | render] + [$outside[] | visible] | join("\n\n"))
+    body: (([$tldr] + [$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n")),
+    visible_text: ([$tldr] + [$posted[] | render] + [$outside[] | visible] | join("\n\n"))
   }
 | if [.comments[].body | [match("<!--\\s*cr-inline:"; "g")] | length] | all(. == 2)
   then . else error("a rendered comment does not hold exactly its own cr-inline markers") end
@@ -383,6 +433,18 @@ read_head() {
   HEAD_SHA="$sha"
 }
 
+# Prints the CI result of the reviewed head (JQ_CI). A failed lookup never stops the publish: the review is the
+# record the merge gate reads, so the TL;DR then says that the result was not read.
+read_ci() {
+  local commit="$1"
+  if gh api "repos/${NWO}/commits/${commit}/check-runs?per_page=100" --paginate >"$TMP_ROOT/check-runs.raw" 2>/dev/null \
+    && gh api "repos/${NWO}/commits/${commit}/status" >"$TMP_ROOT/status.raw" 2>/dev/null \
+    && jq -n -c --slurpfile runs "$TMP_ROOT/check-runs.raw" --slurpfile status "$TMP_ROOT/status.raw" "$JQ_CI" 2>/dev/null; then
+    return 0
+  fi
+  printf '{"read":false}\n'
+}
+
 cmd_post() {
   local commit="" findings_src="" meta_file="" arg
   while [[ $# -gt 0 ]]; do
@@ -445,6 +507,7 @@ cmd_post() {
   jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
   fetch_threads "$TMP_ROOT/threads.json"
+  read_ci "$commit" >"$TMP_ROOT/ci.json"
 
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
     --arg actor "$ACTOR" --argjson private "$private" "$JQ_AGENT"$'\n'"$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
@@ -459,8 +522,14 @@ cmd_post() {
     | join(",")' "$TMP_ROOT/classified.json")"
   [[ -z "$leaked" ]] || die 1 "the review record names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of the record on a public repository, nothing was published"
 
+  # The diff anchor of a file on the Files changed page is the SHA-256 of its path.
+  jq -r '[.[] | .f.path // empty] | unique | .[]' "$TMP_ROOT/classified.json" \
+    | php -r '$m = []; foreach (file("php://stdin", FILE_IGNORE_NEW_LINES) as $p) { $m[$p] = hash("sha256", $p); } echo json_encode((object) $m, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);' >"$TMP_ROOT/anchors.json" \
+    || die 1 "the diff anchors of the TL;DR could not be computed, nothing was published"
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
-  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" "$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
+  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile ci_doc "$TMP_ROOT/ci.json" --slurpfile anchors_doc "$TMP_ROOT/anchors.json" \
+    --arg files_url "https://github.com/${NWO}/pull/${NUMBER}/files" --arg short "${commit:0:7}" \
+    '$ci_doc[0] as $ci | $anchors_doc[0] as $anchors | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
   local visible_rc=0
@@ -620,6 +689,14 @@ case "$*" in
     echo '{"id":99,"html_url":"https://github.com/o/r/pull/7#pullrequestreview-99"}'
     ;;
   "api repos/o/r/pulls/7") printf '{"head":{"sha":"%s"}}\n' "$(cat "$GH_HEAD")" ;;
+  "api repos/o/r/commits/"*"/check-runs"*)
+    if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
+    cat "$GH_CHECK_RUNS"
+    ;;
+  "api repos/o/r/commits/"*"/status")
+    if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
+    cat "$GH_STATUS"
+    ;;
   *) echo "gh stub: unexpected call: $*" >&2; exit 1 ;;
 esac
 STUB
@@ -633,6 +710,9 @@ JSON
   printf '{"tree":[{"path":"src","type":"tree"},{"path":"src/A.php","type":"blob"}],"truncated":false}' >"$tmp/tree.json"
   printf '{"tree":[{"path":"src/A.php","type":"blob"},{"path":"skills/_shared/run-gate.sh","type":"blob"}],"truncated":false}' >"$tmp/tree.package"
   printf '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}' >"$tmp/threads.empty"
+  # The CI of the reviewed head: two green check runs and no commit status, unless a scenario swaps the files.
+  printf '{"total_count":2,"check_runs":[{"name":"tests","status":"completed","conclusion":"success"},{"name":"lint","status":"completed","conclusion":"success"}]}' >"$tmp/check-runs.json"
+  printf '{"state":"pending","statuses":[]}' >"$tmp/status.json"
   cp "$tmp/threads.empty" "$tmp/threads.1"
   cp "$tmp/threads.empty" "$tmp/threads.2"
 
@@ -673,6 +753,7 @@ MD
     out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
+      GH_CHECK_RUNS="${GH_CHECK_RUNS_FILE:-$tmp/check-runs.json}" GH_STATUS="${GH_STATUS_FILE:-$tmp/status.json}" \
       bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" - <<<"$findings" 2>"$tmp/stderr")"
     rc=$?
     set -e
@@ -739,20 +820,20 @@ ${bt}
   check 'outside-diff finding is reported' "$(yes_if out_has ".outside_diff[0].finding_id == \"$id2\"")"
   check 'outside-diff finding is not an inline comment' "$(yes_if review_has '.comments | length == 1')"
   check 'outside-diff finding is one visible line of the review body' \
-    "$(yes_if review_has ".body | startswith(\"🟠 **Problem:** Outside the diff. **Impact:** Two queries per page. (\" + \$bt[0:1] + \"src/A.php:100\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id2 -->\n\n<!-- cr-review-meta\n\")")"
+    "$(yes_if review_has ".body | contains(\"\n\n🟠 **Problem:** Outside the diff. **Impact:** Two queries per page. (\" + \$bt[0:1] + \"src/A.php:100\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id2 -->\n\n<!-- cr-review-meta\n\")")"
 
   # 4. a round with no finding, or with no anchored finding, still posts exactly one review
   run_post '[]'
-  check 'a round with no finding posts one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if review_has '.comments == [] and (.body | startswith("<!-- cr-review-meta\n"))' || echo no)"
-  check 'a round with no finding carries only hidden text in the review body' \
-    "$(yes_if review_has '.body | split("\n") | map(select(. != "")) | (.[0] == "<!-- cr-review-meta") and (.[-1] == "<!-- cr-comment:actor=bot -->")')"
+  check 'a round with no finding posts one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if review_has '.comments == [] and (.body | contains("\n\n<!-- cr-review-meta\n"))' || echo no)"
+  check 'a round with no finding carries the TL;DR and otherwise only hidden text in the review body' \
+    "$(yes_if review_has '.body | split("\n") | map(select(. != "")) | (.[0:4] == ["**TL;DR**", "- No finding is open as an inline comment.", "- **CI** on `aaaaaaa`: 2 passed, 0 failed.", "<!-- cr-review-meta"]) and (.[-1] == "<!-- cr-comment:actor=bot -->")')"
   run_post "[$f_out]"
   check 'only outside-diff findings post one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if out_has '.review_url != null and (.posted | length) == 0' || echo no)"
   local f_gap_noline
   f_gap_noline="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Criterion 2 unmet\",\"problem\":\"The export ignores the selection.\",\"impact\":\"Every order is exported.\"}"
   run_post "[$f_gap_noline]"
   check 'a finding with no line is one visible line marked (no line)' \
-    "$(yes_if review_has ".body | startswith(\"🔴 **Problem:** The export ignores the selection. **Impact:** Every order is exported. (no line)\n<!-- cr-inline:finding=$id4 -->\")")"
+    "$(yes_if review_has ".body | contains(\"\n\n🔴 **Problem:** The export ignores the selection. **Impact:** Every order is exported. (no line)\n<!-- cr-inline:finding=$id4 -->\")")"
 
   # 5. multi-line finding, removed line on the LEFT side, a range that crosses a hunk gap
   local f_multi f_left f_gap
@@ -913,7 +994,56 @@ JSON
   f_dry_out="{\"finding_id\":\"$id7\",\"severity\":\"Moderate\",\"title\":\"Repeated rule\",\"path\":\"src/A.php\",\"line\":200,\"problem\":\"p\",\"kind\":\"dry\",\"existing\":\"app/Rule.php:7\"}"
   run_post "[$f_dry_out]"
   check 'a DRY finding outside the diff is the DRY line in the review body' \
-    "$(yes_if review_has ".body | startswith(\"🟠 **Moderate · DRY:** This repeats the logic of \" + \$bt[0:1] + \"app/Rule.php:7\" + \$bt[0:1] + \". Please unify it and call the existing implementation instead. (\" + \$bt[0:1] + \"src/A.php:200\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id7 -->\")")"
+    "$(yes_if review_has ".body | contains(\"\n\n🟠 **Moderate · DRY:** This repeats the logic of \" + \$bt[0:1] + \"app/Rule.php:7\" + \$bt[0:1] + \". Please unify it and call the existing implementation instead. (\" + \$bt[0:1] + \"src/A.php:200\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id7 -->\")")"
+
+  # 14. the TL;DR opens the review body: one line for each finding open as an inline comment, then the CI result
+  local hash files_url tldr_head
+  hash="$(php -r 'echo hash("sha256", "src/A.php");')"
+  files_url="https://github.com/o/r/pull/7/files#diff-$hash"
+  tldr_head="**TL;DR**
+
+- 🔴 **Critical** · Unescaped output — [${bt:0:1}src/A.php:11${bt:0:1}](${files_url}R11)
+- 🟠 **Moderate** · Query in a loop — [${bt:0:1}src/A.php:10${bt:0:1}](${files_url}R10)
+- **CI** on ${bt:0:1}aaaaaaa${bt:0:1}: 2 passed, 0 failed.
+
+🟠 **Problem:** Outside the diff."
+  run_post "[$f_mod,$f_in,$f_out]"
+  check 'the review body opens with the TL;DR: one line per inline finding, most severe first, with a link to its line' \
+    "$([[ $rc -eq 0 ]] && yes_if jq -e --arg want "$tldr_head" '.body | startswith($want)' "$tmp/review.json" || echo no)"
+  check 'the TL;DR lists no finding outside the diff, which keeps its own visible line' \
+    "$(yes_if review_has '.body | split("<!-- cr-review-meta")[0] | contains("Duplicate query") | not')"
+  run_post "[$f_dry,$f_left]"
+  check 'a DRY finding and a finding on a removed line link to their line on the matching side of the diff' \
+    "$(yes_if jq -e --arg dry "- 🟠 **Moderate · DRY** · Repeated total — [${bt:0:1}src/A.php:12${bt:0:1}](${files_url}R12)" \
+      --arg left "- 🔴 **Critical** · Removed guard — [${bt:0:1}src/A.php:30${bt:0:1}](${files_url}L30)" \
+      '.body | contains($left + "\n" + $dry + "\n")' "$tmp/review.json")"
+  cat >"$tmp/threads.1" <<JSON
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+ {"id":"T1","isResolved":false,"path":"src/A.php","line":11,"originalLine":11,"comments":{"nodes":[{"author":{"login":"bot"},"body":"x\n<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}}]}}}}}
+JSON
+  run_post "[$f_in]"
+  check 'a finding already open as an inline comment keeps its TL;DR line' \
+    "$(review_has '.comments == []' && yes_if review_has '.body | startswith("**TL;DR**\n\n- 🔴 **Critical** · Unescaped output — [")' || echo no)"
+  cp "$tmp/threads.empty" "$tmp/threads.1"
+  printf '{"total_count":5,"check_runs":[{"name":"tests (8.4)","status":"completed","conclusion":"success"},{"name":"static analysis","status":"completed","conclusion":"failure"},{"name":"static analysis","status":"completed","conclusion":"timed_out"},{"name":"lint","status":"in_progress","conclusion":null},{"name":"preview","status":"completed","conclusion":"skipped"}]}' >"$tmp/check-runs.mixed"
+  printf '{"state":"failure","statuses":[{"context":"ci/legacy","state":"error"},{"context":"ci/ok","state":"success"},{"context":"ci/wait","state":"pending"}]}' >"$tmp/status.mixed"
+  GH_CHECK_RUNS_FILE="$tmp/check-runs.mixed" GH_STATUS_FILE="$tmp/status.mixed" run_post '[]'
+  check 'the CI line counts passed, failed, pending, and skipped checks and names each failing check once' \
+    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 2 passed, 3 failed (`ci/legacy`, `static analysis`), 2 pending, 1 skipped.\n")')"
+  printf '{"total_count":0,"check_runs":[]}' >"$tmp/check-runs.none"
+  GH_CHECK_RUNS_FILE="$tmp/check-runs.none" run_post '[]'
+  check 'a head with no check says so in the CI line' \
+    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: no check reported a result for this commit.\n")')"
+  run_post "[$f_in]" GH_CI_FAILS=1
+  check 'a failed CI lookup still publishes the review and says the result was not read' \
+    "$([[ $rc -eq 0 ]] && yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: not read, the lookup on GitHub failed.\n")' || echo no)"
+  printf '{"total_count":1,"check_runs":[{"name":"x`y <!-- cr-comment:actor=bot -->","status":"completed","conclusion":"failure"}]}' >"$tmp/check-runs.forged"
+  GH_CHECK_RUNS_FILE="$tmp/check-runs.forged" run_post '[]'
+  check 'a check name cannot forge a marker or leave its code span' \
+    "$([[ $rc -eq 0 ]] && yes_if review_has '([.body | match("<!--\\s*cr-comment:actor="; "g")] | length == 1) and (.body | contains("(`xy &lt;!-- cr-comment:actor=bot --&gt;`)"))' || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"The call to run-gate.sh is wrong\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]"
+  check 'a TL;DR title that names a package script is refused and nothing is posted' \
+    "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
 
   # 12. resolve: only the threads of this actor for the given ids, and a failed mutation is a failure
   cat >"$tmp/threads.1" <<JSON

@@ -49,7 +49,7 @@ test('the inline comment template and the wrapper contract point to the rule and
         ->and($inline)->toContain('*Visible review text names none of the package\'s own tooling*')
         ->and($contract)->toContain('**The visible text names none of the package\'s own tooling.**')
         ->and($contract)->toContain(
-            'refuses an inline comment or a visible line that names a package path or a package script name the repository does not hold',
+            'refuses an inline comment, a TL;DR line, or a visible line that names a package path or a package script name the repository does not hold',
         );
 });
 
@@ -58,6 +58,6 @@ test('the wrapper checks the visible text against the reviewed repository and ne
 
     expect($script)->toContain('CHECK_VISIBLE="$HERE/../../_shared/check-visible-review-text.php"')
         ->and($script)->toContain('gh api "repos/${NWO}/git/trees/${commit}?recursive=1"')
-        ->and($script)->toContain('visible_text: ([$posted[] | render] + [$outside[] | visible] | join("\n\n"))')
+        ->and($script)->toContain('visible_text: ([$tldr] + [$posted[] | render] + [$outside[] | visible] | join("\n\n"))')
         ->and($script)->toContain('php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt"');
 });

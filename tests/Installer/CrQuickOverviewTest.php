@@ -17,7 +17,11 @@ test('the rule owns the quick overview once and defines its three parts', functi
         ->and($section)->toContain('3. **`## Prompt to fix all issues` is the last section, and only while a finding is open.**')
         ->and($section)->toContain('The block lists the findings posted as inline review comments and the findings that stay in `## Findings` alike')
         ->and($section)->toContain('The merge gate still reads every value from the same report')
-        ->and($section)->toContain('**On GitHub the review carries none of the three parts.**');
+        ->and($section)->toContain('**On GitHub the review carries none of the three parts.**')
+        ->and($section)->toContain(
+            'the visible TL;DR, the short inline comments, and the visible lines are the human part of the review '
+            . '(*One published comment per review run* item 3)',
+        );
 });
 
 test('the merge risk line keeps the script grade, adds one sentence derived from facts, and names the reviewed head', function (): void {

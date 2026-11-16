@@ -39,6 +39,10 @@ test('the build runs the wrapper self-test exactly once', function (): void {
 
 dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
+    'CI check name forgery' => ['a check name cannot forge a marker or leave its code span'],
+    'CI line counts' => ['the CI line counts passed, failed, pending, and skipped checks and names each failing check once'],
+    'CI line with no check' => ['a head with no check says so in the CI line'],
+    'CI lookup failure' => ['a failed CI lookup still publishes the review and says the result was not read'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
     'critical dry finding refused' => ['a Critical dry finding is refused: a duplicated security control keeps the Problem shape'],
     'DRY line outside the diff' => ['a DRY finding outside the diff is the DRY line in the review body'],
@@ -89,9 +93,14 @@ dataset('wrapper self-test scenarios', [
     'resolve only the fixed thread of this actor' => ['resolve closes only the open thread of this actor for a fixed id'],
     'stale head is refused' => ['a stale commit id exits 4'],
     'suggestion marker guard' => ['a suggestion with a marker is refused with its own message'],
+    'TL;DR keeps an already open finding' => ['a finding already open as an inline comment keeps its TL;DR line'],
+    'TL;DR leaves out an outside-diff finding' => ['the TL;DR lists no finding outside the diff, which keeps its own visible line'],
+    'TL;DR links DRY and removed lines' => ['a DRY finding and a finding on a removed line link to their line on the matching side of the diff'],
+    'TL;DR opens the body' => ['the review body opens with the TL;DR: one line per inline finding, most severe first, with a link to its line'],
+    'TL;DR title visible text check' => ['a TL;DR title that names a package script is refused and nothing is posted'],
     'withheld finding stays out of the record' => ['a withheld finding is in no visible line and not in the hidden record'],
     'zero-finding round' => ['a round with no finding posts one review with no inline comment'],
-    'zero-finding round is hidden only' => ['a round with no finding carries only hidden text in the review body'],
+    'zero-finding round is the TL;DR and hidden text' => ['a round with no finding carries the TL;DR and otherwise only hidden text in the review body'],
 ]);
 
 test('the wrapper self-test asserts the scenario', function (string $label): void {
@@ -124,6 +133,10 @@ test('the contract section states the inline review end to end', function (): vo
     )
         ->and($section)->toContain('**The shapes live in `templates/inline-review-comment.md`, which the script renders.**')
         ->and($section)->toContain('are defined there and nowhere else. The findings file supplies these keys for them:')
+        ->and($section)->toContain(
+            '- `title`, the short name of the finding on its TL;DR line: a few plain words, written under the visible-text rule below.',
+        )
+        ->and($section)->toContain('refuses an inline comment, a TL;DR line, or a visible line that names a package path')
         ->and($section)->toContain('`kind: "dry"` with `existing`, the `<path>:<line>` of the existing implementation')
         ->and($section)->toContain('`faulty_example`, 5 lines at most')
         ->and($section)->not->toContain('This repeats the logic of')
@@ -240,7 +253,11 @@ test('the review rule publishes one review on GitHub and moves the machine recor
         ->and($rule)->not->toContain('**Impact** in one sentence')
         ->and($rule)->toContain('**Each finding that cannot anchor is one short visible line in the review body**')
         ->and($rule)->toContain('**The machine record is hidden HTML in the review body.**')
-        ->and($rule)->toContain('reaches none of the three**, the hidden record included: hidden HTML is public.')
+        ->and($rule)->toContain('reaches none of the four**, the TL;DR and the hidden record included: hidden HTML is public.')
+        ->and($rule)->toContain('3. **The review body opens with a visible TL;DR of the round.**')
+        ->and($rule)->toContain('Its last line is the CI result of the reviewed head: how many checks passed, failed, are pending, '
+            . 'and were skipped, and the name of each failing check.')
+        ->and($rule)->toContain('The hidden record does not change, and the merge gate never reads the TL;DR.')
         ->and($rule)->toContain('Every reader reads the newest trusted report across both homes');
 });
 
@@ -424,6 +441,12 @@ test('the inline comment template pins both shapes, the visible line, and the tw
             '{🔴 | 🟠} **Problem:** {the problem} **Impact:** {the impact} (`{file:line}`, outside the diff | no line) @{login}'
             . "\n<!-- cr-inline:finding={finding id} -->",
         )
+        ->and($template)->toContain(
+            "**TL;DR**\n\n- {🔴 | 🟠} **{Critical | Moderate}** · {title} — [`{file:line}`]"
+            . '(https://github.com/{owner}/{repo}/pull/{number}/files#diff-{diff anchor}{R | L}{line})'
+            . "\n- **CI** on `{short head SHA}`: {n} passed, {n} failed (`{failing check}`, …), {n} pending, {n} skipped.",
+        )
+        ->and($template)->toContain('With no inline finding, the finding lines are the one line `- No finding is open as an inline comment.`')
         ->and($template)->not->toContain('**Suggested fix:**')
         ->and($template)->not->toContain('```suggestion');
 });
