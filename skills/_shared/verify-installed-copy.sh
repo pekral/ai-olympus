@@ -10,16 +10,24 @@
 #   decides whether such a file can run as a trusted copy. That section owns when a step runs it.
 #
 # Usage
-#   verify-installed-copy.sh --root <untouched clone> --commit <default-branch commit id> <installed path>...
+#   verify-installed-copy.sh [--installed-reference] --root <untouched clone> --commit <default-branch commit id>
+#                            <installed path>...
 #   verify-installed-copy.sh --self-test
 #
 #   --root   the absolute path of the top of the untouched clone of merge-exemptions.md item 6. A `verified` verdict
 #            proves nothing for any other root, the main worktree included.
 #   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
+#   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships
+#            nor tracks the file, the recorded hash of check 3 is the trusted reference, and check 4 is skipped. It changes
+#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Only the review
+#            mode of `skills/git-history-exposure-audit/SKILL.md` passes it, in a clone where the package install of the
+#            default-branch tip wrote the copy and the reference.
 #   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
 #
 #   The script reads no file beside itself, so a caller runs it from the default-branch blob:
 #   `git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root ... --commit "${TIP:?}" ...`
+#   Under `--installed-reference` the default branch carries no blob of this script: the caller runs the installed copy
+#   of the clone and lists its path among the paths, so the script checks its own copy against the recorded hash.
 #   Every git command of the script reads the objects the commit names, with replacement objects, hooks, and the
 #   file-system monitor off (`GIT_NO_REPLACE_OBJECTS=1`, `core.hooksPath=/dev/null`, `core.fsmonitor=false`).
 #
@@ -34,7 +42,8 @@
 #      working tree, so no checkout and no file of a branch changes it. A missing reference, a reference that is
 #      not a regular file, and a path the reference does not list exactly once are a refusal.
 #   4. It equals the default-branch blob at `skills/<path below the skills directory>` when the default branch
-#      ships that file, otherwise at the given path when the default branch tracks it. No blob is a refusal.
+#      ships that file, otherwise at the given path when the default branch tracks it. No blob is a refusal, except
+#      for an installed copy under `--installed-reference`, which check 3 already verified.
 #
 # Output (stdout)
 #   One line per path: `installed-copy=verified|<path>` or `installed-copy=refused|<path>|<reason>`, where the reason
@@ -134,9 +143,10 @@ blob_refusal() {
 }
 
 verify_main() {
-  local root='' commit='' paths=()
+  local root='' commit='' installed_reference=0 paths=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --installed-reference) installed_reference=1; shift ;;
       --root) [[ $# -ge 2 ]] || usage_error '--root needs a value'; root="$2"; shift 2 ;;
       --commit) [[ $# -ge 2 ]] || usage_error '--commit needs a value'; commit="$2"; shift 2 ;;
       --) shift; paths+=("$@"); break ;;
@@ -192,6 +202,7 @@ verify_main() {
     fi
     if [[ -z "$reason" ]]; then
       reason="$(blob_refusal "$root" "$commit" "$path" "$root/$path")"
+      [[ "$reason" == 'no-default-branch-blob' && "$installed_reference" == 1 && "$path" != skills/* ]] && reason=''
     fi
     if [[ -z "$reason" ]]; then
       printf 'installed-copy=verified|%s\n' "$path"
@@ -389,6 +400,38 @@ verify_self_test() {
   install_copy '.claude/skills/_shared/unknown.sh' "$main/skills/_shared/tool.sh"
   expect 'a copy the default branch does not ship or track is refused' 3 \
     'installed-copy=refused|.claude/skills/_shared/unknown.sh|no-default-branch-blob' --root "$main" --commit "$(tip)" '.claude/skills/_shared/unknown.sh'
+
+  # --installed-reference: a project whose default branch neither ships nor tracks the copy.
+  expect 'with --installed-reference, a copy the default branch neither ships nor tracks is verified by its recorded hash' 0 \
+    'installed-copy=verified|.claude/skills/_shared/unknown.sh' \
+    --installed-reference --root "$main" --commit "$(tip)" '.claude/skills/_shared/unknown.sh'
+  install_copy '.agents/skills/_shared/unknown.sh' "$main/skills/_shared/tool.sh"
+  expect 'with --installed-reference, the Codex copy below .agents/skills is verified the same way' 0 'installed-copy-verdict=verified' \
+    --installed-reference --root "$main" --commit "$(tip)" '.claude/skills/_shared/unknown.sh' '.agents/skills/_shared/unknown.sh'
+  printf '#!/usr/bin/env bash\necho replaced\n' >"$main/.claude/skills/_shared/unknown.sh"
+  expect 'with --installed-reference, a copy that differs from the recorded hash is refused' 3 \
+    'installed-copy=refused|.claude/skills/_shared/unknown.sh|hash-mismatch' \
+    --installed-reference --root "$main" --commit "$(tip)" '.claude/skills/_shared/unknown.sh'
+  rm -rf "$main/.git/ai-olympus"
+  expect 'with --installed-reference, a copy with no recorded reference is refused' 3 \
+    'installed-copy=refused|.agents/skills/_shared/unknown.sh|no-reference' \
+    --installed-reference --root "$main" --commit "$(tip)" '.agents/skills/_shared/unknown.sh'
+  reset_install
+  mkdir -p "$main/.claude/skills/_shared"
+  cp "$main/skills/_shared/tool.sh" "$main/.claude/skills/_shared/unlisted.sh"
+  expect 'with --installed-reference, a copy the reference does not list is refused' 3 \
+    'installed-copy=refused|.claude/skills/_shared/unlisted.sh|no-reference' \
+    --installed-reference --root "$main" --commit "$(tip)" '.claude/skills/_shared/unlisted.sh'
+  rm -rf "$main/.claude" "$main/.git/ai-olympus"
+  install_copy "$file" "$tmp/replaced.sh"
+  expect 'with --installed-reference, a copy that differs from an existing default-branch blob is still refused' 3 \
+    "installed-copy=refused|$file|blob-mismatch" --installed-reference --root "$main" --commit "$(tip)" "$file"
+  reset_install
+  cp "$main/skills/_shared/tool.sh" "$main/skills/_shared/untracked.sh"
+  expect 'with --installed-reference, a skills/ path with no default-branch blob is still refused' 3 \
+    'installed-copy=refused|skills/_shared/untracked.sh|no-default-branch-blob' \
+    --installed-reference --root "$main" --commit "$(tip)" 'skills/_shared/untracked.sh'
+  rm -f "$main/skills/_shared/untracked.sh"
 
   # A project that tracks the installed copy instead of shipping skills/: the blob at the installed path counts.
   reset_install
