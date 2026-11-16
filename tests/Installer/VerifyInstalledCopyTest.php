@@ -90,3 +90,33 @@ test('the history scan verifies its installed copies with the shared verifier, n
         ->and($step)->not->toContain('(`cmp`)')
         ->and($step)->not->toContain('git show "${REF:?}:skills/git-history-exposure-audit/scripts/history-scan.sh"');
 });
+
+test('the installed reference replaces only a missing default-branch blob, and the self-test pins both outcomes', function (): void {
+    $script = verifyInstalledCopySource('skills/_shared/verify-installed-copy.sh');
+
+    expect($script)->toContain('#   verify-installed-copy.sh [--installed-reference] --root <untouched clone> --commit')
+        ->and($script)->toContain('#   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships')
+        ->and($script)->toContain(
+            '#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Only the review',
+        )
+        ->and($script)->toContain(
+            '[[ "$reason" == \'no-default-branch-blob\' && "$installed_reference" == 1 && "$path" != skills/* ]] && reason=\'\'',
+        );
+
+    foreach ([
+        'with --installed-reference, a copy the default branch neither ships nor tracks is verified by its recorded hash',
+        'with --installed-reference, the Codex copy below .agents/skills is verified the same way',
+        'with --installed-reference, a copy that differs from the recorded hash is refused',
+        'with --installed-reference, a copy with no recorded reference is refused',
+        'with --installed-reference, a copy the reference does not list is refused',
+        'with --installed-reference, a copy that differs from an existing default-branch blob is still refused',
+        'with --installed-reference, a skills/ path with no default-branch blob is still refused',
+        'a copy the default branch does not ship or track is refused',
+    ] as $label) {
+        expect($script)->toContain($label);
+    }
+
+    // The merge gate never passes the option, so its classifier still needs a default-branch blob.
+    expect(verifyInstalledCopySource('skills/merge-github-pr/references/merge-exemptions.md'))->not->toContain('--installed-reference')
+        ->and(verifyInstalledCopySource('skills/merge-github-pr/references/low-risk-path.md'))->not->toContain('--installed-reference');
+});

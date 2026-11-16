@@ -252,3 +252,43 @@ test('the allow-list is a default-branch manifest key and the package lists the 
     expect(historyExposureSource('docs/skills.md'))->toContain('| [`git-history-exposure-audit`](../skills/git-history-exposure-audit/) |');
     expect(historyExposureSource('skills/_shared/gate-context.sh'))->toContain('(security-review|security-audit|git-history-exposure-audit)');
 });
+
+test('review mode runs the installed copy of a project whose default branch does not ship skills, verified by its recorded hash', function (): void {
+    $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
+    $step = substr(
+        $skill,
+        (int) strpos($skill, '2. **The trusted copy of the script.**'),
+        (int) strpos($skill, '3. **The commits.**') - (int) strpos($skill, '2. **The trusted copy of the script.**'),
+    );
+
+    expect($step)->toContain('- **A project whose default branch does not ship `skills/`.**')
+        ->and($step)->not->toContain('A review installs no package')
+        ->and($step)->toContain('Run the dependency install and the package install of `TIP` in the clone before the first scan command, as item 2')
+        ->and($step)->toContain('`<clone>/.claude/skills/git-history-exposure-audit/scripts/history-scan.sh` on Claude Code')
+        ->and($step)->toContain('`<clone>/.agents/skills/git-history-exposure-audit/scripts/history-scan.sh` on Codex')
+        ->and($step)->toContain('`bash "<clone>/.claude/skills/_shared/verify-installed-copy.sh"`')
+        ->and($step)->toContain('It takes `--installed-reference`')
+        ->and($step)->toContain(
+            'A copy that differs from it, a missing reference, and a path that the reference does not list are refused, and the scan fails.',
+        )
+        ->and($step)->toContain(
+            '`.claude/skills/git-history-exposure-audit/scripts/history-scan.sh .claude/skills/_shared/read-manifest.sh '
+            . '.claude/skills/_shared/verify-installed-copy.sh`',
+        )
+        ->and($step)->toContain('On Codex every path starts with `.agents/skills/`.')
+        ->and($step)->toContain('for each fetch, and for the dependency install');
+
+    expect(historyExposureSource('skills/merge-github-pr/references/merge-exemptions.md'))->toContain(
+        '`skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts"`, then `vendor/bin/ai-olympus install`.',
+    );
+
+    foreach (['agents/leonardo.md', 'agents/splinter.md'] as $agent) {
+        expect(historyExposureSource($agent))->toContain(
+            'and, when the default branch does not ship `skills/`, the dependency install and the package install of its item 2 in that clone)',
+        );
+    }
+
+    expect(historyExposureSource('rules/compound-engineering/orchestration.md'))->toContain(
+        'fetch the pull-request commits into it by object id, run the installs of its item 2 in it, read only in it',
+    );
+});
