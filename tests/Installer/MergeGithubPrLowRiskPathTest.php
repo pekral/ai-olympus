@@ -40,7 +40,8 @@ test('the diff is made with text mode in the untouched clone and the base symlin
         ->and($path)->toContain('--merge-risk --base <base tip> --ignore-assignment --diff - --coverage ok --gate green')
         ->and($path)->not->toContain('git merge-base')
         ->and($path)->toContain(
-            'Run every command of this file in the untouched clone of `references/merge-exemptions.md` *The trusted classifier* item 6, before step 3 checks out the head.',
+            'Run every command of this file in the untouched clone of `references/merge-exemptions.md` *The trusted classifier* item 6, '
+            . 'before step 3 checks out the head.',
         )
         ->and($path)->toContain('`--text` and the exclusion of `.gitattributes` keep a NUL byte or a `-diff` attribute from hiding a file')
         ->and($path)->toContain('`--submodule=short --ignore-submodules=none` keep a submodule pointer change from hiding')

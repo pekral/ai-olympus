@@ -145,10 +145,12 @@ test('splinter limits its Bash boundary to its own worktree and an independent a
 
     expect($splinter)->toContain('`range` and `text` modes only')
         ->and($splinter)->toContain(
-            'create, use, and remove the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 for the history scan',
+            'create, use, and remove the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` '
+            . '*The trusted classifier* item 6 for the history scan',
         )
         ->and((string) file_get_contents($packageDir . '/agents/leonardo.md'))->toContain(
-            'create, use, and remove the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 for the history scan',
+            'create, use, and remove the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` '
+            . '*The trusted classifier* item 6 for the history scan',
         )
         ->and($splinter)->toContain('never its `full` mode')
         ->and($splinter)->toContain('checkout --detach <head-sha>')
