@@ -9,7 +9,7 @@ First read `.codex/agent-instructions/krang.md` in full and follow it as your au
 Apply `$agent-voice` (`@skills/agent-voice/SKILL.md`) to the prose a human reads from you: a chat reply, the final report to the user, and a tracker comment. A handoff to another agent keeps its structure.
 
 Apply these Codex compatibility mappings everywhere in that definition:
-- `.claude/run/` means `.codex/run/`.
+- `.claude/run/` means `.codex/run/`. A code-review memory write or read therefore passes `--run-dir .codex/run` to `ai-olympus memory`, and `krang` decides the write under the same rule as on Claude Code (`@rules/compound-engineering/memory.md` *Write protocol*, no human approval).
 - `@skills/<path>` means the matching file below `.agents/skills/<path>`; invoke a skill as `$skill-name` when appropriate.
 - `@rules/<path>` means the matching file below `.codex/rules/<path>`.
 - A bare `skills/<path>` reference to a shipped script (for example `skills/_shared/classify-risk.sh`) means the matching file below `.agents/skills/<path>`; run it with the session's shell.

@@ -10,7 +10,8 @@
 #
 #   The target type `memory` has its own gate: only a resolved Critical code-review finding makes a candidate, from its
 #   first occurrence on, and `propose` refuses anything else with a stated reason (`below-critical`, `unresolved`).
-#   A candidate of type `memory` ends at the human approval: krang writes the entry with `ai-olympus memory add`.
+#   A candidate of type `memory` needs no human approval: it awaits `memory-write`, and krang writes the entry with
+#   `ai-olympus memory add`. A human rejection (the proposal issue closed as not planned) still suppresses it.
 #   Every other target type keeps the recurrence thresholds of analyze-recurrence.sh.
 #
 #   The states, the history record, the trusted facts, and the limits are written once, in
@@ -36,8 +37,8 @@
 #   --reason    the reason of a rejection. It is stored as data and never interpreted.
 #   --pr        the pull request that brought the approved change to the default branch, read through the tracker
 #               loader. Any merge strategy counts, a rebase merge included.
-#   written     krang records, after `ai-olympus memory add` exits 0, that it wrote the entry of an approved `memory`
-#               candidate. --digest is the digest of the approved proposal and --slug is the cause_key of the key, cut
+#   written     krang records, after `ai-olympus memory add` exits 0, that it wrote the entry of a `memory`
+#               candidate. --digest is the digest of the current proposal and --slug is the cause_key of the key, cut
 #               to 90 characters, then `-` and the first 8 characters of the digest. The state becomes `promoted`.
 #
 # Untrusted input (rules/security/general.md). Record text, analysis text, the issue payload, and the reason
@@ -143,10 +144,8 @@ def history_errors:
               "line \($i + 1) rejects evidence that no candidate carried"
             elif $e.event == "promoted" and ($before | map(select(.event == "approved" and .digest == $e.digest)) | length) == 0 then
               "line \($i + 1) promotes a proposal that was never approved"
-            elif $e.event == "written" and ($before | map(select(.event == "approved" and .digest == $e.digest)) | length) == 0 then
-              "line \($i + 1) records the write of a proposal that was never approved"
             elif $e.event == "written" and ($before | map(select(.event == "candidate" and .digest == $e.digest and .target_type == "memory")) | length) == 0 then
-              "line \($i + 1) records the write of a candidate that is not a memory candidate"
+              "line \($i + 1) records the write of a text that no memory candidate rendered"
             elif $e.event == "superseded" and ($before | map(select(.event == "promoted")) | length) == 0 then
               "line \($i + 1) supersedes a candidate that was never promoted"
             else empty end
@@ -157,7 +156,7 @@ EOF
 JQ_STATE=''
 IFS= read -r -d '' JQ_STATE <<'EOF' || true
 # The slug of a memory entry is written once, here: the cause_key of the key, cut to 90 characters, then - and the first
-# 8 characters of the approved digest. `status` prints it and `written` compares it. The cause_key is [a-z0-9-]+ (KEY_PATTERN).
+# 8 characters of the proposal digest. `status` prints it and `written` compares it. The cause_key is [a-z0-9-]+ (KEY_PATTERN).
 def memory_slug($key; $digest): (($key | split(":") | last)[0:90] + "-" + $digest[0:8]);
 def state_of($events):
   ($events | map(select(.event == "candidate")) | last) as $c
@@ -166,10 +165,12 @@ def state_of($events):
     elif ($events | any(.event == "superseded")) then {state: "superseded", awaiting: null}
     elif ($events | any(.event == "promoted")) then {state: "promoted", awaiting: null}
     elif $c.target_type == "memory" and ($events | any(.event == "written" and .digest == $c.digest)) then {state: "promoted", awaiting: null}
+    elif $c.target_type == "memory" then
+      (if $d != null and $d.event == "rejected" and $d.suppression == $c.suppression then {state: "rejected", awaiting: null} else {state: "candidate", awaiting: "memory-write"} end)
     elif $d == null then {state: "candidate", awaiting: "approval"}
     elif $d.event == "rejected" then
       (if $d.suppression == $c.suppression then {state: "rejected", awaiting: null} else {state: "candidate", awaiting: "approval"} end)
-    elif $d.digest == $c.digest then {state: "approved", awaiting: (if $c.target_type == "memory" then "memory-write" else "merge" end)}
+    elif $d.digest == $c.digest then {state: "approved", awaiting: "merge"}
     else {state: "candidate", awaiting: "re-approval"} end
   | if . == null then null else . + {candidate: $c, slug: (if $c.target_type == "memory" then memory_slug($c.key; $c.digest) else null end)} end;
 def history_for($key): $history | map(select(.key == $key));
@@ -474,6 +475,9 @@ cmd_decide() {
   case "$(jq -r '.state' <<<"$state")" in
   promoted | superseded) fail 4 'the candidate is already promoted' ;;
   esac
+  if [[ "$decision" == approve ]] && jq -e '.candidate.target_type == "memory"' <<<"$state" >/dev/null; then
+    fail 4 'a memory candidate needs no approval: krang writes it'
+  fi
   [[ "$fact" == instruction ]] || tracker_fact "$TMP" "$key" "$url" "$decision"
 
   local approver=user issue='' digest suppression event
@@ -516,7 +520,7 @@ cmd_decide() {
   key_state "$TMP" "$key" | jq -c '{schema: 1, key: .candidate.key, state, awaiting, digest: .candidate.digest}'
 }
 
-# cmd_written — record that krang wrote the approved memory entry. The slug is bound to the approved text, so a second
+# cmd_written — record that krang wrote the memory entry. The slug is bound to the proposal text, so a second
 # write of the same text is refused by `memory add` and a changed text gets its own slug.
 cmd_written() {
   local dir='' key='' digest='' slug=''
@@ -538,9 +542,9 @@ cmd_written() {
 
   local state
   state="$(key_state "$TMP" "$key")"
-  jq -e '. != null and .state == "approved" and .awaiting == "memory-write"' <<<"$state" >/dev/null \
-    || fail 4 'only an approved memory candidate that awaits its write is recorded as written'
-  jq -e --arg d "$digest" '.candidate.digest == $d' <<<"$state" >/dev/null || fail 4 'the digest is not the digest of the approved proposal'
+  jq -e '. != null and .state == "candidate" and .awaiting == "memory-write"' <<<"$state" >/dev/null \
+    || fail 4 'only a memory candidate that awaits its write is recorded as written'
+  jq -e --arg d "$digest" '.candidate.digest == $d' <<<"$state" >/dev/null || fail 4 'the digest is not the digest of the current proposal'
   jq -e --arg s "$slug" '.slug == $s' <<<"$state" >/dev/null || fail 4 'the slug is not the cause_key of the key, cut to 90 characters, then - and the first 8 characters of the digest'
   append_event "$TMP" "$(jq -c -n --arg key "$key" --arg time "$(gate_now)" --arg d "$digest" --arg s "$slug" \
     '{schema: 1, event: "written", key: $key, time: $time, digest: $d, slug: $s}')"
@@ -565,8 +569,9 @@ cmd_promote() {
 
   local state
   state="$(key_state "$TMP" "$key")"
-  jq -e '. != null and .state == "approved"' <<<"$state" >/dev/null || fail 4 'only an approved candidate is promoted'
+  [[ "$state" != null ]] || fail 4 'only an approved candidate is promoted'
   jq -e '.candidate.target_type != "memory"' <<<"$state" >/dev/null || fail 4 'a memory candidate is written by krang with ai-olympus memory add, never promoted by a pull request'
+  jq -e '.state == "approved"' <<<"$state" >/dev/null || fail 4 'only an approved candidate is promoted'
 
   # The pull request decides, not one of its commits: a rebase merge puts the target change in any of them.
   local ref commit full path closing found=''
@@ -966,12 +971,12 @@ EOF
   run 'a single resolved Critical finding is proposed as a rule' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/mem.md"
   check 'a single resolved Critical finding is no candidate of another target than the memory' "$(jq -e '.status == "none" and .reason == "not-eligible" and .occurrences == 1' "$tmp/out" >/dev/null && [[ ! -e "$proj/$D3/promotion.jsonl" && ! -e "$tmp/mem.md" ]] && echo 0 || echo 1)"
 
-  # A memory candidate ends at the approval: krang writes the entry with `ai-olympus memory add`, and no pull request promotes it.
+  # A memory candidate needs no approval: krang writes the entry with `ai-olympus memory add`, and no pull request promotes it.
   analysis mem-lesson '.target.type = "memory" | .target.path = ".claude/run/code-review-memory.sqlite" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}]'
   run 'a memory candidate is proposed' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/mem.md"
-  check 'a single resolved Critical finding gives a memory candidate at its first occurrence, with the SQLite store as target' "$(jq -e --arg k "$KMEM" '.status == "ready" and .key == $k and .state == "candidate" and .awaiting == "approval" and .tasks == 1 and (.evidence | length) == 1' "$tmp/out" >/dev/null && grep -q '^- Path: ` .claude/run/code-review-memory.sqlite `$' "$tmp/mem.md" && grep -q '^- Type: Code-review memory$' "$tmp/mem.md" && grep -q 'one resolved Critical code-review finding' "$tmp/mem.md" && echo 0 || echo 1)"
-  run 'a memory candidate is approved by the instruction' 0 decide --dir "$D3" --key "$KMEM" --decision approve --fact instruction
-  check 'an approved memory candidate awaits the memory write, not a merge' "$(jq -e '.state == "approved" and .awaiting == "memory-write"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'a single resolved Critical finding gives a memory candidate at its first occurrence, with the SQLite store as target' "$(jq -e --arg k "$KMEM" '.status == "ready" and .key == $k and .state == "candidate" and .awaiting == "memory-write" and .tasks == 1 and (.evidence | length) == 1' "$tmp/out" >/dev/null && grep -q '^- Path: ` .claude/run/code-review-memory.sqlite `$' "$tmp/mem.md" && grep -q '^- Type: Code-review memory$' "$tmp/mem.md" && grep -q 'one resolved Critical code-review finding' "$tmp/mem.md" && echo 0 || echo 1)"
+  run 'a memory candidate is approved by the instruction' 4 decide --dir "$D3" --key "$KMEM" --decision approve --fact instruction
+  check 'a memory candidate needs no approval and the refusal says so' "$(grep -q 'a memory candidate needs no approval' "$tmp/err" && ! grep -q '"event":"approved"' "$proj/$D3/promotion.jsonl" && echo 0 || echo 1)"
   run 'a memory candidate is promoted by a pull request' 4 promote --dir "$D3" --key "$KMEM" --pr https://github.com/acme/shop/pull/99
   check 'a pull request never promotes a memory candidate and the refusal names krang' "$(grep -q 'written by krang with ai-olympus memory add' "$tmp/err" && echo 0 || echo 1)"
   analysis mem-lesson '.target.type = "memory" | .target.path = "docs/memory/PROJECT_MEMORY.md" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}]'
@@ -982,49 +987,47 @@ EOF
   local MD MSLUG
   MD="$(gate_sha256 "$tmp/mem.md")"
   MSLUG="mem-lesson-${MD:0:8}"
-  run 'the status of an approved memory candidate runs' 0 status --dir "$D3"
-  check 'status names the slug of the approved memory entry, which holds the first 8 characters of the approved digest' "$(jq -e --arg k "$KMEM" --arg s "$MSLUG" '.patterns[] | select(.key == $k) | .slug == $s and .written == null' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  run 'the status of a memory candidate runs' 0 status --dir "$D3"
+  check 'status names the slug of the memory entry, which holds the first 8 characters of the proposal digest' "$(jq -e --arg k "$KMEM" --arg s "$MSLUG" '.patterns[] | select(.key == $k) | .slug == $s and .written == null' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'a write with another digest is recorded' 4 written --dir "$D3" --key "$KMEM" --digest "$(printf '%064d' 0)" --slug "mem-lesson-00000000"
-  check 'a write of a text that is not the approved proposal is refused' "$(grep -q 'not the digest of the approved proposal' "$tmp/err" && echo 0 || echo 1)"
+  check 'a write of a text that is not the current proposal is refused' "$(grep -q 'not the digest of the current proposal' "$tmp/err" && echo 0 || echo 1)"
   run 'a write with the slug of the key alone is recorded' 4 written --dir "$D3" --key "$KMEM" --digest "$MD" --slug mem-lesson
   check 'a slug that does not end with the first 8 characters of the digest is refused' "$(grep -q 'the slug is not the cause_key' "$tmp/err" && echo 0 || echo 1)"
   run 'a write of a key that is not a candidate is recorded' 4 written --dir "$D3" --key "$KMOD" --digest "$MD" --slug "moderate-race-${MD:0:8}"
   check 'a write of a key without an approved candidate is refused and nothing is written' "$(! grep -q '"event":"written"' "$proj/$D3/promotion.jsonl" && echo 0 || echo 1)"
   run 'a write without a slug is a usage error' 1 written --dir "$D3" --key "$KMEM" --digest "$MD"
   run 'a write with a digest that is not SHA-256 is a usage error' 1 written --dir "$D3" --key "$KMEM" --digest abc --slug "$MSLUG"
-  run 'the approved memory entry is recorded as written' 0 written --dir "$D3" --key "$KMEM" --digest "$MD" --slug "$MSLUG"
+  run 'the memory entry is recorded as written' 0 written --dir "$D3" --key "$KMEM" --digest "$MD" --slug "$MSLUG"
   check 'a written memory entry is promoted and awaits nothing' "$(jq -e --arg d "$MD" '.state == "promoted" and .awaiting == null and .digest == $d' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'the status of a written memory entry runs' 0 status --dir "$D3"
   check 'status reports the written entry with its slug' "$(jq -e --arg k "$KMEM" --arg s "$MSLUG" '.patterns[] | select(.key == $k) | .state == "promoted" and .awaiting == null and .written.slug == $s and .written.digest != null' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'the written memory entry is recorded again' 4 written --dir "$D3" --key "$KMEM" --digest "$MD" --slug "$MSLUG"
-  check 'a second write record for the same approved text is refused' "$(grep -q 'only an approved memory candidate that awaits its write' "$tmp/err" && echo 0 || echo 1)"
+  check 'a second write record for the same text is refused' "$(grep -q 'only a memory candidate that awaits its write' "$tmp/err" && echo 0 || echo 1)"
   analysis mem-lesson '.target.type = "memory" | .target.path = ".claude/run/code-review-memory.sqlite" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}]'
   run 'a written memory candidate is proposed again' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/mem3.md"
   check 'a written memory candidate gives no new proposal' "$(jq -e '.status == "none" and .reason == "promoted"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/mem3.md" ]] && echo 0 || echo 1)"
-  # A newer approved text waits for its own write: the written digest has to equal the approved one.
+  # A newer text waits for its own write: the written digest has to equal the digest of a memory candidate.
   jq -c 'if .event == "written" then .digest = "'"$(printf '%064d' 7)"'" else . end' "$proj/$D3/promotion.jsonl" >"$tmp/h.bad"
   cp "$proj/$D3/promotion.jsonl" "$tmp/h.good"
   cp "$tmp/h.bad" "$proj/$D3/promotion.jsonl"
-  run 'a history that records a write of a proposal that was never approved is read' 3 status --dir "$D3"
-  check 'a written record whose digest no approval carries makes the history unusable' "$(grep -q 'records the write of a proposal that was never approved' "$tmp/err" && echo 0 || echo 1)"
+  run 'a history that records a write of a text that no memory candidate rendered is read' 3 status --dir "$D3"
+  check 'a written record whose digest no memory candidate carries makes the history unusable' "$(grep -q 'records the write of a text that no memory candidate rendered' "$tmp/err" && echo 0 || echo 1)"
   jq -c 'if .event == "written" then .slug = "BAD slug" else . end' "$tmp/h.good" >"$proj/$D3/promotion.jsonl"
   run 'a history that records a write with a malformed slug is read' 3 status --dir "$D3"
   check 'a written record with a malformed slug makes the history unusable' "$(grep -q 'is not a promotion history record' "$tmp/err" && echo 0 || echo 1)"
   cp "$tmp/h.good" "$proj/$D3/promotion.jsonl"
   jq -c 'if .event == "candidate" then .target_type = "rule" | .target_path = "rules/php/concurrency.md" else . end' "$tmp/h.good" >"$proj/$D3/promotion.jsonl"
   run 'a history that records a write of a candidate that is not a memory candidate is read' 3 status --dir "$D3"
-  check 'a written record of a candidate of another type makes the history unusable' "$(grep -q 'is not a memory candidate' "$tmp/err" && echo 0 || echo 1)"
+  check 'a written record of a candidate of another type makes the history unusable' "$(grep -q 'no memory candidate rendered' "$tmp/err" && echo 0 || echo 1)"
   cp "$tmp/h.good" "$proj/$D3/promotion.jsonl"
-  # A candidate whose text changed after the write is approved for its own digest and waits for its own write.
+  # A candidate whose text changed after the write waits for its own write.
   jq -c 'select(.event == "candidate")' "$tmp/h.good" >"$tmp/h.candidate"
   jq -c -n --arg d "$(printf '9%063d' 0)" --slurpfile c "$tmp/h.candidate" \
     '$c[0] | .digest = $d | .time = "2026-10-02T10:00:00Z"' >>"$proj/$D3/promotion.jsonl"
   run 'the status after a changed memory proposal that follows the write runs' 0 status --dir "$D3"
-  check 'a written text does not cover a changed proposal, which awaits its re-approval' "$(jq -e --arg k "$KMEM" '.patterns[] | select(.key == $k) | .state == "candidate" and .awaiting == "re-approval"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
-  run 'the changed memory proposal is approved by the instruction' 0 decide --dir "$D3" --key "$KMEM" --decision approve --fact instruction
-  check 'the changed approved proposal awaits its own memory write' "$(jq -e '.state == "approved" and .awaiting == "memory-write"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
+  check 'a written text does not cover a changed proposal, which awaits its own write' "$(jq -e --arg k "$KMEM" '.patterns[] | select(.key == $k) | .state == "candidate" and .awaiting == "memory-write"' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   run 'the write of the earlier text is recorded for the changed proposal' 4 written --dir "$D3" --key "$KMEM" --digest "$MD" --slug "$MSLUG"
-  check 'the written record of an earlier text does not cover the changed proposal' "$(grep -q 'not the digest of the approved proposal' "$tmp/err" && echo 0 || echo 1)"
+  check 'the written record of an earlier text does not cover the changed proposal' "$(grep -q 'not the digest of the current proposal' "$tmp/err" && echo 0 || echo 1)"
   run 'the changed memory text is recorded as written' 0 written --dir "$D3" --key "$KMEM" --digest "$(printf '9%063d' 0)" --slug "mem-lesson-90000000"
   check 'the changed text gets its own slug and is promoted after its own write' "$(jq -e '.state == "promoted" and .awaiting == null' "$tmp/out" >/dev/null && echo 0 || echo 1)"
   # The slug has one owner, the jq definition `memory_slug`: `status` prints it and `written` compares to it, so a cause_key
@@ -1036,7 +1039,6 @@ EOF
   rec "$LONGCAUSE" 41 2026-09-27T10:00:00Z resolved >"$proj/$D3/merged.jsonl"
   analysis "$LONGCAUSE" '.target.type = "memory" | .target.path = ".claude/run/code-review-memory.sqlite" | .target.knowledge = [{path: "rules/php/core-standards.md", coverage: "none", note: "It names no lock."}]'
   run 'a memory candidate with a cause_key over 90 characters is proposed' 0 propose --dir "$D3" --analysis "$tmp/a.json" --out "$tmp/long.md"
-  run 'that candidate is approved by the instruction' 0 decide --dir "$D3" --key "$KLONG" --decision approve --fact instruction
   LONGDIGEST="$(gate_sha256 "$tmp/long.md")"
   LONGSLUG="${LONGCAUSE:0:90}-${LONGDIGEST:0:8}"
   run 'the status of the long candidate runs' 0 status --dir "$D3"

@@ -159,7 +159,7 @@ From the second round of a review-and-fix loop, `leonardo` raises only new Criti
 
 ### Code-review memory
 
-Resolved Critical code-review findings are kept in a per-user, git-ignored SQLite database (`.claude/run/code-review-memory.sqlite`, or `.codex/run/` under Codex), which `krang` reads only when a review opens a Critical finding. `krang` is the only writer: it adds one short TL;DR entry after a human approved it. The installer never creates or deletes it.
+Resolved Critical code-review findings are kept in a per-user, git-ignored SQLite database (`.claude/run/code-review-memory.sqlite`, or `.codex/run/` under Codex), which `krang` reads only when a review opens a Critical finding. `krang` is the only writer: it adds one short TL;DR entry for each lesson that clears the write bar, with no human approval, and lists every entry in its report. The installer never creates or deletes it.
 
 ```bash
 vendor/bin/ai-olympus memory migrate
