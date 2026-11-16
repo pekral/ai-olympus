@@ -87,6 +87,15 @@ test('quoted text and a class only named for a migration force no tier', functio
         'a class named Migration outside the migration paths forces nothing',
         'a timestamped migration file outside a migrations directory forces data',
         'a file in a migration directory forces data',
+        'an unclosed fence hides nothing',
+        'inline code that names code still forces auth',
+        'a deeper heading ends an example section',
+        'a Doctrine migration directory forces data',
+        'a compound migration directory forces data',
+        'a git-quoted migration path forces data',
+        'an empty down() outside a migration path is no signal',
+        'an empty down() in a timestamped migration file is a signal',
+        'a destructive Doctrine migration is a signal',
     ] as $label) {
         expect($content)->toContain('\'' . $label . '\'');
     }

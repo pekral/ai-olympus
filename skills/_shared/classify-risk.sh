@@ -80,13 +80,17 @@
 # Assignment text
 #   On `basis=assignment` the path signals read the assignment prose. A part that
 #   only quotes or illustrates a word does not describe the task, so it is removed
-#   first: a fenced code block (``` or ~~~), inline code, a block quote, a line that
-#   opens with an example marker (e.g., for example, for instance, example,
-#   například, příklad), and the section under a heading that opens with one. An
-#   anonymised example that mentions a signed-in admin then forces nothing. The
+#   first: a closed fenced code block (``` or ~~~), an inline code span that holds a
+#   plain word or label, a block quote, a line that opens with an example marker, and
+#   the section under a heading that opens with one, up to the next heading. The
+#   example markers are: example, examples, e.g., for example, for instance,
+#   například, např., příklad, ukázka. An anonymised example that mentions a
+#   signed-in admin then forces nothing. When in doubt the text stays: a fence that
+#   never closes hides nothing, and an inline span that names code or a path (it
+#   holds `/`, `::`, `->`, `(`, `$`, `\`, `_`, or a file extension) stays. The
 #   acceptance-criteria point still reads the whole text. Once a diff exists, the
-#   changed paths decide alone, so a real auth, payment, or migration change still
-#   forces CRITICAL however its assignment was worded.
+#   changed paths decide; the diff forces CRITICAL only on a path that names the
+#   sensitive area, and the assignment tier of the run stays its floor.
 #
 # Material files
 #   The path signals are matched against *material* files only — the changed
@@ -94,10 +98,11 @@
 #   README under `docs/security/` would force CRITICAL on a typo fix, and a
 #   test-only change would force CRITICAL for naming a file `AuthTest.php`.
 #   The negative "only" signals are what those file classes contribute instead.
-#   The migration signal reads DATA_PATH_RE on a path: a migrations directory or
-#   a timestamped migration file name. A class only named for a migration
-#   (`InstallerAgentMigration.php`) raises nothing. The assignment prose keeps the
-#   word itself (DATA_RE).
+#   The migration signal reads DATA_PATH_RE on a path: a directory named for
+#   migrations in any form, a timestamped migration file name, or a Doctrine
+#   `Version<date>` file, also when git quotes the path. A class only named for a
+#   migration (`InstallerAgentMigration.php`) raises nothing. The assignment prose
+#   keeps the word itself (DATA_RE).
 #
 # Deliberate bias
 #   The patterns are broad on purpose: a false positive costs one tier of extra
@@ -304,35 +309,47 @@ LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permission
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # Print the lower-cased assignment text without the parts that only quote or
-# illustrate a word (see *Assignment text* above).
+# illustrate a word (see *Assignment text* above). The lines of a fence that never
+# closes are printed at the end, so an unclosed fence hides nothing.
 assignment_prose() {
   printf '%s\n' "$1" | awk '
-    match($0, /^[[:space:]]*(```|~~~)/) {
-      mark = substr($0, RSTART + RLENGTH - 3, 3)
-      if (fence == "") { fence = mark } else if (mark == fence) { fence = "" }
-      next
-    }
-    fence != "" { next }
-    /^[[:space:]]*>/ { next }
-    {
-      line = $0
+    BEGIN { marker = "^(examples?|e\\.g\\.|for example|for instance|např\\.|například|příklad|ukázka)([^a-z]|$)" }
+    function prose(raw,    line, title, out, rest, span) {
+      if (raw ~ /^[[:space:]]*>/) { return }
+      line = raw
       sub(/^[[:space:]]*/, "", line)
       if (match(line, /^#+[[:space:]]/)) {
-        level = RLENGTH - 1
-        if (example && level <= example) { example = 0 }
+        example = 0
         title = substr(line, RLENGTH + 1)
         sub(/^[[:space:]*_]*/, "", title)
-        if (title ~ /^(examples?|e\.g\.|for example|for instance|např\.|například|příklad|ukázka)([^a-z]|$)/) {
-          example = level
-          next
-        }
+        if (title ~ marker) { example = 1; return }
       }
-      if (example) { next }
+      if (example) { return }
       sub(/^([-*+]|[0-9]+[.)])[[:space:]]+/, "", line)
       sub(/^[*_]+/, "", line)
-      if (line ~ /^(examples?|e\.g\.|for example|for instance|např\.|například|příklad|ukázka)([^a-z]|$)/) { next }
-      gsub(/`+[^`]*`+/, "", $0)
-      print
+      if (line ~ marker) { return }
+      # Inline code that names code or a path stays; a plain word or label is removed.
+      out = ""
+      rest = raw
+      while (match(rest, /`+[^`]*`+/)) {
+        span = substr(rest, RSTART, RLENGTH)
+        out = out substr(rest, 1, RSTART - 1)
+        if (span ~ /\/|::|->|\(|\$|\\|_|\.[a-z0-9]+([^a-z0-9.]|$)/) { out = out span }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      print out rest
+    }
+    match($0, /^[[:space:]]*(```|~~~)/) {
+      mark = substr($0, RSTART + RLENGTH - 3, 3)
+      if (fence == "") { fence = mark; held = 0 } else if (mark == fence) { fence = "" }
+      next
+    }
+    fence != "" { held++; buffer[held] = $0; next }
+    { prose($0) }
+    END {
+      if (fence != "") {
+        for (i = 1; i <= held; i++) { prose(buffer[i]) }
+      }
     }
   '
 }
@@ -1353,6 +1370,20 @@ TEXT
   expect_line 'a heading ends the example section' 'forced=auth-security-secrets' --assignment "$quoted"
   printf 'Acceptance criteria:\n- add a migration that drops the legacy column\n' >"$quoted"
   expect_line 'a migration named in prose still forces data' 'forced=migrations-data-loss' --assignment "$quoted"
+  # A fence that never closes (a pasted stack trace) hides nothing after it.
+  printf 'Acceptance criteria:\n```\nstack trace\n\n- [ ] the login form rejects an expired password reset token\n' >"$quoted"
+  expect_line 'an unclosed fence hides nothing' 'forced=auth-security-secrets' --assignment "$quoted"
+  # Inline code that names code or a path is the task itself, not a quoted word.
+  cat >"$quoted" <<'TEXT'
+Only the owner may delete an order.
+Call `Gate::authorize('delete', $order)` in `OrderController::destroy`.
+Acceptance criteria:
+- a non-owner gets 403 on delete
+TEXT
+  expect_line 'inline code that names code still forces auth' 'forced=auth-security-secrets' --assignment "$quoted"
+  # Any heading that is not an example heading ends the example section.
+  printf '# Example of the bug\n## Technical Solution\n- add an authorization check to the invoice controller\n## Acceptance criteria\n- [ ] the invoice is saved\n' >"$quoted"
+  expect_line 'a deeper heading ends an example section' 'forced=auth-security-secrets' --assignment "$quoted"
 
   # The migration signal on a diff reads the migration directory and the migration file
   # name, never the word alone. The #414 false positive was a class named for migrating
@@ -1366,6 +1397,12 @@ TEXT
     --assignment "$tmp/clear.txt"
   expect_line 'a file in a migration directory forces data' 'forced=migrations-data-loss' \
     --files "$(writefiles 'db/migration/V2__add_index.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a Doctrine migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'app/DoctrineMigrations/Version20260101120000.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a compound migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'database/tenant-migrations/create_users.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a git-quoted migration path forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles '"migrations/Version20260101120000\303\251.php"')" --assignment "$tmp/clear.txt"
 
   # --- Clarity and coverage signals ------------------------------------------
   expect_line 'a vague assignment scores the clarity point' 'unclear-acceptance-criteria' \
@@ -1476,6 +1513,22 @@ TEXT
       'public function down(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\")->change());" '}' | writediff)" "${verified[@]}"
   expect_line 'a drop inside down() is the rollback, not a signal' 'rollback=cheap' \
     --merge-risk --diff "$migration_create" "${verified[@]}"
+  # The rollback scan reads migrations by DATA_PATH_RE: a class only named for a migration
+  # is no migration, while a timestamped file and a Doctrine directory are.
+  expect_line 'an empty down() outside a migration path is no signal' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'src/InstallerAgentMigration.php' \
+      'public function up(): void' '{' "    \$this->copy();" '}' \
+      'public function down(): void' '{' '}' | writediff)" "${verified[@]}"
+  expect_line 'an empty down() in a timestamped migration file is a signal' \
+    'rollback-signal=destructive-migration|modules/orders/database/2026_01_01_000000_add_note.php' \
+    --merge-risk --diff "$(newfile 'modules/orders/database/2026_01_01_000000_add_note.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"note\"));" '}' \
+      'public function down(): void' '{' '}' | writediff)" "${verified[@]}"
+  expect_line 'a destructive Doctrine migration is a signal' \
+    'rollback-signal=destructive-migration|app/DoctrineMigrations/Version20260101120000.php' \
+    --merge-risk --diff "$(newfile 'app/DoctrineMigrations/Version20260101120000.php' \
+      "public function up(Schema \$schema): void" '{' "    \$this->addSql('DROP TABLE users');" '}' \
+      "public function down(Schema \$schema): void" '{' '}' | writediff)" "${verified[@]}"
   expect_line 'a verified CRITICAL change that is cheap to roll back is medium risk' 'merge-risk=medium' \
     --merge-risk --diff "$migration_create" "${verified[@]}"
   expect_line 'the tier block of the same diff follows the grade' 'forced=migrations-data-loss' \

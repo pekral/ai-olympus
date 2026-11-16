@@ -12,13 +12,17 @@
 # one line at a time, so `(^|/)` and `$` anchor to one path or one line.
 # Words only one caller needs stay in that caller.
 #
-# DATA_PATH_RE names a data-changing file by its path: a migrations directory, a
-# timestamped migration file name, an SQL file, or a schema file. classify-risk.sh
-# matches changed paths against it, so a class that is only named for a migration
-# (`InstallerAgentMigration.php`) raises no data signal. DATA_RE adds the bare word
-# `migration` for task text, where the word is the signal.
+# DATA_PATH_RE names a data-changing file by its path: a directory whose name holds
+# the word `migration` in any form (`migrations/`, `DoctrineMigrations/`,
+# `tenant-migrations/`), a timestamped migration file name, a Doctrine `Version<date>`
+# file, an SQL file, or a schema file. A path that `git diff` quotes (`"migrations/…"`)
+# matches too. classify-risk.sh matches changed paths against it, so a class that is
+# only named for a migration (`InstallerAgentMigration.php`) raises no data signal.
+# DATA_RE adds the bare word `migration` for task text, where the word is the signal.
+# The pattern carries no interval expression (`{4}`): awk reads it too, and an older
+# mawk does not support intervals.
 
 AUTH_RE='auth|login|logout|password|credential|secret|token|jwt|oauth|saml|session|crypt|cipher|(^|/)policies/|policy|(^|/)gates?/|permission|privilege|(^|/)acl|(^|/)roles?/|admin|guard|csrf|cors|sanctum|passport|2fa|mfa'
-DATA_PATH_RE='(^|/)migrations?/|(^|/)[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_[^/]*\.php$|\.sql$|(^|/)schema[./]|truncate|drop_'
+DATA_PATH_RE='migration[^/]*/|(^"?|/)[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]_[^/]*\.php"?$|(^"?|/)version[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]+\.php"?$|\.sql"?$|(^"?|/)schema[./]|truncate|drop_'
 DATA_RE="$DATA_PATH_RE|migration"
 QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|lock|mutex|semaphore|concurren|cache|redis|schedul|cron|broadcast'
